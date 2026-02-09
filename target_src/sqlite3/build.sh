@@ -19,6 +19,12 @@ make sqlite3.c
 # To build batched harness, add this check for the fuzzing engine to decide whether to include main or not.
 if [ "$FUZZING_ENGINE" = "afl" ]; then
   CFLAGS="$CFLAGS -DINC_MAIN"
+  CXXFLAGS="$CXXFLAGS -DINC_MAIN"
+fi
+
+if [ "$SANITIZER" = "none" ]; then
+  CFLAGS="$CFLAGS -pthread  -ldl"
+  CXXFLAGS="$CXXFLAGS -pthread  -ldl"
 fi
 
 # use -r flag instead of -c to batch multiple .c files into one .o file
@@ -27,6 +33,9 @@ $CC $CFLAGS -I. -r /src/synthesized_driver/*.c \
 
 $CXX $CXXFLAGS \
     $SRC/sqlite3/test/ossfuzz.o -o $OUT/ossfuzz \
-    $LIB_FUZZING_ENGINE -pthread  -ldl ./sqlite3.o
+    $LIB_FUZZING_ENGINE ./sqlite3.o
+
+cp $OUT/ossfuzz $OUT/ossfuzz_$FUZZING_ENGINE
+
 
 cp $SRC/*.options $SRC/*.dict $SRC/*.zip $OUT/
