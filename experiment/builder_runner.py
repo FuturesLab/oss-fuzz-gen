@@ -116,11 +116,13 @@ class BuilderRunner:
                benchmark: Benchmark,
                work_dirs: WorkDirs,
                run_timeout: int = RUN_TIMEOUT,
-               fixer_model_name: str = DefaultModel.name):
+               fixer_model_name: str = DefaultModel.name,
+               use_afl_engine: bool = False):
     self.benchmark = benchmark
     self.work_dirs = work_dirs
     self.run_timeout = run_timeout
     self.fixer_model_name = fixer_model_name
+    self.use_afl_engine = use_afl_engine
 
   def _libfuzzer_args(self) -> list[str]:
     return [
@@ -468,6 +470,7 @@ class BuilderRunner:
     return ParseResult(cov_pcs, total_pcs, crashes, '', '',
                        SemanticCheckResult(SemanticCheckResult.NO_SEMANTIC_ERR))
 
+
   def _copy_crash_file(self, outdir: str, artifact_dir: str,
                        run_result: RunResult) -> None:
     """Copies the first crash file to the artifact directory."""
@@ -525,8 +528,14 @@ class BuilderRunner:
     project_target_name = os.path.basename(self.benchmark.target_path)
     benchmark_log_path = self.work_dirs.build_logs_target(
         benchmark_target_name, iteration, trial)
+    fuzzing_engine = "libfuzzer"
+    sanitizer = "address"
+    if self.use_afl_engine:
+      fuzzing_engine = "afl"
+      sanitizer = "none"
     build_result.succeeded = self.build_target_local(generated_project,
-                                                     benchmark_log_path)
+                                                     benchmark_log_path, sanitizer=sanitizer, 
+                                                     fuzzing_engine=fuzzing_engine)
     if not build_result.succeeded:
       errors = code_fixer.extract_error_message(benchmark_log_path,
                                                 project_target_name, language)
@@ -539,11 +548,15 @@ class BuilderRunner:
 
     run_log_path = os.path.join(self.work_dirs.run_logs, f'{trial:02d}.log')
     self.run_target_local(generated_project, benchmark_target_name,
-                          run_log_path)
+                          run_log_path, fuzzing_engine, sanitizer)
     artifact_dir = self.work_dirs.artifact(benchmark_target_name, iteration,
                                            trial)
+
     outdir = get_build_artifact_dir(generated_project, 'out')
-    self._copy_crash_file(outdir, artifact_dir, run_result)
+
+    if not self.use_afl_engine:
+      self._copy_crash_file(outdir, artifact_dir, run_result)
+
 
     run_result.coverage, run_result.coverage_summary = (self.get_coverage_local(
         generated_project, benchmark_target_name))
@@ -565,7 +578,7 @@ class BuilderRunner:
     return build_result, run_result
 
   def run_target_local(self, generated_project: str, benchmark_target_name: str,
-                       log_path: str):
+                       log_path: str, engine: str, sanitizer: str):
     """Runs a target in the fixed target directory."""
     # If target name is not overridden, use the basename of the target path
     # in the Dockerfile.
@@ -573,8 +586,8 @@ class BuilderRunner:
     corpus_dir = self.work_dirs.corpus(benchmark_target_name)
     command = [
         'python3', 'infra/helper.py', 'run_fuzzer', '--corpus-dir', corpus_dir,
-        generated_project, self.benchmark.target_name, '--'
-    ] + self._libfuzzer_args()
+        "--engine", engine, "--sanitizer", sanitizer, f"--runtime_limit", str(self.run_timeout), generated_project, self.benchmark.target_name
+    ]
 
     with open(log_path, 'w') as f:
       proc = sp.Popen(command,
@@ -590,7 +603,8 @@ class BuilderRunner:
         logger.info('%s timed out during fuzzing.', generated_project)
         # Try continuing and parsing the logs even in case of timeout.
 
-    if proc.returncode != 0:
+    # timeout raises 124
+    if proc.returncode != 0 and proc.returncode != 124 :
       logger.info('********** Failed to run %s. **********', generated_project)
     else:
       logger.info('Successfully run %s.', generated_project)
@@ -598,7 +612,8 @@ class BuilderRunner:
   def build_target_local(self,
                          generated_project: str,
                          log_path: str,
-                         sanitizer: str = 'address') -> bool:
+                         sanitizer: str = 'address',
+                         fuzzing_engine: str = 'libfuzzer') -> bool:
     """Builds a target with OSS-Fuzz."""
 
     logger.info('Building %s with %s', generated_project, sanitizer)
@@ -647,13 +662,15 @@ class BuilderRunner:
         'linux/amd64',
         '-i',
         '-e',
-        'FUZZING_ENGINE=libfuzzer',
-        '-e',
         f'SANITIZER={sanitizer}',
         '-e',
         'ARCHITECTURE=x86_64',
         '-e',
         f'PROJECT_NAME={generated_project}',
+        '-e',
+        "RUN_FUZZER_MODE=interactive",
+        '-e',
+        f'FUZZING_ENGINE={fuzzing_engine}',
         '-e',
         f'FUZZING_LANGUAGE={self.benchmark.language}',
         '-v',
@@ -671,7 +688,8 @@ class BuilderRunner:
     post_build_command = []
 
     # Cleanup mounted dirs.
-    pre_build_command.extend(['rm', '-rf', '/out/*', '/work/*', '&&'])
+    if not self.use_afl_engine:
+      pre_build_command.extend(['rm', '-rf', '/out/*', '/work/*', '&&'])
 
     if self.benchmark.commit:
       # TODO(metzman): Try to use build_specified_commit here.
@@ -767,6 +785,8 @@ class BuilderRunner:
 
     logger.info('Extracting coverage')
     corpus_dir = self.work_dirs.corpus(benchmark_target_name)
+    if self.use_afl_engine:
+      corpus_dir = os.path.join("build", "out", generated_project, f"{self.benchmark.target_name}_afl_none_out", "default", "queue")
     command = [
         'python3',
         'infra/helper.py',
@@ -933,7 +953,7 @@ class CloudBuilderRunner(BuilderRunner):
     reproducer_name = f'{uid}.reproducer'
     reproducer_path = f'gs://{self.experiment_bucket}/{reproducer_name}'
 
-    logger.info('Servie account key: %s',
+    logger.info('Service account key: %s',
                 os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'))
     command = [
         f'./{oss_fuzz_checkout.VENV_DIR}/bin/python3',
@@ -948,6 +968,10 @@ class CloudBuilderRunner(BuilderRunner):
         f'--experiment_name={self.experiment_name}',
         f'--real_project={project_name}',
     ]
+
+    if self.use_afl_engine:
+      command.append("--use_afl")
+      command.append(f"--run_timeout {self.run_timeout}")
 
     # TODO(dongge): Reenable caching when build script is not modified.
     # Current caching is not applicable when OFG modifies the build script,

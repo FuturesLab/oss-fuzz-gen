@@ -1,0 +1,23 @@
+"enums": []
+"function_pointers": []
+"functions":
+- "name": "sqlite3_exec"
+  "params":
+  - "name": "db"
+    "type": "sqlite3*"
+  - "name": "zSql"
+    "type": "const char*"
+  - "name": "xCallback"
+    "type": "sqlite3_callback"
+  - "name": "pArg"
+    "type": "void*"
+  - "name": "pzErrMsg"
+    "type": "char**"
+  "return_type": "int"
+  "signature": "int sqlite3_exec(sqlite3 *, const char *, sqlite3_callback, void *, char **)"
+"language": "c"
+"macros": []
+"project": "sqlite3"
+"target_name": "ossfuzz"
+"target_path": "/src/sqlite3/test/ossfuzz.c"
+"typedefs": []
