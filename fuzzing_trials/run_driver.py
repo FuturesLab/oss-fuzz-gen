@@ -18,7 +18,7 @@ FILE_DIR = Path(__file__).resolve().parent
 OSS_PATH = "/home/gabe/HyHarn/deps/oss-fuzz"
 
 
-APPROACHES = ["bluebird", "ofg", "promefuzz", "liberator"]
+APPROACHES = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "liberator"]
 NUM_TRIALS = 1
 RUN_TIMEOUT = 30
 POOL_SIZE = 4

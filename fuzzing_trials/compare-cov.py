@@ -14,12 +14,14 @@ def parse_args():
     return args
 
 
-def process_cov(appr, bluebird_dirs: list[str]) -> dict[int, Textcov]:
+def process_cov(appr, dirs: list[str]) -> dict[int, Textcov]:
     coverage_results = {}
-    for d in bluebird_dirs:
+    for d in dirs:
+        print(d)
         trial_num = int(d.name.split("-")[-1])
         coverage_dir = os.path.join(d, "code-coverage-reports", appr, "textcov")
         cov_reports = list(Path(coverage_dir).rglob('*.covreport'))
+        print(cov_reports)
         assert len(cov_reports) == 1
         cov_report = cov_reports[0]
         with open(cov_report, "rb") as f:
@@ -34,35 +36,50 @@ if __name__ == "__main__":
 
     results_path = Path(results_dir)
 
-    bluebird_dirs = [p for p in results_path.iterdir() if "bluebird" in p.name]
-    ofg_dirs = [p for p in results_path.iterdir() if "ofg" in p.name]
+    bluebird_ofg_dirs = [p for p in results_path.iterdir() if "bluebird_ofg" in p.name]
+    bluebird_promefuzz_dirs = [p for p in results_path.iterdir() if "bluebird_promefuzz" in p.name]
+    ofg_dirs = [p for p in results_path.iterdir() if "ofg" in p.name and not "bluebird_ofg" in p.name]
     liberator_dirs = [p for p in results_path.iterdir() if "liberator" in p.name]
-    promefuzz_dirs = [p for p in results_path.iterdir() if "promefuzz" in p.name]
+    promefuzz_dirs = [p for p in results_path.iterdir() if "promefuzz" in p.name and not "bluebird_promefuzz" in p.name]
 
-    bluebird_results = process_cov("bluebird", bluebird_dirs)
+    bluebird_ofg_results = process_cov("bluebird_ofg", bluebird_ofg_dirs)
+    bluebird_promefuzz_results = process_cov("bluebird_promefuzz", bluebird_promefuzz_dirs)
     ofg_results = process_cov("ofg", ofg_dirs)
     liberator_results = process_cov("liberator", liberator_dirs)
     promefuzz_results = process_cov("promefuzz", promefuzz_dirs)
 
-    print("         bluebird                ofg                  liberator       promefuzz")
-    
-    for trial_num in range(0, 5):
-        bluebird = bluebird_results[trial_num] if trial_num in bluebird_results else Textcov()
-        ofg = ofg_results[trial_num] if trial_num in ofg_results else Textcov()
-        liberator = liberator_results[trial_num] if trial_num in liberator_results else Textcov()
-        promefuzz = promefuzz_results[trial_num] if trial_num in promefuzz_results else Textcov()
-    
-        bluebird_unique = bluebird.unique_branches_against(ofg, liberator, promefuzz)
-        ofg_unique = ofg.unique_branches_against(bluebird, liberator, promefuzz)
-        liberator_unique = liberator.unique_branches_against(ofg, bluebird, promefuzz)
-        promefuzz_unique = promefuzz.unique_branches_against(ofg, liberator, bluebird)
+# header (use same widths, avoid mixing tabs)
+print(f"{'bluebird_ofg':>24} "
+      f"{'bluebird_promefuzz':>24} "
+      f"{'ofg':>24} "
+      f"{'liberator':>24} "
+      f"{'promefuzz':>24}")
 
-        print(f"\
-        {len(bluebird.covered_branches)}    {len(bluebird_unique)}  \
-        {len(ofg.covered_branches)}    {len(ofg_unique)}    \
-        {len(liberator.covered_branches)}    {len(liberator_unique)}  \
-        {len(promefuzz.covered_branches)}    {len(promefuzz_unique)}  \
-        ")
+fmt = ("{0:>12} {1:>12} {2:>12} {3:>12} {4:>12} "
+       "{5:>12} {6:>12} {7:>12} {8:>12} {9:>12}")
+
+for trial_num in range(5):
+    b_ofg = bluebird_ofg_results.get(trial_num, Textcov())
+    b_pf = bluebird_promefuzz_results.get(trial_num, Textcov())
+    ofg = ofg_results.get(trial_num, Textcov())
+    lib = liberator_results.get(trial_num, Textcov())
+    pro = promefuzz_results.get(trial_num, Textcov())
+
+    b_ofg_u = b_ofg.unique_branches_against(b_pf, ofg, lib, pro)
+    b_pf_u  = b_pf.unique_branches_against(b_ofg, ofg, lib, pro)
+    ofg_u   = ofg.unique_branches_against(b_pf, b_ofg, lib, pro)
+    lib_u   = lib.unique_branches_against(b_pf, ofg, b_ofg, pro)
+    pro_u   = pro.unique_branches_against(b_pf, ofg, lib, b_ofg)
+
+    values = (
+        len(b_ofg.covered_branches), len(b_ofg_u),
+        len(b_pf.covered_branches), len(b_pf_u),
+        len(ofg.covered_branches), len(ofg_u),
+        len(lib.covered_branches), len(lib_u),
+        len(pro.covered_branches), len(pro_u),
+    )
+    print(fmt.format(*values))
+
 
 
 
