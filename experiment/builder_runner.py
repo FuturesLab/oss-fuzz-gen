@@ -117,12 +117,14 @@ class BuilderRunner:
                work_dirs: WorkDirs,
                run_timeout: int = RUN_TIMEOUT,
                fixer_model_name: str = DefaultModel.name,
-               use_afl_engine: bool = False):
+               use_afl_engine: bool = False,
+               approach: str = ""):
     self.benchmark = benchmark
     self.work_dirs = work_dirs
     self.run_timeout = run_timeout
     self.fixer_model_name = fixer_model_name
     self.use_afl_engine = use_afl_engine
+    self.approach = approach
 
   def _libfuzzer_args(self) -> list[str]:
     return [
@@ -528,14 +530,24 @@ class BuilderRunner:
     project_target_name = os.path.basename(self.benchmark.target_path)
     benchmark_log_path = self.work_dirs.build_logs_target(
         benchmark_target_name, iteration, trial)
+
     fuzzing_engine = "libfuzzer"
     sanitizer = "address"
-    if self.use_afl_engine:
-      fuzzing_engine = "afl"
-      sanitizer = "none"
     build_result.succeeded = self.build_target_local(generated_project,
                                                      benchmark_log_path, sanitizer=sanitizer, 
                                                      fuzzing_engine=fuzzing_engine)
+    if not build_result.succeeded:
+        errors = code_fixer.extract_error_message(benchmark_log_path,
+                                                  project_target_name, language)
+        build_result.errors = errors
+        return build_result, None
+
+    if self.use_afl_engine:
+      fuzzing_engine = "afl"
+      sanitizer = "none"
+      build_result.succeeded = self.build_target_local(generated_project,
+                                                      benchmark_log_path, sanitizer=sanitizer,
+                                                      fuzzing_engine=fuzzing_engine)
     if not build_result.succeeded:
       errors = code_fixer.extract_error_message(benchmark_log_path,
                                                 project_target_name, language)
@@ -603,12 +615,6 @@ class BuilderRunner:
         logger.info('%s timed out during fuzzing.', generated_project)
         # Try continuing and parsing the logs even in case of timeout.
 
-    # timeout raises 124
-    if proc.returncode != 0 and proc.returncode != 124 :
-      logger.info('********** Failed to run %s. **********', generated_project)
-    else:
-      logger.info('Successfully run %s.', generated_project)
-
   def build_target_local(self,
                          generated_project: str,
                          log_path: str,
@@ -673,6 +679,8 @@ class BuilderRunner:
         f'FUZZING_ENGINE={fuzzing_engine}',
         '-e',
         f'FUZZING_LANGUAGE={self.benchmark.language}',
+        '-e',
+        f'APPROACH={self.approach}',
         '-v',
         f'{outdir}:/out',
         '-v',
@@ -700,7 +708,7 @@ class BuilderRunner:
         pre_build_command.extend(
             ['git', '-C', repo, 'checkout', commit, '-f', '&&'])
 
-    post_build_command.extend(['&&', 'chmod', '777', '-R', '/out/*'])
+    post_build_command.extend(['&&', 'chmod', '777', '-R', '/out'])
 
     build_command = pre_build_command + ['compile'] + post_build_command
     build_bash_command = ['-c', ' '.join(build_command)]

@@ -1,0 +1,73 @@
+#include <stdint.h>
+#include <stddef.h>
+#include <sqlite3.h>
+#include <stdio.h> // Include for snprintf
+#include <string.h> // Include for memcpy
+
+// Declare busyHandler_203 function before using it
+int busyHandler_203(void *arg) {
+    // This function will be called when the database is busy
+    return 1; // Return 1 to continue waiting
+}
+
+int LLVMFuzzerTestOneInput_203(const uint8_t *data, size_t size) {
+    sqlite3 *db;
+    int rc;
+    int busyHandlerCalled = 0;
+
+    // Initialize SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0; // Failed to open database
+    }
+
+    // Set the busy handler
+    sqlite3_busy_handler(db, busyHandler_203, NULL);
+
+    // Simulate some data processing
+    if (size > 0) {
+        // Create a table
+        char sql[256];
+        snprintf(sql, sizeof(sql), "CREATE TABLE test (data BLOB);");
+        rc = sqlite3_exec(db, sql, 0, 0, 0);
+        if (rc != SQLITE_OK) {
+            sqlite3_close(db);
+            return 0; // Failed to execute SQL
+        }
+
+        // Insert the input data into the table
+        // Prepare the SQL statement
+        char insertSql[512];
+        snprintf(insertSql, sizeof(insertSql), "INSERT INTO test (data) VALUES (?);");
+
+        sqlite3_stmt *stmt;
+        rc = sqlite3_prepare_v2(db, insertSql, -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+            sqlite3_close(db);
+            return 0; // Failed to prepare SQL
+        }
+
+        // Bind the input data to the SQL statement
+        rc = sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
+        if (rc != SQLITE_OK) {
+            sqlite3_finalize(stmt);
+            sqlite3_close(db);
+            return 0; // Failed to bind data
+        }
+
+        // Execute the statement
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            sqlite3_close(db);
+            return 0; // Failed to execute statement
+        }
+
+        // Finalize the statement
+        sqlite3_finalize(stmt);
+    }
+
+    // Cleanup
+    sqlite3_close(db);
+    return 0;
+}

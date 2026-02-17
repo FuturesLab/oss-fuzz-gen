@@ -1499,6 +1499,8 @@
 "project": "c-ares"
 "target_name": "ares_parse_reply_fuzzer"
 "target_path": "/src/c-ares/test/ares-test-fuzz.c"
+"commit":
+  /src/c-ares: "73bc590b8ee80b4eee8ae637f5089584b217f3b0"
 "typedefs":
 - "datatype": "CARES_TYPEOF_ARES_SOCKLEN_T"
   "name": "ares_socklen_t"
