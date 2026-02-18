@@ -3,6 +3,7 @@ import argparse
 import shutil
 import logging
 from multiprocessing import Pool
+import subprocess as sp
 from pathlib import Path
 
 from experiment.benchmark import Benchmark
@@ -16,18 +17,70 @@ import experiment.builder_runner as builder_runner_lib
 logger = logging.getLogger(__name__)
 FILE_DIR = Path(__file__).resolve().parent
 OSS_PATH = "/home/gabe/HyHarn/deps/oss-fuzz"
+BUILDER_RUNNER_TAG = "gcr.io/oss-fuzz-base/base-runner:latest"
 
 
 APPROACHES = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "liberator"]
 NUM_TRIALS = 1
 RUN_TIMEOUT = 30
-POOL_SIZE = 4
+POOL_SIZE = 8
 
 # Turn off caching to accomodate for specific dockerfile setups (i.e., sqlite since it has no git commits)
 # We can enable caching for harness gen since this is not the actual fuzzing eval part.
 oss_fuzz_checkout.ENABLE_CACHING = False
 LOG_FMT = ('%(asctime)s.%(msecs)03d %(levelname)s '
            '%(module)s - %(funcName)s: %(message)s')
+
+def setup_base_runner(oss_dir: str) -> None:
+    inspect_cmd = ["docker", "image", "inspect", BUILDER_RUNNER_TAG]
+    logger.debug("Checking for existing image: %s", " ".join(inspect_cmd))
+    try:
+        result = sp.run(
+            inspect_cmd,
+            stdout=sp.PIPE,
+            stderr=sp.PIPE,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except sp.TimeoutExpired:
+        logger.exception("Timeout while running docker inspect for %s", BUILDER_RUNNER_TAG)
+        return False
+
+    if result.returncode == 0:
+        logger.info("Docker image %s already exists locally.", BUILDER_RUNNER_TAG)
+        return True
+
+    build_dir = os.path.join(oss_dir, "infra", "base-images", "base-runner")
+    build_cmd = ["docker", "build", "-t", BUILDER_RUNNER_TAG, "."]
+    logger.info("Building docker image %s from %s", BUILDER_RUNNER_TAG, build_dir)
+    logger.debug("Running build command: %s", " ".join(build_cmd))
+
+    try:
+        # Allow 10 minutes to build base-runner image
+        build_proc = sp.run(
+            build_cmd,
+            stdout=sp.PIPE,
+            stderr=sp.STDOUT,
+            text=True,
+            cwd=build_dir,
+            timeout=600,
+            check=False,
+        )
+    except sp.TimeoutExpired:
+        logger.exception("Timeout while building docker image %s", BUILDER_RUNNER_TAG)
+        return False
+
+    if build_proc.returncode != 0:
+        logger.error(
+            "Docker build failed (returncode=%s). Output:\n%s",
+            build_proc.returncode,
+            (build_proc.stdout or "(no output)"),
+        )
+        return False
+
+    logger.info("Successfully built docker image %s", BUILDER_RUNNER_TAG)
+    return True
 
 def setup_evaluator(args, benchmark, workdir, approach):
     if args.cloud_experiment_name:
@@ -81,31 +134,27 @@ def parse_args():
 
 def run_fuzz_trial(args: argparse.Namespace, workdir_base: str, appr: str, trial: int):
     """Spawn the fuzzing campaign with a specific trial and approach identifier"""
-    source_dir = os.path.join(FILE_DIR, "target_src", args.project, appr)
-    build_script_path = os.path.join(FILE_DIR, "target_src", args.project, "build.sh")
-    test_name = f"{args.project}-{appr}-{trial}".lower()
-    workdir = WorkDirs(os.path.join(workdir_base, f'output-{test_name}'))
-    evaluator = setup_evaluator(args, benchmark, workdir, appr)
-    Evaluator.create_ossfuzz_project_batched_harness(benchmark, test_name, source_dir, build_script_path)
-    result = evaluator.builder_runner.build_and_run(test_name, source_dir, 0, benchmark.language,
-            cloud_build_tags=[
-                    trial,
-                    'Execution',
-                    appr,
-                    benchmark.project,
-                ]
-            )
+    try:
+        source_dir = os.path.join(FILE_DIR, "target_src", args.project, appr)
+        build_script_path = os.path.join(FILE_DIR, "target_src", args.project, "build.sh")
+        test_name = f"{args.project}-{appr}-{trial}".lower()
+        workdir = WorkDirs(os.path.join(workdir_base, f'output-{test_name}'))
+        evaluator = setup_evaluator(args, benchmark, workdir, appr)
+        Evaluator.create_ossfuzz_project_batched_harness(benchmark, test_name, source_dir, build_script_path)
+        result = evaluator.builder_runner.build_and_run(test_name, source_dir, 0, benchmark.language,
+                cloud_build_tags=[
+                        trial,
+                        'Execution',
+                        appr,
+                        benchmark.project,
+                    ]
+                )
+    except Exception as e:
+        logger.error("Worker ERROR! Appr %s failed: %s", appr, e)
+        
     
 if __name__ == "__main__":
     args = parse_args()
-    benchmarks = Benchmark.from_yaml(os.path.join("targets", f"{args.project}.yaml"))
-    benchmark = benchmarks[0]
-    copy_oss_path = os.path.join(FILE_DIR, "oss-fuzz")
-    shutil.copytree(OSS_PATH, copy_oss_path, dirs_exist_ok=True)
-    oss_fuzz_checkout.OSS_FUZZ_DIR = copy_oss_path
-    # oss_fuzz_checkout.clone_oss_fuzz(os.path.join(FILE_DIR, "oss-fuzz"))
-    workdir_base = os.path.join(FILE_DIR, f"results-{args.project}")
-
     logging.basicConfig(
       level="INFO",
       format=LOG_FMT,
@@ -113,6 +162,15 @@ if __name__ == "__main__":
     )
     # Set the base logger level
     logging.getLogger('').setLevel("INFO")
+
+    benchmarks = Benchmark.from_yaml(os.path.join("targets", f"{args.project}.yaml"))
+    benchmark = benchmarks[0]
+    copy_oss_path = os.path.join(FILE_DIR, "oss-fuzz")
+    shutil.copytree(OSS_PATH, copy_oss_path, dirs_exist_ok=True)
+    oss_fuzz_checkout.OSS_FUZZ_DIR = copy_oss_path
+    # oss_fuzz_checkout.clone_oss_fuzz(os.path.join(FILE_DIR, "oss-fuzz"))
+    setup_base_runner(copy_oss_path)
+    workdir_base = os.path.join(FILE_DIR, f"results-{args.project}")
 
     experiment_tasks = []
     with Pool(POOL_SIZE, maxtasksperchild=1) as p:

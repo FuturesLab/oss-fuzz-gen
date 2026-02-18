@@ -803,12 +803,13 @@ class BuilderRunner:
         corpus_dir,
         '--fuzz-target',
         self.benchmark.target_name,
+        "-e",
+        "AFL_COV=1"
         '--no-serve',
         '--port',
         '',
         generated_project,
     ]
-
     try:
       sp.run(command,
              capture_output=True,
@@ -820,6 +821,7 @@ class BuilderRunner:
                   generated_project, e.stdout, e.stderr)
       return None, None
 
+    logger.info('Finished collecting coverage for %s', generated_project)
     # Get the local text coverage, which includes the specific lines
     # exercised in the target project.
     local_textcov = self._extract_local_textcoverage_data(generated_project)
@@ -832,11 +834,16 @@ class BuilderRunner:
         benchmark_target_name)
     shutil.copytree(coverage_report, destination_coverage, dirs_exist_ok=True)
 
+    lcov_report = os.path.join(
+        get_build_artifact_dir(generated_project, 'out'), 'fuzzer_stats', f"{self.benchmark.target_name}.lcov_total")
+    shutil.copy(lcov_report, destination_coverage)
+
     textcov_dir = os.path.join(get_build_artifact_dir(generated_project, 'out'),
                                'textcov_reports')
     dst_textcov = os.path.join(
         self.work_dirs.code_coverage_report(benchmark_target_name), 'textcov')
     shutil.copytree(textcov_dir, dst_textcov, dirs_exist_ok=True)
+
 
     coverage_summary = os.path.join(
         get_build_artifact_dir(generated_project, 'out'), 'report', 'linux',
