@@ -16,8 +16,8 @@ import experiment.builder_runner as builder_runner_lib
 
 logger = logging.getLogger(__name__)
 FILE_DIR = Path(__file__).resolve().parent
-OSS_PATH = "/home/gabe/HyHarn/deps/oss-fuzz"
-BUILDER_RUNNER_TAG = "gcr.io/oss-fuzz-base/base-runner:latest"
+OSS_PATH = os.path.expanduser("~/oss-fuzz-bluebird")
+BUILDER_RUNNER_TAG = "ghcr.io/gabe-sherman/oss-fuzz-base-runner:latest"
 
 
 APPROACHES = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "liberator"]
@@ -31,7 +31,7 @@ oss_fuzz_checkout.ENABLE_CACHING = False
 LOG_FMT = ('%(asctime)s.%(msecs)03d %(levelname)s '
            '%(module)s - %(funcName)s: %(message)s')
 
-def setup_base_runner(oss_dir: str) -> None:
+def check_custom_runner() -> None:
     inspect_cmd = ["docker", "image", "inspect", BUILDER_RUNNER_TAG]
     logger.debug("Checking for existing image: %s", " ".join(inspect_cmd))
     try:
@@ -50,37 +50,8 @@ def setup_base_runner(oss_dir: str) -> None:
     if result.returncode == 0:
         logger.info("Docker image %s already exists locally.", BUILDER_RUNNER_TAG)
         return True
-
-    build_dir = os.path.join(oss_dir, "infra", "base-images", "base-runner")
-    build_cmd = ["docker", "build", "-t", BUILDER_RUNNER_TAG, "."]
-    logger.info("Building docker image %s from %s", BUILDER_RUNNER_TAG, build_dir)
-    logger.debug("Running build command: %s", " ".join(build_cmd))
-
-    try:
-        # Allow 10 minutes to build base-runner image
-        build_proc = sp.run(
-            build_cmd,
-            stdout=sp.PIPE,
-            stderr=sp.STDOUT,
-            text=True,
-            cwd=build_dir,
-            timeout=600,
-            check=False,
-        )
-    except sp.TimeoutExpired:
-        logger.exception("Timeout while building docker image %s", BUILDER_RUNNER_TAG)
-        return False
-
-    if build_proc.returncode != 0:
-        logger.error(
-            "Docker build failed (returncode=%s). Output:\n%s",
-            build_proc.returncode,
-            (build_proc.stdout or "(no output)"),
-        )
-        return False
-
-    logger.info("Successfully built docker image %s", BUILDER_RUNNER_TAG)
-    return True
+    logger.info("Failed to find custom oss fuzz runner image! Please do this before running.")
+    return false
 
 def setup_evaluator(args, benchmark, workdir, approach):
     if args.cloud_experiment_name:
@@ -166,10 +137,10 @@ if __name__ == "__main__":
     benchmarks = Benchmark.from_yaml(os.path.join("targets", f"{args.project}.yaml"))
     benchmark = benchmarks[0]
     copy_oss_path = os.path.join(FILE_DIR, "oss-fuzz")
-    shutil.copytree(OSS_PATH, copy_oss_path, dirs_exist_ok=True)
+    shutil.copytree(OSS_PATH, copy_oss_path, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
     oss_fuzz_checkout.OSS_FUZZ_DIR = copy_oss_path
     # oss_fuzz_checkout.clone_oss_fuzz(os.path.join(FILE_DIR, "oss-fuzz"))
-    setup_base_runner(copy_oss_path)
+    check_custom_runner()
     workdir_base = os.path.join(FILE_DIR, f"results-{args.project}")
 
     experiment_tasks = []

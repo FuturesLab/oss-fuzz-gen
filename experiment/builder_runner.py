@@ -531,7 +531,7 @@ class BuilderRunner:
     benchmark_log_path = self.work_dirs.build_logs_target(
         benchmark_target_name, iteration, trial)
 
-    fuzzing_engine = "libfuzzer"
+    fuzzing_engine = "afl"
     sanitizer = "address"
     build_result.succeeded = self.build_target_local(generated_project,
                                                      benchmark_log_path, sanitizer=sanitizer, 
@@ -541,6 +541,7 @@ class BuilderRunner:
                                                   project_target_name, language)
         build_result.errors = errors
         return build_result, None
+
 
     if self.use_afl_engine:
       fuzzing_engine = "afl"
@@ -569,6 +570,8 @@ class BuilderRunner:
     if not self.use_afl_engine:
       self._copy_crash_file(outdir, artifact_dir, run_result)
 
+    # _, _ = (self.get_coverage_local(
+    #     generated_project, benchmark_target_name, gathering_baseline=True))
 
     run_result.coverage, run_result.coverage_summary = (self.get_coverage_local(
         generated_project, benchmark_target_name))
@@ -597,8 +600,21 @@ class BuilderRunner:
     logger.info('Running %s', generated_project)
     corpus_dir = self.work_dirs.corpus(benchmark_target_name)
     command = [
-        'python3', 'infra/helper.py', 'run_fuzzer', '--corpus-dir', corpus_dir,
-        "--engine", engine, "--sanitizer", sanitizer, f"--runtime_limit", str(self.run_timeout), generated_project, self.benchmark.target_name
+        'python3',
+        'infra/helper.py',
+        'run_fuzzer',
+        "--base-image-tag",
+        "custom",
+        '--corpus-dir',
+        corpus_dir,
+        "--engine",
+        engine,
+        "--sanitizer",
+        sanitizer,
+        f"--runtime_limit",
+        str(self.run_timeout),
+        generated_project,
+        self.benchmark.target_name
     ]
 
     with open(log_path, 'w') as f:
@@ -619,7 +635,8 @@ class BuilderRunner:
                          generated_project: str,
                          log_path: str,
                          sanitizer: str = 'address',
-                         fuzzing_engine: str = 'libfuzzer') -> bool:
+                         fuzzing_engine: str = 'libfuzzer',
+                         env: dict[str, str] = {}) -> bool:
     """Builds a target with OSS-Fuzz."""
 
     logger.info('Building %s with %s', generated_project, sanitizer)
@@ -658,6 +675,10 @@ class BuilderRunner:
 
     outdir = get_build_artifact_dir(generated_project, 'out')
     workdir = get_build_artifact_dir(generated_project, 'work')
+    additional_env = []
+    for key, value in env.items():
+      additional_env.append("-e")
+      additional_env.append(f"{key}={value}")
     command = [
         'docker',
         'run',
@@ -681,6 +702,7 @@ class BuilderRunner:
         f'FUZZING_LANGUAGE={self.benchmark.language}',
         '-e',
         f'APPROACH={self.approach}',
+        ] + additional_env + [
         '-v',
         f'{outdir}:/out',
         '-v',
@@ -776,25 +798,31 @@ class BuilderRunner:
 
   def get_coverage_local(
       self, generated_project: str,
-      benchmark_target_name: str) -> tuple[Optional[textcov.Textcov], Any]:
+      benchmark_target_name: str,
+      gathering_baseline: bool = False) -> tuple[Optional[textcov.Textcov], Any]:
     """Builds the generate project with coverage sanitizer, runs OSS-Fuzz
     coverage extraction and then returns the generated coverage reports, in
     the form of the text coverage as well as the summary.json."""
     sample_id = os.path.splitext(benchmark_target_name)[0]
+    if gathering_baseline:
+      sample_id = sample_id + "_baseline_cov"
     log_path = os.path.join(self.work_dirs.build_logs,
                             f'{sample_id}-coverage.log')
     logger.info('Building project for coverage')
+    additional_env = {"BASELINE_COV": "1"} if gathering_baseline else {}
     built_coverage = self.build_target_local(generated_project,
                                              log_path,
-                                             sanitizer='coverage')
+                                             sanitizer='coverage',
+                                             env=additional_env)
     if not built_coverage:
       logger.info('Failed to make coverage build for %s', generated_project)
       return None, None
 
     logger.info('Extracting coverage')
     corpus_dir = self.work_dirs.corpus(benchmark_target_name)
-    if self.use_afl_engine:
+    if self.use_afl_engine and not gathering_baseline:
       corpus_dir = os.path.join("build", "out", generated_project, f"{self.benchmark.target_name}_afl_none_out", "default", "queue")
+
     command = [
         'python3',
         'infra/helper.py',
@@ -803,13 +831,15 @@ class BuilderRunner:
         corpus_dir,
         '--fuzz-target',
         self.benchmark.target_name,
-        "-e",
-        "AFL_COV=1"
+        "-e", 
+        "AFL_COV=1",
+        "--base-image-tag",
+        "custom",
         '--no-serve',
         '--port',
         '',
         generated_project,
-    ]
+      ]
     try:
       sp.run(command,
              capture_output=True,
@@ -830,12 +860,18 @@ class BuilderRunner:
     # the coverage can be displayed in the result HTML page.
     coverage_report = os.path.join(
         get_build_artifact_dir(generated_project, 'out'), 'report')
+
     destination_coverage = self.work_dirs.code_coverage_report(
-        benchmark_target_name)
+        benchmark_target_name) 
+
+    if gathering_baseline:
+      destination_coverage = destination_coverage + "_baseline"
+
     shutil.copytree(coverage_report, destination_coverage, dirs_exist_ok=True)
 
     lcov_report = os.path.join(
-        get_build_artifact_dir(generated_project, 'out'), 'fuzzer_stats', f"{self.benchmark.target_name}.lcov_total")
+        get_build_artifact_dir(generated_project, 'out'), 'lcov_reports', f"{self.benchmark.target_name}.lcov_total")
+
     shutil.copy(lcov_report, destination_coverage)
 
     textcov_dir = os.path.join(get_build_artifact_dir(generated_project, 'out'),

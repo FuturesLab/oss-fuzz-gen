@@ -30,37 +30,26 @@ cd $SRC/c-ares
 make clean
 make -j$(nproc) V=1 all
 
-
-# afl + any approach other than liberator: include main and don't link in libfuzzer
-# afl + liberator: don't include main and link in libfuzzer
-# libfuzzer + any approach: don't include main and link in libfuzzer
-
-# test 1: make sure libfuzzer builds work
-# test 2: include main for liberator
-
-# Liberator requires linking against the fuzzing engine library  to access LLVMFuzzerMutate functions
-if [[ "$FUZZING_ENGINE" == "afl" && "$APPROACH" != "liberator" ]]; then
-  CFLAGS="$CFLAGS -DINC_MAIN"
-  CXXFLAGS="$CXXFLAGS -DINC_MAIN"
-fi
-
-# libfuzzer requires compilation flags for itself, liberator requires libfuzzer stubs for fuzzing as well
-if [[ "$FUZZING_ENGINE" == "libfuzzer" || "$APPROACH" == "liberator" ]]; then
-  CFLAGS="$CFLAGS $LIB_FUZZING_ENGINE"
-  CXXFLAGS="$CXXFLAGS $LIB_FUZZING_ENGINE"
-fi
+CFLAGS="$CFLAGS -DINC_MAIN"
+CXXFLAGS="$CXXFLAGS -DINC_MAIN"
 
 if [ "$SANITIZER" = "none" ]; then
   CFLAGS="$CFLAGS -pthread  -ldl"
   CXXFLAGS="$CXXFLAGS -pthread  -ldl"
 fi
 
+if [ "$SANITIZER" = "address" ]; then
+  CFLAGS="$CFLAGS -O0"
+  CXXFLAGS="$CXXFLAGS -O0"
+fi
+
 # Build the fuzzers.
 $CC $CFLAGS -Iinclude -Isrc/lib -r /src/synthesized_driver/*.c* -o $WORK/ares-test-fuzz.o
-$CXX $CXXFLAGS -std=c++11 $WORK/ares-test-fuzz.o \
+$CXX $CFLAGS -std=c++11 $WORK/ares-test-fuzz.o \
     -o $OUT/ares_parse_reply_fuzzer \
     $SRC/c-ares/src/lib/.libs/libcares.a
 
+# Store copies of the different drivers for later analysis
 cp $OUT/ares_parse_reply_fuzzer $OUT/fuzz_driver_$SANITIZER
 
 # Archive and copy to $OUT seed corpus if the build succeeded.
