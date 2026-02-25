@@ -51,7 +51,7 @@ def check_custom_runner() -> None:
         logger.info("Docker image %s already exists locally.", BUILDER_RUNNER_TAG)
         return True
     logger.info("Failed to find custom oss fuzz runner image! Please do this before running.")
-    return false
+    return False
 
 def setup_evaluator(args, benchmark, workdir, approach):
     if args.cloud_experiment_name:
@@ -59,7 +59,7 @@ def setup_evaluator(args, benchmark, workdir, approach):
           benchmark=benchmark,
           work_dirs=workdir,
           run_timeout=RUN_TIMEOUT,
-          experiment_name=args.cloud_experiment_name,
+          experiment_name=f"fuzz_trial_{approach}_",
           experiment_bucket=args.cloud_experiment_bucket,
           use_afl_engine=True,
           approach=approach
@@ -85,7 +85,15 @@ def parse_args():
     parser.add_argument("-ft", "--fuzz-timeout", type=int)
     parser.add_argument("-nt", "--num-trials", type=int)
     parser.add_argument("-ps", "--pool-size", type=int)
-    parser.add_argument("-cn", "--cloud-experiment-name", type=str)
+    parser.add_argument('-c',
+                      '--cloud-experiment-name',
+                      type=str,
+                      default='',
+                      help='The name of the cloud experiment.')
+    parser.add_argument('-cb',
+                        '--cloud-experiment-bucket',
+                        type=str,
+                        help='A gcloud bucket to store experiment files.')
     
     args = parser.parse_args()
 
@@ -114,7 +122,7 @@ def run_fuzz_trial(args: argparse.Namespace, workdir_base: str, appr: str, trial
         Evaluator.create_ossfuzz_project_batched_harness(benchmark, test_name, source_dir, build_script_path)
         result = evaluator.builder_runner.build_and_run(test_name, source_dir, 0, benchmark.language,
                 cloud_build_tags=[
-                        trial,
+                        str(trial),
                         'Execution',
                         appr,
                         benchmark.project,
@@ -139,6 +147,7 @@ if __name__ == "__main__":
     copy_oss_path = os.path.join(FILE_DIR, "oss-fuzz")
     shutil.copytree(OSS_PATH, copy_oss_path, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
     oss_fuzz_checkout.OSS_FUZZ_DIR = copy_oss_path
+    oss_fuzz_checkout.postprocess_oss_fuzz()
     # oss_fuzz_checkout.clone_oss_fuzz(os.path.join(FILE_DIR, "oss-fuzz"))
     check_custom_runner()
     workdir_base = os.path.join(FILE_DIR, f"results-{args.project}")

@@ -179,6 +179,7 @@ def summarize_tools(results_by_tool: Dict[str, Dict[int, Set[str]]]):
     Print a summary table similar to your original output:
     For trial numbers 0..4 prints counts: total and unique per tool.
     """
+    spreadsheet_str = ""
     tools = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "liberator"]
     print(f"{'bluebird_ofg':>24} {'ofg':>24} {'bluebird_promefuzz':>24} {'promefuzz':>24} {'liberator':>24}")
     fmt = ("{0:>12} {1:>12} {2:>12} {3:>12} {4:>12} "
@@ -205,6 +206,9 @@ def summarize_tools(results_by_tool: Dict[str, Dict[int, Set[str]]]):
             len(lib),   len(lib_u),
         )
         print(fmt.format(*values))
+        spreadsheet_str += (",".join(map(str, values))) + "\n"
+
+    print(spreadsheet_str)
 
 def summarize_pre_vs_post(pre_results_by_tool: Dict[str, Dict[int, Set[str]]], post_results_by_tool: Dict[str, Dict[int, Set[str]]]):
     """
