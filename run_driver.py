@@ -15,6 +15,7 @@ import experiment.builder_runner as builder_runner_lib
 """Build and run a fuzzing trial for a given approach. Runtime length and number of trials can be provided as arguments"""
 
 logger = logging.getLogger(__name__)
+RUNNER_DIR = os.path.dirname(os.path.abspath(__file__))
 BUILDER_RUNNER_TAG = "ghcr.io/gabe-sherman/oss-fuzz-base-runner:latest"
 
 
@@ -146,8 +147,8 @@ def setup_logger():
 def run_fuzz_trial(args: argparse.Namespace, workdir_base: str, appr: str, trial: int):
     """Spawn the fuzzing campaign with a specific trial and approach identifier"""
     try:
-        source_dir = os.path.join("fuzzing_trials", "target_src", args.project, appr)
-        build_script_path = os.path.join("fuzzing_trials", "target_src", args.project, "build.sh")
+        source_dir = os.path.join(RUNNER_DIR, "fuzzing_trials", "target_src", args.project, appr)
+        build_script_path = os.path.join(RUNNER_DIR, "fuzzing_trials", "target_src", args.project, "build.sh")
         test_name = f"{args.project}-{appr}-{trial}".lower()
         workdir = WorkDirs(os.path.join(workdir_base, f'output-{test_name}'))
         evaluator = setup_evaluator(args, benchmark, workdir, appr)
@@ -169,11 +170,11 @@ if __name__ == "__main__":
     setup_logger()
 
     # Get the target benchmark yaml
-    benchmarks = Benchmark.from_yaml(os.path.join("targets", f"{args.project}.yaml"))
+    benchmarks = Benchmark.from_yaml(os.path.join(RUNNER_DIR, "targets", f"{args.project}.yaml"))
     benchmark = benchmarks[0]
 
     # Set up custom oss-fuzz repo
-    oss_path = "oss-fuzz"
+    oss_path = os.path.join(RUNNER_DIR, "oss-fuzz")
     if not os.path.exists(oss_path):
         clone_custom_oss(oss_path)
     oss_fuzz_checkout.OSS_FUZZ_DIR = oss_path
@@ -183,7 +184,7 @@ if __name__ == "__main__":
 
     # Set up result path
     result_dir = args.results_dir if args.results_dir else f"results-{args.project}"
-    workdir_base = result_dir
+    workdir_base = os.path.join(RUNNER_DIR, result_dir)
 
     # Begin fuzzing trials
     experiment_tasks = []
