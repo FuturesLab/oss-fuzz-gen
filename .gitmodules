@@ -1,3 +1,0 @@
-[submodule "oss-fuzz"]
-	path = oss-fuzz
-	url = https://github.com/FuturesLab/oss-fuzz-eval
