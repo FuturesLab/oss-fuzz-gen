@@ -138,6 +138,7 @@ def _log_common_args(args):
   logging.info("Fuzzing for a total of %s(s).", args.run_timeout)
   logging.info("Num trials: %s.", args.num_trials)
   logging.info("Pool size: %s.", args.pool_size)
+  logging.info("Redirecting output: %s.", args.redirect_outs)
 
 def main(cmd=None):
   """Main entrypoint"""
@@ -186,27 +187,23 @@ def run_fuzz_trial(cmd=None):
     "--results-dir", local_results_dir,
   ]
 
-  # Run the experiment and redirect to file if indicated.
-  if args.redirect_outs:
-    local_output_path = f"{local_results_dir}/logs-from-run.txt"
-    with open(local_output_path, "w") as outfile:
-      process = subprocess.run(run_cmd,
-                               stdout=outfile,
-                               stderr=outfile,
-                               check=False)
-      ret_val = process.returncode
-      logging.info("Finished run_driver.py")
-
-      upload_log_to_bucket_cmd = [
-        "gsutil",
-        "cp",
-        f"{local_results_dir}/logs-from-run.txt",
-        f"gs://{BUCKET_NAME}/Result-reports/{gcs_report_dir}/"
-      ]
-
-  else:
-    process = subprocess.run(run_cmd, check=False)
+  local_output_path = f"{local_results_dir}/logs-from-run.txt"
+  with open(local_output_path, "w") as outfile:
+    process = subprocess.run(run_cmd,
+                              stdout=outfile,
+                              stderr=outfile,
+                              check=False)
     ret_val = process.returncode
+    logging.info("Finished run_driver.py with return code %d", ret_val)
+
+    upload_log_to_bucket_cmd = [
+      "gsutil",
+      "cp",
+      f"{local_results_dir}/logs-from-run.txt",
+      f"gs://{BUCKET_NAME}/Result-reports/{gcs_report_dir}/"
+    ]
+    logging.info("Uploading output to bucket %s", f"gs://{BUCKET_NAME}/Result-reports/{gcs_report_dir}/")
+    subprocess.run(upload_log_to_bucket_cmd, check=False)
 
   os.environ["ret_val"] = str(ret_val)
 
