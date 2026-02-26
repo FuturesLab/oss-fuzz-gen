@@ -23,6 +23,8 @@ import os
 import subprocess
 import sys
 
+from google.cloud import storage
+
 # Configure logging to display all messages at or above INFO level
 logging.basicConfig(level=logging.INFO)
 
@@ -47,6 +49,14 @@ def _parse_args(cmd) -> argparse.Namespace:
       '--project',
       default='',
       help='The name of the project to run fuzzing trials for')
+
+  parser.add_argument(
+      '-sd',
+      '--sub-dir',
+      type=str,
+      default=SUB_DIR,
+      help=
+      f'The subdirectory for the generated report in GCS, default: {SUB_DIR}.')
 
   parser.add_argument(
       '-a',
@@ -120,7 +130,6 @@ def _authorize_gcloud():
     # TODO: Set GOOGLE_APPLICATION_CREDENTIALS and ensure cloud build uses it.
     logging.info("GOOGLE APPLICATION CREDENTIALS is not set.")
 
-
 def _log_common_args(args):
   """Prints args useful for logging"""
   logging.info("Target project is %s.", args.project)
@@ -129,7 +138,6 @@ def _log_common_args(args):
   logging.info("Fuzzing for a total of %s(s).", args.run_timeout)
   logging.info("Num trials: %s.", args.num_trials)
   logging.info("Pool size: %s.", args.pool_size)
-
 
 def main(cmd=None):
   """Main entrypoint"""
@@ -151,11 +159,19 @@ def run_fuzz_trial(cmd=None):
   local_results_dir = 'results'
   os.makedirs(local_results_dir, exist_ok=True)
 
-  # Experiment name is used to label the Cloud Builds and as part of the
-  # GCS directory that build logs are stored in.
-  #
   # Example directory: 2023-12-02-daily-comparison
   experiment_name = f"{date}-{args.frequency_label}-{args.project}"
+  gcs_report_dir = f"{args.sub_dir}/{experiment_name}"
+  report_cmd = [
+      "bash", "report/upload_fuzz_report.sh", local_results_dir, gcs_report_dir
+  ]
+
+  # Generate a report and upload it to GCS
+  report_process = subprocess.Popen(report_cmd)
+
+
+  # Experiment name is used to label the Cloud Builds and as part of the
+  # GCS directory that build logs are stored in.
 
   # Prepare the command to run experiments
   run_cmd = [
@@ -166,23 +182,34 @@ def run_fuzz_trial(cmd=None):
     "--num-trials", str(args.num_trials), 
     "--pool-size", str(args.pool_size), 
     "--cloud-experiment-name", experiment_name,
-    "--cloud-experiment-bucket", "oss-fuzz-gcb-experiment-run-logs",
+    "--cloud-experiment-bucket", BUCKET_NAME,
     "--results-dir", local_results_dir,
   ]
 
   # Run the experiment and redirect to file if indicated.
   if args.redirect_outs:
-    with open(f"{local_results_dir}/logs-from-run.txt", "w") as outfile:
+    local_output_path = f"{local_results_dir}/logs-from-run.txt"
+    with open(local_output_path, "w") as outfile:
       process = subprocess.run(run_cmd,
                                stdout=outfile,
                                stderr=outfile,
                                check=False)
       ret_val = process.returncode
+      logging.info("Finished run_driver.py")
+
+      upload_log_to_bucket_cmd = [
+        "gsutil",
+        "cp",
+        f"{local_results_dir}/logs-from-run.txt",
+        f"gs://{BUCKET_NAME}/Result-reports/{gcs_report_dir}/"
+      ]
+
   else:
     process = subprocess.run(run_cmd, check=False)
     ret_val = process.returncode
 
   os.environ["ret_val"] = str(ret_val)
+
 
   with open("/experiment_ended", "w"):
     pass

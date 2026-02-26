@@ -87,13 +87,13 @@ def check_custom_runner() -> None:
     logger.info("Failed to find custom oss fuzz runner image! Please do this before running.")
     return False
 
-def setup_evaluator(args, benchmark, workdir, approach):
+def setup_evaluator(args, benchmark, workdir, approach, trial):
     if args.cloud_experiment_name:
       builder_runner = builder_runner_lib.CloudBuilderRunner(
           benchmark=benchmark,
           work_dirs=workdir,
           run_timeout=RUN_TIMEOUT,
-          experiment_name=f"fuzz_trial_{approach}_",
+          experiment_name=f"fuzz_trial_{benchmark.project}_{approach}_trial{trial}_",
           experiment_bucket=args.cloud_experiment_bucket,
           use_afl_engine=True,
           approach=approach
@@ -151,7 +151,7 @@ def run_fuzz_trial(args: argparse.Namespace, workdir_base: str, appr: str, trial
         build_script_path = os.path.join(RUNNER_DIR, "fuzzing_trials", "target_src", args.project, "build.sh")
         test_name = f"{args.project}-{appr}-{trial}".lower()
         workdir = WorkDirs(os.path.join(workdir_base, f'output-{test_name}'))
-        evaluator = setup_evaluator(args, benchmark, workdir, appr)
+        evaluator = setup_evaluator(args, benchmark, workdir, appr, trial)
         Evaluator.create_ossfuzz_project_batched_harness(benchmark, test_name, source_dir, build_script_path)
         result = evaluator.builder_runner.build_and_run(test_name, source_dir, 0, benchmark.language,
                 cloud_build_tags=[

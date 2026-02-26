@@ -234,7 +234,7 @@ def _parse_args(cmd) -> argparse.Namespace:
                       help='Redirects experiments stdout/stderr to file')
 
   # ---Fuzzing trial arguments
-  parser.add_argument('-pj',
+  parser.add_argument('-j',
                   '--project',
                   default='',
                   help='The name of the project to run fuzzing trials for')
@@ -350,17 +350,19 @@ def _prepare_experiment_info(args: argparse.Namespace) -> tuple[str, str, str]:
   # PR link.
   ofg_pr_link = f'{PR_LINK_PREFIX}/{args.pr_id}'
 
+  bucket_link_suffix = args.benchmark_set if not args.run_fuzzing else args.project
+
   # Report link.
   report_link = (
       f'{REPORT_LINK_PREFIX}/{datetime.now().strftime("%Y-%m-%d")}-'
-      f'{args.pr_id}-{args.name_suffix}-{args.benchmark_set}/index.html')
+      f'{args.pr_id}-{args.name_suffix}-{bucket_link_suffix}/index.html')
 
   # Bucket links.
   bucket_link = (f'{BUCKET_LINK_PREFIX}/{datetime.now().strftime("%Y-%m-%d")}-'
-                 f'{args.pr_id}-{args.name_suffix}-{args.benchmark_set}')
+                 f'{args.pr_id}-{args.name_suffix}-{bucket_link_suffix}')
   bucket_gs_link = (
       f'{BUCKET_GS_LINK_PREFIX}/{datetime.now().strftime("%Y-%m-%d")}-'
-      f'{args.pr_id}-{args.name_suffix}-{args.benchmark_set}')
+      f'{args.pr_id}-{args.name_suffix}-{bucket_link_suffix}')
 
   logging.info(
       'FORCE mode enable, will first remove existing GKE job and bucket.')

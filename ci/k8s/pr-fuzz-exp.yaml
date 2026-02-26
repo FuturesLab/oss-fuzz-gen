@@ -27,14 +27,10 @@ spec:
       - name: experiment
         image:  us-central1-docker.pkg.dev/oss-fuzz-base/testing/oss-fuzz-gen-pull-request:pr-${PR_ID}
         imagePullPolicy: Always
-        # To guarantee uniqueness we use the node name in the experiment path.
-        # Modify the follow command to customize one-off experiments.
-        # For benchmark sets that need more disk, increase the results volume
-        # size too.
         command: [
           "/bin/bash",
           "-c",
-          "/venv/bin/python3 report/docker_run_fuzz.py --project=${GKE_EXP_PROJECT} --approach ${GKE_EXP_APPROACH} --num-trials=${GKE_EXP_NUM_TRIALS} --pool-size=${GKE_EXP_POOL_SIZE} --frequency-label=${GKE_EXP_NAME} --run-timeout=${GKE_EXP_FUZZING_TIMEOUT} --redirect-outs=${GKE_REDIRECT_OUTS} ${GKE_EXP_ADDITIONAL_ARGS}"
+          "/venv/bin/python3 report/docker_run_fuzz.py --project=${GKE_EXP_PROJECT} --sub-dir=ofg-pr --approach ${GKE_EXP_APPROACH} --num-trials=${GKE_EXP_NUM_TRIALS} --pool-size=${GKE_EXP_POOL_SIZE} --frequency-label=${GKE_EXP_NAME} --run-timeout=${GKE_EXP_FUZZING_TIMEOUT} --redirect-outs=${GKE_REDIRECT_OUTS} ${GKE_EXP_ADDITIONAL_ARGS}"
         ]
         securityContext:
           privileged: true
