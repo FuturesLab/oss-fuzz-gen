@@ -40,6 +40,10 @@ MAX_ROUND = 100
 DATA_DIR = '/experiment/data-dir/'
 BUCKET_NAME = 'oss-fuzz-gcb-experiment-run-logs'
 
+if "LOCAL_TEST" in os.environ:
+  BUCKET_NAME = "oss-fuzz-bluebird-artifacts"
+
+
 def _parse_args(cmd) -> argparse.Namespace:
   """Parses the command line arguments."""
   parser = argparse.ArgumentParser(description='Run experiments')
@@ -113,6 +117,11 @@ def _run_command(command: list[str], shell=False):
   return process.returncode
 
 
+def log_line(path, msg):
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(path, "a") as f:
+        f.write(f"{ts} [INFO] {msg}\n")
+
 def _authorize_gcloud():
   """Authorizes to gcloud"""
   # When running the docker container locally we need to activate the service
@@ -161,21 +170,11 @@ def run_fuzz_trial(cmd=None):
   os.makedirs(local_results_dir, exist_ok=True)
 
   run_log_path = f"{local_results_dir}/logs-from-docker-run.txt"
-  with open(run_log_path, "w") as f:
-    f.write("Beginning the fuzz trial")
+  log_line(run_log_path, "Beginning fuzzing trial\n")
 
   # Example directory: 2023-12-02-daily-comparison
   experiment_name = f"{date}-{args.frequency_label}-{args.project}"
   gcs_report_dir = f"{args.sub_dir}/{experiment_name}"
-  report_cmd = [
-      "bash", "report/upload_fuzz_report.sh", local_results_dir, gcs_report_dir
-  ]
-
-  # Generate a report and upload it to GCS
-  report_process = subprocess.Popen(report_cmd)
-  with open(run_log_path, "a") as f:
-    f.write("Started report upload process")
-
 
   # Experiment name is used to label the Cloud Builds and as part of the
   # GCS directory that build logs are stored in.
@@ -197,15 +196,14 @@ def run_fuzz_trial(cmd=None):
   with open(local_output_path, "w") as outfile:
 
     with open(run_log_path, "a") as f:
-      f.write("Starting fuzzing process")
+      f.write("Starting fuzzing process\n")
     process = subprocess.run(run_cmd,
                               stdout=outfile,
                               stderr=outfile,
                               check=False)
     ret_val = process.returncode
 
-    with open(run_log_path, "a") as f:
-      f.write(f"Finished run_driver.py with return code {ret_val}")
+    log_line(run_log_path, f"Finished run_driver.py with return code {ret_val}\n")
 
     logging.info("Finished run_driver.py with return code %d", ret_val)
 
@@ -217,17 +215,24 @@ def run_fuzz_trial(cmd=None):
     ]
     logging.info("Uploading output to bucket %s", f"gs://{BUCKET_NAME}/Result-reports/{gcs_report_dir}/")
 
-    with open(run_log_path, "a") as f:
-      f.write(f"Uploading output to bucket: gs://{BUCKET_NAME}/Result-reports/{gcs_report_dir}/")
+    log_line(run_log_path, f"Uploading output to bucket: gs://{BUCKET_NAME}/Result-reports/{gcs_report_dir}/\n")
 
     subprocess.run(upload_log_to_bucket_cmd, check=False)
 
   os.environ["ret_val"] = str(ret_val)
 
-  # maybe add more logging and upload it
+  log_line(run_log_path, f"Uploading results to bucket: gs://{BUCKET_NAME}/Result-reports/{gcs_report_dir}/\n")
+  upload_results_to_bucket_cmd = [
+    "gsutil",
+    "-q",
+    "-m",
+    "cp",
+    "-r",
+    local_results_dir,
+    f"gs://oss-fuzz-gcb-experiment-run-logs/Result-reports/${gcs_report_dir}"
+  ]
 
-  with open("/experiment_ended", "w"):
-    pass
+  subprocess.run(upload_results_to_bucket_cmd, check=True)
 
   upload_docker_log_to_bucket_cmd = [
       "gsutil",

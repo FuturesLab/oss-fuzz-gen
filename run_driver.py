@@ -31,7 +31,7 @@ LOG_FMT = ('%(asctime)s.%(msecs)03d %(levelname)s '
            '%(module)s - %(funcName)s: %(message)s')
 
 def parse_args():
-    global NUM_TRIALS, APPROACHES, RUN_TIMEOUT
+    global NUM_TRIALS, APPROACHES, RUN_TIMEOUT, POOL_SIZE
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--project", type=str, required=True)
     parser.add_argument("-a", "--approach", type=str, choices=APPROACHES, nargs="+")
@@ -153,7 +153,7 @@ def run_fuzz_trial(args: argparse.Namespace, workdir_base: str, appr: str, trial
         workdir = WorkDirs(os.path.join(workdir_base, f'output-{test_name}'))
         evaluator = setup_evaluator(args, benchmark, workdir, appr, trial)
         Evaluator.create_ossfuzz_project_batched_harness(benchmark, test_name, source_dir, build_script_path)
-        result = evaluator.builder_runner.build_and_run(test_name, source_dir, 0, benchmark.language,
+        evaluator.builder_runner.build_and_run(test_name, source_dir, 0, benchmark.language,
                 cloud_build_tags=[
                         str(trial),
                         'Execution',
@@ -161,8 +161,10 @@ def run_fuzz_trial(args: argparse.Namespace, workdir_base: str, appr: str, trial
                         benchmark.project,
                     ]
                 )
+        return True
     except Exception as e:
         logger.error("Worker ERROR! Appr %s failed: %s", appr, e)
+        return False
         
     
 if __name__ == "__main__":
