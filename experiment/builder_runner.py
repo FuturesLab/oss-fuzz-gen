@@ -534,7 +534,7 @@ class BuilderRunner:
     fuzzing_engine = "afl"
     sanitizer = "address"
     build_result.succeeded = self.build_target_local(generated_project,
-                                                     benchmark_log_path, sanitizer=sanitizer, 
+                                                     benchmark_log_path, sanitizer=sanitizer,
                                                      fuzzing_engine=fuzzing_engine)
     if not build_result.succeeded:
         errors = code_fixer.extract_error_message(benchmark_log_path,
@@ -1092,8 +1092,8 @@ class CloudBuilderRunner(BuilderRunner):
     prefix = afl_output_name  
     afl_output_blobs = list(bucket.list_blobs(prefix=prefix))
     if len(afl_output_blobs) > 0:
-      logger.info('Downloading afl out directory of %s: %s',
-                    os.path.realpath(target_path), afl_output_name)
+      logger.info('Downloading afl out directory of %s: %s to %s',
+                    os.path.realpath(target_path), afl_output_name, afl_output_local)
       for blob in afl_output_blobs:
         relative_path = os.path.relpath(blob.name, prefix)
         local_path = os.path.join(afl_output_local, relative_path)
@@ -1218,8 +1218,8 @@ class CloudBuilderRunner(BuilderRunner):
     artifact_dir = self.work_dirs.artifact(generated_target_name, iteration,
                                            trial)
 
-    asan_build_path = f"{fuzz_driver_storage_path}/asan_driver"
-    fuzz_build_path =  f"{fuzz_driver_storage_path}/fuzz_driver"
+    asan_build_path = f"{fuzz_driver_storage_name}/asan_driver"
+    fuzz_build_path =  f"{fuzz_driver_storage_name}/fuzz_driver"
 
     with open(os.path.join(artifact_dir, "asan_driver"), "wb") as f:
       blob = bucket.blob(asan_build_path)

@@ -27,8 +27,6 @@
 RESULTS_DIR=$1
 GCS_DIR=$2
 # All remaining arguments are additional args for report.web
-shift 2
-REPORT_ADDITIONAL_ARGS="$@"
 DATE=$(date '+%Y-%m-%d')
 
 # Sleep 5 minutes for the experiment to start.
@@ -49,32 +47,6 @@ fi
 mkdir results-report
 
 update_report() {
-  # # Generate the report
-  # if [[ $GCS_DIR != '' ]]; then
-  #   CLOUD_BASE_URL="https://llm-exp.oss-fuzz.com/Result-reports/${GCS_DIR}"
-  #   $PYTHON -m report.web -r "${RESULTS_DIR:?}" -b "${BENCHMARK_SET:?}" -m "$MODEL" -o results-report --base-url "$CLOUD_BASE_URL" --gcs-dir "${GCS_DIR}" $REPORT_ADDITIONAL_ARGS
-  # else
-  #   $PYTHON -m report.web -r "${RESULTS_DIR:?}" -b "${BENCHMARK_SET:?}" -m "$MODEL" -o results-report $REPORT_ADDITIONAL_ARGS
-  # fi
-
-  # cd results-report || exit 1
-
-  # # Upload the report to GCS.
-  # echo "Uploading the report."
-  # BUCKET_PATH="gs://oss-fuzz-gcb-experiment-run-logs/Result-reports/${GCS_DIR:?}"
-  # # Upload HTMLs.
-  # gsutil -q -m -h "Content-Type:text/html" \
-  #        -h "Cache-Control:public, max-age=3600" \
-  #        cp -r . "$BUCKET_PATH"
-  # # Find all JSON files and upload them, removing the leading './'
-  # find . -name '*json' | while read -r file; do
-  #   file_path="${file#./}"  # Remove the leading "./".
-  #   gsutil -q -m -h "Content-Type:application/json" \
-  #       -h "Cache-Control:public, max-age=3600" cp "$file" "$BUCKET_PATH/$file_path"
-  # done
-
-  # cd ..
-
   # Upload the raw results into the same GCS directory.
   echo "Uploading the raw results."
   gsutil -q -m cp -r "${RESULTS_DIR:?}" \
@@ -82,21 +54,6 @@ update_report() {
 
   echo "See the published report at https://llm-exp.oss-fuzz.com/Result-reports/${GCS_DIR:?}/"
 
-  # Upload training data.
-  # echo "Uploading training data."
-  # rm -rf 'training_data'
-  # gsutil -q rm -r "gs://oss-fuzz-gcb-experiment-run-logs/Result-reports/${GCS_DIR:?}/training_data" || true
-
-  # $PYTHON -m data_prep.parse_training_data \
-  #  --experiment-dir "${RESULTS_DIR:?}" --save-dir 'training_data'
-  #$PYTHON -m data_prep.parse_training_data --group \
-  #  --experiment-dir "${RESULTS_DIR:?}" --save-dir 'training_data'
-  #$PYTHON -m data_prep.parse_training_data --coverage \
-  #  --experiment-dir "${RESULTS_DIR:?}" --save-dir 'training_data'
-  #$PYTHON -m data_prep.parse_training_data --coverage --group \
-  #  --experiment-dir "${RESULTS_DIR:?}" --save-dir 'training_data'
-  #gsutil -q cp -r 'training_data' \
-  #  "gs://oss-fuzz-gcb-experiment-run-logs/Result-reports/${GCS_DIR:?}"
 }
 
 while [[ ! -f /experiment_ended ]]; do
