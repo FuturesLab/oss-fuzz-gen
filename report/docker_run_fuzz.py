@@ -229,10 +229,24 @@ def run_fuzz_trial(cmd=None):
     "cp",
     "-r",
     local_results_dir,
-    f"gs://oss-fuzz-gcb-experiment-run-logs/Result-reports/${gcs_report_dir}"
+    f"gs://oss-fuzz-gcb-experiment-run-logs/Result-reports/{gcs_report_dir}"
   ]
 
-  subprocess.run(upload_results_to_bucket_cmd, check=True)
+  # Debugging to figure out why results are not uploading
+  log_line(run_log_path, f"Running command {', '.join(upload_results_to_bucket_cmd)}\n")
+  result_dir_contents = os.listdir(local_results_dir)
+  log_line(run_log_path, f"Local result contents {', '.join(result_dir_contents)}\n")
+
+  proc = subprocess.run(
+    upload_results_to_bucket_cmd,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True
+  )
+
+  log_line(run_log_path, f"Finished running upload command. Exited with code {proc.returncode}\n")
+  log_line(run_log_path, f"Upload command stdout: {proc.stdout}\n")
+  log_line(run_log_path, f"Upload command stderr: {proc.stderr}\n")
 
   upload_docker_log_to_bucket_cmd = [
       "gsutil",
