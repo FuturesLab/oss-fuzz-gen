@@ -17,7 +17,6 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process and compare LCOV branch coverage (.lcov_total) reports.")
-    parser.add_argument("-p", "--project", type=str, required=True)
     parser.add_argument("-r", "--results-dir", type=Path, required=True)
     return parser.parse_args()
 
@@ -75,6 +74,7 @@ def find_cov_report_for_dir(base_dir: Path, report_subdir: str, pattern: str = "
     if not cov_dir.exists() or not cov_dir.is_dir():
         return None
     matches = list(cov_dir.rglob(pattern))
+    print(matches, report_subdir, base_dir)
     assert len(matches) == 1
     return matches[0]
 
@@ -97,7 +97,7 @@ def collect_cov_for_tool(appr: str, trial_dirs: Iterable[Path], baseline: bool =
 
         report_path = find_cov_report_for_dir(d, report_subdir)
         if report_path is None:
-            print(f"WARNING: missing or ambiguous report for trial {trial_num} in {d} (looking in {report_subdir})", file=sys.stderr)
+            print(f"WARNING: missing report for trial {trial_num} in {d} (looking in {report_subdir})", file=sys.stderr)
             results[trial_num] = set()
             continue
 
@@ -219,7 +219,7 @@ def summarize_pre_vs_post(pre_results_by_tool: Dict[str, Dict[int, Set[str]]], p
     print(f"{'bluebird_ofg':>24} {'ofg':>24} {'bluebird_promefuzz':>24} {'promefuzz':>24} {'liberator':>24}")
     fmt = ("{0:>12} {1:>12} {2:>12} {3:>12} {4:>12} "
            "{5:>12} {6:>12} {7:>12} {8:>12} {9:>12}")
-
+    spreadsheet_str = ""
     for trial_num in range(5):
         b_ofg_pre = pre_results_by_tool.get("bluebird_ofg", {}).get(trial_num, set())
         b_pf_pre  = pre_results_by_tool.get("bluebird_promefuzz", {}).get(trial_num, set())
@@ -260,6 +260,9 @@ def summarize_pre_vs_post(pre_results_by_tool: Dict[str, Dict[int, Set[str]]], p
             len(lib_post),   len(lib_u),
         )
         print(fmt.format(*values))
+        spreadsheet_str += (",".join(map(str, values))) + "\n"
+
+    print(spreadsheet_str)
 
 # --- high-level compare that user requested --------------------------------
 
