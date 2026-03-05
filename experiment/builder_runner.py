@@ -565,6 +565,10 @@ class BuilderRunner:
     artifact_dir = self.work_dirs.artifact(benchmark_target_name, iteration,
                                            trial)
 
+    driver_base_path = os.path.join(oss_fuzz_checkout.OSS_FUZZ_DIR, "build", "out", generated_project)
+    shutil.copy(os.path.join(driver_base_path, "fuzz_driver_address"), os.path.join(artifact_dir, "asan_driver"))
+    shutil.copy(os.path.join(driver_base_path, "fuzz_driver_none"), os.path.join(artifact_dir, "fuzz_driver"))
+
     outdir = get_build_artifact_dir(generated_project, 'out')
 
     if not self.use_afl_engine:
@@ -578,17 +582,17 @@ class BuilderRunner:
 
     run_result.log_path = run_log_path
 
-    # Parse libfuzzer logs to get fuzz target runtime details.
-    with open(run_log_path, 'rb') as f:
-      # In many case JVM/python projects won't have much cov
-      # difference in short running. Adding the flag for JVM/python
-      # projects to temporary skip the checking of coverage change.
-      # Also skipping for rust projects in initial implementation.
-      flag = not self.benchmark.language in ['jvm', 'python', 'rust']
-      run_result.cov_pcs, run_result.total_pcs, \
-        run_result.crashes, run_result.crash_info, \
-          run_result.artifact_name, run_result.semantic_check = \
-            self._parse_libfuzzer_logs(f, project_name, flag)
+    # # Parse libfuzzer logs to get fuzz target runtime details.
+    # with open(run_log_path, 'rb') as f:
+    #   # In many case JVM/python projects won't have much cov
+    #   # difference in short running. Adding the flag for JVM/python
+    #   # projects to temporary skip the checking of coverage change.
+    #   # Also skipping for rust projects in initial implementation.
+    #   flag = not self.benchmark.language in ['jvm', 'python', 'rust']
+    #   run_result.cov_pcs, run_result.total_pcs, \
+    #     run_result.crashes, run_result.crash_info, \
+    #       run_result.artifact_name, run_result.semantic_check = \
+    #         self._parse_libfuzzer_logs(f, project_name, flag)
 
     return build_result, run_result
 
@@ -822,6 +826,9 @@ class BuilderRunner:
     corpus_dir = self.work_dirs.corpus(benchmark_target_name)
     if self.use_afl_engine and not gathering_baseline:
       corpus_dir = os.path.join("build", "out", generated_project, f"{self.benchmark.target_name}_afl_none_out", "default", "queue")
+      afl_dir = os.path.join(oss_fuzz_checkout.OSS_FUZZ_DIR, "build", "out", generated_project, f"{self.benchmark.target_name}_afl_none_out",)
+      afl_dest = self.work_dirs.afl_output
+      shutil.copytree(afl_dir, afl_dest, dirs_exist_ok=True)
 
     command = [
         'python3',
