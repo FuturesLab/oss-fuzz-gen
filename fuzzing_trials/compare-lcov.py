@@ -180,8 +180,8 @@ def summarize_tools(results_by_tool: Dict[str, Dict[int, Set[str]]]):
     For trial numbers 0..4 prints counts: total and unique per tool.
     """
     spreadsheet_str = ""
-    tools = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "liberator"]
-    print(f"{'bluebird_ofg':>24} {'ofg':>24} {'bluebird_promefuzz':>24} {'promefuzz':>24} {'liberator':>24}")
+    tools = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "ogharn"]
+    print(f"{'bluebird_ofg':>24} {'ofg':>24} {'bluebird_promefuzz':>24} {'promefuzz':>24} {'ogharn':>24}")
     fmt = ("{0:>12} {1:>12} {2:>12} {3:>12} {4:>12} "
            "{5:>12} {6:>12} {7:>12} {8:>12} {9:>12}")
 
@@ -189,7 +189,7 @@ def summarize_tools(results_by_tool: Dict[str, Dict[int, Set[str]]]):
         b_ofg = results_by_tool.get("bluebird_ofg", {}).get(trial_num, set())
         b_pf  = results_by_tool.get("bluebird_promefuzz", {}).get(trial_num, set())
         ofg   = results_by_tool.get("ofg", {}).get(trial_num, set())
-        lib   = results_by_tool.get("liberator", {}).get(trial_num, set())
+        lib   = results_by_tool.get("ogharn", {}).get(trial_num, set())
         pro   = results_by_tool.get("promefuzz", {}).get(trial_num, set())
 
         b_ofg_u = b_ofg.difference(b_pf, ofg, lib, pro)
@@ -215,8 +215,8 @@ def summarize_pre_vs_post(pre_results_by_tool: Dict[str, Dict[int, Set[str]]], p
     Total coverage is equal to the branches covered AFTER the initial seed inputs
     We get unique coverage by looking at approach's total unique coverage, and subtracting that which was covered by seed inputs
     """
-    tools = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "liberator"]
-    print(f"{'bluebird_ofg':>24} {'ofg':>24} {'bluebird_promefuzz':>24} {'promefuzz':>24} {'liberator':>24}")
+    tools = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "ogharn"]
+    print(f"{'bluebird_ofg':>24} {'ofg':>24} {'bluebird_promefuzz':>24} {'promefuzz':>24} {'ogharn':>24}")
     fmt = ("{0:>12} {1:>12} {2:>12} {3:>12} {4:>12} "
            "{5:>12} {6:>12} {7:>12} {8:>12} {9:>12}")
     spreadsheet_str = ""
@@ -224,7 +224,7 @@ def summarize_pre_vs_post(pre_results_by_tool: Dict[str, Dict[int, Set[str]]], p
         b_ofg_pre = pre_results_by_tool.get("bluebird_ofg", {}).get(trial_num, set())
         b_pf_pre  = pre_results_by_tool.get("bluebird_promefuzz", {}).get(trial_num, set())
         ofg_pre   = pre_results_by_tool.get("ofg", {}).get(trial_num, set())
-        lib_pre  = pre_results_by_tool.get("liberator", {}).get(trial_num, set())
+        lib_pre  = pre_results_by_tool.get("ogharn", {}).get(trial_num, set())
         pro_pre  = pre_results_by_tool.get("promefuzz", {}).get(trial_num, set())
 
         b_ofg_u_pre = b_ofg_pre.difference(b_pf_pre, ofg_pre, lib_pre, pro_pre)
@@ -236,13 +236,13 @@ def summarize_pre_vs_post(pre_results_by_tool: Dict[str, Dict[int, Set[str]]], p
         b_ofg = post_results_by_tool.get("bluebird_ofg", {}).get(trial_num, set())
         b_pf  = post_results_by_tool.get("bluebird_promefuzz", {}).get(trial_num, set())
         ofg   = post_results_by_tool.get("ofg", {}).get(trial_num, set())
-        lib  = post_results_by_tool.get("liberator", {}).get(trial_num, set())
+        lib  = post_results_by_tool.get("ogharn", {}).get(trial_num, set())
         pro   = post_results_by_tool.get("promefuzz", {}).get(trial_num, set())
 
         b_ofg_post = post_results_by_tool.get("bluebird_ofg", {}).get(trial_num, set()) - b_ofg_pre
         b_pf_post  = post_results_by_tool.get("bluebird_promefuzz", {}).get(trial_num, set()) - b_pf_pre
         ofg_post   = post_results_by_tool.get("ofg", {}).get(trial_num, set()) - ofg_pre
-        lib_post  = post_results_by_tool.get("liberator", {}).get(trial_num, set()) - lib_pre
+        lib_post  = post_results_by_tool.get("ogharn", {}).get(trial_num, set()) - lib_pre
         pro_post   = post_results_by_tool.get("promefuzz", {}).get(trial_num, set()) - pro_pre
 
 
@@ -299,20 +299,20 @@ def main() -> None:
     bluebird_ofg_dirs = [p for p in all_dirs if "bluebird_ofg" in p.name]
     bluebird_promefuzz_dirs = [p for p in all_dirs if "bluebird_promefuzz" in p.name]
     ofg_dirs = [p for p in all_dirs if "ofg" in p.name and "bluebird_ofg" not in p.name]
-    liberator_dirs = [p for p in all_dirs if "liberator" in p.name]
+    ogharn_dirs = [p for p in all_dirs if "ogharn" in p.name]
     promefuzz_dirs = [p for p in all_dirs if "promefuzz" in p.name and "bluebird_promefuzz" not in p.name]
 
     tool_dirs = {
         "bluebird_ofg": bluebird_ofg_dirs,
         "bluebird_promefuzz": bluebird_promefuzz_dirs,
         "ofg": ofg_dirs,
-        "liberator": liberator_dirs,
+        "ogharn": ogharn_dirs,
         "promefuzz": promefuzz_dirs,
     }
 
     # process post-fuzzing and pre-fuzzing (baseline)
     post_results_by_tool = process_and_report(tool_dirs, baseline=False)
-    pre_results_by_tool = process_and_report(tool_dirs, baseline=True)
+    # pre_results_by_tool = process_and_report(tool_dirs, baseline=True)
 
     print("\nPOST-FUZZING SUMMARY")
     summarize_tools(post_results_by_tool)
