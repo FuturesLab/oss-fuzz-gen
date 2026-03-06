@@ -19,7 +19,7 @@ RUNNER_DIR = os.path.dirname(os.path.abspath(__file__))
 BUILDER_RUNNER_TAG = "ghcr.io/gabe-sherman/oss-fuzz-base-runner:latest"
 
 
-APPROACHES = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "liberator"]
+APPROACHES = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "ogharn"]
 NUM_TRIALS = 1
 RUN_TIMEOUT = 30
 POOL_SIZE = 8
