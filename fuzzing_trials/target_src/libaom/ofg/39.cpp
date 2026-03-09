@@ -1,27 +1,25 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h>
-#include <aom/aom_encoder.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
+// Assuming the function aom_uleb_encode_fixed_size is defined in an external C library
 extern "C" {
+    int aom_uleb_encode_fixed_size(uint64_t value, size_t available_bytes, size_t fixed_size, uint8_t *buffer, size_t *encoded_size);
+}
 
-int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Ensure the size is reasonable for creating a codec interface
-    if (size < sizeof(aom_codec_iface_t *)) {
-        return 0; // Not enough data to create a valid interface
-    }
+extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
+    // Initialize parameters for the function-under-test
 
-    // Create a codec interface pointer from the input data
-    aom_codec_iface_t *iface = (aom_codec_iface_t *)(uintptr_t)(*(uint64_t *)data);
+    uint64_t value = 123456789;  // Example value, can be varied
+    size_t available_bytes = 10; // Example size, can be varied
+    size_t fixed_size = 5;       // Example fixed size, can be varied
 
-    // Call the function under test
-    aom_codec_caps_t caps = aom_codec_get_caps(iface);
+    // Ensure buffer is large enough and not NULL
+    uint8_t buffer[20];          // Example buffer size
+    size_t encoded_size = 0;     // Initialize encoded size
 
-    // We can perform some checks on the caps if needed, but since this is fuzzing,
-    // we are primarily interested in executing the function.
+    // Call the function-under-test
+    aom_uleb_encode_fixed_size(value, available_bytes, fixed_size, buffer, &encoded_size);
 
     return 0;
 }
-
-} // extern "C"

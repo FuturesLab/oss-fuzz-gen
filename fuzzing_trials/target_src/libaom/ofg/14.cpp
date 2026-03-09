@@ -1,39 +1,33 @@
+#include <cstdint>
+#include <cstdlib>
 #include <aom/aom_image.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-extern "C" {
-    void aom_img_remove_metadata(aom_image_t *);
-}
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Ensure size is large enough to create a valid aom_image_t
-    if (size < sizeof(aom_image_t)) {
-        return 0;
+    // Declare and initialize aom_image_t pointer
+    aom_image_t *img = nullptr;
+
+    // Allocate memory for aom_image_t structure
+    img = (aom_image_t *)malloc(sizeof(aom_image_t));
+    if (img == nullptr) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Allocate memory for aom_image_t
-    aom_image_t *image = (aom_image_t *)malloc(sizeof(aom_image_t));
-    if (image == NULL) {
-        return 0; // Memory allocation failed
-    }
-
-    // Initialize the aom_image_t structure with data
-    // Assuming the first part of data can be used to initialize the image
-    // This is a simplified initialization. In a real scenario, you would
-    // need to set up the image properties correctly based on your use case.
-    image->fmt = AOM_IMG_FMT_I420; // Example format
-    image->d_w = 640;               // Example width
-    image->d_h = 480;               // Example height
-    image->planes[0] = (uint8_t *)data; // Use input data for the Y plane
-    image->planes[1] = image->planes[0] + (640 * 480); // Example for U plane
-    image->planes[2] = image->planes[1] + (320 * 240); // Example for V plane
+    // Initialize the aom_image_t structure with some non-NULL values
+    img->fmt = AOM_IMG_FMT_I420; // Set a valid image format
+    img->w = 640;               // Set a width
+    img->h = 480;               // Set a height
+    img->d_w = 640;             // Set a display width
+    img->d_h = 480;             // Set a display height
+    img->x_chroma_shift = 1;    // Set chroma shift
+    img->y_chroma_shift = 1;    // Set chroma shift
+    img->planes[0] = (unsigned char *)data; // Assign data to the first plane
+    img->stride[0] = 640;       // Set stride for the first plane
 
     // Call the function-under-test
-    aom_img_remove_metadata(image);
+    aom_img_free(img);
 
-    // Clean up
-    free(image);
+    // Free the allocated memory for the structure itself
+    free(img);
 
     return 0;
 }

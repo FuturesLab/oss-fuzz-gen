@@ -8,73 +8,76 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
+#include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom.h"
 #include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+
+static aom_image_t* create_dummy_image() {
+    aom_image_t* img = (aom_image_t*)malloc(sizeof(aom_image_t));
+    if (!img) return nullptr;
+    img->fmt = AOM_IMG_FMT_I420;
+    img->w = 640;
+    img->h = 480;
+    img->stride[0] = img->w;
+    img->stride[1] = img->stride[2] = img->w / 2;
+    img->planes[0] = (unsigned char*)malloc(img->h * img->stride[0]);
+    img->planes[1] = (unsigned char*)malloc(img->h / 2 * img->stride[1]);
+    img->planes[2] = (unsigned char*)malloc(img->h / 2 * img->stride[2]);
+    return img;
+}
+
+static void destroy_dummy_image(aom_image_t* img) {
+    if (img) {
+        free(img->planes[0]);
+        free(img->planes[1]);
+        free(img->planes[2]);
+        free(img);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < sizeof(aom_codec_ctx_t) + sizeof(aom_image_t)) return 0;
 
     aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
+    aom_image_t* img = create_dummy_image();
+    if (!img) return 0;
+
     aom_codec_err_t res;
+    aom_codec_pts_t pts = 0;
+    unsigned long duration = 1;
+    aom_enc_frame_flags_t flags = 0;
 
-    // Initialize the decoder
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_av1_dx to aom_codec_dec_init_ver
-    size_t ret_aom_uleb_size_in_bytes_ftyso = aom_uleb_size_in_bytes(AOM_EFLAG_FREEZE_INTERNAL_STATE);
-    if (ret_aom_uleb_size_in_bytes_ftyso < 0){
-    	return 0;
-    }
-    aom_codec_ctx_t gzxqzjtv;
-    memset(&gzxqzjtv, 0, sizeof(gzxqzjtv));
-
-    aom_codec_err_t ret_aom_codec_dec_init_ver_alecy = aom_codec_dec_init_ver(&gzxqzjtv, iface, NULL, AOM_EFLAG_NO_REF_LAST2, (int )ret_aom_uleb_size_in_bytes_ftyso);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
+    // Fuzzing aom_codec_encode
+    res = aom_codec_encode(&ctx, img, pts, duration, flags);
     if (res != AOM_CODEC_OK) {
-        return 0;
+        const char* err_msg = aom_codec_error(&ctx);
+        fprintf(stderr, "Error: %s\n", err_msg);
     }
 
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_error_detail
-
-    const char* ret_aom_codec_error_detail_xrjeu = aom_codec_error_detail(&ctx);
-    if (ret_aom_codec_error_detail_xrjeu == NULL){
-    	return 0;
+    // Fuzzing aom_codec_destroy
+    res = aom_codec_destroy(&ctx);
+    if (res != AOM_CODEC_OK) {
+        const char* err_msg = aom_codec_error(&ctx);
+        fprintf(stderr, "Destroy Error: %s\n", err_msg);
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Fuzzing aom_codec_set_option
+    res = aom_codec_set_option(&ctx, "dummy_option", "dummy_value");
+    if (res != AOM_CODEC_OK) {
+        const char* err_msg = aom_codec_error(&ctx);
+        fprintf(stderr, "Set Option Error: %s\n", err_msg);
+    }
 
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
-
-    // Cleanup
-    aom_codec_destroy(&ctx);
-    
+    destroy_dummy_image(img);
     return 0;
 }

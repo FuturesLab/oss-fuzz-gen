@@ -1,28 +1,40 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h>
-
-extern "C" {
-    aom_codec_err_t aom_codec_peek_stream_info(aom_codec_iface_t *, const uint8_t *, size_t, aom_codec_stream_info_t *);
-    aom_codec_iface_t *aom_codec_av1_dx(); // Declare the AV1 decoder interface function
-}
+#include <cstdint>
+#include <cstdlib>
+#include "aom/aom_decoder.h"
+#include "aom/aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    aom_codec_iface_t *codec_iface = aom_codec_av1_dx(); // Using AV1 decoder interface
-    aom_codec_stream_info_t stream_info;
-    
-    // Initialize stream_info to avoid NULL dereference
-    memset(&stream_info, 0, sizeof(stream_info));
+    aom_codec_ctx_t codec;
+    aom_codec_err_t res;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
 
-    // Call the function under test with valid parameters
-    aom_codec_err_t result = aom_codec_peek_stream_info(codec_iface, data, size, &stream_info);
-
-    // Optionally handle the result or inspect stream_info if needed
-    if (result == AOM_CODEC_OK) {
-        // Successfully peeked stream info, you can add additional checks or processing here
+    // Initialize the codec context
+    res = aom_codec_dec_init(&codec, iface, nullptr, 0);
+    if (res != AOM_CODEC_OK) {
+        return 0;
     }
+
+    // Call the function-under-test
+    res = aom_codec_decode(&codec, data, size, nullptr);
+
+    // Destroy the codec context
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_control
+    aom_codec_caps_t ret_aom_codec_get_caps_pcads = aom_codec_get_caps(iface);
+    if (ret_aom_codec_get_caps_pcads < 0){
+    	return 0;
+    }
+
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_control
+    aom_codec_err_t ret_aom_codec_control_nrsms = aom_codec_control(&codec, AOM_PLANE_Y);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    aom_codec_destroy(&codec);
 
     return 0;
 }

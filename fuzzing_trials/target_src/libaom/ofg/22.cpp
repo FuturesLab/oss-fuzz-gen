@@ -1,30 +1,23 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <aom/aom_image.h>
-#include <aom/aom_decoder.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <aom/aom_codec.h>
 
 extern "C" {
-
-int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Initialize parameters for aom_img_alloc
-    aom_image_t *img = nullptr; // aom_image_t pointer, initialized to NULL
-    aom_img_fmt_t fmt = AOM_IMG_FMT_I420; // Use a common image format
-    unsigned int width = 640; // Set a reasonable width
-    unsigned int height = 480; // Set a reasonable height
-    unsigned int align = 1; // Alignment, typically 1
-
-    // Call the function under test
-    img = aom_img_alloc(img, fmt, width, height, align);
-
-    // Check if the image allocation was successful
-    if (img != nullptr) {
-        // Optionally, you could manipulate the image data here
-        // For fuzzing purposes, we can just free the image
-        aom_img_free(img);
-    }
-
-    return 0; // Return success
+    // Function under test
+    const char *aom_codec_iface_name(aom_codec_iface_t *);
 }
 
+extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
+    // Initialize the aom_codec_iface_t pointer
+    aom_codec_iface_t *iface = (aom_codec_iface_t *)data;
+
+    // Call the function under test
+    const char *name = aom_codec_iface_name(iface);
+
+    // Check the result (optional, for debugging purposes)
+    if (name != NULL) {
+        // Do something with the name, like printing or logging
+    }
+
+    return 0;
 }

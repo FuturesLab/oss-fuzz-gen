@@ -1,33 +1,30 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
 
 extern "C" {
-    // Include the necessary headers for the aom_metadata_t structure
-    #include <aom/aom_image.h>
+    #include <aom/aom_codec.h>
+    #include <aom/aom_decoder.h>
+    #include <aom/aomdx.h> // Include the header file where aom_codec_av1_dx is declared
 }
 
-// Fuzzing harness for the aom_img_metadata_free function
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Ensure that size is large enough to create a valid aom_metadata_t
-    if (size < sizeof(aom_metadata_t)) {
-        return 0;
+    // Initialize the codec interface
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+
+    // Initialize the stream info structure
+    aom_codec_stream_info_t stream_info;
+    stream_info.is_annexb = 0; // Initialize the is_annexb field
+
+    // Call the function-under-test
+    aom_codec_err_t result = aom_codec_peek_stream_info(iface, data, size, &stream_info);
+
+    // Use the result to prevent any compiler optimizations that might skip the function call
+    if (result == AOM_CODEC_OK) {
+        // Optionally, perform some operations with stream_info
+        // For example, check the width and height
+        volatile unsigned int width = stream_info.w;
+        volatile unsigned int height = stream_info.h;
     }
-
-    // Allocate memory for aom_metadata_t
-    aom_metadata_t *metadata = (aom_metadata_t *)malloc(sizeof(aom_metadata_t));
-    if (metadata == NULL) {
-        return 0; // Handle memory allocation failure
-    }
-
-    // Initialize the metadata structure with data from the input
-    memcpy(metadata, data, sizeof(aom_metadata_t));
-
-    // Call the function under test
-    aom_img_metadata_free(metadata);
-
-    // Free the allocated memory
-    free(metadata);
 
     return 0;
 }

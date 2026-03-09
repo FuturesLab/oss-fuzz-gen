@@ -1,34 +1,32 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdlib>
 
-// Assuming the definition of aom_metadata_t is provided in the relevant AOM header file
 extern "C" {
-    #include "aom/aom_image.h" // Include the AOM header where aom_metadata_t is defined
+    #include <aom/aom_codec.h>
+    #include <aom/aom_decoder.h>
+    #include <aom/aomdx.h> // Include the header for AV1 decoder interface
 }
 
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    // Ensure size is non-zero and does not exceed a reasonable limit
-    if (size == 0 || size > 1024) {
-        return 0; // Invalid input size
+    // Initialize the codec interface
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+
+    // Ensure the data is not NULL and size is greater than zero
+    if (data == nullptr || size == 0) {
+        return 0;
     }
 
-    // Allocate memory for aom_metadata_t
-    aom_metadata_t *metadata = (aom_metadata_t *)malloc(sizeof(aom_metadata_t));
-    if (metadata == NULL) {
-        return 0; // Memory allocation failed
-    }
-
-    // Initialize the metadata structure with data from the input
-    // Here we assume aom_metadata_t has a field that can be initialized with the input data
-    // This is a hypothetical example; the actual initialization will depend on the structure's definition.
-    memcpy(metadata, data, size < sizeof(aom_metadata_t) ? size : sizeof(aom_metadata_t));
+    // Initialize stream info
+    aom_codec_stream_info_t stream_info;
+    stream_info.is_annexb = 0; // Set a default value
 
     // Call the function under test
-    aom_img_metadata_free(metadata);
+    aom_codec_err_t result = aom_codec_peek_stream_info(iface, data, size, &stream_info);
 
-    // Free the allocated memory (if not handled inside aom_img_metadata_free)
-    free(metadata);
+    // Check the result (this is optional, but useful for debugging)
+    if (result != AOM_CODEC_OK) {
+        // Handle error if needed
+    }
 
     return 0;
 }

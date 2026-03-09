@@ -8,68 +8,85 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
+#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aomcx.h"
 #include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+#include "aom/aomdx.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom_integer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
     }
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
-
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
+    // Initialize decoder
+    aom_codec_ctx_t dec_ctx;
+    aom_codec_iface_t *dec_iface = aom_codec_av1_dx();
+    aom_codec_dec_cfg_t dec_cfg = {0}; // Default configuration
+    aom_codec_err_t dec_res = aom_codec_dec_init_ver(&dec_ctx, dec_iface, &dec_cfg, 0, AOM_DECODER_ABI_VERSION);
+    if (dec_res != AOM_CODEC_OK) {
         return 0;
     }
 
-    // Set frame buffer functions with random function pointers
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_dec_init_ver to aom_codec_set_frame_buffer_functions
-    const char* ret_aom_codec_iface_name_ddaws = aom_codec_iface_name(iface);
-    if (ret_aom_codec_iface_name_ddaws == NULL){
-    	return 0;
+    // Initialize encoder
+    aom_codec_ctx_t enc_ctx;
+    aom_codec_iface_t *enc_iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t enc_cfg;
+    if (aom_codec_enc_config_default(enc_iface, &enc_cfg, 0) != AOM_CODEC_OK) {
+        aom_codec_destroy(&dec_ctx);
+        return 0;
+    }
+    aom_codec_err_t enc_res = aom_codec_enc_init_ver(&enc_ctx, enc_iface, &enc_cfg, 0, AOM_ENCODER_ABI_VERSION);
+    if (enc_res != AOM_CODEC_OK) {
+        aom_codec_destroy(&dec_ctx);
+        return 0;
     }
 
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_knbyv = aom_codec_set_frame_buffer_functions(&ctx, 0, 0, (void *)iface);
+    // Decode input data
+    if (aom_codec_decode(&dec_ctx, Data, Size, NULL) != AOM_CODEC_OK) {
+        aom_codec_destroy(&enc_ctx);
+        aom_codec_destroy(&dec_ctx);
+        return 0;
+    }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Get decoded frames
+    aom_codec_iter_t iter = NULL;
+    aom_image_t *img = nullptr;
+    while ((img = aom_codec_get_frame(&dec_ctx, &iter)) != NULL) {
+        // Encode the frame
+        if (aom_codec_encode(&enc_ctx, img, 0, 1, 0) != AOM_CODEC_OK) {
+            break;
+        }
 
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
+        // Get stream info
+        aom_codec_stream_info_t si;
+        if (aom_codec_get_stream_info(&dec_ctx, &si) != AOM_CODEC_OK) {
+            break;
+        }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_set_frame_buffer_functions
+        // Get capabilities
+        aom_codec_caps_t caps = aom_codec_get_caps(dec_iface);
 
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ammkx = aom_codec_set_frame_buffer_functions(&ctx, 0, 0, (void *)iface);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
+        (void)caps; // Use capabilities for something meaningful
+    }
 
     // Cleanup
-    aom_codec_destroy(&ctx);
-    
+    aom_codec_destroy(&enc_ctx);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_set_option
+
+        aom_codec_err_t ret_aom_codec_set_option_uicri = aom_codec_set_option(&dec_ctx, (const char *)Data, (const char *)"w");
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+    aom_codec_destroy(&dec_ctx);
+
     return 0;
 }

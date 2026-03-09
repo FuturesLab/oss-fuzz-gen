@@ -1,50 +1,33 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h> // Include the header for aom_codec_av1_dx
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>  // Include for memcpy
 
 extern "C" {
-    // Include the declaration for aom_codec_av1_dx
-    aom_codec_iface_t* aom_codec_av1_dx(void);
+    #include <aom/aom_image.h>
 }
 
-extern "C" {
-
-int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_err_t result;
-
-    // Initialize codec context
-    result = aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0);
-    if (result != AOM_CODEC_OK) {
-        return 0; // Handle error if needed
+extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
+    // Ensure the size is sufficient for initializing aom_image_t
+    if (size < sizeof(aom_image_t)) {
+        return 0;
     }
 
-    // Prepare options
-    const char *option_name = "threads"; // Example option name
-    const char *option_value = "4"; // Example option value
-
-    // Ensure the input data is not NULL and has a reasonable size
-    if (size > 0 && size < 256) {
-        // Create a temporary string for the option value based on input data
-        char option_value_temp[256];
-        memcpy(option_value_temp, data, size);
-        option_value_temp[size] = '\0'; // Null-terminate the string
-
-        // Call the function under test
-        result = aom_codec_set_option(&codec_ctx, option_name, option_value_temp);
-
-        // Check the result (for demonstration purposes, we can ignore this)
-        if (result != AOM_CODEC_OK) {
-            // Handle error (if needed)
-        }
+    // Allocate memory for aom_image_t
+    aom_image_t *img = (aom_image_t *)malloc(sizeof(aom_image_t));
+    if (img == NULL) {
+        return 0;
     }
 
-    // Cleanup codec context
-    aom_codec_destroy(&codec_ctx);
+    // Initialize the aom_image_t structure with data
+    // Assuming the data can be used to initialize the structure
+    // This is a simple example, in a real scenario, more complex initialization might be needed
+    memcpy(img, data, sizeof(aom_image_t));
+
+    // Call the function under test
+    aom_img_free(img);
+
+    // Free the allocated memory
+    free(img);
 
     return 0;
-}
-
 }

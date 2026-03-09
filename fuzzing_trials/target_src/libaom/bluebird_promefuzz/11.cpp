@@ -8,65 +8,59 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
+#include <cstdio>
 #include <cstring>
+#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_encoder.h"
 #include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_image.h"
 #include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0; // Ensure there's enough data
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+    aom_codec_err_t res = aom_codec_enc_config_default(iface, &cfg, 0);
 
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0;
-    }
+    if (res != AOM_CODEC_OK) return 0;
 
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
+    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) return 0;
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_set_frame_buffer_functions
-    aom_image_t xrasyztf;
-    memset(&xrasyztf, 0, sizeof(xrasyztf));
+    // Fuzz aom_codec_control_typechecked_AOME_USE_REFERENCE
+    int ref_frame_index = Data[0] % 8; // Ensure index is within a valid range
+    aom_codec_control(&codec_ctx, AOME_USE_REFERENCE, ref_frame_index);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function aom_img_free with aom_img_flip
-    aom_img_flip(&xrasyztf);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Fuzz aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX
+    int level_idx;
+    aom_codec_control(&codec_ctx, AV1E_GET_TARGET_SEQ_LEVEL_IDX, &level_idx);
 
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_CONFIG
+    aom_svc_ref_frame_config_t ref_config;
+    memset(&ref_config, 0, sizeof(ref_config));
+    ref_config.reference[0] = Data[0] % 2;
+    ref_config.refresh[0] = Data[0] % 2;
+    aom_codec_control(&codec_ctx, AV1E_SET_SVC_REF_FRAME_CONFIG, &ref_config);
 
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION
+    int chroma_sample_position = Data[0] % 3; // Assuming 3 valid positions
+    aom_codec_control(&codec_ctx, AV1E_SET_CHROMA_SAMPLE_POSITION, chroma_sample_position);
 
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_glhuh = aom_codec_set_frame_buffer_functions(&ctx, 0, 0, (void *)&xrasyztf);
+    // Fuzz aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS
+    int num_spatial_layers = Data[0] % 4 + 1; // Assuming 1 to 4 layers
+    aom_codec_control(&codec_ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, num_spatial_layers);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Fuzz aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID
+    int spatial_layer_id = Data[0] % num_spatial_layers;
+    aom_codec_control(&codec_ctx, AOME_SET_SPATIAL_LAYER_ID, spatial_layer_id);
 
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
-
-    // Cleanup
-    aom_codec_destroy(&ctx);
-    
+    aom_codec_destroy(&codec_ctx);
     return 0;
 }

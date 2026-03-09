@@ -8,68 +8,84 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
+#include <cstdio>
+#include <cstdlib>
+#include <iostream>
+#include "/src/aom/aom/aom.h"
 #include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aomcx.h"
+#include "aom/aomdx.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_external_partition.h"
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0;  // Ensure there's data to process
+
+    // Initialize a codec context
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+
+    // Initialize a stream info structure
+    aom_codec_stream_info_t stream_info;
+    memset(&stream_info, 0, sizeof(stream_info));
+
+    // Initialize a dummy iterator
+    aom_codec_iter_t iter = nullptr;
+
+    // Prepare a dummy user_priv pointer
+    void *user_priv = nullptr;
+
+    // Initialize an image structure
+    aom_image_t image;
+    memset(&image, 0, sizeof(image));
+
+    // Initialize an encoded data packet
+    aom_codec_cx_pkt_t cx_pkt;
+    memset(&cx_pkt, 0, sizeof(cx_pkt));
+
+    // Attempt to decode the data
+    aom_codec_err_t decode_status = aom_codec_decode(&codec_ctx, Data, Size, user_priv);
+    if (decode_status != AOM_CODEC_OK) {
+        // Retrieve error details if decoding failed
+        const char *error_detail = aom_codec_error_detail(&codec_ctx);
+        if (error_detail) {
+            std::cerr << "Decode error: " << error_detail << std::endl;
+        }
     }
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
-
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0;
+    // Attempt to get stream information
+    aom_codec_err_t stream_info_status = aom_codec_get_stream_info(&codec_ctx, &stream_info);
+    if (stream_info_status != AOM_CODEC_OK) {
+        // Log if stream information retrieval failed
+        std::cerr << "Stream info error: " << stream_info_status << std::endl;
     }
 
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
-    size_t ret_aom_img_num_metadata_toreu = aom_img_num_metadata(NULL);
-    if (ret_aom_img_num_metadata_toreu < 0){
-    	return 0;
+    // Attempt to get a preview frame
+    const aom_image_t *preview_frame = aom_codec_get_preview_frame(&codec_ctx);
+    if (!preview_frame) {
+        std::cerr << "No preview frame available." << std::endl;
     }
 
-    aom_codec_err_t ret_aom_codec_control_wvflg = aom_codec_control(&ctx, (int )ret_aom_img_num_metadata_toreu);
+    // Attempt to get encoded data packets
+    const aom_codec_cx_pkt_t *packet = aom_codec_get_cx_data(&codec_ctx, &iter);
+    if (!packet) {
+        std::cerr << "No encoded data available." << std::endl;
+    }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Attempt to get decoded frames
+    aom_image_t *frame = aom_codec_get_frame(&codec_ctx, &iter);
+    if (!frame) {
+        std::cerr << "No frame available for display." << std::endl;
+    }
 
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
+    // Clean up (if necessary)
+    // Note: In a real application, you would call aom_codec_destroy() or similar
+    // to properly clean up the codec context when done.
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_set_frame_buffer_functions
-
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ammkx = aom_codec_set_frame_buffer_functions(&ctx, 0, 0, (void *)iface);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
-
-    // Cleanup
-    aom_codec_destroy(&ctx);
-    
     return 0;
 }

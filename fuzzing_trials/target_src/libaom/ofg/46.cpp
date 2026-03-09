@@ -1,43 +1,27 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <aom/aom_codec.h>
 
-// Include the necessary headers for the aom_image_t type
 extern "C" {
-#include <aom/aom_image.h>
-#include <aom/aom_decoder.h> // Include for AOM_METADATA_INSERT_FLAG_NONE
+    #include <aom/aom_codec.h>
 }
 
-// Define the metadata insert flags if not defined
-#ifndef AOM_METADATA_INSERT_FLAG_NONE
-#define AOM_METADATA_INSERT_FLAG_NONE 0
-#endif
-
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    aom_image_t img;
-    uint32_t metadata_id = 1; // Example metadata ID
-    const uint8_t *metadata_data = data; // Use the input data as metadata
-    size_t metadata_size = size; // Size of the metadata
-    aom_metadata_insert_flags_t flags = static_cast<aom_metadata_insert_flags_t>(AOM_METADATA_INSERT_FLAG_NONE); // Correctly cast to enum type
+    aom_codec_ctx_t codec_context;
 
-    // Initialize the aom_image_t structure
-    img.fmt = AOM_IMG_FMT_I420; // Set image format
-    img.w = 640; // Set image width
-    img.h = 480; // Set image height
-    img.d_w = img.w; // Set display width
-    img.d_h = img.h; // Set display height
-    img.planes[0] = (uint8_t *)malloc(img.w * img.h); // Allocate memory for Y plane
-    img.planes[1] = (uint8_t *)malloc(img.w * img.h / 4); // Allocate memory for U plane
-    img.planes[2] = (uint8_t *)malloc(img.w * img.h / 4); // Allocate memory for V plane
+    // Initialize codec context with some valid values
+    codec_context.name = "test_codec";
+    codec_context.priv = (aom_codec_priv_t *)data; // Using data as a placeholder
+    codec_context.iface = nullptr; // Assuming iface is not necessary for destruction
+    codec_context.err = AOM_CODEC_OK;
+    codec_context.err_detail = nullptr;
+    codec_context.init_flags = 0;
+    codec_context.config.enc = nullptr;
+    codec_context.config.dec = nullptr;
 
-    // Call the function to fuzz
-    int result = aom_img_add_metadata(&img, metadata_id, metadata_data, metadata_size, flags);
+    // Call the function under test
+    aom_codec_err_t result = aom_codec_destroy(&codec_context);
 
-    // Free allocated memory
-    free(img.planes[0]);
-    free(img.planes[1]);
-    free(img.planes[2]);
-
-    return result;
+    // Return 0 to indicate the fuzzer should continue
+    return 0;
 }

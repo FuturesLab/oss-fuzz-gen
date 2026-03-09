@@ -7,71 +7,63 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom.h"
 #include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < sizeof(int)) return 0;
+
+    aom_codec_ctx_t codec;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+    aom_svc_params_t svc_params;
+
+    // Initialize codec
+    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
         return 0;
     }
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
-
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
+    if (aom_codec_enc_init(&codec, iface, &cfg, 0)) {
         return 0;
     }
 
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
+    // Prepare the input data
+    int input_value;
+    std::memcpy(&input_value, Data, sizeof(int));
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_err_to_string
+    // 1. Fuzz aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR
+    aom_codec_control(&codec, AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR, &input_value);
 
-    const char* ret_aom_codec_err_to_string_bwleb = aom_codec_err_to_string(res);
-    if (ret_aom_codec_err_to_string_bwleb == NULL){
-    	return 0;
-    }
+    // 2. Fuzz aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE
+    aom_codec_control(&codec, AV1E_SET_S_FRAME_MODE, &input_value);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // 3. Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_OVERLAY
+    aom_codec_control(&codec, AV1E_SET_ENABLE_OVERLAY, &input_value);
 
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
+    // 4. Fuzz aom_codec_control_typechecked_AV1E_SET_QUANTIZER_ONE_PASS
+    aom_codec_control(&codec, AV1E_SET_QUANTIZER_ONE_PASS, &input_value);
+
+    // 5. Fuzz aom_codec_control_typechecked_AV1E_SET_SVC_PARAMS
+    svc_params.number_spatial_layers = input_value % 3 + 1; // Valid range: [1, 3]
+    aom_codec_control(&codec, AV1E_SET_SVC_PARAMS, &svc_params);
+
+    // 6. Fuzz aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL
+    aom_codec_control(&codec, AV1E_SET_LOOPFILTER_CONTROL, &input_value);
 
     // Cleanup
+    aom_codec_destroy(&codec);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_error
-
-    const char* ret_aom_codec_error_kymtd = aom_codec_error(&ctx);
-    if (ret_aom_codec_error_kymtd == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    aom_codec_destroy(&ctx);
-    
     return 0;
 }

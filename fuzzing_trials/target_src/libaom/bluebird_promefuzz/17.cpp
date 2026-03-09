@@ -1,70 +1,66 @@
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
+#include <cstdint>
 #include <cstdio>
-#include <cstdint>
-#include <cstddef>
-#include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
+#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aomcx.h"
 #include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+#include "aom/aomdx.h"
+
+static void initialize_codec(aom_codec_ctx_t &codec_ctx, aom_codec_iface_t *iface) {
+    aom_codec_enc_cfg_t cfg;
+    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
+        fprintf(stderr, "Failed to get default codec config\n");
+        exit(EXIT_FAILURE);
+    }
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0)) {
+        fprintf(stderr, "Failed to initialize codec\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void cleanup_codec(aom_codec_ctx_t &codec_ctx) {
+    if (aom_codec_destroy(&codec_ctx)) {
+        fprintf(stderr, "Failed to destroy codec\n");
+        exit(EXIT_FAILURE);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0;
+
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+
+    initialize_codec(codec_ctx, iface);
+
+    int control_id = Data[0] % 6;
+    int value = (Size > 1) ? Data[1] : 0;
+
+    switch (control_id) {
+        case 0:
+            aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_OVERLAY, value);
+            break;
+        case 1:
+            aom_codec_control(&codec_ctx, AV1E_SET_LOOPFILTER_CONTROL, value);
+            break;
+        case 2:
+            aom_codec_control(&codec_ctx, AV1E_SET_COLOR_RANGE, value);
+            break;
+        case 3:
+            aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_DIRECTIONAL_INTRA, value);
+            break;
+        case 4:
+            int level;
+            aom_codec_control(&codec_ctx, AOME_GET_LOOPFILTER_LEVEL, &level);
+            break;
+        case 5:
+            aom_codec_control(&codec_ctx, AV1E_SET_TRANSFER_CHARACTERISTICS, value);
+            break;
     }
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
-
-    // Initialize the decoder
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_av1_dx to aom_codec_dec_init_ver
-    size_t ret_aom_uleb_size_in_bytes_ftyso = aom_uleb_size_in_bytes(AOM_EFLAG_FREEZE_INTERNAL_STATE);
-    if (ret_aom_uleb_size_in_bytes_ftyso < 0){
-    	return 0;
-    }
-    aom_codec_ctx_t gzxqzjtv;
-    memset(&gzxqzjtv, 0, sizeof(gzxqzjtv));
-
-    aom_codec_err_t ret_aom_codec_dec_init_ver_alecy = aom_codec_dec_init_ver(&gzxqzjtv, iface, NULL, AOM_EFLAG_NO_REF_LAST2, (int )ret_aom_uleb_size_in_bytes_ftyso);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0;
-    }
-
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
-
-    // Cleanup
-    aom_codec_destroy(&ctx);
-    
+    cleanup_codec(codec_ctx);
     return 0;
 }

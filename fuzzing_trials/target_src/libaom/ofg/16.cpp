@@ -1,47 +1,41 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstdlib>
+#include <cstring>
+#include "aom/aom_image.h"  // Assuming this header contains the function declaration
 
 extern "C" {
-    aom_codec_err_t aom_codec_dec_init_ver(aom_codec_ctx_t *, aom_codec_iface_t *, const aom_codec_dec_cfg_t *, aom_codec_flags_t, int);
-    aom_codec_iface_t* aom_codec_av1_dx();
-    #define AOM_CODEC_USE_CURRENT_VERSION 1 // Define the current version if not defined
+    aom_metadata_t * aom_img_metadata_alloc(uint32_t type, const uint8_t *data, size_t data_size, aom_metadata_insert_flags_t flags);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *codec_iface = aom_codec_av1_dx(); // Using AV1 decoder interface
-    aom_codec_dec_cfg_t dec_cfg;
-    aom_codec_flags_t flags = 0; // No special flags
-    int version = AOM_CODEC_USE_CURRENT_VERSION; // Use current version
-
-    // Initialize the decoder configuration with sensible defaults
-    dec_cfg.threads = 1; // Use a single thread
-    dec_cfg.allow_lowbitdepth = 1; // Allow low bit depth
-    dec_cfg.w = 640; // Width of the frame
-    dec_cfg.h = 480; // Height of the frame
-
-    // Ensure the input size is manageable
-    if (size > 65536) {
-        size = 65536; // Cap the size to avoid excessive memory usage
+    // Ensure the input size is sufficient for extracting parameters
+    if (size < sizeof(uint32_t) + sizeof(aom_metadata_insert_flags_t)) {
+        return 0;
     }
 
-    // Create a buffer for the input data
-    uint8_t *input_data = (uint8_t *)malloc(size);
-    if (input_data == NULL) {
-        return 0; // Memory allocation failed
+    // Extract the uint32_t parameter from the data
+    uint32_t type = *(reinterpret_cast<const uint32_t*>(data));
+    data += sizeof(uint32_t);
+    size -= sizeof(uint32_t);
+
+    // Extract the aom_metadata_insert_flags_t parameter from the data
+    aom_metadata_insert_flags_t flags = *(reinterpret_cast<const aom_metadata_insert_flags_t*>(data));
+    data += sizeof(aom_metadata_insert_flags_t);
+    size -= sizeof(aom_metadata_insert_flags_t);
+
+    // Remaining data is used as the metadata content
+    const uint8_t *metadata_content = data;
+    size_t metadata_size = size;
+
+    // Call the function under test
+    aom_metadata_t *metadata = aom_img_metadata_alloc(type, metadata_content, metadata_size, flags);
+
+    // Clean up if necessary (assuming aom_img_metadata_free is available for cleanup)
+    if (metadata != nullptr) {
+        // Assuming a function like this exists for cleanup
+        // aom_img_metadata_free(metadata);
     }
-    
-    // Copy the input data to the buffer
-    memcpy(input_data, data, size);
 
-    // Call the function-under-test
-    aom_codec_err_t result = aom_codec_dec_init_ver(&codec_ctx, codec_iface, &dec_cfg, flags, version);
-
-    // Clean up
-    free(input_data);
-    
-    return result == AOM_CODEC_OK ? 0 : 1; // Return 0 on success, 1 on error
+    return 0;
 }

@@ -1,9 +1,6 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_img_alloc_with_border at aom_image.c:225:14 in aom_image.h
-// aom_img_set_rect at aom_image.c:234:5 in aom_image.h
-// aom_img_remove_metadata at aom_image.c:412:6 in aom_image.h
-// aom_img_flip at aom_image.c:285:6 in aom_image.h
-// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,44 +10,95 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
 #include "aom.h"
-#include "aom_encoder.h"
+#include "aom_codec.h"
 #include "aom_decoder.h"
+#include "aom_encoder.h"
 #include "aom_frame_buffer.h"
+#include "aom_image.h"
 #include "aom_integer.h"
 #include "aomcx.h"
+#include "aomdx.h"
+#include "aom_external_partition.h"
 
 extern "C" int LLVMFuzzerTestOneInput_82(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(unsigned int) * 6) return 0;
-
-    aom_image_t *img = nullptr;
-    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0] % 8); // Random format
-    unsigned int d_w = *(reinterpret_cast<const unsigned int*>(Data)) % 0x08000000;
-    unsigned int d_h = *(reinterpret_cast<const unsigned int*>(Data + 4)) % 0x08000000;
-    unsigned int align = *(reinterpret_cast<const unsigned int*>(Data + 8)) % 65536;
-    unsigned int size_align = *(reinterpret_cast<const unsigned int*>(Data + 12)) % 65536;
-    unsigned int border = *(reinterpret_cast<const unsigned int*>(Data + 16)) % 65536;
-
-    // Test aom_img_alloc_with_border
-    img = aom_img_alloc_with_border(img, fmt, d_w, d_h, align, size_align, border);
-    if (img) {
-        // Test aom_img_set_rect
-        unsigned int x = 0, y = 0, w = d_w, h = d_h;
-        aom_img_set_rect(img, x, y, w, h, border);
-
-        // Test aom_img_remove_metadata
-        aom_img_remove_metadata(img);
-
-        // Test aom_img_flip
-        aom_img_flip(img);
-
-        // Cleanup
-        aom_img_free(img); // Use the appropriate freeing function
+    if (Size < sizeof(aom_codec_ctx_t)) {
+        return 0;
     }
+
+    // Initialize codec context
+    aom_codec_ctx_t codec;
+    memset(&codec, 0, sizeof(codec));
+
+    // Prepare dummy data
+    uint8_t dummy_data[1024];
+    memcpy(dummy_data, Data, Size < 1024 ? Size : 1024);
+
+    // Initialize codec interface
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+
+    // Initialize codec
+    if (aom_codec_enc_init(&codec, iface, nullptr, 0) != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    try {
+        // Explore different API functions
+
+        // 1. aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX
+        int target_seq_level_idx;
+        aom_codec_err_t res = aom_codec_control(&codec, AV1E_GET_TARGET_SEQ_LEVEL_IDX, &target_seq_level_idx);
+        if (res != AOM_CODEC_OK) {
+            throw std::runtime_error("Error in AV1E_GET_TARGET_SEQ_LEVEL_IDX");
+        }
+
+        // 2. aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_CONFIG
+        aom_svc_ref_frame_config_t svc_ref_frame_config;
+        memset(&svc_ref_frame_config, 0, sizeof(svc_ref_frame_config));
+        res = aom_codec_control(&codec, AV1E_SET_SVC_REF_FRAME_CONFIG, &svc_ref_frame_config);
+        if (res != AOM_CODEC_OK) {
+            throw std::runtime_error("Error in AV1E_SET_SVC_REF_FRAME_CONFIG");
+        }
+
+        // 3. aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC
+        int high_motion_content_screen_rtc;
+        res = aom_codec_control(&codec, AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC, &high_motion_content_screen_rtc);
+        if (res != AOM_CODEC_OK) {
+            throw std::runtime_error("Error in AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC");
+        }
+
+        // 4. aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR
+        int max_consec_frame_drop_cbr = 5; // Arbitrary value
+        res = aom_codec_control(&codec, AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR, max_consec_frame_drop_cbr);
+        if (res != AOM_CODEC_OK) {
+            throw std::runtime_error("Error in AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR");
+        }
+
+        // 5. aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA
+        int enable_directional_intra = 1; // Enable
+        res = aom_codec_control(&codec, AV1E_SET_ENABLE_DIRECTIONAL_INTRA, enable_directional_intra);
+        if (res != AOM_CODEC_OK) {
+            throw std::runtime_error("Error in AV1E_SET_ENABLE_DIRECTIONAL_INTRA");
+        }
+
+        // 6. aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID
+        int spatial_layer_id = 0; // Arbitrary layer ID
+        res = aom_codec_control(&codec, AOME_SET_SPATIAL_LAYER_ID, spatial_layer_id);
+        if (res != AOM_CODEC_OK) {
+            throw std::runtime_error("Error in AOME_SET_SPATIAL_LAYER_ID");
+        }
+
+    } catch (const std::exception &e) {
+        // Handle exceptions
+    }
+
+    // Clean up
+    aom_codec_destroy(&codec);
 
     return 0;
 }

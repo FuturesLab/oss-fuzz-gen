@@ -8,57 +8,65 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
+#include "/src/aom/aom/aom_codec.h"
 #include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+#include "aom/aomdx.h"
+
+static int dummy_get_frame_buffer(void *priv, size_t min_size, aom_codec_frame_buffer_t *fb) {
+    (void)priv;
+    (void)min_size;
+    (void)fb;
+    return 0;
+}
+
+static int dummy_release_frame_buffer(void *priv, aom_codec_frame_buffer_t *fb) {
+    (void)priv;
+    (void)fb;
+    return 0;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Prepare dummy file
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
     }
 
-    aom_codec_ctx_t ctx;
+    // aom_codec_av1_dx
     aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
+    if (!iface) return 0;
 
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
+    // aom_codec_iface_name
+    const char *iface_name = aom_codec_iface_name(iface);
+    if (!iface_name) return 0;
+
+    // aom_codec_get_caps
+    aom_codec_caps_t caps = aom_codec_get_caps(iface);
+
+    // aom_codec_dec_init_ver
+    aom_codec_ctx_t ctx;
+    aom_codec_err_t res = aom_codec_dec_init_ver(&ctx, iface, nullptr, 0, AOM_DECODER_ABI_VERSION);
+    if (res != AOM_CODEC_OK) return 0;
+
+    // aom_codec_set_frame_buffer_functions
+    res = aom_codec_set_frame_buffer_functions(&ctx, dummy_get_frame_buffer, dummy_release_frame_buffer, nullptr);
     if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&ctx);
         return 0;
     }
 
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_set_frame_buffer_functions
-
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ammkx = aom_codec_set_frame_buffer_functions(&ctx, 0, 0, (void *)iface);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
+    // aom_codec_get_stream_info
+    aom_codec_stream_info_t stream_info;
+    res = aom_codec_get_stream_info(&ctx, &stream_info);
 
     // Cleanup
     aom_codec_destroy(&ctx);
-    
+
     return 0;
 }

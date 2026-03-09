@@ -1,9 +1,13 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_img_alloc_with_border at aom_image.c:225:14 in aom_image.h
-// aom_img_set_rect at aom_image.c:234:5 in aom_image.h
-// aom_img_plane_width at aom_image.c:313:5 in aom_image.h
-// aom_img_plane_height at aom_image.c:320:5 in aom_image.h
-// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_GF_INTERVAL at aomcx.h:2013:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF at aomcx.h:1913:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE at aomcx.h:2022:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_SCALEMODE at aomcx.h:1904:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS at aomcx.h:1943:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF at aomcx.h:2034:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,54 +18,69 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
 #include "aom.h"
+#include "aom_codec.h"
 #include "aom_encoder.h"
-#include "aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
 #include "aomcx.h"
 
+static aom_codec_ctx_t initialize_codec() {
+    aom_codec_ctx_t codec;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
+        fprintf(stderr, "Failed to get default codec config.\n");
+        exit(EXIT_FAILURE);
+    }
+    if (aom_codec_enc_init(&codec, iface, &cfg, 0)) {
+        fprintf(stderr, "Failed to initialize codec.\n");
+        exit(EXIT_FAILURE);
+    }
+    return codec;
+}
+
+static void cleanup_codec(aom_codec_ctx_t &codec) {
+    if (aom_codec_destroy(&codec)) {
+        fprintf(stderr, "Failed to destroy codec.\n");
+    }
+}
+
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *Data, size_t Size) {
-    if (Size < 41) return 0; // Ensure we have enough data
+    if (Size < sizeof(int)) return 0;
 
-    aom_image_t *img = nullptr;
-    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0] % 8); // Randomly select format
-    unsigned int d_w = *(reinterpret_cast<const unsigned int*>(Data + 1)) % 0x08000000; // Width
-    unsigned int d_h = *(reinterpret_cast<const unsigned int*>(Data + 5)) % 0x08000000; // Height
-    unsigned int align = *(reinterpret_cast<const unsigned int*>(Data + 9)) % 65536; // Alignment
-    unsigned int size_align = *(reinterpret_cast<const unsigned int*>(Data + 13)) % 65536; // Size alignment
-    unsigned int border = *(reinterpret_cast<const unsigned int*>(Data + 17)) % 65536; // Border
+    aom_codec_ctx_t codec = initialize_codec();
 
-    // Test aom_img_alloc_with_border
-    img = aom_img_alloc_with_border(img, fmt, d_w, d_h, align, size_align, border);
-    if (img) {
-        // Test aom_img_set_rect with random values
-        unsigned int x = *(reinterpret_cast<const unsigned int*>(Data + 21)) % (d_w + 1); // Ensure x <= d_w
-        unsigned int y = *(reinterpret_cast<const unsigned int*>(Data + 25)) % (d_h + 1); // Ensure y <= d_h
-        unsigned int w = (d_w - x) ? *(reinterpret_cast<const unsigned int*>(Data + 29)) % (d_w - x) : 0;
-        unsigned int h = (d_h - y) ? *(reinterpret_cast<const unsigned int*>(Data + 33)) % (d_h - y) : 0;
+    int random_value;
+    memcpy(&random_value, Data, sizeof(int));
 
-        // Ensure w and h are valid
-        if (w + x > d_w) w = d_w - x;
-        if (h + y > d_h) h = d_h - y;
+    // Test aom_codec_control_typechecked_AV1E_SET_MAX_GF_INTERVAL
+    aom_codec_control_typechecked_AV1E_SET_MAX_GF_INTERVAL(&codec, 0, random_value);
 
-        aom_img_set_rect(img, x, y, w, h, border);
+    // Test aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF
+    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF(&codec, 0, random_value % 2);
 
-        // Test aom_img_plane_width and aom_img_plane_height
-        for (int plane = 0; plane < 3; ++plane) {
-            aom_img_plane_width(img, plane);
-            aom_img_plane_height(img, plane);
-        }
-
-        // Free the image
-        aom_img_free(img);
+    // Test aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE
+    if (Size >= sizeof(int) + 2 * sizeof(int)) {
+        int dimensions[2];
+        memcpy(dimensions, Data + sizeof(int), 2 * sizeof(int));
+        aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE(&codec, 0, dimensions);
     }
 
+    // Test aom_codec_control_typechecked_AOME_SET_SCALEMODE
+    if (Size >= sizeof(int) + 3 * sizeof(int)) {
+        aom_scaling_mode_t scale_mode;
+        scale_mode.h_scaling_mode = static_cast<AOM_SCALING_MODE>(random_value % 9);
+        aom_codec_control_typechecked_AOME_SET_SCALEMODE(&codec, 0, &scale_mode);
+    }
+
+    // Test aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS
+    aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS(&codec, 0, random_value % 4);
+
+    // Test aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF
+    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF(&codec, 0, random_value % 2);
+
+    cleanup_codec(codec);
     return 0;
 }

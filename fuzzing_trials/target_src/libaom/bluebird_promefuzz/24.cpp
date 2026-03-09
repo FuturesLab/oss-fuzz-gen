@@ -7,61 +7,78 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aomcx.h"
+#include "aom/aomdx.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom.h"
+#include "aom/aom_decoder.h"
+}
+
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_SVC_FRAME_DROP_MODE(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(unsigned int)) return;
+    unsigned int mode = *reinterpret_cast<const unsigned int*>(Data);
+    aom_codec_control(codec, AV1E_SET_SVC_FRAME_DROP_MODE, mode);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_DELTAQ_STRENGTH(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(unsigned int)) return;
+    unsigned int strength = *reinterpret_cast<const unsigned int*>(Data);
+    aom_codec_control(codec, AV1E_SET_DELTAQ_STRENGTH, strength);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_TILE_ROWS(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(unsigned int)) return;
+    unsigned int tile_rows = *reinterpret_cast<const unsigned int*>(Data);
+    aom_codec_control(codec, AV1E_SET_TILE_ROWS, tile_rows);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_FP_MT_UNIT_TEST(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(unsigned int)) return;
+    unsigned int test_value = *reinterpret_cast<const unsigned int*>(Data);
+    aom_codec_control(codec, AV1E_SET_FP_MT_UNIT_TEST, test_value);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_AUTO_INTRA_TOOLS_OFF(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(unsigned int)) return;
+    unsigned int value = *reinterpret_cast<const unsigned int*>(Data);
+    aom_codec_control(codec, AV1E_SET_AUTO_INTRA_TOOLS_OFF, value);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_FRAME_PARALLEL_DECODING(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(unsigned int)) return;
+    unsigned int enable = *reinterpret_cast<const unsigned int*>(Data);
+    aom_codec_control(codec, AV1E_SET_FRAME_PARALLEL_DECODING, enable);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    aom_codec_ctx_t codec;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+
+    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
         return 0;
     }
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
-
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
+    if (aom_codec_enc_init(&codec, iface, &cfg, 0) != AOM_CODEC_OK) {
         return 0;
     }
 
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
+    fuzz_aom_codec_control_typechecked_AV1E_SET_SVC_FRAME_DROP_MODE(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_DELTAQ_STRENGTH(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_TILE_ROWS(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_FP_MT_UNIT_TEST(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_AUTO_INTRA_TOOLS_OFF(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_FRAME_PARALLEL_DECODING(&codec, Data, Size);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_get_frame
-
-    aom_image_t* ret_aom_codec_get_frame_qmagj = aom_codec_get_frame(&ctx, NULL);
-    if (ret_aom_codec_get_frame_qmagj == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
-
-    // Cleanup
-    aom_codec_destroy(&ctx);
-    
+    aom_codec_destroy(&codec);
     return 0;
 }

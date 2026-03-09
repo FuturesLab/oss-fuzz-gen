@@ -1,26 +1,35 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
-    // Include the AOM codec header where the function is declared
     #include <aom/aom_codec.h>
+    #include <aom/aom_image.h>
+    #include <aom/aom_decoder.h>
+    #include <aom/aomdx.h> // Include this header for aom_codec_av1_dx
 }
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Since the function aom_codec_version_str() does not take parameters,
-    // we can directly call it without needing to manipulate input data.
+    // Declare and initialize the necessary variables
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iter_t iter = NULL;
+    aom_image_t *img = NULL;
 
-    // Call the function under test
-    const char *version_str = aom_codec_version_str();
-
-    // Print the version string to observe the output (for debugging purposes)
-    // Note: In a real fuzzing context, you might not print but rather log or analyze the output.
-    if (version_str != nullptr) {
-        std::cout << "AOM Codec Version: " << version_str << std::endl;
+    // Initialize codec context
+    if (aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0) != AOM_CODEC_OK) {
+        return 0; // Exit if initialization fails
     }
 
-    // Return 0 as per the LLVMFuzzerTestOneInput convention
+    // Decode the input data
+    if (aom_codec_decode(&codec_ctx, data, size, NULL) != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0; // Exit if decoding fails
+    }
+
+    // Call the function-under-test
+    img = aom_codec_get_frame(&codec_ctx, &iter);
+
+    // Clean up
+    aom_codec_destroy(&codec_ctx);
+
     return 0;
 }

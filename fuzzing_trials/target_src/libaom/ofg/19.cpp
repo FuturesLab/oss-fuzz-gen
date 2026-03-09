@@ -1,32 +1,36 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <aom/aom_codec.h>
+#include <aom/aom_image.h>
 
 extern "C" {
+    #include <aom/aom_image.h>
+}
 
-const char *aom_codec_error(const aom_codec_ctx_t *);
-
-int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Ensure that size is large enough for aom_codec_ctx_t
-    if (size < sizeof(aom_codec_ctx_t)) {
+extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
+    // Ensure the data size is sufficient to initialize the parameters
+    if (size < sizeof(aom_image_t) + sizeof(int)) {
         return 0;
     }
 
-    // Declare and initialize the codec context
-    aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx)); // Initialize the codec context to zero
+    // Initialize aom_image_t structure
+    aom_image_t img;
+    img.fmt = AOM_IMG_FMT_I420; // Example format
+    img.w = 640; // Example width
+    img.h = 480; // Example height
+    img.d_w = 640; // Display width
+    img.d_h = 480; // Display height
+    img.x_chroma_shift = 1; // Example chroma shift
+    img.y_chroma_shift = 1; // Example chroma shift
 
-    // Copy the input data into the codec context
-    memcpy(&codec_ctx, data, sizeof(aom_codec_ctx_t));
+    // Use part of the data to initialize 'plane'
+    int plane = static_cast<int>(data[0] % 3); // Assuming 3 planes (Y, U, V)
 
-    // Call the function under test
-    const char *error_message = aom_codec_error(&codec_ctx);
+    // Call the function-under-test
+    int height = aom_img_plane_height(&img, plane);
 
-    // Optionally, you can do something with the error message here
-    // For example, you could print it or log it, but this is not necessary for fuzzing
+    // Use the result in some way to avoid compiler optimizations
+    volatile int result = height;
+    (void)result;
 
     return 0;
-}
-
 }

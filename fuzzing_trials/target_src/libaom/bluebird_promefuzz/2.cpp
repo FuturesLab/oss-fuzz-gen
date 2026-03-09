@@ -8,43 +8,65 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_frame_buffer.h"
-#include "aom.h"
-#include "aom_codec.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
+#include <cassert>
+#include "/src/aom/aom/aom_codec.h"
 #include "aom/aom_decoder.h"
-#include "aomcx.h"
+#include "aom/aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_enc_cfg_t)) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    aom_codec_enc_cfg_t cfg;
-    aom_codec_err_t res;
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    aom_codec_dec_cfg_t cfg = {0};
+    aom_codec_flags_t flags = 0;
+    int ver = AOM_DECODER_ABI_VERSION;
 
-    // Prepare the encoder configuration with default values
-    res = aom_codec_enc_config_default(iface, &cfg, 0);
-    if (res != AOM_CODEC_OK) return 0;
+    // Initialize the codec
+    if (aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver) != AOM_CODEC_OK) {
+        return 0;
+    }
 
-    // Modify configuration based on fuzzing input
-    std::memcpy(&cfg, Data, sizeof(aom_codec_enc_cfg_t));
+    // Decode data
+    if (aom_codec_decode(&codec_ctx, Data, Size, nullptr) != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
+    }
 
-    aom_codec_ctx_t ctx;
-    res = aom_codec_enc_init_ver(&ctx, iface, &cfg, 0, AOM_ENCODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) return 0;
+    // Get frame
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *img = nullptr;
+    while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
+        // Process the frame (e.g., validate or analyze image data)
+    }
 
-    // Set spatial layer ID using a random value
-    unsigned int spatial_layer_id = Data[0] % 4; // Random layer ID for testing
-    res = aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID(&ctx, spatial_layer_id, 0); // Added missing argument
-    
+    // Get stream info
+    aom_codec_stream_info_t stream_info = {0};
+    if (aom_codec_get_stream_info(&codec_ctx, &stream_info) == AOM_CODEC_OK) {
+        // Use stream info (e.g., width and height)
+    }
+
+    // Peek stream info
+    if (Size >= 4) { // Ensure there's enough data to peek
+        aom_codec_stream_info_t peek_info = {0};
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_peek_stream_info
+        const uint8_t xfyjescc = Size;
+        if (aom_codec_peek_stream_info(iface, &xfyjescc, Size, &peek_info) == AOM_CODEC_OK) {
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+            // Use peek info
+        }
+    }
+
     // Cleanup
-    aom_codec_destroy(&ctx);
-    
+    aom_codec_destroy(&codec_ctx);
     return 0;
 }

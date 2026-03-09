@@ -1,82 +1,71 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH at aomcx.h:2296:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO at aomcx.h:2353:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL at aomcx.h:2317:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS at aomcx.h:2004:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH at aomcx.h:2305:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_TRANSFER_CHARACTERISTICS at aomcx.h:2001:1 in aomcx.h
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
+#include <fstream>
 #include <cstdint>
-#include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <aomdx.h>
-#include <aom_external_partition.h>
-#include <aom_image.h>
-#include <aom_codec.h>
-#include <aom.h>
-#include <aom_encoder.h>
-#include <aom_decoder.h>
-#include <aom_frame_buffer.h>
-#include <aom_integer.h>
-#include <aomcx.h>
+#include <cstring>
+#include "aom_codec.h"
+#include "aom_encoder.h"
+#include "aomcx.h"
+#include "aom.h"
 
 extern "C" int LLVMFuzzerTestOneInput_75(const uint8_t *Data, size_t Size) {
-    // Prepare the codec context
+    if (Size < sizeof(aom_codec_ctx_t) + 6) return 0;
+
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t* iface = aom_codec_av1_cx(); // Example for AV1 codec
-    aom_codec_err_t res;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-    // Initialize the codec context
-    res = aom_codec_enc_init(&codec_ctx, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) return 0;
+    // Assume iface is properly initialized elsewhere
+    codec_ctx.iface = nullptr; // We can't instantiate an incomplete type
 
-    // Fuzzing for aom_codec_control_typechecked_AOME_USE_REFERENCE
-    if (Size > 0) {
-        int reference_frame = Data[0] % 8; // Example to get a reference frame index
-        res = aom_codec_control(&codec_ctx, AOME_USE_REFERENCE, reference_frame);
+    // Dummy initialization of codec context
+    codec_ctx.err = static_cast<aom_codec_err_t>(Data[0]);
+    codec_ctx.init_flags = static_cast<aom_codec_flags_t>(Data[1]);
+
+    // Create a dummy file for partition info
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    if (dummyFile.is_open()) {
+        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+        dummyFile.close();
     }
 
-    // Fuzzing for aom_codec_control_typechecked_AOME_SET_MAX_INTRA_BITRATE_PCT
-    if (Size > 1) {
-        int max_bitrate_pct = Data[1] % 100; // Example to get a percentage value
-        res = aom_codec_control(&codec_ctx, AOME_SET_MAX_INTRA_BITRATE_PCT, max_bitrate_pct);
-    }
+    // Fuzzing AV1E_SET_PARTITION_INFO_PATH
+    aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH(&codec_ctx, 0, "./dummy_file");
 
-    // Fuzzing for aom_codec_control_typechecked_AOME_SET_TUNING
+    // Fuzzing AV1E_SET_RATE_DISTRIBUTION_INFO
     if (Size > 2) {
-        int tuning_flags = Data[2] % 4; // Example for tuning flags
-        res = aom_codec_control(&codec_ctx, AOME_SET_TUNING, tuning_flags);
+        const char *rate_distribution_info = reinterpret_cast<const char*>(&Data[2]);
+        aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO(&codec_ctx, 0, rate_distribution_info);
     }
 
-    // Fuzzing for aom_codec_control_typechecked_AOME_SET_SCALEMODE
+    // Fuzzing AV1E_SET_LOOPFILTER_CONTROL
     if (Size > 3) {
-        int scaling_mode = Data[3] % 9; // Example for scaling modes
-        res = aom_codec_control(&codec_ctx, AOME_SET_SCALEMODE, scaling_mode);
+        int loopfilter_control = Data[3];
+        aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL(&codec_ctx, 0, loopfilter_control);
     }
 
-    // Fuzzing for aom_codec_control_typechecked_AOME_SET_CPUUSED
+    // Fuzzing AV1E_SET_MATRIX_COEFFICIENTS
     if (Size > 4) {
-        int cpu_used = Data[4] % 8; // Example for CPU usage levels
-        res = aom_codec_control(&codec_ctx, AOME_SET_CPUUSED, cpu_used);
+        int matrix_coefficients = Data[4];
+        aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS(&codec_ctx, 0, matrix_coefficients);
     }
 
-    // Fuzzing for aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF
+    // Fuzzing AV1E_SET_ENABLE_TX_SIZE_SEARCH
     if (Size > 5) {
-        int enable_auto_bwd_ref = Data[5] % 2; // Example for enabling/disabling
-        res = aom_codec_control(&codec_ctx, AOME_SET_ENABLEAUTOBWDREF, enable_auto_bwd_ref);
+        int enable_tx_size_search = Data[5];
+        aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH(&codec_ctx, 0, enable_tx_size_search);
     }
 
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
+    // Fuzzing AV1E_SET_TRANSFER_CHARACTERISTICS
+    if (Size > 6) {
+        int transfer_characteristics = Data[6];
+        aom_codec_control_typechecked_AV1E_SET_TRANSFER_CHARACTERISTICS(&codec_ctx, 0, transfer_characteristics);
+    }
+
     return 0;
 }

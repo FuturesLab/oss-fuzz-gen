@@ -1,37 +1,28 @@
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h>
-#include <aom/aomdx.h> // Include the header for decoder interface
+#include <stdint.h>
+#include <stddef.h>
+#include <aom/aom_image.h>
 
 extern "C" {
-
-int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Initialize the codec interface
-    aom_codec_iface_t *codec_iface = aom_codec_av1_dx();
-    if (codec_iface == nullptr) {
-        return 0; // Fail gracefully if the codec interface is not available
-    }
-
-    // Prepare aom_codec_ctx_t structure
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_err_t res;
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec_ctx, codec_iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Fail gracefully if initialization fails
-    }
-
-    // Prepare the input data for decoding
-    aom_codec_err_t decode_res;
-    decode_res = aom_codec_decode(&codec_ctx, data, size, nullptr);
-    if (decode_res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx); // Clean up
-        return 0; // Fail gracefully if decoding fails
-    }
-
-    // Clean up the codec context
-    aom_codec_destroy(&codec_ctx);
-    return 0;
+    int aom_img_plane_height(const aom_image_t *img, int plane);
 }
 
+extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
+    // Ensure that the input size is sufficient to create an aom_image_t structure
+    if (size < sizeof(aom_image_t)) {
+        return 0;
+    }
+
+    // Cast the input data to aom_image_t structure
+    const aom_image_t *img = reinterpret_cast<const aom_image_t *>(data);
+
+    // Define a non-negative plane index
+    int plane = 0; // You can try different values like 0, 1, 2, etc.
+
+    // Call the function under test
+    int height = aom_img_plane_height(img, plane);
+
+    // Use the result in some way to avoid compiler optimizations
+    (void)height;
+
+    return 0;
 }

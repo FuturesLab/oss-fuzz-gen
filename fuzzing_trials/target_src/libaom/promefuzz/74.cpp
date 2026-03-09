@@ -1,13 +1,7 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
 // aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
 // aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control_typechecked_AOME_SET_CPUUSED at aomcx.h:1910:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_SCALEMODE at aomcx.h:1904:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD at aomcx.h:1919:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_TUNING at aomcx.h:1934:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_USE_REFERENCE at aomcx.h:1895:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF at aomcx.h:2034:1 in aomcx.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,58 +11,64 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+
+extern "C" {
+    #include "aom_frame_buffer.h"
+    #include "aom_external_partition.h"
+    #include "aomdx.h"
+    #include "aom_decoder.h"
+    #include "aom_encoder.h"
+    #include "aom_integer.h"
+    #include "aom_codec.h"
+    #include "aom_image.h"
+    #include "aom.h"
+    #include "aomcx.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_74(const uint8_t *Data, size_t Size) {
-    // Prepare the codec context
-    aom_codec_ctx_t codec;
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Assuming we're using AV1 codec
-    aom_codec_err_t res = aom_codec_enc_init(&codec, iface, nullptr, 0);
-    
-    if (res != AOM_CODEC_OK) return 0;
+    if (Size < 6) return 0;  // Ensure there's enough data
 
-    // Fuzzing different control functions
-    if (Size >= sizeof(int)) {
-        int control_value = *(reinterpret_cast<const int*>(Data)) % 10; // Example control value
-        aom_codec_control_typechecked_AOME_SET_CPUUSED(&codec, 0, control_value);
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+
+    // Initialize the codec
+    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
+        return 0;
+    }
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
+        return 0;
     }
 
-    if (Size >= sizeof(aom_scaling_mode_t)) {
-        aom_scaling_mode_t scaling_mode;
-        scaling_mode.h_scaling_mode = static_cast<AOM_SCALING_MODE>(Data[0] % 9); // Random scaling mode
-        aom_codec_control_typechecked_AOME_SET_SCALEMODE(&codec, 0, &scaling_mode);
-    }
+    // Extract integer values from the input data
+    int sharpness = Data[0] % 8;  // Sharpness levels typically range from 0 to 7
+    int arnr_strength = Data[1] % 6;  // ARNR strength range example
+    int enable_auto_alt_ref = Data[2] % 2;  // Boolean value
+    int enable_auto_bwd_ref = Data[3] % 2;  // Boolean value
+    int cq_level = Data[4] % 64;  // Example range for CQ level
+    int arnr_max_frames = Data[5] % 15;  // Example range for max frames
 
-    if (Size >= sizeof(unsigned int)) {
-        unsigned int threshold = *(reinterpret_cast<const unsigned int*>(Data)) % 100; // Example threshold
-        aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD(&codec, 0, threshold);
-    }
+    // Set sharpness
+    aom_codec_control(&codec_ctx, AOME_SET_SHARPNESS, sharpness);
 
-    if (Size >= sizeof(int)) {
-        int tuning = *(reinterpret_cast<const int*>(Data)) % 5; // Example tuning
-        aom_codec_control_typechecked_AOME_SET_TUNING(&codec, 0, tuning);
-    }
+    // Set ARNR strength
+    aom_codec_control(&codec_ctx, AOME_SET_ARNR_STRENGTH, arnr_strength);
 
-    if (Size >= sizeof(int)) {
-        int reference = *(reinterpret_cast<const int*>(Data)) % 5; // Example reference
-        aom_codec_control_typechecked_AOME_USE_REFERENCE(&codec, 0, reference);
-    }
+    // Enable or disable auto alt ref
+    aom_codec_control(&codec_ctx, AOME_SET_ENABLEAUTOALTREF, enable_auto_alt_ref);
 
-    if (Size >= sizeof(int)) {
-        int enable_auto_bwd_ref = *(reinterpret_cast<const int*>(Data)) % 2; // Enable/Disable
-        aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF(&codec, 0, enable_auto_bwd_ref);
-    }
+    // Enable or disable auto bwd ref
+    aom_codec_control(&codec_ctx, AOME_SET_ENABLEAUTOBWDREF, enable_auto_bwd_ref);
+
+    // Set CQ level
+    aom_codec_control(&codec_ctx, AOME_SET_CQ_LEVEL, cq_level);
+
+    // Set ARNR max frames
+    aom_codec_control(&codec_ctx, AOME_SET_ARNR_MAXFRAMES, arnr_max_frames);
 
     // Cleanup
-    aom_codec_destroy(&codec);
+    aom_codec_destroy(&codec_ctx);
+
     return 0;
 }

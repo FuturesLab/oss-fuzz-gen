@@ -1,13 +1,11 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control_typechecked_AV1E_GET_GOP_INFO at aomcx.h:2393:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_USE_REFERENCE at aomcx.h:1895:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_ACTIVEMAP at aomcx.h:1901:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_ACTIVEMAP at aomcx.h:2016:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT at aomcx.h:1992:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX at aomcx.h:2335:1 in aomcx.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_av1_dx at av1_dx_iface.c:1796:20 in aomdx.h
+// aom_codec_dec_init_ver at aom_decoder.c:25:17 in aom_decoder.h
+// aom_codec_peek_stream_info at aom_decoder.c:57:17 in aom_decoder.h
+// aom_codec_decode at aom_decoder.c:94:17 in aom_decoder.h
+// aom_codec_get_stream_info at aom_decoder.c:75:17 in aom_decoder.h
+// aom_codec_get_preview_frame at aom_encoder.c:264:20 in aom_encoder.h
+// aom_codec_get_frame at aom_decoder.c:109:14 in aom_decoder.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,60 +15,75 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom_decoder.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
 #include "aom_frame_buffer.h"
+#include "aom_external_partition.h"
+#include "aomdx.h"
+#include "aom_decoder.h"
+#include "aom_encoder.h"
 #include "aom_integer.h"
+#include "aom_codec.h"
+#include "aom_image.h"
+#include "aom.h"
 #include "aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t)) return 0;
+    if (Size < 1) return 0;
 
     aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Assuming we are using AV1 encoder
-    codec_ctx.iface = iface;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    aom_codec_dec_cfg_t cfg = {0};
+    aom_codec_flags_t flags = 0;
+    int ver = AOM_DECODER_ABI_VERSION;
 
-    // Initialize codec context
-    aom_codec_err_t init_result = aom_codec_enc_init(&codec_ctx, iface, nullptr, 0);
-    if (init_result != AOM_CODEC_OK) return 0;
-
-    // Fuzzing aom_codec_control_typechecked_AV1E_GET_GOP_INFO
-    aom_gop_info_t gop_info;
-    aom_codec_control_typechecked_AV1E_GET_GOP_INFO(&codec_ctx, 0, &gop_info);
-
-    // Fuzzing aom_codec_control_typechecked_AOME_USE_REFERENCE
-    int reference_frame_index = Data[0] % 8; // Example reference frame index
-    aom_codec_control_typechecked_AOME_USE_REFERENCE(&codec_ctx, 0, reference_frame_index);
-
-    // Fuzzing aom_codec_control_typechecked_AOME_SET_ACTIVEMAP
-    aom_active_map_t active_map;
-    active_map.rows = 1; // Example value
-    active_map.active_map = (unsigned char *)malloc(16); // Allocate space for active map
-    if (active_map.active_map) {
-        memset(active_map.active_map, Data[1] % 2, 16); // Set active map based on input
-        aom_codec_control_typechecked_AOME_SET_ACTIVEMAP(&codec_ctx, 0, &active_map);
-        free(active_map.active_map);
+    // Initialize the decoder
+    aom_codec_err_t res = aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver);
+    if (res != AOM_CODEC_OK) {
+        return 0; // Initialization failed, exit
     }
 
-    // Fuzzing aom_codec_control_typechecked_AV1E_GET_ACTIVEMAP
-    aom_active_map_t retrieved_active_map;
-    aom_codec_control_typechecked_AV1E_GET_ACTIVEMAP(&codec_ctx, 0, &retrieved_active_map);
+    // Use aom_codec_peek_stream_info
+    aom_codec_stream_info_t si = {0};
+    si.is_annexb = 0; // Initialize required field
+    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
+    if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0; // Stream info parsing failed, exit
+    }
 
-    // Fuzzing aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT
-    int tune_content = Data[2] % 5; // Example tune content value
-    aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT(&codec_ctx, 0, tune_content);
+    // Decode the data
+    res = aom_codec_decode(&codec_ctx, Data, Size, nullptr);
+    if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0; // Decoding failed, exit
+    }
 
-    // Fuzzing aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX
-    int target_seq_level_idx;
-    aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX(&codec_ctx, 0, &target_seq_level_idx);
+    // Get stream info
+    res = aom_codec_get_stream_info(&codec_ctx, &si);
+    if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0; // Getting stream info failed, exit
+    }
 
-    // Cleanup
+    // Get preview frame
+    const aom_image_t *preview_frame = aom_codec_get_preview_frame(&codec_ctx);
+    if (preview_frame == nullptr) {
+        aom_codec_destroy(&codec_ctx);
+        return 0; // No preview frame, exit
+    }
+
+    // Get decoded frames
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *img;
+    while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
+        // Process the images if needed
+    }
+
+    // Clean up
     aom_codec_destroy(&codec_ctx);
+
     return 0;
 }

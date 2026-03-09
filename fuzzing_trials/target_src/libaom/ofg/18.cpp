@@ -1,46 +1,31 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstddef>
+#include <iostream>
 
-// Include the necessary AOM codec headers
-extern "C" {
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h> // Include the decoder header for aom_codec_av1_dx
-#include <aom/aomdx.h> // Include the header for aom_codec_av1_dx
-}
+// Assuming OBU_TYPE is an enum or a type that can be represented as an integer
+typedef int OBU_TYPE;
 
-// Fuzzing harness for the aom_codec_error function
+// Function signature from the task
+extern "C" const char * aom_obu_type_to_string(OBU_TYPE obu_type);
+
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_err_t res;
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed, exit early
+    // Ensure we have enough data to derive an OBU_TYPE
+    if (size < sizeof(OBU_TYPE)) {
+        return 0;
     }
 
-    // Create a buffer for input data
-    uint8_t *input_data = (uint8_t *)malloc(size);
-    if (input_data == NULL) {
-        aom_codec_destroy(&codec_ctx);
-        return 0; // Memory allocation failed, exit early
+    // Use the first bytes of data to create an OBU_TYPE
+    OBU_TYPE obu_type = static_cast<OBU_TYPE>(data[0]);
+
+    // Call the function under test
+    const char *result = aom_obu_type_to_string(obu_type);
+
+    // Optional: Print the result for debugging purposes
+    if (result != nullptr) {
+        std::cout << "OBU_TYPE: " << obu_type << " -> " << result << std::endl;
+    } else {
+        std::cout << "OBU_TYPE: " << obu_type << " -> NULL" << std::endl;
     }
-
-    // Copy the input data into the buffer
-    memcpy(input_data, data, size);
-
-    // Use the input data in aom_codec_error
-    const char *error_message = aom_codec_error(&codec_ctx);
-
-    // Optionally, you can print or log the error message
-    // printf("Error message: %s\n", error_message);
-
-    // Clean up
-    free(input_data);
-    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

@@ -1,43 +1,25 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <aom/aom_image.h>
-
-extern "C" {
-    int aom_img_set_rect(aom_image_t *img, unsigned int x, unsigned int y,
-                         unsigned int width, unsigned int height,
-                         unsigned int color);
-}
+#include <stddef.h>
+#include <aom/aom_codec.h>
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Initialize variables
-    aom_image_t img;
-    unsigned int x = 0;
-    unsigned int y = 0;
-    unsigned int width = 0;
-    unsigned int height = 0;
-    unsigned int color = 0;
+    // Declare and initialize aom_codec_ctx_t object
+    aom_codec_ctx_t codec_ctx;
+    
+    // Initialize the codec context with some non-null values
+    codec_ctx.name = "test_codec";
+    codec_ctx.priv = (aom_codec_priv_t *)data; // Just using data as a placeholder
+    codec_ctx.iface = (aom_codec_iface_t *)data; // Just using data as a placeholder
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.err_detail = "No error";
 
-    // Ensure size is sufficient to use for parameters
-    if (size < 5) {
-        return 0; // Not enough data to proceed
+    // Call the function-under-test
+    const char *error_detail = aom_codec_error_detail(&codec_ctx);
+
+    // Use the result to avoid compiler optimizations removing the call
+    if (error_detail != nullptr) {
+        // Normally, you might log or process the error detail here
     }
 
-    // Initialize the aom_image_t structure
-    aom_img_alloc(&img, AOM_IMG_FMT_I420, 640, 480, 1);
-
-    // Set parameters using data from the input
-    x = data[0] % img.d_w; // Ensure x is within image width
-    y = data[1] % img.d_h; // Ensure y is within image height
-    width = data[2] % (img.d_w - x); // Ensure width does not exceed bounds
-    height = data[3] % (img.d_h - y); // Ensure height does not exceed bounds
-    color = data[4]; // Use the 5th byte for color
-
-    // Call the function under test
-    int result = aom_img_set_rect(&img, x, y, width, height, color);
-
-    // Clean up
-    aom_img_free(&img);
-
-    return result;
+    return 0;
 }

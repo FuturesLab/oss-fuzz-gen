@@ -1,35 +1,32 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
 extern "C" {
-    // Include the necessary headers for the function under test
-    #include "aom/aom_image.h" // Assuming this header contains the function signature
+    // Assuming the function is declared in some header file
+    int aom_uleb_encode_fixed_size(uint64_t value, size_t available, size_t fixed_size, uint8_t *buffer, size_t *encoded_size);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Define and initialize parameters for the function under test
-    uint32_t width = 640; // Example width
-    uint32_t height = 480; // Example height
-    aom_metadata_insert_flags_t flags = (aom_metadata_insert_flags_t)0; // Example flags
+    // Initialize variables
+    uint64_t value = 0;
+    size_t available = 0;
+    size_t fixed_size = 0;
+    uint8_t buffer[256]; // A buffer to hold encoded data
+    size_t encoded_size = 0;
 
-    // Ensure the input data is not NULL and size is reasonable
-    if (size == 0 || data == NULL) {
-        return 0; // Avoid calling the function with invalid parameters
+    // Ensure data is large enough to extract values
+    if (size < sizeof(uint64_t) + 2 * sizeof(size_t)) {
+        return 0;
     }
 
-    // Allocate memory for the metadata using the provided function
-    aom_metadata_t *metadata = aom_img_metadata_alloc(width, data, size, flags);
-    
-    // Check if the allocation was successful
-    if (metadata != NULL) {
-        // Optionally, you can perform operations on the metadata here
-        // ...
+    // Extract values from data
+    std::memcpy(&value, data, sizeof(uint64_t));
+    std::memcpy(&available, data + sizeof(uint64_t), sizeof(size_t));
+    std::memcpy(&fixed_size, data + sizeof(uint64_t) + sizeof(size_t), sizeof(size_t));
 
-        // Free the allocated metadata to avoid memory leaks
-        free(metadata);
-    }
+    // Call the function-under-test
+    aom_uleb_encode_fixed_size(value, available, fixed_size, buffer, &encoded_size);
 
     return 0;
 }

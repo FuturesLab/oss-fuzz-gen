@@ -1,34 +1,29 @@
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <aom/aom_image.h>
+#include <cstddef>
+#include <cstring> // Include this for std::memcpy
 
 extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
+    #include <aom/aom_codec.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for creating an aom_image_t
-    if (size < sizeof(aom_image_t)) {
-        return 0; // Not enough data to create a valid aom_image_t
+    // Ensure that the size is sufficient to create a valid aom_codec_ctx_t object
+    if (size < sizeof(aom_codec_ctx_t)) {
+        return 0;
     }
 
-    // Initialize an aom_image_t structure
-    aom_image_t img;
-    memset(&img, 0, sizeof(aom_image_t));
+    // Create an aom_codec_ctx_t object from the input data
+    aom_codec_ctx_t codec_ctx;
+    // Copy data into the codec_ctx structure
+    std::memcpy(&codec_ctx, data, sizeof(aom_codec_ctx_t));
 
-    // Fill the aom_image_t structure with data from the input
-    // Assuming the first part of the data can be used to initialize the image
-    img.fmt = static_cast<aom_img_fmt_t>(data[0] % (AOM_IMG_FMT_NONE + 1)); // Use first byte for format
-    img.w = static_cast<int>(data[1] % 1920); // Width (max 1920 for this example)
-    img.h = static_cast<int>(data[2] % 1080); // Height (max 1080 for this example)
-    img.stride[0] = img.w; // Assuming a simple stride equal to width for the first plane
-    img.planes[0] = const_cast<uint8_t*>(data + sizeof(aom_image_t)); // Point to the input data for plane 0
+    // Call the function-under-test
+    const char *error_detail = aom_codec_error_detail(&codec_ctx);
 
-    // Call the function under test
-    int plane_width = aom_img_plane_width(&img, 0);
-
-    // Optionally, you could do something with plane_width here, like logging or assertions
+    // Use the result to avoid compiler optimizations that might remove the call
+    if (error_detail != nullptr) {
+        // Do something with error_detail, like logging or further processing
+    }
 
     return 0;
 }

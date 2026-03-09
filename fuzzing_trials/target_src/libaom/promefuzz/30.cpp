@@ -1,13 +1,17 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control_typechecked_AV1E_GET_GOP_INFO at aomcx.h:2393:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO at aomcx.h:2353:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH at aomcx.h:2296:1 in aomcx.h
-// aom_codec_version at aom_codec.c:26:5 in aom_codec.h
-// aom_codec_version_str at aom_codec.c:28:13 in aom_codec.h
-// aom_codec_version_extra_str at aom_codec.c:30:13 in aom_codec.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_img_alloc at aom_image.c:200:14 in aom_image.h
+// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_img_wrap at aom_image.c:216:14 in aom_image.h
+// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_img_alloc at aom_image.c:200:14 in aom_image.h
+// aom_img_set_rect at aom_image.c:234:5 in aom_image.h
+// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_img_alloc at aom_image.c:200:14 in aom_image.h
+// aom_img_flip at aom_image.c:285:6 in aom_image.h
+// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_img_alloc at aom_image.c:200:14 in aom_image.h
+// aom_img_remove_metadata at aom_image.c:412:6 in aom_image.h
+// aom_img_free at aom_image.c:304:6 in aom_image.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,60 +21,101 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
 #include "aom_image.h"
-#include "aom.h"
-#include "aom_encoder.h"
 #include "aom_codec.h"
 #include "aom_frame_buffer.h"
-#include "aom_integer.h"
+#include "aom_external_partition.h"
+#include "aomdx.h"
 #include "aom_decoder.h"
+#include "aom_encoder.h"
+#include "aom_integer.h"
+#include "aom.h"
 #include "aomcx.h"
 
+static void fuzz_aom_img_alloc_and_free(const uint8_t *Data, size_t Size) {
+    if (Size < 16) return; // Ensure we have enough data
+
+    aom_image_t *img = nullptr;
+    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0] % 7); // Limit to known formats
+    unsigned int d_w = (Data[1] << 8) | Data[2];
+    unsigned int d_h = (Data[3] << 8) | Data[4];
+    unsigned int align = (Data[5] << 8) | Data[6];
+
+    img = aom_img_alloc(nullptr, fmt, d_w, d_h, align);
+    if (img) {
+        aom_img_free(img);
+    }
+}
+
+static void fuzz_aom_img_wrap(const uint8_t *Data, size_t Size) {
+    if (Size < 16) return; // Ensure we have enough data
+
+    aom_image_t img;
+    memset(&img, 0, sizeof(img));
+    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0] % 7); // Limit to known formats
+    unsigned int d_w = (Data[1] << 8) | Data[2];
+    unsigned int d_h = (Data[3] << 8) | Data[4];
+    unsigned int stride_align = (Data[5] << 8) | Data[6];
+
+    unsigned char dummy_data[1024]; // Example buffer
+    aom_image_t *wrapped_img = aom_img_wrap(&img, fmt, d_w, d_h, stride_align, dummy_data);
+    if (wrapped_img) {
+        aom_img_free(wrapped_img);
+    }
+}
+
+static void fuzz_aom_img_set_rect(const uint8_t *Data, size_t Size) {
+    if (Size < 16) return; // Ensure we have enough data
+
+    aom_image_t img;
+    memset(&img, 0, sizeof(img));
+
+    unsigned int x = (Data[0] << 8) | Data[1];
+    unsigned int y = (Data[2] << 8) | Data[3];
+    unsigned int w = (Data[4] << 8) | Data[5];
+    unsigned int h = (Data[6] << 8) | Data[7];
+    unsigned int border = (Data[8] << 8) | Data[9];
+
+    aom_img_alloc(&img, AOM_IMG_FMT_I420, w + x, h + y, 1); // Ensure valid allocation
+    aom_img_set_rect(&img, x, y, w, h, border);
+    aom_img_free(&img);
+}
+
+static void fuzz_aom_img_flip(const uint8_t *Data, size_t Size) {
+    if (Size < 16) return; // Ensure we have enough data
+
+    aom_image_t img;
+    memset(&img, 0, sizeof(img));
+    unsigned int d_w = (Data[0] << 8) | Data[1];
+    unsigned int d_h = (Data[2] << 8) | Data[3];
+
+    aom_img_alloc(&img, AOM_IMG_FMT_I420, d_w, d_h, 1); // Ensure valid allocation
+    aom_img_flip(&img);
+    aom_img_free(&img);
+}
+
+static void fuzz_aom_img_remove_metadata(const uint8_t *Data, size_t Size) {
+    if (Size < 16) return; // Ensure we have enough data
+
+    aom_image_t img;
+    memset(&img, 0, sizeof(img));
+    unsigned int d_w = (Data[0] << 8) | Data[1];
+    unsigned int d_h = (Data[2] << 8) | Data[3];
+
+    aom_img_alloc(&img, AOM_IMG_FMT_I420, d_w, d_h, 1); // Ensure valid allocation
+    aom_img_remove_metadata(&img);
+    aom_img_free(&img);
+}
+
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    // Prepare the environment
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Get the AV1 codec interface
-    aom_codec_err_t res;
-
-    // Initialize codec context
-    res = aom_codec_enc_init(&codec_ctx, iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) return 0;
-
-    // Prepare for GOP info retrieval
-    aom_gop_info_t gop_info;
-    res = aom_codec_control_typechecked_AV1E_GET_GOP_INFO(&codec_ctx, 0, &gop_info);
-    if (res != AOM_CODEC_OK) {
-        // Handle error
-    }
-
-    // Fuzzing for aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO
-    // Assuming Data is valid for this function
-    const char *rate_distribution_info = reinterpret_cast<const char*>(Data);
-    res = aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO(&codec_ctx, 0, rate_distribution_info);
-    if (res != AOM_CODEC_OK) {
-        // Handle error
-    }
-
-    // Fuzzing for aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH
-    // Assuming Data is valid for this function
-    const char *partition_info_path = reinterpret_cast<const char*>(Data);
-    res = aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH(&codec_ctx, 0, partition_info_path);
-    if (res != AOM_CODEC_OK) {
-        // Handle error
-    }
-
-    // Fuzzing for aom_codec_version
-    int version = aom_codec_version();
-
-    // Fuzzing for aom_codec_version_str
-    const char *version_str = aom_codec_version_str();
-
-    // Fuzzing for aom_codec_version_extra_str
-    const char *extra_version_str = aom_codec_version_extra_str();
-
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
+    fuzz_aom_img_alloc_and_free(Data, Size);
+    fuzz_aom_img_wrap(Data, Size);
+    fuzz_aom_img_set_rect(Data, Size);
+    fuzz_aom_img_flip(Data, Size);
+    fuzz_aom_img_remove_metadata(Data, Size);
     return 0;
 }

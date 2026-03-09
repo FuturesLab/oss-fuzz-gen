@@ -1,39 +1,32 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h> // Include the necessary header for aom_codec_av1_dx
+#include <cstdint>
+#include <cstdlib>
+#include <aom/aom_image.h> // Include the necessary header for aom_image_t
 
-extern "C" {
-    aom_codec_err_t aom_codec_set_option(aom_codec_ctx_t *, const char *, const char *);
-    const aom_codec_iface_t *aom_codec_av1_dx(); // Declare the function for the AV1 decoder
-}
+extern "C" int aom_img_plane_width(const aom_image_t *, int);
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_err_t result;
+    // Declare and initialize the variables
+    aom_image_t img;
+    int plane = 0;
 
-    // Initialize the codec context
-    result = aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0);
-    if (result != AOM_CODEC_OK) {
-        return 0; // Initialization failed, exit early
-    }
+    // Initialize the aom_image_t structure with some non-NULL values
+    img.fmt = AOM_IMG_FMT_I420; // Use a valid image format
+    img.w = 640; // Width of the image
+    img.h = 480; // Height of the image
+    img.d_w = 640; // Displayed width
+    img.d_h = 480; // Displayed height
+    img.x_chroma_shift = 1;
+    img.y_chroma_shift = 1;
+    img.planes[0] = const_cast<uint8_t*>(data); // Assign data to the first plane
+    img.planes[1] = const_cast<uint8_t*>(data); // Assign data to the second plane
+    img.planes[2] = const_cast<uint8_t*>(data); // Assign data to the third plane
+    img.stride[0] = 640;
+    img.stride[1] = 320;
+    img.stride[2] = 320;
 
-    // Prepare options
-    const char *option_name = "test_option";
-    const char *option_value = (const char *)data;
+    // Call the function-under-test
+    int width = aom_img_plane_width(&img, plane);
 
-    // Ensure the option value is null-terminated and within a reasonable size
-    char option_value_buffer[256];
-    size_t option_value_length = size < sizeof(option_value_buffer) - 1 ? size : sizeof(option_value_buffer) - 1;
-    memcpy(option_value_buffer, data, option_value_length);
-    option_value_buffer[option_value_length] = '\0'; // Null-terminate
-
-    // Call the function under test
-    result = aom_codec_set_option(&codec_ctx, option_name, option_value_buffer);
-
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
