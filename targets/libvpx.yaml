@@ -267,8 +267,8 @@
 - "VPX_EFLAG_FORCE_KF"
 - "VPX_EFLAG_CALCULATE_PSNR"
 "project": "libvpx"
-"target_name": "FILL IN!"
-"target_path": "FILL IN!"
+"target_name": "vpx_dec_fuzzer_vp8"
+"target_path": "/src/libvpx/examples/vpx_dec_fuzzer.cc"
 "typedefs":
 - "datatype": "unsigned long"
   "name": "vpx_enc_deadline_t"
