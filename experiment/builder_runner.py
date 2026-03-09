@@ -928,7 +928,11 @@ class CloudBuilderRunner(BuilderRunner):
 
     for attempt_id in range(1, CLOUD_EXP_MAX_ATTEMPT + 1):
       try:
-        sp.run(*args, check=True, **kwargs)
+        proc = sp.run(*args, stdout=sp.PIPE, stderr=sp.PIPE, check=True, **kwargs)
+        stdout = proc.stdout.decode('utf-8')
+        stderr = proc.stderr.decode('utf-8')
+        logger.info("Experiment %s stdout:\n%s", self.experiment_name, stdout)
+        logger.info("Experiment %s stderr:\n%s", self.experiment_name, stderr)
         return True
       except sp.CalledProcessError as e:
         # Replace \n for single log entry on cloud.

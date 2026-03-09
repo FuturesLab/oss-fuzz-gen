@@ -64,7 +64,7 @@ def _parse_args(cmd) -> argparse.Namespace:
   parser.add_argument(
       '-a',
       '--approach',
-      default=['ofg', 'bluebird_ofg', 'promefuzz', 'bluebird_promefuzz'],
+      default=['ofg', 'bluebird_ofg', 'promefuzz', 'bluebird_promefuzz', 'ogharn'],
       nargs="+",
       help='Fuzz the harnesses for each given approach')
 
