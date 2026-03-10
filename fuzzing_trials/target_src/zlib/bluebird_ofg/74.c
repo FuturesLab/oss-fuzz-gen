@@ -1,0 +1,53 @@
+#include <stdint.h>
+#include <stdlib.h>
+#include "zlib.h"
+
+int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
+    z_stream stream;
+    int ret;
+    unsigned char out[1024];  // Output buffer for deflate
+
+    // Initialize the z_stream structure
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+
+    // Initialize the deflate stream
+    ret = deflateInit(&stream, Z_DEFAULT_COMPRESSION);
+    if (ret != Z_OK) {
+        return 0;
+    }
+
+    // Set the input data for the stream
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
+
+    // Set the output buffer for the stream
+    stream.next_out = out;
+    stream.avail_out = sizeof(out);
+
+    // Perform a deflate operation
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of deflate
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of deflate
+    ret = deflate(&stream, Z_NEED_DICT);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    if (ret != Z_STREAM_END && ret != Z_OK) {
+        deflateEnd(&stream);
+        return 0;
+    }
+
+    // Reset the stream while keeping the state
+    ret = deflateResetKeep(&stream);
+
+    // Clean up
+    deflateEnd(&stream);
+
+    return 0;
+}
