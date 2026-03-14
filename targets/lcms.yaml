@@ -2666,8 +2666,8 @@
 - "INTENT_PRESERVE_K_PLANE_RELATIVE_COLORIMETRIC"
 - "INTENT_PRESERVE_K_PLANE_SATURATION"
 "project": "lcms"
-"target_name": "cms_cie_cam02_fuzzer"
-"target_path": "/src/cms_cie_cam02_fuzzer.c"
+"target_name": "cms_profile_fuzzer"
+"target_path": "/src/cms_profile_fuzzer.c"
 "typedefs":
 - "datatype": "int"
   "name": "cmsS15Fixed16Number"
