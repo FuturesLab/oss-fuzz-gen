@@ -1,23 +1,38 @@
 #include <cstdint>
-#include <cstddef>
-#include <iostream>
+#include <cstdlib>
+#include <aom/aom_decoder.h>
+#include <aom/aomdx.h>
 
-// Include the AOM codec header file
-extern "C" {
-#include <aom/aom_codec.h>
-}
-
-// Fuzzing harness for the aom_codec_version_str function
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    const char *version_str = aom_codec_version_str();
+    // Initialize codec context and iterator
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iter_t iter = NULL;
+    aom_codec_err_t res;
 
-    // Print the version string to demonstrate the call (optional)
-    if (version_str != nullptr) {
-        std::cout << "AOM Codec Version: " << version_str << std::endl;
+    // Create a configuration for the codec
+    aom_codec_dec_cfg_t cfg;
+    cfg.threads = 1;
+    cfg.w = 0;  // Set width to 0 for automatic detection
+    cfg.h = 0;  // Set height to 0 for automatic detection
+
+    // Initialize the codec context
+    res = aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), &cfg, 0);
+    if (res != AOM_CODEC_OK) {
+        return 0;
     }
 
-    // Since the function does not take any input parameters, we do not need to use `data` or `size`.
+    // Decode the input data
+    res = aom_codec_decode(&codec_ctx, data, size, NULL);
+    if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    // Get the frame from the codec
+    aom_image_t *img = aom_codec_get_frame(&codec_ctx, &iter);
+
+    // Clean up
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

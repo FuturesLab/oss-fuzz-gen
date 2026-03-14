@@ -928,7 +928,7 @@ class CloudBuilderRunner(BuilderRunner):
 
     for attempt_id in range(1, CLOUD_EXP_MAX_ATTEMPT + 1):
       try:
-        sp.run(*args, check=True, **kwargs)
+        proc = sp.run(*args, stdout=sp.PIPE, stderr=sp.PIPE, check=True, **kwargs)
         return True
       except sp.CalledProcessError as e:
         # Replace \n for single log entry on cloud.
@@ -1113,35 +1113,35 @@ class CloudBuilderRunner(BuilderRunner):
                 os.path.realpath(target_path), afl_output_name)
 
 
-    code_coverage_report_dir = self.work_dirs.code_coverage_report(
-        generated_target_name)
-    report_prefix = f'{coverage_name}/report/linux/'
-    blobs = bucket.list_blobs(prefix=report_prefix)
+    # code_coverage_report_dir = self.work_dirs.code_coverage_report(
+    #     generated_target_name)
+    # report_prefix = f'{coverage_name}/report/linux/'
+    # blobs = bucket.list_blobs(prefix=report_prefix)
 
-    for blob in blobs:
-      if blob.name.endswith('/'):
-        continue
+    # for blob in blobs:
+    #   if blob.name.endswith('/'):
+    #     continue
 
-      # Get the relative path within report/linux/
-      relative_path = blob.name[len(report_prefix):]
-      local_path = os.path.join(code_coverage_report_dir, 'report', 'linux',
-                                relative_path)
-      os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    #   # Get the relative path within report/linux/
+    #   relative_path = blob.name[len(report_prefix):]
+    #   local_path = os.path.join(code_coverage_report_dir, 'report', 'linux',
+    #                             relative_path)
+    #   os.makedirs(os.path.dirname(local_path), exist_ok=True)
 
-      blob.download_to_filename(local_path)
+    #   blob.download_to_filename(local_path)
 
-    lcov_report_name = f'{coverage_name}/lcov_reports/{self.benchmark.target_name}.lcov_total'
-    local_lcov_report_path = os.path.join(code_coverage_report_dir, f"{self.benchmark.target_name}.lcov_total")
-    with open(local_lcov_report_path, 'wb') as f:
-      blob = bucket.blob(lcov_report_name)
-      if blob.exists():
-        build_result.succeeded = True
-        logger.info('Downloading cloud lcov log of %s: %s to %s',
-                    os.path.realpath(target_path), lcov_report_name, f)
-        blob.download_to_file(f)
-      else:
-        logger.warning('Cannot find cloud run log of %s: %s',
-                       os.path.realpath(target_path), lcov_report_name)
+    # lcov_report_name = f'{coverage_name}/lcov_reports/{self.benchmark.target_name}.lcov_total'
+    # local_lcov_report_path = os.path.join(code_coverage_report_dir, f"{self.benchmark.target_name}.lcov_total")
+    # with open(local_lcov_report_path, 'wb') as f:
+    #   blob = bucket.blob(lcov_report_name)
+    #   if blob.exists():
+    #     build_result.succeeded = True
+    #     logger.info('Downloading cloud lcov log of %s: %s to %s',
+    #                 os.path.realpath(target_path), lcov_report_name, f)
+    #     blob.download_to_file(f)
+    #   else:
+    #     logger.warning('Cannot find cloud run log of %s: %s',
+    #                    os.path.realpath(target_path), lcov_report_name)
 
     # For our purposes, we don't care about constructing the run result
 
@@ -1222,33 +1222,33 @@ class CloudBuilderRunner(BuilderRunner):
     #       run_result.artifact_name, run_result.semantic_check = \
     #         self._parse_libfuzzer_logs(f, project_name)
 
-    artifact_dir = self.work_dirs.artifact(generated_target_name, iteration,
-                                           trial)
+    # artifact_dir = self.work_dirs.artifact(generated_target_name, iteration,
+    #                                        trial)
 
-    asan_build_path = f"{fuzz_driver_storage_name}/asan_driver"
-    fuzz_build_path =  f"{fuzz_driver_storage_name}/fuzz_driver"
+    # asan_build_path = f"{fuzz_driver_storage_name}/asan_driver"
+    # fuzz_build_path =  f"{fuzz_driver_storage_name}/fuzz_driver"
 
-    with open(os.path.join(artifact_dir, "asan_driver"), "wb") as f:
-      blob = bucket.blob(asan_build_path)
-      if blob.exists():
-        build_result.succeeded = True
-        logger.info('Downloading asan driver of %s: %s to %s',
-                    os.path.realpath(target_path), asan_build_path, f)
-        blob.download_to_file(f)
-      else:
-        logger.warning('Cannot find asan driver of %s: %s',
-                       os.path.realpath(target_path), asan_build_path)
+    # with open(os.path.join(artifact_dir, "asan_driver"), "wb") as f:
+    #   blob = bucket.blob(asan_build_path)
+    #   if blob.exists():
+    #     build_result.succeeded = True
+    #     logger.info('Downloading asan driver of %s: %s to %s',
+    #                 os.path.realpath(target_path), asan_build_path, f)
+    #     blob.download_to_file(f)
+    #   else:
+    #     logger.warning('Cannot find asan driver of %s: %s',
+    #                    os.path.realpath(target_path), asan_build_path)
 
-    with open(os.path.join(artifact_dir, "fuzz_driver"), "wb") as f:
-      blob = bucket.blob(fuzz_build_path)
-      if blob.exists():
-        build_result.succeeded = True
-        logger.info('Downloading fuzz driver of %s: %s to %s',
-                    os.path.realpath(target_path), fuzz_build_path, f)
-        blob.download_to_file(f)
-      else:
-        logger.warning('Cannot find fuzz driver of %s: %s',
-                       os.path.realpath(target_path), fuzz_build_path)
+    # with open(os.path.join(artifact_dir, "fuzz_driver"), "wb") as f:
+    #   blob = bucket.blob(fuzz_build_path)
+    #   if blob.exists():
+    #     build_result.succeeded = True
+    #     logger.info('Downloading fuzz driver of %s: %s to %s',
+    #                 os.path.realpath(target_path), fuzz_build_path, f)
+    #     blob.download_to_file(f)
+    #   else:
+    #     logger.warning('Cannot find fuzz driver of %s: %s',
+    #                    os.path.realpath(target_path), fuzz_build_path)
 
 
     # blobs = list(bucket.list_blobs(prefix=f'{reproducer_name}/'))

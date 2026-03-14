@@ -8,60 +8,54 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+#include <exception>
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 6) {
+        return 0;  // Not enough data to proceed
     }
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
 
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0;
+    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
+        return 0;  // Failed to get default config
     }
 
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0)) {
+        return 0;  // Failed to initialize codec
+    }
 
-    // Cleanup
+    try {
+        int enable_auto_alt_ref = Data[0] % 2;
+        aom_codec_control(&codec_ctx, AOME_SET_ENABLEAUTOALTREF, enable_auto_alt_ref);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_peek_stream_info to aom_codec_get_stream_info
-    aom_codec_ctx_t kjmxbqor;
-    memset(&kjmxbqor, 0, sizeof(kjmxbqor));
-    aom_codec_err_t ret_aom_codec_destroy_xitdg = aom_codec_destroy(&kjmxbqor);
+        aom_scaling_mode_t scaling_mode;
+        scaling_mode.h_scaling_mode = static_cast<AOM_SCALING_MODE>(Data[1] % 9);
+        aom_codec_control(&codec_ctx, AOME_SET_SCALEMODE, &scaling_mode);
 
-    aom_codec_err_t ret_aom_codec_get_stream_info_crtkw = aom_codec_get_stream_info(&kjmxbqor, &si);
+        int num_spatial_layers = Data[2] % 4;
+        aom_codec_control(&codec_ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, num_spatial_layers);
 
-    // End mutation: Producer.APPEND_MUTATOR
+        int tuning = Data[3] % 3;
+        aom_codec_control(&codec_ctx, AOME_SET_TUNING, tuning);
 
-    aom_codec_destroy(&ctx);
-    
+        int spatial_layer_id = Data[4] % 4;
+        aom_codec_control(&codec_ctx, AOME_SET_SPATIAL_LAYER_ID, spatial_layer_id);
+
+        int max_gf_interval = Data[5] % 100;
+        aom_codec_control(&codec_ctx, AV1E_SET_MAX_GF_INTERVAL, max_gf_interval);
+    } catch (const std::exception &e) {
+        // Handle any exceptions that might be thrown by the codec control functions
+    }
+
+    aom_codec_destroy(&codec_ctx);
     return 0;
 }

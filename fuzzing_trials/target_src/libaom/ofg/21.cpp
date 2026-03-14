@@ -1,25 +1,31 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h>
+#include <cstdint>
+#include <cstddef>
 
 extern "C" {
-
-aom_codec_iface_t * aom_codec_av1_dx();
-
-int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Call the function under test
-    aom_codec_iface_t *codec_iface = aom_codec_av1_dx();
-
-    // Ensure that the codec interface is not NULL
-    if (codec_iface == NULL) {
-        return 0; // Exit if the codec interface is NULL
-    }
-
-    // Here we can add additional logic to utilize the codec_iface
-    // For example, we could initialize a decoder, but for fuzzing, we will just return
-
-    return 0;
+    // Include the necessary headers for the function-under-test
+    #include <aom/aom_codec.h>
+    #include <aom/aomcx.h>  // Include the header where aom_codec_av1_cx is declared
 }
 
+// Function signature for the function-under-test
+extern "C" const char * aom_codec_iface_name(aom_codec_iface_t *);
+
+extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
+    // Initialize aom_codec_iface_t pointer
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+
+    // Ensure the iface is not NULL
+    if (iface == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    const char *name = aom_codec_iface_name(iface);
+
+    // Use the result in some way to avoid compiler optimizations removing the call
+    if (name != NULL) {
+        // Do something with the name, like printing or logging
+    }
+
+    return 0;
 }

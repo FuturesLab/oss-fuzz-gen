@@ -1,34 +1,47 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdlib>
 
+// Wrap the libaom includes with extern "C" since they are C libraries
 extern "C" {
-#include <aom/aom_image.h>
+    #include <aom/aom_codec.h>
+    #include <aom/aom_encoder.h>
+    #include <aom/aomcx.h>
 }
 
-// Fuzzing harness for aom_img_alloc_with_border
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Define and initialize parameters for the function under test
-    aom_image_t *img = (aom_image_t *)malloc(sizeof(aom_image_t)); // Allocate memory for aom_image_t
-    aom_img_fmt_t format = AOM_IMG_FMT_I420; // Set a valid image format
-    unsigned int width = 640; // Set a valid width
-    unsigned int height = 480; // Set a valid height
-    unsigned int border_left = 10; // Set left border
-    unsigned int border_top = 10; // Set top border
-    unsigned int border_right = 10; // Set right border
-    unsigned int border_bottom = 10; // Set bottom border
-    unsigned int align = 1; // Set alignment (example value)
-    unsigned int size_align = 1; // Set size alignment (example value)
-    unsigned int border = border_left + border_right; // Calculate total border width (example value)
+    // Initialize the codec context
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg cfg;  // Use correct type name without _t
+    aom_codec_err_t res;
 
-    // Call the function under test
-    aom_image_t *result_img = aom_img_alloc_with_border(img, format, width, height, align, size_align, border);
-
-    // Free allocated memory
-    if (result_img != NULL) {
-        aom_img_free(result_img); // Free the image if it was allocated successfully
+    // Initialize codec configuration
+    res = aom_codec_enc_config_default(iface, &cfg, AOM_USAGE_GOOD_QUALITY);
+    if (res != AOM_CODEC_OK) {
+        return 0;
     }
-    free(img); // Free the initial image structure
+
+    // Initialize the codec
+    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    // Ensure the data size is sufficient for the control ID and arbitrary data
+    if (size < sizeof(int) + 1) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    // Extract control ID and arbitrary data from fuzz input
+    int control_id = *(reinterpret_cast<const int*>(data));
+    const void *control_data = static_cast<const void*>(data + sizeof(int));
+
+    // Call the function-under-test
+    res = aom_codec_control(&codec_ctx, control_id, const_cast<void*>(control_data));
+
+    // Clean up
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

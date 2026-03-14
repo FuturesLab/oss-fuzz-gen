@@ -7,59 +7,50 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+#include "stdint.h"
+#include "stddef.h"
+#include <fstream>
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < sizeof(int)) return 0;
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
     aom_codec_err_t res;
 
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0;
-    }
+    // Assume the interface is for AV1 encoder
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
 
-    // Set frame buffer functions with random function pointers
+    // Initialize encoder configuration
+    aom_codec_enc_cfg_t cfg;
+    res = aom_codec_enc_config_default(iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) return 0;
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_dec_init_ver to aom_codec_set_frame_buffer_functions
-    aom_codec_err_t ret_aom_codec_destroy_taieb = aom_codec_destroy(&ctx);
+    // Initialize codec
+    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) return 0;
 
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_nnvty = aom_codec_set_frame_buffer_functions(&ctx, 0, 0, (void *)iface);
+    // Prepare a dummy file if needed
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Extract an integer from the input data
+    int control_value = *reinterpret_cast<const int*>(Data);
 
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
+    // Fuzz each target function with extracted control_value
+    aom_codec_control(&codec_ctx, AV1E_SET_NOISE_SENSITIVITY, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_FP_MT_UNIT_TEST, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_MIN_GF_INTERVAL, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_AUTO_INTRA_TOOLS_OFF, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_TILE_COLUMNS, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_CDF_UPDATE_MODE, control_value);
 
     // Cleanup
-    aom_codec_destroy(&ctx);
-    
+    aom_codec_destroy(&codec_ctx);
+
     return 0;
 }

@@ -1,12 +1,6 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
 // aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
 // aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,52 +11,60 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom_decoder.h"
+#include <cstring>
 #include "aom_frame_buffer.h"
+#include "aom_external_partition.h"
+#include "aomdx.h"
+#include "aom_decoder.h"
+#include "aom_encoder.h"
 #include "aom_integer.h"
+#include "aom_codec.h"
+#include "aom_image.h"
+#include "aom.h"
 #include "aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    // Prepare the codec context
-    aom_codec_ctx_t codec;
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Get AV1 encoder interface
-    aom_codec_err_t res = aom_codec_enc_init(&codec, iface, nullptr, 0);
-    
-    if (res != AOM_CODEC_OK) return 0; // Initialization failed
+    if (Size < 6) return 0;
 
-    // Prepare control parameters
-    aom_svc_ref_frame_comp_pred_t ref_frame_comp_pred = {};
-    int enable_palette = 1; // Enable palette coding
-    int tune_content = 0; // Set content tuning (example value)
-    int matrix_coefficients = 0; // Example matrix coefficients
+    int cpu_used = Data[0] % 9; // CPU usage level range typically -8 to 8
+    int seq_level_idx = Data[1] % 24; // Sequence level index range
+    int enable_tx_size_search = Data[2] % 2; // Boolean flag
+    int enable_directional_intra = Data[3] % 2; // Boolean flag
+    int spatial_layer_id = Data[4] % 5; // Example spatial layer ID range
+    int reference_frame = Data[5] % 5; // Example reference frame index range
 
-    // Fuzz the functions with diverse inputs
-    if (Size > 0) {
-        // Control reference frame
-        ref_frame_comp_pred.use_comp_pred[0] = Data[0] % 3; // Randomize input
-        aom_codec_control(&codec, AOME_USE_REFERENCE, &ref_frame_comp_pred);
-        
-        // Enable rate guide delta quantization
-        aom_codec_control(&codec, AV1E_ENABLE_RATE_GUIDE_DELTAQ, Data[1] % 2);
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-        // Set enable palette
-        aom_codec_control(&codec, AV1E_SET_ENABLE_PALETTE, enable_palette);
-
-        // Set matrix coefficients
-        aom_codec_control(&codec, AV1E_SET_MATRIX_COEFFICIENTS, matrix_coefficients);
-
-        // Set tune content
-        aom_codec_control(&codec, AV1E_SET_TUNE_CONTENT, tune_content);
+    // Initialize codec context with encoder interface
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    if (aom_codec_enc_init(&codec_ctx, iface, nullptr, 0)) {
+        return 0;
     }
 
-    // Cleanup
-    aom_codec_destroy(&codec);
+    // Set CPU usage level
+    aom_codec_control(&codec_ctx, AOME_SET_CPUUSED, cpu_used);
+
+    // Get target sequence level index
+    int seq_level_idx_out;
+    aom_codec_control(&codec_ctx, AV1E_GET_TARGET_SEQ_LEVEL_IDX, &seq_level_idx_out);
+
+    // Enable/Disable transaction size search
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_TX_SIZE_SEARCH, enable_tx_size_search);
+
+    // Enable/Disable directional intra prediction
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_DIRECTIONAL_INTRA, enable_directional_intra);
+
+    // Set spatial layer ID
+    aom_codec_control(&codec_ctx, AOME_SET_SPATIAL_LAYER_ID, spatial_layer_id);
+
+    // Use reference frame
+    aom_codec_control(&codec_ctx, AOME_USE_REFERENCE, reference_frame);
+
+    // Destroy the codec context
+    aom_codec_destroy(&codec_ctx);
+
     return 0;
 }

@@ -10,66 +10,101 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
+#include <iostream>
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aomcx.h"
 #include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+#include "aom/aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < sizeof(uint64_t)) return 0;
+
+    // Test aom_uleb_encode
+    {
+        uint64_t value;
+        memcpy(&value, Data, sizeof(uint64_t));
+        size_t available = Size - sizeof(uint64_t);
+        uint8_t *coded_value = new uint8_t[available];
+        size_t coded_size = 0;
+
+        int result = aom_uleb_encode(value, available, coded_value, &coded_size);
+        if (result == 0) {
+            // Successfully encoded
+        } else {
+            // Encoding failed
+        }
+        delete[] coded_value;
     }
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
+    // Test aom_uleb_encode_fixed_size
+    {
+        uint64_t value;
+        memcpy(&value, Data, sizeof(uint64_t));
+        size_t available = Size - sizeof(uint64_t);
+        size_t pad_to_size = available > 0 ? available : 1; // Ensure non-zero pad size
+        uint8_t *coded_value = new uint8_t[pad_to_size];
+        size_t coded_size = 0;
 
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0;
+        int result = aom_uleb_encode_fixed_size(value, available, pad_to_size, coded_value, &coded_size);
+        if (result == 0) {
+            // Successfully encoded
+        } else {
+            // Encoding failed
+        }
+        delete[] coded_value;
     }
 
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
+    // Test aom_img_add_metadata
+    {
+        aom_image_t img;
+        memset(&img, 0, sizeof(img));
+        uint32_t type = 0;
+        const uint8_t *data = Data;
+        size_t sz = Size;
+        aom_metadata_insert_flags_t insert_flag = AOM_MIF_ANY_FRAME;
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
-    size_t ret_aom_uleb_size_in_bytes_nilff = aom_uleb_size_in_bytes(AOM_PLANE_Y);
-    if (ret_aom_uleb_size_in_bytes_nilff < 0){
-    	return 0;
+        int result = aom_img_add_metadata(&img, type, data, sz, insert_flag);
+        if (result == 0) {
+            // Metadata successfully added
+        } else {
+            // Failed to add metadata
+        }
     }
 
-    aom_codec_err_t ret_aom_codec_control_lenzq = aom_codec_control(&ctx, (int )ret_aom_uleb_size_in_bytes_nilff);
+    // Test aom_img_num_metadata
+    {
+        aom_image_t img;
+        memset(&img, 0, sizeof(img));
 
-    // End mutation: Producer.APPEND_MUTATOR
+        size_t num_metadata = aom_img_num_metadata(&img);
+        // Use num_metadata for further logic
+    }
 
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
+    // Test aom_uleb_decode
+    {
+        uint64_t decoded_value = 0;
+        size_t length = 0;
+        int result = aom_uleb_decode(Data, Size, &decoded_value, &length);
+        if (result == 0) {
+            // Successfully decoded
+        } else {
+            // Decoding failed
+        }
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_set_frame_buffer_functions
+    // Test aom_uleb_size_in_bytes
+    {
+        uint64_t value;
+        memcpy(&value, Data, sizeof(uint64_t));
+        size_t size_in_bytes = aom_uleb_size_in_bytes(value);
+        // Use size_in_bytes for further logic
+    }
 
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ammkx = aom_codec_set_frame_buffer_functions(&ctx, 0, 0, (void *)iface);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
-
-    // Cleanup
-    aom_codec_destroy(&ctx);
-    
     return 0;
 }

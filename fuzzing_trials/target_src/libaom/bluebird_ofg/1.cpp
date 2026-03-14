@@ -1,46 +1,71 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h>
+#include <cstdint>
+#include <cstdlib>
+#include "aom/aom_decoder.h"
+#include "aom/aomdx.h"
 
-extern "C" {
-    // Include necessary AOM headers for codec context and error types
-    #include <aom/aom_codec.h>
-    #include <aom/aom_decoder.h>
-    #include <aom/aomdx.h> // Include this header for aom_codec_av1_dx
-}
-
-// Fuzzing harness for the AOM codec decode function
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Initialize codec context
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_err_t result;
+    aom_codec_ctx_t codec;
+    aom_codec_err_t res;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
 
     // Initialize the codec context
-    result = aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0);
-    if (result != AOM_CODEC_OK) {
-        return 0;  // Initialization failed
-    }
-
-    // Ensure the input size is reasonable
-    if (size == 0 || size > 65536) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;  // Invalid input size
+    res = aom_codec_dec_init(&codec, iface, nullptr, 0);
+    if (res != AOM_CODEC_OK) {
+        return 0;
     }
 
     // Call the function-under-test
-    result = aom_codec_decode(&codec_ctx, data, size, NULL);
-    
-    // Cleanup
+    res = aom_codec_decode(&codec, data, size, nullptr);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_set_frame_buffer_functions
+    // Destroy the codec context
 
-        aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ghior = aom_codec_set_frame_buffer_functions(&codec_ctx, 0, 0, NULL);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
 
-        // End mutation: Producer.APPEND_MUTATOR
 
-    aom_codec_destroy(&codec_ctx);
-    
-    return 0;  // Return 0 to indicate the end of the fuzzing test
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of aom_codec_set_frame_buffer_functions
+    char ktbcqqjc[1024] = "tzuqq";
+    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_cxmbv = aom_codec_set_frame_buffer_functions(&codec, 0, 0, ktbcqqjc);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_set_option
+    const char vyaafayr[1024] = "eslhb";
+
+    aom_codec_err_t ret_aom_codec_set_option_gdtgk = aom_codec_set_option(&codec, (const char *)data, vyaafayr);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    aom_codec_err_t ret_aom_codec_control_yjtsg = aom_codec_control(&codec, size);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_control
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_set_option
+    const char setldenk[1024] = "smpmh";
+
+    aom_codec_err_t ret_aom_codec_set_option_fdlby = aom_codec_set_option(&codec, NULL, setldenk);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    aom_codec_caps_t ret_aom_codec_get_caps_boeri = aom_codec_get_caps(iface);
+    if (ret_aom_codec_get_caps_boeri < 0){
+    	return 0;
+    }
+
+    aom_codec_err_t ret_aom_codec_control_obvnb = aom_codec_control(&codec, (int )ret_aom_codec_get_caps_boeri);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    aom_codec_destroy(&codec);
+
+    return 0;
 }

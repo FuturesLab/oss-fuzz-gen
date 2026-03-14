@@ -1,13 +1,11 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_LOW_COMPLEXITY_DECODE at aomcx.h:2380:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE at aomcx.h:2383:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF at aomcx.h:1913:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_QM at aomcx.h:2052:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE at aomcx.h:2022:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA at aomcx.h:2302:1 in aomcx.h
 // aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control_typechecked_AV1E_SET_TILE_ROWS at aomcx.h:1965:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_CDF_UPDATE_MODE at aomcx.h:1995:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_AUTO_TILES at aomcx.h:2368:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_FRAME_PERIODIC_BOOST at aomcx.h:1986:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL at aomcx.h:2010:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING at aomcx.h:1971:1 in aomcx.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,45 +15,67 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom_decoder.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include "aom_frame_buffer.h"
+#include "aom_external_partition.h"
+#include "aomdx.h"
+#include "aom_decoder.h"
+#include "aom_encoder.h"
 #include "aom_integer.h"
+#include "aom_codec.h"
+#include "aom_image.h"
+#include "aom.h"
 #include "aomcx.h"
 
+static void fuzz_codec_control_functions(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    int enable_low_complexity_decode = Data[0] % 2;
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_LOW_COMPLEXITY_DECODE(codec_ctx, 0, enable_low_complexity_decode);
+
+    if (Size < 2) return;
+    int screen_content_detection_mode = Data[1] % 2;
+    aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE(codec_ctx, 0, screen_content_detection_mode);
+
+    if (Size < 3) return;
+    int enable_auto_alt_ref = Data[2] % 2;
+    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF(codec_ctx, 0, enable_auto_alt_ref);
+
+    if (Size < 4) return;
+    int enable_qm = Data[3] % 2;
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_QM(codec_ctx, 0, enable_qm);
+
+    if (Size < 6) return;
+    int render_size[2] = {Data[4] + (Data[5] << 8), Data[6] + (Data[7] << 8)};
+    aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE(codec_ctx, 0, render_size);
+
+    if (Size < 9) return;
+    int enable_directional_intra = Data[8] % 2;
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA(codec_ctx, 0, enable_directional_intra);
+}
+
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Minimum size check for safety
+    if (Size < 9) return 0; // Ensure enough data for all operations
 
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Get AV1 codec interface
-    aom_codec_err_t res;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-    // Initialize codec context
-    res = aom_codec_enc_init(&codec_ctx, iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) return 0;
+    // Initialize codec context with some dummy values
+    codec_ctx.name = "av1";
+    codec_ctx.iface = aom_codec_av1_cx();
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.enc = nullptr; // Assume encoder config for simplicity
 
-    // Prepare data for fuzzing various control functions
-    unsigned int tile_rows = *(reinterpret_cast<const unsigned int*>(Data)) % 64; // Example limit for tile rows
-    unsigned int cdf_mode = *(reinterpret_cast<const unsigned int*>(Data + 4)) % 3; // Example modes
-    unsigned int auto_tiles = *(reinterpret_cast<const unsigned int*>(Data + 8)) % 2; // 0 or 1
-    unsigned int boost_value = *(reinterpret_cast<const unsigned int*>(Data + 12)) % 100; // Example range
-    unsigned int min_gf_interval = *(reinterpret_cast<const unsigned int*>(Data + 16)) % 1000; // Example range
-    unsigned int keyframe_filtering = *(reinterpret_cast<const unsigned int*>(Data + 20)) % 2; // 0 or 1
+    // Fuzz the codec control functions
+    fuzz_codec_control_functions(&codec_ctx, Data, Size);
 
-    // Fuzz control functions
-    aom_codec_control_typechecked_AV1E_SET_TILE_ROWS(&codec_ctx, 0, tile_rows);
-    aom_codec_control_typechecked_AV1E_SET_CDF_UPDATE_MODE(&codec_ctx, 0, cdf_mode);
-    aom_codec_control_typechecked_AV1E_SET_AUTO_TILES(&codec_ctx, 0, auto_tiles);
-    aom_codec_control_typechecked_AV1E_SET_FRAME_PERIODIC_BOOST(&codec_ctx, 0, boost_value);
-    aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL(&codec_ctx, 0, min_gf_interval);
-    aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING(&codec_ctx, 0, keyframe_filtering);
-
-    // Cleanup
+    // Cleanup if necessary
     aom_codec_destroy(&codec_ctx);
+
     return 0;
 }

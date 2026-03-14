@@ -1,13 +1,11 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
 // aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control_typechecked_AOME_SET_CQ_LEVEL at aomcx.h:1937:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_USE_REFERENCE at aomcx.h:1895:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID at aomcx.h:1907:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_MAX_INTRA_BITRATE_PCT at aomcx.h:1940:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_SCALEMODE at aomcx.h:1904:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_CPUUSED at aomcx.h:1910:1 in aomcx.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control_typechecked_AV1E_SET_SVC_PARAMS at aomcx.h:2259:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE at aomcx.h:2383:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC at aomcx.h:2371:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION at aomcx.h:2007:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS at aomcx.h:2004:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA at aomcx.h:2302:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,50 +15,78 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom_decoder.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include "aom_frame_buffer.h"
+#include "aom_external_partition.h"
+#include "aomdx.h"
+#include "aom_decoder.h"
+#include "aom_encoder.h"
 #include "aom_integer.h"
+#include "aom_codec.h"
+#include "aom_image.h"
+#include "aom.h"
 #include "aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_77(const uint8_t *Data, size_t Size) {
-    if (Size < 6) return 0;
-
-    aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-
-    // Initialize codec context here (pseudo-code, replace with actual initialization)
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Example for AV1 encoder
-    if (aom_codec_enc_init(&codec_ctx, iface, nullptr, 0) != AOM_CODEC_OK) {
-        return 0;
+    if (Size < 6) {
+        return 0; // Ensure there's enough data for all operations
     }
 
-    // Fuzzing different API functions with varying values from the input data
-    unsigned int cq_level = Data[0] % 51; // CQ level between 0 and 50
-    aom_codec_control_typechecked_AOME_SET_CQ_LEVEL(&codec_ctx, AOME_SET_CQ_LEVEL, cq_level);
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    codec_ctx.iface = aom_codec_av1_cx();
 
-    int reference_frame = Data[1] % 16; // Example reference frame ID
-    aom_codec_control_typechecked_AOME_USE_REFERENCE(&codec_ctx, AOME_USE_REFERENCE, reference_frame);
+    // Initialize SVC parameters
+    aom_svc_params_t svc_params;
+    memset(&svc_params, 0, sizeof(svc_params));
+    svc_params.number_spatial_layers = Data[0] % 4; // Use a simple modulo for layer count
 
-    int spatial_layer_id = Data[2] % 8; // Example spatial layer ID
-    aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID(&codec_ctx, AOME_SET_SPATIAL_LAYER_ID, spatial_layer_id);
+    // Set SVC parameters
+    aom_codec_err_t err = aom_codec_control_typechecked_AV1E_SET_SVC_PARAMS(&codec_ctx, 0, &svc_params);
+    if (err != AOM_CODEC_OK) {
+        return 0; // Handle error, exit early if setting fails
+    }
 
-    unsigned int max_intra_bitrate_pct = (Data[3] % 101); // Max intra bitrate as a percentage
-    aom_codec_control_typechecked_AOME_SET_MAX_INTRA_BITRATE_PCT(&codec_ctx, AOME_SET_MAX_INTRA_BITRATE_PCT, max_intra_bitrate_pct);
+    // Set screen content detection mode
+    int scd_mode = Data[1] % 2; // Use the second byte to determine mode
+    err = aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE(&codec_ctx, 0, scd_mode);
+    if (err != AOM_CODEC_OK) {
+        return 0; // Handle error, exit early if setting fails
+    }
 
-    aom_scaling_mode_t scale_mode;
-    scale_mode.h_scaling_mode = static_cast<AOM_SCALING_MODE>(Data[4] % 9); // Example scaling mode
-    aom_codec_control_typechecked_AOME_SET_SCALEMODE(&codec_ctx, AOME_SET_SCALEMODE, &scale_mode);
+    // Retrieve high motion content screen RTC settings
+    int high_motion_content;
+    err = aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC(&codec_ctx, 0, &high_motion_content);
+    if (err != AOM_CODEC_OK) {
+        return 0; // Handle error, exit early if retrieval fails
+    }
 
-    int cpu_used = Data[5] % 8; // CPU usage level
-    aom_codec_control_typechecked_AOME_SET_CPUUSED(&codec_ctx, AOME_SET_CPUUSED, cpu_used);
+    // Set chroma sample position
+    int chroma_position = Data[2] % 3; // Use the third byte to determine chroma position
+    err = aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION(&codec_ctx, 0, chroma_position);
+    if (err != AOM_CODEC_OK) {
+        return 0; // Handle error, exit early if setting fails
+    }
 
-    // Cleanup
+    // Set matrix coefficients
+    int matrix_coefficients = Data[3] % 4; // Use the fourth byte to determine matrix coefficients
+    err = aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS(&codec_ctx, 0, matrix_coefficients);
+    if (err != AOM_CODEC_OK) {
+        return 0; // Handle error, exit early if setting fails
+    }
+
+    // Enable or disable directional intra prediction
+    int directional_intra = Data[4] % 2; // Use the fifth byte to determine setting
+    err = aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA(&codec_ctx, 0, directional_intra);
+    if (err != AOM_CODEC_OK) {
+        return 0; // Handle error, exit early if setting fails
+    }
+
+    // Cleanup codec context
     aom_codec_destroy(&codec_ctx);
     return 0;
 }

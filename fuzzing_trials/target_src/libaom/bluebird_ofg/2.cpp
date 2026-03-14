@@ -1,74 +1,48 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h>
+#include <cstdint>
+#include <cstdlib>
+#include "aom/aom_decoder.h"
+#include "aom/aomdx.h"
 
-extern "C" {
-    // Include necessary AOM headers for codec context and error types
-    #include <aom/aom_codec.h>
-    #include <aom/aom_decoder.h>
-    #include <aom/aomdx.h> // Include this header for aom_codec_av1_dx
-}
-
-// Fuzzing harness for the AOM codec decode function
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Initialize codec context
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_err_t result;
+    aom_codec_ctx_t codec;
+    aom_codec_err_t res;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
 
     // Initialize the codec context
-    result = aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0);
-    if (result != AOM_CODEC_OK) {
-        return 0;  // Initialization failed
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_av1_dx to aom_codec_iface_name
+
+    const char* ret_aom_codec_iface_name_kagpy = aom_codec_iface_name(iface);
+    if (ret_aom_codec_iface_name_kagpy == NULL){
+    	return 0;
     }
 
-    // Ensure the input size is reasonable
-    if (size == 0 || size > 65536) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;  // Invalid input size
+    // End mutation: Producer.APPEND_MUTATOR
+
+    res = aom_codec_dec_init(&codec, iface, nullptr, 0);
+    if (res != AOM_CODEC_OK) {
+        return 0;
     }
 
     // Call the function-under-test
-    result = aom_codec_decode(&codec_ctx, data, size, NULL);
-    
-    // Cleanup
+    res = aom_codec_decode(&codec, data, size, nullptr);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_control
-        size_t ret_aom_uleb_size_in_bytes_ywtfk = aom_uleb_size_in_bytes(AOM_PLANE_Y);
-        if (ret_aom_uleb_size_in_bytes_ywtfk < 0){
-        	return 0;
-        }
+    // Destroy the codec context
 
-        aom_codec_err_t ret_aom_codec_control_poiox = aom_codec_control(&codec_ctx, (int )ret_aom_uleb_size_in_bytes_ywtfk);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
 
-        // End mutation: Producer.APPEND_MUTATOR
+    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_cxmbv = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)iface);
+
+    // End mutation: Producer.APPEND_MUTATOR
 
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_get_stream_info
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
 
-        aom_codec_err_t ret_aom_codec_get_stream_info_pmboj = aom_codec_get_stream_info(&codec_ctx, NULL);
+    aom_codec_err_t ret_aom_codec_control_yjtsg = aom_codec_control(&codec, size);
 
-        // End mutation: Producer.APPEND_MUTATOR
+    // End mutation: Producer.APPEND_MUTATOR
 
+    aom_codec_destroy(&codec);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_error
-
-        const char* ret_aom_codec_error_sbulm = aom_codec_error(&codec_ctx);
-        if (ret_aom_codec_error_sbulm == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_set_option
-
-        aom_codec_err_t ret_aom_codec_set_option_udjlb = aom_codec_set_option(&codec_ctx, (const char *)data, (const char *)"w");
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    aom_codec_destroy(&codec_ctx);
-    
-    return 0;  // Return 0 to indicate the end of the fuzzing test
+    return 0;
 }

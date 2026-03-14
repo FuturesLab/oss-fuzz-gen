@@ -1,14 +1,5 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX at aomcx.h:2335:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE at aomcx.h:1980:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX at aomcx.h:2028:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS at aomcx.h:2338:1 in aomcx.h
-// aom_codec_get_global_headers at aom_encoder.c:281:18 in aom_encoder.h
-// aom_codec_get_cx_data at aom_encoder.c:198:27 in aom_encoder.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_set_cx_data_buf at aom_encoder.c:244:17 in aom_encoder.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,59 +9,74 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
+#include <iostream>
+#include <fstream>
+#include <cstdint>
+#include <cstring>
 #include "aom_frame_buffer.h"
-#include "aom.h"
+#include "aom_external_partition.h"
+#include "aomdx.h"
 #include "aom_decoder.h"
 #include "aom_encoder.h"
 #include "aom_integer.h"
+#include "aom_codec.h"
+#include "aom_image.h"
+#include "aom.h"
 #include "aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_78(const uint8_t *Data, size_t Size) {
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Assuming AV1 encoder interface
-    aom_codec_err_t res;
-
-    // Initialize codec context
-    aom_codec_enc_cfg_t cfg;
-    aom_codec_enc_config_default(iface, &cfg, 0);
-    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
-    if (res != AOM_CODEC_OK) return 0;
-
-    // Prepare control arguments
-    int seq_level_idx;
-    int s_frame_mode = Data[0] % 2; // Example: toggling S-Frame mode
-    int seq_level_idx2;
-    int num_operating_points;
-
-    // Fuzzing target 1: GET_TARGET_SEQ_LEVEL_IDX
-    res = aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX(&codec_ctx, 0, &seq_level_idx);
-    
-    // Fuzzing target 2: SET_S_FRAME_MODE
-    res = aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE(&codec_ctx, s_frame_mode, 0); // Assuming 0 is a valid third argument
-    
-    // Fuzzing target 3: GET_SEQ_LEVEL_IDX
-    res = aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX(&codec_ctx, 0, &seq_level_idx2);
-    
-    // Fuzzing target 4: GET_NUM_OPERATING_POINTS
-    res = aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS(&codec_ctx, 0, &num_operating_points);
-    
-    // Fuzzing target 5: GET_GLOBAL_HEADERS
-    aom_fixed_buf_t *global_headers = aom_codec_get_global_headers(&codec_ctx);
-    if (global_headers) {
-        free(global_headers->buf);
-        free(global_headers);
+    if (Size < sizeof(aom_codec_ctx_t) + sizeof(aom_fixed_buf_t)) {
+        return 0;
     }
 
-    // Fuzzing target 6: GET_CX_DATA
-    aom_codec_iter_t iter = NULL;
-    const aom_codec_cx_pkt_t *pkt = aom_codec_get_cx_data(&codec_ctx, &iter);
+    // Prepare dummy codec context
+    aom_codec_ctx_t codec_ctx;
+    codec_ctx.name = "dummy_codec";
+    codec_ctx.iface = nullptr; // Assume an appropriate interface is assigned
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.raw = nullptr;
+    codec_ctx.priv = nullptr;
+
+    // Prepare buffer
+    aom_fixed_buf_t buf;
+    buf.buf = const_cast<uint8_t*>(Data);
+    buf.sz = Size;
+
+    // Call the target function with various pad_before and pad_after
+    for (unsigned int pad_before = 0; pad_before < 16; ++pad_before) {
+        for (unsigned int pad_after = 0; pad_after < 16; ++pad_after) {
+            aom_codec_err_t result = aom_codec_set_cx_data_buf(&codec_ctx, &buf, pad_before, pad_after);
+            if (result != AOM_CODEC_OK) {
+                // Handle error if needed
+            }
+        }
+    }
+
+    // Assuming similar structures and logic for other functions
+    // as their signatures are not provided, we will simulate their usage.
     
-    // Clean up
-    aom_codec_destroy(&codec_ctx);
-    
+    // Example for AV1E_SET_MIN_GF_INTERVAL
+    int min_gf_interval = Data[0] % 16; // Simplified way to get a value
+    // aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL(&codec_ctx, min_gf_interval);
+
+    // Example for AV1E_SET_EXTERNAL_RATE_CONTROL
+    aom_rc_funcs_t rc_funcs;
+    rc_funcs.rc_type = static_cast<aom_rc_type_t>(Data[1] % 6);
+    rc_funcs.priv = nullptr;
+    // aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL(&codec_ctx, &rc_funcs);
+
+    // Example for AV1E_SET_SUPERBLOCK_SIZE
+    int superblock_size = Data[2] % 128; // Random size
+    // aom_codec_control_typechecked_AV1E_SET_SUPERBLOCK_SIZE(&codec_ctx, superblock_size);
+
+    // Example for AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR
+    int max_consec_frame_drop_cbr = Data[3] % 10;
+    // aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(&codec_ctx, max_consec_frame_drop_cbr);
+
+    // Example for AV1E_SET_FORCE_VIDEO_MODE
+    int force_video_mode = Data[4] % 2; // Boolean value
+    // aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE(&codec_ctx, force_video_mode);
+
     return 0;
 }

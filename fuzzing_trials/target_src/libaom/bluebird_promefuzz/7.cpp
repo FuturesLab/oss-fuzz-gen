@@ -7,73 +7,49 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aomcx.h"
+}
+
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+#include <cstdio>
+
+static void initialize_codec_context(aom_codec_ctx_t &codec_ctx, aom_codec_iface_t *iface) {
+    aom_codec_enc_cfg_t cfg;
+    aom_codec_err_t res = aom_codec_enc_config_default(iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) return;
+    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) return;
+}
+
+static void cleanup_codec_context(aom_codec_ctx_t &codec_ctx) {
+    aom_codec_destroy(&codec_ctx);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 6) return 0;
 
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_stream_info_t si;
-    aom_codec_err_t res;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_ctx_t codec_ctx;
+    initialize_codec_context(codec_ctx, iface);
 
-    // Initialize the decoder
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0;
-    }
+    uint32_t enable_low_complexity_decode = Data[0] % 2;
+    uint32_t fp_mt = Data[1] % 2;
+    uint32_t skip_postproc_filtering = Data[2] % 2;
+    uint32_t tile_rows = Data[3] % 64; // Arbitrary limit for tile rows
+    uint32_t disable_trellis_quant = Data[4] % 2;
+    uint32_t enable_obmc = Data[5] % 2;
 
-    // Set frame buffer functions with random function pointers
-    res = aom_codec_set_frame_buffer_functions(&ctx, nullptr, nullptr, nullptr);
-    
-    // Retrieve stream info
-    res = aom_codec_get_stream_info(&ctx, &si);
-    
-    // Decode the input data
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_LOW_COMPLEXITY_DECODE, enable_low_complexity_decode);
+    aom_codec_control(&codec_ctx, AV1E_SET_FP_MT, fp_mt);
+    aom_codec_control(&codec_ctx, AV1E_SET_SKIP_POSTPROC_FILTERING, skip_postproc_filtering);
+    aom_codec_control(&codec_ctx, AV1E_SET_TILE_ROWS, tile_rows);
+    aom_codec_control(&codec_ctx, AV1E_SET_DISABLE_TRELLIS_QUANT, disable_trellis_quant);
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_OBMC, enable_obmc);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_decode
-    size_t ret_aom_uleb_size_in_bytes_bqiri = aom_uleb_size_in_bytes(AOM_EFLAG_SET_PRIMARY_REF_NONE);
-    if (ret_aom_uleb_size_in_bytes_bqiri < 0){
-    	return 0;
-    }
-    const uint8_t bxsqiwze = 64;
+    cleanup_codec_context(codec_ctx);
 
-    aom_codec_err_t ret_aom_codec_decode_rgsie = aom_codec_decode(&ctx, &bxsqiwze, ret_aom_uleb_size_in_bytes_bqiri, (void *)&ctx);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    res = aom_codec_decode(&ctx, Data, Size, nullptr);
-    
-    // Peek stream info without context
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
-
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_peek_stream_info to aom_codec_get_stream_info
-    aom_codec_ctx_t kjmxbqor;
-    memset(&kjmxbqor, 0, sizeof(kjmxbqor));
-    aom_codec_err_t ret_aom_codec_destroy_xitdg = aom_codec_destroy(&kjmxbqor);
-
-    aom_codec_err_t ret_aom_codec_get_stream_info_crtkw = aom_codec_get_stream_info(&kjmxbqor, &si);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    aom_codec_destroy(&ctx);
-    
     return 0;
 }

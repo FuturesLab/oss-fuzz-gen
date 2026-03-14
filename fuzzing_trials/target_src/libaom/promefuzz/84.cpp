@@ -1,10 +1,11 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_img_alloc_with_border at aom_image.c:225:14 in aom_image.h
-// aom_img_set_rect at aom_image.c:234:5 in aom_image.h
-// aom_img_remove_metadata at aom_image.c:412:6 in aom_image.h
-// aom_img_flip at aom_image.c:285:6 in aom_image.h
-// aom_img_wrap at aom_image.c:216:14 in aom_image.h
-// aom_img_alloc at aom_image.c:200:14 in aom_image.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX at aomcx.h:2335:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC at aomcx.h:2374:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO at aomcx.h:2353:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH at aomcx.h:2356:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID at aomcx.h:1907:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,69 +15,84 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom_decoder.h"
+#include <iostream>
+#include <fstream>
+#include <cstdint>
+#include <cstring>
 #include "aom_frame_buffer.h"
+#include "aom_external_partition.h"
+#include "aomdx.h"
+#include "aom_decoder.h"
+#include "aom_encoder.h"
 #include "aom_integer.h"
+#include "aom_codec.h"
+#include "aom_image.h"
+#include "aom.h"
 #include "aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_84(const uint8_t *Data, size_t Size) {
-    if (Size < 32) return 0; // Minimum size check for valid input
+    if (Size < sizeof(uint32_t)) return 0;
 
-    aom_image_t *img = nullptr;
-    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0] % 8); // Example format selection
-    unsigned int d_w = (Data[1] % 0x08000000) + 1; // Width
-    unsigned int d_h = (Data[2] % 0x08000000) + 1; // Height
-    unsigned int align = (Data[3] % 65536) + 1; // Alignment
-    unsigned int size_align = (Data[4] % 65536) + 1; // Size alignment
-    unsigned int border = (Data[5] % 65536); // Border
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-    // Test aom_img_alloc_with_border
-    aom_image_t *img_alloc = aom_img_alloc_with_border(nullptr, fmt, d_w, d_h, align, size_align, border);
-    if (img_alloc) {
-        // Test aom_img_set_rect
-        unsigned int x = (Data[6] % d_w);
-        unsigned int y = (Data[7] % d_h);
-        unsigned int w = (Data[8] % (d_w - x)) + 1;
-        unsigned int h = (Data[9] % (d_h - y)) + 1;
-        aom_img_set_rect(img_alloc, x, y, w, h, border);
+    // Initialize codec interface
+    aom_codec_iface_t *codec_iface = aom_codec_av1_cx();
+    if (!codec_iface) return 0;
 
-        // Test aom_img_remove_metadata
-        aom_img_remove_metadata(img_alloc);
+    // Initialize the codec
+    aom_codec_err_t res = aom_codec_enc_init(&codec_ctx, codec_iface, nullptr, 0);
+    if (res != AOM_CODEC_OK) return 0;
 
-        // Test aom_img_flip
-        aom_img_flip(img_alloc);
-
-        // Cleanup
-        free(img_alloc);
+    // Set up dummy file if needed
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    if (!dummyFile) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
     }
 
-    // Test aom_img_wrap
-    unsigned char *img_data = (unsigned char *)malloc(d_w * d_h * 3); // Example buffer allocation
-    if (img_data) {
-        img = aom_img_wrap(nullptr, fmt, d_w, d_h, align, img_data);
-        if (img) {
-            // Additional tests can be performed here
+    // Write data to dummy file
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
 
-            // Cleanup
-            free(img);
-        }
-        free(img_data);
+    // Call API functions with fuzzed data
+    int target_seq_level_idx;
+    res = aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX(&codec_ctx, 0, &target_seq_level_idx);
+    if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
     }
 
-    // Test aom_img_alloc
-    img = aom_img_alloc(nullptr, fmt, d_w, d_h, align);
-    if (img) {
-        // Additional tests can be performed here
-
-        // Cleanup
-        free(img);
+    res = aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC(&codec_ctx, 0, Data[0]);
+    if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
     }
 
+    res = aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO(&codec_ctx, 0, reinterpret_cast<const char*>(Data));
+    if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    int luma_cdef_strength;
+    res = aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH(&codec_ctx, 0, &luma_cdef_strength);
+    if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    int version = aom_codec_version();
+    (void)version; // Suppress unused variable warning
+
+    res = aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID(&codec_ctx, 0, Data[0]);
+    if (res != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    // Clean up
+    aom_codec_destroy(&codec_ctx);
     return 0;
 }

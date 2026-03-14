@@ -8,47 +8,49 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom/aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom/aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aomcx.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom.h"
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    aom_codec_ctx_t ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {};
-    aom_codec_stream_info_t si = {};
-    aom_codec_err_t res;
-
-    // Initialize decoder context
-    res = aom_codec_dec_init_ver(&ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    if (Size < sizeof(int)) {
+        return 0;
     }
 
-    // Fuzzing aom_codec_iface_name
-    const char *iface_name = aom_codec_iface_name(iface);
+    // Initialize codec context
+    aom_codec_ctx_t codec;
+    memset(&codec, 0, sizeof(codec));
+    codec.iface = aom_codec_av1_cx();
 
-    // Fuzzing aom_codec_get_caps
-    aom_codec_caps_t caps = aom_codec_get_caps(iface);
-
-    // Fuzzing aom_codec_peek_stream_info
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
-    if (res == AOM_CODEC_OK) {
-        // Successfully parsed stream info
+    // Prepare a dummy configuration
+    aom_codec_enc_cfg_t cfg;
+    if (aom_codec_enc_config_default(codec.iface, &cfg, 0)) {
+        return 0;
     }
 
-    // Cleanup
-    aom_codec_destroy(&ctx);
+    // Initialize the codec
+    if (aom_codec_enc_init(&codec, codec.iface, &cfg, 0)) {
+        return 0;
+    }
+
+    // Extract a boolean and an integer from the input data
+    bool enable = Data[0] % 2;
+    int strength = *reinterpret_cast<const int *>(Data);
+
+    // Call API functions with the extracted values
+    aom_codec_control(&codec, AV1E_SET_ENABLE_CDEF, enable);
+    aom_codec_control(&codec, AV1E_SET_DELTAQ_STRENGTH, strength);
+    aom_codec_control(&codec, AV1E_SET_ENABLE_QM, enable);
+    aom_codec_control(&codec, AV1E_ENABLE_SB_QP_SWEEP, enable);
+    aom_codec_control(&codec, AV1E_SET_ENABLE_KEYFRAME_FILTERING, enable);
+    aom_codec_control(&codec, AV1E_SET_FRAME_PARALLEL_DECODING, enable);
+
+    // Cleanup codec context
+    aom_codec_destroy(&codec);
+
     return 0;
 }

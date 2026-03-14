@@ -1,38 +1,27 @@
+#include <cstdint>
+#include <cstddef>
 #include <aom/aom_codec.h>
-#include <aom/aom_decoder.h>
-#include <stdint.h>
-#include <stdlib.h>
 
 extern "C" {
-#include <aom/aomdx.h> // Include this header to access aom_codec_av1_dx
+    #include <aom/aom_codec.h>
 }
 
-extern "C" {
-
-int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_err_t result;
-
-    // Initialize the codec context
-    result = aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0);
-    if (result != AOM_CODEC_OK) {
-        return 0;  // Initialization failed, exit early
-    }
-
-    // Simulate some usage of the codec context with the input data
-    // Here we assume the input data can be used in some way; 
-    // for this example, we will just call the destroy function directly.
-
-    // Call the function under test
-    result = aom_codec_destroy(&codec_ctx);
-    
-    // Check the result of the function call
-    if (result != AOM_CODEC_OK) {
-        // Handle the error if needed
+extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
+    // Ensure there is enough data to work with
+    if (size < sizeof(aom_codec_caps_t)) {
         return 0;
     }
 
-    return 0;
-}
+    // Use the data to populate the dummy_iface in some way
+    // Here, we simply cast the data to a pointer of the appropriate type
+    // This is a simple way to fuzz without knowing the internal structure
+    aom_codec_iface_t *iface = reinterpret_cast<aom_codec_iface_t *>(const_cast<uint8_t *>(data));
 
+    // Call the function-under-test
+    aom_codec_caps_t caps = aom_codec_get_caps(iface);
+
+    // Optionally, use the result in some way to prevent optimization out
+    (void)caps;
+
+    return 0;
 }

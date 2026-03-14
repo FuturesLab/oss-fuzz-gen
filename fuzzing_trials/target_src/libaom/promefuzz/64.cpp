@@ -1,13 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control_typechecked_AV1E_SET_ERROR_RESILIENT_MODE at aomcx.h:1977:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT at aomcx.h:1992:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL at aomcx.h:2317:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE at aomcx.h:2022:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX at aomcx.h:2028:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_GET_LOOPFILTER_LEVEL at aomcx.h:2320:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,59 +14,72 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom_codec.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
 #include "aom.h"
-#include "aom_encoder.h"
+#include "aom_codec.h"
 #include "aom_decoder.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
 #include "aom_frame_buffer.h"
+#include "aom_image.h"
 #include "aom_integer.h"
 #include "aomcx.h"
+#include "aomdx.h"
+
+static void fuzz_AV1E_SET_ERROR_RESILIENT_MODE(aom_codec_ctx_t *ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int mode = *reinterpret_cast<const int *>(Data);
+    aom_codec_control_typechecked_AV1E_SET_ERROR_RESILIENT_MODE(ctx, 0, mode);
+}
+
+static void fuzz_AV1E_SET_TUNE_CONTENT(aom_codec_ctx_t *ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int content_type = *reinterpret_cast<const int *>(Data);
+    aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT(ctx, 0, content_type);
+}
+
+static void fuzz_AV1E_SET_LOOPFILTER_CONTROL(aom_codec_ctx_t *ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int loopfilter_control = *reinterpret_cast<const int *>(Data);
+    aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL(ctx, 0, loopfilter_control);
+}
+
+static void fuzz_AV1E_SET_RENDER_SIZE(aom_codec_ctx_t *ctx, const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(int)) return;
+    int dimensions[2];
+    dimensions[0] = *reinterpret_cast<const int *>(Data);
+    dimensions[1] = *reinterpret_cast<const int *>(Data + sizeof(int));
+    aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE(ctx, 0, dimensions);
+}
+
+static void fuzz_AV1E_GET_SEQ_LEVEL_IDX(aom_codec_ctx_t *ctx) {
+    int seq_level_idx;
+    aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX(ctx, 0, &seq_level_idx);
+}
+
+static void fuzz_AOME_GET_LOOPFILTER_LEVEL(aom_codec_ctx_t *ctx) {
+    int loopfilter_level;
+    aom_codec_control_typechecked_AOME_GET_LOOPFILTER_LEVEL(ctx, 0, &loopfilter_level);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *Data, size_t Size) {
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Assuming AV1 codec is used
-    aom_codec_err_t res;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-    // Initialize codec context
-    aom_codec_flags_t flags = 0; // Set appropriate flags
-    res = aom_codec_enc_init(&codec_ctx, iface, nullptr, flags);
-    if (res != AOM_CODEC_OK) return 0;
-
-    // Fuzzing various control functions
-    if (Size >= sizeof(unsigned int)) {
-        unsigned int loopfilter_level = *reinterpret_cast<const unsigned int*>(Data) % 64; // Example range
-        aom_codec_control(&codec_ctx, AOME_GET_LOOPFILTER_LEVEL, &loopfilter_level);
+    try {
+        fuzz_AV1E_SET_ERROR_RESILIENT_MODE(&codec_ctx, Data, Size);
+        fuzz_AV1E_SET_TUNE_CONTENT(&codec_ctx, Data, Size);
+        fuzz_AV1E_SET_LOOPFILTER_CONTROL(&codec_ctx, Data, Size);
+        fuzz_AV1E_SET_RENDER_SIZE(&codec_ctx, Data, Size);
+        fuzz_AV1E_GET_SEQ_LEVEL_IDX(&codec_ctx);
+        fuzz_AOME_GET_LOOPFILTER_LEVEL(&codec_ctx);
+    } catch (const std::exception &e) {
+        fprintf(stderr, "Exception caught: %s\n", e.what());
     }
 
-    if (Size >= sizeof(unsigned int)) {
-        unsigned int strength = *reinterpret_cast<const unsigned int*>(Data) % 64; // Example range
-        aom_codec_control(&codec_ctx, AOME_SET_ARNR_STRENGTH, strength);
-    }
-
-    if (Size >= sizeof(int*)) {
-        int seq_level_idx;
-        aom_codec_control(&codec_ctx, AV1E_GET_SEQ_LEVEL_IDX, &seq_level_idx);
-    }
-
-    if (Size >= sizeof(int*)) {
-        int cdef_strength;
-        aom_codec_control(&codec_ctx, AV1E_GET_LUMA_CDEF_STRENGTH, &cdef_strength);
-    }
-
-    if (Size >= sizeof(unsigned int)) {
-        unsigned int screen_content_mode = *reinterpret_cast<const unsigned int*>(Data) % 2; // Example binary mode
-        aom_codec_control(&codec_ctx, AV1E_SET_SCREEN_CONTENT_DETECTION_MODE, screen_content_mode);
-    }
-
-    if (Size >= sizeof(int*)) {
-        int num_operating_points;
-        aom_codec_control(&codec_ctx, AV1E_GET_NUM_OPERATING_POINTS, &num_operating_points);
-    }
-
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
     return 0;
 }
