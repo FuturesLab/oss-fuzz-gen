@@ -1,0 +1,80 @@
+#include "tiffio.h"
+#include "cstdint"
+#include "cstdlib"
+#include <cstdio>
+#include <unistd.h> // Include for close function
+
+extern "C" {
+    #include "tiffio.h" // Ensure TIFF library functions are wrapped in extern "C"
+}
+
+extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
+    if (size < 4) {
+        return 0; // Not enough data to proceed
+    }
+
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Could not create temporary file
+    }
+
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        remove(tmpl);
+        return 0;
+    }
+
+    // Initialize parameters for TIFFReadRGBAImage
+    uint32_t width = 1;
+    uint32_t height = 1;
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFOpen to TIFFWriteCheck
+
+    int ret_TIFFWriteCheck_rsjcf = TIFFWriteCheck(tiff, TIFF_VARIABLE2, NULL);
+    if (ret_TIFFWriteCheck_rsjcf < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    uint32_t *raster = (uint32_t *)malloc(width * height * sizeof(uint32_t));
+    if (!raster) {
+        TIFFClose(tiff);
+        remove(tmpl);
+        return 0;
+    }
+    int stopOnError = 1; // Non-zero to stop on error
+
+    // Call the function-under-test
+    TIFFReadRGBAImage(tiff, width, height, raster, stopOnError);
+
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFReadRGBAImage to TIFFRGBAImageOK
+    char kbeneayh[1024] = "ggdad";
+
+    int ret_TIFFRGBAImageOK_isuzm = TIFFRGBAImageOK(tiff, kbeneayh);
+    if (ret_TIFFRGBAImageOK_isuzm < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    free(raster);
+    TIFFClose(tiff);
+    remove(tmpl);
+
+    return 0;
+}

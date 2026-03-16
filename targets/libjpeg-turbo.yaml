@@ -1365,8 +1365,8 @@
 - "TJFLAG_PROGRESSIVE"
 - "TJFLAG_LIMITSCANS"
 "project": "libjpeg-turbo"
-"target_name": "FILL IN!"
-"target_path": "FILL IN!"
+"target_name": "compress_fuzzer"
+"target_path": "/src/libjpeg-turbo.main/fuzz/compress.cc"
 "typedefs":
 - "datatype": "void"
   "name": "*tjhandle"
