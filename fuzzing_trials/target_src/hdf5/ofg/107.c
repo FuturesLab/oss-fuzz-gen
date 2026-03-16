@@ -3,7 +3,7 @@
 #include <hdf5.h>
 
 // Define a simple operator function that matches the H5D_operator_t signature
-herr_t my_operator(void *elem, hid_t type_id, hsize_t ndim, const hsize_t *point, void *operator_data) {
+herr_t my_operator_107(void *elem, hid_t type_id, hsize_t ndim, const hsize_t *point, void *operator_data) {
     // For fuzzing purposes, we can simply return 0 (continue iteration)
     return 0;
 }
@@ -28,7 +28,7 @@ int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
     }
 
     // Call the function-under-test
-    H5Diterate(buf, datatype_id, dataspace_id, my_operator, NULL);
+    H5Diterate(buf, datatype_id, dataspace_id, my_operator_107, NULL);
 
     // Clean up
     H5Sclose(dataspace_id);

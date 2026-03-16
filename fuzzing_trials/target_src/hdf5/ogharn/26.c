@@ -36,7 +36,7 @@ int LLVMFuzzerTestOneInput_26(char *fuzzData, size_t size)
 	if(H5Gget_infoval1 < 0){
 		fprintf(stderr, "err");
 	}
-   H5I_type_t H5Iregister_typeval1 = H5Iregister_type(H5Gget_infoval1, 64, H5I_free_tfp);
+   H5I_type_t H5Iregister_typeval1 = H5Iregister_type1(H5Gget_infoval1, 64, H5I_free_tfp);
 	if(!H5Iregister_typeval1){
 		fprintf(stderr, "err");
 	}

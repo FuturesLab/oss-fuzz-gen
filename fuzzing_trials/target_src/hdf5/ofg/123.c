@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include <hdf5.h>
 
-herr_t my_operator(hid_t location_id, const char *attr_name, const H5A_info_t *ainfo, void *op_data) {
+herr_t my_operator_123(hid_t location_id, const char *attr_name, const H5A_info_t *ainfo, void *op_data) {
     // Example operator function that does nothing
     return 0;
 }
@@ -20,7 +20,7 @@ int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
     H5_index_t idx_type = H5_INDEX_NAME;
     H5_iter_order_t order = H5_ITER_INC;
     hsize_t n = 0;
-    H5A_operator2_t op = my_operator;
+    H5A_operator2_t op = my_operator_123;
     void *op_data = NULL;
 
     // Call the function-under-test

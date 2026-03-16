@@ -50,7 +50,7 @@ $CC $CFLAGS  -std=c99 -r \
   -I/src/hdf5/src -I/src/hdf5/build-dir/src -I./src/H5FDsubfiling/ \
   /src/synthesized_driver/*.c* -o h5_extended_fuzzer.o
 
-$CC $CFLAGS h5_extended_fuzzer.o ./build-dir/bin/libhdf5.a -lz -o $OUT/h5_extended_fuzzer
+$CC $CFLAGS h5_extended_fuzzer.o ./build-dir/bin/libhdf5.a -rtlib=compiler-rt -o $OUT/h5_extended_fuzzer -lz -lm -lgcc_s
 
 cp $OUT/h5_extended_fuzzer $OUT/fuzz_driver_$SANITIZER
 
