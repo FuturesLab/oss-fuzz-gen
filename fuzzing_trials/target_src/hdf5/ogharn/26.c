@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <hdf5.h>
 
 static herr_t H5I_free_tfp(void *obj, void **request){

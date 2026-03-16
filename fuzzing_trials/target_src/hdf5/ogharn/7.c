@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <hdf5.h>
 
 static void H5_atclose_func_tfp(void *ctx){

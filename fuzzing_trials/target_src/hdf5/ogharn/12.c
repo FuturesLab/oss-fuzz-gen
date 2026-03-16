@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_12(char *fuzzData, size_t size)
