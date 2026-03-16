@@ -33,7 +33,7 @@ fi
 $CC $CFLAGS -r -Iinclude \
     /src/synthesized_driver/*.c* -o $SRC/cms_profile_fuzzer.o
 $CXX $CXXFLAGS \
-    $SRC/$F.o -o $OUT/cms_profile_fuzzer \
+    $SRC/cms_profile_fuzzer.o -o $OUT/cms_profile_fuzzer \
     src/.libs/liblcms2.a
 
 cp $OUT/cms_profile_fuzzer $OUT/fuzz_driver_$SANITIZER
