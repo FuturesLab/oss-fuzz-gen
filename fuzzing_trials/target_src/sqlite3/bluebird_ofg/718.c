@@ -1,0 +1,42 @@
+#include <stdint.h>
+#include "sqlite3.h"
+#include <string.h>
+
+// Dummy comparison function
+static int dummy_compare(void *unused, int len1, const void *str1, int len2, const void *str2) {
+    (void)unused; // Unused parameter
+    return strncmp((const char *)str1, (const char *)str2, len1 < len2 ? len1 : len2);
+}
+
+int LLVMFuzzerTestOneInput_718(const uint8_t *data, size_t size) {
+    sqlite3 *db;
+    int rc;
+
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+
+    // Ensure the data is not empty and has a valid size for a collation name
+    if (size == 0 || size > 255) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Use the input data as the collation name
+    // Ensure null-termination for the collation name
+    char collationName[256];
+    memcpy(collationName, data, size);
+    collationName[size] = '\0';
+
+    int textEncoding = SQLITE_UTF16;
+
+    // Call the function-under-test
+    rc = sqlite3_create_collation16(db, collationName, textEncoding, NULL, dummy_compare);
+
+    // Close the database
+    sqlite3_close(db);
+
+    return 0;
+}

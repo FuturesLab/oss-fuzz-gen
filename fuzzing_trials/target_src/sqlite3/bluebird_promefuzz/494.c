@@ -1,0 +1,85 @@
+#include "stdint.h"
+#include "stddef.h"
+#include "string.h"
+#include <stdlib.h>
+#include "stdio.h"
+#include "sqlite3.h"
+#include "stdint.h"
+#include "stddef.h"
+#include "string.h"
+#include <stdlib.h>
+
+static void prepare_database(sqlite3 **db) {
+    int rc = sqlite3_open(":memory:", db);
+    if (rc != SQLITE_OK) {
+        *db = NULL;
+    }
+}
+
+static sqlite3_blob* prepare_blob(sqlite3 *db) {
+    sqlite3_blob *blob = NULL;
+    char *errMsg = 0;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);"
+                      "INSERT INTO test (data) VALUES (zeroblob(10));";
+    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc == SQLITE_OK) {
+        rc = sqlite3_blob_open(db, "main", "test", "data", 1, 1, &blob);
+    }
+    if (rc != SQLITE_OK && blob) {
+        sqlite3_blob_close(blob);
+        blob = NULL;
+    }
+    return blob;
+}
+
+int LLVMFuzzerTestOneInput_494(const uint8_t *Data, size_t Size) {
+    sqlite3 *db = NULL;
+    prepare_database(&db);
+    if (!db) return 0;
+
+    // sqlite3_errmsg
+    const char *errmsg = sqlite3_errmsg(db);
+
+    // sqlite3_blob_reopen
+    sqlite3_blob *blob = prepare_blob(db);
+    if (blob) {
+        sqlite3_int64 rowid = 1;
+        if (Size >= sizeof(sqlite3_int64)) {
+            memcpy(&rowid, Data, sizeof(sqlite3_int64));
+        }
+        sqlite3_blob_reopen(blob, rowid);
+    }
+
+    // sqlite3_blob_bytes
+    if (blob) {
+        int blob_size = sqlite3_blob_bytes(blob);
+    }
+
+    // sqlite3_realloc64
+    void *pOld = sqlite3_malloc(100);
+    if (pOld) {
+        sqlite3_uint64 newSize = 100;
+        if (Size >= sizeof(sqlite3_uint64)) {
+            memcpy(&newSize, Data, sizeof(sqlite3_uint64));
+        }
+        void *pNew = sqlite3_realloc64(pOld, newSize);
+        if (pNew) {
+            sqlite3_free(pNew);
+        } else {
+            sqlite3_free(pOld);
+        }
+    }
+
+    // sqlite3_randomness
+    if (Size > 0) {
+        void *randomBuffer = sqlite3_malloc(Size);
+        if (randomBuffer) {
+            sqlite3_randomness((int)Size, randomBuffer);
+            sqlite3_free(randomBuffer);
+        }
+    }
+
+    if (blob) sqlite3_blob_close(blob);
+    sqlite3_close(db);
+    return 0;
+}
