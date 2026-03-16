@@ -19,9 +19,6 @@
 ./configure --enable-shared=no
 make -j$(nproc) all
 
-# build your fuzzer(s)
-FUZZERS="cms_profile_fuzzer"
-
 if [ "$SANITIZER" = "none" ]; then
   CFLAGS="$CFLAGS -pthread  -ldl"
   CXXFLAGS="$CXXFLAGS -pthread  -ldl"
@@ -33,13 +30,11 @@ if [ "$SANITIZER" = "address" ]; then
 fi
 
 
-for F in $FUZZERS; do
-    $CC $CFLAGS -r -Iinclude \
-        /src/synthesized_driver/*.c* -o $SRC/$F.o
-    $CXX $CXXFLAGS \
-        $SRC/$F.o -o $OUT/$F \
-        src/.libs/liblcms2.a
-done
+$CC $CFLAGS -r -Iinclude \
+    /src/synthesized_driver/*.c* -o $SRC/cms_profile_fuzzer.o
+$CXX $CXXFLAGS \
+    $SRC/$F.o -o $OUT/cms_profile_fuzzer \
+    src/.libs/liblcms2.a
 
 cp $OUT/cms_profile_fuzzer $OUT/fuzz_driver_$SANITIZER
 
