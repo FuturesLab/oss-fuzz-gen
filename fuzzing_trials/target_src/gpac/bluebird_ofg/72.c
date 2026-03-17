@@ -1,0 +1,94 @@
+#include <stdint.h>
+#include <stdlib.h>
+#include "unistd.h"  // Include for close() and unlink()
+#include <fcntl.h>   // Include for mkstemp()
+#include "/src/gpac/include/gpac/isomedia.h"
+#include "/src/gpac/include/gpac/constants.h"
+
+int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
+    GF_ISOFile *file = NULL;
+    Bool root_meta = GF_FALSE;
+    u32 track_num = 1; // Initialize with a non-zero value
+
+    // Create a temporary file to simulate an ISO file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Open the ISO file using the temporary file path
+    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Fuzz the function-under-test
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_sample_has_subsamples
+    u32 ret_gf_isom_get_track_count_hdloi = gf_isom_get_track_count(file);
+    u32 ret_gf_isom_get_timescale_ndgzf = gf_isom_get_timescale(NULL);
+    u32 ret_gf_isom_get_track_count_fomng = gf_isom_get_track_count(file);
+
+    u32 ret_gf_isom_sample_has_subsamples_bxjal = gf_isom_sample_has_subsamples(file, ret_gf_isom_get_track_count_hdloi, ret_gf_isom_get_timescale_ndgzf, ret_gf_isom_get_track_count_fomng);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    gf_isom_has_meta_xml(file, root_meta, track_num);
+
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_has_meta_xml to gf_isom_set_media_type
+    u32 ret_gf_isom_get_next_moof_number_hnobj = gf_isom_get_next_moof_number(file);
+    u32 ret_gf_isom_guess_specification_cnshv = gf_isom_guess_specification(file);
+
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_set_media_type with gf_isom_remove_edit
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_remove_edit with gf_isom_remove_sample_group
+    GF_Err ret_gf_isom_set_media_type_btvuh = gf_isom_remove_sample_group(file, ret_gf_isom_get_next_moof_number_hnobj, ret_gf_isom_guess_specification_cnshv);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_close with gf_isom_reset_alt_brands
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_set_media_type to gf_isom_enum_udta_keys
+    u32 ret_gf_isom_probe_file_qgvjx = gf_isom_probe_file((const char *)"w");
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_probe_file to gf_isom_has_track_reference
+    GF_Err ret_gf_isom_set_sample_group_in_traf_oqyhs = gf_isom_set_sample_group_in_traf(file);
+    u32 ret_gf_isom_guess_specification_zxcls = gf_isom_guess_specification(file);
+
+    u32 ret_gf_isom_has_track_reference_hrkei = gf_isom_has_track_reference(file, ret_gf_isom_get_track_count_hdloi, ret_gf_isom_probe_file_qgvjx, ret_gf_isom_guess_specification_zxcls);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    GF_Err ret_gf_isom_enum_udta_keys_wyzgs = gf_isom_enum_udta_keys(file, ret_gf_isom_probe_file_qgvjx, NULL);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    gf_isom_reset_alt_brands(file);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    unlink(tmpl);
+
+    return 0;
+}

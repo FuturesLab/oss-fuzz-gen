@@ -1,0 +1,54 @@
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "/src/gpac/include/gpac/isomedia.h"
+
+int LLVMFuzzerTestOneInput_195(const uint8_t *data, size_t size) {
+    // Create a temporary file to work with
+    FILE *tempFile = fopen("temp.mp4", "wb");
+    if (!tempFile) {
+        return 0;
+    }
+    fwrite(data, 1, size, tempFile);
+    fclose(tempFile);
+
+    // Open the temporary file with read and edit permissions
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_READ_EDIT, NULL);
+    if (!movie) {
+        return 0;
+    }
+
+    // Check if the track exists
+    u32 trackNumber = 1; // Assuming track number 1 for testing
+    if (gf_isom_get_track_by_id(movie, trackNumber) == 0) {
+        gf_isom_close(movie);
+        return 0;
+    }
+
+    // Prepare the sample
+    GF_ISOSample sample;
+    sample.data = (u8 *)data;
+    sample.dataLength = size;
+    sample.DTS = 0;
+    sample.CTS_Offset = 0;
+    sample.IsRAP = 1; // Random Access Point
+
+    // Call the function-under-test
+    gf_isom_add_sample_shadow(movie, trackNumber, &sample);
+
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_close to gf_isom_get_pixel_aspect_ratio
+    u32 ret_gf_isom_get_next_moof_number_pfrun = gf_isom_get_next_moof_number(movie);
+    u32 ret_gf_isom_segment_get_fragment_count_zizdd = gf_isom_segment_get_fragment_count(movie);
+    u32 ret_gf_isom_get_next_moof_number_ssjfc = gf_isom_get_next_moof_number(movie);
+    u32 ret_gf_isom_get_next_alternate_group_id_jmrtu = gf_isom_get_next_alternate_group_id(movie);
+
+    GF_Err ret_gf_isom_get_pixel_aspect_ratio_qglwz = gf_isom_get_pixel_aspect_ratio(movie, ret_gf_isom_get_next_moof_number_pfrun, ret_gf_isom_segment_get_fragment_count_zizdd, &ret_gf_isom_get_next_moof_number_ssjfc, &ret_gf_isom_get_next_alternate_group_id_jmrtu);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    gf_isom_close(movie);
+
+    return 0;
+}
