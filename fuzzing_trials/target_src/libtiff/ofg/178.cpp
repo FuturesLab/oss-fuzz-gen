@@ -1,12 +1,11 @@
-#include <tiffio.h>
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
 #include <cstdio>
-#include <cstring>
-#include <unistd.h>  // Include for close() and write()
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <cstdlib>
+#include <unistd.h> // Include this header for the 'close' function
+
+extern "C" {
+    #include <tiffio.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_178(const uint8_t *data, size_t size) {
     // Create a temporary file to write the input data
@@ -16,36 +15,28 @@ extern "C" int LLVMFuzzerTestOneInput_178(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
+    // Write the input data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == nullptr) {
         close(fd);
         return 0;
     }
-    close(fd);
+    fwrite(data, 1, size, file);
+    fclose(file);
 
     // Open the TIFF file
-    TIFF* tif = TIFFOpen(tmpl, "r");
-    if (tif == nullptr) {
-        // Clean up the temporary file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
         remove(tmpl);
         return 0;
     }
 
-    // Prepare parameters for TIFFReadRGBAStrip
-    uint32_t strip = 0;
-    uint32_t* raster = (uint32_t*)malloc(TIFFStripSize(tif) * sizeof(uint32_t));
-    if (raster == nullptr) {
-        TIFFClose(tif);
-        remove(tmpl);
-        return 0;
-    }
+    // Fuzz the TIFFGetStrileOffset function
+    uint32_t strile = 0; // Initialize strile to 0
+    TIFFGetStrileOffset(tiff, strile);
 
-    // Call the function-under-test
-    TIFFReadRGBAStrip(tif, strip, raster);
-
-    // Clean up
-    free(raster);
-    TIFFClose(tif);
+    // Close the TIFF file and remove the temporary file
+    TIFFClose(tiff);
     remove(tmpl);
 
     return 0;

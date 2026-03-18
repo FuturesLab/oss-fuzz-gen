@@ -1,29 +1,33 @@
 #include <cstdint>
-#include <cstddef>
-#include <tiffio.h>
+#include <cstdlib>
+#include <cstring>  // Include the header for memcpy
+#include <tiffio.h>  // Ensure you have the appropriate TIFF library headers
+
+extern "C" {
+    #include <tiffio.h>  // Wrap the TIFF library header in extern "C"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Ensure the size is a multiple of 4 to match the size of uint32_t
-    if (size % sizeof(uint32_t) != 0) {
+    // Ensure that the size is a multiple of the size of uint32_t
+    if (size < sizeof(uint32_t) || size % sizeof(uint32_t) != 0) {
         return 0;
     }
 
-    // Calculate the number of uint32_t elements
     tmsize_t num_elements = size / sizeof(uint32_t);
+    uint32_t *longArray = static_cast<uint32_t *>(malloc(size));
 
-    // Allocate memory for the uint32_t array
-    uint32_t *longArray = new uint32_t[num_elements];
-
-    // Copy data into the uint32_t array
-    for (tmsize_t i = 0; i < num_elements; ++i) {
-        longArray[i] = ((uint32_t*)data)[i];
+    if (longArray == NULL) {
+        return 0;
     }
 
-    // Call the function to fuzz
+    // Copy the data into the longArray
+    memcpy(longArray, data, size);
+
+    // Call the function-under-test
     TIFFSwabArrayOfLong(longArray, num_elements);
 
     // Clean up
-    delete[] longArray;
+    free(longArray);
 
     return 0;
 }

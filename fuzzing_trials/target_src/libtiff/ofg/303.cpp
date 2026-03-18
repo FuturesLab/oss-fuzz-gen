@@ -1,45 +1,44 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h>  // Include for 'close'
 #include <tiffio.h>
+#include <unistd.h> // Include for close() and unlink()
 
 extern "C" {
+    // Include the necessary TIFF headers
+    #include <tiff.h>
     #include <tiffio.h>
 }
 
-extern "C" int LLVMFuzzerTestOneInput_303(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint32_t)) {
-        return 0; // Not enough data to extract a uint32_t for strile index
-    }
+// Function-under-test
+extern "C" uint64_t TIFFGetStrileByteCountWithErr(TIFF *, uint32_t, int *);
 
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+extern "C" int LLVMFuzzerTestOneInput_303(const uint8_t *data, size_t size) {
+    // Create a temporary TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0;
+        return 0; // Failed to create a temporary file
     }
-    
+
+    // Write the input data to the temporary file
     FILE *file = fdopen(fd, "wb");
-    if (!file) {
+    if (file == nullptr) {
         close(fd);
         return 0;
     }
-
     fwrite(data, 1, size, file);
     fclose(file);
 
     // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
+    if (tiff == nullptr) {
+        unlink(tmpl);
         return 0;
     }
 
-    // Extract a uint32_t from the data for the strile index
-    uint32_t strileIndex = *(reinterpret_cast<const uint32_t*>(data));
-
-    // Initialize the error pointer
+    // Prepare parameters for the function call
+    uint32_t strileIndex = 0; // Example index, can be varied
     int error = 0;
 
     // Call the function-under-test
@@ -47,7 +46,7 @@ extern "C" int LLVMFuzzerTestOneInput_303(const uint8_t *data, size_t size) {
 
     // Clean up
     TIFFClose(tiff);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }

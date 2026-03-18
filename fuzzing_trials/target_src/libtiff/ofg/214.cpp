@@ -1,12 +1,12 @@
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <unistd.h> // Include for close() and write()
 #include <fcntl.h>  // Include for mkstemp()
 
 extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_214(const uint8_t *data, size_t size) {
@@ -14,31 +14,33 @@ extern "C" int LLVMFuzzerTestOneInput_214(const uint8_t *data, size_t size) {
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // Exit if file creation fails
+        return 0;
     }
 
-    // Write the input data to the temporary file
+    // Write the fuzz data to the temporary file
     if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
-        return 0; // Exit if writing fails
+        return 0;
     }
 
-    // Close the file descriptor
+    // Close the file descriptor so TIFFOpen can open it
     close(fd);
 
-    // Open the temporary file as a TIFF image
+    // Open the temporary file as a TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
     if (tiff == nullptr) {
-        return 0; // Exit if TIFF opening fails
+        return 0;
     }
 
-    // Define a mode to test with
-    int mode = 0; // You can test with different modes, e.g., 0, 1, 2, etc.
-
     // Call the function-under-test
-    TIFFSetMode(tiff, mode);
+    const char *filename = TIFFFileName(tiff);
 
-    // Clean up
+    // Use the filename for some operation to ensure it's not optimized away
+    if (filename) {
+        printf("TIFF file name: %s\n", filename);
+    }
+
+    // Close the TIFF file and remove the temporary file
     TIFFClose(tiff);
     remove(tmpl);
 

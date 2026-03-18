@@ -1,8 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
+// TIFFCreateDirectory at tif_dir.c:1699:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFFreeDirectory at tif_dir.c:1629:6 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,59 +15,45 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_119(const uint8_t *Data, size_t Size) {
-    // Prepare environment and variables
-    float xyz[3] = {0.0f, 0.0f, 0.0f};
-    uint32_t logluv32 = 0;
-    uint32_t logluv24 = 0;
-    
-    // Use the data for fuzzing
-    if (Size >= 12) {
-        // Interpret the first 12 bytes as three floats
-        memcpy(xyz, Data, 12);
-        
-        // Fuzz LogLuv32fromXYZ
-        logluv32 = LogLuv32fromXYZ(xyz, 1);
-        
-        // Fuzz LogLuv24fromXYZ
-        logluv24 = LogLuv24fromXYZ(xyz, 1);
-    }
-    
-    if (Size >= 4) {
-        // Interpret the first 4 bytes as a uint32_t
-        uint32_t color = 0;
-        memcpy(&color, Data, 4);
-        
-        // Fuzz LogLuv24toXYZ
-        LogLuv24toXYZ(color, xyz);
-        
-        // Fuzz LogLuv32toXYZ
-        LogLuv32toXYZ(color, xyz);
-        
-        // Fuzz TIFFSwabLong
-        TIFFSwabLong(&color);
-    }
-    
-    if (Size >= 4) {
-        // Interpret the data as an array of floats
-        float *floatArray = (float *)malloc(Size);
-        if (floatArray) {
-            memcpy(floatArray, Data, Size);
-            
-            tmsize_t numFloats = Size / sizeof(float);
-            
-            // Fuzz TIFFSwabArrayOfFloat
-            TIFFSwabArrayOfFloat(floatArray, numFloats);
-            
-            free(floatArray);
-        }
-    }
-    
+    if (Size < 1) return 0;
+
+    // Create a dummy TIFF file
+    const char *filename = "./dummy_file.tiff";
+    FILE *file = fopen(filename, "wb");
+    if (!file) return 0;
+
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(filename, "r+");
+    if (!tif) return 0;
+
+    // Fuzz TIFFCheckpointDirectory
+    TIFFCheckpointDirectory(tif);
+
+    // Fuzz TIFFCreateDirectory
+    TIFFCreateDirectory(tif);
+
+    // Fuzz TIFFWriteDirectory
+    TIFFWriteDirectory(tif);
+
+    // Fuzz TIFFFreeDirectory
+    TIFFFreeDirectory(tif);
+
+    // Fuzz TIFFSetDirectory
+    tdir_t dirNumber = static_cast<tdir_t>(Data[0]); // Use the first byte as directory number
+    TIFFSetDirectory(tif, dirNumber);
+
+    // Cleanup TIFF
+    TIFFClose(tif);  // Use TIFFClose instead of calling TIFFCleanup and TIFFClose separately
+
     return 0;
 }

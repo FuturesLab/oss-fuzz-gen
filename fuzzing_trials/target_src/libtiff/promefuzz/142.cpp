@@ -1,16 +1,9 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
 // LogL16toY at tif_luv.c:801:5 in tiffio.h
 // LogL10toY at tif_luv.c:883:5 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
 // TIFFFlushData at tif_flush.c:146:5 in tiffio.h
+// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -21,55 +14,46 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-
-static TIFF* createDummyTIFF() {
-    TIFF* tif = TIFFOpen("./dummy_file", "w+");
-    if (tif) {
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
-        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-        TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-    }
-    return tif;
-}
+#include <tiffio.h>
+#include <cmath>
 
 extern "C" int LLVMFuzzerTestOneInput_142(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(double) + sizeof(int)) {
+        return 0;
+    }
 
-    // Prepare a TIFF object
-    TIFF* tif = createDummyTIFF();
-    if (!tif) return 0;
-
-    // Fuzz TIFFDeferStrileArrayWriting
-    TIFFDeferStrileArrayWriting(tif);
-
-    // Fuzz LogL16toY
-    int logL16Value = static_cast<int>(Data[0]);
-    LogL16toY(logL16Value);
-
-    // Fuzz LogL10toY
-    int logL10Value = static_cast<int>(Data[0]);
-    LogL10toY(logL10Value);
-
-    // Fuzz TIFFFlushData
-    TIFFFlushData(tif);
-
-    // Fuzz LogL16fromY
-    double luminance = static_cast<double>(Data[0]) / 255.0;
-    LogL16fromY(luminance, static_cast<int>(Data[0]));
+    // Extract a double and an int from the input data
+    double Y = *reinterpret_cast<const double*>(Data);
+    int param = *reinterpret_cast<const int*>(Data + sizeof(double));
 
     // Fuzz LogL10fromY
-    LogL10fromY(luminance, static_cast<int>(Data[0]));
+    if (Y > 0) {
+        int logL10Result = LogL10fromY(Y, param);
+    }
 
-    // Clean up
-    TIFFClose(tif);
+    // Fuzz LogL16toY
+    double logL16toYResult = LogL16toY(param);
+
+    // Fuzz LogL16fromY
+    int logL16fromYResult = LogL16fromY(Y, param);
+
+    // Fuzz LogL10toY
+    double logL10toYResult = LogL10toY(param);
+
+    // Prepare a dummy TIFF object
+    TIFF *tif = TIFFOpen("./dummy_file", "w+");
+    if (tif) {
+        // Fuzz TIFFFlushData
+        int flushResult = TIFFFlushData(tif);
+
+        // Fuzz TIFFForceStrileArrayWriting
+        int forceStrileResult = TIFFForceStrileArrayWriting(tif);
+
+        // Close the TIFF object
+        TIFFClose(tif);
+    }
+
     return 0;
 }

@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetMode at tif_open.c:853:5 in tiffio.h
-// TIFFGetMode at tif_open.c:848:5 in tiffio.h
-// TIFFSetFileno at tif_open.c:823:5 in tiffio.h
-// TIFFFileno at tif_open.c:818:5 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
-// TIFFFlush at tif_flush.c:30:5 in tiffio.h
+// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
+// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
+// TIFFGetMapFileProc at tif_open.c:942:17 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFFreeDirectory at tif_dir.c:1629:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -17,51 +16,56 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-
-static TIFF* createDummyTIFF(const char* mode) {
-    FILE* dummyFile = fopen("./dummy_file", mode);
-    if (!dummyFile) {
-        return nullptr;
-    }
-    fclose(dummyFile);
-    return TIFFOpen("./dummy_file", mode);
-}
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(uint64_t)) {
+        return 0; // Not enough data for a valid offset
+    }
 
-    TIFF* tif = createDummyTIFF("w+");
-    if (!tif) return 0;
+    // Create a dummy TIFF file
+    const char *filename = "./dummy_file";
+    FILE *file = fopen(filename, "wb");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    int mode = Data[0] % 3; // 0, 1, or 2
-    int fd = static_cast<int>(Data[0]);
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(filename, "r+");
+    if (!tif) {
+        return 0;
+    }
 
-    // Fuzz TIFFSetMode
-    int oldMode = TIFFSetMode(tif, mode);
+    // Extract an offset from the data
+    toff_t offset;
+    memcpy(&offset, Data, sizeof(offset));
 
-    // Fuzz TIFFGetMode
-    int currentMode = TIFFGetMode(tif);
+    // Fuzz TIFFCreateEXIFDirectory
+    TIFFCreateEXIFDirectory(tif);
 
-    // Fuzz TIFFSetFileno
-    int oldFd = TIFFSetFileno(tif, fd);
+    // Fuzz TIFFReadEXIFDirectory
+    TIFFReadEXIFDirectory(tif, offset);
 
-    // Fuzz TIFFFileno
-    int currentFd = TIFFFileno(tif);
+    // Fuzz TIFFGetMapFileProc
+    TIFFMapFileProc mapProc = TIFFGetMapFileProc(tif);
+    if (mapProc) {
+        // Call the map procedure if available
+        tdata_t base = nullptr;
+        toff_t size = 0;
+        mapProc(tif, &base, &size);
+    }
 
-    // Prepare buffer for TIFFReadBufferSetup
-    void* buffer = nullptr;
-    tmsize_t bufferSize = static_cast<tmsize_t>(Size);
+    // Fuzz TIFFReadDirectory
+    TIFFReadDirectory(tif);
 
-    // Fuzz TIFFReadBufferSetup
-    int readBufferSetupResult = TIFFReadBufferSetup(tif, buffer, bufferSize);
+    // Fuzz TIFFFreeDirectory
+    TIFFFreeDirectory(tif);
 
-    // Fuzz TIFFFlush
-    int flushResult = TIFFFlush(tif);
+    // Since TIFFField and TIFFFieldArray are incomplete types, we skip the TIFFReadCustomDirectory call
 
+    // Close the TIFF file
     TIFFClose(tif);
+
     return 0;
 }

@@ -1,15 +1,24 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFRGBAImageBegin at tif_getimage.c:310:5 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// TIFFRGBAImageEnd at tif_getimage.c:253:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFCurrentDirectory at tif_open.c:874:8 in tiffio.h
+// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
+// TIFFNumberOfDirectories at tif_dir.c:2042:8 in tiffio.h
+// TIFFCreateDirectory at tif_dir.c:1699:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -22,64 +31,84 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstring>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(TIFFRGBAImage)) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Create a dummy file to simulate a TIFF structure
+    // Create a dummy file for TIFF operations
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
+    if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the dummy file as a TIFF
-    TIFF *tiff = TIFFOpen("./dummy_file", "r");
-    if (!tiff) {
-        return 0;
-    }
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    if (!tif) return 0;
 
-    // Check if the TIFF is tiled
-    int isTiled = TIFFIsTiled(tiff);
+    // TIFFGetField
+    uint32_t tag = 0;
+    TIFFGetField(tif, tag);
 
-    // Allocate memory using _TIFFmalloc
-    tmsize_t allocSize1 = Size / 2;
-    tmsize_t allocSize2 = Size / 4;
-    void *memory1 = _TIFFmalloc(allocSize1);
-    void *memory2 = _TIFFmalloc(allocSize2);
+    // TIFFSetSubDirectory
+    uint64_t subdir_offset = 0;
+    TIFFSetSubDirectory(tif, subdir_offset);
 
-    // Prepare TIFFRGBAImage
-    TIFFRGBAImage img;
-    char emsg[1024];
+    // TIFFReadDirectory
+    TIFFReadDirectory(tif);
 
-    // Begin RGBA image processing
-    if (TIFFRGBAImageBegin(&img, tiff, isTiled, emsg)) {
-        // Allocate raster buffer
-        uint32_t *raster = static_cast<uint32_t *>(_TIFFmalloc(img.width * img.width * sizeof(uint32_t)));
+    // TIFFSetDirectory
+    tdir_t dir_index = 0;
+    TIFFSetDirectory(tif, dir_index);
 
-        if (raster) {
-            // Get RGBA data
-            TIFFRGBAImageGet(&img, raster, img.width, img.width);
+    // TIFFSetSubDirectory
+    TIFFSetSubDirectory(tif, subdir_offset);
 
-            // Free raster buffer
-            _TIFFfree(raster);
-        }
+    // TIFFReadDirectory
+    TIFFReadDirectory(tif);
 
-        // End RGBA image processing
-        TIFFRGBAImageEnd(&img);
-    }
+    // TIFFSetDirectory
+    TIFFSetDirectory(tif, dir_index);
 
-    // Free allocated memory
-    _TIFFfree(memory1);
-    _TIFFfree(memory2);
+    // TIFFReadDirectory
+    TIFFReadDirectory(tif);
 
-    // Close the TIFF file
-    TIFFClose(tiff);
+    // TIFFCurrentDirectory
+    TIFFCurrentDirectory(tif);
+
+    // TIFFSetSubDirectory
+    TIFFSetSubDirectory(tif, subdir_offset);
+
+    // TIFFNumberOfDirectories
+    TIFFNumberOfDirectories(tif);
+
+    // TIFFCreateDirectory
+    TIFFCreateDirectory(tif);
+
+    // TIFFSetField
+    TIFFSetField(tif, tag);
+
+    // TIFFWriteDirectory
+    TIFFWriteDirectory(tif);
+
+    // TIFFSetField
+    TIFFSetField(tif, tag);
+
+    // TIFFCheckpointDirectory
+    TIFFCheckpointDirectory(tif);
+
+    // TIFFWriteDirectory
+    TIFFWriteDirectory(tif);
+
+    // TIFFCheckpointDirectory
+    TIFFCheckpointDirectory(tif);
+
+    // TIFFWriteDirectory
+    TIFFWriteDirectory(tif);
+
+    // TIFFClose
+    TIFFClose(tif);
 
     return 0;
 }

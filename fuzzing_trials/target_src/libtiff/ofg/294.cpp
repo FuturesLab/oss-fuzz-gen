@@ -1,31 +1,46 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // For memcpy
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h> // Include the string.h library for memcpy
 
 extern "C" {
     #include <tiffio.h>
-    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for the header file
+    #include <tiff.h> // Include the internal header to access the definition of TIFFField
+
+    int TIFFFieldReadCount(const TIFFField *);
+    const TIFFField *TIFFFindField(TIFF *tif, uint32_t tag, TIFFDataType dt);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_294(const uint8_t *data, size_t size) {
-    if (size < sizeof(TIFFField)) {
+    // Create a TIFF memory stream from the input data
+    TIFF *tif = TIFFClientOpen("MemTIFF", "r", (thandle_t)data,
+                               [](thandle_t fd, tdata_t buf, tsize_t size) -> tsize_t {
+                                   memcpy(buf, (void*)fd, size);
+                                   return size;
+                               },
+                               [](thandle_t, tdata_t, tsize_t) -> tsize_t { return 0; },
+                               [](thandle_t, toff_t, int) -> toff_t { return 0; },
+                               [](thandle_t) -> int { return 0; },
+                               [](thandle_t) -> toff_t { return 0; },
+                               [](thandle_t, tdata_t*, toff_t*) -> int { return 0; }, // Add missing TIFFMapFileProc
+                               [](thandle_t, tdata_t, toff_t) -> void { }); // Add missing TIFFUnmapFileProc
+
+    if (!tif) {
         return 0;
     }
 
-    // Allocate memory for a TIFFField structure
-    TIFFField *field = (TIFFField *)malloc(sizeof(TIFFField));
-    if (field == NULL) {
-        return 0;
+    // Find a field in the TIFF structure to pass to TIFFFieldReadCount
+    const TIFFField *field = TIFFFindField(tif, 0, TIFF_NOTYPE);
+    if (field) {
+        // Call the function-under-test
+        int readCount = TIFFFieldReadCount(field);
+
+        // Use the result to avoid compiler optimizations removing the call
+        volatile int result = readCount;
+        (void)result;
     }
 
-    // Copy the data into the TIFFField structure
-    memcpy(field, data, sizeof(TIFFField));
-
-    // Call the function-under-test
-    int readCount = TIFFFieldReadCount(field);
-
-    // Free the allocated memory
-    free(field);
+    // Close the TIFF stream
+    TIFFClose(tif);
 
     return 0;
 }

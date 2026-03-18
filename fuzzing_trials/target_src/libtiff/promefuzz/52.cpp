@@ -1,10 +1,16 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// TIFFIsBigTIFF at tif_open.c:912:5 in tiffio.h
+// TIFFGetTagListEntry at tif_extension.c:42:10 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
-// TIFFNumberOfStrips at tif_strip.c:65:10 in tiffio.h
-// TIFFSwabArrayOfLong at tif_swab.c:117:6 in tiffio.h
-// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
-// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFTileSize at tif_tile.c:253:10 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -17,63 +23,73 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
-static void createDummyFile(const uint8_t *data, size_t size) {
-    FILE *file = std::fopen("./dummy_file", "wb");
-    if (file) {
-        std::fwrite(data, 1, size, file);
-        std::fclose(file);
-    }
+static void handleTIFFReadRGBATile(TIFF* tif, uint32_t* raster) {
+    uint32_t col = 0, row = 0;
+    TIFFReadRGBATile(tif, col, row, raster);
 }
 
-static TIFF* openDummyTIFF() {
-    return TIFFOpen("./dummy_file", "r+");
+static void handleTIFFReadScanline(TIFF* tif, void* buf) {
+    uint32_t row = 0;
+    uint16_t sample = 0;
+    TIFFReadScanline(tif, buf, row, sample);
+}
+
+static void handleTIFFIsBigTIFF(TIFF* tif) {
+    TIFFIsBigTIFF(tif);
+}
+
+static void handleTIFFGetTagListEntry(TIFF* tif) {
+    int tag_index = 0;
+    TIFFGetTagListEntry(tif, tag_index);
+}
+
+static void handleTIFFReadDirectory(TIFF* tif) {
+    TIFFReadDirectory(tif);
+}
+
+static void handleTIFFSetSubDirectory(TIFF* tif) {
+    uint64_t offset = 0;
+    TIFFSetSubDirectory(tif, offset);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    createDummyFile(Data, Size);
-
-    TIFF *tif = openDummyTIFF();
-    if (!tif) return 0;
-
-    // Fuzz TIFFWriteEncodedStrip
-    uint32_t strip = 0;
-    tmsize_t writeSize = (Size > 4) ? *(reinterpret_cast<const tmsize_t*>(Data)) : 1;
-    TIFFWriteEncodedStrip(tif, strip, const_cast<uint8_t*>(Data), writeSize);
-
-    // Fuzz TIFFNumberOfStrips
-    TIFFNumberOfStrips(tif);
-
-    // Fuzz TIFFSwabArrayOfLong
-    if (Size >= sizeof(uint32_t)) {
-        uint32_t *array = new uint32_t[Size / sizeof(uint32_t)];
-        std::memcpy(array, Data, Size);
-        TIFFSwabArrayOfLong(array, Size / sizeof(uint32_t));
-        delete[] array;
+    if (Size < 1) {
+        return 0;
     }
 
-    // Fuzz TIFFStripSize
-    TIFFStripSize(tif);
+    const char* filename = "./dummy_file";
+    FILE* file = fopen(filename, "wb");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Fuzz TIFFReadScanline
-    if (Size >= 4) {
-        void *buf = std::malloc(Size);
-        uint32_t row = *(reinterpret_cast<const uint32_t*>(Data));
-        TIFFReadScanline(tif, buf, row, 0);
-        std::free(buf);
+    TIFF* tif = TIFFOpen(filename, "r");
+    if (!tif) {
+        return 0;
     }
 
-    // Fuzz TIFFReadEncodedStrip
-    if (Size >= 4) {
-        void *buf = std::malloc(Size);
-        TIFFReadEncodedStrip(tif, strip, buf, Size);
-        std::free(buf);
+    uint32_t* raster = (uint32_t*) _TIFFmalloc(TIFFTileSize(tif));
+    if (raster) {
+        handleTIFFReadRGBATile(tif, raster);
+        _TIFFfree(raster);
     }
+
+    void* buf = _TIFFmalloc(TIFFScanlineSize(tif));
+    if (buf) {
+        handleTIFFReadScanline(tif, buf);
+        _TIFFfree(buf);
+    }
+
+    handleTIFFIsBigTIFF(tif);
+    handleTIFFGetTagListEntry(tif);
+    handleTIFFReadDirectory(tif);
+    handleTIFFSetSubDirectory(tif);
 
     TIFFClose(tif);
     return 0;

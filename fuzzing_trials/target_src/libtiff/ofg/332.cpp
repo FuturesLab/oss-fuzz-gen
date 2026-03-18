@@ -1,39 +1,17 @@
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>  // For mkstemp and close
-#include <unistd.h> // For close
 #include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_332(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure there's enough data to extract a uint16_t
+    if (size < sizeof(uint16_t)) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
-        return 0;
-    }
+    // Extract a uint16_t value from the input data
+    uint16_t codec = *(reinterpret_cast<const uint16_t*>(data));
 
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        uint64_t stripSize = TIFFStripSize64(tiff);
-
-        // Close the TIFF file
-        TIFFClose(tiff);
-    }
-
-    // Clean up the temporary file
-    remove(tmpl);
+    // Call the function-under-test
+    int result = TIFFIsCODECConfigured(codec);
 
     return 0;
 }

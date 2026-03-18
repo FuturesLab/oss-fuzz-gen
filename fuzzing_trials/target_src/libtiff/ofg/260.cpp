@@ -1,32 +1,42 @@
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring>  // Include for memcpy
-
-extern "C" {
-    #include <tiffio.h>
-    #include "/src/libtiff/libtiff/tif_dir.h"  // Correct path for the definition of TIFFField
-}
+#include <unistd.h>
+#include <fcntl.h>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_260(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create a TIFFField object
-    if (size < sizeof(TIFFField)) {
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Allocate memory for a TIFFField object and copy data into it
-    TIFFField *field = (TIFFField *)malloc(sizeof(TIFFField));
-    if (field == nullptr) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
         return 0;
     }
-    
-    // Copy the data into the TIFFField structure
-    memcpy(field, data, sizeof(TIFFField));
 
-    // Call the function-under-test
-    int result = TIFFFieldSetGetCountSize(field);
+    // Close the file descriptor
+    close(fd);
 
-    // Clean up
-    free(field);
+    // Open the TIFF file using the temporary filename
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff != nullptr) {
+        // Call the function-under-test
+        uint32_t numTiles = TIFFNumberOfTiles(tiff);
+
+        // Print the number of tiles (for debugging purposes, can be removed)
+        printf("Number of Tiles: %u\n", numTiles);
+
+        // Close the TIFF file
+        TIFFClose(tiff);
+    }
+
+    // Remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

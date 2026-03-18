@@ -1,12 +1,15 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFClientOpen at tif_open.c:289:7 in tiffio.h
+// _TIFFmemcpy at tif_unix.c:355:6 in tiffio.h
+// TIFFGetBitRevTable at tif_swab.c:305:22 in tiffio.h
+// TIFFReverseBits at tif_swab.c:310:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFCreateCustomDirectory at tif_dir.c:1714:5 in tiffio.h
-// TIFFGetVersion at tif_version.c:28:13 in tiffio.h
-// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
 // TIFFReadGPSDirectory at tif_dirread.c:5564:5 in tiffio.h
-// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
-// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,82 +19,68 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
 #include <tiffio.h>
 
-// Dummy TIFFFieldArray and TIFFField definitions for fuzzing purposes
-struct DummyTIFFField {
-    uint32_t tag;
-    short read_count;
-    short write_count;
-    TIFFDataType type;
-    uint32_t reserved;
-    uint32_t field_bit;
-    uint32_t field_oktochange;
-    uint32_t field_passcount;
-    char* name;
-    TIFFFieldArray* subfields;
-};
+extern "C" int LLVMFuzzerTestOneInput_111(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
 
-struct DummyTIFFFieldArray {
-    uint32_t allocated_size;
-    DummyTIFFField fields[1]; // Minimal placeholder
-};
-
-static TIFF* initializeTIFF() {
-    // Create a TIFF structure using a dummy file
-    FILE* dummyFile = std::fopen("./dummy_file", "wb+");
-    if (!dummyFile) return nullptr;
-
-    TIFF* tif = TIFFClientOpen("dummy", "w", (thandle_t)dummyFile,
-                               nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-    if (!tif) {
-        std::fclose(dummyFile);
+    // Test _TIFFmemcpy
+    if (Size >= 2) {
+        size_t halfSize = Size / 2;
+        void *dest = malloc(halfSize);
+        const void *src = static_cast<const void*>(Data + halfSize);
+        _TIFFmemcpy(dest, src, static_cast<tmsize_t>(halfSize));
+        free(dest);
     }
-    return tif;
-}
 
-static void cleanupTIFF(TIFF* tif) {
+    // Test TIFFGetBitRevTable
+    int reversed = Data[0] % 2;
+    const unsigned char *bitRevTable = TIFFGetBitRevTable(reversed);
+
+    // Test TIFFReverseBits
+    uint8_t *copyData = static_cast<uint8_t*>(malloc(Size));
+    if (copyData) {
+        memcpy(copyData, Data, Size);
+        TIFFReverseBits(copyData, static_cast<tmsize_t>(Size));
+        free(copyData);
+    }
+
+    // Test TIFFWriteScanline
+    TIFF *tif = TIFFOpen("./dummy_file", "w");
     if (tif) {
+        void *buf = malloc(Size);
+        if (buf) {
+            memcpy(buf, Data, Size);
+            uint32_t row = 0;
+            uint16_t sample = 0;
+            TIFFWriteScanline(tif, buf, row, sample);
+            free(buf);
+        }
         TIFFClose(tif);
     }
-}
 
-extern "C" int LLVMFuzzerTestOneInput_111(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(DummyTIFFFieldArray)) return 0;
-
-    TIFF* tif = initializeTIFF();
-    if (!tif) return 0;
-
-    DummyTIFFFieldArray* infoarray = (DummyTIFFFieldArray*)Data;
-
-    // Fuzz TIFFCreateCustomDirectory
-    TIFFCreateCustomDirectory(tif, reinterpret_cast<const TIFFFieldArray*>(infoarray));
-
-    // Fuzz TIFFGetVersion
-    const char* version = TIFFGetVersion();
-    if (version) {
-        volatile size_t version_length = std::strlen(version);
-        (void)version_length;
+    // Test TIFFReadEncodedStrip
+    tif = TIFFOpen("./dummy_file", "r");
+    if (tif) {
+        void *buf = malloc(Size);
+        if (buf) {
+            TIFFReadEncodedStrip(tif, 0, buf, static_cast<tmsize_t>(Size));
+            free(buf);
+        }
+        TIFFClose(tif);
     }
 
-    // Fuzz TIFFCreateEXIFDirectory
-    TIFFCreateEXIFDirectory(tif);
-
-    // Fuzz TIFFReadGPSDirectory
-    if (Size >= sizeof(toff_t)) {
-        toff_t diroff = *(toff_t*)(Data + (Size - sizeof(toff_t)));
+    // Test TIFFReadGPSDirectory
+    tif = TIFFOpen("./dummy_file", "r");
+    if (tif) {
+        toff_t diroff = 0;
         TIFFReadGPSDirectory(tif, diroff);
+        TIFFClose(tif);
     }
 
-    // Fuzz TIFFCreateGPSDirectory
-    TIFFCreateGPSDirectory(tif);
-
-    // Fuzz TIFFReadEXIFDirectory
-    if (Size >= sizeof(toff_t)) {
-        toff_t diroff = *(toff_t*)(Data + (Size - sizeof(toff_t)));
-        TIFFReadEXIFDirectory(tif, diroff);
-    }
-
-    cleanupTIFF(tif);
     return 0;
 }

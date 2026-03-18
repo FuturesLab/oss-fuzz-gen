@@ -1,67 +1,54 @@
-#include <tiffio.h>
-#include <cstdint>
-#include <cstdio>
+#include <stdint.h>
+#include <cstdlib>
 #include <cstring>
+#include <unistd.h>  // Include for close, write, and unlink
+#include <fcntl.h>   // Include for mkstemp
 
 extern "C" {
-
-static tsize_t customReadProc(thandle_t, tdata_t, tsize_t) {
-    return 0; // Simulate a read operation
+    #include <tiffio.h>
+    #include <tiff.h>
 }
 
-static tsize_t customWriteProc(thandle_t, tdata_t, tsize_t) {
-    return 0; // Simulate a write operation
-}
-
-static toff_t customSeekProc(thandle_t, toff_t, int) {
-    return 0; // Simulate a seek operation
-}
-
-static int customCloseProc(thandle_t) {
-    return 0; // Simulate a close operation
-}
-
-static toff_t customSizeProc(thandle_t) {
-    return 0; // Simulate a size operation
-}
-
-static int customMapFileProc(thandle_t, tdata_t*, toff_t*) {
-    return 0; // Simulate a map file operation
-}
-
-static void customUnmapFileProc(thandle_t, tdata_t, toff_t) {
-    // Simulate an unmap file operation
-}
-
-int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Ensure there is enough data for the filenames
+extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
+    // Ensure the size is sufficient for a minimal TIFF header
+    if (size < 8) {
+        return 0;
     }
 
-    // Create temporary filenames from input data
-    char inputFilename[256];
-    char mode[4] = "r"; // Default mode
-    snprintf(inputFilename, sizeof(inputFilename), "/tmp/fuzz_input_%02x%02x", data[0], data[1]);
-
-    // Open the TIFF client
-    TIFF *tiff = TIFFClientOpen(
-        inputFilename, 
-        mode, 
-        nullptr, 
-        customReadProc, 
-        customWriteProc, 
-        customSeekProc, 
-        customCloseProc, 
-        customSizeProc, 
-        customMapFileProc, 
-        customUnmapFileProc
-    );
-
-    if (tiff) {
-        TIFFClose(tiff);
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
+
+    // Write the data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Initialize the TIFFRGBAImage structure
+    TIFFRGBAImage img;
+    char emsg[1024];
+
+    // Call the function-under-test
+    int result = TIFFRGBAImageBegin(&img, tiff, 0, emsg);
+
+    // Clean up
+    TIFFClose(tiff);
+    unlink(tmpl);
 
     return 0;
-}
-
 }

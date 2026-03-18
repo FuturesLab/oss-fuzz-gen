@@ -1,27 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstddef>
 #include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_165(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract a uint32_t value for the second parameter
-    if (size < sizeof(uint32_t)) {
+    // Ensure there is enough data to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize TIFF structure
-    TIFF *tiff = TIFFOpen("dummy.tif", "r");
-    if (!tiff) {
-        return 0;
+    // Extract an integer from the input data
+    int input_value = 0;
+    for (size_t i = 0; i < sizeof(int); ++i) {
+        input_value |= data[i] << (i * 8);
     }
-
-    // Extract a uint32_t value from the input data
-    uint32_t tileIndex = *(reinterpret_cast<const uint32_t*>(data));
 
     // Call the function-under-test
-    uint64_t tileSize = TIFFVTileSize64(tiff, tileIndex);
+    const unsigned char *result = TIFFGetBitRevTable(input_value);
 
-    // Clean up
-    TIFFClose(tiff);
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (result != nullptr) {
+        // Access the first element to ensure the result is used
+        volatile unsigned char first_value = result[0];
+        (void)first_value; // Suppress unused variable warning
+    }
 
     return 0;
 }

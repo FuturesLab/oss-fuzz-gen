@@ -1,57 +1,35 @@
-#include <tiffio.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h>
+#include <stdint.h>
+#include <stddef.h>
+
+extern "C" {
+    #include <tiffio.h>
+    #include <tiff.h>
+    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for tif_dir.h
+}
 
 extern "C" int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Initialize TIFF structure
+    TIFF *tiff = TIFFOpen("temp.tiff", "w");
+    if (tiff == NULL) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Close the file descriptor
-    close(fd);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == nullptr) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Allocate a buffer for the tile data
-    tmsize_t tileSize = TIFFTileSize(tiff);
-    void *tileBuffer = malloc(tileSize);
-    if (tileBuffer == nullptr) {
+    // Initialize TIFFFieldArray structure
+    TIFFFieldArray fieldArray;
+    fieldArray.type = tfiatImage; // Assuming tfiatImage is a valid type, replace with correct one if needed
+    fieldArray.count = 1;
+    // Ensure the size of data is appropriate for the fields
+    if (size < sizeof(TIFFField)) {
         TIFFClose(tiff);
-        unlink(tmpl);
         return 0;
     }
-
-    // Define tile coordinates and sample
-    uint32_t x = 0;
-    uint32_t y = 0;
-    uint32_t z = 0;
-    uint16_t sample = 0;
+    fieldArray.fields = (TIFFField *)data;
 
     // Call the function-under-test
-    TIFFReadTile(tiff, tileBuffer, x, y, z, sample);
+    TIFFCreateCustomDirectory(tiff, &fieldArray);
 
-    // Clean up
-    free(tileBuffer);
+    // Cleanup
     TIFFClose(tiff);
-    unlink(tmpl);
 
     return 0;
 }

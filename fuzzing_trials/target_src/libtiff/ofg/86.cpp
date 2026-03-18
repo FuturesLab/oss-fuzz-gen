@@ -1,34 +1,40 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>  // Include for memcpy
+#include <unistd.h>  // Include for close, unlink, and write
+#include <tiffio.h>
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    TIFF *tiff = TIFFOpen("dummy.tiff", "r");
-    if (tiff == nullptr) {
-        return 0; // Exit if TIFFOpen fails
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Allocate a buffer for reading
-    void *buffer = malloc(size);
-    if (buffer == nullptr) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Open the TIFF file from the temporary file
+    TIFF* tiff = TIFFOpen(tmpl, "r");
+    if (tiff != NULL) {
+        // Call the function-under-test
+        tmsize_t scanlineSize = TIFFRasterScanlineSize(tiff);
+
+        // Clean up
         TIFFClose(tiff);
-        return 0; // Exit if memory allocation fails
     }
 
-    // Copy the input data to the buffer
-    memcpy(buffer, data, size);
-
-    // Call the function-under-test
-    TIFFReadBufferSetup(tiff, buffer, static_cast<tmsize_t>(size));
-
-    // Clean up
-    free(buffer);
-    TIFFClose(tiff);
+    // Remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

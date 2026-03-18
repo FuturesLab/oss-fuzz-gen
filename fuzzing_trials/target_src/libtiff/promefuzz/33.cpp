@@ -1,9 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFXYZToRGB at tif_color.c:89:6 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
+// TIFFGetStrileOffsetWithErr at tif_dirread.c:8504:10 in tiffio.h
+// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
+// TIFFSetWriteOffset at tif_write.c:961:6 in tiffio.h
+// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
+// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,69 +16,50 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) {
+    // Write input data to a dummy file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
         return 0;
     }
 
-    uint32_t logluvValue;
-    std::memcpy(&logluvValue, Data, sizeof(uint32_t));
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Buffer for XYZ output
-    float xyz[3] = {0.0f, 0.0f, 0.0f};
-
-    // Fuzz LogLuv24toXYZ
-    LogLuv24toXYZ(logluvValue, xyz);
-
-    // Fuzz LogLuv32toXYZ
-    LogLuv32toXYZ(logluvValue, xyz);
-
-    // Prepare input for LogLuv24fromXYZ
-    if (Size >= sizeof(float) * 3 + sizeof(int)) {
-        float inputXYZ[3];
-        std::memcpy(inputXYZ, Data, sizeof(float) * 3);
-        int numPixels;
-        std::memcpy(&numPixels, Data + sizeof(float) * 3, sizeof(int));
-
-        // Fuzz LogLuv24fromXYZ
-        LogLuv24fromXYZ(inputXYZ, numPixels);
+    // Open the dummy file with libtiff
+    TIFF *tifFile = TIFFOpen("./dummy_file", "r+");
+    if (!tifFile) {
+        return 0;
     }
 
-    // Prepare input for TIFFXYZToRGB
-    if (Size >= sizeof(float) * 3 + sizeof(TIFFCIELabToRGB)) {
-        TIFFCIELabToRGB cielabToRGB;
-        float x, y, z;
-        std::memcpy(&cielabToRGB, Data, sizeof(TIFFCIELabToRGB));
-        std::memcpy(&x, Data, sizeof(float));
-        std::memcpy(&y, Data + sizeof(float), sizeof(float));
-        std::memcpy(&z, Data + sizeof(float) * 2, sizeof(float));
+    // Fuzz TIFFIsTiled
+    int isTiled = TIFFIsTiled(tifFile);
 
-        uint32_t r, g, b;
-        TIFFXYZToRGB(&cielabToRGB, x, y, z, &r, &g, &b);
-    }
+    // Fuzz TIFFGetStrileOffsetWithErr
+    uint32_t strile = 0;
+    int err = 0;
+    uint64_t offset = TIFFGetStrileOffsetWithErr(tifFile, strile, &err);
 
-    // Prepare input for TIFFSwabArrayOfFloat
-    if (Size >= sizeof(float)) {
-        tmsize_t n = Size / sizeof(float);
-        if (n > 0) {
-            float *floatArray = new float[n];
-            std::memcpy(floatArray, Data, n * sizeof(float));
+    // Fuzz TIFFForceStrileArrayWriting
+    int forceWrite = TIFFForceStrileArrayWriting(tifFile);
 
-            // Fuzz TIFFSwabArrayOfFloat
-            TIFFSwabArrayOfFloat(floatArray, n);
+    // Fuzz TIFFSetWriteOffset
+    TIFFSetWriteOffset(tifFile, static_cast<toff_t>(offset));
 
-            delete[] floatArray;
-        }
-    }
+    // Fuzz TIFFDeferStrileArrayWriting
+    int deferWrite = TIFFDeferStrileArrayWriting(tifFile);
 
-    // Fuzz TIFFSwabLong
-    TIFFSwabLong(&logluvValue);
+    // Fuzz TIFFWriteCheck
+    int writeCheck = TIFFWriteCheck(tifFile, isTiled, "dummy_tag");
+
+    // Cleanup
+    TIFFClose(tifFile);
 
     return 0;
 }

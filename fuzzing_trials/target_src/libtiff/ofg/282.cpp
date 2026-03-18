@@ -1,37 +1,53 @@
 #include <tiffio.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <unistd.h>  // Include for close() and write()
+#include <fcntl.h>   // Include for mkstemp()
+
+extern "C" {
+    // Include necessary C headers, source files, functions, and code here.
+}
 
 extern "C" int LLVMFuzzerTestOneInput_282(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint32_t) * 3 + sizeof(uint16_t)) {
-        return 0; // Not enough data to extract necessary parameters
+    TIFF *tiff = nullptr;
+    void *buffer = nullptr;
+    uint32_t x = 0, y = 0, z = 0;
+    uint16_t sample = 0;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+
+    if (fd == -1) {
+        return 0;
     }
 
-    // Create a temporary TIFF file for writing
-    const char *filename = "/tmp/fuzz_tile.tiff";
-    TIFF *tiff = TIFFOpen(filename, "w");
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
+
+    close(fd);
+
+    // Open the temporary file as a TIFF
+    tiff = TIFFOpen(tmpl, "r+");
     if (!tiff) {
         return 0;
     }
 
-    // Extract parameters from the input data
-    uint32_t x = *(reinterpret_cast<const uint32_t*>(data));
-    uint32_t y = *(reinterpret_cast<const uint32_t*>(data + sizeof(uint32_t)));
-    uint32_t z = *(reinterpret_cast<const uint32_t*>(data + 2 * sizeof(uint32_t)));
-    uint16_t sample = *(reinterpret_cast<const uint16_t*>(data + 3 * sizeof(uint32_t)));
-
-    // The remaining data is used as the tile buffer
-    void *buffer = nullptr;
-    size_t buffer_size = size - (3 * sizeof(uint32_t) + sizeof(uint16_t));
-    if (buffer_size > 0) {
-        buffer = malloc(buffer_size);
-        if (buffer) {
-            memcpy(buffer, data + 3 * sizeof(uint32_t) + sizeof(uint16_t), buffer_size);
+    // Allocate a buffer for the tile data
+    tmsize_t tileSize = TIFFTileSize(tiff);
+    if (tileSize > 0) {
+        buffer = malloc(tileSize);
+        if (!buffer) {
+            TIFFClose(tiff);
+            return 0;
         }
+        memset(buffer, 0, tileSize);
     }
 
-    // Call the function under test
+    // Call the function-under-test
     TIFFWriteTile(tiff, buffer, x, y, z, sample);
 
     // Clean up
@@ -39,6 +55,7 @@ extern "C" int LLVMFuzzerTestOneInput_282(const uint8_t *data, size_t size) {
         free(buffer);
     }
     TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

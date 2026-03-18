@@ -1,8 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFClientOpen at tif_open.c:289:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
+// TIFFFieldDataType at tif_dirinfo.c:956:14 in tiffio.h
+// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
+// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
+// TIFFFieldTag at tif_dirinfo.c:952:10 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,54 +16,91 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <tiffio.h>
 
-extern "C" int LLVMFuzzerTestOneInput_120(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(float) * 3 + sizeof(uint32_t)) {
-        return 0; // Not enough data to proceed
+static TIFF* createDummyTIFF() {
+    FILE* file = std::fopen("./dummy_file", "wb+");
+    if (!file) return nullptr;
+
+    TIFF* tiff = TIFFClientOpen("dummy", "w+", file,
+                                [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t {
+                                    return std::fwrite(buf, 1, size, static_cast<FILE*>(fd));
+                                },
+                                [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t {
+                                    return std::fread(buf, 1, size, static_cast<FILE*>(fd));
+                                },
+                                [](thandle_t fd, toff_t off, int whence) -> toff_t {
+                                    return std::fseek(static_cast<FILE*>(fd), off, whence);
+                                },
+                                [](thandle_t fd) -> int {
+                                    return std::fclose(static_cast<FILE*>(fd));
+                                },
+                                [](thandle_t fd) -> toff_t {
+                                    std::fseek(static_cast<FILE*>(fd), 0, SEEK_END);
+                                    return std::ftell(static_cast<FILE*>(fd));
+                                },
+                                nullptr, // Map function not provided
+                                nullptr  // Unmap function not provided
+                                );
+
+    if (!tiff) {
+        std::fclose(file);
+    }
+    return tiff;
+}
+
+static void cleanupTIFF(TIFF* tiff) {
+    if (tiff) {
+        TIFFClose(tiff);
+    }
+}
+
+extern "C" int LLVMFuzzerTestOneInput_120(const uint8_t* Data, size_t Size) {
+    if (Size < 1) return 0;
+
+    TIFF* tiff = createDummyTIFF();
+    if (!tiff) return 0;
+
+    uint32_t tag = Data[0];
+    const char* fieldName = reinterpret_cast<const char*>(Data + 1);
+    TIFFDataType dataType = static_cast<TIFFDataType>(Data[0]);
+
+    // Fuzz TIFFGetField
+    int status = TIFFGetField(tiff, tag);
+    if (status) {
+        // Handle retrieved data if needed
     }
 
-    // Prepare data for LogLuv32fromXYZ and LogLuv24fromXYZ
-    float xyz[3];
-    memcpy(xyz, Data, sizeof(float) * 3);
-    int numComponents = 3;
+    // Fuzz TIFFFieldWithName
+    const TIFFField* fieldByName = TIFFFieldWithName(tiff, fieldName);
+    if (fieldByName) {
+        // Use fieldByName if needed
+    }
 
-    // Fuzz LogLuv32fromXYZ
-    uint32_t logluv32 = LogLuv32fromXYZ(xyz, numComponents);
+    // Fuzz TIFFFieldDataType
+    if (fieldByName) {
+        TIFFDataType fieldType = TIFFFieldDataType(fieldByName);
+        // Use fieldType if needed
+    }
 
-    // Prepare data for LogLuv24toXYZ and LogLuv32toXYZ
-    uint32_t logluv24;
-    memcpy(&logluv24, Data + sizeof(float) * 3, sizeof(uint32_t));
+    // Fuzz TIFFFieldWithTag
+    const TIFFField* fieldByTag = TIFFFieldWithTag(tiff, tag);
+    if (fieldByTag) {
+        // Use fieldByTag if needed
+    }
 
-    float xyzOutput[3];
+    // Fuzz TIFFFindField
+    const TIFFField* foundField = TIFFFindField(tiff, tag, dataType);
+    if (foundField) {
+        // Use foundField if needed
+    }
 
-    // Fuzz LogLuv24toXYZ
-    LogLuv24toXYZ(logluv24, xyzOutput);
+    // Fuzz TIFFFieldTag
+    if (fieldByTag) {
+        uint32_t fieldTag = TIFFFieldTag(fieldByTag);
+        // Use fieldTag if needed
+    }
 
-    // Fuzz LogLuv32toXYZ
-    LogLuv32toXYZ(logluv32, xyzOutput);
-
-    // Fuzz LogLuv24fromXYZ
-    uint32_t logluv24FromXYZ = LogLuv24fromXYZ(xyz, numComponents);
-
-    // Prepare data for TIFFSwabArrayOfFloat
-    float floatArray[3];
-    memcpy(floatArray, Data, sizeof(float) * 3);
-    tmsize_t n = 3;
-
-    // Fuzz TIFFSwabArrayOfFloat
-    TIFFSwabArrayOfFloat(floatArray, n);
-
-    // Prepare data for TIFFSwabLong
-    uint32_t longValue;
-    memcpy(&longValue, Data, sizeof(uint32_t));
-
-    // Fuzz TIFFSwabLong
-    TIFFSwabLong(&longValue);
-
+    cleanupTIFF(tiff);
     return 0;
 }

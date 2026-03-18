@@ -1,32 +1,37 @@
+#include <tiffio.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <tiffio.h>  // Include the TIFF library header
-
-extern "C" {
-    // Function prototype for the function-under-test
-    void* _TIFFmalloc(tmsize_t size);
-}
+#include <unistd.h> // Include for close() and write() functions
 
 extern "C" int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
-    // Ensure the size is non-zero for meaningful allocation
-    if (size == 0) {
+    // Create a temporary file to simulate a TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Use the size of the input data as the allocation size
-    tmsize_t alloc_size = static_cast<tmsize_t>(size);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
+
+    // Open the temporary file as a TIFF file
+    TIFF* tiff = TIFFOpen(tmpl, "r+");
+    if (tiff == nullptr) {
+        close(fd);
+        return 0;
+    }
 
     // Call the function-under-test
-    void* allocated_memory = _TIFFmalloc(alloc_size);
+    TIFFCreateEXIFDirectory(tiff);
 
-    // Check if memory was allocated successfully
-    if (allocated_memory != nullptr) {
-        // Perform operations on allocated memory if needed
-        // ...
-
-        // Free the allocated memory
-        _TIFFfree(allocated_memory);
-    }
+    // Clean up
+    TIFFClose(tiff);
+    close(fd);
+    remove(tmpl);
 
     return 0;
 }

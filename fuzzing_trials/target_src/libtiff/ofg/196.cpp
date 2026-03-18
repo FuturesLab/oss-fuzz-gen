@@ -1,58 +1,30 @@
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdlib>
-#include <cstdio>
-#include <cstring>
-#include <unistd.h>  // Include for 'write' and 'close'
 
 extern "C" {
-    #include <tiffio.h>
+
+TIFFErrorHandler customWarningHandler(const char* module, const char* fmt, va_list ap) {
+    // Custom handler logic can be added here
+    vfprintf(stderr, fmt, ap);
 }
 
-extern "C" int LLVMFuzzerTestOneInput_196(const uint8_t *data, size_t size) {
-    TIFF *tif = nullptr;
-    void *scanline = nullptr;
-    uint32_t row = 0;
-    uint16_t sample = 0;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-
-    if (fd == -1) {
+int LLVMFuzzerTestOneInput_196(const uint8_t *data, size_t size) {
+    // Ensure the data is not NULL and has a valid size
+    if (data == nullptr || size == 0) {
         return 0;
     }
 
-    // Write data to the temporary file
-    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
-        close(fd);
-        return 0;
-    }
+    // Cast the data to a TIFFErrorHandler function pointer
+    TIFFErrorHandler handler = reinterpret_cast<TIFFErrorHandler>(customWarningHandler);
 
-    // Close the file descriptor so TIFFOpen can open it
-    close(fd);
+    // Call the function-under-test
+    TIFFErrorHandler oldHandler = TIFFSetWarningHandler(handler);
 
-    // Open the temporary file as a TIFF image
-    tif = TIFFOpen(tmpl, "r+");
-    if (!tif) {
-        return 0;
-    }
-
-    // Allocate memory for the scanline
-    tsize_t scanlineSize = TIFFScanlineSize(tif);
-    scanline = malloc(scanlineSize);
-    if (!scanline) {
-        TIFFClose(tif);
-        return 0;
-    }
-
-    // Initialize the scanline with data
-    memcpy(scanline, data, scanlineSize < size ? scanlineSize : size);
-
-    // Fuzz the TIFFWriteScanline function
-    TIFFWriteScanline(tif, scanline, row, sample);
-
-    // Clean up
-    free(scanline);
-    TIFFClose(tif);
-    remove(tmpl);
+    // Optionally, restore the old handler
+    TIFFSetWarningHandler(oldHandler);
 
     return 0;
+}
+
 }

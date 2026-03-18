@@ -4,38 +4,27 @@
 
 extern "C" {
     #include <tiffio.h>
-
-    // Forward declaration of the function-under-test
-    uint32_t TIFFFieldTag(const TIFFField *);
-
-    // Include the TIFFField definition from the correct path
-    #include "/src/libtiff/libtiff/tif_dir.h"
+    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for the definition of TIFFField
 }
 
 extern "C" int LLVMFuzzerTestOneInput_228(const uint8_t *data, size_t size) {
     if (size < sizeof(TIFFField)) {
-        return 0; // Not enough data to form a valid TIFFField
+        return 0; // Not enough data to create a TIFFField
     }
 
-    // Allocate memory for a TIFFField structure
-    TIFFField *field = reinterpret_cast<TIFFField *>(malloc(sizeof(TIFFField)));
+    // Allocate memory for TIFFField and copy data into it
+    TIFFField* field = (TIFFField*)malloc(sizeof(TIFFField));
     if (field == nullptr) {
-        return 0; // Memory allocation failed
+        return 0; // Failed to allocate memory
     }
 
-    // Copy data into the TIFFField structure
+    // Copy data into the allocated TIFFField structure
     memcpy(field, data, sizeof(TIFFField));
 
-    // Ensure that the TIFFField structure is not NULL
-    if (field != nullptr) {
-        // Call the function-under-test
-        uint32_t tag = TIFFFieldTag(field);
+    // Call the function-under-test
+    uint32_t tag = TIFFFieldTag(field);
 
-        // Optionally, use the tag value to prevent optimization out
-        (void)tag;
-    }
-
-    // Free the allocated memory
+    // Clean up
     free(field);
 
     return 0;

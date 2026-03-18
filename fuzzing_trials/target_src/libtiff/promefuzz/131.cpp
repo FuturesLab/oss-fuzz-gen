@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFYCbCrToRGBInit at tif_color.c:251:5 in tiffio.h
-// TIFFXYZToRGB at tif_color.c:89:6 in tiffio.h
-// TIFFCIELabToRGBInit at tif_color.c:135:5 in tiffio.h
-// XYZtoRGB24 at tif_luv.c:865:5 in tiffio.h
-// TIFFCIELabToXYZ at tif_color.c:43:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
+// TIFFSwabArrayOfLong8 at tif_swab.c:138:6 in tiffio.h
+// TIFFSwabArrayOfTriples at tif_swab.c:99:6 in tiffio.h
+// TIFFSwabArrayOfLong at tif_swab.c:117:6 in tiffio.h
+// TIFFSwabArrayOfShort at tif_swab.c:81:6 in tiffio.h
+// TIFFSwabLong8 at tif_swab.c:60:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,59 +15,68 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <iostream>
 #include <tiffio.h>
 
-static size_t roundup_32(size_t size, size_t align) {
-    return (size + (align - 1)) & ~(align - 1);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_131(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t) + 3 * sizeof(float)) {
+    if (Size < sizeof(double) && Size < sizeof(uint64_t) && Size < sizeof(uint32_t) && Size < sizeof(uint16_t)) {
         return 0;
     }
 
-    // Fuzz LogLuv24toXYZ
-    uint32_t logLuvColor = *(reinterpret_cast<const uint32_t *>(Data));
-    float xyzOutput[3];
-    LogLuv24toXYZ(logLuvColor, xyzOutput);
-
-    // Allocate memory for TIFFYCbCrToRGB structure
-    size_t ycbcrSize = roundup_32(sizeof(TIFFYCbCrToRGB), sizeof(long)) +
-                       4 * 256 * sizeof(TIFFRGBValue) + 
-                       2 * 256 * sizeof(int) + 
-                       3 * 256 * sizeof(int32_t);
-    TIFFYCbCrToRGB *ycbcr = (TIFFYCbCrToRGB *)_TIFFmalloc(ycbcrSize);
-    if (!ycbcr) {
-        return 0;
+    // Prepare data for TIFFSwabArrayOfDouble
+    if (Size >= sizeof(double)) {
+        size_t numDoubles = Size / sizeof(double);
+        double *doubleArray = new double[numDoubles];
+        std::memcpy(doubleArray, Data, numDoubles * sizeof(double));
+        TIFFSwabArrayOfDouble(doubleArray, numDoubles);
+        delete[] doubleArray;
     }
 
-    // Fuzz TIFFYCbCrToRGBInit
-    float luma[3] = {0.0f, 0.0f, 0.0f};
-    float refBlackWhite[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-    TIFFYCbCrToRGBInit(ycbcr, luma, refBlackWhite);
+    // Prepare data for TIFFSwabArrayOfLong8
+    if (Size >= sizeof(uint64_t)) {
+        size_t numLong8 = Size / sizeof(uint64_t);
+        uint64_t *long8Array = new uint64_t[numLong8];
+        std::memcpy(long8Array, Data, numLong8 * sizeof(uint64_t));
+        TIFFSwabArrayOfLong8(long8Array, numLong8);
+        delete[] long8Array;
+    }
 
-    // Fuzz TIFFXYZToRGB
-    TIFFCIELabToRGB cielabToRGB;
-    uint32_t r, g, b;
-    TIFFXYZToRGB(&cielabToRGB, xyzOutput[0], xyzOutput[1], xyzOutput[2], &r, &g, &b);
+    // Prepare data for TIFFSwabArrayOfTriples
+    if (Size >= 3) {
+        size_t numTriples = Size / 3;
+        uint8_t *triplesArray = new uint8_t[numTriples * 3];
+        std::memcpy(triplesArray, Data, numTriples * 3);
+        TIFFSwabArrayOfTriples(triplesArray, numTriples);
+        delete[] triplesArray;
+    }
 
-    // Fuzz TIFFCIELabToRGBInit
-    TIFFDisplay display;
-    float whitePoint[3] = {0.0f, 0.0f, 0.0f};
-    TIFFCIELabToRGBInit(&cielabToRGB, &display, whitePoint);
+    // Prepare data for TIFFSwabArrayOfLong
+    if (Size >= sizeof(uint32_t)) {
+        size_t numLongs = Size / sizeof(uint32_t);
+        uint32_t *longArray = new uint32_t[numLongs];
+        std::memcpy(longArray, Data, numLongs * sizeof(uint32_t));
+        TIFFSwabArrayOfLong(longArray, numLongs);
+        delete[] longArray;
+    }
 
-    // Fuzz XYZtoRGB24
-    uint8_t rgbOutput[3];
-    XYZtoRGB24(xyzOutput, rgbOutput);
+    // Prepare data for TIFFSwabArrayOfShort
+    if (Size >= sizeof(uint16_t)) {
+        size_t numShorts = Size / sizeof(uint16_t);
+        uint16_t *shortArray = new uint16_t[numShorts];
+        std::memcpy(shortArray, Data, numShorts * sizeof(uint16_t));
+        TIFFSwabArrayOfShort(shortArray, numShorts);
+        delete[] shortArray;
+    }
 
-    // Fuzz TIFFCIELabToXYZ
-    float x, y, z;
-    TIFFCIELabToXYZ(&cielabToRGB, 50, 0, 0, &x, &y, &z);
-
-    // Free allocated memory
-    _TIFFfree(ycbcr);
+    // Prepare data for TIFFSwabLong8
+    if (Size >= sizeof(uint64_t)) {
+        uint64_t long8;
+        std::memcpy(&long8, Data, sizeof(uint64_t));
+        TIFFSwabLong8(&long8);
+    }
 
     return 0;
 }

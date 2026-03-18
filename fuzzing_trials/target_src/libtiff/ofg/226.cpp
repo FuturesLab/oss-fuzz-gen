@@ -1,16 +1,16 @@
-#include <cstdio>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h>  // For write() and close()
-#include <sys/types.h>  // For ssize_t
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h> // Include for close() and write()
+#include <fcntl.h>  // Include for mkstemp()
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_226(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the fuzz data
+    // Create a temporary file to simulate a TIFF file
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
@@ -26,19 +26,21 @@ extern "C" int LLVMFuzzerTestOneInput_226(const uint8_t *data, size_t size) {
     // Close the file descriptor
     close(fd);
 
-    // Define the mode and options for TIFFOpenExt
-    const char *mode = "r";  // Read mode
-
-    // Since TIFFOpenOptions is an incomplete type, we should not use it
-    // directly. Instead, we should use the TIFFOpen function.
-    TIFF *tiff = TIFFOpen(tmpl, mode);
-
-    // Clean up
-    if (tiff != NULL) {
-        TIFFClose(tiff);
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(tmpl, "r+");
+    if (tif == NULL) {
+        // If TIFFOpen fails, clean up the temporary file
+        remove(tmpl);
+        return 0;
     }
 
-    // Remove the temporary file
+    // Call the function-under-test
+    TIFFFlushData(tif);
+
+    // Close the TIFF file
+    TIFFClose(tif);
+
+    // Clean up the temporary file
     remove(tmpl);
 
     return 0;

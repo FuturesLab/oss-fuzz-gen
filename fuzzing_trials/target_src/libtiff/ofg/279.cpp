@@ -1,52 +1,47 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_279(const uint8_t *data, size_t size) {
-    // Initialize TIFF pointer
-    TIFF *tiff = TIFFOpen("/tmp/fuzzfileXXXXXX", "w");
-    if (!tiff) {
+    if (size == 0) {
         return 0;
     }
 
-    // Ensure data size is sufficient for creating strings
-    if (size < 2) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
+        close(fd);
+        return 0;
+    }
+
+    close(fd);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff != nullptr) {
+        // Call the function-under-test
+        tdir_t numDirectories = TIFFNumberOfDirectories(tiff);
+
+        // Clean up
         TIFFClose(tiff);
-        return 0;
     }
 
-    // Create non-null strings from data
-    size_t str1_len = data[0] % (size - 1) + 1;
-    size_t str2_len = data[1] % (size - str1_len - 1) + 1;
-
-    char *str1 = (char *)malloc(str1_len + 1);
-    char *str2 = (char *)malloc(str2_len + 1);
-
-    if (!str1 || !str2) {
-        free(str1);
-        free(str2);
-        TIFFClose(tiff);
-        return 0;
-    }
-
-    memcpy(str1, data + 2, str1_len);
-    memcpy(str2, data + 2 + str1_len, str2_len);
-
-    str1[str1_len] = '\0';
-    str2[str2_len] = '\0';
-
-    // Call the function-under-test
-    TIFFErrorExtR(tiff, str1, str2);
-
-    // Clean up
-    free(str1);
-    free(str2);
-    TIFFClose(tiff);
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }

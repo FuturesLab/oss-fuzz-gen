@@ -1,23 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFComputeStrip at tif_strip.c:35:10 in tiffio.h
-// TIFFTileSize at tif_tile.c:253:10 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// TIFFCIELabToRGBInit at tif_color.c:135:5 in tiffio.h
+// TIFFCIELabToXYZ at tif_color.c:43:6 in tiffio.h
+// XYZtoRGB24 at tif_luv.c:865:5 in tiffio.h
+// TIFFXYZToRGB at tif_color.c:89:6 in tiffio.h
 // _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFReadTile at tif_read.c:950:10 in tiffio.h
+// TIFFYCbCrToRGBInit at tif_color.c:251:5 in tiffio.h
 // _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// TIFFCurrentTile at tif_open.c:884:10 in tiffio.h
-// TIFFComputeTile at tif_tile.c:35:10 in tiffio.h
-// TIFFDefaultTileSize at tif_tile.c:267:6 in tiffio.h
-// TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -27,67 +16,59 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-
-static TIFF* initializeDummyTIFF() {
-    TIFF* tif = TIFFOpen("./dummy_file", "w");
-    if (!tif) {
-        return nullptr;
-    }
-    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 256);
-    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 256);
-    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 3);
-    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-    TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-    TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
-    TIFFSetField(tif, TIFFTAG_ROWSPERSTRIP, 16);
-    return tif;
-}
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_70(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t) * 2 + sizeof(uint16_t)) {
+    if (Size < sizeof(uint32_t) + 3 * sizeof(float) + 3 * sizeof(int32_t)) {
         return 0;
     }
 
-    TIFF* tif = initializeDummyTIFF();
-    if (!tif) {
+    // Fuzzing LogLuv24toXYZ
+    uint32_t logLuvColor = *reinterpret_cast<const uint32_t*>(Data);
+    float xyz[3] = {0.0f, 0.0f, 0.0f};
+    LogLuv24toXYZ(logLuvColor, xyz);
+
+    // Fuzzing TIFFCIELabToRGBInit
+    TIFFCIELabToRGB cielabToRGB;
+    TIFFDisplay display;
+    float refWhite[3] = {1.0f, 1.0f, 1.0f};
+    TIFFCIELabToRGBInit(&cielabToRGB, &display, refWhite);
+
+    // Fuzzing TIFFCIELabToXYZ
+    uint32_t L = static_cast<uint32_t>(Data[0]);
+    int32_t a = static_cast<int32_t>(Data[1]);
+    int32_t bValue = static_cast<int32_t>(Data[2]);
+    float x, y, z;
+    TIFFCIELabToXYZ(&cielabToRGB, L, a, bValue, &x, &y, &z);
+
+    // Fuzzing XYZtoRGB24
+    float xyzInput[3] = {xyz[0], xyz[1], xyz[2]};
+    uint8_t rgb[3];
+    XYZtoRGB24(xyzInput, rgb);
+
+    // Fuzzing TIFFXYZToRGB
+    uint32_t r, g, b;
+    TIFFXYZToRGB(&cielabToRGB, x, y, z, &r, &g, &b);
+
+    // Allocate sufficient memory for TIFFYCbCrToRGB structure
+    size_t ycbcrSize = ((sizeof(TIFFYCbCrToRGB) + sizeof(long) - 1) / sizeof(long)) * sizeof(long) +
+                       4 * 256 * sizeof(TIFFRGBValue) + 2 * 256 * sizeof(int) +
+                       3 * 256 * sizeof(int32_t);
+    TIFFYCbCrToRGB* ycbcrToRGB = (TIFFYCbCrToRGB*)_TIFFmalloc(ycbcrSize);
+    if (!ycbcrToRGB) {
         return 0;
     }
 
-    uint32_t x = *reinterpret_cast<const uint32_t*>(Data);
-    uint32_t y = *reinterpret_cast<const uint32_t*>(Data + sizeof(uint32_t));
-    uint32_t z = 0;
-    uint16_t s = *reinterpret_cast<const uint16_t*>(Data + sizeof(uint32_t) * 2);
+    // Fuzzing TIFFYCbCrToRGBInit
+    float luma[3] = {1.0f, 1.0f, 1.0f};
+    float refBlackWhite[6] = {0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f};
+    TIFFYCbCrToRGBInit(ycbcrToRGB, luma, refBlackWhite);
 
-    // Fuzz TIFFComputeStrip
-    TIFFComputeStrip(tif, y, s);
+    // Free allocated memory
+    _TIFFfree(ycbcrToRGB);
 
-    // Fuzz TIFFReadTile
-    tmsize_t tileSize = TIFFTileSize(tif);
-    void* buffer = _TIFFmalloc(tileSize);
-    if (buffer) {
-        TIFFReadTile(tif, buffer, x, y, z, s);
-        _TIFFfree(buffer);
-    }
-
-    // Fuzz TIFFCurrentTile
-    TIFFCurrentTile(tif);
-
-    // Fuzz TIFFComputeTile
-    TIFFComputeTile(tif, x, y, z, s);
-
-    // Fuzz TIFFDefaultTileSize
-    uint32_t width = 0, height = 0;
-    TIFFDefaultTileSize(tif, &width, &height);
-
-    // Fuzz TIFFNumberOfTiles
-    TIFFNumberOfTiles(tif);
-
-    TIFFClose(tif);
     return 0;
 }

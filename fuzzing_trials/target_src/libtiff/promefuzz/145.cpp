@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFRGBAImageOK at tif_getimage.c:83:5 in tiffio.h
-// TIFFErrorExt at tif_error.c:63:6 in tiffio.h
-// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
-// TIFFErrorExtR at tif_error.c:107:6 in tiffio.h
-// TIFFWarningExtR at tif_warning.c:80:6 in tiffio.h
+// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// LogL16toY at tif_luv.c:801:5 in tiffio.h
+// LogL10toY at tif_luv.c:883:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,47 +15,57 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
-#include <cstdarg>
-#include <cstring>
+#include <cstdlib>
+#include <cmath>
+#include <tiffio.h>
 
-static TIFF* openDummyFile() {
-    FILE* file = fopen("./dummy_file", "wb");
-    if (!file) return nullptr;
-
-    const char dummyData[] = "DUMMY_TIFF_DATA";
-    fwrite(dummyData, 1, sizeof(dummyData), file);
-    fclose(file);
-
-    return TIFFOpen("./dummy_file", "r");
-}
-
-static void customErrorHandler(thandle_t handle, const char* module, const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
-    va_end(args);
+static TIFF* initializeTIFF() {
+    TIFF* tif = TIFFOpen("./dummy_file", "w");
+    if (!tif) {
+        fprintf(stderr, "Could not open dummy TIFF file.\n");
+        return nullptr;
+    }
+    return tif;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_145(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(double) + sizeof(int)) {
+        return 0; // Not enough data to proceed
+    }
 
-    TIFF* tiff = openDummyFile();
-    if (!tiff) return 0;
+    // Extract a double and an int from the input data
+    double Y = *reinterpret_cast<const double*>(Data);
+    int intValue = *reinterpret_cast<const int*>(Data + sizeof(double));
 
-    char emsg[1024] = {0};
-    TIFFRGBAImageOK(tiff, emsg);
+    // Test LogL10fromY
+    if (Y > 0) {
+        int logL10Result = LogL10fromY(Y, intValue);
+    }
 
-    TIFFErrorExt(0, "Module", "Test Error: %s", emsg);
+    // Test TIFFFlushData
+    TIFF* tiff = initializeTIFF();
+    if (tiff) {
+        int flushResult = TIFFFlushData(tiff);
+        TIFFClose(tiff);
+    }
 
-    TIFFWriteCheck(tiff, 1, "WriteCheckModule");
+    // Test TIFFDeferStrileArrayWriting
+    tiff = initializeTIFF();
+    if (tiff) {
+        int deferStrileResult = TIFFDeferStrileArrayWriting(tiff);
+        TIFFClose(tiff);
+    }
 
-    TIFFErrorExtR(tiff, "ModuleR", "Test Error R: %s", emsg);
+    // Test LogL16toY
+    double logL16toYResult = LogL16toY(intValue);
 
-    TIFFWarningExtR(tiff, "WarningModuleR", "Test Warning R: %s", emsg);
+    // Test LogL16fromY
+    int logL16fromYResult = LogL16fromY(Y, intValue);
 
-    TIFFClose(tiff);
+    // Test LogL10toY
+    double logL10toYResult = LogL10toY(intValue);
+
     return 0;
 }

@@ -1,24 +1,20 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h>
-#include <tiffio.h>
-
 extern "C" {
     #include <tiffio.h>
+    #include <unistd.h> // Include for the 'close' function
+    #include <stdlib.h> // Include for 'mkstemp' and 'remove'
+    #include <stdio.h>  // Include for 'fdopen', 'fwrite', 'fclose'
+    #include <stdint.h> // Include for 'uint8_t', 'uint32_t'
 }
 
 extern "C" int LLVMFuzzerTestOneInput_308(const uint8_t *data, size_t size) {
-    // Create a temporary file to hold the input data
+    // Create a temporary file to write the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
-
-    // Write the data to the temporary file
     FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
+    if (!file) {
         close(fd);
         return 0;
     }
@@ -26,23 +22,22 @@ extern "C" int LLVMFuzzerTestOneInput_308(const uint8_t *data, size_t size) {
     fclose(file);
 
     // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        TIFFSeekProc seekProc = TIFFGetSeekProc(tiff);
-
-        // Use the seekProc to perform some operations if needed
-        // (This is just an example, you might not need to use it)
-        if (seekProc != nullptr) {
-            // Example: seek to the beginning of the file
-            seekProc((thandle_t)(intptr_t)fd, 0, SEEK_SET);
-        }
-
-        // Close the TIFF file
-        TIFFClose(tiff);
+    TIFF *tif = TIFFOpen(tmpl, "r");
+    if (!tif) {
+        remove(tmpl);
+        return 0;
     }
 
-    // Clean up the temporary file
+    // Prepare parameters for TIFFReadRGBAStripExt
+    uint32_t strip = 0;
+    uint32_t buffer[1024]; // Example buffer, size should be sufficient for testing
+    int stop_on_error = 0;
+
+    // Call the function-under-test
+    TIFFReadRGBAStripExt(tif, strip, buffer, stop_on_error);
+
+    // Clean up
+    TIFFClose(tif);
     remove(tmpl);
 
     return 0;

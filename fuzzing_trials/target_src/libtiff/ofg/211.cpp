@@ -1,52 +1,29 @@
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h> // Include for 'close' function
+#include <cstring>  // Include for strlen
 
 extern "C" {
     #include <tiffio.h>
+    #include "/src/libtiff/libtiff/tif_dir.h"  // Correct path for the definition of TIFFField
 }
 
 extern "C" int LLVMFuzzerTestOneInput_211(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    if (size < sizeof(TIFFField)) {
         return 0;
     }
 
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    // Create a TIFFField object from the input data
+    TIFFField tiffField;
+    memcpy(&tiffField, data, sizeof(TIFFField));
+
+    // Call the function-under-test
+    const char *fieldName = TIFFFieldName(&tiffField);
+
+    // Use the fieldName in some way to prevent compiler optimizations
+    if (fieldName != nullptr) {
+        // Print the field name length
+        volatile size_t length = strlen(fieldName);
     }
-
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
-        return 0;
-    }
-
-    // Write the input data to the file
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        const char *filename = TIFFFileName(tiff);
-
-        // Use the filename (here we just print it for debugging purposes)
-        if (filename != nullptr) {
-            printf("TIFF filename: %s\n", filename);
-        }
-
-        // Close the TIFF file
-        TIFFClose(tiff);
-    }
-
-    // Remove the temporary file
-    remove(tmpl);
 
     return 0;
 }

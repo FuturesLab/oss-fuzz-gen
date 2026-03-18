@@ -1,22 +1,44 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>
+#include <tiffio.h>
 
 extern "C" {
-    // Include necessary C headers
-    #include <tiff.h>
     #include <tiffio.h>
 }
 
-// Fuzzing harness for TIFFYCbCrToRGBInit
 extern "C" int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables
-    TIFFYCbCrToRGB ycbcr;
-    float luma[3] = {0.299f, 0.587f, 0.114f}; // Standard luma coefficients for YCbCr to RGB conversion
-    float refBlackWhite[6] = {0.0f, 255.0f, 128.0f, 255.0f, 128.0f, 255.0f}; // Example reference black and white levels
+    // Create a temporary file to hold the TIFF data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the input data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == nullptr) {
+        close(fd);
+        return 0;
+    }
+
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = TIFFYCbCrToRGBInit(&ycbcr, luma, refBlackWhite);
+    uint64_t tileSize = TIFFTileSize64(tiff);
 
-    // Return 0 to indicate the fuzzer should continue testing
+    // Clean up
+    TIFFClose(tiff);
+    remove(tmpl);
+
     return 0;
 }

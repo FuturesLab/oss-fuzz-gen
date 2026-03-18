@@ -1,27 +1,31 @@
 #include <cstdint>
 #include <cstddef>
 
-// Assuming the function is defined in an external C library
 extern "C" {
-    uint32_t LogLuv24fromXYZ(float *, int);
+    // Assume the function is defined in an external C library
+    uint32_t LogLuv24fromXYZ(float *xyz, int illuminant);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a float array
-    if (size < sizeof(float)) {
+    // Ensure that the input size is sufficient for at least 3 floats
+    if (size < sizeof(float) * 3) {
         return 0;
     }
 
-    // Initialize a float array with non-null values
-    float xyz[3] = {1.0f, 1.0f, 1.0f}; // Example values for XYZ
+    // Prepare the float array for XYZ values
+    float xyz[3];
+    // Copy data into the float array, ensuring proper alignment
+    for (size_t i = 0; i < 3; ++i) {
+        xyz[i] = reinterpret_cast<const float*>(data)[i];
+    }
 
-    // Use the first byte of data to determine the int parameter
-    int param = static_cast<int>(data[0]);
+    // Choose an illuminant value, for fuzzing purposes, we can use a fixed value
+    int illuminant = 1;
 
     // Call the function-under-test
-    uint32_t result = LogLuv24fromXYZ(xyz, param);
+    uint32_t result = LogLuv24fromXYZ(xyz, illuminant);
 
-    // Use the result in some way to avoid compiler optimizations
+    // Optionally, use the result in some way to prevent optimizations from removing the call
     (void)result;
 
     return 0;

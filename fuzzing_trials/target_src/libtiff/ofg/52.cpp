@@ -1,8 +1,8 @@
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <unistd.h>
+#include <unistd.h> // Include for close()
 
 extern "C" {
     #include <tiffio.h>
@@ -25,15 +25,18 @@ extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
     fwrite(data, 1, size, file);
     fclose(file);
 
-    // Open the temporary file as a TIFF image
+    // Open the TIFF file using the TIFF library
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        TIFFReadDirectory(tiff);
-        TIFFClose(tiff);
+    if (tiff == nullptr) {
+        remove(tmpl);
+        return 0;
     }
 
-    // Clean up the temporary file
+    // Call the function under test
+    TIFFReadDirectory(tiff);
+
+    // Clean up
+    TIFFClose(tiff);
     remove(tmpl);
 
     return 0;

@@ -4,28 +4,27 @@
 #include <tiffio.h>
 
 extern "C" {
+    // Include the necessary headers for the function-under-test
+    void _TIFFmemcpy(void *dest, const void *src, tmsize_t size);
+}
 
-void _TIFFmemcpy(void *dest, const void *src, tmsize_t size);
-
-int LLVMFuzzerTestOneInput_234(const uint8_t *data, size_t size) {
-    // Ensure the size is non-zero and not too large to avoid excessive memory allocation
-    if (size == 0 || size > 1024) {
+extern "C" int LLVMFuzzerTestOneInput_234(const uint8_t *data, size_t size) {
+    // Ensure size is non-zero for meaningful memcpy operation
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the destination buffer
+    // Allocate memory for destination buffer
     void *dest = malloc(size);
     if (dest == nullptr) {
-        return 0;
+        return 0; // Exit if memory allocation fails
     }
 
     // Call the function-under-test
     _TIFFmemcpy(dest, data, static_cast<tmsize_t>(size));
 
-    // Clean up allocated memory
+    // Free the allocated memory
     free(dest);
 
     return 0;
-}
-
 }

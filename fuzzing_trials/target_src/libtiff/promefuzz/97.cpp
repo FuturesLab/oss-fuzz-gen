@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
+// TIFFFileno at tif_open.c:818:5 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFFlush at tif_flush.c:30:5 in tiffio.h
+// TIFFUnlinkDirectory at tif_dir.c:2247:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
-// TIFFMergeFieldInfo at tif_dirinfo.c:1238:5 in tiffio.h
-// TIFFErrorExtR at tif_error.c:107:6 in tiffio.h
-// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
-// TIFFIsBigTIFF at tif_open.c:912:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,66 +15,52 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
 #include <cstdio>
-#include <cstdarg>
-#include <cstring>
+#include <cstdint>
+#include <cstddef>
+#include <fcntl.h>
+#include <unistd.h>
 
-static TIFF* initializeTIFF(const uint8_t *Data, size_t Size) {
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return nullptr;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-    return TIFFOpen("./dummy_file", "w+");
-}
-
-static void cleanupTIFF(TIFF *tif) {
-    if (tif) {
-        TIFFClose(tif);
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
-static void testTIFFWriteDirectory(TIFF *tif) {
-    int result = TIFFWriteDirectory(tif);
-    (void)result; // Suppress unused variable warning
-}
-
-static void testTIFFWriteCheck(TIFF *tif) {
-    int result = TIFFWriteCheck(tif, 1, "test");
-    (void)result; // Suppress unused variable warning
-}
-
-static void testTIFFMergeFieldInfo(TIFF *tif) {
-    TIFFFieldInfo fieldInfo = {0}; // Dummy initialization
-    int result = TIFFMergeFieldInfo(tif, &fieldInfo, 1);
-    (void)result; // Suppress unused variable warning
-}
-
-static void testTIFFErrorExtR(TIFF *tif) {
-    TIFFErrorExtR(tif, "test_module", "Test error message: %d", 123);
-}
-
-static void testTIFFFlushData(TIFF *tif) {
-    int result = TIFFFlushData(tif);
-    (void)result; // Suppress unused variable warning
-}
-
-static void testTIFFIsBigTIFF(TIFF *tif) {
-    int result = TIFFIsBigTIFF(tif);
-    (void)result; // Suppress unused variable warning
-}
-
 extern "C" int LLVMFuzzerTestOneInput_97(const uint8_t *Data, size_t Size) {
-    TIFF *tif = initializeTIFF(Data, Size);
-    if (!tif) return 0;
+    if (Size < 1) return 0;
 
-    testTIFFWriteDirectory(tif);
-    testTIFFWriteCheck(tif);
-    testTIFFMergeFieldInfo(tif);
-    testTIFFErrorExtR(tif);
-    testTIFFFlushData(tif);
-    testTIFFIsBigTIFF(tif);
+    // Step 1: Write data to a dummy file
+    writeDummyFile(Data, Size);
 
-    cleanupTIFF(tif);
+    // Step 2: Open the dummy file
+    int fd = open("./dummy_file", O_RDWR);
+    if (fd < 0) return 0;
+
+    // Step 3: Use TIFFFdOpen to open the TIFF file
+    TIFF *tif = TIFFFdOpen(fd, "./dummy_file", "r+");
+    if (!tif) {
+        close(fd);
+        return 0;
+    }
+
+    // Step 4: Invoke TIFFFileno
+    int fileno = TIFFFileno(tif);
+
+    // Step 5: Read directory using TIFFReadDirectory
+    int readDirResult = TIFFReadDirectory(tif);
+
+    // Step 6: Flush data using TIFFFlush
+    int flushResult = TIFFFlush(tif);
+
+    // Step 7: Attempt to unlink a directory
+    TIFFUnlinkDirectory(tif, 1);
+
+    // Step 8: Clean up
+    TIFFClose(tif);
+    close(fd);
+
     return 0;
 }

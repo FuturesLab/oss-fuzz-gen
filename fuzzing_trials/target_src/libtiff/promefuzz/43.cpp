@@ -1,12 +1,8 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFScanlineSize64 at tif_strip.c:257:10 in tiffio.h
-// TIFFStripSize64 at tif_strip.c:196:10 in tiffio.h
-// TIFFTileSize64 at tif_tile.c:249:10 in tiffio.h
-// TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
-// TIFFVTileSize64 at tif_tile.c:188:10 in tiffio.h
-// TIFFTileRowSize64 at tif_tile.c:140:10 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
+// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,44 +12,51 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
-static TIFF* InitializeTIFF(const uint8_t* Data, size_t Size) {
-    FILE* file = fopen("./dummy_file", "wb");
-    if (!file) return nullptr;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    TIFF* tif = TIFFOpen("./dummy_file", "r");
-    return tif;
-}
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 4) return 0;
 
-    TIFF* tif = InitializeTIFF(Data, Size);
-    if (!tif) return 0;
+    // Prepare data for LogLuv24toXYZ and LogLuv32toXYZ
+    uint32_t logluvColor;
+    memcpy(&logluvColor, Data, sizeof(uint32_t));
 
-    // Call the target API functions with the TIFF pointer
-    uint64_t scanlineSize = TIFFScanlineSize64(tif);
-    uint64_t stripSize = TIFFStripSize64(tif);
-    uint64_t tileSize = TIFFTileSize64(tif);
-    uint32_t numberOfTiles = TIFFNumberOfTiles(tif);
-    uint64_t vTileSize = TIFFVTileSize64(tif, 10); // Example row count
-    uint64_t tileRowSize = TIFFTileRowSize64(tif);
+    float xyzOutput[3] = {0.0f, 0.0f, 0.0f};
 
-    // Print the results to avoid unused variable warnings
-    printf("Scanline Size: %llu\n", scanlineSize);
-    printf("Strip Size: %llu\n", stripSize);
-    printf("Tile Size: %llu\n", tileSize);
-    printf("Number of Tiles: %u\n", numberOfTiles);
-    printf("VTile Size: %llu\n", vTileSize);
-    printf("Tile Row Size: %llu\n", tileRowSize);
+    // Fuzz LogLuv24toXYZ
+    LogLuv24toXYZ(logluvColor, xyzOutput);
 
-    TIFFClose(tif);
+    // Fuzz LogLuv32toXYZ
+    LogLuv32toXYZ(logluvColor, xyzOutput);
+
+    // Prepare data for LogLuv32fromXYZ
+    float xyzInput[3] = {0.0f, 0.0f, 0.0f};
+    int numComponents = 3;
+    if (Size >= 16) {
+        memcpy(xyzInput, Data + 4, sizeof(float) * 3);
+    }
+
+    // Fuzz LogLuv32fromXYZ
+    uint32_t logluv32 = LogLuv32fromXYZ(xyzInput, numComponents);
+
+    // Fuzz TIFFSwabLong
+    TIFFSwabLong(&logluvColor);
+
+    // Prepare data for TIFFSwabArrayOfFloat
+    tmsize_t numFloats = 3;
+    if (Size >= 28) {
+        memcpy(xyzInput, Data + 16, sizeof(float) * 3);
+    }
+
+    // Fuzz TIFFSwabArrayOfFloat
+    TIFFSwabArrayOfFloat(xyzInput, numFloats);
+
+    // Fuzz LogLuv24fromXYZ
+    uint32_t logluv24 = LogLuv24fromXYZ(xyzInput, numComponents);
+
     return 0;
 }

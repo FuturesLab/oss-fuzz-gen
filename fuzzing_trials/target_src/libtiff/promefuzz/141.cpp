@@ -1,13 +1,14 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFRewriteDirectory at tif_dirwrite.c:483:5 in tiffio.h
-// TIFFWriteCustomDirectory at tif_dirwrite.c:303:5 in tiffio.h
-// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
-// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
+// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
+// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -19,50 +20,64 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
-extern "C" int LLVMFuzzerTestOneInput_141(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0; // Not enough data to proceed
-    }
-
-    // Create a dummy file to work with
-    FILE *file = fopen("./dummy_file", "wb+");
-    if (!file) {
-        return 0;
-    }
+static TIFF *openDummyTiff(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
     fwrite(Data, 1, Size, file);
     fclose(file);
+    return TIFFOpen("./dummy_file", "r");
+}
 
-    // Open the dummy file with libtiff
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
-    if (!tif) {
-        return 0;
-    }
+extern "C" int LLVMFuzzerTestOneInput_141(const uint8_t *Data, size_t Size) {
+    if (Size < 4) return 0; // Minimum size check for meaningful data
 
-    // Prepare a buffer for TIFFWriteScanline
-    uint32_t row = 0;
-    uint16_t sample = 0;
-    void *buf = malloc(TIFFScanlineSize(tif));
-    if (!buf) {
+    TIFF *tif = openDummyTiff(Data, Size);
+    if (!tif) return 0;
+
+    uint32_t width = 0, height = 0;
+    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
+    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+
+    uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
+    if (!raster) {
         TIFFClose(tif);
         return 0;
     }
-    memcpy(buf, Data, TIFFScanlineSize(tif));
 
-    // Declare a variable for TIFFWriteCustomDirectory
-    uint64_t dir_offset = 0;
+    // Fuzz TIFFReadRGBAImageOriented
+    for (int orientation = 0; orientation <= 8; ++orientation) {
+        TIFFReadRGBAImageOriented(tif, width, height, raster, orientation, 0);
+    }
 
-    // Call the target functions with the TIFF pointer
-    TIFFWriteDirectory(tif);
-    TIFFRewriteDirectory(tif);
-    TIFFWriteCustomDirectory(tif, &dir_offset);
-    TIFFCheckpointDirectory(tif);
-    TIFFWriteScanline(tif, buf, row, sample);
-    TIFFDeferStrileArrayWriting(tif);
+    // Fuzz TIFFReadRGBAStrip
+    if (height > 0) {
+        TIFFReadRGBAStrip(tif, 0, raster);
+    }
 
-    // Clean up
-    free(buf);
+    // Fuzz TIFFReadRGBATile
+    if (width > 0 && height > 0) {
+        TIFFReadRGBATile(tif, 0, 0, raster);
+    }
+
+    // Fuzz TIFFRGBAImageGet
+    TIFFRGBAImage img;
+    img.tif = tif;
+    img.width = width;
+    img.get = nullptr;
+    TIFFRGBAImageGet(&img, raster, width, height);
+
+    // Fuzz TIFFReadRGBAImage
+    TIFFReadRGBAImage(tif, width, height, raster, 0);
+
+    // Fuzz TIFFReadRGBAStripExt
+    TIFFReadRGBAStripExt(tif, 0, raster, 0);
+
+    _TIFFfree(raster);
     TIFFClose(tif);
-
     return 0;
 }

@@ -1,8 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFWriteCustomDirectory at tif_dirwrite.c:303:5 in tiffio.h
+// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFRewriteDirectory at tif_dirwrite.c:483:5 in tiffio.h
+// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,53 +16,58 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
+#include <cstdio>
 #include <cstring>
 #include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_127(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(float) * 3) return 0; // Ensure there's enough data for at least 3 floats
-
-    // Prepare data for LogLuv32fromXYZ and LogLuv24fromXYZ
-    float xyz[3];
-    memcpy(xyz, Data, sizeof(float) * 3);
-    int numComponents = 3;
-
-    // Invoke LogLuv32fromXYZ
-    uint32_t logLuv32 = LogLuv32fromXYZ(xyz, numComponents);
-
-    // Invoke LogLuv24fromXYZ
-    uint32_t logLuv24 = LogLuv24fromXYZ(xyz, numComponents);
-
-    // Prepare data for LogLuv24toXYZ and LogLuv32toXYZ
-    float outputXYZ[3];
-
-    // Invoke LogLuv24toXYZ
-    LogLuv24toXYZ(logLuv24, outputXYZ);
-
-    // Invoke LogLuv32toXYZ
-    LogLuv32toXYZ(logLuv32, outputXYZ);
-
-    // Prepare data for TIFFSwabArrayOfFloat
-    size_t numFloats = Size / sizeof(float);
-    float *floatArray = (float *)malloc(numFloats * sizeof(float));
-    if (floatArray) {
-        memcpy(floatArray, Data, numFloats * sizeof(float));
-
-        // Invoke TIFFSwabArrayOfFloat
-        TIFFSwabArrayOfFloat(floatArray, numFloats);
-
-        free(floatArray);
+    if (Size < 1) {
+        return 0;
     }
 
-    // Prepare data for TIFFSwabLong
-    if (Size >= sizeof(uint32_t)) {
-        uint32_t longValue;
-        memcpy(&longValue, Data, sizeof(uint32_t));
-
-        // Invoke TIFFSwabLong
-        TIFFSwabLong(&longValue);
+    // Create a dummy TIFF file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
+        return 0;
     }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    if (!tif) {
+        return 0;
+    }
+
+    // Buffer for scanline data
+    uint8_t buf[1024];
+    memset(buf, 0, sizeof(buf));
+
+    // Variables for use with target functions
+    uint64_t dir_offset = 0;
+    uint32_t row = 0;
+    uint16_t sample = 0;
+
+    // Invoke TIFFWriteCustomDirectory
+    TIFFWriteCustomDirectory(tif, &dir_offset);
+
+    // Invoke TIFFCheckpointDirectory
+    TIFFCheckpointDirectory(tif);
+
+    // Invoke TIFFWriteDirectory
+    TIFFWriteDirectory(tif);
+
+    // Invoke TIFFRewriteDirectory
+    TIFFRewriteDirectory(tif);
+
+    // Invoke TIFFWriteScanline
+    TIFFWriteScanline(tif, buf, row, sample);
+
+    // Invoke TIFFDeferStrileArrayWriting
+    TIFFDeferStrileArrayWriting(tif);
+
+    // Close the TIFF file
+    TIFFClose(tif);
 
     return 0;
 }

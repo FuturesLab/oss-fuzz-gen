@@ -1,30 +1,19 @@
-#include <cstdint>
-#include <cmath>
-#include <cstddef> // Include for size_t
+#include <stdint.h>
+#include <stddef.h>
+#include <tiffio.h>  // Ensure the TIFF library is included
 
-// Function-under-test declaration
 extern "C" {
-    double LogL10toY(int input);
+    int TIFFYCbCrToRGBInit(TIFFYCbCrToRGB *, float *, float *);
 }
 
-extern "C" int LLVMFuzzerTestOneInput_117(const uint8_t *data, std::size_t size) {
-    // Ensure the size is sufficient to extract an integer
-    if (size < sizeof(int)) {
-        return 0;
-    }
-
-    // Extract an integer from the input data
-    int input = 0;
-    for (std::size_t i = 0; i < sizeof(int); ++i) {
-        input |= (data[i] << (i * 8));
-    }
+extern "C" int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
+    // Declare and initialize the variables needed for the function call
+    TIFFYCbCrToRGB ycbcr;
+    float luma[3] = {1.0f, 1.0f, 1.0f};  // Example initialization
+    float refBlackWhite[6] = {0.0f, 255.0f, 128.0f, 255.0f, 128.0f, 255.0f};  // Example initialization
 
     // Call the function-under-test
-    double result = LogL10toY(input);
-
-    // Use the result in some way to prevent compiler optimizations
-    volatile double use_result = result;
-    (void)use_result;
+    TIFFYCbCrToRGBInit(&ycbcr, luma, refBlackWhite);
 
     return 0;
 }

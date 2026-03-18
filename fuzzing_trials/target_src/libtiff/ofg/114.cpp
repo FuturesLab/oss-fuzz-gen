@@ -1,34 +1,30 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <tiffio.h>
 
-extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
-    int TIFFYCbCrToRGBInit(TIFFYCbCrToRGB *, float *, float *);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    if (size < sizeof(float) * 6) {
-        // Ensure there is enough data for two float arrays of size 3 each
+    TIFF *tiff = nullptr;
+    uint32_t tag;
+
+    // Ensure the size is sufficient to extract a uint32_t value for the tag
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Initialize TIFFYCbCrToRGB structure
-    TIFFYCbCrToRGB ycbcr;
-    
-    // Initialize float arrays
-    float luma[3];
-    float refBlackWhite[3];
+    // Extract a uint32_t value from the data for the tag
+    tag = *(reinterpret_cast<const uint32_t*>(data));
 
-    // Copy data into float arrays
-    for (int i = 0; i < 3; ++i) {
-        luma[i] = ((float*)data)[i];
-        refBlackWhite[i] = ((float*)data)[i + 3];
+    // Create a temporary TIFF file in memory
+    tiff = TIFFOpen("temp.tiff", "w");
+    if (tiff == nullptr) {
+        return 0;
     }
 
     // Call the function-under-test
-    TIFFYCbCrToRGBInit(&ycbcr, luma, refBlackWhite);
+    TIFFUnsetField(tiff, tag);
+
+    // Clean up
+    TIFFClose(tiff);
 
     return 0;
 }

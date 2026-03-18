@@ -1,28 +1,24 @@
 #include <cstdint>
 #include <cstddef>
 
-// Assume the function-under-test is declared in an external C library.
-extern "C" {
-    void LogLuv32toXYZ(uint32_t input, float *output);
-}
+// Assuming the function is defined elsewhere
+extern "C" double LogL16toY(int);
 
 extern "C" int LLVMFuzzerTestOneInput_255(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for a uint32_t.
-    if (size < sizeof(uint32_t)) {
+    // Ensure there is enough data to read an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Extract a uint32_t from the input data.
-    uint32_t input_value = 0;
-    for (size_t i = 0; i < sizeof(uint32_t); ++i) {
-        input_value |= static_cast<uint32_t>(data[i]) << (i * 8);
-    }
+    // Interpret the first 4 bytes of data as an integer
+    int input = static_cast<int>(data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24));
 
-    // Initialize the output float array.
-    float output[3] = {0.0f, 0.0f, 0.0f};
+    // Call the function-under-test
+    double result = LogL16toY(input);
 
-    // Call the function-under-test.
-    LogLuv32toXYZ(input_value, output);
+    // Use the result in some way (e.g., print, log, or further process)
+    // For the purpose of this harness, we just call the function
+    (void)result; // Suppress unused variable warning
 
     return 0;
 }

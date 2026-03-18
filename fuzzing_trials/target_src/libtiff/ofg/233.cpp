@@ -1,28 +1,29 @@
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstddef>
 #include <tiffio.h>
 
-// Ensure the function-under-test is declared with C linkage
 extern "C" {
-    void _TIFFmemcpy(void *dest, const void *src, tmsize_t size);
+    void TIFFSwabLong8(uint64_t *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_233(const uint8_t *data, size_t size) {
-    // Define and initialize the destination buffer
-    uint8_t *dest = (uint8_t *)malloc(size);
-    if (dest == nullptr) {
-        return 0; // Exit if memory allocation fails
+    if (size < sizeof(uint64_t)) {
+        return 0; // Ensure there is enough data to form a uint64_t
     }
 
-    // Ensure the source buffer is not NULL and has the same size as the input
-    const void *src = (const void *)data;
+    uint64_t value;
+    // Copy the first 8 bytes of data into value, assuming little-endian architecture
+    value = static_cast<uint64_t>(data[0]) |
+            (static_cast<uint64_t>(data[1]) << 8) |
+            (static_cast<uint64_t>(data[2]) << 16) |
+            (static_cast<uint64_t>(data[3]) << 24) |
+            (static_cast<uint64_t>(data[4]) << 32) |
+            (static_cast<uint64_t>(data[5]) << 40) |
+            (static_cast<uint64_t>(data[6]) << 48) |
+            (static_cast<uint64_t>(data[7]) << 56);
 
     // Call the function-under-test
-    _TIFFmemcpy(dest, src, (tmsize_t)size);
-
-    // Free the allocated memory
-    free(dest);
+    TIFFSwabLong8(&value);
 
     return 0;
 }

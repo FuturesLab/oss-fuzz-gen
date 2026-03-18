@@ -1,31 +1,35 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring> // Include the header for memcpy
 #include <tiffio.h>
 
+extern "C" {
+    // Include necessary C headers and function declarations here.
+    void TIFFSwabArrayOfDouble(double *, tmsize_t);
+}
+
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to form at least one double
-    if (size < sizeof(double)) {
+    // Ensure that the size is a multiple of the size of double to avoid out-of-bounds access
+    if (size < sizeof(double) || size % sizeof(double) != 0) {
         return 0;
     }
 
-    // Calculate the number of doubles we can extract from the input data
-    tmsize_t numDoubles = size / sizeof(double);
+    // Calculate the number of doubles
+    tmsize_t numDoubles = static_cast<tmsize_t>(size / sizeof(double));
 
     // Allocate memory for the double array
-    double *doubleArray = static_cast<double *>(malloc(numDoubles * sizeof(double)));
+    double* doubleArray = static_cast<double*>(malloc(size));
     if (doubleArray == nullptr) {
-        return 0; // Memory allocation failed
+        return 0;
     }
 
-    // Copy data into the double array
-    for (tmsize_t i = 0; i < numDoubles; ++i) {
-        doubleArray[i] = reinterpret_cast<const double *>(data)[i];
-    }
+    // Copy the input data into the double array
+    memcpy(doubleArray, data, size);
 
     // Call the function-under-test
     TIFFSwabArrayOfDouble(doubleArray, numDoubles);
 
-    // Clean up
+    // Free the allocated memory
     free(doubleArray);
 
     return 0;

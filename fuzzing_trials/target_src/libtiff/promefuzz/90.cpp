@@ -1,16 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
-// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
 // TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFIsBigTIFF at tif_open.c:912:5 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFReadCustomDirectory at tif_dirread.c:5372:5 in tiffio.h
+// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -30,6 +25,7 @@
 static TIFF* openDummyTIFF(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
     if (!file) return nullptr;
+
     fwrite(Data, 1, Size, file);
     fclose(file);
 
@@ -37,45 +33,39 @@ static TIFF* openDummyTIFF(const uint8_t *Data, size_t Size) {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_90(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Not enough data to proceed
+    if (Size < 1) return 0;
 
     TIFF *tif = openDummyTIFF(Data, Size);
     if (!tif) return 0;
 
-    uint32_t width = 0, height = 0;
-    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
-    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+    // 1. TIFFReadEXIFDirectory
+    toff_t exifOffset = 0; // Example offset, adjust according to your needs
+    TIFFReadEXIFDirectory(tif, exifOffset);
 
-    // Allocate a raster buffer large enough for the image
-    uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
-    if (!raster) {
-        TIFFClose(tif);
-        return 0;
+    // 2. TIFFReadScanline
+    uint32_t row = 0; // Example row, adjust according to your needs
+    uint16_t sample = 0; // Example sample, adjust according to your needs
+    tsize_t scanlineSize = TIFFScanlineSize(tif);
+    void *buf = malloc(scanlineSize);
+    if (buf) {
+        TIFFReadScanline(tif, buf, row, sample);
+        free(buf);
     }
 
-    // Test TIFFReadRGBAStrip
-    TIFFReadRGBAStrip(tif, 0, raster);
+    // 3. TIFFIsBigTIFF
+    TIFFIsBigTIFF(tif);
 
-    // Test TIFFReadRGBAStripExt
-    TIFFReadRGBAStripExt(tif, 0, raster, 1);
+    // 4. TIFFReadDirectory
+    TIFFReadDirectory(tif);
 
-    // Test TIFFReadRGBAImageOriented
-    TIFFReadRGBAImageOriented(tif, width, height, raster, ORIENTATION_TOPLEFT, 0);
+    // 5. TIFFReadCustomDirectory
+    TIFFFieldArray *infoarray = nullptr; // Example, adjust according to your needs
+    TIFFReadCustomDirectory(tif, exifOffset, infoarray);
 
-    // Test TIFFReadRGBAImage
-    TIFFReadRGBAImage(tif, width, height, raster, 0);
+    // 6. TIFFSetSubDirectory
+    uint64_t subDirOffset = 0; // Example offset, adjust according to your needs
+    TIFFSetSubDirectory(tif, subDirOffset);
 
-    // Test TIFFReadScanline
-    void *scanline = _TIFFmalloc(TIFFScanlineSize(tif));
-    if (scanline) {
-        TIFFReadScanline(tif, scanline, 0, 0);
-        _TIFFfree(scanline);
-    }
-
-    // Test TIFFReadRGBATile
-    TIFFReadRGBATile(tif, 0, 0, raster);
-
-    _TIFFfree(raster);
     TIFFClose(tif);
     return 0;
 }

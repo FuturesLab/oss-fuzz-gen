@@ -1,43 +1,29 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
+#include <tiffio.h>
 #include <cstdlib>
-#include <cstring>
-#include <unistd.h> // Include this header for the 'close' function
-
-extern "C" {
-    // Ensure all C headers and functions are wrapped in extern "C"
-    #include <tiffio.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_297(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    TIFF *tiff = nullptr;
+    uint32_t tile = 0;
+
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
+    // Initialize the TIFF structure with dummy data to avoid NULL
+    tiff = TIFFClientOpen("dummy", "r", (thandle_t)data, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+    if (!tiff) {
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "rm");
-    if (tiff) {
-        // Call the function-under-test
-        toff_t offset = 0; // Set a default offset value
-        TIFFReadEXIFDirectory(tiff, offset);
-        TIFFClose(tiff);
-    }
+    // Extract a uint32_t value from the input data for the tile parameter
+    tile = *(reinterpret_cast<const uint32_t*>(data));
 
-    // Remove the temporary file
-    remove(tmpl);
+    // Call the function under test
+    tmsize_t tileSize = TIFFVTileSize(tiff, tile);
+
+    // Clean up
+    TIFFClose(tiff);
 
     return 0;
 }

@@ -1,32 +1,38 @@
+#include <tiffio.h>
 #include <cstdint>
-#include <cstddef>
-#include <cstring> // Include for std::memcpy
-#include <cmath>
-
-// Assume the function LogL16fromY is defined in some C library
-extern "C" {
-    int LogL16fromY(double value, int exponent);
-}
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>  // Include for close, write
 
 extern "C" int LLVMFuzzerTestOneInput_245(const uint8_t *data, size_t size) {
-    if (size < sizeof(double) + sizeof(int)) {
-        return 0; // Not enough data to extract both parameters
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Extract a double from the input data
-    double value;
-    std::memcpy(&value, data, sizeof(double));
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
-    // Extract an int from the input data
-    int exponent;
-    std::memcpy(&exponent, data + sizeof(double), sizeof(int));
+    // Open the TIFF file using the libtiff library
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = LogL16fromY(value, exponent);
+    int result = TIFFLastDirectory(tiff);
 
-    // Optionally, use the result to prevent compiler optimizations
-    volatile int prevent_optimization = result;
-    (void)prevent_optimization;
+    // Clean up
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

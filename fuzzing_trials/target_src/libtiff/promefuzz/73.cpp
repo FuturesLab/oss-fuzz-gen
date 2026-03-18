@@ -1,11 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
-// TIFFGetTagListCount at tif_extension.c:34:5 in tiffio.h
-// TIFFCreateDirectory at tif_dir.c:1699:5 in tiffio.h
-// TIFFIsUpSampled at tif_open.c:894:5 in tiffio.h
-// TIFFFreeDirectory at tif_dir.c:1629:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFReadRawTile at tif_read.c:1186:10 in tiffio.h
+// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
+// TIFFWriteEncodedTile at tif_write.c:414:10 in tiffio.h
+// TIFFWriteRawStrip at tif_write.c:328:10 in tiffio.h
+// TIFFWriteRawTile at tif_write.c:533:10 in tiffio.h
+// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -18,43 +19,59 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstring>
+#include <cstdlib>
 #include <cstdio>
+#include <cstring>
 
-static TIFF* initializeDummyTIFF(const uint8_t *Data, size_t Size) {
+static TIFF* openDummyTIFF(const char* mode) {
+    return TIFFOpen("./dummy_file", mode);
+}
+
+static void writeDummyFile(const uint8_t* data, size_t size) {
     FILE* file = fopen("./dummy_file", "wb");
-    if (!file) return nullptr;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    TIFF* tiff = TIFFOpen("./dummy_file", "r+");
-    return tiff;
+    if (file) {
+        fwrite(data, 1, size, file);
+        fclose(file);
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_73(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 4) return 0; // Not enough data to proceed
 
-    TIFF* tiff = initializeDummyTIFF(Data, Size);
-    if (!tiff) return 0;
+    writeDummyFile(Data, Size);
 
-    // Fuzz TIFFWriteDirectory
-    int writeDirResult = TIFFWriteDirectory(tiff);
+    TIFF* tif = openDummyTIFF("r+b");
+    if (!tif) return 0;
 
-    // Fuzz TIFFCheckpointDirectory
-    int checkpointDirResult = TIFFCheckpointDirectory(tiff);
+    uint32_t index = 0;
+    memcpy(&index, Data, sizeof(index));
 
-    // Fuzz TIFFGetTagListCount
-    int tagListCount = TIFFGetTagListCount(tiff);
+    tmsize_t bufferSize = 1024;
+    void* buffer = malloc(bufferSize);
+    if (!buffer) {
+        TIFFClose(tif);
+        return 0;
+    }
 
-    // Fuzz TIFFCreateDirectory
-    int createDirResult = TIFFCreateDirectory(tiff);
+    // Test TIFFReadRawTile
+    TIFFReadRawTile(tif, index, buffer, bufferSize);
 
-    // Fuzz TIFFIsUpSampled
-    int isUpSampled = TIFFIsUpSampled(tiff);
+    // Test TIFFReadEncodedTile
+    TIFFReadEncodedTile(tif, index, buffer, bufferSize);
 
-    // Cleanup
-    TIFFFreeDirectory(tiff);
-    TIFFClose(tiff);
+    // Test TIFFWriteEncodedTile
+    TIFFWriteEncodedTile(tif, index, buffer, bufferSize);
 
+    // Test TIFFWriteRawStrip
+    TIFFWriteRawStrip(tif, index, buffer, bufferSize);
+
+    // Test TIFFWriteRawTile
+    TIFFWriteRawTile(tif, index, buffer, bufferSize);
+
+    // Test TIFFReadEncodedStrip
+    TIFFReadEncodedStrip(tif, index, buffer, bufferSize);
+
+    free(buffer);
+    TIFFClose(tif);
     return 0;
 }

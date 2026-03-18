@@ -1,33 +1,35 @@
-#include <cstdint>
-#include <cstdlib>
 #include <tiffio.h>
-
-extern "C" {
-    void TIFFYCbCrtoRGB(TIFFYCbCrToRGB *, uint32_t, int32_t, int32_t, uint32_t *, uint32_t *, uint32_t *);
-}
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_188(const uint8_t *data, size_t size) {
-    if (size < sizeof(TIFFYCbCrToRGB) + 3 * sizeof(uint32_t)) {
-        return 0; // Not enough data to proceed
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Initialize TIFFYCbCrToRGB structure
-    TIFFYCbCrToRGB ycbcr;
-    TIFFYCbCrToRGB *ycbcrPtr = &ycbcr;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Extract parameters from data
-    uint32_t Y = static_cast<uint32_t>(data[0]);
-    int32_t Cb = static_cast<int32_t>(data[1]);
-    int32_t Cr = static_cast<int32_t>(data[2]);
+    // Open the file using TIFFFdOpen
+    const char *mode = "r";
+    TIFF *tiff = TIFFFdOpen(fd, tmpl, mode);
+    if (tiff != NULL) {
+        // Perform operations on the TIFF file if needed
+        TIFFClose(tiff);
+    }
 
-    // Allocate memory for RGB output
-    uint32_t R, G, B;
-    uint32_t *RPtr = &R;
-    uint32_t *GPtr = &G;
-    uint32_t *BPtr = &B;
-
-    // Call the function-under-test
-    TIFFYCbCrtoRGB(ycbcrPtr, Y, Cb, Cr, RPtr, GPtr, BPtr);
+    // Clean up
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }

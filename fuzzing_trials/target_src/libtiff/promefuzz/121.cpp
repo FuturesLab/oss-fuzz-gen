@@ -1,11 +1,21 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFClientOpen at tif_open.c:289:7 in tiffio.h
-// TIFFSwabLong8 at tif_swab.c:60:6 in tiffio.h
-// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
-// TIFFScanlineSize64 at tif_strip.c:257:10 in tiffio.h
-// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
-// TIFFTileSize64 at tif_tile.c:249:10 in tiffio.h
-// TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFReadFromUserBuffer at tif_read.c:1555:5 in tiffio.h
+// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
+// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
+// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
+// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -17,60 +27,79 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
+#include <cstdint>
 #include <cstring>
-
-static tmsize_t tiffReadProc(thandle_t fd, void* buf, tmsize_t size) {
-    return fread(buf, 1, size, (FILE*)fd);
-}
-
-static tmsize_t tiffWriteProc(thandle_t fd, void* buf, tmsize_t size) {
-    return fwrite(buf, 1, size, (FILE*)fd);
-}
-
-static toff_t tiffSeekProc(thandle_t fd, toff_t off, int whence) {
-    return fseek((FILE*)fd, off, whence);
-}
-
-static int tiffCloseProc(thandle_t fd) {
-    return fclose((FILE*)fd);
-}
-
-static toff_t tiffSizeProc(thandle_t fd) {
-    fseek((FILE*)fd, 0, SEEK_END);
-    return ftell((FILE*)fd);
-}
+#include <cstdlib>
+#include <fcntl.h>
+#include <unistd.h>
 
 static TIFF* createDummyTIFF() {
-    FILE* file = fopen("./dummy_file", "wb+");
-    if (!file) return nullptr;
-    TIFF* tiff = TIFFClientOpen("dummy", "w", (thandle_t)file,
-                                tiffReadProc, tiffWriteProc,
-                                tiffSeekProc, tiffCloseProc, tiffSizeProc,
-                                nullptr, nullptr);
-    if (!tiff) fclose(file);
-    return tiff;
+    TIFF* tif = TIFFOpen("./dummy_file", "w+");
+    if (tif) {
+        // Create a minimal valid TIFF structure
+        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
+        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
+        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
+        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
+        TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
+        TIFFWriteCheck(tif, 0, "createDummyTIFF");
+        TIFFWriteDirectory(tif);
+    }
+    return tif;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_121(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint64_t)) return 0;
+    if (Size < 1) return 0;
 
-    uint64_t value;
-    memcpy(&value, Data, sizeof(uint64_t));
-
-    TIFFSwabLong8(&value);
-
+    // Create a dummy TIFF file
     TIFF* tif = createDummyTIFF();
-    if (tif) {
-        TIFFSetSubDirectory(tif, value);
-        TIFFScanlineSize64(tif);
-        TIFFReadDirectory(tif);
-        TIFFTileSize64(tif);
-        TIFFCurrentDirOffset(tif);
+    if (!tif) return 0;
+
+    // Prepare buffers
+    void* inbuf = malloc(Size);
+    if (!inbuf) {
         TIFFClose(tif);
+        return 0;
     }
+    memcpy(inbuf, Data, Size);
+
+    void* outbuf = malloc(Size);
+    if (!outbuf) {
+        free(inbuf);
+        TIFFClose(tif);
+        return 0;
+    }
+
+    // Fuzz TIFFReadFromUserBuffer
+    TIFFReadFromUserBuffer(tif, 0, inbuf, static_cast<tmsize_t>(Size), outbuf, static_cast<tmsize_t>(Size));
+
+    // Fuzz TIFFReadEncodedTile
+    TIFFReadEncodedTile(tif, 0, outbuf, static_cast<tmsize_t>(Size));
+
+    // Fuzz TIFFPrintDirectory
+    FILE* dummyFile = fopen("./dummy_file", "w+");
+    if (dummyFile) {
+        TIFFPrintDirectory(tif, dummyFile, 0);
+        fclose(dummyFile);
+    }
+
+    // Fuzz TIFFWriteEncodedStrip
+    TIFFWriteEncodedStrip(tif, 0, inbuf, static_cast<tmsize_t>(Size));
+
+    // Fuzz TIFFStripSize
+    TIFFStripSize(tif);
+
+    // Fuzz TIFFReadEncodedStrip
+    TIFFReadEncodedStrip(tif, 0, outbuf, static_cast<tmsize_t>(Size));
+
+    // Cleanup
+    free(inbuf);
+    free(outbuf);
+    TIFFClose(tif);
+    unlink("./dummy_file");
 
     return 0;
 }

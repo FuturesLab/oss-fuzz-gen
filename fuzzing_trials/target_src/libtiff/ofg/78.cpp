@@ -1,23 +1,27 @@
-#include <cstdint>
 #include <cstddef>
-#include <cstring>  // Include this header for std::memcpy
+#include <cstdint>
+#include <cstring> // Include for std::memcpy
 #include <tiffio.h>
 
 extern "C" {
-    void TIFFSwabDouble(double *value);
+    // Include necessary C headers and functions
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
+    // Ensure there is enough data to form a double
     if (size < sizeof(double)) {
-        return 0; // Not enough data to form a double
+        return 0;
     }
 
-    // Create a double variable from the input data
-    double input_value;
-    std::memcpy(&input_value, data, sizeof(double));
+    // Initialize a double variable
+    double value;
+
+    // Copy bytes from the input data to the double variable
+    std::memcpy(&value, data, sizeof(double));
 
     // Call the function-under-test
-    TIFFSwabDouble(&input_value);
+    TIFFSwabDouble(&value);
 
     return 0;
 }

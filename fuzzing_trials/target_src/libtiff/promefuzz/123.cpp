@@ -1,8 +1,21 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// LogL16toY at tif_luv.c:801:5 in tiffio.h
+// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// LogL10toY at tif_luv.c:883:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,55 +25,75 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <iostream>
+#include <fstream>
 #include <tiffio.h>
+#include <cmath>
+#include <cstring>
+
+static TIFF* createDummyTIFF() {
+    TIFF* tif = TIFFOpen("./dummy_file", "w");
+    if (tif) {
+        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
+        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
+        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
+        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
+        TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
+        char buf[1] = {0};
+        TIFFWriteEncodedStrip(tif, 0, buf, 1);
+        TIFFClose(tif);
+    }
+    return TIFFOpen("./dummy_file", "r");
+}
 
 extern "C" int LLVMFuzzerTestOneInput_123(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(float) * 3) return 0; // Ensure there's enough data
-
-    // Prepare input data for LogLuv32fromXYZ and LogLuv24fromXYZ
-    float xyz[3];
-    memcpy(xyz, Data, sizeof(float) * 3);
-    int numComponents = 1; // Simplification for the fuzz target
-
-    // Test LogLuv32fromXYZ
-    uint32_t logluv32 = LogLuv32fromXYZ(xyz, numComponents);
-
-    // Prepare input data for LogLuv24toXYZ and LogLuv32toXYZ
-    if (Size < sizeof(uint32_t)) return 0; // Ensure there's enough data for uint32_t
-    uint32_t logluv24 = *reinterpret_cast<const uint32_t*>(Data);
-
-    // Test LogLuv24toXYZ
-    float xyz_out24[3] = {0.0f, 0.0f, 0.0f};
-    LogLuv24toXYZ(logluv24, xyz_out24);
-
-    // Test LogLuv32toXYZ
-    float xyz_out32[3] = {0.0f, 0.0f, 0.0f};
-    LogLuv32toXYZ(logluv32, xyz_out32);
-
-    // Test LogLuv24fromXYZ
-    uint32_t logluv24_from_xyz = LogLuv24fromXYZ(xyz, numComponents);
-
-    // Prepare input data for TIFFSwabArrayOfFloat
-    size_t numFloats = Size / sizeof(float);
-    if (numFloats > 0) {
-        float* floatArray = (float*)malloc(sizeof(float) * numFloats);
-        if (floatArray) {
-            memcpy(floatArray, Data, sizeof(float) * numFloats);
-
-            // Test TIFFSwabArrayOfFloat
-            TIFFSwabArrayOfFloat(floatArray, (tmsize_t)numFloats);
-
-            free(floatArray);
-        }
+    if (Size < sizeof(double) + sizeof(int)) {
+        return 0;
     }
 
-    // Test TIFFSwabLong
-    uint32_t longValue = *reinterpret_cast<const uint32_t*>(Data);
-    TIFFSwabLong(&longValue);
+    TIFF* tif = createDummyTIFF();
+    if (tif) {
+        int msb2lsb = TIFFIsMSB2LSB(tif);
+        (void)msb2lsb; // Use the result to avoid unused variable warning
+        TIFFClose(tif);
+    }
+
+    double y = 0;
+    int param = 0;
+    std::memcpy(&y, Data, sizeof(double));
+    std::memcpy(&param, Data + sizeof(double), sizeof(int));
+
+    if (y > 0) {
+        int logL10FromY = LogL10fromY(y, param);
+        (void)logL10FromY; // Use the result to avoid unused variable warning
+    }
+
+    double logL16ToY = LogL16toY(param);
+    (void)logL16ToY; // Use the result to avoid unused variable warning
+
+    if (Size > sizeof(double) + sizeof(int) + 1) {
+        void* buffer = nullptr;
+        tmsize_t bufferSize = static_cast<tmsize_t>(Data[sizeof(double) + sizeof(int)]);
+        if (bufferSize > 0) {
+            buffer = malloc(bufferSize);
+        }
+        TIFF* tif = createDummyTIFF();
+        if (tif) {
+            TIFFReadBufferSetup(tif, buffer, bufferSize);
+            TIFFClose(tif);
+        }
+        free(buffer);
+    }
+
+    if (y > 0) {
+        int logL16FromY = LogL16fromY(y, param);
+        (void)logL16FromY; // Use the result to avoid unused variable warning
+    }
+
+    double logL10ToY = LogL10toY(param);
+    (void)logL10ToY; // Use the result to avoid unused variable warning
 
     return 0;
 }

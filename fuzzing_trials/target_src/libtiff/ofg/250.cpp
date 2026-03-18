@@ -1,41 +1,27 @@
 #include <cstdint>
 #include <cstdlib>
-#include <tiffio.h>
+#include <cstring>  // For memcpy
 
 extern "C" {
-
-// A sample warning handler function
-int sampleWarningHandler(struct tiff* tif, void* userData, const char* module, const char* fmt, va_list ap) {
-    // Handle warning messages here
-    return 0;
+    #include <tiffio.h>
+    #include "/src/libtiff/libtiff/tif_dir.h" // Corrected path to include the header where the complete definition of TIFFField is available
 }
 
-int LLVMFuzzerTestOneInput_250(const uint8_t *data, size_t size) {
-    // Since TIFFOpenOptions is an incomplete type, we cannot use sizeof.
-    // Instead, we assume a minimum size required for the function to process.
-    const size_t minSize = 1; // Adjust based on actual requirements of the function
-
-    if (size < minSize) {
-        return 0;
+extern "C" int LLVMFuzzerTestOneInput_250(const uint8_t *data, size_t size) {
+    if (size < sizeof(TIFFField)) {
+        return 0; // Not enough data to form a TIFFField structure
     }
 
-    // Allocate memory for TIFFOpenOptions using a known size or alternative method
-    // Since we cannot determine the size, we will allocate a minimal size for demonstration purposes
-    TIFFOpenOptions* options = (TIFFOpenOptions*)malloc(sizeof(TIFFOpenOptions*)); // Allocate memory for a pointer
-    if (options == NULL) {
-        return 0;
-    }
+    // Create a TIFFField structure from the input data
+    TIFFField field;
+    memcpy(&field, data, sizeof(TIFFField));
 
-    // Use the first byte of data to simulate a pointer for the third argument
-    void* userData = (void*)(uintptr_t)data[0];
+    // Call the function-under-test
+    int result = TIFFFieldPassCount(&field);
 
-    // Call the function under test
-    TIFFOpenOptionsSetWarningHandlerExtR(options, sampleWarningHandler, userData);
-
-    // Clean up
-    free(options);
+    // Use the result in some way to prevent compiler optimizations
+    volatile int prevent_optimization = result;
+    (void)prevent_optimization;
 
     return 0;
-}
-
 }

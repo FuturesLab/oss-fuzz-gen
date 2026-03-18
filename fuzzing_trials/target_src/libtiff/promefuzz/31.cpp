@@ -1,14 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFWriteTile at tif_write.c:387:10 in tiffio.h
-// TIFFWriteRawTile at tif_write.c:533:10 in tiffio.h
-// TIFFReadRawTile at tif_read.c:1186:10 in tiffio.h
-// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
-// TIFFWriteRawStrip at tif_write.c:328:10 in tiffio.h
-// TIFFWriteEncodedTile at tif_write.c:414:10 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFFlush at tif_flush.c:30:5 in tiffio.h
+// TIFFFileno at tif_open.c:818:5 in tiffio.h
+// TIFFSetupStrips at tif_write.c:553:5 in tiffio.h
+// TIFFSetMode at tif_open.c:853:5 in tiffio.h
+// TIFFGetMode at tif_open.c:848:5 in tiffio.h
+// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -19,57 +16,63 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <cstdio>
+#include <fcntl.h> // Include for file mode constants like O_RDWR
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure there's enough data for basic operations
+    if (Size < 1) {
+        return 0; // Not enough data to process
+    }
 
     // Create a dummy TIFF file
-    FILE *file = fopen("./dummy_file", "wb+");
-    if (!file) return 0;
+    const char *filename = "./dummy_file.tiff";
+    FILE *file = fopen(filename, "wb");
+    if (!file) {
+        return 0; // Could not create file
+    }
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the dummy TIFF file using libtiff
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
-    if (!tif) return 0;
-
-    // Prepare buffers and variables
-    uint32_t x = 0, y = 0, z = 0;
-    uint16_t s = 0;
-    uint32_t tile = 0, strip = 0;
-    tmsize_t bufferSize = 1024;
-    void *buffer = _TIFFmalloc(bufferSize);
-    if (!buffer) {
-        TIFFClose(tif);
-        return 0;
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(filename, "r+");
+    if (!tif) {
+        return 0; // Could not open TIFF file
     }
-    memset(buffer, 0, bufferSize);
 
-    // Fuzz TIFFWriteTile
-    TIFFWriteTile(tif, buffer, x, y, z, s);
+    // Fuzz TIFFFlush
+    TIFFFlush(tif);
 
-    // Fuzz TIFFWriteRawTile
-    TIFFWriteRawTile(tif, tile, buffer, bufferSize);
+    // Fuzz TIFFFileno
+    int fd = TIFFFileno(tif);
+    (void)fd; // Suppress unused variable warning
 
-    // Fuzz TIFFReadRawTile
-    TIFFReadRawTile(tif, tile, buffer, bufferSize);
+    // Fuzz TIFFSetupStrips
+    TIFFSetupStrips(tif);
 
-    // Fuzz TIFFReadEncodedStrip
-    TIFFReadEncodedStrip(tif, strip, buffer, bufferSize);
+    // Fuzz TIFFSetMode
+    int oldMode = TIFFSetMode(tif, O_RDWR);
+    (void)oldMode; // Suppress unused variable warning
 
-    // Fuzz TIFFWriteRawStrip
-    TIFFWriteRawStrip(tif, strip, buffer, bufferSize);
+    // Fuzz TIFFGetMode
+    int mode = TIFFGetMode(tif);
+    (void)mode; // Suppress unused variable warning
 
-    // Fuzz TIFFWriteEncodedTile
-    TIFFWriteEncodedTile(tif, tile, buffer, bufferSize);
+    // Fuzz TIFFReadBufferSetup
+    void *buffer = malloc(1024);
+    if (buffer) {
+        TIFFReadBufferSetup(tif, buffer, 1024);
+        free(buffer);
+    }
 
-    // Clean up
-    _TIFFfree(buffer);
+    // Close the TIFF file
     TIFFClose(tif);
+
+    // Cleanup the dummy file
+    remove(filename);
 
     return 0;
 }

@@ -1,40 +1,21 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h> // Include for 'close' function
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_146(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the input size is sufficient to extract a uint16_t value
+    if (size < sizeof(uint16_t)) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Extract a uint16_t value from the input data
+    uint16_t codec_id = *(const uint16_t *)data;
 
-    // Open the temporary file as a TIFF
-    TIFF *tiff = TIFFOpen(tmpl, "r+");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        TIFFCheckpointDirectory(tiff);
-        TIFFClose(tiff);
-    }
+    // Call the function-under-test with the extracted codec_id
+    const TIFFCodec *codec = TIFFFindCODEC(codec_id);
 
-    // Remove the temporary file
-    remove(tmpl);
+    // Optionally, perform additional operations with the codec
+    // (e.g., checking its properties) if needed
 
     return 0;
 }

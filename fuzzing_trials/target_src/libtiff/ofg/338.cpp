@@ -1,39 +1,37 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <unistd.h>  // Include for close() and write()
-#include <sys/types.h>  // Include for ssize_t
+#include <unistd.h> // Include for 'close' function
 
 extern "C" {
-#include <tiffio.h>
+    #include <tiffio.h> // Wrap libtiff includes in extern "C"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_338(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data to
+    // Create a temporary file to write the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Write the input data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == nullptr) {
         close(fd);
         return 0;
     }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Close the file descriptor
-    close(fd);
-
-    // Open the temporary file as a TIFF image
-    TIFF* tif = TIFFOpen(tmpl, "r");
-    if (tif != nullptr) {
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff != nullptr) {
         // Call the function-under-test
-        int result = TIFFIsTiled(tif);
+        int result = TIFFIsTiled(tiff);
 
-        // Clean up
-        TIFFClose(tif);
+        // Close the TIFF file
+        TIFFClose(tiff);
     }
 
     // Remove the temporary file

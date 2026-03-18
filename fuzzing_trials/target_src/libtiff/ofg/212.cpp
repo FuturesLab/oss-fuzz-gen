@@ -1,40 +1,33 @@
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h>  // Include for close() and write()
+#include <unistd.h> // Include for close, write, and mkstemp
+#include <cstdlib>  // Include for remove
 
 extern "C" {
-#include <tiffio.h>
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_212(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    // Create a temporary file to write the fuzz data into
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
+    // Write data to the file
     if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
         return 0;
     }
+
+    // Close the file descriptor to flush the data
     close(fd);
 
-    // Open the TIFF file using the temporary file
+    // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != NULL) {
+    if (tiff != nullptr) {
         // Call the function-under-test
-        const char *filename = TIFFFileName(tiff);
-
-        // Print the filename to ensure the function is called
-        if (filename != NULL) {
-            printf("TIFF filename: %s\n", filename);
-        }
-
-        // Close the TIFF file
         TIFFClose(tiff);
     }
 

@@ -1,11 +1,21 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
-// TIFFClientdata at tif_open.c:833:11 in tiffio.h
-// TIFFSetClientInfo at tif_extension.c:78:6 in tiffio.h
-// TIFFGetClientInfo at tif_extension.c:64:7 in tiffio.h
-// TIFFSetFileName at tif_open.c:808:13 in tiffio.h
-// TIFFFileName at tif_open.c:803:13 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -16,43 +26,84 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
-#include <tiffio.h>
 
-static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static TIFF* setupTIFF(const uint8_t* data, size_t size) {
+    FILE* file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    return TIFFOpen("./dummy_file", "r");
+}
+
+static void fuzz_TIFFReadRGBAImageOriented(TIFF* tif) {
+    uint32_t width = 100, height = 100;
+    uint32_t* raster = (uint32_t*)_TIFFmalloc(width * height * sizeof(uint32_t));
+    if (raster) {
+        TIFFReadRGBAImageOriented(tif, width, height, raster, ORIENTATION_TOPLEFT, 0);
+        _TIFFfree(raster);
+    }
+}
+
+static void fuzz_TIFFReadRGBAStrip(TIFF* tif) {
+    uint32_t* raster = (uint32_t*)_TIFFmalloc(100 * sizeof(uint32_t));
+    if (raster) {
+        TIFFReadRGBAStrip(tif, 0, raster);
+        _TIFFfree(raster);
+    }
+}
+
+static void fuzz_TIFFReadRGBATile(TIFF* tif) {
+    uint32_t* raster = (uint32_t*)_TIFFmalloc(100 * sizeof(uint32_t));
+    if (raster) {
+        TIFFReadRGBATile(tif, 0, 0, raster);
+        _TIFFfree(raster);
+    }
+}
+
+static void fuzz_TIFFRGBAImageGet(TIFF* tif) {
+    TIFFRGBAImage img;
+    uint32_t width = 100, height = 100;
+    uint32_t* raster = (uint32_t*)_TIFFmalloc(width * height * sizeof(uint32_t));
+    if (raster) {
+        TIFFRGBAImageGet(&img, raster, width, height);
+        _TIFFfree(raster);
+    }
+}
+
+static void fuzz_TIFFReadRGBAImage(TIFF* tif) {
+    uint32_t width = 100, height = 100;
+    uint32_t* raster = (uint32_t*)_TIFFmalloc(width * height * sizeof(uint32_t));
+    if (raster) {
+        TIFFReadRGBAImage(tif, width, height, raster, 0);
+        _TIFFfree(raster);
+    }
+}
+
+static void fuzz_TIFFReadRGBAStripExt(TIFF* tif) {
+    uint32_t* raster = (uint32_t*)_TIFFmalloc(100 * sizeof(uint32_t));
+    if (raster) {
+        TIFFReadRGBAStripExt(tif, 0, raster, 0);
+        _TIFFfree(raster);
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_110(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    writeDummyFile(Data, Size);
-    
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    TIFF* tif = setupTIFF(Data, Size);
     if (!tif) return 0;
 
-    // Fuzz TIFFFieldWithName
-    const char *fieldName = reinterpret_cast<const char *>(Data);
-    const TIFFField *field = TIFFFieldWithName(tif, fieldName);
-
-    // Fuzz TIFFClientdata
-    thandle_t clientData = TIFFClientdata(tif);
-
-    // Fuzz TIFFSetClientInfo and TIFFGetClientInfo
-    TIFFSetClientInfo(tif, clientData, "testClientInfo");
-    void *retrievedClientData = TIFFGetClientInfo(tif, "testClientInfo");
-
-    // Fuzz TIFFSetFileName and TIFFFileName
-    const char *prevFileName = TIFFSetFileName(tif, "new_file_name");
-    const char *fileName = TIFFFileName(tif);
+    fuzz_TIFFReadRGBAImageOriented(tif);
+    fuzz_TIFFReadRGBAStrip(tif);
+    fuzz_TIFFReadRGBATile(tif);
+    fuzz_TIFFRGBAImageGet(tif);
+    fuzz_TIFFReadRGBAImage(tif);
+    fuzz_TIFFReadRGBAStripExt(tif);
 
     TIFFClose(tif);
-
     return 0;
 }

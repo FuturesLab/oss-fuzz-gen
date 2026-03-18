@@ -1,46 +1,35 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
+#include <cstring>  // Include for memcpy
+
+extern "C" {
+    #include <tiffio.h>
+    #include "/src/libtiff/libtiff/tif_dir.h"  // Correct path for the internal header where _TIFFField is defined
+
+    // Function signature
+    int TIFFFieldSetGetCountSize(const TIFFField *);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_261(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for creating a temporary TIFF file
-    if (size < 1) {
+    // Ensure there's enough data to create a TIFFField object
+    if (size < sizeof(TIFFField)) {
         return 0;
     }
 
-    // Create a temporary file to hold the TIFF data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Allocate memory for a TIFFField object
+    TIFFField* tiffField = (TIFFField*)malloc(sizeof(TIFFField));
+    if (tiffField == NULL) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-
-    // Close the file descriptor as TIFFOpen will open it again
-    close(fd);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == nullptr) {
-        return 0;
-    }
-
-    // Use a non-null thandle_t value
-    thandle_t clientdata = reinterpret_cast<thandle_t>(0x12345678);
+    // Copy data into the TIFFField object
+    memcpy(tiffField, data, sizeof(TIFFField));
 
     // Call the function-under-test
-    TIFFSetClientdata(tiff, clientdata);
+    int result = TIFFFieldSetGetCountSize(tiffField);
 
     // Clean up
-    TIFFClose(tiff);
-    remove(tmpl);
+    free(tiffField);
 
     return 0;
 }

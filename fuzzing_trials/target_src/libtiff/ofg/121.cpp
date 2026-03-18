@@ -1,34 +1,28 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstring> // Include for memcpy
+#include <iostream>
 
 extern "C" {
-    // Include necessary C headers and functions
-    #include <tiff.h>
-    #include <tiffio.h>
-    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for the definition of TIFFField
+    // Assuming the function is defined somewhere in a C library
+    double LogL10toY(int);
 }
 
-// Fuzzing harness for TIFFFieldWriteCount function
 extern "C" int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    if (size < sizeof(TIFFField)) {
-        return 0; // Not enough data to create a valid TIFFField
+    if (size < sizeof(int)) {
+        return 0; // Not enough data to form an int
     }
 
-    // Allocate memory for a TIFFField object
-    TIFFField* field = (TIFFField*)malloc(sizeof(TIFFField));
-    if (field == NULL) {
-        return 0; // Memory allocation failed
+    // Convert the first 4 bytes of data into an int
+    int input_value = 0;
+    for (size_t i = 0; i < sizeof(int); ++i) {
+        input_value |= (data[i] << (i * 8));
     }
-
-    // Copy data into the TIFFField object
-    memcpy(field, data, sizeof(TIFFField));
 
     // Call the function-under-test
-    int result = TIFFFieldWriteCount(field);
+    double result = LogL10toY(input_value);
 
-    // Free the allocated memory
-    free(field);
+    // Optionally print the result for debugging purposes
+    std::cout << "LogL10toY(" << input_value << ") = " << result << std::endl;
 
     return 0;
 }

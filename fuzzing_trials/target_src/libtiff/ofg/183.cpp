@@ -1,52 +1,40 @@
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <unistd.h> // For close, write, and mkstemp
+#include <cstdlib>  // For remove
 
 extern "C" {
-    #include <tiffio.h>
+#include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_183(const uint8_t *data, size_t size) {
-    // We cannot use sizeof(TIFF) because TIFF is an incomplete type.
-    // Instead, we will use a minimal size check to ensure there is some data.
-    if (size < 1) {
+    // Create a temporary file to simulate a TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Use TIFFClientOpen to create a TIFF object from the input data
-    TIFF* tiff = TIFFClientOpen("mem", "rm", (thandle_t)data,
-                          [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t {
-                              memcpy(buf, (void*)fd, size);
-                              return size;
-                          },
-                          [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t {
-                              return 0;
-                          },
-                          [](thandle_t fd, toff_t off, int whence) -> toff_t {
-                              return 0;
-                          },
-                          [](thandle_t fd) -> int {
-                              return 0;
-                          },
-                          [](thandle_t fd) -> toff_t {
-                              return 0;
-                          },
-                          [](thandle_t fd, void** pbase, toff_t* psize) -> int {
-                              return 0;
-                          },
-                          [](thandle_t fd, void* base, toff_t size) -> void {
-                          });
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
-    if (tiff == NULL) {
+    // Open the temporary file as a TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        remove(tmpl);
         return 0;
     }
 
     // Call the function-under-test
-    int result = TIFFIsMSB2LSB(tiff);
+    uint64_t rowSize = TIFFTileRowSize64(tiff);
 
     // Clean up
     TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

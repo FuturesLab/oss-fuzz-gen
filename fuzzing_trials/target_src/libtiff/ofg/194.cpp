@@ -1,22 +1,35 @@
+#include <stdint.h>
+#include <tiffio.h>
+
 extern "C" {
-#include "tiffio.h"
+    // Function to be fuzzed
+    void TIFFRGBAImageEnd(TIFFRGBAImage *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_194(const uint8_t *data, size_t size) {
-    // Initialize the TIFFOpenOptions structure
-    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
-    if (options == NULL) {
-        return 0; // If allocation fails, exit early
+    // Check if the input size is sufficient to initialize TIFFRGBAImage
+    if (size < sizeof(TIFFRGBAImage)) {
+        return 0;
     }
 
-    // Define a tmsize_t variable and initialize it with a non-zero value
-    tmsize_t maxMemAlloc = static_cast<tmsize_t>(size);
+    // Allocate and initialize a TIFFRGBAImage structure
+    TIFFRGBAImage img;
+    TIFF *tif = TIFFOpen("dummy.tiff", "r");
+    if (tif == NULL) {
+        return 0;
+    }
+
+    // Initialize the TIFFRGBAImage structure with some default values
+    if (!TIFFRGBAImageBegin(&img, tif, 0, NULL)) {
+        TIFFClose(tif);
+        return 0;
+    }
 
     // Call the function-under-test
-    TIFFOpenOptionsSetMaxCumulatedMemAlloc(options, maxMemAlloc);
+    TIFFRGBAImageEnd(&img);
 
-    // Free the allocated TIFFOpenOptions structure
-    TIFFOpenOptionsFree(options);
+    // Clean up
+    TIFFClose(tif);
 
     return 0;
 }

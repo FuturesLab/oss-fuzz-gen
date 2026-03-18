@@ -1,14 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
+// TIFFSwabDouble at tif_swab.c:201:6 in tiffio.h
+// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
+// uv_decode at tif_luv.c:997:5 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
-// TIFFNumberOfStrips at tif_strip.c:65:10 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
-// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
-// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
-// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFIsByteSwapped at tif_open.c:889:5 in tiffio.h
+// TIFFIsBigEndian at tif_open.c:904:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -19,53 +15,53 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
-
-static TIFF* openDummyTIFF(const uint8_t* Data, size_t Size) {
-    FILE* file = fopen("./dummy_file", "wb");
-    if (!file) return nullptr;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-    return TIFFOpen("./dummy_file", "r");
-}
+#include <cstdio>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_139(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0;
+    if (Size < sizeof(double)) return 0;
 
-    TIFF* tiff = openDummyTIFF(Data, Size);
-    if (!tiff) return 0;
+    // Prepare a double for TIFFSwabDouble
+    double singleDouble;
+    std::memcpy(&singleDouble, Data, sizeof(double));
+    TIFFSwabDouble(&singleDouble);
 
-    uint32_t* raster = (uint32_t*)_TIFFmalloc(TIFFScanlineSize(tiff) * TIFFNumberOfStrips(tiff) * sizeof(uint32_t));
-    if (!raster) {
-        TIFFClose(tiff);
-        return 0;
+    // Prepare an array of doubles for TIFFSwabArrayOfDouble
+    size_t numDoubles = Size / sizeof(double);
+    double *doubleArray = new double[numDoubles];
+    std::memcpy(doubleArray, Data, numDoubles * sizeof(double));
+    TIFFSwabArrayOfDouble(doubleArray, static_cast<tmsize_t>(numDoubles));
+
+    // Prepare coordinates for uv_encode
+    if (Size >= 2 * sizeof(double) + sizeof(int)) {
+        double lat, lon;
+        int precision;
+        std::memcpy(&lat, Data, sizeof(double));
+        std::memcpy(&lon, Data + sizeof(double), sizeof(double));
+        std::memcpy(&precision, Data + 2 * sizeof(double), sizeof(int));
+        uv_encode(lat, lon, precision);
     }
 
-    // Fuzz TIFFReadRGBAStrip
-    TIFFReadRGBAStrip(tiff, 0, raster);
+    // Prepare data for uv_decode
+    if (Size >= sizeof(double) * 2) {
+        double u, v;
+        int count = static_cast<int>(Size / (2 * sizeof(double)));
+        double *inputArray = new double[count * 2];
+        std::memcpy(inputArray, Data, count * 2 * sizeof(double));
+        uv_decode(inputArray, &u, count);
+        delete[] inputArray;
+    }
 
-    // Fuzz TIFFReadRGBAImageOriented
-    TIFFReadRGBAImageOriented(tiff, 100, 100, raster, ORIENTATION_TOPLEFT, 0);
+    // Dummy TIFF structure for TIFFIsByteSwapped and TIFFIsBigEndian
+    TIFF *tiff = TIFFOpen("./dummy_file", "w");
+    if (tiff) {
+        TIFFIsByteSwapped(tiff);
+        TIFFIsBigEndian(tiff);
+        TIFFClose(tiff);
+    }
 
-    // Fuzz TIFFReadRGBAStripExt
-    TIFFReadRGBAStripExt(tiff, 0, raster, 1);
-
-    // Fuzz TIFFReadRGBAImage
-    TIFFReadRGBAImage(tiff, 100, 100, raster, 0);
-
-    // Fuzz TIFFReadRGBATile
-    TIFFReadRGBATile(tiff, 0, 0, raster);
-
-    // Prepare TIFFRGBAImage structure for TIFFRGBAImageGet
-    TIFFRGBAImage img;
-    memset(&img, 0, sizeof(TIFFRGBAImage));
-    TIFFRGBAImageGet(&img, raster, 100, 100);
-
-    _TIFFfree(raster);
-    TIFFClose(tiff);
+    delete[] doubleArray;
     return 0;
 }

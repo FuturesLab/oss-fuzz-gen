@@ -1,12 +1,11 @@
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h> // Include this header for the 'close' function
 #include <tiffio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include for close() and unlink()
 
 extern "C" {
-    #include <tiffio.h>
+    int TIFFReadEXIFDirectory(TIFF *, toff_t);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_299(const uint8_t *data, size_t size) {
@@ -16,45 +15,33 @@ extern "C" int LLVMFuzzerTestOneInput_299(const uint8_t *data, size_t size) {
     if (fd == -1) {
         return 0;
     }
+
     FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
+    if (file == nullptr) {
         close(fd);
         return 0;
     }
+
+    // Write the fuzz data to the temporary file
     fwrite(data, 1, size, file);
     fclose(file);
 
-    // Open the TIFF file
+    // Open the temporary file as a TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == NULL) {
-        unlink(tmpl); // Use unlink instead of remove for consistency with close
+    if (tiff == nullptr) {
+        remove(tmpl);
         return 0;
     }
 
-    // Retrieve image dimensions
-    uint32_t width, height;
-    if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &width) ||
-        !TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &height)) {
-        TIFFClose(tiff);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Allocate memory for the RGBA buffer
-    uint32_t *raster = (uint32_t *)malloc(width * height * sizeof(uint32_t));
-    if (raster == NULL) {
-        TIFFClose(tiff);
-        unlink(tmpl);
-        return 0;
-    }
+    // Set a non-zero offset for the EXIF directory
+    toff_t offset = 8; // Arbitrary non-zero value for testing
 
     // Call the function-under-test
-    TIFFReadRGBAImage(tiff, width, height, raster, 0);
+    TIFFReadEXIFDirectory(tiff, offset);
 
     // Clean up
-    free(raster);
     TIFFClose(tiff);
-    unlink(tmpl);
+    remove(tmpl);
 
     return 0;
 }

@@ -1,39 +1,38 @@
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
+#include <cstring> // Include for memcpy
 #include <tiffio.h>
 
 extern "C" {
-    #include <tiffio.h>
+    // Function-under-test signature
+    void TIFFCIELabToXYZ(TIFFCIELabToRGB *, uint32_t, int32_t, int32_t, float *, float *, float *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_209(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    if (size < sizeof(TIFFCIELabToRGB) + sizeof(uint32_t) + 2 * sizeof(int32_t) + 3 * sizeof(float)) {
+        return 0; // Not enough data to initialize all parameters
     }
 
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Initialize TIFFCIELabToRGB structure
+    TIFFCIELabToRGB cielab;
+    // Assuming the first part of data is used to initialize the structure
+    memcpy(&cielab, data, sizeof(TIFFCIELabToRGB));
 
-    // Open the TIFF file using the temporary filename
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        TIFFClose(tiff);
-    }
+    // Extract remaining parameters from data
+    size_t offset = sizeof(TIFFCIELabToRGB);
+    uint32_t sample = *reinterpret_cast<const uint32_t*>(data + offset);
+    offset += sizeof(uint32_t);
 
-    // Clean up the temporary file
-    remove(tmpl);
+    int32_t a = *reinterpret_cast<const int32_t*>(data + offset);
+    offset += sizeof(int32_t);
+
+    int32_t b = *reinterpret_cast<const int32_t*>(data + offset);
+    offset += sizeof(int32_t);
+
+    float x, y, z;
+
+    // Call the function-under-test
+    TIFFCIELabToXYZ(&cielab, sample, a, b, &x, &y, &z);
 
     return 0;
 }

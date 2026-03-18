@@ -1,11 +1,14 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFVStripSize at tif_strip.c:142:10 in tiffio.h
-// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
-// TIFFVTileSize at tif_tile.c:238:10 in tiffio.h
-// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
-// TIFFTileRowSize at tif_tile.c:177:10 in tiffio.h
-// TIFFRawStripSize at tif_strip.c:168:10 in tiffio.h
+// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpenOptionsAlloc at tif_open.c:80:18 in tiffio.h
+// TIFFOpenOptionsSetErrorHandlerExtR at tif_open.c:121:6 in tiffio.h
+// TIFFFdOpenExt at tif_unix.c:214:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpenExt at tif_unix.c:237:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
+// TIFFClientOpenExt at tif_open.c:300:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -18,50 +21,73 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstring>
 #include <cstdio>
+#include <fcntl.h>
+#include <unistd.h>
+
+static int customErrorHandler(TIFF* tif, void* user_data, const char* module, const char* fmt, va_list ap) {
+    // Custom error handler that does nothing
+    return 0;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_113(const uint8_t *Data, size_t Size) {
-    // Prepare a dummy TIFF file
-    const char* filename = "./dummy_file.tiff";
-    FILE* file = fopen(filename, "wb");
+    if (Size < 1) return 0;
+
+    // Prepare dummy file
+    FILE *file = fopen("./dummy_file", "wb");
     if (!file) return 0;
-    
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the dummy TIFF file
-    TIFF* tif = TIFFOpen(filename, "r");
-    if (!tif) return 0;
+    // Open the file descriptor
+    int fd = open("./dummy_file", O_RDONLY);
+    if (fd < 0) return 0;
 
-    // Fuzzing TIFFVStripSize
-    uint32_t nrows = Size > 4 ? *reinterpret_cast<const uint32_t*>(Data) : 0;
-    tmsize_t vstrip_size = TIFFVStripSize(tif, nrows);
-
-    // Fuzzing TIFFStripSize
-    tmsize_t strip_size = TIFFStripSize(tif);
-
-    // Fuzzing TIFFVTileSize
-    tmsize_t vtile_size = TIFFVTileSize(tif, nrows);
-
-    // Allocate a buffer for TIFFReadEncodedTile
-    tmsize_t buffer_size = 1024; // Arbitrary buffer size
-    void* buffer = malloc(buffer_size);
-    if (buffer) {
-        uint32_t tile = Size > 8 ? *reinterpret_cast<const uint32_t*>(Data + 4) : 0;
-        tmsize_t read_encoded_tile = TIFFReadEncodedTile(tif, tile, buffer, buffer_size);
-        free(buffer);
+    // 1. Test TIFFFdOpen
+    TIFF *tiff1 = TIFFFdOpen(fd, "dummy_file", "r");
+    if (tiff1) {
+        TIFFClose(tiff1);
     }
 
-    // Fuzzing TIFFTileRowSize
-    tmsize_t tile_row_size = TIFFTileRowSize(tif);
+    // 2. Test TIFFOpenOptionsAlloc
+    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
+    if (opts) {
+        // 3. Test TIFFOpenOptionsSetErrorHandlerExtR
+        TIFFOpenOptionsSetErrorHandlerExtR(opts, customErrorHandler, nullptr);
 
-    // Fuzzing TIFFRawStripSize
-    uint32_t strip = Size > 12 ? *reinterpret_cast<const uint32_t*>(Data + 8) : 0;
-    tmsize_t raw_strip_size = TIFFRawStripSize(tif, strip);
+        // 4. Test TIFFFdOpenExt
+        TIFF *tiff2 = TIFFFdOpenExt(fd, "dummy_file", "r", opts);
+        if (tiff2) {
+            TIFFClose(tiff2);
+        }
 
-    // Clean up
-    TIFFClose(tif);
+        // 5. Test TIFFOpenExt
+        TIFF *tiff3 = TIFFOpenExt("dummy_file", "r", opts);
+        if (tiff3) {
+            TIFFClose(tiff3);
+        }
+
+        TIFFOpenOptionsFree(opts);
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // 6. Test TIFFClientOpenExt with dummy callbacks
+    TIFF *tiff4 = TIFFClientOpenExt(
+        "dummy_file", "r", (thandle_t)fd,
+        [](thandle_t, void*, tmsize_t) -> tmsize_t { return 0; }, // Read
+        [](thandle_t, void*, tmsize_t) -> tmsize_t { return 0; }, // Write
+        [](thandle_t, toff_t, int) -> toff_t { return 0; },       // Seek
+        [](thandle_t) -> int { return 0; },                       // Close
+        [](thandle_t) -> toff_t { return 0; },                    // Size
+        nullptr,                                                  // Map
+        nullptr,                                                  // Unmap
+        nullptr                                                   // Options
+    );
+    if (tiff4) {
+        TIFFClose(tiff4);
+    }
 
     return 0;
 }

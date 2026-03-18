@@ -1,45 +1,32 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+
+// Include standard libraries first
+#include <iostream>
+#include <string>
 
 extern "C" {
-#include <tiffio.h>
+    // Include project-specific libraries within extern "C"
+    #include <tiffio.h>
+    #include <tiff.h>
 }
 
+// Ensure all functions and code from libtiff are wrapped in extern "C"
 extern "C" int LLVMFuzzerTestOneInput_125(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the size is sufficient to create a TIFFFieldInfo structure
+    if (size < sizeof(TIFFFieldInfo)) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        remove(tmpl);
-        return 0;
-    }
-    close(fd);
+    // Cast the input data to a TIFFFieldInfo pointer
+    const TIFFFieldInfo *tiffFieldInfo = reinterpret_cast<const TIFFFieldInfo *>(data);
 
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        uint64_t dirOffset = TIFFCurrentDirOffset(tiff);
-        // Optionally, use the dirOffset in some way, e.g., print it
-        printf("Current Directory Offset: %lu\n", (unsigned long)dirOffset);
+    // Since TIFFField is an incomplete type, we'll use TIFFFieldInfo for demonstration
+    // Call the function-under-test
+    int result = TIFFFieldWriteCount(reinterpret_cast<const TIFFField *>(tiffFieldInfo));
 
-        // Close the TIFF file
-        TIFFClose(tiff);
-    }
-
-    // Remove the temporary file
-    remove(tmpl);
+    // Use the result to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }

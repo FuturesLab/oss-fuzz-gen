@@ -1,47 +1,45 @@
 #include <tiffio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  // Include for 'write' and 'close' functions
-#include <fcntl.h>   // Include for 'mkstemp' function
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>  // Include for close and write functions
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_150(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the input data
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Write the fuzz data to the file
+    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
         close(fd);
         return 0;
     }
+
+    // Close the file descriptor
     close(fd);
 
     // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == NULL) {
+    TIFF *tiff = TIFFOpen(tmpl, "r+");
+    if (tiff == nullptr) {
+        // Clean up the temporary file
         remove(tmpl);
         return 0;
     }
 
-    // Initialize parameters for TIFFGetField
-    uint32_t tag = 0; // Example tag value, can be adjusted
-    void *value = malloc(1024); // Allocate memory for the value
-
     // Call the function-under-test
-    TIFFGetField(tiff, tag, value);
+    TIFFCheckpointDirectory(tiff);
 
-    // Clean up
-    free(value);
+    // Close the TIFF file
     TIFFClose(tiff);
+
+    // Clean up the temporary file
     remove(tmpl);
 
     return 0;

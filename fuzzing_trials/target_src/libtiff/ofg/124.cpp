@@ -1,27 +1,28 @@
+#include <stdint.h>
+#include <stddef.h>
+#include <tiffio.h>
+
 extern "C" {
-    #include <tiffio.h>
+    #include "/src/libtiff/libtiff/tiffiop.h"  // Ensure the TIFFField structure is accessible
 }
 
+// Fuzzing harness for TIFFFieldWriteCount
 extern "C" int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    TIFFCodec *codecs = TIFFGetConfiguredCODECs();
-
-    // Iterate over the linked list of codecs to ensure all are accessed
-    TIFFCodec *current = codecs;
-    while (current != nullptr) {
-        // Access codec information
-        const char *name = current->name;
-        uint16_t scheme = current->scheme; // Corrected type to uint16_t
-
-        // For fuzzing purposes, simply ensure the strings are accessed
-        if (name != nullptr) {
-            // No operation needed, just accessing the data
-        }
-
-        // Move to the next codec in the list
-        // Note: There is no 'next' member in TIFFCodec, so we assume single element
-        break;
+    // Check if the size is sufficient to create a TIFFField structure
+    if (size < sizeof(TIFFField)) {
+        return 0;
     }
+
+    // Create a TIFFField structure from the input data
+    // Note: This is a direct cast from data to TIFFField pointer, which assumes that the input data is correctly formatted.
+    TIFFField* tiffField = (TIFFField*)data;
+
+    // Call the function-under-test
+    int result = TIFFFieldWriteCount(tiffField);
+
+    // Use the result to avoid compiler optimizations
+    volatile int avoid_optimization = result;
+    (void)avoid_optimization;
 
     return 0;
 }

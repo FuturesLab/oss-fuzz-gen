@@ -1,24 +1,36 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstring> // Include the library for memcpy
+#include <cstdarg> // Include for va_list
 #include <tiffio.h>
 
 extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
-    #include <tiffio.h>
+
+// Corrected error handler function signature to match TIFFErrorHandlerExtR
+int dummyErrorHandler(struct tiff* tif, void* clientData, const char* module, const char* fmt, va_list ap) {
+    // Do nothing, just a placeholder
+    return 0;
 }
 
-extern "C" int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
-    // Allocate memory using malloc to simulate a TIFF memory allocation
-    void *memory = malloc(size > 0 ? size : 1); // Ensure size is not zero
+int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
+    // Initialize the TIFFOpenOptions structure
+    TIFFOpenOptions* options = TIFFOpenOptionsAlloc();
 
-    // Copy the input data to the allocated memory
-    if (memory != nullptr && size > 0) {
-        memcpy(memory, data, size);
+    // Ensure data is not NULL and size is sufficient for a dummy pointer
+    if (size < sizeof(void*)) {
+        TIFFOpenOptionsFree(options);
+        return 0;
     }
 
+    // Use the data as a dummy pointer for the third argument
+    void* dummyPointer = (void*)data;
+
     // Call the function-under-test
-    _TIFFfree(memory);
+    TIFFOpenOptionsSetErrorHandlerExtR(options, dummyErrorHandler, dummyPointer);
+
+    // Free the allocated TIFFOpenOptions structure
+    TIFFOpenOptionsFree(options);
 
     return 0;
+}
+
 }

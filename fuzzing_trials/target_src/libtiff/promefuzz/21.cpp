@@ -1,9 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// _TIFFmemcmp at tif_unix.c:360:5 in tiffio.h
-// _TIFFmemcmp at tif_unix.c:360:5 in tiffio.h
-// _TIFFmemcmp at tif_unix.c:360:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
+// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -14,47 +16,40 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
-#include <cstddef>
 #include <cstdio>
-#include <cstring>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Step 1: Prepare the environment
-    const char *filename = "./dummy_file";
-    FILE *file = fopen(filename, "wb");
+    // Create a dummy TIFF file
+    FILE *file = fopen("./dummy_file", "wb+");
     if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen(filename, "r");
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
     if (!tif) return 0;
 
-    // Step 2: Invoke TIFFGetField
-    uint32_t tag = 0; // A placeholder tag
-    int status = TIFFGetField(tif, tag);
-    (void)status; // We ignore the status for fuzzing purposes
+    // 1. TIFFWriteDirectory
+    if (TIFFWriteDirectory(tif)) {
+        // 2. TIFFSetDirectory
+        TIFFSetDirectory(tif, 0);
 
-    // Step 3: Invoke _TIFFmemcmp three times
-    const void *p1 = Data;
-    const void *p2 = Data + (Size / 2);
-    tmsize_t c = Size / 4;
+        // 3. TIFFCurrentDirOffset
+        TIFFCurrentDirOffset(tif);
 
-    if (Size >= 2 * c) {
-        int cmp1 = _TIFFmemcmp(p1, p2, c);
-        int cmp2 = _TIFFmemcmp(p1, p2, c);
-        int cmp3 = _TIFFmemcmp(p1, p2, c);
-        (void)cmp1;
-        (void)cmp2;
-        (void)cmp3;
+        // 4. TIFFSetDirectory
+        TIFFSetDirectory(tif, 0);
+
+        // 5. TIFFForceStrileArrayWriting
+        TIFFForceStrileArrayWriting(tif);
+
+        // 6. TIFFFlushData
+        TIFFFlushData(tif);
     }
 
-    // Step 4: Close the TIFF file
     TIFFClose(tif);
-
     return 0;
 }

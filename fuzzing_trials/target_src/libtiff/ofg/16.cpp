@@ -1,26 +1,39 @@
-#include <cstddef>
-#include <cstdint>
 #include <tiffio.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstdarg>
+#include <cstdio>
 
 extern "C" {
-
-static void customErrorHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom error handling logic can be added here
+    // A sample error handler function
+    void customErrorHandler_16(const char* module, const char* fmt, va_list ap) {
+        // Custom error handling logic
+        // For example, print the error message to stderr
+        if (module != NULL) {
+            fprintf(stderr, "%s: ", module);
+        }
+        vfprintf(stderr, fmt, ap);
+        fprintf(stderr, "\n");
+    }
 }
 
-int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
+extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
+    // Initialize a custom error handler
+    TIFFErrorHandler newHandler = customErrorHandler_16;
+
+    // Set the custom error handler
+    TIFFErrorHandler oldHandler = TIFFSetErrorHandler(newHandler);
+
+    // Optionally, you can call the old handler to ensure it's not NULL
+    if (oldHandler != NULL) {
+        oldHandler("Module", "Test message", NULL);
     }
 
-    // Set a custom error handler
-    TIFFErrorHandler previousHandler = TIFFSetErrorHandler(customErrorHandler);
-
-    // Restore the previous error handler (if needed)
-    TIFFSetErrorHandler(previousHandler);
+    // Example usage of the data to ensure it's not null
+    if (size > 0) {
+        // Normally, you would do something with the data here
+        // For example, pass it to a function to test its behavior
+    }
 
     return 0;
-}
-
 }

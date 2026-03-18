@@ -1,46 +1,26 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <unistd.h> // Include for close() and write()
-#include <sys/types.h> // Include for ssize_t
-#include <sys/stat.h>
-#include <fcntl.h> // Include for mkstemp()
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_199(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Declare and initialize variables
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    tmsize_t maxMemAlloc;
+
+    // Ensure size is sufficient to extract a tmsize_t value
+    if (size < sizeof(tmsize_t)) {
+        TIFFOpenOptionsFree(options);
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
-    }
-
-    // Close the file descriptor as TIFFOpen will open it again
-    close(fd);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        return 0;
-    }
-
-    // Define some non-NULL values for tag and datatype
-    uint32_t tag = 0; // Example tag, modify as needed
-    TIFFDataType datatype = TIFFDataType::TIFF_NOTYPE; // Example datatype, modify as needed
+    // Extract tmsize_t value from data
+    maxMemAlloc = *reinterpret_cast<const tmsize_t*>(data);
 
     // Call the function-under-test
-    const TIFFField *field = TIFFFindField(tiff, tag, datatype);
+    TIFFOpenOptionsSetMaxCumulatedMemAlloc(options, maxMemAlloc);
 
     // Clean up
-    TIFFClose(tiff);
-    remove(tmpl);
+    TIFFOpenOptionsFree(options);
 
     return 0;
 }

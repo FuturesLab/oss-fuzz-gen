@@ -1,42 +1,40 @@
 #include <tiffio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>  // Include for close and write functions
 
 extern "C" int LLVMFuzzerTestOneInput_310(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
+    TIFF* tiff = nullptr;
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
+
     if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
         close(fd);
-        unlink(tmpl);
         return 0;
     }
 
-    // Close the file descriptor
+    // Close the file descriptor so TIFF can open it
     close(fd);
 
-    // Open the temporary file with TIFFOpen
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == NULL) {
-        unlink(tmpl);
+    // Open the TIFF file
+    tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        remove(tmpl);
         return 0;
     }
 
     // Call the function-under-test
-    TIFFSizeProc sizeProc = TIFFGetSizeProc(tiff);
+    TIFFSeekProc seekProc = TIFFGetSeekProc(tiff);
 
     // Clean up
     TIFFClose(tiff);
-    unlink(tmpl);
+    remove(tmpl);
 
     return 0;
 }

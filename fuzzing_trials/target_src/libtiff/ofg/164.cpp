@@ -1,53 +1,28 @@
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <unistd.h> // Include for close() and unlink()
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for a filename
-    if (size < 1) {
+    // Ensure there is enough data to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Create a temporary filename
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    close(fd);
-
-    // Open a TIFF file in memory
-    TIFF *tiff = TIFFOpen(tmpl, "w");
-    if (tiff == NULL) {
-        unlink(tmpl); // Clean up temporary file
-        return 0;
+    // Extract an integer from the input data
+    int input_value = 0;
+    for (size_t i = 0; i < sizeof(int); ++i) {
+        input_value |= data[i] << (i * 8);
     }
 
-    // Allocate memory for a filename from the input data
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        TIFFClose(tiff);
-        unlink(tmpl); // Clean up temporary file
-        return 0;
+    // Call the function-under-test with the extracted integer
+    const unsigned char *result = TIFFGetBitRevTable(input_value);
+
+    // Use the result in some way to avoid compiler optimizations removing the call
+    if (result != nullptr) {
+        // Access the first element to ensure the result is used
+        volatile unsigned char first_element = result[0];
+        (void)first_element; // Suppress unused variable warning
     }
-
-    // Copy data to filename and ensure null termination
-    memcpy(filename, data, size);
-    filename[size] = '\0';
-
-    // Call the function-under-test
-    const char *result = TIFFSetFileName(tiff, filename);
-
-    // Clean up
-    free(filename);
-    TIFFClose(tiff);
-    unlink(tmpl); // Clean up temporary file
 
     return 0;
 }

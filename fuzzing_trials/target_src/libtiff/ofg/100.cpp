@@ -1,45 +1,51 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h> // Include for close()
-
 extern "C" {
-    #include <tiffio.h>
+#include <tiffio.h>
 }
 
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>   // For mkstemp
+#include <unistd.h>  // For close, unlink
+#include <fcntl.h>   // For write
+
 extern "C" int LLVMFuzzerTestOneInput_100(const uint8_t *data, size_t size) {
-    if (size < 1) return 0; // Ensure there's at least one byte for the filename
+    TIFF *tiff = nullptr;
+    toff_t offset = 0;
 
     // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
-    if (fd == -1) return 0;
-
-    // Write the data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
+    if (fd == -1) {
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
-    // Open the temporary file using TIFF library
-    TIFF *tif = TIFFOpen(tmpl, "r");
-    if (tif) {
-        // Use the first byte of data as the toff_t offset
-        toff_t offset = static_cast<toff_t>(data[0]);
-
-        // Call the function-under-test
-        TIFFReadGPSDirectory(tif, offset);
-
-        // Close the TIFF file
-        TIFFClose(tif);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
     }
 
-    // Remove the temporary file
-    remove(tmpl);
+    // Open the temporary file as a TIFF file
+    tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Ensure offset is within a reasonable range
+    if (size >= sizeof(toff_t)) {
+        offset = *(reinterpret_cast<const toff_t*>(data));
+    }
+
+    // Call the function-under-test
+    TIFFReadGPSDirectory(tiff, offset);
+
+    // Clean up
+    TIFFClose(tiff);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }

@@ -1,26 +1,27 @@
-#include <tiffio.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  // Include this for the close() function
+#include <unistd.h> // For mkstemp and close
+#include <stdlib.h> // For mkstemp and remove
+#include <tiffio.h>
 
 extern "C" {
-    #include <tiffio.h>
+    // Function signature to be fuzzed
+    int TIFFRGBAImageBegin(TIFFRGBAImage *, TIFF *, int, char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    if (size < 1) return 0;  // Ensure there's at least some data
+    // Check if the size is sufficient to create a valid TIFF image
+    if (size < 4) {
+        return 0;
+    }
 
-    // Create a temporary file to simulate a TIFF file input
+    // Create a temporary file to store the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0;  // If file creation fails, exit
+        return 0;
     }
-
-    // Write the fuzz data to the temporary file
     FILE *file = fdopen(fd, "wb");
     if (!file) {
         close(fd);
@@ -29,7 +30,7 @@ extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
     fwrite(data, 1, size, file);
     fclose(file);
 
-    // Open the TIFF file using libtiff
+    // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
     if (!tiff) {
         remove(tmpl);
@@ -38,13 +39,13 @@ extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
 
     // Initialize TIFFRGBAImage
     TIFFRGBAImage img;
-    char emsg[1024] = {0};  // Error message buffer
+    char emsg[1024];
+    int stopOnError = 0; // Example value, can be varied
 
     // Call the function-under-test
-    int result = TIFFRGBAImageBegin(&img, tiff, 0, emsg);
+    TIFFRGBAImageBegin(&img, tiff, stopOnError, emsg);
 
-    // Clean up
-    TIFFRGBAImageEnd(&img);
+    // Cleanup
     TIFFClose(tiff);
     remove(tmpl);
 

@@ -1,57 +1,32 @@
+#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
 
 extern "C" {
-    #include <tiffio.h>
+    // Function signature for the function-under-test
+    // Correct the function signature to match the declaration in tiffio.h
+    extern void TIFFWarningExtR(TIFF *, const char *, const char *, ...);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_286(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to work with
-    if (size < 3) {
-        return 0;
-    }
-
-    // Create a TIFF object
+    // Initialize TIFF structure
     TIFF *tiff = TIFFOpen("/tmp/fuzz.tiff", "w");
-    if (!tiff) {
+    if (tiff == nullptr) {
         return 0;
     }
 
-    // Prepare strings from the input data
-    size_t str1_len = data[0] % size;
-    size_t str2_len = data[1] % size;
-    size_t str3_len = data[2] % size;
+    // Ensure data is not empty and create strings from it
+    const char *module = (size > 0) ? reinterpret_cast<const char *>(data) : "default_module";
+    const char *fmt = (size > 1) ? reinterpret_cast<const char *>(data + 1) : "default_fmt";
 
-    char *str1 = (char *)malloc(str1_len + 1);
-    char *str2 = (char *)malloc(str2_len + 1);
-    char *str3 = (char *)malloc(str3_len + 1);
-
-    if (!str1 || !str2 || !str3) {
-        TIFFClose(tiff);
-        free(str1);
-        free(str2);
-        free(str3);
-        return 0;
-    }
-
-    memcpy(str1, data + 3, str1_len);
-    memcpy(str2, data + 3 + str1_len, str2_len);
-    memcpy(str3, data + 3 + str1_len + str2_len, str3_len);
-
-    str1[str1_len] = '\0';
-    str2[str2_len] = '\0';
-    str3[str3_len] = '\0';
+    // Create a dummy client data
+    void *clientData = reinterpret_cast<void *>(0x12345678);
 
     // Call the function-under-test
-    TIFFWarningExtR(tiff, str1, str2, str3);
+    TIFFWarningExtR(tiff, module, fmt, clientData);
 
     // Clean up
     TIFFClose(tiff);
-    free(str1);
-    free(str2);
-    free(str3);
 
     return 0;
 }

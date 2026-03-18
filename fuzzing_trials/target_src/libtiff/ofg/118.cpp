@@ -1,26 +1,21 @@
+#include <cstddef>
 #include <cstdint>
-#include <cmath>
-#include <cstddef>  // For size_t
-#include <cstring>  // For std::memcpy
+#include <tiffio.h>
 
-// Function signature provided
-extern "C" double LogL10toY(int x);
+extern "C" {
+    // Include necessary C headers and functions here.
+    #include <tiffio.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    // Ensure the input size is at least the size of an integer
-    if (size < sizeof(int)) {
-        return 0;
-    }
-
-    // Extract an integer from the input data
-    int x;
-    std::memcpy(&x, data, sizeof(int));
+    // Declare and initialize variables
+    TIFFYCbCrToRGB ycbcr;
+    float luma[3] = {1.0f, 0.0f, 0.0f}; // Example initialization
+    float refBlackWhite[6] = {0.0f, 255.0f, 128.0f, 128.0f, 128.0f, 128.0f}; // Example initialization
 
     // Call the function-under-test
-    double result = LogL10toY(x);
+    int result = TIFFYCbCrToRGBInit(&ycbcr, luma, refBlackWhite);
 
-    // Use the result in some way to avoid compiler optimizations
-    volatile double avoid_optimization = result;
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

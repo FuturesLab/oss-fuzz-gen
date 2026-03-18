@@ -1,8 +1,13 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,75 +17,56 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
-#include <fstream>
-#include <iostream>
 #include <tiffio.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
-static void FuzzLogLuv32fromXYZ(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(float) * 3) return;
+static TIFF* openDummyTIFF(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    float xyz[3];
-    std::memcpy(xyz, Data, sizeof(float) * 3);
-    int numComponents = 3; // Assuming 3 components for XYZ
-    uint32_t result = LogLuv32fromXYZ(xyz, numComponents);
-    (void)result; // Suppress unused variable warning
-}
-
-static void FuzzLogLuv24toXYZ(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) return;
-
-    uint32_t logluv;
-    std::memcpy(&logluv, Data, sizeof(uint32_t));
-    float xyz[3];
-    LogLuv24toXYZ(logluv, xyz);
-}
-
-static void FuzzLogLuv32toXYZ(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) return;
-
-    uint32_t logluv;
-    std::memcpy(&logluv, Data, sizeof(uint32_t));
-    float xyz[3];
-    LogLuv32toXYZ(logluv, xyz);
-}
-
-static void FuzzLogLuv24fromXYZ(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(float) * 3) return;
-
-    float xyz[3];
-    std::memcpy(xyz, Data, sizeof(float) * 3);
-    int numPixels = 1; // Assuming 1 pixel for simplicity
-    uint32_t result = LogLuv24fromXYZ(xyz, numPixels);
-    (void)result; // Suppress unused variable warning
-}
-
-static void FuzzTIFFSwabArrayOfFloat(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(float)) return;
-
-    size_t numFloats = Size / sizeof(float);
-    float *floatArray = new float[numFloats];
-    std::memcpy(floatArray, Data, sizeof(float) * numFloats);
-    TIFFSwabArrayOfFloat(floatArray, numFloats);
-    delete[] floatArray;
-}
-
-static void FuzzTIFFSwabLong(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) return;
-
-    uint32_t value;
-    std::memcpy(&value, Data, sizeof(uint32_t));
-    TIFFSwabLong(&value);
+    return TIFFOpen("./dummy_file", "r");
 }
 
 extern "C" int LLVMFuzzerTestOneInput_96(const uint8_t *Data, size_t Size) {
-    FuzzLogLuv32fromXYZ(Data, Size);
-    FuzzLogLuv24toXYZ(Data, Size);
-    FuzzLogLuv32toXYZ(Data, Size);
-    FuzzLogLuv24fromXYZ(Data, Size);
-    FuzzTIFFSwabArrayOfFloat(Data, Size);
-    FuzzTIFFSwabLong(Data, Size);
+    if (Size < 4) return 0; // Ensure there's enough data for meaningful operations
+
+    TIFF *tif = openDummyTIFF(Data, Size);
+    if (!tif) return 0;
+
+    uint32_t width, height;
+    uint32_t *raster = nullptr;
+
+    // Attempt to read image dimensions
+    if (TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width) && TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height)) {
+        raster = (uint32_t*) _TIFFmalloc(width * height * sizeof(uint32_t));
+        if (raster) {
+            // 1. Test TIFFReadRGBAImageOriented
+            TIFFReadRGBAImageOriented(tif, width, height, raster, ORIENTATION_TOPLEFT, 0);
+
+            // 2. Test TIFFReadRGBAStrip
+            TIFFReadRGBAStrip(tif, 0, raster);
+
+            // 3. Test TIFFReadRGBATile
+            TIFFReadRGBATile(tif, 0, 0, raster);
+
+            // 4. Test TIFFReadScanline
+            TIFFReadScanline(tif, raster, 0, 0);
+
+            // 5. Test TIFFReadRGBAImage
+            TIFFReadRGBAImage(tif, width, height, raster, 0);
+
+            // 6. Test TIFFReadRGBAStripExt
+            TIFFReadRGBAStripExt(tif, 0, raster, 0);
+
+            _TIFFfree(raster);
+        }
+    }
+
+    TIFFClose(tif);
     return 0;
 }

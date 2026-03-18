@@ -1,34 +1,41 @@
 #include <cstdint>
 #include <cstdio>
-#include <unistd.h> // Include for close, write, and mkstemp
-#include <cstdlib>  // Include for remove
+#include <cstdlib>  // For mkstemp
+#include <unistd.h> // For close
 
 extern "C" {
-    #include <tiffio.h> // Ensure TIFF functions are wrapped with extern "C"
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the input data
+    if (size < 1) {
+        return 0;
+    }
+
+    // Create a temporary file to write the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
         close(fd);
         return 0;
     }
-    close(fd);
+
+    // Write the data to the temporary file
+    fwrite(data, 1, size, file);
+    fclose(file);
 
     // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
+    if (tiff) {
         // Call the function-under-test
-        uint64_t scanlineSize = TIFFScanlineSize64(tiff);
+        uint64_t result = TIFFRasterScanlineSize64(tiff);
 
-        // Clean up
+        // Close the TIFF file
         TIFFClose(tiff);
     }
 

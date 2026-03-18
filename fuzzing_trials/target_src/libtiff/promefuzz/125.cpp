@@ -1,9 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// LogL16toY at tif_luv.c:801:5 in tiffio.h
-// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
-// LogL10toY at tif_luv.c:883:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFReadFromUserBuffer at tif_read.c:1555:5 in tiffio.h
+// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
+// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
+// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
+// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -14,49 +16,67 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
+#include <tiffio.h>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <tiffio.h>
+
+static TIFF* createDummyTIFF() {
+    // Open a dummy TIFF file for reading and writing
+    FILE *file = fopen("./dummy_file", "wb+");
+    if (!file) return nullptr;
+
+    // Close and reopen the file using TIFFOpen to get a TIFF handle
+    fclose(file);
+    return TIFFOpen("./dummy_file", "w+");
+}
 
 extern "C" int LLVMFuzzerTestOneInput_125(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size < 1) return 0;
 
-    // Open a dummy TIFF file to get a valid TIFF pointer
-    TIFF *tiff_dummy = TIFFOpen("./dummy_file", "w");
-    if (!tiff_dummy) {
+    TIFF* tif = createDummyTIFF();
+    if (!tif) return 0;
+
+    // Create buffers for input and output
+    void *inbuf = malloc(Size);
+    void *outbuf = malloc(Size);
+    if (!inbuf || !outbuf) {
+        TIFFClose(tif);
+        free(inbuf);
+        free(outbuf);
         return 0;
     }
 
-    // 1. Fuzz LogL16toY
-    int logL16toY_input = *reinterpret_cast<const int*>(Data);
-    double logL16toY_result = LogL16toY(logL16toY_input);
+    // Copy data to input buffer
+    memcpy(inbuf, Data, Size);
 
-    // 2. Fuzz TIFFIsMSB2LSB
-    int tiffIsMSB2LSB_result = TIFFIsMSB2LSB(tiff_dummy);
+    // Test TIFFReadFromUserBuffer
+    TIFFReadFromUserBuffer(tif, 0, inbuf, static_cast<tmsize_t>(Size), outbuf, static_cast<tmsize_t>(Size));
 
-    // 3. Fuzz TIFFReadBufferSetup
-    void* buffer = nullptr;
-    tmsize_t buffer_size = 1024;
-    if (Size >= sizeof(int) + sizeof(tmsize_t)) {
-        buffer_size = *reinterpret_cast<const tmsize_t*>(Data + sizeof(int));
+    // Test TIFFReadEncodedTile
+    TIFFReadEncodedTile(tif, 0, outbuf, static_cast<tmsize_t>(Size));
+
+    // Test TIFFPrintDirectory
+    FILE *output = fopen("./dummy_output", "w");
+    if (output) {
+        TIFFPrintDirectory(tif, output, 0);
+        fclose(output);
     }
-    int tiffReadBufferSetup_result = TIFFReadBufferSetup(tiff_dummy, buffer, buffer_size);
 
-    // 4. Fuzz LogL10toY
-    int logL10toY_input = logL16toY_input;
-    double logL10toY_result = LogL10toY(logL10toY_input);
+    // Test TIFFWriteEncodedStrip
+    TIFFWriteEncodedStrip(tif, 0, inbuf, static_cast<tmsize_t>(Size));
 
-    // 5. Fuzz LogL16fromY
-    double luminance = static_cast<double>(logL16toY_result);
-    int logL16fromY_result = LogL16fromY(luminance, logL16toY_input);
+    // Test TIFFStripSize
+    TIFFStripSize(tif);
 
-    // 6. Fuzz LogL10fromY
-    int logL10fromY_result = LogL10fromY(luminance, logL10toY_input);
+    // Test TIFFReadEncodedStrip
+    TIFFReadEncodedStrip(tif, 0, outbuf, static_cast<tmsize_t>(Size));
 
     // Cleanup
-    TIFFClose(tiff_dummy);
+    TIFFClose(tif);
+    free(inbuf);
+    free(outbuf);
 
     return 0;
 }

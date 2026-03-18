@@ -1,38 +1,45 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdarg.h>
+#include <cstdint>
+#include <cstdio>
+#include <unistd.h>  // Include for close, mkstemp, and write
+#include <sys/types.h>  // Include for ssize_t
+#include <cstdlib>  // Include for remove
 
 extern "C" {
-    #include <tiffio.h>
-}
-
-// Define a custom error handler function
-void customErrorHandler(void* user_data, const char* module, const char* fmt, va_list ap) {
-    // Custom error handling logic can be added here
-    // For now, we'll just print the error message
-    if (module != NULL) {
-        fprintf(stderr, "%s: ", module);
-    }
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+#include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_203(const uint8_t *data, size_t size) {
-    // Ensure the data is not NULL and has a valid size
-    if (data == NULL || size == 0) {
+    TIFF *tiff = nullptr;
+    uint32_t tag = 0;
+    TIFFDataType dataType = TIFF_NOTYPE;
+
+    // Create a temporary file to store the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Set the custom error handler
-    TIFFErrorHandlerExt previousHandler = TIFFSetErrorHandlerExt(customErrorHandler);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != ssize_t(size)) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
-    // You can now use TIFF functions that may trigger the error handler
-    // For this example, we won't call any specific TIFF functions,
-    // but you can add them here if needed for further testing
+    // Open the temporary file as a TIFF file
+    tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        remove(tmpl);
+        return 0;
+    }
 
-    // Restore the previous error handler if needed
-    TIFFSetErrorHandlerExt(previousHandler);
+    // Fuzz the TIFFFindField function
+    const TIFFField *field = TIFFFindField(tiff, tag, dataType);
+
+    // Clean up
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

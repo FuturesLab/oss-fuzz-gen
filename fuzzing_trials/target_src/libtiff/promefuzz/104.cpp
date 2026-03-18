@@ -1,10 +1,13 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogL16toY at tif_luv.c:801:5 in tiffio.h
-// LogL10toY at tif_luv.c:883:5 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
+// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,49 +17,63 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_104(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size < 4) {
+        return 0; // Not enough data to attempt to open as a TIFF file
+    }
 
-    // Prepare an integer for the LogL16toY and LogL10toY functions
-    int logValue = *reinterpret_cast<const int*>(Data);
+    // Create a dummy file with the input data
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Test LogL16toY
-    double yValue1 = LogL16toY(logValue);
+    // Open the dummy TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) {
+        return 0;
+    }
 
-    // Test LogL10toY
-    double yValue2 = LogL10toY(logValue);
+    // Prepare variables for the functions
+    uint32_t width = 0, height = 0;
+    uint32_t *raster = nullptr;
+    uint32_t row = 0;
+    uint32_t col = 0;
+    uint32_t orientation = ORIENTATION_TOPLEFT;
+    int stop_on_error = 1;
+    uint16_t sample = 0;
+    tmsize_t scanline_size = TIFFScanlineSize(tif);
+    void *scanline_buffer = _TIFFmalloc(scanline_size);
 
-    // Ensure we have enough data for double and additional int
-    if (Size < sizeof(int) + sizeof(double) + sizeof(int)) return 0;
-    double luminanceValue = *reinterpret_cast<const double*>(Data + sizeof(int));
-    int additionalParam = *reinterpret_cast<const int*>(Data + sizeof(int) + sizeof(double));
+    // Fuzz TIFFReadRGBAImageOriented
+    TIFFReadRGBAImageOriented(tif, width, height, raster, orientation, stop_on_error);
 
-    // Test LogL16fromY
-    int logL16Value = LogL16fromY(luminanceValue, additionalParam);
+    // Fuzz TIFFReadRGBAStrip
+    TIFFReadRGBAStrip(tif, row, raster);
 
-    // Test LogL10fromY
-    int logL10Value = LogL10fromY(luminanceValue, additionalParam);
+    // Fuzz TIFFReadRGBATile
+    TIFFReadRGBATile(tif, col, row, raster);
 
-    // Create a dummy TIFF structure for TIFFIsMSB2LSB and TIFFReadBufferSetup
-    TIFF *dummyTiff = TIFFOpen("./dummy_file", "w");
-    if (dummyTiff) {
-        // Test TIFFIsMSB2LSB
-        int isMSB2LSB = TIFFIsMSB2LSB(dummyTiff);
+    // Fuzz TIFFReadScanline
+    if (scanline_buffer) {
+        TIFFReadScanline(tif, scanline_buffer, row, sample);
+        _TIFFfree(scanline_buffer);
+    }
 
-        // Prepare a buffer for TIFFReadBufferSetup
-        void *buffer = nullptr;
-        tmsize_t bufferSize = static_cast<tmsize_t>(Size - sizeof(int) - sizeof(double) - sizeof(int));
+    // Fuzz TIFFReadRGBAImage
+    TIFFReadRGBAImage(tif, width, height, raster, stop_on_error);
 
-        // Test TIFFReadBufferSetup
-        int setupResult = TIFFReadBufferSetup(dummyTiff, buffer, bufferSize);
+    // Fuzz TIFFReadRGBAStripExt
+    TIFFReadRGBAStripExt(tif, row, raster, stop_on_error);
 
-        // Cleanup
-        TIFFClose(dummyTiff);
+    // Cleanup
+    TIFFClose(tif);
+    if (raster) {
+        _TIFFfree(raster);
     }
 
     return 0;

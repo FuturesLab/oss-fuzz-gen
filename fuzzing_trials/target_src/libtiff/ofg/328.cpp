@@ -1,54 +1,32 @@
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdlib>
-#include <cstdio>
-#include <unistd.h>  // For close()
-#include <cstring>   // For memcpy()
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_328(const uint8_t *data, size_t size) {
-    TIFF *tiff;
-    uint32_t strip = 0;
-    tmsize_t result;
-    void *buffer;
-
-    // Create a temporary file to write the TIFF data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb+");
-    if (!file) {
-        close(fd);
+    // Ensure that the size is a multiple of 2 to properly interpret as uint16_t array
+    if (size < sizeof(uint16_t) || size % sizeof(uint16_t) != 0) {
         return 0;
     }
 
-    // Initialize TIFF structure
-    tiff = TIFFOpen(tmpl, "w");
-    if (!tiff) {
-        fclose(file);
+    // Calculate the number of uint16_t elements
+    tmsize_t num_elements = size / sizeof(uint16_t);
+
+    // Allocate memory for the uint16_t array
+    uint16_t *shortArray = static_cast<uint16_t*>(malloc(size));
+    if (shortArray == NULL) {
         return 0;
     }
 
-    // Allocate buffer for TIFF data
-    buffer = malloc(size);
-    if (!buffer) {
-        TIFFClose(tiff);
-        fclose(file);
-        return 0;
+    // Copy the data into the uint16_t array
+    for (tmsize_t i = 0; i < num_elements; ++i) {
+        shortArray[i] = static_cast<uint16_t>(data[i * 2]) | (static_cast<uint16_t>(data[i * 2 + 1]) << 8);
     }
-
-    // Copy data into buffer
-    memcpy(buffer, data, size);
 
     // Call the function-under-test
-    result = TIFFWriteEncodedStrip(tiff, strip, buffer, (tmsize_t)size);
+    TIFFSwabArrayOfShort(shortArray, num_elements);
 
-    // Clean up
-    free(buffer);
-    TIFFClose(tiff);
-    fclose(file);
-    remove(tmpl);
+    // Free the allocated memory
+    free(shortArray);
 
     return 0;
 }

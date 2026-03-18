@@ -1,51 +1,51 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h> // For close()
-#include <cstring>  // For memcpy()
-
 extern "C" {
-#include <tiffio.h>
+    #include <tiffio.h>
+    #include <stdint.h>
+    #include <stdlib.h>
+    #include <string.h>
+    #include <unistd.h> // Include for close function
 }
 
 extern "C" int LLVMFuzzerTestOneInput_350(const uint8_t *data, size_t size) {
+    // Ensure the input data is large enough to extract necessary parameters
     if (size < sizeof(uint32_t)) {
-        return 0; // Not enough data to proceed
+        return 0;
     }
 
-    // Create a temporary file to store the TIFF data
+    // Create a temporary TIFF file in memory
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // Could not create a temporary file
+        return 0;
     }
-    FILE *file = fdopen(fd, "wb");
+    FILE *file = fdopen(fd, "wb+");
     if (!file) {
         close(fd);
-        return 0; // Could not open file descriptor as FILE*
+        return 0;
     }
-
-    // Write the data to the temporary file
     fwrite(data, 1, size, file);
-    fclose(file);
+    fseek(file, 0, SEEK_SET);
 
     // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
-        return 0; // Could not open TIFF file
+    TIFF *tiff = TIFFFdOpen(fd, tmpl, "r+");
+    if (tiff == NULL) {
+        fclose(file);
+        return 0;
     }
 
-    // Extract the tag value from the data
+    // Extract the tag from the input data
     uint32_t tag;
     memcpy(&tag, data, sizeof(uint32_t));
 
-    // Call TIFFSetField with the tag and a dummy value
-    // We use a dummy value of 0 for simplicity
-    int result = TIFFSetField(tiff, tag, 0);
+    // Prepare a dummy value (non-NULL) to pass to TIFFSetField
+    void *value = (void *)(data + sizeof(uint32_t));
+
+    // Call the function-under-test
+    TIFFSetField(tiff, tag, value);
 
     // Clean up
     TIFFClose(tiff);
+    fclose(file);
     remove(tmpl);
 
     return 0;

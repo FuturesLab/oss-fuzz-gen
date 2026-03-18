@@ -1,27 +1,39 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include the necessary header for memcpy
-
-// Assuming the function is defined in an external C library
-extern "C" {
-    int uv_encode(double u, double v, int option);
-}
+#include <tiffio.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_222(const uint8_t *data, size_t size) {
-    if (size < sizeof(double) * 2 + sizeof(int)) {
-        return 0; // Not enough data to extract two doubles and an int
+    // Ensure the data size is sufficient for creating a string
+    if (size < 1) {
+        return 0;
     }
 
-    double u, v;
-    int option;
+    // Create a temporary TIFF file in memory
+    TIFF* tiff = TIFFOpen("temp.tiff", "w");
+    if (tiff == nullptr) {
+        return 0;
+    }
 
-    // Copy bytes from data into u, v, and option
-    memcpy(&u, data, sizeof(double));
-    memcpy(&v, data + sizeof(double), sizeof(double));
-    memcpy(&option, data + sizeof(double) * 2, sizeof(int));
+    // Use the first byte of the data to determine the 'isTiled' parameter
+    int isTiled = data[0] % 2;
 
-    // Call the function under test
-    uv_encode(u, v, option);
+    // Create a null-terminated string from the remaining data
+    size_t str_size = size - 1;
+    char* mode = static_cast<char*>(malloc(str_size + 1));
+    if (mode == nullptr) {
+        TIFFClose(tiff);
+        return 0;
+    }
+    memcpy(mode, data + 1, str_size);
+    mode[str_size] = '\0';
+
+    // Call the function-under-test
+    TIFFWriteCheck(tiff, isTiled, mode);
+
+    // Clean up
+    free(mode);
+    TIFFClose(tiff);
 
     return 0;
 }

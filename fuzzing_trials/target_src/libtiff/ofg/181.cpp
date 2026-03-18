@@ -1,45 +1,59 @@
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <cstdarg>
-#include <tiffio.h>
+#include <unistd.h>  // Include for 'write' and 'close'
+#include <sys/types.h>  // Include for 'ssize_t'
 
 extern "C" {
-    // Include the TIFFWarningExt function from the C library
-    extern void TIFFWarningExt(thandle_t fd, const char *module, const char *fmt, ...);
-}
-
-// A helper function to call TIFFWarningExt with a va_list
-void CallTIFFWarningExt(thandle_t fd, const char *module, const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    TIFFWarningExt(fd, module, fmt, args);
-    va_end(args);
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_181(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for creating meaningful strings
-    if (size < 3) {
+    TIFF *tiff;
+    uint32_t *raster;
+    uint32_t strip = 0;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize variables for the function-under-test
-    thandle_t fd = (thandle_t)1; // Using 1 as a non-NULL placeholder for file descriptor
-    char module[256];
-    char fmt[256];
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
 
-    // Copy data into module and fmt, ensuring null termination
-    size_t module_len = size / 2;
-    size_t fmt_len = size - module_len;
+    // Close the file descriptor
+    close(fd);
 
-    memcpy(module, data, module_len);
-    module[module_len] = '\0';
+    // Open the TIFF file
+    tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        return 0;
+    }
 
-    memcpy(fmt, data + module_len, fmt_len);
-    fmt[fmt_len] = '\0';
+    // Allocate memory for the raster
+    uint32_t width, height;
+    if (TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &width) && TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &height)) {
+        raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
+        if (raster) {
+            // Call the function-under-test
+            TIFFReadRGBAStrip(tiff, strip, raster);
 
-    // Call the function-under-test
-    CallTIFFWarningExt(fd, module, fmt);
+            // Free the raster memory
+            _TIFFfree(raster);
+        }
+    }
+
+    // Close the TIFF file
+    TIFFClose(tiff);
+
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }

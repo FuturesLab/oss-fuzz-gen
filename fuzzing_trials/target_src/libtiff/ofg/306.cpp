@@ -1,46 +1,28 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <tiffio.h>
 
-extern "C" {
-    #include <tiffio.h>
-}
-
 extern "C" int LLVMFuzzerTestOneInput_306(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
+    // Ensure the size is sufficient to create a TIFFCodec
+    if (size < sizeof(TIFFCodec)) {
         return 0;
     }
 
-    // Initialize parameters for TIFFReadRGBAStripExt
-    uint32_t strip = 0;  // Assuming the first strip
-    uint32_t buffer[256];  // Arbitrary buffer size, adjust as needed
-    int stopOnError = 1;  // Example value
+    // Allocate memory for a TIFFCodec
+    TIFFCodec *codec = (TIFFCodec *)malloc(sizeof(TIFFCodec));
+    if (codec == NULL) {
+        return 0;
+    }
+
+    // Initialize the TIFFCodec with data from the fuzzer
+    codec->name = (const char *)data;  // Use the data as the codec name
+    codec->scheme = *(uint16_t *)(data + sizeof(const char *));  // Use part of the data as the scheme
 
     // Call the function-under-test
-    TIFFReadRGBAStripExt(tiff, strip, buffer, stopOnError);
+    TIFFUnRegisterCODEC(codec);
 
-    // Clean up
-    TIFFClose(tiff);
-    remove(tmpl);
+    // Free the allocated memory
+    free(codec);
 
     return 0;
 }

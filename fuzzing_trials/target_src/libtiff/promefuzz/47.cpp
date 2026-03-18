@@ -1,76 +1,47 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
+// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
+// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
+// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
+// TIFFReadGPSDirectory at tif_dirread.c:5564:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFGetMode at tif_open.c:848:5 in tiffio.h
-// TIFFSetMode at tif_open.c:853:5 in tiffio.h
-// TIFFSetFileno at tif_open.c:823:5 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
-// TIFFFileno at tif_open.c:818:5 in tiffio.h
-// TIFFFlush at tif_flush.c:30:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
-#include <cstdint>
-#include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 
-extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
-        return 0;
-    }
-
-    // Create a dummy TIFF object
-    TIFF *tif = TIFFOpen("./dummy_file", "w+");
-    if (!tif) {
-        return 0;
-    }
-
-    // Write the input data to the dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        TIFFClose(tif);
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
+static TIFF* createDummyTIFF() {
+    FILE* file = fopen("./dummy_file", "wb+");
+    if (!file) return nullptr;
     fclose(file);
 
-    // Set up a buffer for TIFFReadBufferSetup
-    uint8_t buffer[1024];
-    memset(buffer, 0, sizeof(buffer));
+    TIFF* tif = TIFFOpen("./dummy_file", "r+");
+    return tif;
+}
 
-    // Use the first part of the data as mode and file descriptor
-    int mode = *(reinterpret_cast<const int*>(Data));
-    int fd = mode; // Just reuse mode for fd for simplicity
+extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(toff_t)) return 0;
 
-    // Invoke TIFFGetMode
-    int currentMode = TIFFGetMode(tif);
+    TIFF* tif = createDummyTIFF();
+    if (!tif) return 0;
 
-    // Invoke TIFFSetMode
-    int previousMode = TIFFSetMode(tif, mode);
+    // Fuzz TIFFCreateEXIFDirectory
+    TIFFCreateEXIFDirectory(tif);
 
-    // Invoke TIFFSetFileno
-    int oldFd = TIFFSetFileno(tif, fd);
+    // Fuzz TIFFCreateCustomDirectory
+    // Since we don't have a complete definition for TIFFFieldArray, we skip this
 
-    // Invoke TIFFReadBufferSetup
-    TIFFReadBufferSetup(tif, buffer, sizeof(buffer));
+    // Fuzz TIFFCreateGPSDirectory
+    TIFFCreateGPSDirectory(tif);
 
-    // Invoke TIFFFileno
-    int fileDescriptor = TIFFFileno(tif);
+    // Fuzz TIFFReadEXIFDirectory
+    toff_t diroff = *reinterpret_cast<const toff_t*>(Data);
+    TIFFReadEXIFDirectory(tif, diroff);
 
-    // Invoke TIFFFlush
-    TIFFFlush(tif);
+    // Fuzz TIFFReadCustomDirectory
+    // Since we don't have a complete definition for TIFFFieldArray, we skip this
 
-    // Clean up
+    // Fuzz TIFFReadGPSDirectory
+    TIFFReadGPSDirectory(tif, diroff);
+
     TIFFClose(tif);
-
     return 0;
 }

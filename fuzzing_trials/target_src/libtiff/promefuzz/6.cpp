@@ -1,14 +1,15 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
 // TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
 // TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
-// TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
-// TIFFTileSize64 at tif_tile.c:249:10 in tiffio.h
-// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
-// TIFFScanlineSize64 at tif_strip.c:257:10 in tiffio.h
-// TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFGetSeekProc at tif_open.c:927:14 in tiffio.h
+// TIFFIsByteSwapped at tif_open.c:889:5 in tiffio.h
+// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFGetWriteProc at tif_open.c:922:19 in tiffio.h
+// TIFFNumberOfDirectories at tif_dir.c:2042:8 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -25,71 +26,40 @@
 #include <cstdlib>
 #include <cstring>
 
+static TIFF* initialize_tiff(const uint8_t* Data, size_t Size) {
+    FILE* file = std::fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    std::fwrite(Data, 1, Size, file);
+    std::fclose(file);
+
+    TIFF* tiff = TIFFOpen("./dummy_file", "r+");
+    return tiff;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) {
-        return 0;
-    }
+    if (Size < sizeof(tdir_t) * 3 + sizeof(uint32_t)) return 0;
 
-    // Create a dummy file to simulate reading from a TIFF file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    TIFF* tiff = initialize_tiff(Data, Size);
+    if (!tiff) return 0;
 
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        return 0;
-    }
+    tdir_t dir1 = *reinterpret_cast<const tdir_t*>(Data);
+    tdir_t dir2 = *reinterpret_cast<const tdir_t*>(Data + sizeof(tdir_t));
+    tdir_t dir3 = *reinterpret_cast<const tdir_t*>(Data + 2 * sizeof(tdir_t));
+    uint32_t longValue = *reinterpret_cast<const uint32_t*>(Data + 3 * sizeof(tdir_t));
 
-    // Prepare a directory number from the input data
-    tdir_t dirNumber = *reinterpret_cast<const uint32_t *>(Data);
+    TIFFSetDirectory(tiff, dir1);
+    TIFFSetDirectory(tiff, dir2);
+    TIFFCurrentDirOffset(tiff);
+    TIFFGetSeekProc(tiff);
+    TIFFIsByteSwapped(tiff);
+    TIFFSwabLong(&longValue);
+    TIFFGetWriteProc(tiff);
+    TIFFNumberOfDirectories(tiff);
+    TIFFSetDirectory(tiff, dir3);
+    TIFFSetDirectory(tiff, dir1);
 
-    // Test TIFFSetDirectory
-    TIFFSetDirectory(tif, dirNumber);
-
-    // Test TIFFCurrentDirOffset
-    TIFFCurrentDirOffset(tif);
-
-    // Test TIFFNumberOfTiles
-    uint32_t numberOfTiles = TIFFNumberOfTiles(tif);
-
-    // Test TIFFTileSize64
-    uint64_t tileSize = TIFFTileSize64(tif);
-
-    // Allocate buffer for reading tiles
-    void *tileBuffer = malloc(tileSize);
-    if (tileBuffer) {
-        // Test TIFFReadEncodedTile
-        for (uint32_t tile = 0; tile < numberOfTiles; ++tile) {
-            TIFFReadEncodedTile(tif, tile, tileBuffer, tileSize);
-        }
-        free(tileBuffer);
-    }
-
-    // Test TIFFScanlineSize64
-    uint64_t scanlineSize = TIFFScanlineSize64(tif);
-
-    // Allocate buffer for reading scanlines
-    void *scanlineBuffer = malloc(scanlineSize);
-    if (scanlineBuffer) {
-        // Test TIFFReadScanline
-        for (uint32_t row = 0; row < TIFFNumberOfTiles(tif); ++row) {
-            TIFFReadScanline(tif, scanlineBuffer, row, 0);
-        }
-        free(scanlineBuffer);
-    }
-
-    // Test TIFFClose
-    TIFFClose(tif);
-
-    // Open the TIFF file again to test TIFFClose twice
-    tif = TIFFOpen("./dummy_file", "r");
-    if (tif) {
-        TIFFClose(tif);
-    }
+    TIFFClose(tiff);
+    tiff = nullptr; // Prevent further operations on freed memory
 
     return 0;
 }

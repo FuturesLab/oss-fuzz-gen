@@ -1,49 +1,28 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdlib>
-#include <cstdio>
-#include <cstring>
-#include <unistd.h> // Include for close() and remove()
+#include <cstddef>
+
+extern "C" {
+    void XYZtoRGB24(float *xyz, uint8_t *rgb);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_271(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data to
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
+    // Ensure the input data is large enough to populate the xyz array
+    if (size < 3 * sizeof(float)) {
         return 0;
     }
 
-    // Prepare parameters for TIFFReadEncodedStrip
-    uint32_t strip = 0; // Assuming we want to read the first strip
-    tmsize_t buffer_size = 1024; // Arbitrary buffer size
-    void *buffer = malloc(buffer_size);
-    if (!buffer) {
-        TIFFClose(tiff);
-        remove(tmpl);
-        return 0;
+    float xyz[3];
+    uint8_t rgb[3];
+
+    // Populate the xyz array with values from the input data
+    for (int i = 0; i < 3; ++i) {
+        // Convert 4 bytes from data into a float value
+        uint32_t temp = (data[i * 4] << 24) | (data[i * 4 + 1] << 16) | (data[i * 4 + 2] << 8) | data[i * 4 + 3];
+        xyz[i] = *reinterpret_cast<float*>(&temp);
     }
 
     // Call the function-under-test
-    TIFFReadEncodedStrip(tiff, strip, buffer, buffer_size);
-
-    // Clean up
-    free(buffer);
-    TIFFClose(tiff);
-    remove(tmpl);
+    XYZtoRGB24(xyz, rgb);
 
     return 0;
 }

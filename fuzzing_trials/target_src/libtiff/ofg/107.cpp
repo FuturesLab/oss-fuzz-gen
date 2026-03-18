@@ -1,41 +1,46 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 extern "C" {
-    // Declare the function-under-test
-    TIFFCodec * TIFFRegisterCODEC(uint16_t scheme, const char *name, int (*init)(TIFF*, int));
-}
-
-// Dummy initialization method for the codec
-int DummyTIFFInitMethod(TIFF *tiff, int value) {
-    // This is a stub function for testing purposes
-    return 1; // Return success
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for our needs
-    if (size < 3) return 0; // Need at least 3 bytes for scheme and name
+    TIFF *tiff = nullptr;
+    TIFFUnmapFileProc unmapFileProc;
 
-    // Extract a 16-bit scheme value from the input data
-    uint16_t scheme = (data[0] << 8) | data[1];
+    // Create a temporary file to simulate a TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Extract a name from the input data
-    const char *name = reinterpret_cast<const char*>(data + 2);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
 
-    // Ensure the name is null-terminated
-    size_t name_length = strnlen(name, size - 2);
-    char *name_copy = static_cast<char*>(malloc(name_length + 1));
-    if (name_copy == nullptr) return 0; // Allocation failed
-    memcpy(name_copy, name, name_length);
-    name_copy[name_length] = '\0';
+    // Open the temporary file with TIFFOpen
+    tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        unlink(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    TIFFCodec *codec = TIFFRegisterCODEC(scheme, name_copy, DummyTIFFInitMethod);
+    unmapFileProc = TIFFGetUnmapFileProc(tiff);
 
     // Clean up
-    free(name_copy);
+    TIFFClose(tiff);
+    unlink(tmpl);
 
     return 0;
 }

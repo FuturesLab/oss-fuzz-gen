@@ -1,42 +1,28 @@
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib> // For mkstemp and close
-#include <unistd.h> // For mkstemp and close
+#include <cstddef>
+#include <cstring>  // Include for std::memcpy
 
 extern "C" {
-    #include <tiffio.h>
+    // Function-under-test declaration
+    int uv_encode(double u, double v, int flag);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_223(const uint8_t *data, size_t size) {
-    // Temporary file creation
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    if (size < sizeof(double) * 2 + sizeof(int)) {
+        return 0;  // Not enough data to extract two doubles and an int
     }
-
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r+");
-    if (tiff == nullptr) {
-        remove(tmpl);
-        return 0;
-    }
-
+    
+    // Extract two doubles and an int from the input data
+    double u, v;
+    int flag;
+    
+    // Copy data into the variables
+    std::memcpy(&u, data, sizeof(double));
+    std::memcpy(&v, data + sizeof(double), sizeof(double));
+    std::memcpy(&flag, data + sizeof(double) * 2, sizeof(int));
+    
     // Call the function-under-test
-    TIFFFlushData(tiff);
-
-    // Clean up
-    TIFFClose(tiff);
-    remove(tmpl);
-
+    uv_encode(u, v, flag);
+    
     return 0;
 }

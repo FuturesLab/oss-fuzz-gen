@@ -1,49 +1,53 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>  // For close()
+#include <string.h>  // For memcpy()
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_202(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to create a dummy TIFF structure
-    // Since we cannot determine the size of TIFF, we will not use sizeof(TIFF)
-    // Instead, we will rely on the function that can handle a TIFF* pointer
+    TIFF *tiff;
+    void *buf;
+    uint32_t row;
+    uint16_t sample;
 
-    // Use TIFFClientOpen to read from the data buffer
-    TIFF* memTiff = TIFFClientOpen("mem", "r", (thandle_t)data,
-                                   [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t {
-                                       memcpy(buf, (void*)fd, size);
-                                       return size;
-                                   },
-                                   [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t {
-                                       return 0;
-                                   },
-                                   [](thandle_t fd, toff_t off, int whence) -> toff_t {
-                                       return 0;
-                                   },
-                                   [](thandle_t fd) -> int {
-                                       return 0;
-                                   },
-                                   [](thandle_t fd) -> toff_t {
-                                       return 0;
-                                   },
-                                   [](thandle_t fd, void** pbase, toff_t* psize) -> int {
-                                       return 0;
-                                   },
-                                   [](thandle_t fd, void* base, toff_t size) -> void {
-                                   });
+    // Create a temporary TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    close(fd);
 
-    if (memTiff == nullptr) {
+    // Open the TIFF file
+    tiff = TIFFOpen(tmpl, "w");
+    if (tiff == NULL) {
         return 0;
     }
 
+    // Initialize buffer with non-NULL data
+    buf = malloc(size > 0 ? size : 1);
+    if (buf == NULL) {
+        TIFFClose(tiff);
+        return 0;
+    }
+    memcpy(buf, data, size > 0 ? size : 1);
+
+    // Set row and sample to non-zero values
+    row = size > 0 ? data[0] : 1;
+    sample = size > 1 ? data[1] : 1;
+
     // Call the function-under-test
-    tmsize_t rowSize = TIFFTileRowSize(memTiff);
+    TIFFWriteScanline(tiff, buf, row, sample);
 
     // Clean up
-    TIFFClose(memTiff);
+    free(buf);
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

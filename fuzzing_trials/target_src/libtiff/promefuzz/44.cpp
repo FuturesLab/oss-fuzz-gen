@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
-// TIFFSetMode at tif_open.c:853:5 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
-// TIFFFileno at tif_open.c:818:5 in tiffio.h
-// TIFFFlush at tif_flush.c:30:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFSetErrorHandlerExt at tif_error.c:39:21 in tiffio.h
+// TIFFSetWarningHandlerExt at tif_warning.c:39:21 in tiffio.h
+// TIFFErrorExt at tif_error.c:63:6 in tiffio.h
+// TIFFWarning at tif_warning.c:46:6 in tiffio.h
+// TIFFWarningExtR at tif_warning.c:80:6 in tiffio.h
+// TIFFError at tif_error.c:46:6 in tiffio.h
+// TIFFErrorExtR at tif_error.c:107:6 in tiffio.h
+// TIFFWarningExt at tif_warning.c:63:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,56 +16,66 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
-#include <cstddef>
 #include <cstdint>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fcntl.h>
-#include <unistd.h>
+#include "tiffio.h"
+
+// Dummy error handler that matches the required signature
+static void DummyErrorHandler(void* user_data, const char* module, const char* fmt, va_list ap) {
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+}
+
+// Dummy warning handler that matches the required signature
+static void DummyWarningHandler(void* user_data, const char* module, const char* fmt, va_list ap) {
+    vfprintf(stdout, fmt, ap);
+    fprintf(stdout, "\n");
+}
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Prepare a dummy TIFF object pointer
+    TIFF* dummyTIFF = nullptr;
 
-    // Create a dummy file
-    const char *filename = "./dummy_file";
-    FILE *file = fopen(filename, "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Open the file descriptor
-    int fd = open(filename, O_RDWR);
-    if (fd < 0) return 0;
-
-    // Attempt to open a TIFF file using the file descriptor
-    TIFF *tif = TIFFFdOpen(fd, filename, "r+");
-    if (!tif) {
-        close(fd);
+    // Prepare a dummy file for the thandle_t
+    FILE* dummyFile = fopen("./dummy_file", "wb+");
+    if (!dummyFile) {
         return 0;
     }
 
-    // Fuzz TIFFSetMode
-    int mode = Data[0] % 3; // Randomly choose a mode
-    int prev_mode = TIFFSetMode(tif, mode);
+    // Write the data to the dummy file
+    fwrite(Data, 1, Size, dummyFile);
+    fseek(dummyFile, 0, SEEK_SET);
 
-    // Prepare a buffer for TIFFReadBufferSetup
-    size_t buffer_size = (Size > 1024) ? 1024 : Size; // Limit buffer size
-    void *buffer = malloc(buffer_size);
-    if (buffer) {
-        TIFFReadBufferSetup(tif, buffer, buffer_size);
-        free(buffer);
-    }
+    // Cast FILE* to thandle_t
+    thandle_t dummyHandle = static_cast<thandle_t>(dummyFile);
 
-    // Retrieve file descriptor using TIFFFileno
-    int file_no = TIFFFileno(tif);
+    // Set the error and warning handlers
+    TIFFSetErrorHandlerExt(DummyErrorHandler);
+    TIFFSetWarningHandlerExt(DummyWarningHandler);
 
-    // Fuzz TIFFFlush
-    TIFFFlush(tif);
+    // Fuzz TIFFErrorExt
+    TIFFErrorExt(dummyHandle, "FuzzModule", "Error occurred: %s", "dummy error");
 
-    // Clean up
-    TIFFClose(tif);
-    close(fd);
+    // Fuzz TIFFWarning
+    TIFFWarning("FuzzModule", "Warning occurred: %d", 42);
+
+    // Fuzz TIFFWarningExtR
+    TIFFWarningExtR(dummyTIFF, "FuzzModule", "Extended warning: %f", 3.14);
+
+    // Fuzz TIFFError
+    TIFFError("FuzzModule", "Error message: %s", "another error");
+
+    // Fuzz TIFFErrorExtR
+    TIFFErrorExtR(dummyTIFF, "FuzzModule", "Extended error: %s", "yet another error");
+
+    // Fuzz TIFFWarningExt
+    TIFFWarningExt(dummyHandle, "FuzzModule", "Extended warning: %s", "a warning");
+
+    // Cleanup
+    fclose(dummyFile);
+
     return 0;
 }

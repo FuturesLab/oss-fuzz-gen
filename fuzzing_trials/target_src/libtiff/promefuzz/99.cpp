@@ -1,119 +1,89 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFWarningExt at tif_warning.c:63:6 in tiffio.h
-// TIFFErrorExt at tif_error.c:63:6 in tiffio.h
-// TIFFError at tif_error.c:46:6 in tiffio.h
-// TIFFErrorExtR at tif_error.c:107:6 in tiffio.h
-// TIFFWarningExtR at tif_warning.c:80:6 in tiffio.h
-// TIFFWarning at tif_warning.c:46:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
+// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
+// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
+// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <cstring>
+#include <cstdlib>
+#include <cstdio>
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdarg>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
-static void fuzz_TIFFWarningExt(thandle_t handle, const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    const char *module = reinterpret_cast<const char*>(Data);
-    const char *fmt = reinterpret_cast<const char*>(Data + 1);
-
-    // Ensure null-termination to prevent buffer overflow
-    std::string moduleStr(module, strnlen(module, Size - 1));
-    std::string fmtStr(fmt, strnlen(fmt, Size - 1));
-
-    // Validate format string
-    if (!moduleStr.empty() && !fmtStr.empty() && fmtStr.find('%') == std::string::npos) {
-        TIFFWarningExt(handle, moduleStr.c_str(), fmtStr.c_str());
-    }
-}
-
-static void fuzz_TIFFErrorExt(thandle_t handle, const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    const char *module = reinterpret_cast<const char*>(Data);
-    const char *fmt = reinterpret_cast<const char*>(Data + 1);
-
-    // Ensure null-termination to prevent buffer overflow
-    std::string moduleStr(module, strnlen(module, Size - 1));
-    std::string fmtStr(fmt, strnlen(fmt, Size - 1));
-
-    // Validate format string
-    if (!moduleStr.empty() && !fmtStr.empty() && fmtStr.find('%') == std::string::npos) {
-        TIFFErrorExt(handle, moduleStr.c_str(), fmtStr.c_str());
-    }
-}
-
-static void fuzz_TIFFError(const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    const char *module = reinterpret_cast<const char*>(Data);
-    const char *fmt = reinterpret_cast<const char*>(Data + 1);
-
-    // Ensure null-termination to prevent buffer overflow
-    std::string moduleStr(module, strnlen(module, Size - 1));
-    std::string fmtStr(fmt, strnlen(fmt, Size - 1));
-
-    // Validate format string
-    if (!moduleStr.empty() && !fmtStr.empty() && fmtStr.find('%') == std::string::npos) {
-        TIFFError(moduleStr.c_str(), fmtStr.c_str());
-    }
-}
-
-static void fuzz_TIFFErrorExtR(TIFF *tif, const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    const char *module = reinterpret_cast<const char*>(Data);
-    const char *fmt = reinterpret_cast<const char*>(Data + 1);
-
-    // Ensure null-termination to prevent buffer overflow
-    std::string moduleStr(module, strnlen(module, Size - 1));
-    std::string fmtStr(fmt, strnlen(fmt, Size - 1));
-
-    // Validate format string
-    if (!moduleStr.empty() && !fmtStr.empty() && fmtStr.find('%') == std::string::npos) {
-        TIFFErrorExtR(tif, moduleStr.c_str(), fmtStr.c_str());
-    }
-}
-
-static void fuzz_TIFFWarningExtR(TIFF *tif, const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    const char *module = reinterpret_cast<const char*>(Data);
-    const char *fmt = reinterpret_cast<const char*>(Data + 1);
-
-    // Ensure null-termination to prevent buffer overflow
-    std::string moduleStr(module, strnlen(module, Size - 1));
-    std::string fmtStr(fmt, strnlen(fmt, Size - 1));
-
-    // Validate format string
-    if (!moduleStr.empty() && !fmtStr.empty() && fmtStr.find('%') == std::string::npos) {
-        TIFFWarningExtR(tif, moduleStr.c_str(), fmtStr.c_str());
-    }
-}
-
-static void fuzz_TIFFWarning(const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    const char *module = reinterpret_cast<const char*>(Data);
-    const char *fmt = reinterpret_cast<const char*>(Data + 1);
-
-    // Ensure null-termination to prevent buffer overflow
-    std::string moduleStr(module, strnlen(module, Size - 1));
-    std::string fmtStr(fmt, strnlen(fmt, Size - 1));
-
-    // Validate format string
-    if (!moduleStr.empty() && !fmtStr.empty() && fmtStr.find('%') == std::string::npos) {
-        TIFFWarning(moduleStr.c_str(), fmtStr.c_str());
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_99(const uint8_t *Data, size_t Size) {
-    thandle_t handle = nullptr;
-    TIFF *tif = nullptr;
+    if (Size < 4) return 0; // Ensure there's enough data
 
-    fuzz_TIFFWarningExt(handle, Data, Size);
-    fuzz_TIFFErrorExt(handle, Data, Size);
-    fuzz_TIFFError(Data, Size);
-    fuzz_TIFFErrorExtR(tif, Data, Size);
-    fuzz_TIFFWarningExtR(tif, Data, Size);
-    fuzz_TIFFWarning(Data, Size);
+    writeDummyFile(Data, Size);
 
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) return 0;
+
+    uint32_t width = 0, height = 0;
+    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
+    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+
+    if (width == 0 || height == 0) {
+        TIFFClose(tif);
+        return 0;
+    }
+
+    uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
+    if (!raster) {
+        TIFFClose(tif);
+        return 0;
+    }
+
+    // Test TIFFReadRGBAImageOriented
+    TIFFReadRGBAImageOriented(tif, width, height, raster, ORIENTATION_TOPLEFT, 0);
+
+    // Test TIFFReadRGBAStrip
+    if (TIFFIsTiled(tif) == 0) {
+        TIFFReadRGBAStrip(tif, 0, raster);
+    }
+
+    // Test TIFFReadRGBATile
+    if (TIFFIsTiled(tif)) {
+        TIFFReadRGBATile(tif, 0, 0, raster);
+    }
+
+    // Test TIFFReadScanline
+    TIFFReadScanline(tif, raster, 0, 0);
+
+    // Test TIFFReadRGBAImage
+    TIFFReadRGBAImage(tif, width, height, raster, 0);
+
+    // Test TIFFReadRGBAStripExt
+    if (TIFFIsTiled(tif) == 0) {
+        TIFFReadRGBAStripExt(tif, 0, raster, 0);
+    }
+
+    _TIFFfree(raster);
+    TIFFClose(tif);
     return 0;
 }

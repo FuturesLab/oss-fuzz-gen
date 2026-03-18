@@ -1,36 +1,26 @@
 #include <cstdint>
-#include <cstdlib>
-#include <cstdarg>  // Include for va_list
-#include <tiffio.h>
+#include <cstddef>
+#include <cmath>
+#include <cstring> // Include for memcpy
 
-extern "C" {
-    // Function signature for the function-under-test
-    void TIFFOpenOptionsSetWarningHandlerExtR(TIFFOpenOptions *, TIFFErrorHandlerExtR, void *);
-    TIFFOpenOptions* TIFFOpenOptionsAlloc();
-    void TIFFOpenOptionsFree(TIFFOpenOptions *);
-}
-
-// Corrected warning handler function signature to match TIFFErrorHandlerExtR
-int dummyWarningHandler(struct tiff *tif, void *clientData, const char* module, const char* fmt, va_list ap) {
-    // Simply ignore the warning for this test
-    return 0;
-}
+// Function under test
+extern "C" int LogL16fromY(double y, int x);
 
 extern "C" int LLVMFuzzerTestOneInput_249(const uint8_t *data, size_t size) {
-    // Initialize the TIFFOpenOptions structure
-    TIFFOpenOptions *openOptions = TIFFOpenOptionsAlloc();
-    if (openOptions == NULL) {
-        return 0; // If allocation fails, return early
+    if (size < sizeof(double) + sizeof(int)) {
+        return 0; // Not enough data to form valid inputs
     }
 
-    // Use the first byte of data to determine a value for the third parameter
-    void *dummyData = (void *)(uintptr_t)(size > 0 ? data[0] : 1);
+    // Extract a double and an int from the input data
+    double y;
+    int x;
 
-    // Call the function-under-test
-    TIFFOpenOptionsSetWarningHandlerExtR(openOptions, dummyWarningHandler, dummyData);
+    // Copy the data into the variables
+    memcpy(&y, data, sizeof(double));
+    memcpy(&x, data + sizeof(double), sizeof(int));
 
-    // Clean up
-    TIFFOpenOptionsFree(openOptions);
+    // Call the function under test
+    LogL16fromY(y, x);
 
     return 0;
 }

@@ -1,29 +1,28 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 #include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    if (size < sizeof(TIFFFieldInfo)) {
-        return 0; // Not enough data to proceed
+    TIFF *tiff = TIFFOpen("temp.tiff", "w");
+    if (tiff == NULL) {
+        return 0;
     }
 
-    // Initialize TIFF structure
-    TIFF *tiff = TIFFOpen("/dev/null", "w");
-    if (tiff == nullptr) {
-        return 0; // Failed to open TIFF
-    }
+    TIFFFieldInfo fieldInfo;
+    fieldInfo.field_tag = 0;
+    fieldInfo.field_readcount = TIFF_VARIABLE;
+    fieldInfo.field_writecount = TIFF_VARIABLE;
+    fieldInfo.field_type = TIFF_BYTE;
+    fieldInfo.field_bit = 0;
+    fieldInfo.field_oktochange = 1;
+    fieldInfo.field_passcount = 0;
+    fieldInfo.field_name = "TestField";
 
-    // Cast data to TIFFFieldInfo
-    const TIFFFieldInfo *fieldInfo = reinterpret_cast<const TIFFFieldInfo *>(data);
-
-    // Ensure there's enough data for at least one TIFFFieldInfo element
-    uint32_t fieldInfoCount = size / sizeof(TIFFFieldInfo);
+    uint32_t fieldInfoCount = 1;
 
     // Call the function-under-test
-    TIFFMergeFieldInfo(tiff, fieldInfo, fieldInfoCount);
+    TIFFMergeFieldInfo(tiff, &fieldInfo, fieldInfoCount);
 
-    // Cleanup
     TIFFClose(tiff);
-
     return 0;
 }

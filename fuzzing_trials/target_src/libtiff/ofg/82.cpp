@@ -1,10 +1,37 @@
 #include <cstdint>
-#include <tiffio.h>
+#include <cstring> // Include the header for memcpy
+
+extern "C" {
+    #include <tiffio.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    // Initialize TIFF structure
-    TIFF *tiff = TIFFOpen("/tmp/test.tiff", "w");
-    if (tiff == nullptr) {
+    // Ensure the size is sufficient to perform meaningful operations
+    if (size == 0) {
+        return 0;
+    }
+
+    // Open a memory buffer as a TIFF file
+    TIFF* tiff = TIFFClientOpen("memory", "r", (thandle_t)data,
+                                [](thandle_t fd, void* buf, tsize_t size) -> tsize_t {
+                                    memcpy(buf, (void*)fd, size);
+                                    return size;
+                                },
+                                [](thandle_t fd, void* buf, tsize_t size) -> tsize_t {
+                                    return size;
+                                },
+                                [](thandle_t fd, toff_t off, int whence) -> toff_t {
+                                    return off;
+                                },
+                                [](thandle_t fd) -> int {
+                                    return 0;
+                                },
+                                [](thandle_t fd) -> toff_t {
+                                    return 0;
+                                },
+                                nullptr, nullptr);
+
+    if (!tiff) {
         return 0;
     }
 
@@ -15,8 +42,11 @@ extern "C" int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
     // Call the function-under-test
     TIFFDefaultTileSize(tiff, &width, &height);
 
-    // Clean up
+    // Close the TIFF file
     TIFFClose(tiff);
+
+    // The function does not return a value, so there's no result to check
+    // Additional checks or operations can be added here if needed
 
     return 0;
 }

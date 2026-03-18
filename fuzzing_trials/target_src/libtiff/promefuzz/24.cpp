@@ -1,10 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetClientdata at tif_open.c:838:11 in tiffio.h
-// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
-// TIFFClientdata at tif_open.c:833:11 in tiffio.h
-// TIFFSetClientInfo at tif_extension.c:78:6 in tiffio.h
-// TIFFGetClientInfo at tif_extension.c:64:7 in tiffio.h
+// TIFFSetTagExtender at tif_dir.c:1685:16 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFSetTagExtender at tif_dir.c:1685:16 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -17,42 +18,44 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstring>
+#include <cstddef>
 #include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Create a dummy file to be used with TIFFOpen
+    const char *dummyFileName = "./dummy_file";
+    FILE *dummyFile = fopen(dummyFileName, "wb");
+    if (!dummyFile) {
+        return 0;
+    }
 
-    // Write the input data to a dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Write the fuzzing data to the dummy file
+    if (fwrite(Data, 1, Size, dummyFile) != Size) {
+        fclose(dummyFile);
+        return 0;
+    }
+    fclose(dummyFile);
 
-    // Open the dummy file as a TIFF
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) return 0;
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(dummyFileName, "r");
+    if (!tif) {
+        return 0;
+    }
 
-    // Prepare some dummy client data
-    thandle_t clientData = (thandle_t)Data;
-    const char *fieldName = "DummyField";
+    // Set a custom tag extender
+    TIFFExtendProc prevExtender = TIFFSetTagExtender(nullptr);
 
-    // Fuzz TIFFSetClientdata
-    thandle_t oldClientData = TIFFSetClientdata(tif, clientData);
+    // Attempt to get various fields from the TIFF
+    uint32_t tag = 0;
+    int result = TIFFGetField(tif, tag);
+    result = TIFFGetField(tif, tag);
+    result = TIFFGetField(tif, tag);
+    result = TIFFGetField(tif, tag);
 
-    // Fuzz TIFFFieldWithName
-    const TIFFField *field = TIFFFieldWithName(tif, fieldName);
+    // Restore the previous tag extender
+    TIFFSetTagExtender(prevExtender);
 
-    // Fuzz TIFFClientdata
-    thandle_t retrievedClientData = TIFFClientdata(tif);
-
-    // Fuzz TIFFSetClientInfo
-    TIFFSetClientInfo(tif, (void *)Data, fieldName);
-
-    // Fuzz TIFFGetClientInfo
-    void *clientInfo = TIFFGetClientInfo(tif, fieldName);
-
-    // Cleanup
+    // Close the TIFF file
     TIFFClose(tif);
 
     return 0;

@@ -1,37 +1,52 @@
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdlib>
-#include <unistd.h>  // Include for close() and unlink()
-#include <tiffio.h>
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <cstdio>
+#include <cstring>
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Initialize TIFF structure
-    TIFF *tiff;
-    uint64_t dir_offset = 0;
-
-    // Create a temporary file to act as a TIFF file
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // Could not create a temporary file
+        return 0;
     }
 
-    // Open the temporary file as a TIFF file
-    tiff = TIFFFdOpen(fd, tmpl, "w");
-    if (!tiff) {
+    // Write data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
-        return 0; // Could not open the file as a TIFF
+        unlink(tmpl);
+        return 0;
     }
+    close(fd);
+
+    // Open the temporary file with libtiff
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Prepare parameters for TIFFReadTile
+    void *buf = malloc(TIFFTileSize(tiff));
+    if (!buf) {
+        TIFFClose(tiff);
+        unlink(tmpl);
+        return 0;
+    }
+
+    uint32_t x = 0;
+    uint32_t y = 0;
+    uint32_t z = 0;
+    uint16_t sample = 0;
 
     // Call the function-under-test
-    TIFFWriteCustomDirectory(tiff, &dir_offset);
+    TIFFReadTile(tiff, buf, x, y, z, sample);
 
     // Clean up
+    free(buf);
     TIFFClose(tiff);
-    close(fd);
     unlink(tmpl);
 
     return 0;

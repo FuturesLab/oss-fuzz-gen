@@ -1,33 +1,27 @@
 #include <cstdint>
-#include <cstdlib>
-#include <tiffio.h>  // Include the TIFF library headers
-
-extern "C" {
-    // Function signature from the TIFF library
-    void _TIFFmemset(void *s, int c, tmsize_t n);
-}
+#include <cstddef>
+#include <tiffio.h>  // Ensure that libtiff is installed and properly linked
 
 extern "C" int LLVMFuzzerTestOneInput_343(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to use for the function parameters
-    if (size < sizeof(int) + sizeof(tmsize_t)) {
+    // Ensure the size is sufficient to perform meaningful operations
+    if (size < 1) {
         return 0;
     }
 
-    // Allocate memory for the buffer to be set
-    tmsize_t bufferSize = static_cast<tmsize_t>(size);
-    void *buffer = malloc(bufferSize);
+    // Allocate a buffer of the same size as the input data
+    void *buffer = _TIFFmalloc(size);
     if (buffer == nullptr) {
-        return 0; // Exit if memory allocation fails
+        return 0;
     }
 
-    // Extract an int value from the data
-    int c = static_cast<int>(data[0]);
+    // Use the first byte of data as the value to set in the memory
+    int value = static_cast<int>(data[0]);
 
     // Call the function-under-test
-    _TIFFmemset(buffer, c, bufferSize);
+    _TIFFmemset(buffer, value, static_cast<tmsize_t>(size));
 
     // Free the allocated memory
-    free(buffer);
+    _TIFFfree(buffer);
 
     return 0;
 }
