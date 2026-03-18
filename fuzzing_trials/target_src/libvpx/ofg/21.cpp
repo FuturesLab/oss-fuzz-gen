@@ -1,54 +1,37 @@
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <cstdio> // Include for 'stderr'
-
-extern "C" {
-    #include <vpx/vpx_decoder.h>
-    #include <vpx/vp8dx.h>
-}
+#include <vpx/vpx_decoder.h>
+#include <vpx/vp8dx.h>
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    if (size < 10) { // Ensure minimum size for a valid VP8 frame
-        return 0;
+    if (size == 0) {
+        return 0; // No data to decode
     }
 
     vpx_codec_ctx_t codec;
     vpx_codec_err_t res;
     vpx_codec_iface_t *iface = vpx_codec_vp8_dx(); // Use VP8 decoder interface
+    void *user_priv = reinterpret_cast<void*>(0x1); // Non-NULL user data
+    long deadline = 0; // Set to 0 for real-time decoding
 
-    // Initialize the codec context
-    res = vpx_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != VPX_CODEC_OK) {
-        return 0;
+    // Initialize codec context
+    if (vpx_codec_dec_init(&codec, iface, nullptr, 0)) {
+        return 0; // Initialization failed, exit
     }
 
-    // Ensure the size is within a reasonable range
-    unsigned int data_size = static_cast<unsigned int>(size);
+    // Decode the input data
+    res = vpx_codec_decode(&codec, data, static_cast<unsigned int>(size), user_priv, deadline);
+    if (res != VPX_CODEC_OK) {
+        vpx_codec_destroy(&codec);
+        return 0; // Decoding failed, exit
+    }
 
-    // Call the function under test
-    vpx_codec_err_t decode_res = vpx_codec_decode(&codec, data, data_size, NULL, 0);
-
-    // Check if decoding was successful
-    if (decode_res == VPX_CODEC_OK) {
-        // Retrieve frame information
-        vpx_codec_iter_t iter = NULL;
-        vpx_image_t *img;
-        while ((img = vpx_codec_get_frame(&codec, &iter)) != NULL) {
-            // Process the image frame (dummy processing)
-            volatile int width = img->d_w;
-            volatile int height = img->d_h;
-            (void)width;
-            (void)height;
-        }
-    } else {
-        // Handle decoding errors more robustly
-        const char *error_detail = vpx_codec_error_detail(&codec);
-        if (error_detail) {
-            // Log or handle the error detail if needed
-            // For fuzzing, we can print the error to help diagnose issues
-            fprintf(stderr, "Decoding error: %s\n", error_detail);
-        }
+    // Retrieve and process decoded frames
+    vpx_codec_iter_t iter = nullptr;
+    vpx_image_t *img;
+    while ((img = vpx_codec_get_frame(&codec, &iter)) != nullptr) {
+        // Process the decoded frame (e.g., access img->planes, img->stride, etc.)
+        // For fuzzing, we don't need to do anything specific with the frame
     }
 
     // Clean up

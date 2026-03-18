@@ -1,43 +1,53 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <vpx/vpx_encoder.h>
 #include <vpx/vp8cx.h>
-#include <vpx/vpx_image.h>
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Initialize variables
-    vpx_codec_ctx_t codec;
-    vpx_codec_err_t res;
+    // Initialize variables for the function-under-test
+    vpx_codec_ctx_t codec_ctx;
     vpx_codec_enc_cfg_t cfg;
-    vpx_image_t img;
-    vpx_codec_pts_t pts = 0;  // Presentation timestamp
-    unsigned long duration = 1;  // Frame duration
-    vpx_enc_frame_flags_t flags = 0;  // Frame flags
-    vpx_enc_deadline_t deadline = VPX_DL_REALTIME;  // Encoding deadline
+    vpx_image_t raw;
+    vpx_codec_err_t res;
 
-    // Initialize codec configuration
-    if (vpx_codec_enc_config_default(vpx_codec_vp8_cx(), &cfg, 0)) {
-        return 0;
-    }
+    // Initialize the codec configuration
+    res = vpx_codec_enc_config_default(vpx_codec_vp8_cx(), &cfg, 0);
+    if (res != VPX_CODEC_OK) return 0;
 
-    // Initialize codec
-    res = vpx_codec_enc_init(&codec, vpx_codec_vp8_cx(), &cfg, 0);
-    if (res != VPX_CODEC_OK) {
+    // Initialize codec context
+    res = vpx_codec_enc_init(&codec_ctx, vpx_codec_vp8_cx(), &cfg, 0);
+    if (res != VPX_CODEC_OK) return 0;
+
+    // Ensure the input data is large enough to fill an image
+    if (size < 640 * 480 * 3 / 2) {
+        vpx_codec_destroy(&codec_ctx);
         return 0;
     }
 
     // Initialize image
-    if (!vpx_img_wrap(&img, VPX_IMG_FMT_I420, 640, 480, 1, const_cast<uint8_t*>(data))) {
-        vpx_codec_destroy(&codec);
+    if (!vpx_img_alloc(&raw, VPX_IMG_FMT_I420, 640, 480, 1)) {
+        vpx_codec_destroy(&codec_ctx);
         return 0;
     }
 
-    // Call the function-under-test
-    res = vpx_codec_encode(&codec, &img, pts, duration, flags, deadline);
+    // Copy input data to the image buffer
+    std::memcpy(raw.planes[0], data, 640 * 480); // Y plane
+    std::memcpy(raw.planes[1], data + 640 * 480, 640 * 480 / 4); // U plane
+    std::memcpy(raw.planes[2], data + 640 * 480 + 640 * 480 / 4, 640 * 480 / 4); // V plane
 
-    // Clean up
-    vpx_img_free(&img);
-    vpx_codec_destroy(&codec);
+    // Set some arbitrary values for the parameters
+    vpx_codec_pts_t pts = 1;
+    unsigned long duration = 1;
+    vpx_enc_frame_flags_t flags = 0;
+    vpx_enc_deadline_t deadline = VPX_DL_REALTIME;
+
+    // Call the function-under-test
+    res = vpx_codec_encode(&codec_ctx, &raw, pts, duration, flags, deadline);
+
+    // Cleanup
+    vpx_img_free(&raw);
+    vpx_codec_destroy(&codec_ctx);
 
     return 0;
 }

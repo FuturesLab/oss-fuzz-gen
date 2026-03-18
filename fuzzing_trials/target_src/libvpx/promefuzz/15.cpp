@@ -1,10 +1,18 @@
 // This fuzz driver is generated for library libvpx, aiming to fuzz the following functions:
-// vpx_img_wrap at vpx_image.c:168:14 in vpx_image.h
-// vpx_img_set_rect at vpx_image.c:176:5 in vpx_image.h
-// vpx_img_flip at vpx_image.c:229:6 in vpx_image.h
-// vpx_img_free at vpx_image.c:252:6 in vpx_image.h
-// vpx_img_alloc at vpx_image.c:162:14 in vpx_image.h
-// vpx_img_free at vpx_image.c:252:6 in vpx_image.h
+// vpx_codec_vp9_cx at vp9_cx_iface.c:2290:1 in vp8cx.h
+// vpx_codec_enc_config_default at vpx_encoder.c:157:17 in vpx_encoder.h
+// vpx_codec_vp9_cx at vp9_cx_iface.c:2290:1 in vp8cx.h
+// vpx_codec_encode at vpx_encoder.c:193:17 in vpx_encoder.h
+// vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
+// vpx_codec_get_cx_data at vpx_encoder.c:248:27 in vpx_encoder.h
+// vpx_codec_decode at vpx_decoder.c:104:17 in vpx_decoder.h
+// vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
+// vpx_codec_get_global_headers at vpx_encoder.c:331:18 in vpx_encoder.h
+// vpx_codec_set_cx_data_buf at vpx_encoder.c:294:17 in vpx_encoder.h
+// vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
+// vpx_codec_enc_config_set at vpx_encoder.c:348:17 in vpx_encoder.h
+// vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
+// vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,55 +22,90 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "vpx_image.h"
-#include "vpx_decoder.h"
-#include "vp8dx.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include "vp8cx.h"
+#include "vpx_encoder.h"
+#include "vp8dx.h"
+#include "vpx_decoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 8) {
-        return 0; // Not enough data to proceed
+    // Initialize codec context and other necessary structures
+    vpx_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    vpx_codec_enc_cfg_t enc_cfg;
+    memset(&enc_cfg, 0, sizeof(enc_cfg));
+    vpx_codec_iter_t iter = nullptr;
+    const vpx_codec_cx_pkt_t *pkt = nullptr;
+    vpx_image_t img;
+    memset(&img, 0, sizeof(img));
+    vpx_fixed_buf_t fixed_buf;
+    memset(&fixed_buf, 0, sizeof(fixed_buf));
+
+    // Initialize dummy data for image
+    img.fmt = VPX_IMG_FMT_I420;
+    img.w = 640;
+    img.h = 480;
+    img.planes[0] = (uint8_t *)malloc(Size);
+    if (img.planes[0] == nullptr) return 0;
+
+    // Initialize the encoder
+    if (vpx_codec_enc_config_default(vpx_codec_vp9_cx(), &enc_cfg, 0)) {
+        free(img.planes[0]);
+        return 0;
     }
 
-    // Extract image format and dimensions from the input data
-    vpx_img_fmt_t fmt = static_cast<vpx_img_fmt_t>(Data[0]);
-    unsigned int d_w = static_cast<unsigned int>(Data[1]) % 0x08000000;
-    unsigned int d_h = static_cast<unsigned int>(Data[2]) % 0x08000000;
-    unsigned int stride_align = static_cast<unsigned int>(Data[3]) % 65536;
-
-    // Ensure that d_w and d_h are not zero to avoid division by zero
-    d_w = d_w == 0 ? 1 : d_w;
-    d_h = d_h == 0 ? 1 : d_h;
-
-    // Prepare image data buffer
-    unsigned char *img_data = new unsigned char[d_w * d_h];
-    vpx_image_t *img = nullptr;
-
-    // Test vpx_img_wrap
-    vpx_image_t *wrapped_img = vpx_img_wrap(img, fmt, d_w, d_h, stride_align, img_data);
-    if (wrapped_img) {
-        // Test vpx_img_set_rect with various parameters
-        unsigned int x = static_cast<unsigned int>(Data[4]) % d_w;
-        unsigned int y = static_cast<unsigned int>(Data[5]) % d_h;
-        unsigned int w = static_cast<unsigned int>(Data[6]) % (d_w - x);
-        unsigned int h = static_cast<unsigned int>(Data[7]) % (d_h - y);
-        vpx_img_set_rect(wrapped_img, x, y, w, h);
-
-        // Test vpx_img_flip
-        vpx_img_flip(wrapped_img);
-
-        // Test vpx_img_free
-        vpx_img_free(wrapped_img);
+    if (vpx_codec_enc_init(&codec_ctx, vpx_codec_vp9_cx(), &enc_cfg, 0)) {
+        free(img.planes[0]);
+        return 0;
     }
 
-    delete[] img_data;
-
-    // Test vpx_img_alloc
-    vpx_image_t *allocated_img = vpx_img_alloc(nullptr, fmt, d_w, d_h, stride_align);
-    if (allocated_img) {
-        // Test vpx_img_free
-        vpx_img_free(allocated_img);
+    // Encode the image
+    if (vpx_codec_encode(&codec_ctx, &img, 0, 1, 0, VPX_DL_REALTIME)) {
+        free(img.planes[0]);
+        vpx_codec_destroy(&codec_ctx);
+        return 0;
     }
+
+    // Get compressed data
+    while ((pkt = vpx_codec_get_cx_data(&codec_ctx, &iter)) != nullptr) {
+        if (pkt->kind == VPX_CODEC_CX_FRAME_PKT) {
+            // Do something with the compressed frame packet
+        }
+    }
+
+    // Decode the data
+    if (vpx_codec_decode(&codec_ctx, Data, Size, nullptr, 0)) {
+        free(img.planes[0]);
+        vpx_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    // Get global headers
+    vpx_fixed_buf_t *global_headers = vpx_codec_get_global_headers(&codec_ctx);
+    if (global_headers != nullptr) {
+        // Do something with global headers
+    }
+
+    // Set compressed data buffer
+    if (vpx_codec_set_cx_data_buf(&codec_ctx, &fixed_buf, 0, 0) != VPX_CODEC_OK) {
+        free(img.planes[0]);
+        vpx_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    // Reconfigure encoder
+    if (vpx_codec_enc_config_set(&codec_ctx, &enc_cfg) != VPX_CODEC_OK) {
+        free(img.planes[0]);
+        vpx_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    // Cleanup
+    free(img.planes[0]);
+    vpx_codec_destroy(&codec_ctx);
 
     return 0;
 }

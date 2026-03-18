@@ -1,53 +1,50 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <vpx/vpx_codec.h>
-#include <vpx/vpx_image.h>
+#include <cstring>  // Include for memset
 
 extern "C" {
-    #include <vpx/vp8dx.h>
+    #include <vpx/vpx_codec.h>
     #include <vpx/vpx_decoder.h>
+    #include <vpx/vpx_image.h>
 
-    const vpx_image_t * vpx_codec_get_preview_frame(vpx_codec_ctx_t *);
+    // Declare the function prototype for vpx_codec_get_preview_frame
+    const vpx_image_t *vpx_codec_get_preview_frame(vpx_codec_ctx_t *ctx);
+
+    // Declare the function prototype for vpx_codec_vp8_dx
+    vpx_codec_iface_t *vpx_codec_vp8_dx(void);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // No data to process
+    // Ensure the size is sufficient to initialize vpx_codec_ctx_t and some input data
+    if (size < sizeof(vpx_codec_ctx_t) + 1) {
+        return 0;
     }
 
-    // Initialize a codec context
+    // Initialize vpx_codec_ctx_t
     vpx_codec_ctx_t codec_ctx;
-    vpx_codec_err_t err;
+    memset(&codec_ctx, 0, sizeof(vpx_codec_ctx_t));
 
-    // Initialize the codec context with some codec interface, for example, VP8
-    err = vpx_codec_dec_init(&codec_ctx, vpx_codec_vp8_dx(), NULL, 0);
-    if (err != VPX_CODEC_OK) {
-        return 0; // If initialization fails, return early
+    // Initialize codec with a decoder interface
+    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
+    if (vpx_codec_dec_init(&codec_ctx, iface, nullptr, 0)) {
+        return 0; // Initialization failed
     }
 
-    // Decode the data to set up the context for getting a preview frame
-    err = vpx_codec_decode(&codec_ctx, data, size, NULL, 0);
-    if (err != VPX_CODEC_OK) {
+    // Decode the input data
+    if (vpx_codec_decode(&codec_ctx, data, size, nullptr, 0)) {
         vpx_codec_destroy(&codec_ctx);
-        return 0; // If decoding fails, return early
+        return 0; // Decoding failed
     }
 
-    // Call the function under test
-    const vpx_image_t *preview_frame = vpx_codec_get_preview_frame(&codec_ctx);
-    if (preview_frame) {
-        // Perform some operations on the preview frame to ensure it's being used
-        int width = preview_frame->d_w;
-        int height = preview_frame->d_h;
-        int stride = preview_frame->stride[0];
+    // Call the function-under-test
+    const vpx_image_t *image = vpx_codec_get_preview_frame(&codec_ctx);
 
-        // Access the first pixel to simulate processing
-        if (width > 0 && height > 0 && stride > 0) {
-            uint8_t first_pixel = preview_frame->planes[0][0];
-            (void)first_pixel; // Use the pixel value to avoid unused variable warning
-        }
-    } else {
-        // Handle the case where no preview frame is generated
-        // This could involve logging or other mechanisms to understand why
+    // Use the result to prevent compiler optimizations
+    if (image != NULL) {
+        // Access some fields to simulate usage
+        (void)image->fmt;
+        (void)image->d_w;
+        (void)image->d_h;
     }
 
     // Clean up
