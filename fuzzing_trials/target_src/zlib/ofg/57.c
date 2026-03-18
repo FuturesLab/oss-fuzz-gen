@@ -1,32 +1,33 @@
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <zlib.h>
-#include <assert.h>
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    // Create a temporary file to use with gzFile
-    const char *filename = "/tmp/fuzz_gzfile.gz";
-    FILE *file = fopen(filename, "wb");
-    if (file == NULL) {
+    // Ensure the size is large enough to extract two integers for the function parameters
+    if (size < sizeof(int) * 2) {
         return 0;
     }
 
-    // Write the input data to the file
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Initialize z_stream structure
+    z_stream stream;
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
 
-    // Open the file with gzopen
-    gzFile gzfile = gzopen(filename, "rb");
-    if (gzfile == NULL) {
+    // Initialize inflate state
+    if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
+
+    // Extract two integers from the input data
+    int bits = *(int *)(data);
+    int value = *(int *)(data + sizeof(int));
 
     // Call the function-under-test
-    z_off_t offset = gztell(gzfile);
-    (void)offset;  // Suppress unused variable warning
+    inflatePrime(&stream, bits, value);
 
-    // Close the gzFile
-    gzclose(gzfile);
+    // Clean up
+    inflateEnd(&stream);
 
     return 0;
 }

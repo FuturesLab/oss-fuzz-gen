@@ -1,46 +1,37 @@
 #include <stdint.h>
-#include <zlib.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <zlib.h>
 
-// Define the function without extern "C"
 int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    gzFile file;
-    off_t offset;
-    int whence;
-    char filename[] = "/tmp/fuzz_gzseek.gz";
-
-    // Ensure the size is sufficient to extract meaningful values
-    if (size < sizeof(off_t) + sizeof(int)) {
+    // Ensure size is not zero to avoid division by zero
+    if (size == 0) {
         return 0;
     }
 
-    // Create a temporary file to be used with gzseek
-    FILE *fp = fopen(filename, "wb");
-    if (fp == NULL) {
-        return 0;
-    }
-    fwrite(data, 1, size, fp);
-    fclose(fp);
+    // Initialize parameters for gzfwrite
+    const void *voidpc = (const void *)data;
+    size_t item_size = 1;  // Use a non-zero item size
+    size_t item_count = size;  // Use the size of data as item count
 
-    // Open the file with gzopen
-    file = gzopen(filename, "rb");
-    if (file == NULL) {
+    // Create a temporary file to use with gzFile
+    FILE *tempFile = tmpfile();
+    if (tempFile == NULL) {
         return 0;
     }
 
-    // Extract offset and whence from the input data
-    offset = *(off_t *)data;
-    whence = *(int *)(data + sizeof(off_t));
+    // Open the temporary file as a gzFile
+    gzFile gzfile = gzdopen(fileno(tempFile), "wb");
+    if (gzfile == NULL) {
+        fclose(tempFile);
+        return 0;
+    }
 
-    // Call gzseek with the extracted values
-    (void)gzseek(file, offset, whence);
+    // Call the function-under-test
+    size_t result = gzfwrite(voidpc, item_size, item_count, gzfile);
 
-    // Close the gzFile
-    gzclose(file);
-
-    // Remove the temporary file
-    remove(filename);
+    // Clean up
+    gzclose(gzfile);
+    fclose(tempFile);
 
     return 0;
 }

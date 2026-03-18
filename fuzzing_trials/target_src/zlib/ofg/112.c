@@ -1,37 +1,37 @@
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <zlib.h>
 
+// Remove the 'extern "C"' linkage specification, which is not needed in C
 int LLVMFuzzerTestOneInput_112(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a gzFile
-    const char *temp_filename = "temp.gz";
-    FILE *temp_file = fopen(temp_filename, "wb");
-    if (temp_file == NULL) {
-        return 0;
-    }
+    // Ensure there is enough data to use for gzseek parameters
+    if (size < 3) return 0;
+
+    // Create a temporary file to use with gzFile
+    FILE *tempFile = tmpfile();
+    if (tempFile == NULL) return 0;
 
     // Write the input data to the temporary file
-    fwrite(data, 1, size, temp_file);
-    fclose(temp_file);
+    fwrite(data, 1, size, tempFile);
+    rewind(tempFile);
 
     // Open the temporary file as a gzFile
-    gzFile gz_file = gzopen(temp_filename, "rb");
-    if (gz_file == NULL) {
+    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
+    if (gzfile == NULL) {
+        fclose(tempFile);
         return 0;
     }
 
-    // Prepare parameters for gzseek
-    off_t offset = 0;  // Start seeking from the beginning
-    int whence = SEEK_SET;  // Use SEEK_SET to seek from the start of the file
+    // Extract parameters for gzseek from the input data
+    off_t offset = (off_t)data[0]; // Use the first byte as offset
+    int whence = (int)data[1] % 3; // Use the second byte to determine whence (0, 1, or 2)
 
-    // Call the function-under-test
-    off_t result = gzseek(gz_file, offset, whence);
+    // Call gzseek with the extracted parameters
+    gzseek(gzfile, offset, whence);
 
-    // Close the gzFile
-    gzclose(gz_file);
-
-    // Remove the temporary file
-    remove(temp_filename);
+    // Clean up
+    gzclose(gzfile);
+    fclose(tempFile);
 
     return 0;
 }

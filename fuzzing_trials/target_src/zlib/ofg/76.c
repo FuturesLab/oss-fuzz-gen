@@ -3,30 +3,30 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    // Initialize the z_stream structure
+    // Initialize a z_stream structure
     z_stream stream;
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
 
+    // Initialize input data for the z_stream
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
+
+    // Initialize output buffer
+    unsigned char out[1024];
+    stream.next_out = out;
+    stream.avail_out = sizeof(out);
+
     // Initialize the inflate state
     if (inflateInit(&stream) != Z_OK) {
-        return 0; // If initialization fails, exit early
+        return 0;
     }
 
-    // Ensure the data is not empty to avoid passing NULL pointers
-    if (size > 0) {
-        // Set the input data for the stream
-        stream.next_in = (Bytef *)data;
-        stream.avail_in = size;
+    // Call the function under test with non-NULL parameters
+    int ret = inflateValidate(&stream, 1);
 
-        // Call the function-under-test with a non-NULL z_streamp and a non-zero integer
-        int result = inflateValidate(&stream, 1);
-
-        // Optionally, handle the result or check for specific outcomes
-    }
-
-    // Clean up and free resources
+    // Clean up
     inflateEnd(&stream);
 
     return 0;

@@ -1,31 +1,33 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <zlib.h>
-#include <unistd.h> // Include this for STDIN_FILENO
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    // Initialize the gzFile pointer
-    gzFile file = gzdopen(STDIN_FILENO, "rb");
-    if (file == NULL) {
+    // Ensure the data is null-terminated for gzputs
+    char *input_data = (char *)malloc(size + 1);
+    if (input_data == NULL) {
+        return 0;
+    }
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
+
+    // Create a temporary file for gzopen
+    const char *filename = "/tmp/fuzz_gzputs.gz";
+    gzFile gz_file = gzopen(filename, "wb");
+    if (gz_file == NULL) {
+        free(input_data);
         return 0;
     }
 
-    // Allocate a buffer for reading
-    voidp buffer = malloc(size);
-    if (buffer == NULL) {
-        gzclose(file);
-        return 0;
-    }
-
-    // Ensure the buffer is non-NULL and has a valid size
-    unsigned int read_size = size > 0 ? (unsigned int)size : 1;
-
-    // Call the function-under-test
-    gzread(file, buffer, read_size);
+    // Call the function under test
+    gzputs(gz_file, input_data);
 
     // Clean up
-    free(buffer);
-    gzclose(file);
+    gzclose(gz_file);
+    free(input_data);
 
     return 0;
 }

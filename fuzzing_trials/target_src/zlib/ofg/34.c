@@ -3,32 +3,31 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    z_stream stream;
-    int ret;
-    Bytef dictionary[32];  // Example dictionary, can be adjusted for more variations
-    uInt dictLength = sizeof(dictionary);
+    // Ensure there is enough data to extract two integers
+    if (size < 2) {
+        return 0;
+    }
 
-    // Initialize the z_stream
+    // Initialize the z_stream structure
+    z_stream stream;
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
 
-    // Initialize inflate
-    ret = inflateInit(&stream);
-    if (ret != Z_OK) {
+    // Initialize the deflate process
+    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
         return 0;
     }
 
-    // Ensure the dictionary is not NULL and has some data
-    for (uInt i = 0; i < dictLength; i++) {
-        dictionary[i] = (Bytef)(i % 256);
-    }
+    // Extract two integers from the data
+    int bits = data[0] % 16; // Limit bits to a valid range (0-15)
+    int value = data[1];
 
     // Call the function-under-test
-    inflateSetDictionary(&stream, dictionary, dictLength);
+    deflatePrime(&stream, bits, value);
 
-    // Cleanup
-    inflateEnd(&stream);
+    // Clean up
+    deflateEnd(&stream);
 
     return 0;
 }

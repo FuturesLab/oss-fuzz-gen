@@ -1,26 +1,35 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <zlib.h>
-#include <stddef.h> // Include this header for size_t
-#include <inttypes.h> // Include this header for int64_t
 
 int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    // Ensure that the size is at least the size of int64_t
-    if (size < sizeof(int64_t)) {
+    z_stream stream;
+    int result;
+
+    // Initialize the z_stream structure
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+
+    // Ensure the input size is large enough for meaningful operations
+    if (size < 1) {
         return 0;
     }
 
-    // Extract an int64_t value from the input data
-    int64_t offset = 0;
-    for (size_t i = 0; i < sizeof(int64_t); ++i) {
-        offset |= ((int64_t)data[i]) << (i * 8);
+    // Initialize the inflate state
+    if (inflateInit(&stream) != Z_OK) {
+        return 0;
     }
 
-    // Call the function-under-test
-    uLong result = crc32_combine_gen64(offset);
+    // Set the input data for the stream
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    volatile uLong use_result = result;
-    (void)use_result;
+    // Call the function-under-test with a non-zero second argument
+    result = inflateValidate(&stream, 1);
+
+    // Clean up
+    inflateEnd(&stream);
 
     return 0;
 }

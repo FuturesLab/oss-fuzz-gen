@@ -1,29 +1,37 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <zlib.h>
 #include <stdio.h>
-#include <limits.h>  // Include limits.h for UINT_MAX
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
     gzFile file;
-    int result;
-    const char *filename = "/tmp/fuzz_gzwrite.gz";
-    unsigned int write_size;
+    unsigned int len;
+    void *buffer;
 
-    // Open a gzip file for writing
-    file = gzopen(filename, "wb");
+    // Ensure the size is non-zero to avoid division by zero
+    if (size == 0) {
+        return 0;
+    }
+
+    // Prepare a temporary file to write the gzipped data
+    file = gzopen("temp.gz", "wb");
     if (file == NULL) {
         return 0;
     }
 
-    // Ensure the write size does not exceed the input size
-    write_size = size < UINT_MAX ? (unsigned int)size : UINT_MAX;
+    // Use the data as the buffer to write
+    buffer = (void*)data;
+    len = (unsigned int)size;
 
-    // Call the function-under-test
-    result = gzwrite(file, (voidpc)data, write_size);
+    // Call the function under test
+    gzwrite(file, buffer, len);
 
-    // Close the gzip file
+    // Close the file
     gzclose(file);
+
+    // Remove the temporary file
+    remove("temp.gz");
 
     return 0;
 }

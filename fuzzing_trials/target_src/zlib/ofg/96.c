@@ -1,32 +1,32 @@
 #include <stdint.h>
-#include <zlib.h>
 #include <stdlib.h>
+#include <zlib.h>
 
 int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
     gzFile file;
     int flush;
-    char filename[] = "fuzz_test.gz";
 
-    // Create a file to write compressed data
+    // Create a temporary file to work with gzFile
+    const char *filename = "/tmp/fuzz_gzflush.gz";
     file = gzopen(filename, "wb");
     if (file == NULL) {
         return 0;
     }
 
-    // Write some data to the gzFile to initialize it
-    gzwrite(file, data, size > 0 ? size : 1);
+    // Write some data to the gzFile to set it up for flushing
+    if (size > 0) {
+        gzwrite(file, data, size);
+    }
 
-    // Set flush parameter to a valid value
-    flush = Z_SYNC_FLUSH; // Use Z_SYNC_FLUSH as a valid flush parameter
+    // Set the flush parameter to a valid value
+    // Possible values for flush are Z_NO_FLUSH, Z_SYNC_FLUSH, Z_FULL_FLUSH, Z_FINISH
+    flush = Z_SYNC_FLUSH;
 
     // Call the function-under-test
     gzflush(file, flush);
 
     // Close the gzFile
     gzclose(file);
-
-    // Remove the file after testing
-    remove(filename);
 
     return 0;
 }

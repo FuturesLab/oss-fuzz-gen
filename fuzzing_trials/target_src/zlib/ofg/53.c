@@ -1,23 +1,28 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <inttypes.h> // Include for PRId64
 #include <zlib.h>
-#include <stdlib.h> // Include for malloc and free
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    Bytef *dest = (Bytef *)malloc(size * 2); // Allocate space for compressed data
-    if (dest == NULL) {
-        return 0; // Handle allocation failure
+    // Declare and initialize variables for the parameters of adler32_combine
+    uLong adler1 = 1; // Initial value for Adler-32 checksum
+    uLong adler2 = 1; // Initial value for Adler-32 checksum
+    int64_t len2 = 0; // Length of the second data block
+
+    // Ensure the size is large enough to extract meaningful data
+    if (size >= sizeof(uLong) * 2 + sizeof(int64_t)) {
+        // Extract values from the input data
+        adler1 = *(const uLong *)data;
+        adler2 = *(const uLong *)(data + sizeof(uLong));
+        len2 = *(const int64_t *)(data + sizeof(uLong) * 2);
     }
-    uLongf destLen = size * 2; // Initial destination length
-    const Bytef *source = data; // Source data
-    uLong sourceLen = size; // Source length
-    int level = Z_DEFAULT_COMPRESSION; // Compression level
 
-    // Call the function-under-test
-    int result = compress2(dest, &destLen, source, sourceLen, level);
+    // Call the function-under-test (using adler32_combine instead of adler32_combine64)
+    uLong result = adler32_combine(adler1, adler2, len2);
 
-    // Clean up allocated memory
-    free(dest);
+    // Print the result for debugging purposes
+    printf("adler32_combine result: %lu\n", result);
 
     return 0;
 }

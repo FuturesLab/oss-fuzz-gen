@@ -1,35 +1,52 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <zlib.h>
 
-int LLVMFuzzerTestOneInput_153(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for the parameters
-    if (size < 2) {
-        return 0;
-    }
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+int LLVMFuzzerTestOneInput_153(const uint8_t *data, size_t size) {
     // Initialize z_stream structure
     z_stream stream;
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
-    stream.avail_in = size;
-    stream.next_in = (Bytef *)data;
+    stream.avail_in = 0;
+    stream.next_in = Z_NULL;
 
-    // Initialize the deflate process
-    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+    // Initialize inflate state
+    if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
 
-    // Extract parameters for deflateParams from the input data
-    int level = data[0] % 10;  // Compression level (0-9)
-    int strategy = data[1] % 5; // Strategy (0-4)
+    // Set input data for the stream
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = size;
+
+    // Allocate a buffer for output
+    size_t output_buffer_size = size * 2; // Just an arbitrary size for output buffer
+    Bytef *output_buffer = (Bytef *)malloc(output_buffer_size);
+    if (output_buffer == NULL) {
+        inflateEnd(&stream);
+        return 0;
+    }
+    stream.next_out = output_buffer;
+    stream.avail_out = output_buffer_size;
+
+    // Perform inflation to fill the output buffer
+    int ret = inflate(&stream, Z_NO_FLUSH);
 
     // Call the function-under-test
-    deflateParams(&stream, level, strategy);
+    int sync_point = inflateSyncPoint(&stream);
 
-    // Clean up and free resources
-    deflateEnd(&stream);
+    // Clean up
+    inflateEnd(&stream);
+    free(output_buffer);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

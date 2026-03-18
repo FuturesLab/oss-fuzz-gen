@@ -1,64 +1,67 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// gzdopen at gzlib.c:298:16 in zlib.h
-// gzeof at gzlib.c:498:13 in zlib.h
-// gzrewind at gzlib.c:346:13 in zlib.h
-// gzdirect at gzread.c:623:13 in zlib.h
-// gzflush at gzwrite.c:603:13 in zlib.h
-// gzclose_r at gzread.c:641:13 in zlib.h
+// gzputs at gzwrite.c:350:13 in zlib.h
+// gzprintf at gzwrite.c:487:15 in zlib.h
+// gzputc at gzwrite.c:307:13 in zlib.h
+// gzopen at gzlib.c:288:16 in zlib.h
+// gzerror at gzlib.c:513:22 in zlib.h
+// gzclose at gzclose.c:11:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdint.h>
 #include <zlib.h>
+#include <stdarg.h>
 
-static int create_dummy_file(const uint8_t *Data, size_t Size) {
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return -1;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-    return open("./dummy_file", O_RDONLY);
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
+
+static void test_gzputs(gzFile file, const uint8_t *Data, size_t Size) {
+    char *buffer = malloc(Size + 1);
+    if (buffer) {
+        memcpy(buffer, Data, Size);
+        buffer[Size] = '\0';
+        gzputs(file, buffer);
+        free(buffer);
+    }
+}
+
+static void test_gzprintf(gzFile file, const uint8_t *Data, size_t Size) {
+    char *format = malloc(Size + 1);
+    if (format) {
+        memcpy(format, Data, Size);
+        format[Size] = '\0';
+        gzprintf(file, format);
+        free(format);
+    }
+}
+
+static void test_gzputc(gzFile file, const uint8_t *Data, size_t Size) {
+    for (size_t i = 0; i < Size; i++) {
+        gzputc(file, Data[i]);
+    }
 }
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    write_dummy_file(Data, Size);
 
-    // Create a dummy file with the input data
-    int fd = create_dummy_file(Data, Size);
-    if (fd < 0) return 0;
-
-    // Prepare mode string
-    char mode[4] = {0};
-    mode[0] = Data[0] % 3 == 0 ? 'r' : (Data[0] % 3 == 1 ? 'w' : 'a');
-    mode[1] = '\0';
-
-    // Test gzdopen
-    gzFile gz_file = gzdopen(fd, mode);
-    if (!gz_file) {
-        close(fd);
+    gzFile file = gzopen("./dummy_file", "wb");
+    if (file == NULL) {
         return 0;
     }
 
-    // Test gzeof
-    int eof = gzeof(gz_file);
+    test_gzputs(file, Data, Size);
+    test_gzprintf(file, Data, Size);
+    test_gzputc(file, Data, Size);
 
-    // Test gzrewind
-    int rewind_result = gzrewind(gz_file);
+    int errnum;
+    gzerror(file, &errnum);
 
-    // Test gzdirect
-    int direct = gzdirect(gz_file);
-
-    // Test gzflush if mode is 'w'
-    if (mode[0] == 'w') {
-        int flush_result = gzflush(gz_file, Z_FINISH);
-    }
-
-    // Test gzclose_r
-    int close_result = gzclose_r(gz_file);
-
+    gzclose(file);
     return 0;
 }

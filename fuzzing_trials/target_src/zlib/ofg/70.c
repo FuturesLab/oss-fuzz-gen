@@ -1,30 +1,30 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // No data to process
-    }
-
-    z_stream stream;
-    gz_header header;
-    int ret;
-
     // Initialize the z_stream structure
+    z_stream stream;
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
-    stream.avail_in = size;
+    
+    // Initialize the input data for the stream
     stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
+
+    // Initialize the output buffer
+    unsigned char outbuffer[4096];
+    stream.next_out = outbuffer;
+    stream.avail_out = sizeof(outbuffer);
 
     // Initialize the inflate state
-    ret = inflateInit(&stream);
-    if (ret != Z_OK) {
+    if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
 
     // Initialize the gz_header structure
+    gz_header header;
     header.text = 0;
     header.time = 0;
     header.xflags = 0;
@@ -40,25 +40,7 @@ int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
     header.done = 0;
 
     // Call the function-under-test
-    ret = inflateGetHeader(&stream, &header);
-    if (ret != Z_OK) {
-        inflateEnd(&stream);
-        return 0;
-    }
-
-    // Perform decompression
-    uint8_t outbuffer[1024];
-    stream.avail_out = sizeof(outbuffer);
-    stream.next_out = outbuffer;
-
-    // Attempt to inflate some data
-    do {
-        ret = inflate(&stream, Z_NO_FLUSH);
-        if (ret == Z_STREAM_ERROR || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) {
-            inflateEnd(&stream);
-            return 0;
-        }
-    } while (ret != Z_STREAM_END);
+    inflateGetHeader(&stream, &header);
 
     // Clean up
     inflateEnd(&stream);

@@ -4,34 +4,30 @@
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    z_stream stream;
-    int level;
-    const char *version;
-    int stream_size;
-    
-    // Initialize z_stream structure
-    memset(&stream, 0, sizeof(z_stream));
-    
-    // Ensure there is enough data to extract parameters
-    if (size < sizeof(int) + 1 + sizeof(int)) {
+    // Ensure there is enough data for the parameters
+    if (size < sizeof(int) + sizeof(int)) {
         return 0;
     }
-    
+
+    // Initialize z_stream structure
+    z_stream stream;
+    memset(&stream, 0, sizeof(stream));
+
     // Extract parameters from the input data
-    level = (int)data[0];  // Use the first byte for compression level
-    version = (const char *)(data + 1);  // Use the rest for version string
-    stream_size = (int)data[size - 1];  // Use the last byte for stream size
-    
-    // Ensure version string is null-terminated
-    char version_buffer[10];
-    strncpy(version_buffer, version, sizeof(version_buffer) - 1);
-    version_buffer[sizeof(version_buffer) - 1] = '\0';
-    
+    int level = data[0] % 10; // Compression level should be between 0 and 9
+    int version_length = (size - sizeof(int)) % 20; // Limit version string length
+    const char *version = (const char *)(data + sizeof(int));
+
+    // Ensure the version string is null-terminated
+    char version_buffer[21];
+    strncpy(version_buffer, version, version_length);
+    version_buffer[version_length] = '\0';
+
     // Call the function-under-test
-    deflateInit_(&stream, level, version_buffer, stream_size);
-    
+    int result = deflateInit_(&stream, level, version_buffer, sizeof(z_stream));
+
     // Clean up
     deflateEnd(&stream);
-    
+
     return 0;
 }

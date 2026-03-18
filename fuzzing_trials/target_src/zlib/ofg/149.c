@@ -1,37 +1,26 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <inttypes.h> // Include this header for int64_t
 #include <zlib.h>
-#include <stdio.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_149(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for two null-terminated strings
-    if (size < 3) {
+    // Ensure we have enough data to extract one uLong value
+    if (size < sizeof(uLong)) {
         return 0;
     }
 
-    // Split the input data into two parts for the file name and mode
-    size_t filename_len = size / 2;
-    size_t mode_len = size - filename_len;
+    // Extract uLong value1 from the data
+    uLong value1 = *(const uLong *)(data);
 
-    // Allocate memory for the filename and mode strings
-    char filename[filename_len + 1];
-    char mode[mode_len + 1];
+    // Use the remaining data as the input for the adler32 function
+    const uint8_t *data_stream = data + sizeof(uLong);
+    size_t data_stream_size = size - sizeof(uLong);
 
-    // Copy data into the filename and mode, ensuring null-termination
-    memcpy(filename, data, filename_len);
-    filename[filename_len] = '\0';
+    // Call the adler32 function from zlib
+    uLong result = adler32(value1, data_stream, data_stream_size);
 
-    memcpy(mode, data + filename_len, mode_len);
-    mode[mode_len] = '\0';
-
-    // Call the function-under-test
-    gzFile file = gzopen(filename, mode);
-
-    // If gzopen returns a valid gzFile, close it
-    if (file != NULL) {
-        gzclose(file);
-    }
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }

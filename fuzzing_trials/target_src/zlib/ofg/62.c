@@ -4,37 +4,42 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Ensure size is non-zero
-    if (size == 0) {
+    gzFile file;
+    int errnum = 0;
+    const char *error_msg;
+    char buffer[1024]; // Buffer to read decompressed data
+
+    // Create a temporary file for the gzFile
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
         return 0;
     }
 
-    // Create a temporary file to simulate a gzFile
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
-        return 0;
-    }
-
-    // Write the data to the temporary file
-    fwrite(data, 1, size, tempFile);
-    rewind(tempFile);
+    // Write the input data to the temporary file
+    fwrite(data, 1, size, temp_file);
+    rewind(temp_file);
 
     // Open the temporary file as a gzFile
-    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
-    if (gzfile == NULL) {
-        fclose(tempFile);
+    file = gzdopen(fileno(temp_file), "rb");
+    if (file == NULL) {
+        fclose(temp_file);
         return 0;
     }
 
-    // Initialize an integer to hold the error number
-    int errnum = 0;
+    // Attempt to read from the gzFile to invoke decompression logic
+    while (gzread(file, buffer, sizeof(buffer)) > 0) {
+        // Reading the data, but not doing anything with it
+    }
 
-    // Call the function-under-test
-    const char *error_msg = gzerror(gzfile, &errnum);
+    // Check for errors after reading
+    error_msg = gzerror(file, &errnum);
+    if (errnum != Z_OK && errnum != Z_STREAM_END) {
+        fprintf(stderr, "gzerror: %s\n", error_msg);
+    }
 
     // Clean up
-    gzclose(gzfile);
-    fclose(tempFile);
+    gzclose(file);
+    fclose(temp_file);
 
     return 0;
 }

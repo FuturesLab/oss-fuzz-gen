@@ -11,17 +11,17 @@ int LLVMFuzzerTestOneInput_132(const uint8_t *data, size_t size) {
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
 
-    // Set up the input data for the z_stream
+    // Set up the input data
     stream.next_in = (Bytef *)data;
     stream.avail_in = (uInt)size;
 
-    // Initialize the inflate state
+    // Initialize the inflation process
     ret = inflateInit(&stream);
     if (ret != Z_OK) {
         return 0;
     }
 
-    // Call the function under test
+    // Call the function-under-test
     ret = inflateResetKeep(&stream);
 
     // Clean up

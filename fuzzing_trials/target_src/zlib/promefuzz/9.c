@@ -1,27 +1,23 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// inflateInit2_ at inflate.c:173:13 in zlib.h
-// inflateGetHeader at inflate.c:1219:13 in zlib.h
-// inflate at inflate.c:474:13 in zlib.h
-// inflateSetDictionary at inflate.c:1187:13 in zlib.h
-// inflateSetDictionary at inflate.c:1187:13 in zlib.h
-// inflateSetDictionary at inflate.c:1187:13 in zlib.h
-// inflate at inflate.c:474:13 in zlib.h
-// inflateCopy at inflate.c:1328:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
-// inflateReset2 at inflate.c:136:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
+// gzopen at gzlib.c:288:16 in zlib.h
+// gzwrite at gzwrite.c:255:13 in zlib.h
+// gzerror at gzlib.c:513:22 in zlib.h
+// gzclose at gzclose.c:11:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "zlib.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <zlib.h>
 
-static void write_dummy_file(const uint8_t *data, size_t size) {
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
     if (file) {
-        fwrite(data, 1, size, file);
+        fwrite(Data, 1, Size, file);
         fclose(file);
     }
 }
@@ -29,65 +25,27 @@ static void write_dummy_file(const uint8_t *data, size_t size) {
 int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    z_stream strm;
-    gz_header header;
-    z_stream strm_copy;
-    Bytef dictionary[32] = {0};  // Dummy dictionary
-    Bytef output[256] = {0};     // Output buffer
+    // Write the input data to a dummy file
+    writeDummyFile(Data, Size);
 
-    memset(&strm_copy, 0, sizeof(z_stream));
-
-    // Initialize z_stream
-    strm.zalloc = Z_NULL;
-    strm.zfree = Z_NULL;
-    strm.opaque = Z_NULL;
-    strm.next_in = (Bytef *)Data;
-    strm.avail_in = (uInt)Size;
-    strm.next_out = output;
-    strm.avail_out = sizeof(output);
-
-    // Initialize inflate with a random window size
-    int ret = inflateInit2_(&strm, (int)(Data[0] % 16) + 8, ZLIB_VERSION, sizeof(z_stream));
-    if (ret != Z_OK) return 0;
-
-    // Get header
-    ret = inflateGetHeader(&strm, &header);
-    if (ret != Z_OK) goto cleanup;
-
-    // Inflate
-    ret = inflate(&strm, Z_NO_FLUSH);
-    if (ret != Z_OK && ret != Z_STREAM_END) goto cleanup;
-
-    // Set Dictionary multiple times
-    ret = inflateSetDictionary(&strm, dictionary, sizeof(dictionary));
-    if (ret != Z_OK) goto cleanup;
-
-    ret = inflateSetDictionary(&strm, dictionary, sizeof(dictionary));
-    if (ret != Z_OK) goto cleanup;
-
-    ret = inflateSetDictionary(&strm, dictionary, sizeof(dictionary));
-    if (ret != Z_OK) goto cleanup;
-
-    // Inflate again
-    ret = inflate(&strm, Z_FINISH);
-    if (ret != Z_OK && ret != Z_STREAM_END) goto cleanup;
-
-    // Copy stream
-    ret = inflateCopy(&strm_copy, &strm);
-    if (ret != Z_OK) goto cleanup;
-
-    // End and reset
-    ret = inflateEnd(&strm);
-    if (ret != Z_OK) return 0;
-
-    ret = inflateReset2(&strm, (int)(Data[0] % 16) + 8);
-    if (ret != Z_OK) goto cleanup;
-
-cleanup:
-    inflateEnd(&strm);
-    if (strm_copy.state != NULL) {
-        inflateEnd(&strm_copy);
+    // Open the dummy file with gzopen in write mode
+    gzFile gzfile = gzopen("./dummy_file", "wb");
+    if (gzfile == NULL) {
+        return 0;
     }
+
+    // Attempt to write the data to the gzfile
+    gzwrite(gzfile, Data, Size);
+
+    // Fetch and print the last error if any
+    int errnum;
+    const char *error_message = gzerror(gzfile, &errnum);
+    if (errnum != Z_OK) {
+        fprintf(stderr, "gzerror: %s\n", error_message);
+    }
+
+    // Close the gzfile
+    gzclose(gzfile);
 
     return 0;
 }

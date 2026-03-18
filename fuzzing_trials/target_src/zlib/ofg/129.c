@@ -5,18 +5,26 @@ int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size) {
     // Call the function-under-test
     uLong flags = zlibCompileFlags();
 
-    // Optionally use the input data in some way to make the fuzzing more effective
-    // For example, if the function-under-test could take input, use it here
-    // This is just a placeholder for demonstration purposes
-    if (size > 0) {
-        // Use the first byte of data in some way
-        uint8_t first_byte = data[0];
-        // Perform some operation with first_byte if applicable
-    }
+    // Use the flags in some way to ensure the call is not optimized away
+    // For example, print the flags (in a real fuzzing environment, this might be logged)
+    (void)flags; // Avoid unused variable warning
 
-    // Use the result in some way, for example, print it for debugging purposes
-    // (In actual fuzzing, you might not print to avoid slowing down the process)
-    // printf("zlibCompileFlags: %lu\n", flags);
+    // Utilize the input data in some way
+    if (size > 0) {
+        // For example, we could attempt to inflate the data using zlib functions
+        // This is just an example and might not be meaningful without proper initialization
+        z_stream stream;
+        stream.zalloc = Z_NULL;
+        stream.zfree = Z_NULL;
+        stream.opaque = Z_NULL;
+        stream.avail_in = size;
+        stream.next_in = (Bytef *)data;
+
+        if (inflateInit(&stream) == Z_OK) {
+            inflate(&stream, Z_NO_FLUSH);
+            inflateEnd(&stream);
+        }
+    }
 
     return 0;
 }

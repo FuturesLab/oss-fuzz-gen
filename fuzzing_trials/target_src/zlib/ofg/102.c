@@ -1,32 +1,28 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <zlib.h>
-#include <stdio.h>
-#include <string.h>
+#include <stdio.h> // Include the standard I/O library for file operations
 
 int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    // Ensure size is greater than 0 to avoid empty input
-    if (size == 0) {
-        return 0;
-    }
-
     // Create a temporary file to write the input data
-    const char *filename = "fuzz_input.gz";
+    char filename[] = "/tmp/fuzz_input.gz";
     FILE *file = fopen(filename, "wb");
     if (!file) {
         return 0;
     }
+
+    // Write the data to the file
     fwrite(data, 1, size, file);
     fclose(file);
 
-    // Open the file with gzopen
+    // Open the file as a gzFile
     gzFile gzfile = gzopen(filename, "rb");
     if (!gzfile) {
         return 0;
     }
 
-    // Allocate a buffer to read the data into
-    int buf_size = 256; // Choose a reasonable buffer size
+    // Allocate a buffer for gzgets
+    int buf_size = 1024;
     char *buffer = (char *)malloc(buf_size);
     if (!buffer) {
         gzclose(gzfile);
@@ -39,7 +35,6 @@ int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
     // Clean up
     free(buffer);
     gzclose(gzfile);
-    remove(filename);
 
     return 0;
 }

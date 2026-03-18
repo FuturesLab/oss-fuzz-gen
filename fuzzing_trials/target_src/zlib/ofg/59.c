@@ -1,33 +1,36 @@
+#define _LARGEFILE64_SOURCE
 #include <stdint.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <zlib.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
 
+// Define the fuzzing function without extern "C"
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Initialize z_stream structure
-    z_stream stream;
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-
-    // Initialize the inflate state
-    if (inflateInit(&stream) != Z_OK) {
+    // Create a temporary file to write the input data
+    FILE *tempFile = tmpfile();
+    if (tempFile == NULL) {
         return 0;
     }
 
-    // Set input data for the z_stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = (uInt)size;
+    // Write the input data to the temporary file
+    fwrite(data, 1, size, tempFile);
+    rewind(tempFile);
 
-    // Set a dummy output buffer
-    unsigned char out[1024];
-    stream.next_out = out;
-    stream.avail_out = sizeof(out);
+    // Open the temporary file with gzopen
+    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
+    if (gzfile == NULL) {
+        fclose(tempFile);
+        return 0;
+    }
 
-    // Call the function to fuzz
-    int result = inflate(&stream, Z_NO_FLUSH);
+    // Call the function-under-test
+    off64_t offset = gzoffset64(gzfile);
 
     // Clean up
-    inflateEnd(&stream);
+    gzclose(gzfile);
+    fclose(tempFile);
 
     return 0;
 }

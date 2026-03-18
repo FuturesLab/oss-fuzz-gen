@@ -1,80 +1,77 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// gzputs at gzwrite.c:350:13 in zlib.h
-// gzputc at gzwrite.c:307:13 in zlib.h
-// gzgets at gzread.c:562:16 in zlib.h
-// gzerror at gzlib.c:513:22 in zlib.h
-// gzgetc at gzread.c:469:13 in zlib.h
-// gzopen at gzlib.c:288:16 in zlib.h
-// gzclose at gzclose.c:11:13 in zlib.h
-// gzopen at gzlib.c:288:16 in zlib.h
-// gzclose at gzclose.c:11:13 in zlib.h
+// inflateReset2 at inflate.c:136:13 in zlib.h
+// inflate at inflate.c:474:13 in zlib.h
+// inflateGetDictionary at inflate.c:1167:13 in zlib.h
+// inflateInit2_ at inflate.c:173:13 in zlib.h
+// inflateSetDictionary at inflate.c:1187:13 in zlib.h
+// deflateSetDictionary at deflate.c:560:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <zlib.h>
+#include "zlib.h"
 
-static void fuzz_gzputs(gzFile file, const uint8_t *Data, size_t Size) {
-    char *buffer = (char *)malloc(Size + 1);
-    if (!buffer) return;
-    memcpy(buffer, Data, Size);
-    buffer[Size] = '\0'; // Ensure null-termination
-
-    gzputs(file, buffer);
-    free(buffer);
+static void initialize_stream(z_streamp strm) {
+    memset(strm, 0, sizeof(z_stream));
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
 }
 
-static void fuzz_gzputc(gzFile file, const uint8_t *Data, size_t Size) {
-    for (size_t i = 0; i < Size; ++i) {
-        gzputc(file, Data[i]);
-    }
+static void fuzz_inflateReset2(z_streamp strm, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    int windowBits = Data[0] % 16;  // Window bits in the range [0, 15]
+    inflateReset2(strm, windowBits);
 }
 
-static void fuzz_gzgets(gzFile file, size_t Size) {
-    char *buffer = (char *)malloc(Size + 1);
-    if (!buffer) return;
-
-    gzgets(file, buffer, Size);
-    free(buffer);
+static void fuzz_inflate(z_streamp strm, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    strm->avail_in = Size;
+    strm->next_in = (Bytef *)Data;
+    int flush = Z_NO_FLUSH;
+    inflate(strm, flush);
 }
 
-static void fuzz_gzerror(gzFile file) {
-    int errnum;
-    gzerror(file, &errnum);
+static void fuzz_inflateGetDictionary(z_streamp strm) {
+    Bytef dictionary[32768];  // Maximum window size
+    uInt dictLength = sizeof(dictionary);
+    inflateGetDictionary(strm, dictionary, &dictLength);
 }
 
-static void fuzz_gzgetc(gzFile file) {
-    gzgetc(file);
+static void fuzz_inflateInit2_(z_streamp strm, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    int windowBits = Data[0] % 16;  // Window bits in the range [0, 15]
+    inflateInit2_(strm, windowBits, ZLIB_VERSION, sizeof(z_stream));
+}
+
+static void fuzz_inflateSetDictionary(z_streamp strm, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    inflateSetDictionary(strm, Data, (uInt)Size);
+}
+
+static void fuzz_deflateSetDictionary(z_streamp strm, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    deflateSetDictionary(strm, Data, (uInt)Size);
 }
 
 int LLVMFuzzerTestOneInput_48(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    z_stream strm;
+    initialize_stream(&strm);
 
-    FILE *fp = fopen("./dummy_file", "wb+");
-    if (!fp) return 0;
+    fuzz_inflateInit2_(&strm, Data, Size);
+    fuzz_inflateReset2(&strm, Data, Size);
+    fuzz_inflate(&strm, Data, Size);
+    fuzz_inflateGetDictionary(&strm);
+    fuzz_inflateSetDictionary(&strm, Data, Size);
+    fuzz_deflateSetDictionary(&strm, Data, Size);
 
-    fwrite(Data, 1, Size, fp);
-    fclose(fp);
-
-    gzFile gzfile = gzopen("./dummy_file", "wb+");
-    if (!gzfile) return 0;
-
-    fuzz_gzputs(gzfile, Data, Size);
-    fuzz_gzputc(gzfile, Data, Size);
-    gzclose(gzfile);
-
-    gzfile = gzopen("./dummy_file", "rb");
-    if (!gzfile) return 0;
-
-    fuzz_gzgets(gzfile, Size);
-    fuzz_gzgetc(gzfile);
-    fuzz_gzerror(gzfile);
-
-    gzclose(gzfile);
-
+    inflateEnd(&strm);
     return 0;
 }

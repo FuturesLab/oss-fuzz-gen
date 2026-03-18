@@ -1,82 +1,112 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// deflateParams at deflate.c:775:13 in zlib.h
-// deflatePending at deflate.c:723:13 in zlib.h
-// deflateUsed at deflate.c:738:13 in zlib.h
-// deflateTune at deflate.c:820:13 in zlib.h
-// deflateCopy at deflate.c:1318:13 in zlib.h
-// deflateEnd at deflate.c:1294:13 in zlib.h
-// deflateInit_ at deflate.c:380:13 in zlib.h
-// deflateEnd at deflate.c:1294:13 in zlib.h
+// gzdopen at gzlib.c:298:16 in zlib.h
+// gzclose at gzclose.c:11:13 in zlib.h
+// gzclearerr at gzlib.c:531:14 in zlib.h
+// gzclose at gzclose.c:11:13 in zlib.h
+// gzfwrite at gzwrite.c:280:18 in zlib.h
+// gzread at gzread.c:392:13 in zlib.h
+// gzfread at gzread.c:435:18 in zlib.h
+// gzdopen at gzlib.c:298:16 in zlib.h
+// gzdopen at gzlib.c:298:16 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <zlib.h>
 
-static void initialize_stream(z_streamp strm) {
-    memset(strm, 0, sizeof(z_stream));
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
+static void fuzz_gzdopen(const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (fd < 0) return;
+
+    // Ensure the mode string is null-terminated and reasonable
+    char mode[4] = "r";
+    if (Size > 0) {
+        mode[0] = Data[0] % 3 == 0 ? 'r' : (Data[0] % 3 == 1 ? 'w' : 'a');
+    }
+    gzFile file = gzdopen(fd, mode);
+    if (file) {
+        gzclose(file);
+    } else {
+        close(fd);
+    }
 }
 
-static void try_deflateParams(z_streamp strm, const uint8_t *Data, size_t Size) {
-    if (Size < 2) return;
-    int level = Data[0] % 10; // valid level range is 0-9
-    int strategy = Data[1] % 5; // valid strategy range is 0-4
-    deflateParams(strm, level, strategy);
+static void fuzz_gzclearerr(gzFile file) {
+    gzclearerr(file);
 }
 
-static void try_deflatePending(z_streamp strm) {
-    unsigned pending;
-    int bits;
-    deflatePending(strm, &pending, &bits);
+static void fuzz_gzclose(gzFile file) {
+    gzclose(file);
 }
 
-static void try_deflateUsed(z_streamp strm) {
-    int bits;
-    deflateUsed(strm, &bits);
+static void fuzz_gzfwrite(gzFile file, const uint8_t *Data, size_t Size) {
+    size_t items_written = gzfwrite(Data, 1, Size, file);
+    (void)items_written; // Suppress unused variable warning
 }
 
-static void try_deflateTune(z_streamp strm, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return;
-    int good_length = Data[0] % 258; // arbitrary max value
-    int max_lazy = Data[1] % 258; // arbitrary max value
-    int nice_length = Data[2] % 258; // arbitrary max value
-    int max_chain = Data[3] % 4096; // arbitrary max value
-    deflateTune(strm, good_length, max_lazy, nice_length, max_chain);
+static void fuzz_gzread(gzFile file, size_t Size) {
+    uint8_t *buffer = (uint8_t *)malloc(Size);
+    if (buffer) {
+        gzread(file, buffer, Size);
+        free(buffer);
+    }
 }
 
-static void try_deflateCopy(z_streamp source) {
-    z_stream dest;
-    initialize_stream(&dest);
-    deflateCopy(&dest, source);
-    deflateEnd(&dest);
-}
-
-static void try_deflateInit(z_streamp strm, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    int level = Data[0] % 10; // valid level range is 0-9
-    deflateInit_(strm, level, ZLIB_VERSION, sizeof(z_stream));
+static void fuzz_gzfread(gzFile file, size_t Size) {
+    uint8_t *buffer = (uint8_t *)malloc(Size);
+    if (buffer) {
+        gzfread(buffer, 1, Size, file);
+        free(buffer);
+    }
 }
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
-    z_stream strm;
-    initialize_stream(&strm);
+    int fd = open("./dummy_file", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (fd < 0) return 0;
 
-    try_deflateInit(&strm, Data, Size);
-    try_deflateParams(&strm, Data, Size);
-    try_deflatePending(&strm);
-    try_deflateUsed(&strm);
-    try_deflateTune(&strm, Data, Size);
-    try_deflateCopy(&strm);
+    // Write the data to the dummy file
+    write(fd, Data, Size);
+    lseek(fd, 0, SEEK_SET);
 
-    deflateEnd(&strm);
+    // Fuzz gzdopen
+    fuzz_gzdopen(Data, Size);
+
+    // Rewind and open the file for reading
+    lseek(fd, 0, SEEK_SET);
+    gzFile file = gzdopen(fd, "r");
+    if (file) {
+        // Fuzz gzclearerr
+        fuzz_gzclearerr(file);
+
+        // Fuzz gzread
+        fuzz_gzread(file, Size);
+
+        // Fuzz gzfread
+        fuzz_gzfread(file, Size);
+
+        // Fuzz gzclose
+        fuzz_gzclose(file);
+    } else {
+        close(fd);
+    }
+
+    // Rewind and open the file for writing
+    lseek(fd, 0, SEEK_SET);
+    file = gzdopen(fd, "w");
+    if (file) {
+        // Fuzz gzfwrite
+        fuzz_gzfwrite(file, Data, Size);
+
+        // Fuzz gzclose
+        fuzz_gzclose(file);
+    } else {
+        close(fd);
+    }
+
     return 0;
 }

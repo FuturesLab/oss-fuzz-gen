@@ -1,74 +1,85 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// uncompress_z at uncompr.c:88:13 in zlib.h
-// uncompress2 at uncompr.c:79:13 in zlib.h
-// inflateInit_ at inflate.c:214:13 in zlib.h
-// inflateSetDictionary at inflate.c:1187:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
-// uncompress at uncompr.c:93:13 in zlib.h
-// inflateInit_ at inflate.c:214:13 in zlib.h
-// inflateSync at inflate.c:1264:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
-// uncompress2_z at uncompr.c:29:13 in zlib.h
+// gzputs at gzwrite.c:350:13 in zlib.h
+// gzgets at gzread.c:562:16 in zlib.h
+// gzopen at gzlib.c:288:16 in zlib.h
+// gzrewind at gzlib.c:346:13 in zlib.h
+// gzgetc at gzread.c:469:13 in zlib.h
+// gzerror at gzlib.c:513:22 in zlib.h
+// gzclose at gzclose.c:11:13 in zlib.h
+// zlibVersion at zutil.c:27:22 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <zlib.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <zlib.h>
 
-static void test_uncompress_z(const uint8_t *Data, size_t Size) {
-    Bytef dest[1024];
-    z_size_t destLen = sizeof(dest);
-    uncompress_z(dest, &destLen, Data, Size);
+static void fuzz_gzputs(gzFile file, const uint8_t *Data, size_t Size) {
+    // Allocate a buffer and ensure null termination
+    char *buffer = (char *)malloc(Size + 1);
+    if (buffer == NULL) {
+        return;
+    }
+    memcpy(buffer, Data, Size);
+    buffer[Size] = '\0';
+
+    // Use gzputs to write the string to the gzFile
+    gzputs(file, buffer);
+
+    free(buffer);
 }
 
-static void test_uncompress2(const uint8_t *Data, size_t Size) {
-    Bytef dest[1024];
-    uLongf destLen = sizeof(dest);
-    uLong sourceLen = Size;
-    uncompress2(dest, &destLen, Data, &sourceLen);
-}
+static void fuzz_gzgets(gzFile file, size_t Size) {
+    // Allocate a buffer for reading
+    char *buffer = (char *)malloc(Size + 1);
+    if (buffer == NULL) {
+        return;
+    }
 
-static void test_inflateSetDictionary(const uint8_t *Data, size_t Size) {
-    z_stream strm;
-    memset(&strm, 0, sizeof(strm));
-    inflateInit(&strm);
-    inflateSetDictionary(&strm, Data, Size);
-    inflateEnd(&strm);
-}
+    // Use gzgets to read a line from the gzFile
+    gzgets(file, buffer, (int)Size);
 
-static void test_uncompress(const uint8_t *Data, size_t Size) {
-    Bytef dest[1024];
-    uLongf destLen = sizeof(dest);
-    uncompress(dest, &destLen, Data, Size);
-}
-
-static void test_inflateSync(const uint8_t *Data, size_t Size) {
-    z_stream strm;
-    memset(&strm, 0, sizeof(strm));
-    inflateInit(&strm);
-    strm.next_in = (Bytef *)Data;
-    strm.avail_in = Size;
-    inflateSync(&strm);
-    inflateEnd(&strm);
-}
-
-static void test_uncompress2_z(const uint8_t *Data, size_t Size) {
-    Bytef dest[1024];
-    z_size_t destLen = sizeof(dest);
-    z_size_t sourceLen = Size;
-    uncompress2_z(dest, &destLen, Data, &sourceLen);
+    free(buffer);
 }
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *Data, size_t Size) {
-    test_uncompress_z(Data, Size);
-    test_uncompress2(Data, Size);
-    test_inflateSetDictionary(Data, Size);
-    test_uncompress(Data, Size);
-    test_inflateSync(Data, Size);
-    test_uncompress2_z(Data, Size);
+    // Ensure there is enough data for meaningful operations
+    if (Size < 1) {
+        return 0;
+    }
+
+    // Open a gzipped file for writing and reading
+    gzFile gzfile = gzopen("./dummy_file", "w+");
+    if (gzfile == NULL) {
+        return 0;
+    }
+
+    // Fuzz gzputs with the given data
+    fuzz_gzputs(gzfile, Data, Size);
+
+    // Rewind the file to the beginning for reading
+    gzrewind(gzfile);
+
+    // Fuzz gzgets with the given data
+    fuzz_gzgets(gzfile, Size);
+
+    // Get a single character with gzgetc
+    gzgetc(gzfile);
+
+    // Retrieve the last error message
+    int errnum;
+    gzerror(gzfile, &errnum);
+
+    // Close the gzFile
+    gzclose(gzfile);
+
+    // Check zlib version
+    zlibVersion();
+
     return 0;
 }

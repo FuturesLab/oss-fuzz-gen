@@ -1,107 +1,107 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// zlibVersion at zutil.c:27:22 in zlib.h
-// gzerror at gzlib.c:513:22 in zlib.h
-// gzputc at gzwrite.c:307:13 in zlib.h
-// gzgets at gzread.c:562:16 in zlib.h
-// gzputs at gzwrite.c:350:13 in zlib.h
-// gzgetc at gzread.c:469:13 in zlib.h
-// gzdopen at gzlib.c:298:16 in zlib.h
-// gzrewind at gzlib.c:346:13 in zlib.h
-// gzclose at gzclose.c:11:13 in zlib.h
+// compressBound at compress.c:92:15 in zlib.h
+// compress2_z at compress.c:24:13 in zlib.h
+// uncompress2 at uncompr.c:79:13 in zlib.h
+// uncompress at uncompr.c:93:13 in zlib.h
+// compressBound at compress.c:92:15 in zlib.h
+// compress2 at compress.c:63:13 in zlib.h
+// compressBound at compress.c:92:15 in zlib.h
+// compress at compress.c:78:13 in zlib.h
+// zlibCompileFlags at zutil.c:31:15 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <zlib.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <zlib.h>
 
-static void fuzz_zlibVersion() {
-    const char *version = zlibVersion();
-    if (version == NULL) {
-        fprintf(stderr, "zlibVersion returned NULL\n");
+static void fuzz_compress2_z(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    int level = Data[0] % 10; // Compression level 0-9
+    const Bytef *source = (const Bytef *)(Data + 1);
+    z_size_t sourceLen = Size - 1;
+    z_size_t destLen = compressBound(sourceLen);
+    Bytef *dest = (Bytef *)malloc(destLen);
+
+    if (dest) {
+        compress2_z(dest, &destLen, source, sourceLen, level);
+        free(dest);
     }
 }
 
-static void fuzz_gzerror(gzFile file) {
-    int errnum;
-    const char *error = gzerror(file, &errnum);
-    if (error == NULL) {
-        fprintf(stderr, "gzerror returned NULL\n");
+static void fuzz_uncompress2(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    const Bytef *source = (const Bytef *)Data;
+    uLong sourceLen = Size;
+    uLongf destLen = sourceLen * 4; // Assume a max expansion factor
+    Bytef *dest = (Bytef *)malloc(destLen);
+
+    if (dest) {
+        uncompress2(dest, &destLen, source, &sourceLen);
+        free(dest);
     }
 }
 
-static void fuzz_gzputc(gzFile file) {
-    int c = 'A';  // Example character to write
-    int result = gzputc(file, c);
-    if (result == -1) {
-        fprintf(stderr, "gzputc failed\n");
+static void fuzz_uncompress(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    const Bytef *source = (const Bytef *)Data;
+    uLong sourceLen = Size;
+    uLongf destLen = sourceLen * 4; // Assume a max expansion factor
+    Bytef *dest = (Bytef *)malloc(destLen);
+
+    if (dest) {
+        uncompress(dest, &destLen, source, sourceLen);
+        free(dest);
     }
 }
 
-static void fuzz_gzgets(gzFile file) {
-    char buffer[256];
-    char *result = gzgets(file, buffer, sizeof(buffer));
-    if (result == NULL) {
-        fprintf(stderr, "gzgets failed or reached EOF\n");
+static void fuzz_compress2(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    int level = Data[0] % 10; // Compression level 0-9
+    const Bytef *source = (const Bytef *)(Data + 1);
+    uLong sourceLen = Size - 1;
+    uLongf destLen = compressBound(sourceLen);
+    Bytef *dest = (Bytef *)malloc(destLen);
+
+    if (dest) {
+        compress2(dest, &destLen, source, sourceLen, level);
+        free(dest);
     }
 }
 
-static void fuzz_gzputs(gzFile file, const uint8_t *Data, size_t Size) {
-    char *buffer = (char *)malloc(Size + 1);
-    if (buffer == NULL) {
-        fprintf(stderr, "Memory allocation failed\n");
-        return;
-    }
-    memcpy(buffer, Data, Size);
-    buffer[Size] = '\0';  // Ensure null-termination
+static void fuzz_compress(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
 
-    int result = gzputs(file, buffer);
-    if (result == -1) {
-        fprintf(stderr, "gzputs failed\n");
-    }
+    const Bytef *source = (const Bytef *)Data;
+    uLong sourceLen = Size;
+    uLongf destLen = compressBound(sourceLen);
+    Bytef *dest = (Bytef *)malloc(destLen);
 
-    free(buffer);
+    if (dest) {
+        compress(dest, &destLen, source, sourceLen);
+        free(dest);
+    }
 }
 
-static void fuzz_gzgetc(gzFile file) {
-    int result = gzgetc(file);
-    if (result == -1) {
-        fprintf(stderr, "gzgetc failed or reached EOF\n");
-    }
+static void fuzz_zlibCompileFlags() {
+    zlibCompileFlags();
 }
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
-    fuzz_zlibVersion();
-
-    FILE *dummy_file = fopen("./dummy_file", "wb+");
-    if (!dummy_file) {
-        fprintf(stderr, "Failed to open dummy file\n");
-        return 0;
-    }
-
-    gzFile gz_file = gzdopen(fileno(dummy_file), "wb+");
-    if (!gz_file) {
-        fprintf(stderr, "gzdopen failed\n");
-        fclose(dummy_file);
-        return 0;
-    }
-
-    fuzz_gzputc(gz_file);
-    fuzz_gzputs(gz_file, Data, Size);
-
-    gzrewind(gz_file);
-
-    fuzz_gzgets(gz_file);
-    fuzz_gzgetc(gz_file);
-
-    fuzz_gzerror(gz_file);
-
-    gzclose(gz_file);
-    fclose(dummy_file);
-
+    fuzz_compress2_z(Data, Size);
+    fuzz_uncompress2(Data, Size);
+    fuzz_uncompress(Data, Size);
+    fuzz_compress2(Data, Size);
+    fuzz_compress(Data, Size);
+    fuzz_zlibCompileFlags();
     return 0;
 }

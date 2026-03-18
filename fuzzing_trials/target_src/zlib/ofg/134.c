@@ -1,24 +1,31 @@
 #include <stdint.h>
-#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data to
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    // Create a temporary file to write the input data
+    char filename[] = "/tmp/fuzz_gzfile_XXXXXX";
+    int fd = mkstemp(filename);
+    if (fd == -1) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    fwrite(data, 1, size, tempFile);
+    // Write data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(filename);
+        return 0;
+    }
 
-    // Rewind the file to the beginning for reading
-    rewind(tempFile);
+    // Close the file descriptor
+    close(fd);
 
-    // Open the temporary file as a gzFile
-    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
+    // Open the file as a gzFile
+    gzFile gzfile = gzopen(filename, "rb");
     if (gzfile == NULL) {
-        fclose(tempFile);
+        unlink(filename);
         return 0;
     }
 
@@ -27,7 +34,7 @@ int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
 
     // Clean up
     gzclose(gzfile);
-    fclose(tempFile);
+    unlink(filename);
 
     return 0;
 }

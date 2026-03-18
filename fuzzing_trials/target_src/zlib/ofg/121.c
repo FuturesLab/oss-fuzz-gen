@@ -1,33 +1,38 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <zlib.h>
 
+// Define the LLVMFuzzerTestOneInput function without extern "C"
 int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    int c = 0; // Initialize with a non-zero integer
-
-    // Create a temporary file to write the data to
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
-        return 0; // If the temporary file couldn't be created, exit early
+    // Ensure there is at least one byte to unget
+    if (size < 1) {
+        return 0;
     }
 
-    // Write the input data to the temporary file
-    fwrite(data, 1, size, tempFile);
-    rewind(tempFile); // Reset the file position to the beginning
-
-    // Open a gzFile, using the temporary file descriptor
-    gzFile file = gzdopen(dup(fileno(tempFile)), "rb");
-    if (file == NULL) {
-        fclose(tempFile);
-        return 0; // If gzFile couldn't be opened, exit early
+    // Initialize a gzFile object using a memory buffer
+    gzFile gz_file = gzdopen(fileno(tmpfile()), "wb+");
+    if (gz_file == NULL) {
+        return 0;
     }
 
-    // Call the function-under-test with the initialized parameters
-    gzungetc(c, file);
+    // Write the data to the gzFile
+    if (gzwrite(gz_file, data, size) != (int)size) {
+        gzclose(gz_file);
+        return 0;
+    }
 
-    gzclose(file); // Close the gzFile
-    fclose(tempFile); // Close the temporary file
+    // Rewind the gzFile to the beginning
+    if (gzseek(gz_file, 0, SEEK_SET) < 0) {
+        gzclose(gz_file);
+        return 0;
+    }
+
+    // Call gzungetc with the first byte of data
+    int byte_to_unget = data[0];
+    gzungetc(byte_to_unget, gz_file);
+
+    // Clean up
+    gzclose(gz_file);
+
     return 0;
 }

@@ -1,28 +1,50 @@
 #include <stdint.h>
-#include <zlib.h>  // Ensure to include the zlib header for uLong type
 #include <stddef.h>
-#include <sys/types.h>  // Include for off_t type
-
-// Declare the function crc32_combine_gen if it's not declared elsewhere
-extern uLong crc32_combine_gen(off_t offset);
+#include <zlib.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    // Ensure the size is at least the size of an off_t type
-    if (size < sizeof(off_t)) {
+    // Initialize a z_stream structure
+    z_stream stream;
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+
+    // Set up the input data for the stream
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
+
+    // Initialize the stream for inflation
+    if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
 
-    // Extract an off_t value from the input data
-    off_t offset = 0;
-    for (size_t i = 0; i < sizeof(off_t); i++) {
-        offset = (offset << 8) | data[i];
+    // Allocate a buffer for the output data
+    size_t buffer_size = size * 2; // Arbitrary choice to ensure some space
+    Bytef *out_buffer = (Bytef *)malloc(buffer_size);
+    if (out_buffer == NULL) {
+        inflateEnd(&stream);
+        return 0;
+    }
+
+    // Set up the output data for the stream
+    stream.next_out = out_buffer;
+    stream.avail_out = (uInt)buffer_size;
+
+    // Attempt to inflate the input data
+    while (stream.avail_in > 0) {
+        int ret = inflate(&stream, Z_NO_FLUSH);
+        if (ret == Z_STREAM_END || ret != Z_OK) {
+            break;
+        }
     }
 
     // Call the function-under-test
-    uLong result = crc32_combine_gen(offset);
+    long result = inflateMark(&stream);
 
-    // Use the result in some way to avoid any compiler optimizations
-    (void)result;
+    // Clean up
+    inflateEnd(&stream);
+    free(out_buffer);
 
     return 0;
 }

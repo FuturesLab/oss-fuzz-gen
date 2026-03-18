@@ -5,27 +5,36 @@
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
     z_stream stream;
     int ret;
+    unsigned char out[1024];  // Output buffer for deflate
 
     // Initialize the z_stream structure
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
-    stream.avail_in = size;
-    stream.next_in = (Bytef *)data;
 
-    // Initialize the stream for deflation
+    // Initialize the deflate stream
     ret = deflateInit(&stream, Z_DEFAULT_COMPRESSION);
     if (ret != Z_OK) {
         return 0;
     }
 
-    // Allocate output buffer
-    unsigned char outbuffer[1024];
-    stream.avail_out = sizeof(outbuffer);
-    stream.next_out = outbuffer;
+    // Set the input data for the stream
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
 
-    // Call the function-under-test
+    // Set the output buffer for the stream
+    stream.next_out = out;
+    stream.avail_out = sizeof(out);
+
+    // Perform a deflate operation
     ret = deflate(&stream, Z_FINISH);
+    if (ret != Z_STREAM_END && ret != Z_OK) {
+        deflateEnd(&stream);
+        return 0;
+    }
+
+    // Reset the stream while keeping the state
+    ret = deflateResetKeep(&stream);
 
     // Clean up
     deflateEnd(&stream);

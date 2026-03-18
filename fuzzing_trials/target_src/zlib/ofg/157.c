@@ -1,24 +1,31 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-    // Define and initialize parameters for the compress function
-    uLongf destLen = compressBound(size); // Maximum size of the compressed data
-    Bytef *dest = (Bytef *)malloc(destLen); // Allocate memory for the compressed data
-    const Bytef *source = data; // Source data to be compressed
-    uLong sourceLen = (uLong)size; // Length of the source data
+    z_stream stream;
+    int ret;
+    
+    // Initialize the z_stream structure
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
 
-    if (dest == NULL) {
-        return 0; // If memory allocation fails, return early
+    // Initialize the deflate process
+    ret = deflateInit(&stream, Z_DEFAULT_COMPRESSION);
+    if (ret != Z_OK) {
+        return 0;
     }
 
-    // Call the function-under-test
-    int result = compress(dest, &destLen, source, sourceLen);
+    // Ensure that the dictionary is not NULL and has a positive length
+    const Bytef *dictionary = data;
+    uInt dictLength = (uInt)size;
 
-    // Free allocated memory
-    free(dest);
+    // Call the function under test
+    deflateSetDictionary(&stream, dictionary, dictLength);
+
+    // Clean up the deflate stream
+    deflateEnd(&stream);
 
     return 0;
 }

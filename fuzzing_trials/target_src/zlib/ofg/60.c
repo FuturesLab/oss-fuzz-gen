@@ -2,30 +2,42 @@
 #include <stdlib.h>
 #include <zlib.h>
 
+extern int inflateUndermine(z_streamp strm, int subvert);
+
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
+    if (size == 0) {
+        return 0;
+    }
+
+    // Declare and initialize variables
     z_stream stream;
-    int ret;
-    int undermine_value = 1; // Example value, can be varied for fuzzing
+    int subvert = 1; // A non-zero value for subvert
 
     // Initialize the z_stream structure
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
-    stream.avail_in = 0;
-    stream.next_in = Z_NULL;
+    stream.avail_in = (uInt)size;
+    stream.next_in = (Bytef *)data;
 
-    // Initialize the inflate operation
-    ret = inflateInit(&stream);
-    if (ret != Z_OK) {
+    // Allocate output buffer
+    unsigned char outbuffer[4096];
+    stream.avail_out = sizeof(outbuffer);
+    stream.next_out = outbuffer;
+
+    // Initialize the inflate state
+    if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
 
-    // Set the input data for the z_stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = size;
-
     // Call the function-under-test
-    ret = inflateUndermine(&stream, undermine_value);
+    int result = inflateUndermine(&stream, subvert);
+
+    // Check the result to ensure the function is being invoked
+    if (result != Z_OK && result != Z_STREAM_END) {
+        inflateEnd(&stream);
+        return 0;
+    }
 
     // Clean up
     inflateEnd(&stream);

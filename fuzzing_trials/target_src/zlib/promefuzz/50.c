@@ -1,108 +1,68 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// inflateGetDictionary at inflate.c:1167:13 in zlib.h
-// inflateCopy at inflate.c:1328:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
-// inflate at inflate.c:474:13 in zlib.h
-// inflateReset2 at inflate.c:136:13 in zlib.h
-// inflateInit2_ at inflate.c:173:13 in zlib.h
-// deflateSetDictionary at deflate.c:560:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
+// crc32_combine64 at crc32.c:975:15 in zlib.h
+// crc32 at crc32.c:945:15 in zlib.h
+// crc32_combine_gen64 at crc32.c:953:15 in zlib.h
+// crc32_combine_op at crc32.c:968:15 in zlib.h
+// get_crc_table at crc32.c:481:29 in zlib.h
+// crc32_z at crc32.c:625:15 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <zlib.h>
 
-static void initialize_stream(z_streamp strm) {
-    memset(strm, 0, sizeof(z_stream));
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
+static void fuzz_crc32_combine64(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uLong) * 2 + sizeof(z_off64_t)) return;
+    uLong crc1 = *(const uLong*)Data;
+    uLong crc2 = *(const uLong*)(Data + sizeof(uLong));
+    z_off64_t len2 = *(const z_off64_t*)(Data + 2 * sizeof(uLong));
+    crc32_combine64(crc1, crc2, len2);
 }
 
-static void test_inflateGetDictionary(z_streamp strm) {
-    Bytef dictionary[1024];
-    uInt dictLength = sizeof(dictionary);
-    int result = inflateGetDictionary(strm, dictionary, &dictLength);
-    if (result != Z_OK) {
-        fprintf(stderr, "inflateGetDictionary failed: %d\n", result);
-    }
+static void fuzz_crc32(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uLong)) return;
+    uLong crc = *(const uLong*)Data;
+    const Bytef *buf = Data + sizeof(uLong);
+    uInt len = (uInt)(Size - sizeof(uLong));
+    crc32(crc, buf, len);
 }
 
-static void test_inflateCopy(z_streamp source) {
-    z_stream dest;
-    initialize_stream(&dest);
-    int result = inflateCopy(&dest, source);
-    if (result != Z_OK) {
-        fprintf(stderr, "inflateCopy failed: %d\n", result);
-    }
-    inflateEnd(&dest);
+static void fuzz_crc32_combine_gen64(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(z_off64_t)) return;
+    z_off64_t len = *(const z_off64_t*)Data;
+    crc32_combine_gen64(len);
 }
 
-static void test_inflate(z_streamp strm) {
-    int result = inflate(strm, Z_NO_FLUSH);
-    if (result != Z_OK && result != Z_STREAM_END) {
-        fprintf(stderr, "inflate failed: %d\n", result);
-    }
+static void fuzz_crc32_combine_op(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uLong) * 3) return;
+    uLong crc1 = *(const uLong*)Data;
+    uLong crc2 = *(const uLong*)(Data + sizeof(uLong));
+    uLong op = *(const uLong*)(Data + 2 * sizeof(uLong));
+    crc32_combine_op(crc1, crc2, op);
 }
 
-static void test_inflateReset2(z_streamp strm, int windowBits) {
-    int result = inflateReset2(strm, windowBits);
-    if (result != Z_OK) {
-        fprintf(stderr, "inflateReset2 failed: %d\n", result);
-    }
+static void fuzz_get_crc_table(void) {
+    get_crc_table();
 }
 
-static void test_inflateInit2(z_streamp strm, int windowBits) {
-    int result = inflateInit2_(strm, windowBits, ZLIB_VERSION, sizeof(z_stream));
-    if (result != Z_OK) {
-        fprintf(stderr, "inflateInit2_ failed: %d\n", result);
-    }
-}
-
-static void test_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLength) {
-    int result = deflateSetDictionary(strm, dictionary, dictLength);
-    if (result != Z_OK) {
-        fprintf(stderr, "deflateSetDictionary failed: %d\n", result);
-    }
+static void fuzz_crc32_z(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uLong)) return;
+    uLong crc = *(const uLong*)Data;
+    const Bytef *buf = Data + sizeof(uLong);
+    z_size_t len = (z_size_t)(Size - sizeof(uLong));
+    crc32_z(crc, buf, len);
 }
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    z_stream strm;
-    initialize_stream(&strm);
-
-    // Test inflateInit2_
-    test_inflateInit2(&strm, MAX_WBITS);
-
-    // Test inflateGetDictionary
-    test_inflateGetDictionary(&strm);
-
-    // Test inflateCopy
-    test_inflateCopy(&strm);
-
-    // Test inflate
-    strm.next_in = (Bytef *)Data;
-    strm.avail_in = (uInt)Size;
-    Bytef out[1024];
-    strm.next_out = out;
-    strm.avail_out = sizeof(out);
-    test_inflate(&strm);
-
-    // Test inflateReset2
-    test_inflateReset2(&strm, MAX_WBITS);
-
-    // Test deflateSetDictionary
-    if (Size > 10) {
-        test_deflateSetDictionary(&strm, Data, 10);
-    }
-
-    inflateEnd(&strm);
-
+    fuzz_crc32_combine64(Data, Size);
+    fuzz_crc32(Data, Size);
+    fuzz_crc32_combine_gen64(Data, Size);
+    fuzz_crc32_combine_op(Data, Size);
+    fuzz_get_crc_table();
+    fuzz_crc32_z(Data, Size);
     return 0;
 }

@@ -1,42 +1,25 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Initialize z_stream structure
-    z_stream stream;
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    stream.avail_in = size;
-    stream.next_in = (Bytef *)data;
-
-    // Initialize gz_header structure
-    gz_header header;
-    header.text = 0;
-    header.time = 0;
-    header.xflags = 0;
-    header.os = 0;
-    header.extra = NULL;
-    header.extra_len = 0;
-    header.extra_max = 0;
-    header.name = NULL;
-    header.name_max = 0;
-    header.comment = NULL;
-    header.comm_max = 0;
-    header.hcrc = 0;
-    header.done = 0;
-
-    // Initialize inflate state
-    if (inflateInit2(&stream, 15 + 32) != Z_OK) {
+    // Ensure size is at least the size of an off_t
+    if (size < sizeof(off_t)) {
         return 0;
     }
 
+    // Extract an off_t value from the input data
+    off_t offset = 0;
+    for (size_t i = 0; i < sizeof(off_t); ++i) {
+        offset = (offset << 8) | data[i];
+    }
+
     // Call the function-under-test
-    int result = inflateGetHeader(&stream, &header);
+    uLong result = crc32_combine_gen(offset);
 
-    // Clean up
-    inflateEnd(&stream);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    if (result == 0) {
+        return 0;
+    }
 
-    return result;
+    return 0;
 }
