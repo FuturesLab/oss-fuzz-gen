@@ -14,20 +14,20 @@ int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
   cJSON *json;
   const char *error_ptr;
 
-  // Check if the input data is valid for parsing
+  // Ensure the input data is null-terminated
   if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }
 
-  // Parse the input data as a JSON object
+  // Parse the input data as JSON
   json = cJSON_Parse((const char *)data);
 
   // Retrieve the error pointer
   error_ptr = cJSON_GetErrorPtr();
 
-  // If parsing failed, error_ptr should point to the error location
+  // If json parsing failed, error_ptr should not be NULL
   if (json == NULL && error_ptr != NULL) {
-    // You can log or handle the error pointer as needed
+    // Optionally, you can log or handle the error pointer here
   }
 
   // Clean up

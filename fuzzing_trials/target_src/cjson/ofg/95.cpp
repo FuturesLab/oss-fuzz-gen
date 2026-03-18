@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -7,17 +6,19 @@
 extern "C" {
 #endif
 
-#include "/src/cjson/cJSON.h"
+#include "../cJSON.h"
+
+int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
   if (size == 0) {
     return 0;
   }
 
-  const char *parse_end = NULL;
-  cJSON_bool require_null_termination = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
+  const char *error_ptr = NULL;
+  cJSON_bool require_null_termination = cJSON_True;
 
-  // Ensure the input data is null-terminated if required
+  // Ensure the input is null-terminated
   char *input_data = (char *)malloc(size + 1);
   if (input_data == NULL) {
     return 0;
@@ -25,8 +26,10 @@ int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
   memcpy(input_data, data, size);
   input_data[size] = '\0';
 
-  cJSON *json = cJSON_ParseWithLengthOpts(input_data, size, &parse_end, require_null_termination);
+  // Parse the input JSON data
+  cJSON *json = cJSON_ParseWithLengthOpts(input_data, size, &error_ptr, require_null_termination);
 
+  // Clean up
   if (json != NULL) {
     cJSON_Delete(json);
   }

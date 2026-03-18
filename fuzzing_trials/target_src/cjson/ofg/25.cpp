@@ -22,10 +22,9 @@ int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
 
   cJSON_bool is_raw = cJSON_IsRaw(json);
 
-  // Use the result to prevent any compiler optimizations that might skip the call
+  // Use the result of cJSON_IsRaw to avoid compiler warnings about unused variables
   if (is_raw) {
-    // Do something if it is raw, here we just make a dummy operation
-    (void)is_raw;
+    // Do something if it's raw, though for fuzzing purposes, we don't need to do anything specific
   }
 
   cJSON_Delete(json);

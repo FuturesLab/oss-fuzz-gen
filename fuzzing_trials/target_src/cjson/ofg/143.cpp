@@ -1,53 +1,64 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int LLVMFuzzerTestOneInput_143(const uint8_t* data, size_t size) {
-    if (size < 2) return 0;
+#include "../cJSON.h"
 
-    // Split the input data into two parts for two JSON strings
-    size_t half_size = size / 2;
-    const char* json1_data = (const char*)data;
-    const char* json2_data = (const char*)(data + half_size);
+int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size);
 
-    // Ensure null-termination of the strings
-    char* json1 = (char*)malloc(half_size + 1);
-    char* json2 = (char*)malloc(size - half_size + 1);
-
-    if (!json1 || !json2) {
-        free(json1);
-        free(json2);
+int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
+    if (size < 2) {
         return 0;
     }
 
-    memcpy(json1, json1_data, half_size);
-    json1[half_size] = '\0';
+    // Split the input data into two halves for two cJSON objects
+    size_t mid = size / 2;
+    const uint8_t *data1 = data;
+    size_t size1 = mid;
+    const uint8_t *data2 = data + mid;
+    size_t size2 = size - mid;
 
-    memcpy(json2, json2_data, size - half_size);
-    json2[size - half_size] = '\0';
-
-    // Parse the JSON strings
-    cJSON* json1_parsed = cJSON_Parse(json1);
-    cJSON* json2_parsed = cJSON_Parse(json2);
-
-    if (json1_parsed && json2_parsed) {
-        // Use the first byte of the input data to determine the cJSON_bool value
-        cJSON_bool case_sensitive = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
-
-        // Call the function under test
-        cJSON_Compare((const cJSON*)json1_parsed, (const cJSON*)json2_parsed, case_sensitive);
+    // Ensure both halves are null-terminated
+    char *json_str1 = (char *)malloc(size1 + 1);
+    char *json_str2 = (char *)malloc(size2 + 1);
+    if (json_str1 == NULL || json_str2 == NULL) {
+        free(json_str1);
+        free(json_str2);
+        return 0;
     }
 
-    // Cleanup
-    cJSON_Delete(json1_parsed);
-    cJSON_Delete(json2_parsed);
-    free(json1);
-    free(json2);
+    memcpy(json_str1, data1, size1);
+    json_str1[size1] = '\0';
+
+    memcpy(json_str2, data2, size2);
+    json_str2[size2] = '\0';
+
+    // Parse the two JSON strings
+    cJSON *json1 = cJSON_Parse(json_str1);
+    cJSON *json2 = cJSON_Parse(json_str2);
+
+    free(json_str1);
+    free(json_str2);
+
+    if (json1 == NULL || json2 == NULL) {
+        cJSON_Delete(json1);
+        cJSON_Delete(json2);
+        return 0;
+    }
+
+    // Use the first byte of the input data to determine the value of the case_sensitive parameter
+    cJSON_bool case_sensitive = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
+
+    // Call the function under test
+    cJSON_bool result = cJSON_Compare(json1, json2, case_sensitive);
+
+    // Clean up
+    cJSON_Delete(json1);
+    cJSON_Delete(json2);
 
     return 0;
 }

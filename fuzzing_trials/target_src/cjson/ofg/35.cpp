@@ -22,8 +22,7 @@ int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
 
   char *string_value = cJSON_GetStringValue(json);
 
-  // We don't need to do anything with the string_value, just call the function
-  // to test for memory corruption or other issues.
+  // We don't need to do anything with string_value here, just ensure it doesn't cause a crash.
 
   cJSON_Delete(json);
 

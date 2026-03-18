@@ -20,12 +20,7 @@ int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
     return 0;
   }
 
-  cJSON_bool result = cJSON_IsFalse(json);
-
-  // Use the result in some way to prevent compiler optimizations from removing the call
-  if (result) {
-    // Do something if the result is true
-  }
+  cJSON_bool is_false = cJSON_IsFalse(json);
 
   cJSON_Delete(json);
 

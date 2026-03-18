@@ -21,8 +21,11 @@ int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
   }
 
   char *string_value = cJSON_GetStringValue(json);
+
+  /* Use the string_value for fuzzing purposes, if needed */
   if (string_value != NULL) {
-    // Do something with the string value if needed
+    /* For example, we could print it, but in fuzzing, we usually avoid output */
+    /* printf("String value: %s\n", string_value); */
   }
 
   cJSON_Delete(json);

@@ -1,10 +1,14 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include "/src/cjson/cJSON.h"
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "../cJSON.h"
+
+int LLVMFuzzerTestOneInput_151(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_151(const uint8_t *data, size_t size) {
   if (size == 0 || data[size - 1] != '\0') {
@@ -16,14 +20,10 @@ int LLVMFuzzerTestOneInput_151(const uint8_t *data, size_t size) {
     return 0;
   }
 
+  // Call the function-under-test
   cJSON_bool result = cJSON_IsBool(json);
 
-  // Use the result to prevent any compiler optimizations that might skip the call
-  if (result) {
-    // Do something trivial to use the result
-    (void)result;
-  }
-
+  // Clean up
   cJSON_Delete(json);
 
   return 0;

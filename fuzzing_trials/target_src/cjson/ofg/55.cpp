@@ -1,37 +1,34 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size); /* required by C89 */
-
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-  char *json_string;
-
-  // Ensure the input data is not empty and is null-terminated
-  if (size == 0 || data[size - 1] != '\0') {
+  if (size == 0) {
     return 0;
   }
 
-  // Allocate memory for the JSON string and copy the input data
-  json_string = (char *)malloc(size + 1);
-  if (json_string == NULL) {
+  // Allocate memory for a copy of the input data plus a null terminator
+  char *input_copy = (char *)malloc(size + 1);
+  if (input_copy == NULL) {
     return 0;
   }
 
-  memcpy(json_string, data, size);
-  json_string[size] = '\0'; // Ensure null-termination
+  // Copy the input data into the allocated memory
+  memcpy(input_copy, data, size);
+
+  // Ensure the input is null-terminated
+  input_copy[size] = '\0';
 
   // Call the function-under-test
-  cJSON_Minify(json_string);
+  cJSON_Minify(input_copy);
 
   // Free the allocated memory
-  free(json_string);
+  free(input_copy);
 
   return 0;
 }

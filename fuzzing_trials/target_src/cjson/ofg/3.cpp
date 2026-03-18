@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,20 +12,19 @@ extern "C" {
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-  cJSON *json;
-  double number_value;
-
   if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }
 
-  json = cJSON_Parse((const char *)data);
-
+  cJSON *json = cJSON_Parse((const char *)data);
   if (json == NULL) {
     return 0;
   }
 
-  number_value = cJSON_GetNumberValue(json);
+  double number_value = cJSON_GetNumberValue(json);
+
+  // Optionally, print the number value for debugging purposes
+  printf("Number value: %f\n", number_value);
 
   cJSON_Delete(json);
 

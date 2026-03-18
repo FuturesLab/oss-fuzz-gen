@@ -11,23 +11,26 @@ extern "C" {
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-  cJSON *json;
+    if (size == 0 || data[size - 1] != '\0') {
+        return 0;
+    }
 
-  if (size == 0 || data[size - 1] != '\0') {
+    cJSON *json = cJSON_Parse((const char *)data);
+    if (json == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    cJSON_bool is_object = cJSON_IsObject(json);
+
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (is_object) {
+        // Do something if it's an object
+    }
+
+    cJSON_Delete(json);
+
     return 0;
-  }
-
-  json = cJSON_Parse((const char *)data);
-
-  if (json == NULL) {
-    return 0;
-  }
-
-  cJSON_bool result = cJSON_IsObject(json);
-
-  cJSON_Delete(json);
-
-  return 0;
 }
 
 #ifdef __cplusplus

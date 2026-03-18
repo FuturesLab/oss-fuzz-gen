@@ -12,17 +12,17 @@ int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size); /* required by
 
 int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
   cJSON *json;
-  const char *error_ptr;
 
-  if (size == 0 || data[size - 1] != '\0')
+  if (size == 0 || data[size - 1] != '\0') {
     return 0;
+  }
 
   json = cJSON_Parse((const char *)data);
 
   if (json == NULL) {
-    error_ptr = cJSON_GetErrorPtr();
+    const char *error_ptr = cJSON_GetErrorPtr();
     if (error_ptr != NULL) {
-      // Handle the error pointer if needed for debugging purposes
+      // Handle the error pointer if needed, for now just continue
     }
   } else {
     cJSON_Delete(json);

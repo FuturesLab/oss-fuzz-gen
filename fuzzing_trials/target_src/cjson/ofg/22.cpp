@@ -1,55 +1,51 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size); /* required by C89 */
-
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-  if (size < 2) {
+    if (size < 2) {
+        return 0;
+    }
+
+    // Split the input data into two parts
+    size_t key_size = data[0] % size;
+    size_t value_size = size - key_size - 1;
+
+    // Ensure null-terminated strings
+    char *key = (char *)malloc(key_size + 1);
+    char *value = (char *)malloc(value_size + 1);
+    if (!key || !value) {
+        free(key);
+        free(value);
+        return 0;
+    }
+
+    memcpy(key, data + 1, key_size);
+    key[key_size] = '\0';
+
+    memcpy(value, data + 1 + key_size, value_size);
+    value[value_size] = '\0';
+
+    // Create a cJSON object and item
+    cJSON *json_object = cJSON_CreateObject();
+    cJSON *new_item = cJSON_CreateString(value);
+
+    if (json_object && new_item) {
+        // Call the function under test
+        cJSON_ReplaceItemInObject(json_object, key, new_item);
+    }
+
+    // Clean up
+    cJSON_Delete(json_object); // This will also delete new_item if it was added to the object
+    free(key);
+    free(value);
+
     return 0;
-  }
-
-  // Create a root cJSON object
-  cJSON *root = cJSON_CreateObject();
-  if (root == NULL) {
-    return 0;
-  }
-
-  // Create a new cJSON item to be inserted
-  cJSON *new_item = cJSON_CreateString("new_value");
-  if (new_item == NULL) {
-    cJSON_Delete(root);
-    return 0;
-  }
-
-  // Extract a key from the data
-  size_t key_length = data[0] % (size - 1) + 1; // Ensure key length is valid
-  char *key = (char *)malloc(key_length + 1);
-  if (key == NULL) {
-    cJSON_Delete(root);
-    cJSON_Delete(new_item);
-    return 0;
-  }
-  memcpy(key, data + 1, key_length);
-  key[key_length] = '\0';
-
-  // Add an initial item to the root object with the same key
-  cJSON_AddItemToObject(root, key, cJSON_CreateString("initial_value"));
-
-  // Attempt to replace the item in the object
-  cJSON_bool result = cJSON_ReplaceItemInObject(root, key, new_item);
-
-  // Clean up
-  free(key);
-  cJSON_Delete(root);
-
-  return 0;
 }
 
 #ifdef __cplusplus

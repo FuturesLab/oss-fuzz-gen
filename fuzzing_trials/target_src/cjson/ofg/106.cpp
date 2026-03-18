@@ -6,16 +6,16 @@
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size); /* required by C89 */
+#include "/src/cjson/cJSON.h"
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-  char *input_string;
-  cJSON *json_raw;
+  // Ensure the data is null-terminated to be used as a string
+  if (size == 0) {
+    return 0;
+  }
 
-  // Ensure the input data is null-terminated
-  input_string = (char *)malloc(size + 1);
+  // Convert the input data to a string
+  char *input_string = (char *)malloc(size + 1);
   if (input_string == NULL) {
     return 0;
   }
@@ -23,11 +23,11 @@ int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
   input_string[size] = '\0';
 
   // Call the function-under-test
-  json_raw = cJSON_CreateRaw(input_string);
+  cJSON *json = cJSON_CreateRaw(input_string);
 
   // Clean up
-  if (json_raw != NULL) {
-    cJSON_Delete(json_raw);
+  if (json != NULL) {
+    cJSON_Delete(json);
   }
   free(input_string);
 

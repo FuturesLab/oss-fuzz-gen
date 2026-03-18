@@ -14,7 +14,7 @@ int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
   cJSON *json;
   char *printed_json = NULL;
 
-  // Ensure the input data is null-terminated for parsing
+  // Ensure the data is null-terminated for cJSON_Parse
   if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }
@@ -22,18 +22,20 @@ int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
   // Parse the input data into a cJSON object
   json = cJSON_Parse((const char *)data);
 
-  // If parsing is successful, print the cJSON object
-  if (json != NULL) {
-    printed_json = cJSON_Print(json);
-
-    // Free the printed JSON string if it was allocated
-    if (printed_json != NULL) {
-      free(printed_json);
-    }
-
-    // Delete the cJSON object to prevent memory leaks
-    cJSON_Delete(json);
+  if (json == NULL) {
+    return 0;
   }
+
+  // Call the function-under-test
+  printed_json = cJSON_Print(json);
+
+  // Free the printed JSON string if it was created
+  if (printed_json != NULL) {
+    free(printed_json);
+  }
+
+  // Delete the cJSON object to free memory
+  cJSON_Delete(json);
 
   return 0;
 }

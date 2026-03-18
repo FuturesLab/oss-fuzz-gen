@@ -7,19 +7,21 @@ extern "C" {
 #endif
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Create a cJSON array
-    cJSON *json_array = cJSON_CreateArray();
+  // Call the function-under-test
+  cJSON *array = cJSON_CreateArray();
 
-    // Ensure the array is not NULL before proceeding
-    if (json_array == NULL) {
-        return 0;
-    }
+  // Ensure the array is not NULL before proceeding
+  if (array != NULL) {
+    // Optionally, you can add some elements to the array for further testing
+    // For example, adding a string and a number
+    cJSON_AddItemToArray(array, cJSON_CreateString("test"));
+    cJSON_AddItemToArray(array, cJSON_CreateNumber(123));
 
-    // Perform operations on the cJSON array if needed
-    // For this example, we will simply delete the array to test memory management
-    cJSON_Delete(json_array);
+    // Clean up the created cJSON array
+    cJSON_Delete(array);
+  }
 
-    return 0;
+  return 0;
 }
 
 #ifdef __cplusplus

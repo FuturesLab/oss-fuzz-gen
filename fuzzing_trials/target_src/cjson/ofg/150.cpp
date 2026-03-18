@@ -1,7 +1,5 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>  // Added to fix the 'snprintf' undeclared identifier error
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,26 +10,16 @@ extern "C" {
 int LLVMFuzzerTestOneInput_150(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_150(const uint8_t *data, size_t size) {
-  cJSON *json_object;
-
-  // Create a cJSON object
-  json_object = cJSON_CreateObject();
-
-  // Check if cJSON object creation was successful
+  cJSON *json_object = cJSON_CreateObject();
+  
   if (json_object == NULL) {
     return 0;
   }
 
-  // Perform operations on the cJSON object
-  // For example, add some key-value pairs
-  if (size > 0) {
-    // Use the input data to create a key-value pair
-    char key[5];
-    snprintf(key, sizeof(key), "key");
-    cJSON_AddItemToObject(json_object, key, cJSON_CreateNumber((int)data[0]));
-  }
+  // Here, you could add additional fuzzing logic to manipulate the JSON object
+  // For example, adding items to the JSON object using cJSON_AddItemToObject
 
-  // Clean up and delete the cJSON object
+  // Clean up
   cJSON_Delete(json_object);
 
   return 0;

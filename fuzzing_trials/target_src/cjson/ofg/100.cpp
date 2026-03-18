@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>  // Include this header for printf
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,13 +22,12 @@ int LLVMFuzzerTestOneInput_100(const uint8_t *data, size_t size) {
 
   cJSON_bool is_array = cJSON_IsArray(json);
 
-  // Use the result of cJSON_IsArray to avoid compiler warnings about unused variables
+  // Use the result to prevent compiler optimizations
   if (is_array) {
-    // Do something if it's an array, for example, print a message
-    // (In a real fuzzing scenario, you might not print anything, but this is just for demonstration)
-    printf("The parsed JSON is an array.\n");
-  } else {
-    printf("The parsed JSON is not an array.\n");
+    cJSON *item = cJSON_GetArrayItem(json, 0);
+    if (item != NULL) {
+      cJSON_IsArray(item);
+    }
   }
 
   cJSON_Delete(json);

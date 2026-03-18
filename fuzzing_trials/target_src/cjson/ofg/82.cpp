@@ -11,15 +11,14 @@ extern "C" {
 int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-  cJSON *json;
-  int array_size;
+  cJSON *json = NULL;
+  int array_size = 0;
 
   if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }
 
   json = cJSON_Parse((const char *)data);
-
   if (json == NULL) {
     return 0;
   }

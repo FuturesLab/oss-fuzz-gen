@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>  // Include this header for memcpy
 #include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
@@ -7,25 +8,29 @@ extern "C" {
 #endif
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    cJSON *json_true = cJSON_CreateTrue();
+  // Convert the input data to a null-terminated string
+  char *input = (char *)malloc(size + 1);
+  if (input == NULL) {
+    return 0;  // If memory allocation fails, return immediately
+  }
+  memcpy(input, data, size);
+  input[size] = '\0';
 
-    // Perform necessary operations to ensure code coverage
-    if (json_true != NULL) {
-        // Since cJSON_CreateTrue creates a JSON object representing true,
-        // we can perform a simple check and then delete it.
-        if (cJSON_IsTrue(json_true)) {
-            // Optionally, convert to string and free the string
-            char *json_string = cJSON_Print(json_true);
-            if (json_string != NULL) {
-                free(json_string);
-            }
-        }
-        // Clean up the created JSON object
-        cJSON_Delete(json_true);
-    }
+  // Parse the input data as a cJSON object
+  cJSON *json = cJSON_Parse(input);
+  
+  // Ensure that the parsed cJSON object is not NULL
+  if (json != NULL) {
+    // Perform any additional operations or checks if necessary
 
-    return 0;
+    // Clean up and delete the parsed cJSON object
+    cJSON_Delete(json);
+  }
+
+  // Free the allocated memory for input
+  free(input);
+
+  return 0;
 }
 
 #ifdef __cplusplus

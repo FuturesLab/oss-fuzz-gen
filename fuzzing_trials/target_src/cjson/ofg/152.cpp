@@ -20,8 +20,10 @@ int LLVMFuzzerTestOneInput_152(const uint8_t *data, size_t size) {
     return 0;
   }
 
+  // Call the function-under-test
   cJSON_bool result = cJSON_IsBool(json);
 
+  // Clean up
   cJSON_Delete(json);
 
   return 0;

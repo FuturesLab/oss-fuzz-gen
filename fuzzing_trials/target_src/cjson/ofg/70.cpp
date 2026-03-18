@@ -6,14 +6,14 @@
 extern "C" {
 #endif
 
-#include "/src/cjson/cJSON.h"
+#include "../cJSON.h"
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
   if (size == 0) return 0;
 
-  // Ensure the data is null-terminated for string operations
+  // Ensure the string is null-terminated
   char *key = (char *)malloc(size + 1);
   if (key == NULL) return 0;
   memcpy(key, data, size);
@@ -26,7 +26,7 @@ int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
     return 0;
   }
 
-  // Call the function under test
+  // Call the function-under-test
   cJSON *result = cJSON_AddNullToObject(json, key);
 
   // Clean up

@@ -11,35 +11,43 @@ extern "C" {
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    if (size < 2) return 0;
+  cJSON *json = NULL;
+  cJSON *detached_item = NULL;
+  char *key = NULL;
 
-    // Prepare a null-terminated key string
-    char *key = (char *)malloc(size + 1);
-    if (key == NULL) return 0;
-    memcpy(key, data, size);
-    key[size] = '\0';
-
-    // Create a simple JSON object
-    cJSON *json = cJSON_CreateObject();
-    if (json == NULL) {
-        free(key);
-        return 0;
-    }
-
-    // Add a sample item to the JSON object
-    cJSON_AddStringToObject(json, "sample_key", "sample_value");
-
-    // Call the function-under-test
-    cJSON *detached_item = cJSON_DetachItemFromObject(json, key);
-
-    // Clean up
-    if (detached_item != NULL) {
-        cJSON_Delete(detached_item);
-    }
-    cJSON_Delete(json);
-    free(key);
-
+  if (size < 2) {
     return 0;
+  }
+
+  // Ensure the data is null-terminated for safe string operations
+  char *input_data = (char *)malloc(size + 1);
+  if (input_data == NULL) {
+    return 0;
+  }
+  memcpy(input_data, data, size);
+  input_data[size] = '\0';
+
+  // Parse the input data into a cJSON object
+  json = cJSON_Parse(input_data);
+  if (json == NULL) {
+    free(input_data);
+    return 0;
+  }
+
+  // Use part of the input data as a key for detaching an item
+  key = input_data;
+  
+  // Detach an item from the JSON object
+  detached_item = cJSON_DetachItemFromObject(json, key);
+
+  // Clean up
+  if (detached_item != NULL) {
+    cJSON_Delete(detached_item);
+  }
+  cJSON_Delete(json);
+  free(input_data);
+
+  return 0;
 }
 
 #ifdef __cplusplus

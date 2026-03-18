@@ -15,27 +15,26 @@ int LLVMFuzzerTestOneInput_153(const uint8_t *data, size_t size) {
     return 0;
   }
 
-  // Create a cJSON object with a default string value
-  cJSON *json = cJSON_CreateString("default");
-
+  // Allocate memory for a cJSON object
+  cJSON *json = cJSON_CreateObject();
   if (json == NULL) {
     return 0;
   }
 
-  // Ensure the input data is null-terminated
-  char *input_string = (char *)malloc(size + 1);
-  if (input_string == NULL) {
+  // Ensure the data is null-terminated
+  char *value_string = (char *)malloc(size + 1);
+  if (value_string == NULL) {
     cJSON_Delete(json);
     return 0;
   }
-  memcpy(input_string, data, size);
-  input_string[size] = '\0';
+  memcpy(value_string, data, size);
+  value_string[size] = '\0';
 
   // Call the function-under-test
-  char *result = cJSON_SetValuestring(json, input_string);
+  char *result = cJSON_SetValuestring(json, value_string);
 
   // Clean up
-  free(input_string);
+  free(value_string);
   cJSON_Delete(json);
 
   return 0;
