@@ -1,34 +1,39 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <ucl.h>
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    const ucl_object_t *root = NULL;
-    ucl_object_iter_t iter = NULL;
-    const ucl_object_t *obj = NULL;
+    if (size == 0) {
+        return 0;
+    }
+
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
+    if (parser == NULL) {
+        return 0;
+    }
 
     // Parse the input data
-    if (parser != NULL && ucl_parser_add_chunk(parser, data, size)) {
-        root = ucl_parser_get_object(parser);
+    ucl_parser_add_chunk(parser, data, size);
 
-        if (root != NULL) {
-            // Iterate over the UCL object using the correct iterate type
-            iter = ucl_object_iterate_new(root);
-            while ((obj = ucl_object_iterate_safe(iter, true)) != NULL) {
-                // Process the object here if needed
-            }
-            ucl_object_iterate_free(iter);
-        }
+    // Get the root object
+    const ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root != NULL) {
+        const char *output_str = NULL;
+        size_t output_len = 0;
+
+        // Call the function under test
+        bool result = ucl_object_tolstring_safe(root, &output_str, &output_len);
+
+        // Use the result to avoid unused variable warnings
+        (void)result;
+        (void)output_str;
+        (void)output_len;
     }
 
     // Clean up
-    if (root != NULL) {
-        ucl_object_unref((ucl_object_t *)root); // Cast to remove const qualifier
-    }
-    if (parser != NULL) {
-        ucl_parser_free(parser);
-    }
+    ucl_object_unref(root);
+    ucl_parser_free(parser);
 
     return 0;
 }

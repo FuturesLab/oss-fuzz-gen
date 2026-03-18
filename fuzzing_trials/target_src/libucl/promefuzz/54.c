@@ -1,77 +1,124 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_fromint at ucl_util.c:3090:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_array_replace_index at ucl_util.c:3378:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_array_delete at ucl_util.c:3231:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_array_pop_first at ucl_util.c:3303:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_array_index_of at ucl_util.c:3355:1 in ucl.h
-// ucl_array_pop_last at ucl_util.c:3283:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_array_sort at ucl_util.c:3799:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
+// ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
+// ucl_parser_free at ucl_util.c:599:6 in ucl.h
+// ucl_parser_add_fd_full at ucl_util.c:2066:6 in ucl.h
+// ucl_parser_add_fd_priority at ucl_util.c:2104:6 in ucl.h
+// ucl_parser_add_string_priority at ucl_parser.c:3154:6 in ucl.h
+// ucl_parser_add_string_priority at ucl_parser.c:3154:6 in ucl.h
+// ucl_parser_add_file_full at ucl_util.c:2012:6 in ucl.h
+// ucl_parser_add_file_priority at ucl_util.c:2043:6 in ucl.h
+// ucl_parser_set_default_priority at ucl_parser.c:2840:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "ucl.h"
+#include <ucl.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-static ucl_object_t *create_random_ucl_object() {
-    ucl_object_t *obj = ucl_object_typed_new(UCL_ARRAY);
-    return obj;
+static void fuzz_ucl_parser_add_fd_full(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        return;
+    }
+    write(fd, Data, Size);
+    lseek(fd, 0, SEEK_SET);
+    
+    unsigned priority = Data[0] & 0x0F; // Use only 4 least significant bits
+    enum ucl_duplicate_strategy strat = UCL_DUPLICATE_APPEND;
+    enum ucl_parse_type parse_type = UCL_PARSE_UCL;
+    
+    ucl_parser_add_fd_full(parser, fd, priority, strat, parse_type);
+    close(fd);
 }
 
-static int compare_ucl_objects(const ucl_object_t **o1, const ucl_object_t **o2) {
-    if ((*o1)->value.iv < (*o2)->value.iv) return -1;
-    if ((*o1)->value.iv > (*o2)->value.iv) return 1;
-    return 0;
+static void fuzz_ucl_parser_add_fd_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        return;
+    }
+    write(fd, Data, Size);
+    lseek(fd, 0, SEEK_SET);
+    
+    unsigned priority = Data[0] & 0x0F; // Use only 4 least significant bits
+    
+    ucl_parser_add_fd_priority(parser, fd, priority);
+    close(fd);
+}
+
+static void fuzz_ucl_parser_add_string_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        unsigned priority = Data[0] & 0x0F; // Use only 4 least significant bits
+        size_t len = Size - 1; // Ensure we do not read beyond buffer
+        if (Data[Size - 1] != '\0') {
+            // Ensure null termination
+            char *null_terminated_data = (char *)malloc(Size + 1);
+            if (null_terminated_data == NULL) {
+                return;
+            }
+            memcpy(null_terminated_data, Data, Size);
+            null_terminated_data[Size] = '\0';
+            ucl_parser_add_string_priority(parser, null_terminated_data, len, priority);
+            free(null_terminated_data);
+        } else {
+            ucl_parser_add_string_priority(parser, (const char *)Data, len, priority);
+        }
+    }
+}
+
+static void fuzz_ucl_parser_add_file_full(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        return;
+    }
+    write(fd, Data, Size);
+    close(fd);
+    
+    unsigned priority = Data[0] & 0x0F; // Use only 4 least significant bits
+    enum ucl_duplicate_strategy strat = UCL_DUPLICATE_APPEND;
+    enum ucl_parse_type parse_type = UCL_PARSE_UCL;
+    
+    ucl_parser_add_file_full(parser, "./dummy_file", priority, strat, parse_type);
+}
+
+static void fuzz_ucl_parser_add_file_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        return;
+    }
+    write(fd, Data, Size);
+    close(fd);
+    
+    unsigned priority = Data[0] & 0x0F; // Use only 4 least significant bits
+    
+    ucl_parser_add_file_priority(parser, "./dummy_file", priority);
+}
+
+static void fuzz_ucl_parser_set_default_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        unsigned priority = Data[0] % 17; // Priority range is 0 to 16
+        ucl_parser_set_default_priority(parser, priority);
+    }
 }
 
 int LLVMFuzzerTestOneInput_54(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-    
-    ucl_object_t *array = create_random_ucl_object();
-    ucl_object_t *element = ucl_object_fromint(Data[0]);
-    if (!array || !element) {
-        if (array) ucl_object_unref(array);
-        if (element) ucl_object_unref(element);
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
-
-    unsigned int index = Data[0] % (Size + 1); // To ensure index is within bounds
-
-    ucl_object_t *replaced = ucl_array_replace_index(array, element, index);
-    if (replaced) {
-        ucl_object_unref(replaced);
-    }
-
-    ucl_object_t *deleted = ucl_array_delete(array, element);
-    if (deleted) {
-        ucl_object_unref(deleted);
-    }
-
-    ucl_object_t *popped_first = ucl_array_pop_first(array);
-    if (popped_first) {
-        ucl_object_unref(popped_first);
-    }
-
-    unsigned int found_index = ucl_array_index_of(array, element);
-
-    ucl_object_t *popped_last = ucl_array_pop_last(array);
-    if (popped_last) {
-        ucl_object_unref(popped_last);
-    }
-
-    ucl_object_array_sort(array, compare_ucl_objects);
-
-    ucl_object_unref(array);
-    ucl_object_unref(element);
-
+    
+    fuzz_ucl_parser_add_fd_full(parser, Data, Size);
+    fuzz_ucl_parser_add_fd_priority(parser, Data, Size);
+    fuzz_ucl_parser_add_string_priority(parser, Data, Size);
+    fuzz_ucl_parser_add_file_full(parser, Data, Size);
+    fuzz_ucl_parser_add_file_priority(parser, Data, Size);
+    fuzz_ucl_parser_set_default_priority(parser, Data, Size);
+    
+    ucl_parser_free(parser);
     return 0;
 }

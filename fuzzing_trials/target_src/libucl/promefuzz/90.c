@@ -1,76 +1,99 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
-// ucl_parser_free at ucl_util.c:599:6 in ucl.h
-// ucl_parser_add_chunk at ucl_parser.c:3109:6 in ucl.h
-// ucl_parser_clear_error at ucl_util.c:707:6 in ucl.h
-// ucl_parser_get_column at ucl_util.c:688:1 in ucl.h
-// ucl_parser_get_object at ucl_util.c:590:1 in ucl.h
+// ucl_object_new at ucl_util.c:2980:1 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_parser_get_current_stack_object at ucl_parser.c:3225:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_parser_get_linenum at ucl_util.c:698:1 in ucl.h
-// ucl_parser_get_comments at ucl_util.c:3915:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
+// ucl_object_lookup_len at ucl_util.c:2656:1 in ucl.h
+// ucl_object_keyl at ucl_util.c:3581:1 in ucl.h
+// ucl_object_replace_key at ucl_util.c:2545:6 in ucl.h
+// ucl_object_pop_keyl at ucl_util.c:2509:1 in ucl.h
+// ucl_object_delete_keyl at ucl_util.c:2482:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <ucl.h>
+#include <stdbool.h>
 
-static struct ucl_parser *initialize_parser() {
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        fprintf(stderr, "Failed to initialize parser\n");
-        exit(EXIT_FAILURE);
+static ucl_object_t* create_ucl_object() {
+    ucl_object_t *obj = ucl_object_new();
+    if (obj) {
+        obj->type = UCL_OBJECT;
     }
-    return parser;
+    return obj;
 }
 
-static void cleanup_parser(struct ucl_parser *parser) {
-    if (parser != NULL) {
-        ucl_parser_free(parser);
+static void destroy_ucl_object(ucl_object_t *obj) {
+    if (obj) {
+        ucl_object_unref(obj);
     }
 }
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *Data, size_t Size) {
-    struct ucl_parser *parser = initialize_parser();
+    if (Size < 1) return 0;
 
-    // Simulate parsing input data to generate errors and objects
-    ucl_parser_add_chunk(parser, Data, Size);
-
-    // Test ucl_parser_clear_error
-    ucl_parser_clear_error(parser);
-
-    // Test ucl_parser_get_column
-    unsigned column = ucl_parser_get_column(parser);
-
-    // Test ucl_parser_get_object
-    ucl_object_t *top_object = ucl_parser_get_object(parser);
-    if (top_object) {
-        ucl_object_unref(top_object);
+    ucl_object_t *top = create_ucl_object();
+    if (!top) {
+        return 0;
     }
 
-    // Test ucl_parser_get_current_stack_object
-    ucl_object_t *stack_object = ucl_parser_get_current_stack_object(parser, 0);
-    if (stack_object) {
-        ucl_object_unref(stack_object);
+    ucl_object_t *elt = create_ucl_object();
+    if (!elt) {
+        destroy_ucl_object(top);
+        return 0;
     }
 
-    // Test ucl_parser_get_linenum
-    unsigned line_number = ucl_parser_get_linenum(parser);
+    const char *key = (const char *)Data;
+    size_t keylen = Size;
 
-    // Test ucl_parser_get_comments
-    const ucl_object_t *comments = ucl_parser_get_comments(parser);
-    if (comments) {
-        ucl_object_unref((ucl_object_t *)comments);
+    // Ensure key is null-terminated if keylen is 0
+    char *null_terminated_key = NULL;
+    if (keylen == 0) {
+        null_terminated_key = malloc(Size + 1);
+        if (null_terminated_key) {
+            memcpy(null_terminated_key, Data, Size);
+            null_terminated_key[Size] = '\0';
+            key = null_terminated_key;
+            keylen = 0;
+        }
     }
 
-    // Cleanup
-    cleanup_parser(parser);
+    // Test ucl_object_insert_key
+    bool inserted = ucl_object_insert_key(top, elt, key, keylen, true);
+    if (inserted) {
+        // Test ucl_object_lookup_len
+        const ucl_object_t *found = ucl_object_lookup_len(top, key, keylen);
+        if (found) {
+            // Test ucl_object_keyl
+            size_t len;
+            const char *retrieved_key = ucl_object_keyl(found, &len);
+        }
 
+        // Test ucl_object_replace_key
+        ucl_object_t *new_elt = create_ucl_object();
+        if (new_elt) {
+            bool replaced = ucl_object_replace_key(top, new_elt, key, keylen, true);
+            if (replaced) {
+                // Test ucl_object_pop_keyl
+                ucl_object_t *popped = ucl_object_pop_keyl(top, key, keylen);
+                if (popped) {
+                    destroy_ucl_object(popped);
+                }
+            } else {
+                destroy_ucl_object(new_elt);
+            }
+        }
+    } else {
+        destroy_ucl_object(elt);
+    }
+
+    // Test ucl_object_delete_keyl
+    bool deleted = ucl_object_delete_keyl(top, key, keylen);
+
+    if (null_terminated_key) {
+        free(null_terminated_key);
+    }
+
+    destroy_ucl_object(top);
     return 0;
 }

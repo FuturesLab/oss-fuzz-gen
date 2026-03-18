@@ -1,72 +1,70 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
 // ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
+// ucl_parser_register_variable at ucl_parser.c:2913:6 in ucl.h
 // ucl_parser_free at ucl_util.c:599:6 in ucl.h
-// ucl_parser_add_string at ucl_parser.c:3169:6 in ucl.h
-// ucl_parser_get_error at ucl_util.c:665:1 in ucl.h
-// ucl_parser_get_error at ucl_util.c:665:1 in ucl.h
-// ucl_parser_get_object at ucl_util.c:590:1 in ucl.h
+// ucl_parser_set_filevars at ucl_util.c:1977:6 in ucl.h
 // ucl_parser_free at ucl_util.c:599:6 in ucl.h
-// ucl_object_iterate_with_error at ucl_util.c:2717:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_parser_add_chunk_full at ucl_parser.c:2974:6 in ucl.h
+// ucl_parser_free at ucl_util.c:599:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ucl.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+static int write_dummy_file(const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        return -1;
+    }
+    if (write(fd, Data, Size) != (ssize_t)Size) {
+        close(fd);
+        return -1;
+    }
+    close(fd);
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
+    if (Size < 1) {
+        return 0;
+    }
+
     struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Ensure the data is null-terminated if Size is zero, to avoid overflows
-    char *data_copy = NULL;
-    if (Size > 0) {
-        data_copy = (char *)malloc(Size + 1);
-        if (data_copy == NULL) {
-            ucl_parser_free(parser);
-            return 0;
-        }
-        memcpy(data_copy, Data, Size);
-        data_copy[Size] = '\0';
+    const char *var_name = "test_var";
+    const char *var_value = "test_value";
+    ucl_parser_register_variable(parser, var_name, var_value);
+
+    if (write_dummy_file(Data, Size) != 0) {
+        ucl_parser_free(parser);
+        return 0;
     }
 
-    // Attempt to add string to the parser
-    bool success = ucl_parser_add_string(parser, data_copy, Size);
+    bool set_filevars_result = ucl_parser_set_filevars(parser, "./dummy_file", false);
+    if (!set_filevars_result) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-    // Retrieve errors if any
-    const char *error1 = ucl_parser_get_error(parser);
-    const char *error2 = ucl_parser_get_error(parser); // Call it twice as per task
+    unsigned priority = Data[0] & 0xF; // Use only the 4 least significant bits
+    enum ucl_duplicate_strategy strat = UCL_DUPLICATE_APPEND;
+    enum ucl_parse_type parse_type = UCL_PARSE_UCL; // Changed from AUTO to UCL
 
-    // Get the top-level object from the parser
-    ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    bool add_chunk_result = ucl_parser_add_chunk_full(parser, Data, Size, priority, strat, parse_type);
 
-    // Free the parser
+    // Clean up
     ucl_parser_free(parser);
-
-    // If a top-level object was retrieved, iterate over it
-    if (top_obj != NULL) {
-        ucl_object_iter_t it = NULL;
-        int err = 0;
-        const ucl_object_t *cur;
-
-        while ((cur = ucl_object_iterate_with_error(top_obj, &it, true, &err)) != NULL) {
-            // Do something with each object (cur), if needed
-        }
-
-        // Decrease the reference count of the object
-        ucl_object_unref(top_obj);
-    }
-
-    // Free the allocated memory for data_copy
-    if (data_copy != NULL) {
-        free(data_copy);
-    }
 
     return 0;
 }

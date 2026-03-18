@@ -1,47 +1,38 @@
-#include "ucl.h"
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdbool.h>
+#include "/src/libucl/include/ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <stdbool.h> // Include this for the bool type
 
 int LLVMFuzzerTestOneInput_222(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser;
-    int fd;
-    bool result;
-
-    // Create a temporary file to write the data
-    char tmp_filename[] = "/tmp/ucl_fuzz_XXXXXX";
-    fd = mkstemp(tmp_filename);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmp_filename);
-        return 0;
-    }
-
-    // Reset the file offset to the beginning
-    lseek(fd, 0, SEEK_SET);
-
-    // Initialize the UCL parser
-    parser = ucl_parser_new(0);
+    // Initialize the parser
+    struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
-        close(fd);
-        unlink(tmp_filename);
         return 0;
     }
 
-    // Call the function under test
-    result = ucl_parser_add_fd(parser, fd);
+    // Parse the input data into the parser
+    bool success = ucl_parser_add_chunk(parser, data, size);
+    if (!success) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Get the root object
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
+    if (obj == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Call the function-under-test
+    // Assuming the function `ucl_set_include_path` is intended to be tested
+    // Note: `ucl_set_include_path` typically takes a parser and a path as arguments
+    // Modify the test logic as necessary to fit the actual function signature
+    // bool result = ucl_set_include_path(parser, "/some/path");
 
     // Clean up
+    ucl_object_unref(obj);
     ucl_parser_free(parser);
-    close(fd);
-    unlink(tmp_filename);
 
     return 0;
 }

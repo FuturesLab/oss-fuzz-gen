@@ -1,39 +1,24 @@
 #include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_198(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
+    // Ensure the input data is large enough to extract parameters
+    if (size < sizeof(ucl_type_t) + sizeof(unsigned int)) {
         return 0;
     }
 
-    // Create a new UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
+    // Extract parameters from the input data
+    ucl_type_t type = *(ucl_type_t *)data;
+    unsigned int flags = *(unsigned int *)(data + sizeof(ucl_type_t));
 
-    // Add the input data to the parser
-    ucl_parser_add_chunk(parser, data, size);
-
-    // Get the root object from the parser
-    const ucl_object_t *obj = ucl_parser_get_object(parser);
-    if (obj != NULL) {
-        // Call the function-under-test
-        const char *result = ucl_object_tostring_forced(obj);
-
-        // Use the result in some way to avoid compiler optimizations
-        if (result != NULL) {
-            size_t len = strlen(result);
-            (void)len; // Suppress unused variable warning
-        }
-    }
+    // Call the function-under-test
+    ucl_object_t *obj = ucl_object_new_full(type, flags);
 
     // Clean up
-    ucl_object_unref(obj);
-    ucl_parser_free(parser);
+    if (obj != NULL) {
+        ucl_object_unref(obj);
+    }
 
     return 0;
 }

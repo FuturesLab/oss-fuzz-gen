@@ -1,82 +1,60 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_new at ucl_util.c:2980:1 in ucl.h
-// ucl_object_iterate_new at ucl_util.c:2794:1 in ucl.h
-// ucl_object_iterate_safe at ucl_util.c:2839:1 in ucl.h
-// ucl_array_merge at ucl_util.c:3193:6 in ucl.h
-// ucl_object_merge at ucl_util.c:2551:6 in ucl.h
-// ucl_array_delete at ucl_util.c:3231:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_copy at ucl_util.c:3692:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_elt_append at ucl_util.c:3397:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_iterate_free at ucl_util.c:2903:6 in ucl.h
+// ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
+// ucl_parser_add_chunk at ucl_parser.c:3109:6 in ucl.h
+// ucl_parser_chunk_skip at ucl_parser.c:3211:6 in ucl.h
+// ucl_parser_add_string at ucl_parser.c:3169:6 in ucl.h
+// ucl_parser_add_chunk_full at ucl_parser.c:2974:6 in ucl.h
+// ucl_parser_add_chunk_priority at ucl_parser.c:3097:6 in ucl.h
+// ucl_parser_get_object at ucl_util.c:590:1 in ucl.h
+// ucl_parser_insert_chunk at ucl_parser.c:3120:6 in ucl.h
+// ucl_parser_free at ucl_util.c:599:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <ucl.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 
-static ucl_object_t* create_random_ucl_object(const uint8_t *Data, size_t Size) {
-    ucl_object_t *obj = ucl_object_new();
-    if (Size > 0) {
-        obj->value.sv = (const char *)Data;
-        obj->len = Size;
+static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file != NULL) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    return obj;
 }
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    // Create UCL objects
-    ucl_object_t *obj1 = create_random_ucl_object(Data, Size);
-    ucl_object_t *obj2 = create_random_ucl_object(Data, Size);
+    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+    if (parser == NULL) return 0;
 
-    // Create iterators
-    ucl_object_iter_t iter = ucl_object_iterate_new(obj1);
+    // Fuzz ucl_parser_add_chunk
+    ucl_parser_add_chunk(parser, Data, Size);
 
-    // Test ucl_object_iterate_safe
-    const ucl_object_t *next_obj = ucl_object_iterate_safe(iter, Data[0] % 2);
-    
-    // Test ucl_array_merge
-    bool merge_result = ucl_array_merge(obj1, obj2, Data[0] % 2);
+    // Fuzz ucl_parser_chunk_skip
+    ucl_parser_chunk_skip(parser);
 
-    // Test ucl_object_merge
-    bool object_merge_result = ucl_object_merge(obj1, obj2, Data[0] % 2);
+    // Fuzz ucl_parser_add_string
+    ucl_parser_add_string(parser, (const char *)Data, Size);
 
-    // Test ucl_array_delete
-    ucl_object_t *deleted_obj = ucl_array_delete(obj1, obj2);
-    if (deleted_obj != NULL) {
-        ucl_object_unref(deleted_obj);
+    // Fuzz ucl_parser_add_chunk_full
+    ucl_parser_add_chunk_full(parser, Data, Size, 0xF, UCL_DUPLICATE_APPEND, UCL_PARSE_UCL);
+
+    // Fuzz ucl_parser_add_chunk_priority
+    ucl_parser_add_chunk_priority(parser, Data, Size, 0xF);
+
+    // Attempt to insert chunk only if parser has a top object and it is an array
+    ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    if (top_obj != NULL && top_obj->type == UCL_ARRAY) {
+        ucl_parser_insert_chunk(parser, Data, Size);
     }
 
-    // Test ucl_object_copy
-    ucl_object_t *copied_obj = ucl_object_copy(obj1);
-    if (copied_obj != NULL) {
-        ucl_object_unref(copied_obj);
-    }
+    // Write data to dummy file if needed by other parts of the library
+    write_to_dummy_file(Data, Size);
 
-    // Test ucl_elt_append
-    ucl_object_t *appended_obj = ucl_elt_append(NULL, obj2);
-    if (appended_obj != NULL && appended_obj != obj2) {
-        ucl_object_unref(appended_obj);
-    }
-
-    // Cleanup
-    if (obj1 != NULL) {
-        ucl_object_unref(obj1);
-    }
-    if (obj2 != NULL) {
-        ucl_object_unref(obj2);
-    }
-    ucl_object_iterate_free(iter);
+    ucl_parser_free(parser);
 
     return 0;
 }

@@ -1,22 +1,42 @@
 #include "ucl.h"
-#include <stdio.h>
-#include <unistd.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-  int fd = STDOUT_FILENO; // Use standard output file descriptor as a non-null value
+    // Initialize a ucl_parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
 
-  // Call the function-under-test
-  struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_fd_funcs(fd);
+    // Add the input data to the parser
+    ucl_parser_add_chunk(parser, data, size);
 
-  // Normally, you would use emitter_funcs here, but since this is a fuzzing harness,
-  // we are primarily interested in calling the function to ensure it handles various inputs.
+    // Get the root object
+    const ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-  // Clean up if necessary (depends on the actual implementation of ucl_object_emit_fd_funcs)
-  if (emitter_funcs != NULL) {
-    // Assuming there's a function to free or reset emitter_funcs if needed
-    // For example: ucl_emitter_functions_free(emitter_funcs);
-  }
+    // Prepare a size variable
+    size_t key_length = 0;
 
-  return 0;
+    // Call the function-under-test
+    const char *key = ucl_object_keyl(root, &key_length);
+
+    // Use the key and key_length to avoid unused variable warnings
+    if (key != NULL) {
+        // Just a dummy operation to use the key and key_length
+        volatile size_t dummy = key_length;
+        (void)dummy;
+    }
+
+    // Free the parser and the root object
+    ucl_object_unref(root);
+    ucl_parser_free(parser);
+
+    return 0;
 }

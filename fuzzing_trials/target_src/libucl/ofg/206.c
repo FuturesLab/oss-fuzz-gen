@@ -1,35 +1,40 @@
 #include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <stdbool.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_206(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated
-    if (size == 0) {
-        return 0;
-    }
+  struct ucl_parser *parser;
+  char *filename;
+  bool ret;
 
-    // Allocate a buffer that is one byte larger than the input size
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0;
-    }
-
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    // Call the function under test
-    ucl_object_t *obj = ucl_object_fromstring(null_terminated_data);
-
-    // Free the allocated buffer
-    free(null_terminated_data);
-
-    // If the function returns a non-NULL object, free it
-    if (obj != NULL) {
-        ucl_object_unref(obj);
-    }
-
+  // Ensure size is sufficient to create a non-empty filename
+  if (size == 0) {
     return 0;
+  }
+
+  // Allocate memory for the filename and ensure null-termination
+  filename = (char *)malloc(size + 1);
+  if (filename == NULL) {
+    return 0;
+  }
+  memcpy(filename, data, size);
+  filename[size] = '\0';
+
+  // Create a new UCL parser
+  parser = ucl_parser_new(0);
+  if (parser == NULL) {
+    free(filename);
+    return 0;
+  }
+
+  // Call the function under test
+  ret = ucl_parser_set_filevars(parser, filename, true);
+
+  // Clean up
+  ucl_parser_free(parser);
+  free(filename);
+
+  return 0;
 }

@@ -1,25 +1,42 @@
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_168(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract a double
-    if (size < sizeof(double)) {
+    // Initialize variables
+    ucl_object_t *obj;
+    const char *key;
+    size_t key_len;
+    
+    // Ensure the size is large enough to extract a key
+    if (size < 1) {
+        return 0;
+    }
+    
+    // Allocate a new UCL object
+    obj = ucl_object_new();
+
+    // Use the first byte of data as the key length, ensuring it's within bounds
+    key_len = data[0] % size;
+    
+    // Ensure there's enough data for the key
+    if (key_len + 1 > size) {
+        ucl_object_unref(obj);
         return 0;
     }
 
-    // Convert the first bytes of data to a double
-    double value;
-    // Copy bytes to avoid alignment issues
-    memcpy(&value, data, sizeof(double));
+    // Extract the key from the data
+    key = (const char *)(data + 1);
 
     // Call the function-under-test
-    ucl_object_t *obj = ucl_object_fromdouble(value);
+    ucl_object_t *result = ucl_object_pop_keyl(obj, key, key_len);
 
-    // Free the created object to avoid memory leaks
-    if (obj != NULL) {
-        ucl_object_unref(obj);
+    // Clean up
+    if (result != NULL) {
+        ucl_object_unref(result);
     }
+    ucl_object_unref(obj);
 
     return 0;
 }

@@ -1,35 +1,34 @@
+#include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <ucl.h>
+#include <stddef.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables needed for the function call
-    ucl_object_iter_t iter = NULL;
-    ucl_object_t *ucl_obj = NULL;
-
-    // Check if size is greater than 0 to avoid passing NULL data
-    if (size > 0) {
-        // Create a UCL parser
-        struct ucl_parser *parser = ucl_parser_new(0);
-
-        // Parse the input data
-        if (parser != NULL && ucl_parser_add_chunk(parser, data, size)) {
-            // Get the UCL object
-            ucl_obj = ucl_parser_get_object(parser);
-        }
-
-        // Free the parser
-        ucl_parser_free(parser);
+    // Ensure size is sufficient to create a key for testing
+    if (size < 2) {
+        return 0;
     }
 
-    // Ensure ucl_obj is not NULL before calling the function
-    if (ucl_obj != NULL) {
-        // Call the function under test
-        iter = ucl_object_iterate_reset(iter, ucl_obj);
+    // Create a ucl_object_t for testing
+    ucl_object_t *obj = ucl_object_new();
 
-        // Clean up the UCL object
-        ucl_object_unref(ucl_obj);
+    // Create a key from the input data
+    char key[256];
+    size_t key_length = size < 255 ? size : 255;
+    memcpy(key, data, key_length);
+    key[key_length] = '\0'; // Ensure null-termination
+
+    // Add a key-value pair to the object
+    ucl_object_insert_key(obj, ucl_object_fromstring("test_value"), key, key_length, false);
+
+    // Call the function-under-test
+    ucl_object_t *popped_obj = ucl_object_pop_key(obj, key);
+
+    // Clean up
+    if (popped_obj) {
+        ucl_object_unref(popped_obj);
     }
+    ucl_object_unref(obj);
 
     return 0;
 }

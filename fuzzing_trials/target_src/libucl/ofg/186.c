@@ -1,30 +1,48 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <ucl.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_186(const uint8_t *data, size_t size) {
-    // Ensure that we have enough data to create two pointers to ucl_object_t
-    if (size < 2 * sizeof(ucl_object_t)) {
+    // Initialize the UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    const ucl_object_t *root_obj = NULL;
+    const ucl_object_t *result_obj = NULL;
+    char *key = NULL;
+    
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize two ucl_object_t objects
-    ucl_object_t obj1, obj2;
+    // Parse the input data as UCL
+    if (ucl_parser_add_chunk(parser, data, size)) {
+        root_obj = ucl_parser_get_object(parser);
+    }
 
-    // Create two ucl_object_t objects using the input data
-    obj1.type = UCL_STRING;
-    obj1.value.sv = (char *)data;
+    // Ensure root_obj is not NULL
+    if (root_obj != NULL) {
+        // Use a portion of the data as a key
+        size_t key_length = size < 256 ? size : 256; // Limit key length
+        key = (char*)malloc(key_length + 1);
+        if (key != NULL) {
+            memcpy(key, data, key_length);
+            key[key_length] = '\0'; // Null-terminate the key
 
-    obj2.type = UCL_STRING;
-    obj2.value.sv = (char *)(data + sizeof(ucl_object_t));
+            // Call the function-under-test
+            result_obj = ucl_object_lookup_any(root_obj, key, (void*)data);
+        }
+    }
 
-    // Create pointers to the ucl_object_t objects
-    const ucl_object_t *obj1_ptr = &obj1;
-    const ucl_object_t *obj2_ptr = &obj2;
+    // Clean up
+    if (root_obj != NULL) {
+        ucl_object_unref(root_obj);
+    }
+    ucl_parser_free(parser);
+    if (key != NULL) {
+        free(key);
+    }
 
-    // Call the function under test
-    int result = ucl_object_compare_qsort(&obj1_ptr, &obj2_ptr);
-
-    // Return 0 to indicate that the fuzzer should continue
     return 0;
 }

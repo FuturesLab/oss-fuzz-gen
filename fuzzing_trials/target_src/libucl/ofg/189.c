@@ -1,35 +1,32 @@
 #include "ucl.h"
-#include <stdint.h>
 #include <stddef.h>
-#include <string.h>
+#include <stdint.h>
 
 int LLVMFuzzerTestOneInput_189(const uint8_t *data, size_t size) {
-    // Ensure size is at least 1 to have a valid string
-    if (size < 1) {
-        return 0;
-    }
-
-    // Create a ucl_object_t
-    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
-
-    // Create a string from the data
-    char *key = (char *)malloc(size + 1);
-    if (key == NULL) {
-        ucl_object_unref(obj);
-        return 0;
-    }
-    memcpy(key, data, size);
-    key[size] = '\0';
-
-    // Add a key-value pair to the object
-    ucl_object_insert_key(obj, ucl_object_fromstring("value"), key, size, false);
-
-    // Call the function under test
-    ucl_object_delete_key(obj, key);
-
-    // Clean up
-    free(key);
-    ucl_object_unref(obj);
-
+  // If size is 0 we need a null-terminated string.
+  // We don't null-terminate the string and by the design
+  // of the API passing 0 as size with non null-terminated string
+  // gives undefined behavior.
+  if (size == 0) {
     return 0;
+  }
+
+  struct ucl_parser *parser;
+  parser = ucl_parser_new(0);
+
+  // Add the input data to the parser
+  ucl_parser_add_string(parser, (char *)data, size);
+
+  // Call the function-under-test
+  const char *cur_file = ucl_parser_get_cur_file(parser);
+
+  // Check the result (cur_file can be NULL if no file is associated)
+  if (cur_file != NULL) {
+    // Do something with cur_file if needed, for now, just ensure it's called
+  }
+
+  // Free the parser
+  ucl_parser_free(parser);
+
+  return 0;
 }

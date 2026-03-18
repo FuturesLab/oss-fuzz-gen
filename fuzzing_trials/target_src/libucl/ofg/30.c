@@ -1,36 +1,37 @@
 #include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdbool.h>
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-  // Ensure the data is not empty
-  if (size == 0) {
-    return 0;
-  }
+    if (size == 0) {
+        return 0;
+    }
 
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+    // Create a ucl_parser and parse the input data
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
 
-  // Ensure the data is null-terminated for safe string operations
-  char *null_terminated_data = (char *)malloc(size + 1);
-  if (null_terminated_data == NULL) {
+    ucl_parser_add_chunk(parser, data, size);
+
+    // Get the root object from the parser
+    const ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Prepare an int64_t variable to store the conversion result
+    int64_t result = 0;
+
+    // Call the function-under-test
+    bool conversion_success = ucl_object_toint_safe(root, &result);
+
+    // Cleanup
+    ucl_object_unref(root);
     ucl_parser_free(parser);
+
     return 0;
-  }
-  memcpy(null_terminated_data, data, size);
-  null_terminated_data[size] = '\0';
-
-  // Call the function-under-test
-  ucl_parser_add_string(parser, null_terminated_data, size);
-
-  // Clean up
-  free(null_terminated_data);
-  ucl_parser_free(parser);
-
-  return 0;
 }

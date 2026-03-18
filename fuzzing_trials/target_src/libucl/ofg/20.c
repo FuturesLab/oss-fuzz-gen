@@ -1,47 +1,28 @@
 #include "ucl.h"
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Create a new UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
+    if (size < 2) {
         return 0;
     }
 
-    // Ensure the data is null-terminated for safe string operations
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-    memcpy(input, data, size);
-    input[size] = '\0';
+    // Create a new UCL object to represent an array
+    ucl_object_t *array = ucl_object_typed_new(UCL_ARRAY);
 
-    // Parse the input data
-    if (!ucl_parser_add_string(parser, input, size)) {
-        free(input);
-        ucl_parser_free(parser);
-        return 0;
-    }
+    // Create a new UCL object to be deleted from the array
+    ucl_object_t *obj_to_delete = ucl_object_fromstring((const char *)data);
 
-    // Get the root UCL object
-    const ucl_object_t *root_obj = ucl_parser_get_object(parser);
-    if (root_obj != NULL) {
-        // Call the function-under-test
-        char *key_copy = ucl_copy_key_trash(root_obj);
+    // Add the object to the array
+    ucl_array_append(array, obj_to_delete);
 
-        // Free the copied key if it was successfully created
-        if (key_copy != NULL) {
-            free(key_copy);
-        }
-    }
+    // Call the function under test
+    ucl_object_t *result = ucl_array_delete(array, obj_to_delete);
 
     // Clean up
-    free(input);
-    ucl_object_unref(root_obj);
-    ucl_parser_free(parser);
+    ucl_object_unref(result);
+    ucl_object_unref(array);
 
     return 0;
 }

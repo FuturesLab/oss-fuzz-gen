@@ -1,46 +1,33 @@
-#include <stdint.h>
+#include "ucl.h"
 #include <stddef.h>
-#include <ucl.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-int LLVMFuzzerTestOneInput_209(const uint8_t *data, size_t size) {
-    // Initialize ucl parser
-    struct ucl_parser *parser1 = ucl_parser_new(0);
-    struct ucl_parser *parser2 = ucl_parser_new(0);
-
-    // Check if parsers are created successfully
-    if (parser1 == NULL || parser2 == NULL) {
-        if (parser1 != NULL) ucl_parser_free(parser1);
-        if (parser2 != NULL) ucl_parser_free(parser2);
+extern int LLVMFuzzerTestOneInput_209(const uint8_t *data, size_t size) {
+    // Ensure the input data is null-terminated
+    if (size == 0) {
         return 0;
     }
 
-    // Parse the input data
-    if (!ucl_parser_add_chunk(parser1, data, size) || !ucl_parser_add_chunk(parser2, data, size)) {
-        ucl_parser_free(parser1);
-        ucl_parser_free(parser2);
+    // Create a buffer that is one byte larger than the input data
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
         return 0;
     }
 
-    // Get the ucl objects
-    const ucl_object_t *obj1 = ucl_parser_get_object(parser1);
-    const ucl_object_t *obj2 = ucl_parser_get_object(parser2);
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Ensure objects are not NULL
-    if (obj1 != NULL && obj2 != NULL) {
-        // Call the function-under-test
-        const ucl_object_t *result = ucl_comments_find(obj1, obj2);
+    // Call the function-under-test
+    ucl_object_t *obj = ucl_object_fromstring(null_terminated_data);
 
-        // Use the result in some way (here we just check if it's not NULL)
-        if (result != NULL) {
-            // Do something with the result if needed
-        }
+    // Clean up
+    if (obj != NULL) {
+        ucl_object_unref(obj);
     }
-
-    // Free resources
-    ucl_object_unref(obj1);
-    ucl_object_unref(obj2);
-    ucl_parser_free(parser1);
-    ucl_parser_free(parser2);
+    free(null_terminated_data);
 
     return 0;
 }

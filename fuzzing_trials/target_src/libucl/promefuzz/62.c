@@ -1,99 +1,85 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_emit_streamline_new at ucl_emitter_streamline.c:63:1 in ucl.h
-// ucl_object_emit_funcs_free at ucl_emitter_utils.c:446:6 in ucl.h
-// ucl_object_emit_streamline_start_container at ucl_emitter_streamline.c:90:6 in ucl.h
-// ucl_object_emit_streamline_add_object at ucl_emitter_streamline.c:131:6 in ucl.h
-// ucl_object_emit_streamline_end_container at ucl_emitter_streamline.c:150:6 in ucl.h
-// ucl_object_emit_streamline_finish at ucl_emitter_streamline.c:169:6 in ucl.h
-// ucl_object_emit_funcs_free at ucl_emitter_utils.c:446:6 in ucl.h
+// ucl_object_validate_root_ext at ucl_schema.c:1082:6 in ucl.h
+// ucl_object_ref at ucl_util.c:3591:1 in ucl.h
+// ucl_object_validate at ucl_schema.c:1068:6 in ucl.h
+// ucl_object_validate_root at ucl_schema.c:1074:6 in ucl.h
+// ucl_object_type at ucl_util.c:3068:1 in ucl.h
+// ucl_object_toboolean at ucl_util.c:3499:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <ucl.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include <stdbool.h>
-
-static int dummy_append_character(unsigned char c, size_t nchars, void *ud) {
-    return 0;
-}
-
-static int dummy_append_len(unsigned const char *str, size_t len, void *ud) {
-    return 0;
-}
-
-static int dummy_append_int(int64_t elt, void *ud) {
-    return 0;
-}
-
-static int dummy_append_double(double elt, void *ud) {
-    return 0;
-}
-
-static void dummy_free_func(void *ud) {
-}
-
-static struct ucl_emitter_functions *create_dummy_emitter_functions() {
-    struct ucl_emitter_functions *funcs = malloc(sizeof(struct ucl_emitter_functions));
-    if (funcs) {
-        funcs->ucl_emitter_append_character = dummy_append_character;
-        funcs->ucl_emitter_append_len = dummy_append_len;
-        funcs->ucl_emitter_append_int = dummy_append_int;
-        funcs->ucl_emitter_append_double = dummy_append_double;
-        funcs->ucl_emitter_free_func = dummy_free_func;
-        funcs->ud = NULL;
-    }
-    return funcs;
-}
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include "ucl.h"
 
 static ucl_object_t *create_dummy_ucl_object() {
     ucl_object_t *obj = malloc(sizeof(ucl_object_t));
     if (obj) {
         memset(obj, 0, sizeof(ucl_object_t));
+        obj->type = UCL_OBJECT;
     }
     return obj;
 }
 
+static void free_ucl_object(ucl_object_t *obj) {
+    if (obj) {
+        free(obj);
+    }
+}
+
 int LLVMFuzzerTestOneInput_62(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
+    if (Size < 1) {
         return 0;
     }
 
+    // Create dummy UCL objects
+    ucl_object_t *schema = create_dummy_ucl_object();
     ucl_object_t *obj = create_dummy_ucl_object();
-    if (!obj) {
+    ucl_object_t *root = create_dummy_ucl_object();
+    ucl_object_t *ext_refs = create_dummy_ucl_object();
+    struct ucl_schema_error err;
+
+    if (!schema || !obj || !root || !ext_refs) {
+        free_ucl_object(schema);
+        free_ucl_object(obj);
+        free_ucl_object(root);
+        free_ucl_object(ext_refs);
         return 0;
     }
 
-    struct ucl_emitter_functions *emitter_funcs = create_dummy_emitter_functions();
-    if (!emitter_funcs) {
-        free(obj);
-        return 0;
-    }
+    // Fuzz ucl_object_validate_root_ext
+    ucl_object_validate_root_ext(schema, obj, root, ext_refs, &err);
 
-    enum ucl_emitter emit_type = *(enum ucl_emitter *)Data;
-    if (emit_type >= UCL_EMIT_MAX) {
-        emit_type = UCL_EMIT_JSON;
-    }
+    // Fuzz ucl_object_ref
+    ucl_object_t *ref_obj = ucl_object_ref(obj);
 
-    struct ucl_emitter_context *ctx = ucl_object_emit_streamline_new(obj, emit_type, emitter_funcs);
-    if (!ctx) {
-        ucl_object_emit_funcs_free(emitter_funcs);
-        free(obj);
-        return 0;
-    }
+    // Fuzz ucl_object_validate
+    ucl_object_validate(schema, obj, &err);
 
-    bool start_result = ucl_object_emit_streamline_start_container(ctx, obj);
-    if (start_result) {
-        ucl_object_emit_streamline_add_object(ctx, obj);
-        ucl_object_emit_streamline_end_container(ctx);
-    }
+    // Fuzz ucl_object_validate_root
+    ucl_object_validate_root(schema, obj, root, &err);
 
-    ucl_object_emit_streamline_finish(ctx);
-    ucl_object_emit_funcs_free(emitter_funcs);
-    free(obj);
+    // Fuzz ucl_object_type
+    ucl_type_t obj_type = ucl_object_type(obj);
+
+    // Fuzz ucl_object_toboolean
+    bool obj_bool = ucl_object_toboolean(obj);
+
+    // Cleanup
+    free_ucl_object(schema);
+    free_ucl_object(obj);
+    free_ucl_object(root);
+    free_ucl_object(ext_refs);
+
+    // Ensure ref_obj is not double-freed
+    if (ref_obj != obj) {
+        free_ucl_object(ref_obj);
+    }
 
     return 0;
 }

@@ -1,38 +1,39 @@
+#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <ucl.h>
+#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Initialize a ucl_parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-
-    // Parse the input data
-    if (parser != NULL && ucl_parser_add_chunk(parser, data, size)) {
-        // Get the root object
-        const ucl_object_t *root = ucl_parser_get_object(parser);
-
-        // Ensure the root object is not NULL
-        if (root != NULL) {
-            // Create a path string from the input data
-            char path[256];
-            size_t path_len = size < 255 ? size : 255;
-            memcpy(path, data, path_len);
-            path[path_len] = '\0';
-
-            // Call the function-under-test
-            const ucl_object_t *result = ucl_object_lookup_path(root, path);
-
-            // Optionally, you can do something with the result here
-            (void)result; // Suppress unused variable warning
-        }
-
-        // Free the root object
-        ucl_object_unref(root);
+    // Ensure that the size is sufficient to split into two parts
+    if (size < 2) {
+        return 0;
     }
 
-    // Clean up the parser
-    ucl_parser_free(parser);
+    // Create two ucl_object_t objects
+    ucl_object_t *obj1 = ucl_object_new();
+    ucl_object_t *obj2 = ucl_object_new();
+
+    // Split the data into two parts
+    size_t mid = size / 2;
+    const char *comment = (const char *)(data + mid);
+
+    // Null-terminate the comment string
+    char *comment_str = (char *)malloc(size - mid + 1);
+    if (comment_str == NULL) {
+        ucl_object_unref(obj1);
+        ucl_object_unref(obj2);
+        return 0;
+    }
+    memcpy(comment_str, comment, size - mid);
+    comment_str[size - mid] = '\0';
+
+    // Call the function under test
+    ucl_comments_add(obj1, obj2, comment_str);
+
+    // Clean up
+    free(comment_str);
+    ucl_object_unref(obj1);
+    ucl_object_unref(obj2);
 
     return 0;
 }

@@ -1,45 +1,31 @@
 #include "ucl.h"
-#include <fcntl.h>
-#include <unistd.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_223(const uint8_t *data, size_t size) {
-  struct ucl_parser *parser;
-  int fd;
-  bool result;
+    // Ensure the size is at least the size of ucl_object_t
+    if (size < sizeof(ucl_object_t)) {
+        return 0;
+    }
 
-  // Create a temporary file to use its file descriptor
-  char filename[] = "/tmp/ucl_fuzz_XXXXXX";
-  fd = mkstemp(filename);
-  if (fd == -1) {
+    // Create a ucl_object_t from the data
+    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
+    if (obj == NULL) {
+        return 0;
+    }
+
+    // Initialize the ucl_object_t with the provided data
+    memcpy(obj, data, sizeof(ucl_object_t));
+
+    // Create a double variable to store the result
+    double result = 0.0;
+
+    // Call the function-under-test
+    bool success = ucl_object_todouble_safe(obj, &result);
+
+    // Clean up
+    free(obj);
+
     return 0;
-  }
-
-  // Write the fuzzer data to the temporary file
-  if (write(fd, data, size) != (ssize_t)size) {
-    close(fd);
-    unlink(filename);
-    return 0;
-  }
-
-  // Reset the file offset to the beginning
-  lseek(fd, 0, SEEK_SET);
-
-  // Initialize the UCL parser
-  parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    close(fd);
-    unlink(filename);
-    return 0;
-  }
-
-  // Call the function-under-test
-  result = ucl_parser_add_fd(parser, fd);
-
-  // Clean up
-  ucl_parser_free(parser);
-  close(fd);
-  unlink(filename);
-
-  return 0;
 }

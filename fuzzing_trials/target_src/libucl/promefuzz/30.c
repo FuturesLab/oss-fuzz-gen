@@ -1,10 +1,14 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
-// ucl_object_lookup_any at ucl_util.c:2683:1 in ucl.h
-// ucl_object_pop_key at ucl_util.c:2528:1 in ucl.h
-// ucl_object_delete_keyl at ucl_util.c:2482:6 in ucl.h
-// ucl_object_replace_key at ucl_util.c:2545:6 in ucl.h
-// ucl_object_delete_key at ucl_util.c:2503:6 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_array_append at ucl_util.c:3131:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_array_replace_index at ucl_util.c:3378:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_lookup_path at ucl_util.c:2919:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -15,64 +19,63 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdarg.h>
-
-static ucl_object_t* create_dummy_ucl_object() {
-    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
-    if (obj) {
-        obj->key = "dummy_key";
-        obj->value.sv = "dummy_value";
-        obj->keylen = strlen(obj->key);
-        obj->ref = 1;
-    }
-    return obj;
-}
-
-static void free_ucl_object(ucl_object_t *obj) {
-    if (obj) {
-        free(obj);
-    }
-}
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    ucl_object_t *top = create_dummy_ucl_object();
-    ucl_object_t *elt = create_dummy_ucl_object();
-    if (!top || !elt) {
-        free_ucl_object(top);
-        free_ucl_object(elt);
+    if (Size < 1) {
         return 0;
     }
 
-    const char *key = "key";
-    size_t keylen = strlen(key);
-    bool copy_key = true;
+    // Convert input data to null-terminated string for the first ucl_object_fromstring
+    char *input_string1 = (char *)malloc(Size + 1);
+    if (input_string1 == NULL) {
+        return 0;
+    }
+    memcpy(input_string1, Data, Size);
+    input_string1[Size] = '\0';
 
-    // Test ucl_object_insert_key
-    bool insert_result = ucl_object_insert_key(top, elt, key, keylen, copy_key);
+    // Create a UCL object from the input string
+    ucl_object_t *obj1 = ucl_object_fromstring(input_string1);
+    free(input_string1);
 
-    // Test ucl_object_lookup_any
-    const ucl_object_t *lookup_result = ucl_object_lookup_any(top, key, "alternative_key", NULL);
+    if (obj1 == NULL) {
+        return 0;
+    }
 
-    // Test ucl_object_pop_key
-    ucl_object_t *popped_obj = ucl_object_pop_key(top, key);
+    // Create an array UCL object
+    ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
+    if (array_obj == NULL) {
+        ucl_object_unref(obj1);
+        return 0;
+    }
 
-    // Test ucl_object_delete_keyl
-    bool delete_keyl_result = ucl_object_delete_keyl(top, key, keylen);
+    // Append the first object to the array
+    ucl_array_append(array_obj, obj1);
 
-    // Test ucl_object_replace_key
-    bool replace_result = ucl_object_replace_key(top, elt, key, keylen, copy_key);
+    // Replace an element in the array at a specific index
+    // Convert input data to null-terminated string for the second ucl_object_fromstring
+    char *input_string2 = (char *)malloc(Size + 1);
+    if (input_string2 == NULL) {
+        ucl_object_unref(array_obj);
+        return 0;
+    }
+    memcpy(input_string2, Data, Size);
+    input_string2[Size] = '\0';
 
-    // Test ucl_object_delete_key
-    bool delete_key_result = ucl_object_delete_key(top, key);
+    ucl_object_t *obj2 = ucl_object_fromstring(input_string2);
+    free(input_string2);
+
+    if (obj2 != NULL) {
+        ucl_object_t *replaced_obj = ucl_array_replace_index(array_obj, obj2, 0);
+        if (replaced_obj != NULL) {
+            ucl_object_unref(replaced_obj);
+        }
+    }
+
+    // Lookup a path in the array object
+    const ucl_object_t *result = ucl_object_lookup_path(array_obj, "0");
 
     // Cleanup
-    free_ucl_object(top);
-    free_ucl_object(elt);
-    free_ucl_object(popped_obj);
+    ucl_object_unref(array_obj);
 
     return 0;
 }

@@ -1,77 +1,114 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
-// ucl_parser_free at ucl_util.c:599:6 in ucl.h
-// ucl_parser_add_chunk at ucl_parser.c:3109:6 in ucl.h
-// ucl_parser_add_chunk_priority at ucl_parser.c:3097:6 in ucl.h
-// ucl_parser_add_string at ucl_parser.c:3169:6 in ucl.h
-// ucl_parser_add_chunk_full at ucl_parser.c:2974:6 in ucl.h
-// ucl_parser_add_fd at ucl_util.c:2115:6 in ucl.h
+// ucl_object_tostring_forced at ucl_util.c:3536:1 in ucl.h
+// ucl_object_ref at ucl_util.c:3591:1 in ucl.h
+// ucl_object_todouble at ucl_util.c:3446:1 in ucl.h
+// ucl_object_tolstring at ucl_util.c:3566:1 in ucl.h
+// ucl_object_tostring at ucl_util.c:3527:1 in ucl.h
+// ucl_copy_value_trash at ucl_util.c:546:1 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <ucl.h>
-#include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <ucl.h>
 
-// Forward declaration of the ucl_object_t structure
-typedef struct ucl_object_s ucl_object_t;
+static ucl_object_t *create_random_ucl_object(const uint8_t *Data, size_t Size) {
+    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
+    if (!obj) return NULL;
 
-static struct ucl_parser* initialize_parser() {
-    return ucl_parser_new(0);
+    size_t offset = 0;
+    if (Size > sizeof(int64_t)) {
+        obj->value.iv = *((int64_t *)(Data + offset));
+        offset += sizeof(int64_t);
+    } else {
+        obj->value.iv = 0;
+    }
+
+    if (Size > offset + sizeof(double)) {
+        obj->value.dv = *((double *)(Data + offset));
+        offset += sizeof(double);
+    } else {
+        obj->value.dv = 0.0;
+    }
+
+    if (Size > offset) {
+        obj->value.sv = (const char *)(Data + offset);
+        obj->len = Size - offset;
+    } else {
+        obj->value.sv = NULL;
+        obj->len = 0;
+    }
+
+    obj->key = NULL;
+    obj->next = NULL;
+    obj->prev = NULL;
+    obj->keylen = 0;
+    obj->ref = 1;
+    obj->flags = 0;
+    obj->type = 0;
+    memset(obj->trash_stack, 0, sizeof(obj->trash_stack));
+
+    return obj;
 }
 
-static void cleanup_parser(struct ucl_parser* parser) {
-    if (parser) {
-        ucl_parser_free(parser);
+static void free_ucl_object(ucl_object_t *obj) {
+    if (obj) {
+        free(obj);
     }
 }
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    ucl_object_t *obj = create_random_ucl_object(Data, Size);
+    if (!obj) return 0;
+
+    const char *str;
+    char *copy_str;
+    double dbl;
+    size_t len;
+
+    // Test ucl_object_tostring_forced
+    str = ucl_object_tostring_forced(obj);
+    if (str) {
+        // Simulate usage
+        (void)strlen(str);
     }
 
-    struct ucl_parser* parser = initialize_parser();
-    if (!parser) {
-        return 0;
+    // Test ucl_object_ref
+    ucl_object_t *ref_obj = ucl_object_ref(obj);
+    if (ref_obj) {
+        // Simulate usage
+        (void)ref_obj->ref;
     }
 
-    // Fuzz ucl_parser_add_chunk
-    ucl_parser_add_chunk(parser, Data, Size);
+    // Test ucl_object_todouble
+    dbl = ucl_object_todouble(obj);
+    (void)dbl; // Simulate usage
 
-    // Fuzz ucl_parser_add_chunk_priority with varied priority
-    unsigned priority = Data[0] & 0x0F; // Use only the lower 4 bits
-    ucl_parser_add_chunk_priority(parser, Data, Size, priority);
-
-    // Fuzz ucl_parser_add_string
-    char *string_data = (char *)malloc(Size + 1);
-    if (string_data) {
-        memcpy(string_data, Data, Size);
-        string_data[Size] = '\0'; // Null-terminate
-        ucl_parser_add_string(parser, string_data, Size);
-        free(string_data);
+    // Test ucl_object_tolstring
+    str = ucl_object_tolstring(obj, &len);
+    if (str) {
+        // Simulate usage
+        (void)strlen(str);
     }
 
-    // Fuzz ucl_parser_add_chunk_full with varied parameters
-    enum ucl_duplicate_strategy strat = UCL_DUPLICATE_APPEND;
-    enum ucl_parse_type parse_type = UCL_PARSE_UCL;
-    ucl_parser_add_chunk_full(parser, Data, Size, priority, strat, parse_type);
-
-    // Fuzz ucl_parser_add_fd
-    int fd = open("./dummy_file", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-    if (fd != -1) {
-        write(fd, Data, Size);
-        lseek(fd, 0, SEEK_SET);
-        ucl_parser_add_fd(parser, fd);
-        close(fd);
+    // Test ucl_object_tostring
+    str = ucl_object_tostring(obj);
+    if (str) {
+        // Simulate usage
+        (void)strlen(str);
     }
 
-    cleanup_parser(parser);
+    // Test ucl_copy_value_trash
+    copy_str = ucl_copy_value_trash(obj);
+    if (copy_str) {
+        // Simulate usage
+        free(copy_str);
+    }
+
+    free_ucl_object(obj);
     return 0;
 }

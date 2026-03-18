@@ -3,20 +3,15 @@
 #include <stddef.h>
 
 int LLVMFuzzerTestOneInput_195(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract meaningful values
-    if (size < sizeof(ucl_type_t) + sizeof(unsigned int)) {
-        return 0;
-    }
-
-    // Extract ucl_type_t and unsigned int from the input data
-    ucl_type_t obj_type = (ucl_type_t)data[0];
-    unsigned int flags = *(unsigned int *)(data + 1);
-
     // Call the function-under-test
-    ucl_object_t *obj = ucl_object_new_full(obj_type, flags);
+    ucl_object_t *obj = ucl_object_new();
 
-    // Clean up the created object
+    // Perform operations with the created object if needed
+    // For this example, we will just check if the object is not NULL
     if (obj != NULL) {
+        // Normally, you would perform additional operations with 'obj' here
+
+        // Free the object after use
         ucl_object_unref(obj);
     }
 

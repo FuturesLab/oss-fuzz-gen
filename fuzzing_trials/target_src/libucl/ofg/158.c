@@ -1,36 +1,32 @@
+#include "ucl.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <ucl.h>
 
-// Fuzzing harness for the function ucl_array_find_index
 int LLVMFuzzerTestOneInput_158(const uint8_t *data, size_t size) {
-    // Initialize UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
+    if (size == 0) {
         return 0;
     }
 
-    // Create a UCL object from the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
-        ucl_parser_free(parser);
-        return 0;
-    }
+    // Create a new UCL parser
+    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+
+    // Add the input data to the parser
+    ucl_parser_add_string(parser, (const char *)data, size);
 
     // Get the root UCL object
-    const ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root == NULL) {
-        ucl_parser_free(parser);
-        return 0;
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
+
+    if (obj != NULL) {
+        // Call the function-under-test
+        const char *result = ucl_object_tostring(obj);
+
+        // Optionally, you can use the result for further testing
+        if (result != NULL) {
+            // Do something with the result, if needed
+        }
     }
 
-    // Define an index to search for
-    unsigned int index = 0; // Start with index 0
-
-    // Call the function-under-test
-    const ucl_object_t *result = ucl_array_find_index(root, index);
-
-    // Clean up
-    ucl_object_unref(root);
+    // Free the parser
     ucl_parser_free(parser);
 
     return 0;

@@ -1,42 +1,45 @@
-#include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdbool.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
+    // Declare and initialize variables
+    ucl_object_iter_t iter = NULL;
+    bool expand_values = true; // or false, try both variations
 
-    // Create a new UCL parser
+    // Create a UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Add the input data to the parser
-    ucl_parser_add_chunk(parser, data, size);
-
-    // Get the root object from the parser
-    const ucl_object_t *obj = ucl_parser_get_object(parser);
-
-    if (obj != NULL) {
-        // Prepare a size variable
-        size_t str_size = 0;
-
-        // Call the function under test
-        const char *str = ucl_object_tolstring(obj, &str_size);
-
-        // Use the resulting string and size
-        if (str != NULL) {
-            // Do something with the string if needed
-            // For example, print it (not needed for fuzzing, just illustrative)
-            // printf("String: %s, Size: %zu\n", str, str_size);
-        }
+    // Feed the input data to the parser
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
+        return 0;
     }
 
-    // Free the parser
+    // Get the top-level object
+    const ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    if (top_obj == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Initialize the iterator
+    iter = ucl_object_iterate_new(top_obj);
+    if (iter == NULL) {
+        ucl_object_unref(top_obj);
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Call the function-under-test
+    const ucl_object_t *result = ucl_object_iterate_safe(iter, expand_values);
+
+    // Clean up
+    ucl_object_iterate_free(iter);
+    ucl_object_unref(top_obj);
     ucl_parser_free(parser);
 
     return 0;

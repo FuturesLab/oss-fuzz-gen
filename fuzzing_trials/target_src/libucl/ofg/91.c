@@ -1,27 +1,24 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *data, size_t size) {
-  if (size == 0) {
+    // Define a non-NULL string
+    const char *input_string = (const char *)data;
+    
+    // Define a non-zero size
+    size_t input_size = size > 0 ? size : 1;
+    
+    // Define a valid enumeration value for ucl_string_flags
+    enum ucl_string_flags flags = UCL_STRING_RAW;
+    
+    // Call the function under test
+    ucl_object_t *obj = ucl_object_fromstring_common(input_string, input_size, flags);
+    
+    // Clean up any allocated resources
+    if (obj != NULL) {
+        ucl_object_unref(obj);
+    }
+    
     return 0;
-  }
-
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  ucl_parser_add_string(parser, (const char *)data, size);
-  const ucl_object_t *obj = ucl_parser_get_object(parser);
-
-  if (obj != NULL) {
-    // Call the function-under-test
-    unsigned int priority = ucl_object_get_priority(obj);
-  }
-
-  ucl_object_unref(obj);
-  ucl_parser_free(parser);
-
-  return 0;
 }

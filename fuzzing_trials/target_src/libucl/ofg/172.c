@@ -1,27 +1,23 @@
-#include "ucl.h"
+#include "/src/libucl/include/ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <stdbool.h>  // Include for the bool type
 
 int LLVMFuzzerTestOneInput_172(const uint8_t *data, size_t size) {
-  // Ensure that the size is not zero to avoid undefined behavior
-  if (size == 0) {
+  if (size < 2) {
     return 0;
   }
 
-  // Create a new ucl_parser instance
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add the input data to the parser
-  ucl_parser_add_chunk(parser, data, size);
+  // Initialize ucl_object_t pointers
+  ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
+  ucl_object_t *element_obj = ucl_object_fromlstring((const char *)data, size);  // Correct function name
 
   // Call the function-under-test
-  bool result = ucl_parser_chunk_skip(parser);
+  bool result = ucl_array_prepend(array_obj, element_obj);
 
-  // Free the parser
-  ucl_parser_free(parser);
+  // Clean up
+  ucl_object_unref(array_obj);
+  ucl_object_unref(element_obj);
 
   return 0;
 }

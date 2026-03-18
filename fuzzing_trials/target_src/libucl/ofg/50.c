@@ -1,40 +1,30 @@
+#include "ucl.h"
 #include <stdint.h>
-#include <stdbool.h>
-#include <ucl.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
-
-    // Parse the input data
-    if (parser != NULL) {
-        ucl_parser_add_chunk(parser, data, size);
-        
-        // Get the root object
-        const ucl_object_t *root = ucl_parser_get_object(parser);
-        
-        if (root != NULL) {
-            // Initialize an iterator
-            ucl_object_iter_t iter = ucl_object_iterate_new(root);
-            
-            // Iterate using ucl_object_iterate_safe
-            const ucl_object_t *obj;
-            bool expand = true; // or false, try both cases
-
-            while ((obj = ucl_object_iterate_safe(iter, expand)) != NULL) {
-                // Process the object if needed
-            }
-            
-            // Free the iterator
-            ucl_object_iterate_free(iter);
-            
-            // Free the root object
-            ucl_object_unref(root);
-        }
-        
-        // Clean up the parser
-        ucl_parser_free(parser);
+    // Ensure size is sufficient for a key
+    if (size < 1) {
+        return 0;
     }
+
+    // Create a ucl_object_t
+    ucl_object_t *obj = ucl_object_new();
+
+    // Add a key-value pair to the object for testing deletion
+    const char *key = "test_key";
+    ucl_object_insert_key(obj, ucl_object_fromstring("test_value"), key, strlen(key), false);
+
+    // Prepare a key from the data
+    const char *key_to_delete = (const char *)data;
+    size_t key_len = size;
+
+    // Call the function-under-test
+    bool result = ucl_object_delete_keyl(obj, key_to_delete, key_len);
+
+    // Cleanup
+    ucl_object_unref(obj);
 
     return 0;
 }

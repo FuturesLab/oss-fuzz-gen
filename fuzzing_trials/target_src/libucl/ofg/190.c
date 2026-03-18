@@ -1,34 +1,36 @@
 #include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_190(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to form a key
+    // If size is 0, return immediately as we need some data to process
     if (size == 0) {
         return 0;
     }
 
-    // Create a ucl_object_t
-    ucl_object_t *obj = ucl_object_new();
+    struct ucl_parser *parser;
+    const char *cur_file;
 
-    // Create a key from the input data
-    // Ensure the key is null-terminated
-    char *key = (char *)malloc(size + 1);
-    if (key == NULL) {
-        ucl_object_unref(obj);
+    // Create a new UCL parser
+    parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
-    memcpy(key, data, size);
-    key[size] = '\0';
+
+    // Add the input data to the parser
+    ucl_parser_add_string(parser, (const char *)data, size);
 
     // Call the function-under-test
-    bool result = ucl_object_delete_key(obj, key);
+    cur_file = ucl_parser_get_cur_file(parser);
 
-    // Clean up
-    free(key);
-    ucl_object_unref(obj);
+    // Use the result in some way (e.g., print or check)
+    if (cur_file != NULL) {
+        // For demonstration purposes, you might print or log the file name
+        // printf("Current file: %s\n", cur_file);
+    }
+
+    // Free the parser
+    ucl_parser_free(parser);
 
     return 0;
 }

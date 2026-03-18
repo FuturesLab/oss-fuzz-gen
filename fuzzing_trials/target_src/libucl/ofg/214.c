@@ -1,23 +1,20 @@
+#include "ucl.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <ucl.h>
 
+// Function for fuzzing
 int LLVMFuzzerTestOneInput_214(const uint8_t *data, size_t size) {
-  // Ensure that there is enough data to extract a ucl_type_t value
-  if (size < sizeof(ucl_type_t)) {
-    return 0;
-  }
+  // Initialize a ucl_object_t object
+  ucl_object_t *obj = ucl_object_new();
 
-  // Extract a ucl_type_t value from the input data
-  ucl_type_t type = *(ucl_type_t *)data;
+  // Ensure the size parameter is non-zero for meaningful testing
+  size_t reserve_size = size > 0 ? size : 1;
 
   // Call the function-under-test
-  ucl_object_t *obj = ucl_object_typed_new(type);
+  bool result = ucl_object_reserve(obj, reserve_size);
 
-  // Free the allocated object if it is not NULL
-  if (obj != NULL) {
-    ucl_object_unref(obj);
-  }
+  // Clean up
+  ucl_object_unref(obj);
 
   return 0;
 }

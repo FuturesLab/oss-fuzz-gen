@@ -1,33 +1,34 @@
+#include "ucl.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    struct ucl_parser *parser;
-    ucl_include_trace_func_t *trace_func;
-    void *user_data;
+    // If size is 0, we cannot proceed as we need valid data
+    if (size == 0) {
+        return 0;
+    }
 
-    // Initialize parser
-    parser = ucl_parser_new(0);
+    // Create a ucl_parser object
+    struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Initialize trace_func and user_data
-    trace_func = (ucl_include_trace_func_t *)data; // Cast data to function pointer type
-    user_data = (void *)(data + sizeof(ucl_include_trace_func_t)); // Use remaining data as user_data
+    // Add the input data to the parser
+    ucl_parser_add_string(parser, (const char *)data, size);
 
-    // Ensure user_data is not NULL
-    if (size <= sizeof(ucl_include_trace_func_t)) {
-        ucl_parser_free(parser);
-        return 0;
+    // Get the root object from the parser
+    const ucl_object_t *root_obj = ucl_parser_get_object(parser);
+
+    if (root_obj != NULL) {
+        // Call the function-under-test
+        ucl_object_t *ref_obj = ucl_object_ref(root_obj);
+
+        // Clean up the reference object
+        ucl_object_unref(ref_obj);
     }
 
-    // Call the function-under-test
-    ucl_parser_set_include_tracer(parser, trace_func, user_data);
-
-    // Clean up
+    // Free the parser
     ucl_parser_free(parser);
 
     return 0;

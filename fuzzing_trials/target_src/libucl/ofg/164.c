@@ -1,35 +1,25 @@
-#include "ucl.h"
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <ucl.h>
 
+// Removed 'extern "C"' as it is not valid in C, it's for C++ linkage
 int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
+    struct ucl_parser *parser;
+    unsigned int priority = 1;  // Arbitrary priority value
+    enum ucl_duplicate_strategy duplicate_strategy = UCL_DUPLICATE_APPEND;
+    enum ucl_parse_type parse_type = UCL_PARSE_UCL;
 
-    // Create a new UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
+    // Initialize the parser
+    parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
     if (parser == NULL) {
         return 0;
     }
 
-    // Add the input data to the parser
-    ucl_parser_add_string(parser, (const char *)data, size);
+    // Call the function-under-test with the provided data
+    bool result = ucl_parser_add_chunk_full(parser, data, size, priority, duplicate_strategy, parse_type);
 
-    // Get the root UCL object
-    const ucl_object_t *obj = ucl_parser_get_object(parser);
-    if (obj != NULL) {
-        // Call the function under test
-        char *result = ucl_copy_value_trash(obj);
-
-        // Free the result if it was allocated
-        if (result != NULL) {
-            free(result);
-        }
-    }
-
-    // Free the parser
+    // Clean up
     ucl_parser_free(parser);
 
     return 0;

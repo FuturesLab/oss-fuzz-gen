@@ -1,31 +1,29 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <string.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a ucl_object_t
-    if (size == 0) {
-        return 0;
+    // Initialize variables for the function parameters
+    ucl_object_t *top_obj = ucl_object_typed_new(UCL_OBJECT);
+    ucl_object_t *new_obj = ucl_object_typed_new(UCL_OBJECT);
+    const char *key = "test_key";
+    size_t keylen = strlen(key);
+    bool copy_key = true;
+
+    // Ensure data is not empty
+    if (size > 0) {
+        // Use data as input for new_obj
+        ucl_object_fromstring_common((const char *)data, size, UCL_STRING_RAW);
     }
 
-    // Create a ucl_parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
+    // Call the function-under-test
+    bool result = ucl_object_replace_key(top_obj, new_obj, key, keylen, copy_key);
 
-    // Add the input data to the parser
-    ucl_parser_add_chunk(parser, data, size);
-
-    // Get the root object
-    const ucl_object_t *obj = ucl_parser_get_object(parser);
-    if (obj != NULL) {
-        // Call the function-under-test
-        double result = ucl_object_todouble(obj);
-    }
-
-    // Free the parser
-    ucl_parser_free(parser);
+    // Clean up
+    ucl_object_unref(top_obj);
+    ucl_object_unref(new_obj);
 
     return 0;
 }

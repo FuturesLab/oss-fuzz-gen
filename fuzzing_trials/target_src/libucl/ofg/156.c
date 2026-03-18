@@ -1,37 +1,40 @@
 #include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
+// Define the function pointer types if they are not defined in "ucl.h"
+typedef void (*ucl_emitter_append_character_t)(void *, const char);
+typedef void (*ucl_emitter_append_len_t)(void *, const char *, size_t);
+typedef void (*ucl_emitter_free_func_t)(void *);
+
 int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
-  if (size == 0) {
-    return 0;
-  }
-
-  // Initialize a UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add the input data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Get the root object from the parser
-  const ucl_object_t *root = ucl_parser_get_object(parser);
-  if (root != NULL) {
-    // Call the function-under-test
-    const char *result = ucl_object_tostring(root);
-
-    // Use the result to avoid compiler optimizations
-    if (result != NULL) {
-      size_t result_len = strlen(result);
-      (void)result_len;
+    // Allocate memory for ucl_emitter_functions structure
+    struct ucl_emitter_functions *emitter_funcs = (struct ucl_emitter_functions *)malloc(sizeof(struct ucl_emitter_functions));
+    if (emitter_funcs == NULL) {
+        return 0;
     }
-  }
 
-  // Free the parser
-  ucl_parser_free(parser);
+    // Initialize the structure with function pointers or dummy functions
+    emitter_funcs->ucl_emitter_append_character = (ucl_emitter_append_character_t)malloc(sizeof(void *));
+    emitter_funcs->ucl_emitter_append_len = (ucl_emitter_append_len_t)malloc(sizeof(void *));
+    emitter_funcs->ucl_emitter_free_func = (ucl_emitter_free_func_t)malloc(sizeof(void *));
+    emitter_funcs->ud = (void *)malloc(1);
 
-  return 0;
+    if (emitter_funcs->ucl_emitter_append_character == NULL ||
+        emitter_funcs->ucl_emitter_append_len == NULL ||
+        emitter_funcs->ucl_emitter_free_func == NULL ||
+        emitter_funcs->ud == NULL) {
+        free(emitter_funcs);
+        return 0;
+    }
+
+    // Call the function-under-test
+    ucl_object_emit_funcs_free(emitter_funcs);
+
+    // Free allocated memory
+    free(emitter_funcs->ud);
+    free(emitter_funcs);
+
+    return 0;
 }

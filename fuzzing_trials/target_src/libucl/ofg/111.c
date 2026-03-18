@@ -1,29 +1,37 @@
-#include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <ucl.h>
 
+// Use the 'struct' keyword for ucl_parser
 int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    // Create a temporary file to pass to the function
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
-        return 0;
+    struct ucl_parser *parser;
+    const ucl_object_t *root_obj = NULL;
+    ucl_object_iter_t iter = NULL;
+    int error = 0;
+    bool expand_values = true;
+
+    // Initialize the parser
+    parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
+
+    // Parse the input data
+    if (ucl_parser_add_chunk(parser, data, size)) {
+        root_obj = ucl_parser_get_object(parser);
+
+        // Iterate over the parsed object
+        const ucl_object_t *result = ucl_object_iterate_with_error(root_obj, &iter, expand_values, &error);
+
+        // Check the result (optional, for debugging purposes)
+        if (result == NULL && error != 0) {
+            // Handle iteration error if needed
+        }
     }
-
-    // Write data to the temporary file
-    fwrite(data, 1, size, temp_file);
-    // Rewind the file to the beginning for reading
-    rewind(temp_file);
-
-    // Call the function-under-test
-    struct ucl_emitter_functions *funcs = ucl_object_emit_file_funcs(temp_file);
 
     // Clean up
-    if (funcs != NULL) {
-        // Assuming there's a function to free or clean up funcs
-        // This step is hypothetical, as the cleanup function depends on the actual library implementation
-        // free_ucl_emitter_functions(funcs);
+    if (root_obj != NULL) {
+        // Cast away the constness to match the function signature
+        ucl_object_unref((ucl_object_t *)root_obj);
     }
-    fclose(temp_file);
+    ucl_parser_free(parser);
 
     return 0;
 }

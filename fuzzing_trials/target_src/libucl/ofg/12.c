@@ -1,39 +1,35 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-  // Initialize a UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+    // Declare and initialize ucl_object_t pointers
+    ucl_object_t *obj1 = ucl_object_new();
+    ucl_object_t *obj2 = ucl_object_new();
+    ucl_object_t *obj3 = ucl_object_new();
 
-  // Add the input data to the parser
-  if (size > 0) {
-    ucl_parser_add_chunk(parser, data, size);
-  }
-
-  // Get the root UCL object
-  const ucl_object_t *root = ucl_parser_get_object(parser);
-  if (root != NULL) {
-    // Call the function-under-test
-    const char *key = ucl_object_key(root);
-
-    // Use the key in some way to avoid compiler optimizations removing the call
-    if (key != NULL) {
-      size_t key_len = strlen(key);
-      if (key_len > 0) {
-        // Do something trivial with the key
-        volatile char first_char = key[0];
-        (void)first_char;
-      }
+    // Ensure that the objects are not NULL
+    if (obj1 == NULL || obj2 == NULL || obj3 == NULL) {
+        if (obj1 != NULL) ucl_object_unref(obj1);
+        if (obj2 != NULL) ucl_object_unref(obj2);
+        if (obj3 != NULL) ucl_object_unref(obj3);
+        return 0;
     }
-  }
 
-  // Free the UCL parser
-  ucl_parser_free(parser);
+    // Use the data to initialize the objects in some way
+    // Here, we are just using the data to set some key-value pairs
+    ucl_object_insert_key(obj1, ucl_object_fromstring((const char *)data), "key1", 0, false);
+    ucl_object_insert_key(obj2, ucl_object_fromstring((const char *)data), "key2", 0, false);
+    ucl_object_insert_key(obj3, ucl_object_fromstring((const char *)data), "key3", 0, false);
 
-  return 0;
+    // Call the function-under-test
+    bool result = ucl_comments_move(obj1, obj2, obj3);
+
+    // Clean up
+    ucl_object_unref(obj1);
+    ucl_object_unref(obj2);
+    ucl_object_unref(obj3);
+
+    return 0;
 }

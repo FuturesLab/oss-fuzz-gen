@@ -1,30 +1,31 @@
 #include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_192(const uint8_t *data, size_t size) {
-  // Create a new UCL object
-  ucl_object_t *obj = ucl_object_new();
-
-  if (obj != NULL) {
-    // Assuming we want to add a string to the UCL object
-    // Convert input data to a string and add it to the UCL object
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str != NULL) {
-      memcpy(input_str, data, size);
-      input_str[size] = '\0'; // Null-terminate the string
-
-      // Add the string to the UCL object
-      ucl_object_t *str_obj = ucl_object_fromstring(input_str);
-      ucl_object_insert_key(obj, str_obj, "input", 0, false);
-
-      // Free the allocated input string
-      free(input_str);
-    }
-
-    // Free the UCL object to avoid memory leaks
-    ucl_object_unref(obj);
+  // Ensure size is greater than 0 to have at least one character for the key
+  if (size == 0) {
+    return 0;
   }
+
+  // Create a UCL object
+  ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+
+  // Use the first part of the data as a key
+  char key[256];
+  size_t key_len = size < 255 ? size : 255;
+  memcpy(key, data, key_len);
+  key[key_len] = '\0'; // Ensure null-termination
+
+  // Add a dummy key-value pair to the object
+  ucl_object_insert_key(obj, ucl_object_fromstring("dummy_value"), key, key_len, false);
+
+  // Call the function-under-test
+  bool result = ucl_object_delete_key(obj, key);
+
+  // Clean up
+  ucl_object_unref(obj);
 
   return 0;
 }

@@ -1,9 +1,9 @@
 #include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 
-// Fuzzing harness for ucl_object_get_priority
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
+    // If size is 0, return early as we need some data to work with
     if (size == 0) {
         return 0;
     }
@@ -17,18 +17,14 @@ int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
     // Add the input data to the parser
     ucl_parser_add_string(parser, (const char *)data, size);
 
-    // Get the root UCL object
-    const ucl_object_t *root_obj = ucl_parser_get_object(parser);
-
-    if (root_obj != NULL) {
+    // Get the root object
+    const ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root != NULL) {
         // Call the function-under-test
-        unsigned int priority = ucl_object_get_priority(root_obj);
+        unsigned int priority = ucl_object_get_priority(root);
 
-        // Use the result to avoid compiler optimizations
-        if (priority == 0) {
-            // Do something trivial
-            (void)priority;
-        }
+        // Use the priority value to avoid compiler optimizations
+        (void)priority;
     }
 
     // Free the parser

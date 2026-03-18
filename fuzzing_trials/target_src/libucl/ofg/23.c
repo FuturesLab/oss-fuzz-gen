@@ -1,19 +1,25 @@
 #include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdbool.h> // Include this for the bool type
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-  // Create two ucl_object_t instances
-  ucl_object_t *array = ucl_object_typed_new(UCL_ARRAY);
-  ucl_object_t *element = ucl_object_fromstring((const char *)data);
+  // Ensure there is at least one byte to read
+  if (size < 1) {
+    return 0;
+  }
+
+  // Use the first byte of data to determine the boolean value
+  bool bool_value = (data[0] % 2 == 0); // even byte value -> true, odd -> false
 
   // Call the function-under-test
-  bool result = ucl_array_append(array, element);
+  ucl_object_t *obj = ucl_object_frombool(bool_value);
 
-  // Clean up the created objects
-  ucl_object_unref(array);
-  ucl_object_unref(element);
+  // Normally we would do something with 'obj', like checking its properties
+  // or freeing it if necessary, but for this fuzzing harness, we just ensure
+  // the function is called.
+
+  // Clean up
+  ucl_object_unref(obj);
 
   return 0;
 }

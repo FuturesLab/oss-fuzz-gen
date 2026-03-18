@@ -1,25 +1,33 @@
 #include "ucl.h"
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_210(const uint8_t *data, size_t size) {
-    // Check if size is sufficient to create a valid ucl_object_t
-    if (size < sizeof(ucl_object_t)) {
-        return 0;
-    }
-
-    // Create a ucl_object_t object
-    ucl_object_t *obj = ucl_object_new();
-
-    // Use a portion of the data to determine the reserve size
-    // Ensure that the reserve size is not larger than the input size
-    size_t reserve_size = size / 2;
-
-    // Call the function-under-test
-    bool result = ucl_object_reserve(obj, reserve_size);
-
-    // Clean up
-    ucl_object_unref(obj);
-
+  // Ensure the input data is null-terminated
+  if (size == 0) {
     return 0;
+  }
+
+  // Allocate memory for a null-terminated string
+  char *null_terminated_data = (char *)malloc(size + 1);
+  if (null_terminated_data == NULL) {
+    return 0;
+  }
+
+  // Copy the input data and null-terminate it
+  memcpy(null_terminated_data, data, size);
+  null_terminated_data[size] = '\0';
+
+  // Call the function-under-test
+  ucl_object_t *obj = ucl_object_fromstring(null_terminated_data);
+
+  // Clean up
+  if (obj != NULL) {
+    ucl_object_unref(obj);
+  }
+  free(null_terminated_data);
+
+  return 0;
 }

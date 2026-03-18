@@ -1,37 +1,32 @@
 #include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for a key string
-    if (size < 2) {
-        return 0;
-    }
-
-    // Create a ucl_object_t
-    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
-
-    // Add a key-value pair to the object for testing
-    const char *key = "test_key";
-    ucl_object_t *val = ucl_object_fromstring("test_value");
-    ucl_object_insert_key(obj, val, key, strlen(key), false);
-
-    // Use part of the input data as a key for ucl_object_pop_key
-    char *input_key = (char *)malloc(size + 1);
-    memcpy(input_key, data, size);
-    input_key[size] = '\0';  // Ensure null-termination
-
-    // Call the function-under-test
-    ucl_object_t *popped_obj = ucl_object_pop_key(obj, input_key);
-
-    // Clean up
-    if (popped_obj != NULL) {
-        ucl_object_unref(popped_obj);
-    }
-    ucl_object_unref(obj);
-    free(input_key);
-
+  // Ensure the input size is sufficient to create a ucl_object_t
+  if (size == 0) {
     return 0;
+  }
+
+  // Create a new UCL parser
+  struct ucl_parser *parser = ucl_parser_new(0);
+  if (parser == NULL) {
+    return 0;
+  }
+
+  // Add the input data to the parser
+  ucl_parser_add_string(parser, (const char *)data, size);
+
+  // Get the root object from the parser
+  const ucl_object_t *obj = ucl_parser_get_object(parser);
+  if (obj != NULL) {
+    // Call the function-under-test
+    int64_t result = ucl_object_toint(obj);
+    (void)result; // Suppress unused variable warning
+  }
+
+  // Free the parser and its resources
+  ucl_parser_free(parser);
+
+  return 0;
 }

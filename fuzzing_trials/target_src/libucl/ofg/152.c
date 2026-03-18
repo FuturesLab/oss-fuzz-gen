@@ -11,22 +11,20 @@ int LLVMFuzzerTestOneInput_152(const uint8_t *data, size_t size) {
     return 0;
   }
 
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+  struct ucl_parser *parser;
+  parser = ucl_parser_new(0);
 
-  ucl_parser_add_string(parser, (const char *)data, size);
+  // Add the input data to the parser
+  ucl_parser_add_string(parser, (char *)data, size);
 
   // Call the function-under-test
-  unsigned int linenum = ucl_parser_get_linenum(parser);
+  unsigned int line_number = ucl_parser_get_linenum(parser);
 
-  // Use linenum in some way to avoid compiler optimizing it out
-  if (linenum == 0) {
-    // Do something trivial
-    (void)linenum;
-  }
+  // Use the line_number to avoid compiler warnings about unused variables
+  (void)line_number;
 
+  // Clean up
   ucl_parser_free(parser);
+
   return 0;
 }

@@ -1,21 +1,28 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-  struct ucl_parser *parser;
+    // Initialize the UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    const ucl_object_t *ucl_obj = NULL;
+    ucl_object_iter_t iter = NULL;
 
-  // Initialize the parser
-  parser = ucl_parser_new(0);
+    // Parse the input data
+    if (parser != NULL && size > 0) {
+        ucl_parser_add_chunk(parser, data, size);
+        ucl_obj = ucl_parser_get_object(parser);
+    }
 
-  // Add the input data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
+    // Call the function-under-test
+    iter = ucl_object_iterate_reset(iter, ucl_obj);
 
-  // Call the function-under-test
-  int error_code = ucl_parser_get_error_code(parser);
+    // Cleanup
+    if (ucl_obj != NULL) {
+        ucl_object_unref(ucl_obj);
+    }
+    if (parser != NULL) {
+        ucl_parser_free(parser);
+    }
 
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
+    return 0;
 }

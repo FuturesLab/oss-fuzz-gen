@@ -3,26 +3,24 @@
 #include <stddef.h>
 
 int LLVMFuzzerTestOneInput_197(const uint8_t *data, size_t size) {
-  // If size is 0 we need a null-terminated string.
-  // We don't null-terminate the string and by the design
-  // of the API passing 0 as size with non null-terminated string
-  // gives undefined behavior.
-  if (size == 0) {
+    // Ensure there is enough data to extract both parameters
+    if (size < sizeof(ucl_type_t) + sizeof(unsigned int)) {
+        return 0;
+    }
+
+    // Extract ucl_type_t from the data
+    ucl_type_t type = *(ucl_type_t *)data;
+
+    // Extract unsigned int from the data
+    unsigned int priority = *(unsigned int *)(data + sizeof(ucl_type_t));
+
+    // Call the function under test
+    ucl_object_t *obj = ucl_object_new_full(type, priority);
+
+    // Clean up if necessary
+    if (obj != NULL) {
+        ucl_object_unref(obj);
+    }
+
     return 0;
-  }
-
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  unsigned int column = ucl_parser_get_column(parser);
-
-  // Use the column variable to avoid unused variable warnings
-  (void)column;
-
-  ucl_parser_free(parser);
-  return 0;
 }

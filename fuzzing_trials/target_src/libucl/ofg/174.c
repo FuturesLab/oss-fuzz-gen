@@ -1,11 +1,9 @@
 #include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
+#include <stddef.h>
 
-// Define the LLVMFuzzerTestOneInput function
 int LLVMFuzzerTestOneInput_174(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
+    // Ensure the input data is not empty
     if (size == 0) {
         return 0;
     }
@@ -19,21 +17,10 @@ int LLVMFuzzerTestOneInput_174(const uint8_t *data, size_t size) {
     // Add the input data to the parser
     ucl_parser_add_chunk(parser, data, size);
 
-    // Get the root object from the parser
-    ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
+    // Call the function-under-test
+    bool result = ucl_parser_chunk_skip(parser);
 
-    // Call the function under test
-    ucl_object_t *popped_object = ucl_array_pop_first(root);
-
-    // Clean up
-    if (popped_object != NULL) {
-        ucl_object_unref(popped_object);
-    }
-    ucl_object_unref(root);
+    // Free the parser
     ucl_parser_free(parser);
 
     return 0;

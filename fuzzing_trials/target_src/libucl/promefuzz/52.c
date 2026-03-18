@@ -1,73 +1,60 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
-// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
-// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
-// ucl_copy_key_trash at ucl_util.c:494:1 in ucl.h
-// ucl_object_pop_keyl at ucl_util.c:2509:1 in ucl.h
+// ucl_object_iterate_new at ucl_util.c:2794:1 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
-// ucl_object_replace_key at ucl_util.c:2545:6 in ucl.h
-// ucl_object_keyl at ucl_util.c:3581:1 in ucl.h
-// ucl_object_key at ucl_util.c:3575:1 in ucl.h
+// ucl_object_iterate_safe at ucl_util.c:2839:1 in ucl.h
+// ucl_object_iterate_reset at ucl_util.c:2819:1 in ucl.h
+// ucl_object_iterate_with_error at ucl_util.c:2717:1 in ucl.h
+// ucl_object_iterate_free at ucl_util.c:2903:6 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_fromstring_common at ucl_util.c:2225:1 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include <ucl.h>
 
-static ucl_object_t *create_ucl_object(const char *key, const char *value) {
-    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
-    if (obj) {
-        ucl_object_insert_key(obj, ucl_object_fromstring(value), key, 0, false);
-    }
+static ucl_object_t* create_dummy_ucl_object(const uint8_t *Data, size_t Size) {
+    ucl_object_t *obj = ucl_object_fromstring_common((const char *)Data, Size, 0);
     return obj;
 }
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    // Initialize a UCL object
-    ucl_object_t *top = create_ucl_object("key", "value");
+    ucl_object_t *obj = create_dummy_ucl_object(Data, Size);
+    if (!obj) return 0;
 
-    // Test ucl_copy_key_trash
-    char *copied_key = ucl_copy_key_trash(top);
-    if (copied_key) {
-        // Do something with copied_key
+    ucl_object_iter_t iter = ucl_object_iterate_new(obj);
+    if (!iter) {
+        ucl_object_unref(obj);
+        return 0;
     }
 
-    // Test ucl_object_pop_keyl
-    ucl_object_t *popped_obj = ucl_object_pop_keyl(top, "key", strlen("key"));
-    if (popped_obj) {
-        // Do something with popped_obj
-        ucl_object_unref(popped_obj);
+    const ucl_object_t *next_obj;
+    bool expand_values = true;
+    while ((next_obj = ucl_object_iterate_safe(iter, expand_values)) != NULL) {
+        // Process next_obj if necessary
     }
 
-    // Test ucl_object_insert_key
-    ucl_object_t *elt = create_ucl_object("new_key", "new_value");
-    bool insert_result = ucl_object_insert_key(top, elt, "insert_key", 0, true);
+    // Reset the iterator
+    iter = ucl_object_iterate_reset(iter, obj);
 
-    // Test ucl_object_replace_key
-    ucl_object_t *replace_elt = create_ucl_object("replace_key", "replace_value");
-    bool replace_result = ucl_object_replace_key(top, replace_elt, "replace_key", 0, true);
-
-    // Test ucl_object_keyl
-    size_t key_length;
-    const char *keyl = ucl_object_keyl(top, &key_length);
-    if (keyl) {
-        // Do something with keyl
+    // Iterate with error handling
+    int error = 0;
+    ucl_object_iter_t iter_with_error = NULL;
+    while ((next_obj = ucl_object_iterate_with_error(obj, &iter_with_error, expand_values, &error)) != NULL) {
+        if (error) {
+            // Handle error
+            break;
+        }
     }
 
-    // Test ucl_object_key
-    const char *key = ucl_object_key(top);
-    if (key) {
-        // Do something with key
-    }
+    // Free the iterator
+    ucl_object_iterate_free(iter);
 
-    // Cleanup
-    ucl_object_unref(top);
+    // Clean up
+    ucl_object_unref(obj);
 
     return 0;
 }

@@ -1,33 +1,38 @@
-#include "ucl.h"
+#include <ucl.h>
 #include <stddef.h>
 #include <stdint.h>
-
-// Dummy comparison function for sorting
-int dummy_comparison_function(const void *a, const void *b) {
-    // Implement a simple comparison logic here
-    return 0; // For simplicity, always return 0 (no sorting)
-}
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_191(const uint8_t *data, size_t size) {
-    // Create a new UCL object
-    ucl_object_t *ucl_obj = ucl_object_new();
-
-    // Ensure the UCL object is not NULL
-    if (ucl_obj == NULL) {
-        return 0;
-    }
-
-    // Add some dummy data to the UCL object array
-    for (size_t i = 0; i < size; ++i) {
-        ucl_object_t *element = ucl_object_fromint((int64_t)data[i]);
-        ucl_array_append(ucl_obj, element);
-    }
-
-    // Call the function-under-test
-    ucl_object_array_sort(ucl_obj, dummy_comparison_function);
-
-    // Free the UCL object
-    ucl_object_unref(ucl_obj);
-
+  // Ensure the data is large enough to have a meaningful key
+  if (size < 2) {
     return 0;
+  }
+
+  // Create a new UCL object
+  ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+
+  // Use the first byte of data as a key length
+  size_t key_length = data[0] % (size - 1) + 1;
+
+  // Ensure the key length does not exceed the data size
+  if (key_length >= size) {
+    key_length = size - 1;
+  }
+
+  // Extract the key from the data
+  char key[key_length + 1];
+  memcpy(key, data + 1, key_length);
+  key[key_length] = '\0';
+
+  // Add a dummy key-value pair to the object
+  ucl_object_insert_key(obj, ucl_object_fromstring("dummy_value"), key, key_length, false);
+
+  // Call the function under test
+  bool result = ucl_object_delete_key(obj, key);
+
+  // Clean up
+  ucl_object_unref(obj);
+
+  return 0;
 }

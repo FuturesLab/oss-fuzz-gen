@@ -1,29 +1,31 @@
-#include <ucl.h> // Corrected the path to the UCL library header
-#include <inttypes.h>
+#include <ucl.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdbool.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Initialize variables
+    struct ucl_parser *parser;
+    unsigned int priority = 0;
+    enum ucl_duplicate_strategy duplicate_strategy;
+    enum ucl_parse_type parse_type;
+
+    // Create a new UCL parser
+    parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+
+    // Ensure parser is not NULL
+    if (parser == NULL) {
         return 0;
     }
 
-    // Initialize an integer to store the result
-    int64_t result = 0;
-
-    // Create a ucl_object_t from the input data
-    ucl_object_t *obj = ucl_object_fromstring_common((const char *)data, size, UCL_STRING_RAW);
-
-    if (obj == NULL) {
-        return 0;
-    }
+    // Set duplicate_strategy and parse_type with valid enumeration values
+    duplicate_strategy = UCL_DUPLICATE_APPEND; // Example value
+    parse_type = UCL_PARSE_UCL; // Example value
 
     // Call the function-under-test
-    bool success = ucl_object_toint_safe(obj, &result);
+    ucl_parser_add_chunk_full(parser, data, size, priority, duplicate_strategy, parse_type);
 
     // Clean up
-    ucl_object_unref(obj);
+    ucl_parser_free(parser);
 
     return 0;
 }

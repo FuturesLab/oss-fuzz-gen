@@ -4,33 +4,35 @@
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_202(const uint8_t *data, size_t size) {
-  // Ensure size is non-zero and data is null-terminated
-  if (size == 0) {
-    return 0;
-  }
+    // Ensure the data is not empty
+    if (size == 0) {
+        return 0;
+    }
 
-  // Initialize the ucl_parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+    // Create a UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
 
-  // Create a null-terminated string from the input data
-  char *filename = (char *)malloc(size + 1);
-  if (filename == NULL) {
+    // Add data to the parser
+    ucl_parser_add_chunk(parser, data, size);
+
+    // Get the root object from the parser
+    const ucl_object_t *root_obj = ucl_parser_get_object(parser);
+    if (root_obj != NULL) {
+        // Call the function-under-test
+        const char *result = ucl_object_tostring_forced(root_obj);
+
+        // Use the result to prevent compiler optimizations
+        if (result != NULL) {
+            volatile size_t result_len = strlen(result);
+            (void)result_len;
+        }
+    }
+
+    // Free the parser
     ucl_parser_free(parser);
+
     return 0;
-  }
-  memcpy(filename, data, size);
-  filename[size] = '\0';
-
-  // Try different boolean values for the third parameter
-  bool result1 = ucl_parser_set_filevars(parser, filename, true);
-  bool result2 = ucl_parser_set_filevars(parser, filename, false);
-
-  // Clean up
-  free(filename);
-  ucl_parser_free(parser);
-
-  return 0;
 }

@@ -1,22 +1,27 @@
 #include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdbool.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_221(const uint8_t *data, size_t size) {
-  // Initialize a ucl_object_t from the input data
+  // Initialize the ucl_parser
+  struct ucl_parser *parser = ucl_parser_new(0);
+  if (parser == NULL) {
+    return 0;
+  }
+
+  // Create a ucl_object_t from the input data
   ucl_object_t *obj = ucl_object_fromstring_common((const char *)data, size, 0);
-  
-  // Initialize a double variable to store the result
-  double result = 0.0;
+  if (obj == NULL) {
+    ucl_parser_free(parser);
+    return 0;
+  }
 
   // Call the function-under-test
-  bool success = ucl_object_todouble_safe(obj, &result);
+  bool result = ucl_set_include_path(parser, obj);
 
   // Clean up
-  if (obj != NULL) {
-    ucl_object_unref(obj);
-  }
+  ucl_object_unref(obj);
+  ucl_parser_free(parser);
 
   return 0;
 }

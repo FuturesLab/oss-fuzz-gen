@@ -1,25 +1,30 @@
-#include "ucl.h"
+#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-  if (size == 0) {
-    return 0;
-  }
+    // Create a temporary file to use with the function
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
+        return 0;
+    }
 
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+    // Write the input data to the temporary file
+    fwrite(data, 1, size, temp_file);
 
-  ucl_parser_add_string(parser, (const char *)data, size);
+    // Reset the file pointer to the beginning of the file
+    rewind(temp_file);
 
-  const ucl_object_t *obj = ucl_parser_get_object(parser);
-  if (obj != NULL) {
     // Call the function-under-test
-    ucl_type_t type = ucl_object_type(obj);
-  }
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(temp_file);
 
-  ucl_parser_free(parser);
-  return 0;
+    // Clean up
+    if (emitter_funcs != NULL) {
+        // Assume there's a function to free the emitter functions if needed
+        // ucl_emitter_functions_free(emitter_funcs);
+    }
+
+    fclose(temp_file);
+
+    return 0;
 }

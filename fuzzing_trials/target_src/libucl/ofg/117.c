@@ -1,46 +1,32 @@
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
+#include <stdlib.h>
 #include <ucl.h>
 
+// Function prototype for the fuzzing entry point
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *ucl_obj = NULL;
-    const char *result_str = NULL;
-    size_t result_len = 0;
+    // Declare and initialize the parameters for the function-under-test
+    struct ucl_parser *parser;
+    ucl_include_trace_func_t *trace_func;
+    void *user_data;
 
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
+    // Initialize the parser
+    parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Parse the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Get the UCL object
-    ucl_obj = ucl_parser_get_object(parser);
-    ucl_parser_free(parser);
-    if (ucl_obj == NULL) {
-        return 0;
-    }
+    // Initialize the trace function and user data
+    // For fuzzing purposes, we can set trace_func and user_data to NULL
+    // and focus on the parser object, as this is a common approach
+    // when the function signature allows NULL for these parameters.
+    trace_func = NULL;
+    user_data = (void *)data; // Use the input data as user_data
 
     // Call the function-under-test
-    bool success = ucl_object_tolstring_safe(ucl_obj, &result_str, &result_len);
+    ucl_parser_set_include_tracer(parser, trace_func, user_data);
 
     // Clean up
-    if (ucl_obj != NULL) {
-        ucl_object_unref(ucl_obj);
-    }
+    ucl_parser_free(parser);
 
     return 0;
 }

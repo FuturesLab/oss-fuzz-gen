@@ -1,29 +1,40 @@
+#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <ucl.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract a ucl_type_t value
-    if (size < sizeof(ucl_type_t)) {
-        return 0;
-    }
-
-    // Cast the input data to a ucl_type_t
-    ucl_type_t type = *(ucl_type_t *)data;
-
-    // Call the function-under-test
-    const char *type_str = ucl_object_type_to_string(type);
-
-    // Use the returned string in some way to prevent compiler optimizations
-    // from removing the call (e.g., by checking if it's not NULL)
-    if (type_str != NULL) {
-        // Do something trivial with type_str, such as printing or logging
-        // In this case, we'll just check its length
-        size_t len = 0;
-        while (type_str[len] != '\0') {
-            len++;
-        }
-    }
-
+  if (size == 0) {
     return 0;
+  }
+
+  // Create a ucl_parser object
+  struct ucl_parser *parser = ucl_parser_new(0);
+  if (parser == NULL) {
+    return 0;
+  }
+
+  // Add the input data to the parser
+  ucl_parser_add_string(parser, (const char *)data, size);
+
+  // Get the root object from the parser
+  const ucl_object_t *root = ucl_parser_get_object(parser);
+  if (root == NULL) {
+    ucl_parser_free(parser);
+    return 0;
+  }
+
+  // Call the function-under-test
+  char *key_trash = ucl_copy_key_trash(root);
+
+  // Free the returned key_trash if it is not NULL
+  if (key_trash != NULL) {
+    free(key_trash);
+  }
+
+  // Free the parser and its associated resources
+  ucl_object_unref(root);
+  ucl_parser_free(parser);
+
+  return 0;
 }

@@ -1,34 +1,52 @@
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdlib.h>
-#include "/src/libucl/include/ucl.h" // Ensure the correct path to the UCL header is used
+#include <ucl.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *obj = NULL;
-    ucl_object_iter_t iter = NULL;
-    bool expand_values = true;
-    int err = 0;
-
-    // Ensure the data is not empty
     if (size == 0) {
         return 0;
     }
 
-    // Parse the input data into a ucl_object_t
-    obj = ucl_parser_add_chunk(NULL, data, size); // Use the correct function for parsing
-
-    // Check if the object was created successfully
-    if (obj == NULL) {
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
+    // Parse the input data
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Get the root object
+    ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Create an iterator
+    ucl_object_iter_t iter = ucl_object_iterate_new(root);
+
+    // Choose a valid iterate type
+    enum ucl_iterate_type iterate_type = UCL_ITERATE_BOTH;
+
     // Call the function-under-test
-    const ucl_object_t *result = ucl_object_iterate_with_error(obj, &iter, expand_values, &err);
+    const ucl_object_t *result = ucl_object_iterate_full(iter, iterate_type);
 
     // Clean up
-    ucl_object_unref(obj);
+    ucl_object_iterate_free(iter);
+    ucl_object_unref(root);
+    ucl_parser_free(parser);
 
-    // Return 0 to indicate no crash
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
