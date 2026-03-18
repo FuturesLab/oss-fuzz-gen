@@ -1,34 +1,24 @@
 #include <cstdint>
+#include <cstddef>
 #include <cstdlib>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    // Include the function signature from the project.
+    void * tj3Alloc(size_t);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    tjhandle handle = tjInitCompress();
-    int param1 = 0;
-    int param2 = 0;
+    // Initialize a size_t variable with a non-zero value to pass to tj3Alloc.
+    size_t allocSize = size > 0 ? size : 1;
 
-    // Ensure that the handle is not NULL
-    if (handle == NULL) {
-        return 0;
-    }
+    // Call the function-under-test.
+    void *allocatedMemory = tj3Alloc(allocSize);
 
-    // Use the input data to set the parameters
-    if (size >= 2) {
-        param1 = static_cast<int>(data[0]);
-        param2 = static_cast<int>(data[1]);
-    }
+    // If necessary, you can add additional logic to test the allocated memory.
+    // For example, you might want to write to the memory or check its contents.
 
-    // Call the function-under-test
-    tj3Set(handle, param1, param2);
-
-    // Clean up
-    tjDestroy(handle);
+    // Free the allocated memory if tj3Alloc uses malloc or similar.
+    free(allocatedMemory);
 
     return 0;
 }

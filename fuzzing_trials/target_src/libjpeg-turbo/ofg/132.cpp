@@ -1,25 +1,43 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Assuming the function is part of a library that has been linked properly.
 extern "C" {
-    size_t tj3JPEGBufSize(int width, int height, int jpegSubsamp);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_132(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for tj3JPEGBufSize
-    int width = 1;  // Minimum valid width
-    int height = 1; // Minimum valid height
-    int jpegSubsamp = 0; // Assuming 0 is a valid subsampling value
-
-    // Call the function-under-test
-    size_t bufferSize = tj3JPEGBufSize(width, height, jpegSubsamp);
-
-    // Use the bufferSize in some way to avoid unused variable warning
-    if (bufferSize > 0) {
-        // Do something with bufferSize if needed
+    tjhandle handle = tjInitTransform();
+    if (!handle) {
+        return 0;
     }
 
-    return 0;
+    // Ensure the input size is reasonable
+    if (size < 1) {
+        tjDestroy(handle);
+        return 0;
+    }
+
+    // Allocate memory for the transformed image
+    unsigned char *jpegBuf = NULL;
+    size_t jpegSize = 0;
+
+    // Define a transformation
+    tjtransform transform;
+    memset(&transform, 0, sizeof(tjtransform));
+    transform.op = TJXOP_NONE;  // No transformation
+
+    // Call the function under test
+    int result = tj3Transform(handle, data, size, 0, &jpegBuf, &jpegSize, &transform);
+
+    // Clean up
+    if (jpegBuf != NULL) {
+        tjFree(jpegBuf);
+    }
+    tjDestroy(handle);
+
+    return result;
 }

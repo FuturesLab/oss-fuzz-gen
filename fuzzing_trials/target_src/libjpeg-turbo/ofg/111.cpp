@@ -1,6 +1,7 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -9,45 +10,31 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    // Initialize the TurboJPEG decompressor handle
+    // Ensure the input size is sufficient for a valid path
+    if (size < 1) return 0;
+
+    // Allocate memory for the path, ensuring null-termination
+    char *path = (char *)malloc(size + 1);
+    if (!path) return 0;
+    memcpy(path, data, size);
+    path[size] = '\0';
+
+    // Initialize parameters for the function call
     tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Exit if initialization fails
-    }
-
-    // Allocate memory for the YUV planes
-    unsigned char *yuvPlanes[3];
-    int yuvStrides[3] = {0, 0, 0}; // Initialize strides to zero
-
-    // Assume a maximum image width and height for testing purposes
-    const int maxWidth = 1920;
-    const int maxHeight = 1080;
-
-    // Calculate the size of each YUV plane
-    int yuvSizes[3];
-    yuvSizes[0] = maxWidth * maxHeight; // Y plane
-    yuvSizes[1] = maxWidth * maxHeight / 4; // U plane
-    yuvSizes[2] = maxWidth * maxHeight / 4; // V plane
-
-    // Allocate memory for each YUV plane
-    for (int i = 0; i < 3; ++i) {
-        yuvPlanes[i] = static_cast<unsigned char *>(malloc(yuvSizes[i]));
-        if (yuvPlanes[i] == nullptr) {
-            tjDestroy(handle);
-            return 0; // Exit if memory allocation fails
-        }
-    }
+    int width = 0;
+    int pitch = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB;
 
     // Call the function-under-test
-    int result = tj3DecompressToYUVPlanes8(handle, data, size, yuvPlanes, yuvStrides);
+    unsigned char *image = (unsigned char *)tj3LoadImage16(handle, path, &width, pitch, &height, &pixelFormat);
 
-    // Free allocated memory
-    for (int i = 0; i < 3; ++i) {
-        free(yuvPlanes[i]);
+    // Clean up
+    if (image) {
+        tjFree(image);
     }
-
-    // Clean up the TurboJPEG handle
     tjDestroy(handle);
+    free(path);
 
     return 0;
 }

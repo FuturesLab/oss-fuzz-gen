@@ -1,5 +1,7 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <algorithm>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,37 +10,39 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size) {
-    // Ensure the data size is large enough to extract parameters
-    if (size < 12) return 0;
+    if (size < 10) {
+        return 0; // Not enough data to proceed
+    }
 
     // Initialize tjhandle
     tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (!handle) return 0;
+    if (handle == nullptr) {
+        return 0; // Initialization failed
+    }
 
-    // Extract parameters from the data
-    const char *filename = reinterpret_cast<const char *>(data);
-    int width = static_cast<int>(data[0]) + 1;  // Ensure width is non-zero
-    int height = static_cast<int>(data[1]) + 1; // Ensure height is non-zero
-    int pitch = width * sizeof(uint16_t);
-    int pixelFormat = TJPF_RGB;
+    // Prepare parameters for tj3SaveImage16
+    const char *filename = "output.tiff"; // Sample output filename
 
-    // Allocate memory for uint16_t array
-    uint16_t *samples = new uint16_t[width * height];
-    if (!samples) {
+    // Allocate memory for uint16_t array (assuming J16SAMPLE is uint16_t)
+    int width = 2; // Example width
+    int height = 2; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pitch = width * tjPixelSize[pixelFormat];
+
+    uint16_t *imageBuffer = (uint16_t *)malloc(sizeof(uint16_t) * width * height * tjPixelSize[pixelFormat]);
+    if (imageBuffer == nullptr) {
         tj3Destroy(handle);
-        return 0;
+        return 0; // Memory allocation failed
     }
 
-    // Fill the samples array with data
-    for (int i = 0; i < width * height; ++i) {
-        samples[i] = static_cast<uint16_t>(data[i % size]);
-    }
+    // Fill the imageBuffer with data
+    memcpy(imageBuffer, data, std::min(size, sizeof(uint16_t) * width * height * tjPixelSize[pixelFormat]));
 
     // Call the function-under-test
-    int result = tj3SaveImage16(handle, filename, samples, width, pitch, height, pixelFormat);
+    int result = tj3SaveImage16(handle, filename, imageBuffer, width, pitch, height, pixelFormat);
 
     // Clean up
-    delete[] samples;
+    free(imageBuffer);
     tj3Destroy(handle);
 
     return 0;

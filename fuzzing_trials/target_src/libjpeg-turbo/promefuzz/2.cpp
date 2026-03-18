@@ -1,18 +1,13 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
 // tj3Init at turbojpeg.c:538:20 in turbojpeg.h
-// tj3TransformBufSize at turbojpeg.c:2831:18 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Transform at turbojpeg.c:2870:15 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
 // tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Transform at turbojpeg.c:2870:15 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
+// tj3JPEGBufSize at turbojpeg.c:903:18 in turbojpeg.h
+// tj3Get at turbojpeg.c:807:15 in turbojpeg.h
+// tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
+// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
+// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
+// tj3Compress16 at turbojpeg-mp.c:71:15 in turbojpeg.h
 // tj3Free at turbojpeg.c:890:16 in turbojpeg.h
 // tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
 #include <iostream>
@@ -25,70 +20,49 @@
 #include <cstdint>
 #include <cstddef>
 #include <turbojpeg.h>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
+#include <cstdlib>
 #include <cstdio>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 2) return 0;
 
-    tjhandle handle = tj3Init(TJINIT_TRANSFORM);
+    // Initialize TurboJPEG instance for compression
+    tjhandle handle = tj3Init(TJINIT_COMPRESS);
     if (!handle) return 0;
 
-    // Prepare transformation parameters
-    tjtransform transform = {};
-    transform.op = Data[0] % 8; // Random operation from 0 to 7
+    // Set various parameters using tj3Set
+    tj3Set(handle, TJPARAM_QUALITY, Data[0] % 101); // Quality between 0-100
+    tj3Set(handle, TJPARAM_SUBSAMP, Data[1] % 4); // Subsampling options
 
-    // Estimate buffer size
-    size_t bufSize = tj3TransformBufSize(handle, &transform);
-    if (bufSize == 0) {
-        tj3Destroy(handle);
-        return 0;
-    }
+    // Estimate JPEG buffer size
+    int width = 256, height = 256, subsamp = TJSAMP_444;
+    size_t jpegBufSize = tj3JPEGBufSize(width, height, subsamp);
 
-    // Allocate buffer
-    unsigned char *dstBuf = static_cast<unsigned char*>(tj3Alloc(bufSize));
-    if (!dstBuf) {
-        tj3Destroy(handle);
-        return 0;
-    }
+    // Get some parameter, e.g., quality
+    int quality = tj3Get(handle, TJPARAM_QUALITY);
 
-    // Prepare destination sizes array
-    size_t dstSizes[1] = { bufSize };
+    // Allocate JPEG buffer
+    unsigned char *jpegBuf = (unsigned char *)tj3Alloc(jpegBufSize);
 
-    // Perform transformation
-    unsigned char *dstBufs[1] = { dstBuf };
-    int result = tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, &transform);
-    if (result == -1) {
-        tj3Free(dstBuf);
-        tj3Destroy(handle);
-        return 0;
-    }
+    // Set ICC profile
+    tj3SetICCProfile(handle, nullptr, 0); // Remove any existing profile
 
-    // Get error string
-    char *errorStr = tj3GetErrorStr(handle);
+    // Set additional parameters
+    tj3Set(handle, TJPARAM_NOREALLOC, 1);
 
-    // Free the destination buffer
-    tj3Free(dstBuf);
+    // Prepare a dummy source buffer for compression
+    unsigned short *srcBuf = new unsigned short[width * height * 3];
+    memset(srcBuf, 0, width * height * 3 * sizeof(unsigned short));
 
-    // Set a parameter
-    result = tj3Set(handle, TJPARAM_NOREALLOC, 1);
-    if (result == -1) {
-        tj3Destroy(handle);
-        return 0;
-    }
+    // Compress the image
+    size_t jpegSize = jpegBufSize;
+    int compressResult = tj3Compress16(handle, srcBuf, width, width * 3, height, TJPF_RGB, &jpegBuf, &jpegSize);
 
-    // Perform transformation again
-    result = tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, &transform);
-    if (result == -1) {
-        errorStr = tj3GetErrorStr(handle);
-    }
-
-    // Free the destination buffer again
-    tj3Free(dstBuf);
-
-    // Destroy the TurboJPEG instance
+    // Free resources
+    delete[] srcBuf;
+    tj3Free(jpegBuf);
     tj3Destroy(handle);
 
     return 0;

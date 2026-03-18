@@ -1,35 +1,30 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
 
+// Assuming tjBufSize is part of a library, it should be declared as extern "C"
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    unsigned long tjBufSize(int width, int height, int jpegSubsamp);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_140(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == NULL) {
-        return 0;
-    }
+    // Declare and initialize variables to be used as parameters for tjBufSize
+    int width = 1;
+    int height = 1;
+    int jpegSubsamp = 0;
 
-    // Ensure the data size is sufficient for decompression
-    if (size < 100) {
-        tjDestroy(handle);
-        return 0;
+    // Ensure there is enough data to extract values for width, height, and jpegSubsamp
+    if (size >= 3) {
+        width = static_cast<int>(data[0]) + 1; // Ensure width is non-zero
+        height = static_cast<int>(data[1]) + 1; // Ensure height is non-zero
+        jpegSubsamp = static_cast<int>(data[2]) % 5; // Assuming jpegSubsamp has a limited range
     }
-
-    // Allocate memory for the decompressed image
-    int width = 100;  // Example width
-    int height = 100; // Example height
-    unsigned char *dest = new unsigned char[width * height * 3]; // Assuming 3 components (RGB)
 
     // Call the function-under-test
-    int result = tjDecompress2(handle, data, size, dest, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+    unsigned long bufferSize = tjBufSize(width, height, jpegSubsamp);
 
-    // Clean up
-    delete[] dest;
-    tjDestroy(handle);
+    // Print the result for debugging purposes
+    printf("Buffer Size: %lu\n", bufferSize);
 
     return 0;
 }

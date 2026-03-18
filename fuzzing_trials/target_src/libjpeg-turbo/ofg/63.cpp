@@ -1,5 +1,5 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,14 +8,23 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    char *errorStr = tjGetErrorStr();
-
-    // Use the error string in some way to avoid compiler optimizations removing the call
-    if (errorStr != nullptr) {
-        // Print the error string to a volatile variable to prevent it being optimized away
-        volatile char *volatileErrorStr = errorStr;
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
+        return 0;
     }
 
+    // Call the function-under-test
+    char *errorStr = tjGetErrorStr2(handle);
+
+    // Use the error string in some way to avoid compiler optimizations removing the call
+    if (errorStr != NULL) {
+        // For example, just check its length
+        size_t len = 0;
+        while (errorStr[len] != '\0') {
+            len++;
+        }
+    }
+
+    tjDestroy(handle);
     return 0;
 }

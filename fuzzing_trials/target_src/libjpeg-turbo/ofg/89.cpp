@@ -1,51 +1,55 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstdio> // Include for FILE type
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.main/src/jpeglib.h" // Include the correct header for J16SAMPLE
 }
 
 extern "C" int LLVMFuzzerTestOneInput_89(const uint8_t *data, size_t size) {
+    // Declare and initialize the variables needed for tjEncodeYUV2
+    tjhandle handle = nullptr;
+    unsigned char *srcBuf = nullptr;
+    unsigned char *dstBuf = nullptr;
+    int width = 1;  // Minimum width
+    int height = 1; // Minimum height
+    int pitch = 0;  // Auto-calculate pitch
+    int subsamp = TJSAMP_444; // Default subsampling
+    int align = 1;  // Default alignment
+    int flags = 0;  // Default flags
+
     // Initialize the TurboJPEG compressor
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (!handle) {
-        return 0;
+    handle = tjInitCompress();
+    if (handle == nullptr) return 0;
+
+    // Ensure data is not empty and allocate srcBuf
+    if (size > 0) {
+        srcBuf = (unsigned char *)malloc(size);
+        if (srcBuf == nullptr) {
+            tjDestroy(handle);
+            return 0;
+        }
+        memcpy(srcBuf, data, size);
+
+        // Allocate dstBuf for YUV output
+        int yuvSize = tjBufSizeYUV2(width, align, height, subsamp);
+        dstBuf = (unsigned char *)malloc(yuvSize);
+        if (dstBuf == nullptr) {
+            free(srcBuf);
+            tjDestroy(handle);
+            return 0;
+        }
+
+        // Call the function under test
+        tjEncodeYUV2(handle, srcBuf, width, pitch, height, subsamp, dstBuf, align, flags);
     }
 
-    // Define the width, height, and pixel format for the image
-    int width = 256;  // Example width
-    int height = 256; // Example height
-    int pitch = width * sizeof(uint16_t); // Assuming 16-bit samples, use uint16_t
-    int pixelFormat = TJPF_RGBX; // Example pixel format
-
-    // Allocate memory for the destination buffer
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
-
-    // Ensure the input data is not null and size is sufficient
-    if (data == nullptr || size < width * height * sizeof(uint16_t)) {
-        tj3Destroy(handle);
-        return 0;
-    }
-
-    // Cast the input data to uint16_t
-    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data);
-
-    // Call the function-under-test
-    int result = tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
-
-    // Free the JPEG buffer if it was allocated
-    if (jpegBuf) {
-        tj3Free(jpegBuf);
-    }
-
-    // Destroy the TurboJPEG compressor handle
-    tj3Destroy(handle);
+    // Cleanup
+    if (srcBuf != nullptr) free(srcBuf);
+    if (dstBuf != nullptr) free(dstBuf);
+    if (handle != nullptr) tjDestroy(handle);
 
     return 0;
 }

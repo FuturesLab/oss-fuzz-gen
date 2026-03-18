@@ -8,32 +8,27 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return 0;
+    if (size < 10) {
+        return 0; // Ensure there's enough data to work with
     }
 
-    // Initialize parameters for tj3CompressFromYUV8
     tjhandle handle = tj3Init(TJINIT_COMPRESS);
     if (handle == nullptr) {
-        return 0;
+        return 0; // Initialization failed
     }
 
-    // Extract width, height, and subsampling from the input data
-    int width = data[0] + 1; // Ensure width is at least 1
-    int height = data[1] + 1; // Ensure height is at least 1
-    int subsampling = data[2] % 4; // Subsampling value must be valid
-
-    // Allocate memory for the compressed image
-    unsigned char *compressedImage = nullptr;
-    size_t compressedSize = 0;
+    // Prepare input parameters for tj3SaveImage16
+    const char *filename = "test_output.ppm"; // Dummy filename
+    const uint16_t *imageBuffer = reinterpret_cast<const uint16_t *>(data); // Correct type for J16SAMPLE
+    int width = 2; // Minimal width for testing
+    int height = 2; // Minimal height for testing
+    int pitch = width * sizeof(uint16_t); // Row size
+    int pixelFormat = TJPF_RGB; // Use RGB format
 
     // Call the function-under-test
-    int result = tj3CompressFromYUV8(handle, data, width, height, subsampling, &compressedImage, &compressedSize);
+    tj3SaveImage16(handle, filename, imageBuffer, width, pitch, height, pixelFormat);
 
     // Clean up
-    if (compressedImage != nullptr) {
-        tj3Free(compressedImage);
-    }
     tj3Destroy(handle);
 
     return 0;

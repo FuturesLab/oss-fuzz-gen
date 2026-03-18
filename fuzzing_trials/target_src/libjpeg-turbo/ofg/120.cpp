@@ -1,5 +1,5 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -11,24 +11,23 @@ extern "C" int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
     // Initialize variables
     tjhandle handle = tjInitTransform();
     tjtransform transform;
-    size_t bufSize = 0;
-
-    // Ensure that the handle is not NULL
+    
+    // Ensure handle is not NULL
     if (handle == NULL) {
         return 0;
     }
 
-    // Initialize the tjtransform structure with some default values
-    transform.op = TJXOP_NONE;
-    transform.options = 0;
-    transform.r.x = 0;
-    transform.r.y = 0;
-    transform.r.w = 0;
-    transform.r.h = 0;
-    transform.customFilter = NULL;
+    // Initialize the transform structure with default values
+    transform.op = TJXOP_NONE;  // No transform operation
+    transform.options = 0;      // No options
+    transform.r.x = 0;          // Region of interest x-coordinate
+    transform.r.y = 0;          // Region of interest y-coordinate
+    transform.r.w = 0;          // Region of interest width
+    transform.r.h = 0;          // Region of interest height
+    transform.customFilter = NULL; // No custom filter
 
     // Call the function-under-test
-    bufSize = tj3TransformBufSize(handle, &transform);
+    size_t bufSize = tj3TransformBufSize(handle, &transform);
 
     // Clean up
     tjDestroy(handle);

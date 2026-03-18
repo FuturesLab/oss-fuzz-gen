@@ -1,5 +1,5 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,19 +8,35 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tjInitDecompress();
+    tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
-        return 0; // If initialization fails, exit early
+        return 0; // If initialization fails, exit early.
     }
 
-    // In a real fuzzing scenario, you would use the data and size
-    // to test other functions in the library, e.g., decompressing an image.
-    // For now, we'll just call tjDestroy as a placeholder.
-    
-    // Call the function-under-test
-    int result = tjDestroy(handle);
+    // Assuming the data is a valid image buffer, you might want to perform compression
+    // Here, we provide a dummy buffer and parameters for the sake of example
+    unsigned char* jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+    int width = 100;  // Dummy width
+    int height = 100; // Dummy height
+    int jpegSubsamp = TJSAMP_444;
+    int jpegQual = 75;
 
-    // Return 0 to indicate the fuzzer should continue
+    // Compress the image
+    int compressResult = tjCompress2(handle, data, width, 0, height, TJPF_RGB,
+                                     &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, TJFLAG_FASTDCT);
+
+    // Free the JPEG buffer if it was allocated
+    if (jpegBuf != nullptr) {
+        tjFree(jpegBuf);
+    }
+
+    // Destroy the handle
+    int destroyResult = tjDestroy(handle);
+
+    // Suppress unused variable warnings
+    (void)compressResult;
+    (void)destroyResult;
+
     return 0;
 }

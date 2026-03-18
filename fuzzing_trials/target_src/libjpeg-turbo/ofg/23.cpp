@@ -1,5 +1,5 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstddef>
+#include <cstdint>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,46 +8,42 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    if (size < 10) {
-        // Ensure there's enough data for the parameters
-        return 0;
-    }
-
-    // Initialize tjhandle
+    // Initialize variables for the function call
     tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
+    if (!handle) {
         return 0;
     }
 
-    // Define and initialize parameters for tjEncodeYUVPlanes
-    const unsigned char *srcBuf = data;
-    int width = 10; // Arbitrary non-zero width
-    int height = 10; // Arbitrary non-zero height
-    int pitch = width * 3; // Assuming 3 bytes per pixel for RGB
-    int pixelFormat = TJPF_RGB; // Define a valid pixel format
-    int subsamp = TJSAMP_444; // Use a valid subsampling option
-    unsigned char *dstPlanes[3]; // Y, U, V planes
-    int strides[3] = { width, width / 2, width / 2 }; // Example strides for YUV 4:4:4
-    int flags = 0; // No flags
+    // Assuming YUV format with 3 planes (Y, U, V)
+    const unsigned char *yuvPlanes[3];
+    int strides[3] = {0, 0, 0};
+    int width = 16;  // Example width
+    int height = 16; // Example height
 
-    // Allocate memory for Y, U, V planes
-    for (int i = 0; i < 3; i++) {
-        dstPlanes[i] = (unsigned char *)malloc(width * height);
-        if (dstPlanes[i] == nullptr) {
-            tjDestroy(handle);
-            return 0;
-        }
+    // Allocate memory for YUV planes
+    size_t planeSize = width * height;
+    unsigned char *planeData = new unsigned char[planeSize * 3];
+    yuvPlanes[0] = planeData;                     // Y plane
+    yuvPlanes[1] = planeData + planeSize;         // U plane
+    yuvPlanes[2] = planeData + 2 * planeSize;     // V plane
+
+    // Fill the planes with data from the fuzzer input
+    size_t copySize = (size < planeSize * 3) ? size : planeSize * 3;
+    for (size_t i = 0; i < copySize; ++i) {
+        planeData[i] = data[i];
     }
 
-    // Call the function-under-test with the correct number of arguments
-    int result = tjEncodeYUVPlanes(handle, srcBuf, width, pitch, height, pixelFormat, dstPlanes, strides, subsamp, flags);
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+    int jpegSubsamp = TJSAMP_420; // Example subsampling
+    int flags = 0;                // Example flags
 
-    // Free allocated memory
-    for (int i = 0; i < 3; i++) {
-        free(dstPlanes[i]);
-    }
+    // Call the function-under-test
+    tjCompressFromYUVPlanes(handle, yuvPlanes, width, strides, height, jpegSubsamp, &jpegBuf, &jpegSize, 100, flags);
 
     // Clean up
+    tjFree(jpegBuf);
+    delete[] planeData;
     tjDestroy(handle);
 
     return 0;

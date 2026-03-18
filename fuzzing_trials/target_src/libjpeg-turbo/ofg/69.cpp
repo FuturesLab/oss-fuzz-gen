@@ -1,5 +1,6 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -9,26 +10,34 @@ extern "C" {
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
     // Initialize variables
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (handle == nullptr) {
-        return 0; // Failed to initialize, exit early
+    tjhandle handle = tjInitCompress();
+    const char *filename = "output.jpg"; // Use a fixed filename for testing
+    int width = 10; // Arbitrary non-zero width
+    int height = 10; // Arbitrary non-zero height
+    int pitch = width * sizeof(uint16_t); // Pitch (bytes per row)
+    int flags = 0; // No specific flags for now
+
+    // Ensure we have enough data to fill the image buffer
+    if (size < width * height * sizeof(uint16_t)) {
+        return 0;
     }
 
-    const unsigned char *yuvData = data;
-    int width = 640;  // Example width
-    int height = 480; // Example height
-    int subsamp = TJSAMP_420; // Example subsampling
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
+    // Allocate and initialize the image buffer
+    uint16_t *imageBuffer = (uint16_t *)malloc(width * height * sizeof(uint16_t));
+    if (imageBuffer == NULL) {
+        tjDestroy(handle);
+        return 0;
+    }
+
+    // Copy the data into the image buffer
+    memcpy(imageBuffer, data, width * height * sizeof(uint16_t));
 
     // Call the function-under-test
-    int result = tj3CompressFromYUV8(handle, yuvData, width, height, subsamp, &jpegBuf, &jpegSize);
+    int result = tj3SaveImage16(handle, filename, imageBuffer, width, pitch, height, flags);
 
     // Clean up
-    if (jpegBuf != nullptr) {
-        tj3Free(jpegBuf);
-    }
-    tj3Destroy(handle);
+    free(imageBuffer);
+    tjDestroy(handle);
 
     return 0;
 }

@@ -1,25 +1,51 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 extern "C" {
-    // Assuming the function is declared in a header file related to the library
-    int tj3YUVPlaneWidth(int componentID, int width, int subsampling);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract three integers
-    if (size < 3 * sizeof(int)) {
+    tjhandle handle = NULL;
+    const char *filename = "dummy_image.ppm";
+    int width = 0;
+    int pitch = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB;
+
+    // Create a TurboJPEG decompressor handle
+    handle = tjInitDecompress();
+    if (handle == NULL) {
         return 0;
     }
 
-    // Extract three integers from the input data
-    int componentID = static_cast<int>(data[0]); // Using first byte for componentID
-    int width = static_cast<int>(data[1]);       // Using second byte for width
-    int subsampling = static_cast<int>(data[2]); // Using third byte for subsampling
+    // Ensure the data is not NULL and has a reasonable size
+    if (data == NULL || size == 0) {
+        tjDestroy(handle);
+        return 0;
+    }
 
-    // Call the function under test
-    int result = tj3YUVPlaneWidth(componentID, width, subsampling);
+    // Write the input data to a temporary file to simulate a real image file
+    FILE *file = fopen(filename, "wb");
+    if (file == NULL) {
+        tjDestroy(handle);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Return 0 to indicate successful execution
+    // Call the function-under-test
+    unsigned short *image = tj3LoadImage16(handle, filename, &width, pitch, &height, &pixelFormat);
+
+    // Clean up
+    if (image != NULL) {
+        tj3Free(image);  // Correct function to free image loaded by tj3LoadImage16
+    }
+    tjDestroy(handle);
+
     return 0;
 }

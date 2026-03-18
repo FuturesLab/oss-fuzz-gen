@@ -1,5 +1,5 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,30 +8,20 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitCompress();
-    const unsigned char *srcBuf = data;
-    int width = 16;  // Example width
-    int height = 16; // Example height
-    int strides = width; // Assuming strides as width for simplicity
-    int subsamp = TJSAMP_444; // Example subsampling
-    unsigned char *jpegBuf = nullptr; // Output buffer
-    unsigned long jpegSize = 0; // Output size
-    int jpegQual = 75; // Example JPEG quality
-    int flags = 0; // Example flags
-
-    // Ensure the handle is initialized
-    if (handle == nullptr) {
-        return 0;
+    // Initialize variables for the function parameters
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
+        return 0; // If initialization fails, return early
     }
+
+    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
+    unsigned long jpegSize = static_cast<unsigned long>(size);
+    int width = 0, height = 0, jpegSubsamp = 0;
 
     // Call the function-under-test
-    int result = tjCompressFromYUV(handle, srcBuf, width, strides, height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
+    int result = tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp);
 
-    // Clean up
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
+    // Clean up the TurboJPEG decompressor
     tjDestroy(handle);
 
     return 0;

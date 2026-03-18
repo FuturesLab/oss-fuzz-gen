@@ -1,5 +1,5 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstddef>
+#include <cstdint>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -10,30 +10,33 @@ extern "C" {
 extern "C" int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
     // Initialize variables
     tjhandle handle = tjInitCompress();
-    if (handle == NULL) {
-        return 0;
+    if (handle == nullptr) {
+        return 0; // If initialization fails, return early
     }
 
-    const unsigned char *srcBuf = data;
-    int width = 100;  // Arbitrary non-zero width
-    int height = 100; // Arbitrary non-zero height
-    int pitch = width * 3; // Assuming 3 bytes per pixel (RGB)
-    int subsamp = TJSAMP_420; // Common subsampling
-    unsigned char *dstBuf = NULL;
-    int dstSize = 0;
+    // Assume we have 3 YUV planes for simplicity
+    const int numPlanes = 3;
+    const unsigned char *yuvPlanes[numPlanes];
+    int strides[numPlanes];
+    unsigned char *jpegBuf = nullptr;
+    size_t jpegSize = 0;
 
-    // Allocate memory for the destination buffer
-    dstBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, pitch, height, subsamp));
-    if (dstBuf == NULL) {
-        tjDestroy(handle);
-        return 0;
+    // Initialize YUV planes and strides
+    for (int i = 0; i < numPlanes; ++i) {
+        yuvPlanes[i] = data;
+        strides[i] = size / numPlanes;
     }
+
+    // Set arbitrary width, height, and subsampling
+    int width = 256;
+    int height = 256;
+    int subsampling = TJSAMP_420;
 
     // Call the function-under-test
-    tj3EncodeYUVPlanes8(handle, srcBuf, width, pitch, height, subsamp, &dstBuf, &dstSize);
+    int result = tj3CompressFromYUVPlanes8(handle, yuvPlanes, width, strides, height, &jpegBuf, &jpegSize);
 
     // Clean up
-    free(dstBuf);
+    tjFree(jpegBuf);
     tjDestroy(handle);
 
     return 0;

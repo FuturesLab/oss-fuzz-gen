@@ -1,4 +1,3 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -9,26 +8,32 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
+    // Initialize variables for tjDecompress
     tjhandle handle = tjInitDecompress();
-    unsigned char *iccProfile = nullptr;
-    size_t iccProfileSize = 0;
-    int result;
-
-    // Ensure the handle is valid
     if (handle == nullptr) {
-        return 0;
+        return 0; // If initialization fails, exit early
     }
 
-    // Call the function-under-test with non-null input
-    if (size > 0) {
-        result = tj3GetICCProfile(handle, &iccProfile, &iccProfileSize);
+    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
+    unsigned long jpegSize = static_cast<unsigned long>(size);
+
+    // Set up output buffer
+    int width = 100;  // Example width
+    int height = 100; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pitch = width * tjPixelSize[pixelFormat];
+    unsigned char *dstBuf = static_cast<unsigned char *>(malloc(pitch * height));
+
+    if (dstBuf == nullptr) {
+        tjDestroy(handle);
+        return 0; // If memory allocation fails, exit early
     }
+
+    // Call the function-under-test
+    int result = tjDecompress(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, pixelFormat, 0);
 
     // Clean up
-    if (iccProfile != nullptr) {
-        tjFree(iccProfile);
-    }
+    free(dstBuf);
     tjDestroy(handle);
 
     return 0;

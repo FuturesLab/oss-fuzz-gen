@@ -8,17 +8,21 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_128(const uint8_t *data, size_t size) {
-    // Declare and initialize the parameters for tjBufSizeYUV2
-    int width = 1;  // Minimum valid width
-    int height = 1; // Minimum valid height
-    int subsamp = TJSAMP_420; // Common subsampling option
-    int align = 1; // Minimum valid alignment
+    // Ensure we have enough data to extract four integers
+    if (size < 16) return 0;
+
+    // Extract four integers from the input data
+    int width = *(reinterpret_cast<const int*>(data));
+    int height = *(reinterpret_cast<const int*>(data + 4));
+    int subsamp = *(reinterpret_cast<const int*>(data + 8));
+    int align = *(reinterpret_cast<const int*>(data + 12));
 
     // Call the function-under-test
-    unsigned long bufferSize = tjBufSizeYUV2(width, height, subsamp, align);
+    unsigned long result = tjBufSizeYUV2(width, height, subsamp, align);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)bufferSize;
+    // Use the result in some way to avoid optimization issues
+    volatile unsigned long use_result = result;
+    (void)use_result;
 
     return 0;
 }

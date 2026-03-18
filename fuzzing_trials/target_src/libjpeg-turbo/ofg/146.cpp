@@ -1,5 +1,7 @@
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstdio>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,18 +10,19 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_146(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the tjPlaneSizeYUV function parameters
-    int width = 1;  // Minimum width to avoid zero or negative values
-    int height = 1; // Minimum height to avoid zero or negative values
-    int subsamp = TJSAMP_420; // Using a valid subsampling option
-    int align = 1; // Minimum alignment
-    int componentID = 0; // Valid component ID
+    // Allocate memory for the buffer to be freed
+    unsigned char *buffer = (unsigned char *)malloc(size);
+    if (buffer == NULL) {
+        return 0; // Allocation failed, exit the fuzzer
+    }
+
+    // Copy the input data to the buffer
+    for (size_t i = 0; i < size; i++) {
+        buffer[i] = data[i];
+    }
 
     // Call the function-under-test
-    unsigned long planeSize = tjPlaneSizeYUV(componentID, width, height, subsamp, align);
-
-    // Use the result to avoid compiler optimizations that remove the call
-    (void)planeSize;
+    tjFree(buffer);
 
     return 0;
 }

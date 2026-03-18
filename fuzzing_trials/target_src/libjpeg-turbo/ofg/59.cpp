@@ -1,7 +1,5 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -10,50 +8,23 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tjInitCompress();
+    // Initialize the TurboJPEG handle
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
     if (handle == NULL) {
+        return 0; // Initialization failed, exit early
+    }
+
+    // Ensure that size is not zero to avoid passing NULL to tj3SetICCProfile
+    if (size == 0) {
+        tj3Destroy(handle);
         return 0;
     }
 
-    const unsigned char *yuvPlanes[3];
-    unsigned char *compressedImage = NULL;
-    size_t compressedSize = 0;
-    int strides[3];
-    int width = 64;  // Example width
-    int height = 64; // Example height
-    int subsamp = TJSAMP_420; // Example subsampling
-
-    // Allocate memory for YUV planes
-    for (int i = 0; i < 3; i++) {
-        yuvPlanes[i] = (const unsigned char *)malloc(width * height);
-        if (yuvPlanes[i] == NULL) {
-            tjDestroy(handle);
-            return 0;
-        }
-        memset((void*)yuvPlanes[i], 0, width * height);
-        strides[i] = width;
-    }
-
-    // Allocate memory for compressed image
-    compressedImage = (unsigned char *)malloc(TJBUFSIZE(width, height));
-    if (compressedImage == NULL) {
-        for (int i = 0; i < 3; i++) {
-            free((void*)yuvPlanes[i]);
-        }
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Call the function under test
-    tj3CompressFromYUVPlanes8(handle, yuvPlanes, width, strides, height, &compressedImage, &compressedSize);
+    // Call the function-under-test
+    int result = tj3SetICCProfile(handle, (unsigned char *)data, size);
 
     // Clean up
-    for (int i = 0; i < 3; i++) {
-        free((void*)yuvPlanes[i]);
-    }
-    free(compressedImage);
-    tjDestroy(handle);
+    tj3Destroy(handle);
 
     return 0;
 }

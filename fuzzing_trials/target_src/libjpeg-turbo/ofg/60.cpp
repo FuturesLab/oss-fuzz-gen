@@ -8,43 +8,17 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tjInitCompress();
-    if (!handle) {
-        return 0;
+    tjhandle handle = tjInitCompress();  // Initialize a TurboJPEG compressor handle
+    if (handle == NULL) {
+        return 0;  // If initialization fails, return early
     }
 
-    // Define and initialize parameters for tj3CompressFromYUVPlanes8
-    const unsigned char *yuvPlanes[3];
-    int strides[3];
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
-    int width = 2;  // Example width
-    int height = 2; // Example height
-    int subsamp = TJSAMP_420; // Example subsampling, can be varied
-
-    // Ensure data is large enough to fill YUV planes
-    if (size < width * height * 3 / 2) {
-        tjDestroy(handle);
-        return 0;
+    // Ensure that the data is not NULL and size is greater than zero
+    if (data != NULL && size > 0) {
+        // Call the function-under-test with the provided data
+        int result = tj3SetICCProfile(handle, (unsigned char *)data, size);
     }
 
-    // Assign data to YUV planes
-    yuvPlanes[0] = data; // Y plane
-    yuvPlanes[1] = data + width * height; // U plane
-    yuvPlanes[2] = data + width * height * 5 / 4; // V plane
-
-    // Set strides
-    strides[0] = width;
-    strides[1] = width / 2;
-    strides[2] = width / 2;
-
-    // Call the function-under-test
-    int result = tj3CompressFromYUVPlanes8(handle, yuvPlanes, width, strides, height, &jpegBuf, &jpegSize);
-
-    // Clean up
-    tjFree(jpegBuf);
-    tjDestroy(handle);
-
+    tjDestroy(handle);  // Clean up and destroy the TurboJPEG handle
     return 0;
 }

@@ -1,12 +1,11 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
+// TJBUFSIZE at turbojpeg.c:948:25 in turbojpeg.h
+// tjDecompressHeader2 at turbojpeg.c:1903:15 in turbojpeg.h
+// tjDecompress2 at turbojpeg.c:2059:15 in turbojpeg.h
+// tj3JPEGBufSize at turbojpeg.c:903:18 in turbojpeg.h
+// tj3DecompressHeader at turbojpeg.c:1815:15 in turbojpeg.h
+// tjDecompressHeader3 at turbojpeg.c:1874:15 in turbojpeg.h
 // tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
-// tj3DecodeYUVPlanes8 at turbojpeg.c:2511:15 in turbojpeg.h
-// tjEncodeYUV3 at turbojpeg.c:1734:15 in turbojpeg.h
-// tjCompressFromYUVPlanes at turbojpeg.c:1394:15 in turbojpeg.h
-// tjDecodeYUVPlanes at turbojpeg.c:2652:15 in turbojpeg.h
-// tj3DecompressToYUVPlanes8 at turbojpeg.c:2125:15 in turbojpeg.h
-// tj3CompressFromYUVPlanes8 at turbojpeg.c:1259:15 in turbojpeg.h
-// tjFree at turbojpeg.c:896:16 in turbojpeg.h
 // tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
 #include <iostream>
 #include <sstream>
@@ -19,21 +18,61 @@
 #include <cstddef>
 #include <turbojpeg.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
-#include <stdexcept>
+#include <exception>
 
-static void initializeYUVPlanes(unsigned char **srcPlanes, int width, int height) {
-    for (int i = 0; i < 3; i++) {
-        srcPlanes[i] = new unsigned char[width * height];
-        std::memset(srcPlanes[i], 0, width * height);
+static void fuzzTJBUFSIZE(int width, int height) {
+    try {
+        unsigned long bufferSize = TJBUFSIZE(width, height);
+    } catch (const std::exception &e) {
+        // Handle any exception thrown by TJBUFSIZE
     }
 }
 
-static void cleanupYUVPlanes(unsigned char **srcPlanes) {
-    for (int i = 0; i < 3; i++) {
-        delete[] srcPlanes[i];
+static void fuzzTjDecompressHeader2(tjhandle handle, unsigned char *jpegBuf, unsigned long jpegSize) {
+    int width = 0, height = 0, jpegSubsamp = 0;
+    try {
+        int res = tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp);
+    } catch (const std::exception &e) {
+        // Handle any exception thrown by tjDecompressHeader2
+    }
+}
+
+static void fuzzTjDecompress2(tjhandle handle, const unsigned char *jpegBuf, unsigned long jpegSize) {
+    int width = 100, height = 100, pixelFormat = TJPF_RGB, flags = 0;
+    unsigned char *dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
+    try {
+        int res = tjDecompress2(handle, jpegBuf, jpegSize, dstBuf, width, 0, height, pixelFormat, flags);
+    } catch (const std::exception &e) {
+        // Handle any exception thrown by tjDecompress2
+    }
+    delete[] dstBuf;
+}
+
+static void fuzzTj3JPEGBufSize(int width, int height, int jpegSubsamp) {
+    try {
+        size_t bufferSize = tj3JPEGBufSize(width, height, jpegSubsamp);
+    } catch (const std::exception &e) {
+        // Handle any exception thrown by tj3JPEGBufSize
+    }
+}
+
+static void fuzzTj3DecompressHeader(tjhandle handle, const unsigned char *jpegBuf, size_t jpegSize) {
+    try {
+        int res = tj3DecompressHeader(handle, jpegBuf, jpegSize);
+    } catch (const std::exception &e) {
+        // Handle any exception thrown by tj3DecompressHeader
+    }
+}
+
+static void fuzzTjDecompressHeader3(tjhandle handle, const unsigned char *jpegBuf, unsigned long jpegSize) {
+    int width = 0, height = 0, jpegSubsamp = 0, jpegColorspace = 0;
+    try {
+        int res = tjDecompressHeader3(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp, &jpegColorspace);
+    } catch (const std::exception &e) {
+        // Handle any exception thrown by tjDecompressHeader3
     }
 }
 
@@ -43,48 +82,14 @@ extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
     tjhandle handle = tjInitDecompress();
     if (!handle) return 0;
 
-    unsigned char *srcPlanes[3];
-    initializeYUVPlanes(srcPlanes, 256, 256);
+    // Fuzz each function with random data
+    fuzzTJBUFSIZE(Data[0], Data[0]);
+    fuzzTjDecompressHeader2(handle, const_cast<unsigned char*>(Data), Size);
+    fuzzTjDecompress2(handle, Data, Size);
+    fuzzTj3JPEGBufSize(Data[0], Data[0], Data[0]);
+    fuzzTj3DecompressHeader(handle, Data, Size);
+    fuzzTjDecompressHeader3(handle, Data, Size);
 
-    unsigned char *dstBuf = new unsigned char[256 * 256 * 3];
-    int strides[3] = {256, 128, 128};
-
-    try {
-        // Fuzz tj3DecodeYUVPlanes8
-        tj3DecodeYUVPlanes8(handle, srcPlanes, strides, dstBuf, 256, 256, 256, TJPF_RGB);
-
-        // Fuzz tjEncodeYUV3
-        tjEncodeYUV3(handle, dstBuf, 256, 256 * 3, 256, TJPF_RGB, dstBuf, 4, TJSAMP_444, 0);
-
-        // Fuzz tjCompressFromYUVPlanes
-        unsigned char *jpegBuf = nullptr;
-        unsigned long jpegSize = 0;
-        const unsigned char *constSrcPlanes[3] = {srcPlanes[0], srcPlanes[1], srcPlanes[2]};
-        tjCompressFromYUVPlanes(handle, constSrcPlanes, 256, strides, 256, TJSAMP_444, &jpegBuf, &jpegSize, 75, 0);
-        
-        // Fuzz tjDecodeYUVPlanes
-        tjDecodeYUVPlanes(handle, constSrcPlanes, strides, TJSAMP_444, dstBuf, 256, 256 * 3, 256, TJPF_RGB, 0);
-
-        // Fuzz tj3DecompressToYUVPlanes8
-        unsigned char *dstPlanes[3];
-        initializeYUVPlanes(dstPlanes, 256, 256);
-        tj3DecompressToYUVPlanes8(handle, Data, Size, dstPlanes, strides);
-
-        // Fuzz tj3CompressFromYUVPlanes8
-        size_t jpegSize2 = 0;
-        tj3CompressFromYUVPlanes8(handle, constSrcPlanes, 256, strides, 256, &jpegBuf, &jpegSize2);
-        
-        if (jpegBuf) {
-            tjFree(jpegBuf);
-        }
-        cleanupYUVPlanes(dstPlanes);
-    } catch (const std::exception &e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-    }
-
-    cleanupYUVPlanes(srcPlanes);
-    delete[] dstBuf;
     tjDestroy(handle);
-
     return 0;
 }

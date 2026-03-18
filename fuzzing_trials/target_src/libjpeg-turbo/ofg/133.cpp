@@ -1,7 +1,7 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -10,26 +10,25 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
+    // Declare and initialize variables
     tjhandle handle = tjInitTransform();
-    if (!handle) {
-        return 0; // If initialization fails, exit early
+    if (handle == nullptr) {
+        return 0; // Handle initialization failure
     }
 
-    const unsigned char *jpegBuf = data;
-    int n = 1; // Assuming the number of transforms is 1 for simplicity
-
-    unsigned char *dstBuf = NULL; // Destination buffer
-    size_t dstSize = 0; // Size of the destination buffer
-
+    unsigned char *jpegBuf = nullptr; // This will be allocated by tj3Transform
+    size_t jpegSize = 0;
+    int n = 1; // Number of transforms
     tjtransform transform;
-    memset(&transform, 0, sizeof(transform)); // Initialize the transform structure
+    memset(&transform, 0, sizeof(tjtransform)); // Initialize transform with zeros
 
     // Call the function-under-test
-    int result = tj3Transform(handle, jpegBuf, size, n, &dstBuf, &dstSize, &transform);
+    int result = tj3Transform(handle, data, size, n, &jpegBuf, &jpegSize, &transform);
 
     // Clean up
-    tjFree(dstBuf);
+    if (jpegBuf != nullptr) {
+        tjFree(jpegBuf);
+    }
     tjDestroy(handle);
 
     return 0;

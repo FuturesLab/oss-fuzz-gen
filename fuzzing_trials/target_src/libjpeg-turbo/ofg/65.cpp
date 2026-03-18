@@ -1,5 +1,5 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,22 +8,21 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
+
+    if (handle == NULL) {
         return 0;
     }
 
-    // Call the function-under-test
-    char *errorStr = tjGetErrorStr2(handle);
-
-    // Use the errorStr to avoid unused variable warning
-    if (errorStr != nullptr) {
-        // Perform any operation with errorStr if needed
+    // Assuming the function under test requires some valid input
+    // and size should be non-zero for meaningful testing
+    if (size > 0) {
+        // Example of calling a function from the library with the input data
+        // This is a placeholder as the actual function call depends on the library's API
+        // tj3DecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace);
     }
 
-    // Clean up
-    tjDestroy(handle);
+    tj3Destroy(handle);
 
     return 0;
 }

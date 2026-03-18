@@ -1,5 +1,6 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,29 +9,33 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitDecompress();
-    tjscalingfactor scalingFactor;
-
-    // Ensure data size is sufficient for creating a scaling factor
-    if (size < sizeof(int) * 2) {
-        tjDestroy(handle);
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize scaling factor with values from data
-    scalingFactor.num = ((int*)data)[0];
-    scalingFactor.denom = ((int*)data)[1];
-
-    // Ensure denominator is not zero to avoid division by zero
-    if (scalingFactor.denom == 0) {
-        scalingFactor.denom = 1;
+    tjhandle handle = tjInitTransform();
+    if (handle == nullptr) {
+        return 0;
     }
 
-    // Call the function-under-test
-    int result = tj3SetScalingFactor(handle, scalingFactor);
+    // Allocate memory for the destination buffer
+    unsigned char *dstBuffer = nullptr;
+    unsigned long dstSize = 0;
+
+    // Initialize a tjtransform structure
+    tjtransform transform;
+    memset(&transform, 0, sizeof(tjtransform));
+
+    // Set some options for the transformation
+    int options = 0;
+
+    // Call tjTransform with the provided data
+    int result = tjTransform(handle, data, size, 1, &dstBuffer, &dstSize, &transform, options);
 
     // Clean up
+    if (dstBuffer != nullptr) {
+        tjFree(dstBuffer);
+    }
     tjDestroy(handle);
 
     return result;

@@ -1,5 +1,5 @@
-#include <cstddef>
-#include <cstdint>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,44 +8,51 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
+    if (size < 3) {
         return 0;
     }
 
-    // Set up YUV planes
+    // Initialize variables
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
+        return 0;
+    }
+
     const unsigned char *yuvPlanes[3];
     int strides[3];
-    unsigned char *dstBuffer = nullptr;
-    int width = 4;  // Example width
-    int height = 4; // Example height
-    int subsamp = TJSAMP_420; // Example subsampling
-    int flags = 0; // No flags
+    unsigned char *dstBuffer = NULL;
+    int width, height, subsamp, colorspace;
+    int flags = 0;
 
-    if (size < 3 * width * height) {
+    // Set up YUV planes and strides
+    yuvPlanes[0] = data;
+    yuvPlanes[1] = data + 1;
+    yuvPlanes[2] = data + 2;
+
+    strides[0] = 1;
+    strides[1] = 1;
+    strides[2] = 1;
+
+    // Set arbitrary non-zero values for width, height, subsamp, and colorspace
+    width = 1;
+    height = 1;
+    subsamp = TJSAMP_420;
+    colorspace = TJCS_YCbCr;
+
+    // Allocate destination buffer
+    int pixelFormat = TJPF_RGB;
+    int dstSize = tjBufSize(width, height, subsamp);
+    dstBuffer = (unsigned char *)malloc(dstSize);
+    if (dstBuffer == NULL) {
         tjDestroy(handle);
         return 0;
     }
 
-    // Assigning data to YUV planes
-    yuvPlanes[0] = data;
-    yuvPlanes[1] = data + width * height;
-    yuvPlanes[2] = data + 2 * width * height;
-
-    // Set strides
-    strides[0] = width;
-    strides[1] = width / 2;
-    strides[2] = width / 2;
-
-    // Allocate destination buffer
-    dstBuffer = new unsigned char[width * height * 3]; // RGB buffer
-
     // Call the function-under-test
-    int result = tjDecodeYUVPlanes(handle, yuvPlanes, strides, subsamp, dstBuffer, width, 0, height, TJPF_RGB, flags);
+    tjDecodeYUVPlanes(handle, yuvPlanes, strides, subsamp, dstBuffer, width, 0, height, pixelFormat, flags);
 
     // Clean up
-    delete[] dstBuffer;
+    free(dstBuffer);
     tjDestroy(handle);
 
     return 0;

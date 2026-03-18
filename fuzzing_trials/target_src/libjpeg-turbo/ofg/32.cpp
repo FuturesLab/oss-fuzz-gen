@@ -1,5 +1,7 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,23 +10,28 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitDecompress();
-    unsigned char *jpegBuf = (unsigned char *)data;
-    unsigned long jpegSize = (unsigned long)size;
-    int width = 0;
-    int height = 0;
-
-    // Ensure handle is not NULL
-    if (handle == NULL) {
+    if (data == nullptr || size == 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    int result = tjDecompressHeader(handle, jpegBuf, jpegSize, &width, &height);
+    // Define and initialize the parameters for tjLoadImage
+    const char *filename = "dummy.jpg"; // Use a dummy filename
+    int width = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB; // Common pixel format
+    int align = 1; // Common alignment
+    int flags = 0; // No specific flags
 
-    // Clean up
-    tjDestroy(handle);
+    // Allocate memory for the output image
+    unsigned char *imageBuffer = nullptr;
+
+    // Call the function-under-test
+    imageBuffer = tjLoadImage(filename, &width, align, &height, &pixelFormat, flags);
+
+    // Free the allocated image buffer if it's not nullptr
+    if (imageBuffer != nullptr) {
+        tjFree(imageBuffer);
+    }
 
     return 0;
 }

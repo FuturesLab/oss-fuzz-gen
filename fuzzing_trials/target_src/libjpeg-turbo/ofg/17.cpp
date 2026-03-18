@@ -1,43 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-
-    // Include the function-under-test
-    unsigned short * tj3LoadImage16(tjhandle handle, const char *filename, int *width, int pitch, int *height, int *flags);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitDecompress();
-    const char *filename = "test_image.jpg";  // Use a dummy filename
-    int width = 0;
-    int height = 0;
-    int pitch = 0;
-    int flags = 0;
-    unsigned short *image = NULL;
-
-    if (handle == NULL) {
-        return 0;
+    if (size < 10) {
+        return 0; // Not enough data to proceed
     }
 
-    // Ensure the data is not empty
-    if (size > 0) {
-        // Call the function-under-test
-        image = tj3LoadImage16(handle, filename, &width, pitch, &height, &flags);
-
-        // Free the allocated image if not NULL
-        if (image != NULL) {
-            free(image);
-        }
+    // Initialize variables for tjEncodeYUV3
+    tjhandle handle = tjInitCompress();
+    if (handle == nullptr) {
+        return 0; // Failed to initialize TurboJPEG compressor
     }
+
+    const unsigned char *srcBuf = data;
+    int width = 100;  // Example width
+    int pitch = 0;    // Auto-calculate pitch
+    int height = 100; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+
+    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, pitch, height, pixelFormat));
+    if (dstBuf == nullptr) {
+        tjDestroy(handle);
+        return 0; // Memory allocation failed
+    }
+
+    int subsamp = TJSAMP_420; // Example subsampling
+    int flags = 0;            // No flags
+    int align = 1;            // Example alignment value
+
+    // Call the function-under-test with the correct number of arguments
+    int result = tjEncodeYUV3(handle, srcBuf, width, pitch, height, pixelFormat, dstBuf, align, subsamp, flags);
 
     // Clean up
+    free(dstBuf);
     tjDestroy(handle);
 
     return 0;

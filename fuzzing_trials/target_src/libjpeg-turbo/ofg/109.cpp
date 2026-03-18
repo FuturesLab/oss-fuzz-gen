@@ -8,31 +8,36 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
-    if (handle == NULL) {
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
         return 0;
     }
 
-    // Assuming a reasonable width and height for YUV image
-    int width = 128;
-    int height = 128;
-    // Use TJSAMP_444 for YUV sampling format
-    int align = 1; // Assuming no specific alignment is needed
-    int yuvSize = tj3YUVBufSize(width, align, height, TJSAMP_444);
+    unsigned char *yuvPlanes[3] = { nullptr, nullptr, nullptr };
+    int strides[3] = { 0, 0, 0 };
 
-    // Allocate buffer for YUV output
-    unsigned char *yuvBuffer = new unsigned char[yuvSize];
-    if (yuvBuffer == NULL) {
-        tj3Destroy(handle);
-        return 0;
-    }
+    // Assume some reasonable width and height for the YUV image
+    int width = 640;
+    int height = 480;
+    int subsamp = TJSAMP_420; // Common subsampling format
+
+    // Allocate memory for YUV planes
+    yuvPlanes[0] = new unsigned char[width * height];
+    yuvPlanes[1] = new unsigned char[width * height / 4];
+    yuvPlanes[2] = new unsigned char[width * height / 4];
+
+    strides[0] = width;
+    strides[1] = width / 2;
+    strides[2] = width / 2;
 
     // Call the function-under-test
-    int result = tj3DecompressToYUV8(handle, data, size, yuvBuffer, 0);
+    tj3DecompressToYUVPlanes8(handle, data, size, yuvPlanes, strides);
 
     // Clean up
-    delete[] yuvBuffer;
-    tj3Destroy(handle);
+    delete[] yuvPlanes[0];
+    delete[] yuvPlanes[1];
+    delete[] yuvPlanes[2];
+    tjDestroy(handle);
 
     return 0;
 }

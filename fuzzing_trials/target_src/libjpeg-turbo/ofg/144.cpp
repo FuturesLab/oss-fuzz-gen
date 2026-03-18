@@ -1,5 +1,5 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,37 +8,24 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
-    if (size < 10) {
-        return 0; // Not enough data to proceed
+    // Ensure the data size is sufficient for extracting parameters
+    if (size < 5) {
+        return 0;
     }
 
-    // Initialize tjhandle
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        return 0; // Failed to initialize
-    }
-
-    // Parameters for tjDecodeYUV
-    const unsigned char *srcBuf = data;
-    int pad = 1; // Assuming 1 for padding
-    int subsamp = TJSAMP_444; // Assuming 4:4:4 subsampling
-    int width = 16; // Arbitrary width
-    int height = 16; // Arbitrary height
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * 3); // RGB buffer
-    if (!dstBuf) {
-        tjDestroy(handle);
-        return 0; // Failed to allocate memory
-    }
-    int pitch = 0; // Default pitch
-    int pixelFormat = TJPF_RGB; // Assuming RGB pixel format
-    int flags = 0; // No flags
+    // Extract parameters from the input data
+    int width = static_cast<int>(data[0]) + 1;  // Avoid zero width
+    int height = static_cast<int>(data[1]) + 1; // Avoid zero height
+    int subsamp = static_cast<int>(data[2]) % 6; // Valid subsampling values are 0 to 5
+    int align = (static_cast<int>(data[3]) % 16) + 1; // Alignment values are typically powers of 2
+    int componentID = static_cast<int>(data[4]) % 3; // Valid component IDs are 0, 1, or 2
 
     // Call the function-under-test
-    tjDecodeYUV(handle, srcBuf, pad, subsamp, dstBuf, width, pitch, height, pixelFormat, flags);
+    unsigned long sizeYUV = tjPlaneSizeYUV(componentID, width, align, height, subsamp);
 
-    // Clean up
-    tjDestroy(handle);
-    free(dstBuf);
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    volatile unsigned long result = sizeYUV;
+    (void)result;
 
     return 0;
 }

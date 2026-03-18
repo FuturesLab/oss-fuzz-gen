@@ -1,28 +1,27 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
 
+// Assuming the function-under-test is part of a C library
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    int tjPlaneWidth(int componentID, int width, int subsampling);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tjInitDecompress();
-    int width = 0, height = 0, jpegSubsamp = 0, jpegColorspace = 0;
-    int result = 0;
-
-    // Ensure the handle is valid
-    if (handle == NULL) {
+    // Ensure we have enough data to extract three integers
+    if (size < 3 * sizeof(int)) {
         return 0;
     }
 
-    // Call the function-under-test
-    result = tjDecompressHeader3(handle, data, (unsigned long)size, &width, &height, &jpegSubsamp, &jpegColorspace);
+    // Extract three integers from the input data
+    int componentID = static_cast<int>(data[0]);
+    int width = static_cast<int>(data[1]);
+    int subsampling = static_cast<int>(data[2]);
 
-    // Clean up
-    tjDestroy(handle);
+    // Call the function-under-test with the extracted integers
+    int result = tjPlaneWidth(componentID, width, subsampling);
+
+    // Use the result in some way, here we just suppress unused variable warning
+    (void)result;
 
     return 0;
 }

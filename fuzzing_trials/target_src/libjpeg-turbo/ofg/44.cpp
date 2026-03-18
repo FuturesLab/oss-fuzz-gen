@@ -1,4 +1,7 @@
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <cstdio>
 #include <cstdlib>
 
 extern "C" {
@@ -13,31 +16,23 @@ extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
-    unsigned long jpegSize = static_cast<unsigned long>(size);
+    const unsigned char *jpegBuf = data;
+    size_t jpegSize = size;
 
-    int width = 1;  // Initialize with a non-zero value
-    int height = 1; // Initialize with a non-zero value
-    int jpegSubsamp = TJSAMP_444; // Use a valid subsampling value
-    int jpegColorspace = TJCS_RGB; // Use a valid colorspace value
+    int width = 100;  // Example width, should be adjusted based on the input
+    int height = 100; // Example height, should be adjusted based on the input
 
-    // Get the JPEG header to determine width and height
-    if (tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp) != 0) {
-        tjDestroy(handle);
-        return 0;
-    }
-
-    int pixelFormat = TJPF_RGB; // Use a valid pixel format
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+    // Allocate memory for the decompressed image
+    unsigned char *dstBuf = (unsigned char *)malloc(width * height * 3); // Assuming 3 bytes per pixel (RGB)
     if (dstBuf == nullptr) {
         tjDestroy(handle);
         return 0;
     }
 
     // Call the function-under-test
-    tjDecompress(handle, jpegBuf, jpegSize, dstBuf, width, 0, height, pixelFormat, 0);
+    int result = tjDecompress2(handle, jpegBuf, jpegSize, dstBuf, width, 0 /* pitch */, height, TJPF_RGB, TJFLAG_FASTDCT);
 
-    // Cleanup
+    // Clean up
     free(dstBuf);
     tjDestroy(handle);
 

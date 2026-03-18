@@ -1,5 +1,5 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,14 +8,30 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tjInitCompress();
+    tjhandle handle;
+    int result;
 
-    // Fuzz the function-under-test
-    if (handle != NULL) {
-        // Call the function-under-test
-        tjDestroy(handle);
+    // Initialize the TurboJPEG decompressor
+    handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // If initialization fails, exit early
     }
 
-    return 0;
+    // Since we're fuzzing, let's attempt to decompress the input data
+    // For this, we need some dummy variables to pass to the function
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        // If header decompression is successful, attempt to decompress the image
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer) {
+            tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
+    }
+
+    // Clean up the TurboJPEG decompressor
+    result = tjDestroy(handle);
+
+    // Return the result (though for fuzzing purposes, the return value is not typically used)
+    return result;
 }

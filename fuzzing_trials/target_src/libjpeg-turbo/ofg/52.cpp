@@ -8,33 +8,46 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
+    // Initialize the TurboJPEG decompressor
     tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
         return 0; // If initialization fails, return early
     }
 
-    const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = static_cast<unsigned long>(size);
+    // Define variables for image dimensions and subsampling
+    int width = 0, height = 0, jpegSubsamp = 0;
 
-    // Assuming a maximum width and height for the YUV image
-    int width = 128;
-    int height = 128;
-    int align = 1; // YUV alignment
-
-    // Allocate memory for the YUV buffer
-    unsigned char *yuvBuf = static_cast<unsigned char*>(malloc(tjBufSizeYUV2(width, align, height, TJ_420)));
-
-    if (yuvBuf == nullptr) {
+    // Get the image dimensions and subsampling type from the JPEG header
+    if (tjDecompressHeader2(handle, const_cast<uint8_t *>(data), size, &width, &height, &jpegSubsamp) != 0) {
         tjDestroy(handle);
-        return 0; // If memory allocation fails, return early
+        return 0; // If header decompression fails, return early
     }
 
-    // Call the function-under-test
-    int result = tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, align, height, TJ_420);
+    // Allocate memory for YUV planes
+    unsigned char *yuvPlanes[3];
+    int strides[3];
+    for (int i = 0; i < 3; i++) {
+        strides[i] = 0; // Initialize strides to zero
+        yuvPlanes[i] = static_cast<unsigned char *>(malloc(tjPlaneSizeYUV(i, width, strides[i], height, jpegSubsamp)));
+        if (yuvPlanes[i] == nullptr) {
+            // Free allocated memory and destroy handle on failure
+            for (int j = 0; j < i; j++) {
+                free(yuvPlanes[j]);
+            }
+            tjDestroy(handle);
+            return 0;
+        }
+    }
 
-    // Clean up
-    free(yuvBuf);
+    // Decompress the JPEG image to YUV planes
+    tjDecompressToYUVPlanes(handle, const_cast<uint8_t *>(data), size, yuvPlanes, width, strides, height, 0);
+
+    // Free allocated memory
+    for (int i = 0; i < 3; i++) {
+        free(yuvPlanes[i]);
+    }
+
+    // Destroy the TurboJPEG decompressor handle
     tjDestroy(handle);
 
     return 0;

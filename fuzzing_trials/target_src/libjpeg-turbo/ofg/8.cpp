@@ -8,31 +8,33 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
+    // Initialize parameters for tj3EncodeYUV8
     tjhandle handle = tj3Init(TJINIT_COMPRESS);
     if (handle == nullptr) {
-        return 0;
+        return 0; // Failed to initialize handle
     }
 
-    // Define image dimensions and subsampling
-    int width = 64;
-    int height = 64;
-    int pitch = width * 3; // Assuming 3 bytes per pixel for RGB format
-    int subsampling = TJSAMP_444; // Using 4:4:4 subsampling as an example
-
-    // Allocate memory for the destination buffer
-    int destSize = tj3YUVBufSize(width, 1, height, subsampling);
-    unsigned char *destBuf = (unsigned char *)malloc(destSize);
-    if (destBuf == nullptr) {
+    // Ensure the input size is sufficient for the parameters
+    if (size < 4) {
         tj3Destroy(handle);
         return 0;
     }
 
+    // Define and initialize parameters for tj3EncodeYUV8
+    const unsigned char *srcBuf = data;
+    int width = 2;  // Minimum width for a valid image
+    int height = 2; // Minimum height for a valid image
+    int pitch = 0;  // Auto-calculate pitch
+    int subsamp = TJSAMP_444; // Use 4:4:4 subsampling
+    int align = 1; // Default alignment
+    unsigned char *dstBuf = (unsigned char *)malloc(tj3YUVBufSize(width, align, height, subsamp));
+    int flags = 0; // No flags
+
     // Call the function-under-test
-    tj3EncodeYUV8(handle, data, pitch, width, 0, height, destBuf, subsampling);
+    tj3EncodeYUV8(handle, srcBuf, width, pitch, height, subsamp, dstBuf, flags);
 
     // Clean up
-    free(destBuf);
+    free(dstBuf);
     tj3Destroy(handle);
 
     return 0;

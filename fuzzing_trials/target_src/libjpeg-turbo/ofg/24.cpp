@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,44 +9,55 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    if (size < 1) return 0;
-
-    // Initialize TurboJPEG handle
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
-        return 0;
+    if (size < 10) {
+        return 0; // Ensure there's enough data to work with
     }
 
-    // Define image dimensions and parameters
-    int width = 256; // Example width
-    int height = 256; // Example height
-    int pitch = width * 3; // Assuming RGB format
-    int pixelFormat = TJPF_RGB; // Assuming RGB pixel format
-    int subsamp = TJSAMP_444; // Example subsampling
-    int flags = 0; // No flags
+    tjhandle handle = tjInitCompress();
+    if (!handle) {
+        return 0; // Failed to initialize compressor
+    }
+
+    // Set up YUV planes
+    const unsigned char *yuvPlanes[3];
+    int yuvStrides[3];
+    int width = 2; // Minimal width for YUV
+    int height = 2; // Minimal height for YUV
 
     // Allocate memory for YUV planes
-    unsigned char *yuvPlanes[3];
-    int strides[3] = { width, width / 2, width / 2 }; // Example strides
+    unsigned char *yPlane = new unsigned char[width * height];
+    unsigned char *uPlane = new unsigned char[width * height / 4];
+    unsigned char *vPlane = new unsigned char[width * height / 4];
 
-    for (int i = 0; i < 3; ++i) {
-        yuvPlanes[i] = (unsigned char *)malloc(strides[i] * height);
-        if (yuvPlanes[i] == nullptr) {
-            tjDestroy(handle);
-            return 0;
-        }
-    }
+    // Fill the YUV planes with data
+    memcpy(yPlane, data, width * height);
+    memcpy(uPlane, data + width * height, width * height / 4);
+    memcpy(vPlane, data + width * height + width * height / 4, width * height / 4);
 
-    // Call the function-under-test with the correct number of arguments
-    int result = tjEncodeYUVPlanes(handle, data, width, pitch, height, pixelFormat, yuvPlanes, strides, subsamp, flags);
+    yuvPlanes[0] = yPlane;
+    yuvPlanes[1] = uPlane;
+    yuvPlanes[2] = vPlane;
 
-    // Free allocated memory
-    for (int i = 0; i < 3; ++i) {
-        free(yuvPlanes[i]);
-    }
+    yuvStrides[0] = width;
+    yuvStrides[1] = width / 2;
+    yuvStrides[2] = width / 2;
 
-    // Destroy TurboJPEG handle
+    // Set up output buffer
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+
+    // Compress from YUV planes
+    int subsample = TJSAMP_420; // Common subsampling
+    int flags = 0; // No flags
+
+    tjCompressFromYUVPlanes(handle, yuvPlanes, width, yuvStrides, height, subsample, &jpegBuf, &jpegSize, 100, flags);
+
+    // Clean up
     tjDestroy(handle);
+    tjFree(jpegBuf);
+    delete[] yPlane;
+    delete[] uPlane;
+    delete[] vPlane;
 
     return 0;
 }

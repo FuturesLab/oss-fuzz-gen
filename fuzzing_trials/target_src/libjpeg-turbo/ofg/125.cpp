@@ -1,5 +1,5 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,39 +8,41 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_125(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
+    // Initialize tjhandle
     tjhandle handle = tjInitDecompress();
-    const unsigned char *yuvPlanes[3];
-    int strides[3];
-    unsigned char *dstBuffer;
-    int width = 16;  // Example width
-    int height = 16; // Example height
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int flags = 0;   // Example flags
+    if (!handle) {
+        return 0;
+    }
 
-    if (size < width * height * 3) {
+    // Define the number of planes
+    const int numPlanes = 3;
+    
+    // Initialize YUV planes
+    const unsigned char *yuvPlanes[numPlanes];
+    int planeSizes[numPlanes];
+    for (int i = 0; i < numPlanes; ++i) {
+        yuvPlanes[i] = data;
+        planeSizes[i] = size / numPlanes;
+    }
+
+    // Allocate memory for the destination buffer
+    unsigned char *dstBuf = (unsigned char *)malloc(size);
+    if (!dstBuf) {
         tjDestroy(handle);
         return 0;
     }
 
-    // Initialize YUV planes with pointers into the data
-    yuvPlanes[0] = data;
-    yuvPlanes[1] = data + (width * height);
-    yuvPlanes[2] = data + (width * height * 2);
-
-    // Initialize strides
-    strides[0] = width;
-    strides[1] = width / 2;
-    strides[2] = width / 2;
-
-    // Allocate destination buffer
-    dstBuffer = new unsigned char[width * height * tjPixelSize[pixelFormat]];
+    // Set width, height, and pixel format
+    int width = 64;  // example width
+    int height = 64; // example height
+    int pitch = width * 3; // assuming 3 bytes per pixel for RGB
+    int pixelFormat = TJPF_RGB;
 
     // Call the function-under-test
-    tj3DecodeYUVPlanes8(handle, yuvPlanes, strides, dstBuffer, width, 0, height, pixelFormat);
+    tj3DecodeYUVPlanes8(handle, yuvPlanes, planeSizes, dstBuf, width, pitch, height, pixelFormat);
 
     // Clean up
-    delete[] dstBuffer;
+    free(dstBuf);
     tjDestroy(handle);
 
     return 0;

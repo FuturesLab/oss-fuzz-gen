@@ -1,5 +1,5 @@
-#include <cstddef>
-#include <cstdint>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,20 +8,18 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // Call the function-under-test
     tjhandle handle = tjInitCompress();
+    int param1 = 0;
+    int param2 = 0;
 
-    // Since tjInitCompress does not take any input parameters and returns a handle,
-    // there's no direct way to fuzz it beyond calling it. We can check if the handle
-    // is valid and then clean up by destroying the handle.
-    if (handle != nullptr) {
-        // Perform any additional operations if needed, such as compressing a sample image
-        // using the handle, but since this task is only about calling tjInitCompress,
-        // we are not doing further operations.
-
-        // Cleanup: destroy the handle after use
-        tjDestroy(handle);
+    if (size >= 2) {
+        param1 = data[0];
+        param2 = data[1];
     }
 
+    // Call the function-under-test
+    tj3Set(handle, param1, param2);
+
+    tjDestroy(handle);
     return 0;
 }

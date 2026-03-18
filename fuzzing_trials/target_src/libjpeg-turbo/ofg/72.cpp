@@ -1,40 +1,57 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+
+    // Forward declaration of the function under test
+    int tj3Compress16(tjhandle handle, const unsigned short *srcBuf, int width, int pitch, int height, int pixelFormat, unsigned char **jpegBuf, size_t *jpegSize);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Initialize variables for tj3SaveImage16
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    // Initialize variables
+    tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
-        return 0; // Exit if handle initialization fails
-    }
-
-    const char *filename = "test_output.jpg"; // Output file name
-
-    // Use the data to create a uint16_t array, assuming J16SAMPLE is a uint16_t
-    if (size < sizeof(uint16_t)) {
-        tj3Destroy(handle);
         return 0;
     }
 
-    const uint16_t *sampleArray = reinterpret_cast<const uint16_t *>(data);
+    // Ensure the data size is sufficient for width, height, and pixel format
+    if (size < sizeof(int) * 3) {
+        tjDestroy(handle);
+        return 0;
+    }
 
-    // Set arbitrary non-zero dimensions and subsampling
-    int width = 16;
-    int height = 16;
-    int pitch = width * sizeof(uint16_t);
-    int subsamp = TJSAMP_444;
+    // Extract width, height, and pixelFormat from data
+    int width = static_cast<int>(data[0]) + 1; // Avoid zero width
+    int height = static_cast<int>(data[1]) + 1; // Avoid zero height
+    int pixelFormat = static_cast<int>(data[2]) % TJ_NUMPF; // Valid pixel format
 
-    // Call the function-under-test
-    tj3SaveImage16(handle, filename, sampleArray, width, pitch, height, subsamp);
+    // Calculate pitch (row size in bytes)
+    int pitch = width * tjPixelSize[pixelFormat];
+
+    // Ensure the data size is sufficient for the image buffer
+    if (size < sizeof(int) * 3 + pitch * height) {
+        tjDestroy(handle);
+        return 0;
+    }
+
+    // Point srcBuf to the appropriate location in data
+    const unsigned short *srcBuf = reinterpret_cast<const unsigned short *>(data + sizeof(int) * 3);
+
+    // Prepare output buffer
+    unsigned char *jpegBuf = nullptr;
+    size_t jpegSize = 0;
+
+    // Call the function under test
+    tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
 
     // Clean up
-    tj3Destroy(handle);
+    if (jpegBuf != nullptr) {
+        tjFree(jpegBuf);
+    }
+    tjDestroy(handle);
 
     return 0;
 }

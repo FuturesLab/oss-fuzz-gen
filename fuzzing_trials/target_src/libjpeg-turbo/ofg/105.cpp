@@ -1,5 +1,5 @@
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,25 +8,41 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Ensure the size is not zero to prevent tjAlloc from allocating zero bytes
-    if (size == 0) {
+    // Initialize variables for tjEncodeYUV
+    tjhandle handle = tjInitCompress();
+    if (handle == nullptr) {
         return 0;
     }
 
-    // Convert size to an integer, ensuring it is within a reasonable range
-    int allocSize = static_cast<int>(size % 1024) + 1; // Limit size to a maximum of 1024 bytes
+    // Ensure there is enough data to extract parameters
+    if (size < 12) {
+        tjDestroy(handle);
+        return 0;
+    }
+
+    // Extract width and height from the data
+    int width = (int)data[0] + 1;  // Ensure non-zero
+    int height = (int)data[1] + 1; // Ensure non-zero
+    int pitch = width * 3;         // Assuming 3 bytes per pixel for RGB
+
+    // Extract pixel format
+    int pixelFormat = (int)data[2] % TJ_NUMPF;
+
+    // Allocate memory for the image buffer and YUV buffer
+    unsigned char *imgBuf = (unsigned char *)(data + 3);
+    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, TJSAMP_444));
+
+    if (yuvBuf == nullptr) {
+        tjDestroy(handle);
+        return 0;
+    }
 
     // Call the function-under-test
-    unsigned char *allocatedMemory = tjAlloc(allocSize);
+    tjEncodeYUV(handle, imgBuf, width, pitch, height, pixelFormat, yuvBuf, 4, TJSAMP_444);
 
-    // Check if the allocation was successful
-    if (allocatedMemory != nullptr) {
-        // Use the allocated memory in some way, if necessary
-        // For fuzzing, we don't need to use it, just ensure it's not NULL
-
-        // Free the allocated memory
-        tjFree(allocatedMemory);
-    }
+    // Clean up
+    free(yuvBuf);
+    tjDestroy(handle);
 
     return 0;
 }

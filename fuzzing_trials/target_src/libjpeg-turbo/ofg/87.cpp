@@ -1,5 +1,5 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,30 +8,26 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    // Initialize variables for the function call
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Exit if the handle initialization fails
+    // Initialize variables for tj3Compress16 function call
+    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    if (!handle) {
+        return 0; // If initialization fails, exit early
     }
 
-    unsigned char* jpegBuf = const_cast<unsigned char*>(data);
-    unsigned long jpegSize = static_cast<unsigned long>(size);
-
-    // Allocate memory for the YUV buffer
-    // Assuming a maximum size for YUV buffer, this should be adjusted according to specific needs
-    int width = 640; // Example width
-    int height = 480; // Example height
-    int yuvSize = tjBufSizeYUV2(width, 4, height, TJSAMP_420);
-    unsigned char* yuvBuf = (unsigned char*)malloc(yuvSize);
+    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data);
+    int width = 10; // Example width, can be adjusted
+    int pitch = 0; // 0 indicates use of width * pixel size
+    int height = 10; // Example height, can be adjusted
+    int pixelFormat = TJPF_RGB; // Example pixel format, can be adjusted
+    unsigned char *jpegBuf = nullptr;
+    size_t jpegSize = 0;
 
     // Call the function-under-test
-    if (yuvBuf != nullptr) {
-        tjDecompressToYUV(handle, jpegBuf, jpegSize, yuvBuf, 4); // 4 is the pitch (width step)
-        free(yuvBuf);
-    }
+    tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
 
     // Clean up
-    tjDestroy(handle);
+    tj3Free(jpegBuf);
+    tj3Destroy(handle);
 
     return 0;
 }
