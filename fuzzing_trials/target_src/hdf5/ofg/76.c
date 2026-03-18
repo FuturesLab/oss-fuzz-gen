@@ -3,25 +3,30 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t group_id = H5I_INVALID_HID;
+    // Initialize HDF5 library
+    H5open();
+
+    // Create a memory file to avoid file I/O
+    hid_t fapl = H5Pcreate(H5P_FILE_ACCESS);
+    H5Pset_fapl_core(fapl, (size_t)1024, 0);
+
+    // Create a new file using the memory file driver
+    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+
+    // Create a group in the file
+    hid_t group_id = H5Gcreate(file_id, "/fuzz_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Initialize the hsize_t variable
     hsize_t num_objs = 0;
 
-    // Ensure data is not NULL and has enough size to simulate a valid group_id
-    if (size >= sizeof(hid_t)) {
-        // Use the first bytes of data to simulate a group_id
-        group_id = *((hid_t *)data);
+    // Call the function-under-test
+    H5Gget_num_objs(group_id, &num_objs);
 
-        // Call the function-under-test
-        herr_t status = H5Gget_num_objs(group_id, &num_objs);
-
-        // Optionally, handle the status if needed for further testing
-        if (status >= 0) {
-            // Function succeeded, num_objs contains the number of objects
-        } else {
-            // Function failed, handle error if necessary
-        }
-    }
+    // Clean up
+    H5Gclose(group_id);
+    H5Fclose(file_id);
+    H5Pclose(fapl);
+    H5close();
 
     return 0;
 }

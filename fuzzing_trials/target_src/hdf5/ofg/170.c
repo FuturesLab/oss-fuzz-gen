@@ -1,32 +1,41 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_170(const uint8_t *data, size_t size) {
-    // Ensure that we have enough data to work with
-    if (size < sizeof(int) * 3) {
-        return 0;
-    }
-
-    // Initialize the input buffer
-    const void *src_buf = (const void *)data;
-
-    // Initialize the destination buffer
+    // Initialize source and destination buffers
+    void *src_buf = malloc(size);
     void *dst_buf = malloc(size);
-    if (dst_buf == NULL) {
-        return 0;
+
+    // Copy data to source buffer
+    if (src_buf != NULL) {
+        memcpy(src_buf, data, size);
     }
 
-    // Extract hid_t values from the input data
-    hid_t src_type = *((const int *)data);
-    hid_t dst_type = *((const int *)(data + sizeof(int)));
-    hid_t dxpl_id = *((const int *)(data + 2 * sizeof(int)));
+    // Create a simple memory datatype
+    hid_t src_type = H5Tcopy(H5T_NATIVE_INT);
+    hid_t dst_type = H5Tcopy(H5T_NATIVE_INT);
+
+    // Create a dataspace
+    hsize_t dims[1] = {size / sizeof(int)};
+    hid_t space_id = H5Screate_simple(1, dims, NULL);
 
     // Call the function-under-test
-    herr_t result = H5Dfill(src_buf, src_type, dst_buf, dst_type, dxpl_id);
+    if (src_buf != NULL && dst_buf != NULL) {
+        H5Dfill(src_buf, src_type, dst_buf, dst_type, space_id);
+    }
 
     // Clean up
-    free(dst_buf);
+    if (src_buf != NULL) {
+        free(src_buf);
+    }
+    if (dst_buf != NULL) {
+        free(dst_buf);
+    }
+    H5Tclose(src_type);
+    H5Tclose(dst_type);
+    H5Sclose(space_id);
 
     return 0;
 }

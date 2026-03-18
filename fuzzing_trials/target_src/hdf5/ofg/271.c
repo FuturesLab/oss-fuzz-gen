@@ -1,41 +1,45 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_271(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for our needs
-    if (size < 10) {
+    // Ensure there's enough data to extract at least one character for each string
+    if (size < 2) {
         return 0;
     }
 
-    // Initialize parameters for the function-under-test
-    const char *app_file = "application_file";
-    const char *app_func = "application_function";
-    unsigned int app_line = 42;
+    // Extract two characters from the data to use as string inputs
+    char name1[2] = { (char)data[0], '\0' };
+    char name2[2] = { (char)data[1], '\0' };
 
-    // Create dummy HDF5 identifiers
-    hid_t dxpl_id = H5P_DEFAULT;
-    hid_t mem_type_id = H5T_NATIVE_INT;
-    hid_t mem_space_id = H5S_ALL;
-    hid_t file_space_id = H5S_ALL;
-    hid_t dset_id = H5I_INVALID_HID;
-    hid_t es_id = H5I_INVALID_HID;
+    // Use the rest of the data as a source for unsigned int and hid_t values
+    unsigned int options = 0;
+    hid_t attr_id = 0;
+    hid_t mem_type_id = 0;
+    hid_t mem_space_id = 0;
+    hid_t es_id = 0;
 
-    // Allocate a buffer for the data
-    void *buf = malloc(size);
-    if (buf == NULL) {
-        return 0;
+    if (size > 2) {
+        options = (unsigned int)data[2];
+    }
+    if (size > 3) {
+        attr_id = (hid_t)data[3];
+    }
+    if (size > 4) {
+        mem_type_id = (hid_t)data[4];
+    }
+    if (size > 5) {
+        mem_space_id = (hid_t)data[5];
+    }
+    if (size > 6) {
+        es_id = (hid_t)data[6];
     }
 
-    // Copy data into the buffer
-    memcpy(buf, data, size);
+    // Allocate a buffer for data, ensuring it's not NULL
+    void *buf = (void *)&data[7];
 
     // Call the function-under-test with the correct number of arguments
-    herr_t result = H5Dread_async(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf, es_id);
-
-    // Free allocated resources
-    free(buf);
+    herr_t result = H5Aread_async(attr_id, mem_type_id, buf, es_id);
 
     return 0;
 }

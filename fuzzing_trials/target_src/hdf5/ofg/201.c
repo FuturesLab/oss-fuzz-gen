@@ -1,24 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_201(const uint8_t *data, size_t size) {
     // Declare and initialize variables
-    hid_t dataset_id = H5I_INVALID_HID; // Invalid ID for initialization
-    hsize_t dims[2] = {1, 1}; // Example dimensions, not NULL
-    hsize_t storage_size = 0; // Variable to store the chunk storage size
+    herr_t result;
+    hid_t dataset_id;
+    hsize_t chunk_offset[2] = {1, 1}; // Assuming a 2D dataset for simplicity
+    hsize_t storage_size;
 
-    // Ensure the input size is sufficient for our needs
+    // Ensure the data size is sufficient to mimic dataset_id
     if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Use the input data to set the dataset_id
-    dataset_id = *(hid_t *)data;
+    // Mimic dataset_id using data
+    dataset_id = *((hid_t *)data);
 
     // Call the function-under-test
-    herr_t result = H5Dget_chunk_storage_size(dataset_id, dims, &storage_size);
+    result = H5Dget_chunk_storage_size(dataset_id, chunk_offset, &storage_size);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Use the result and storage_size to avoid compiler optimizations
+    if (result >= 0) {
+        // Do something with storage_size if needed
+    }
+
     return 0;
 }

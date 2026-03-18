@@ -1,24 +1,31 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_242(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract at least one hid_t value
-    if (size < sizeof(hid_t)) {
+    if (size < 1) {
         return 0;
     }
 
-    // Extract a hid_t value from the data
-    hid_t file_id = *(const hid_t *)data;
+    // Convert data to a C-style string
+    char filename[256];
+    size_t filename_len = size < 255 ? size : 255;
+    for (size_t i = 0; i < filename_len; i++) {
+        filename[i] = (char)data[i];
+    }
+    filename[filename_len] = '\0';
 
-    // Initialize a boolean variable
-    _Bool dset_no_attrs_hint = false;
+    // Set up other parameters for H5Fcreate
+    unsigned int flags = H5F_ACC_TRUNC; // Use a valid flag
+    hid_t fcpl_id = H5P_DEFAULT; // Use default file creation property list
+    hid_t fapl_id = H5P_DEFAULT; // Use default file access property list
 
-    // Call the function under test
-    herr_t result = H5Fget_dset_no_attrs_hint(file_id, &dset_no_attrs_hint);
+    // Call the function-under-test
+    hid_t file_id = H5Fcreate(filename, flags, fcpl_id, fapl_id);
 
-    // Use the result in some way to prevent compiler optimizations
-    if (result < 0) {
-        // Handle error if needed
+    // Clean up: close the file if it was created successfully
+    if (file_id >= 0) {
+        H5Fclose(file_id);
     }
 
     return 0;

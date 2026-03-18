@@ -1,23 +1,18 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <hdf5.h>
 
-int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    hid_t loc_id = H5I_INVALID_HID; // Invalid ID for testing purposes
-    const char *obj_name = "test_object";
-    const char *attr_name = "test_attribute";
-    hid_t lapl_id = H5P_DEFAULT; // Default link access property list
-
-    // Ensure the data size is sufficient for testing
-    if (size < 1) {
-        return 0;
-    }
+extern int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
+    // Initialize variables
+    hid_t loc_id = 1; // Assuming a valid location identifier
+    const char *obj_name = "object_name";
+    const char *attr_name = "attribute_name";
+    hid_t lapl_id = H5P_DEFAULT; // Link access property list
 
     // Call the function-under-test
-    herr_t result = H5Adelete_by_name(loc_id, obj_name, attr_name, lapl_id);
+    htri_t result = H5Aexists_by_name(loc_id, obj_name, attr_name, lapl_id);
 
-    // Check the result (optional, for debugging purposes)
+    // Use the result to avoid unused variable warning
     if (result < 0) {
         // Handle error if needed
     }

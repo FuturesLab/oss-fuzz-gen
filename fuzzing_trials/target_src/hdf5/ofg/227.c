@@ -1,31 +1,26 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <hdf5.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+// Remove the 'extern "C"' as it is not needed in C language
 int LLVMFuzzerTestOneInput_227(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t file_id = H5I_INVALID_HID; // Initialize with an invalid ID
-    unsigned int types = H5F_OBJ_ALL; // Use a valid type mask
-    size_t max_objs = 10; // Arbitrary non-zero number of objects
+    // Initialize variables for H5Fget_obj_ids
+    hid_t file_id = H5I_INVALID_HID; // Invalid ID for initialization
+    unsigned int types = H5F_OBJ_ALL; // Use all types of objects
+    size_t max_objs = 10; // Maximum number of objects to retrieve
     hid_t obj_ids[10]; // Array to store object IDs
 
-    // Ensure that the data is large enough to contain a valid file ID
-    if (size >= sizeof(hid_t)) {
-        // Use the data to create a file ID
-        file_id = *((hid_t*)data);
+    // Create a HDF5 file to get a valid file_id
+    file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Return if file creation fails
     }
 
     // Call the function-under-test
     ssize_t num_objs = H5Fget_obj_ids(file_id, types, max_objs, obj_ids);
 
-    // Return 0 to indicate no errors during fuzzing
+    // Close the HDF5 file
+    H5Fclose(file_id);
+
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

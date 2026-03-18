@@ -1,23 +1,24 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient to extract parameters
-    if (size < sizeof(hid_t) + sizeof(unsigned int)) {
-        return 0;
+    // Use the input data to influence the function call
+    if (size < sizeof(hid_t)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Extract parameters from the data
-    hid_t loc_id = *((hid_t *)data);
-    unsigned int idx = *((unsigned int *)(data + sizeof(hid_t)));
+    // Extract an attribute ID from the input data
+    hid_t attr_id = *(const hid_t *)data;
+    data += sizeof(hid_t);
+    size -= sizeof(hid_t);
+
+    // Declare and initialize other variables for the function parameters
+    hid_t es_id = H5ES_NONE; // Event stack ID, using default
 
     // Call the function-under-test
-    hid_t attribute_id = H5Aopen_idx(loc_id, idx);
+    herr_t result = H5Aclose_async(attr_id, es_id);
 
-    // If the attribute was successfully opened, close it
-    if (attribute_id >= 0) {
-        H5Aclose(attribute_id);
-    }
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

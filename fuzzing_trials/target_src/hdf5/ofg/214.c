@@ -1,22 +1,31 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_214(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract a valid hid_t
-    if (size < sizeof(hid_t)) {
+    // Ensure that the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Extract a hid_t from the input data
-    hid_t file_id;
-    memcpy(&file_id, data, sizeof(hid_t));
+    // Convert the input data to a null-terminated string
+    char *filename = (char *)malloc(size + 1);
+    if (filename == NULL) {
+        return 0;
+    }
+    memcpy(filename, data, size);
+    filename[size] = '\0';
+
+    // Use a valid file access property list identifier
+    hid_t fapl_id = H5P_DEFAULT;
 
     // Call the function-under-test
-    herr_t result = H5Fclear_elink_file_cache(file_id);
+    htri_t result = H5Fis_accessible(filename, fapl_id);
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    // Clean up
+    free(filename);
 
     return 0;
 }

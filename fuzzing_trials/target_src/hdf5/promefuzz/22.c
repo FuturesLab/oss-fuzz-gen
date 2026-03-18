@@ -1,127 +1,133 @@
 // This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
+// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 // H5Fcreate at H5F.c:638:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
+// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
+// H5Fget_info1 at H5Fdeprec.c:86:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
+// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
+// H5Fset_latest_format at H5Fdeprec.c:206:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
+// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
+// H5Fget_access_plist at H5F.c:152:1 in H5Fpublic.h
+// H5Fget_info1 at H5Fdeprec.c:86:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Dopen2 at H5D.c:393:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Drefresh at H5D.c:2096:1 in H5Dpublic.h
-// H5Dread at H5D.c:1041:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
+// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 // H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Dopen2 at H5D.c:393:1 in H5Dpublic.h
+// H5Fget_info1 at H5Fdeprec.c:86:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
+// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
+// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 // H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fstart_swmr_write at H5F.c:2253:1 in H5Fpublic.h
-// H5Dopen2 at H5D.c:393:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dread at H5D.c:1041:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <hdf5.h>
-#include <H5Dpublic.h>
+#include <stdbool.h>
 #include <H5Fpublic.h>
+#include <H5Ppublic.h>
 
-static hid_t create_dummy_file_and_dataset() {
-    hid_t file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return -1;
-
-    hsize_t dims[1] = {10};
-    hid_t space_id = H5Screate_simple(1, dims, NULL);
-    if (space_id < 0) {
-        H5Fclose(file_id);
-        return -1;
+static void handle_hid_t(hid_t id) {
+    if (id >= 0) {
+        H5Pclose(id);
     }
-
-    hid_t dset_id = H5Dcreate2(file_id, "dset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Sclose(space_id);
-
-    if (dset_id < 0) {
-        H5Fclose(file_id);
-        return -1;
-    }
-
-    int data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    if (H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data) < 0) {
-        H5Dclose(dset_id);
-        H5Fclose(file_id);
-        return -1;
-    }
-
-    H5Dclose(dset_id);
-    H5Fclose(file_id);
-
-    return 0;
 }
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (create_dummy_file_and_dataset() < 0) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    hid_t file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    // Create a dummy file
+    hid_t file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) return 0;
 
-    hid_t dset_id = H5Dopen2(file_id, "dset", H5P_DEFAULT);
-    if (dset_id < 0) {
+    // Close the file
+    H5Fclose(file_id);
+
+    // Re-create the file
+    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
+
+    // Get file info
+    H5F_info1_t file_info;
+    if (H5Fget_info1(file_id, &file_info) < 0) {
         H5Fclose(file_id);
         return 0;
     }
 
-    H5Drefresh(dset_id);
+    // Get file creation property list
+    hid_t plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
 
-    int buf[10];
-    H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf);
+    // Set latest format
+    H5Fset_latest_format(file_id, Data[0] % 2 == 0);
 
-    H5Dclose(dset_id);
+    // Close the file
     H5Fclose(file_id);
 
+    // Re-create the file
+    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
+
+    // Get file access property list
+    plist_id = H5Fget_access_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Get file info again
+    if (H5Fget_info1(file_id, &file_info) < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Get file creation property list again
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Open the file
     file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
     if (file_id < 0) return 0;
 
-    dset_id = H5Dopen2(file_id, "dset", H5P_DEFAULT);
-    if (dset_id < 0) {
+    // Get file info
+    if (H5Fget_info1(file_id, &file_info) < 0) {
         H5Fclose(file_id);
         return 0;
     }
 
-    H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf);
+    // Get file creation property list
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
 
-    H5Dclose(dset_id);
+    // Close the file
     H5Fclose(file_id);
 
+    // Re-create the file
+    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
+
+    // Get file creation property list
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Open the file
     file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
     if (file_id < 0) return 0;
 
-    H5Fstart_swmr_write(file_id);
+    // Get file creation property list
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
 
-    dset_id = H5Dopen2(file_id, "dset", H5P_DEFAULT);
-    if (dset_id < 0) {
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf);
-
-    H5Dclose(dset_id);
+    // Close the file
     H5Fclose(file_id);
 
     return 0;

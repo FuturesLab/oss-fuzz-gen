@@ -1,15 +1,35 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Define and initialize parameters for H5Dclose_async
-    hid_t dset_id = H5I_INVALID_HID; // Use an invalid ID for fuzzing
-    hid_t es_id = H5I_INVALID_HID;   // Use an invalid ID for fuzzing
+    hid_t file_id;
+    herr_t status;
+    
+    // Ensure that the size of data is sufficient to create a valid file name
+    if (size < 5) {
+        return 0;
+    }
+
+    // Create a temporary HDF5 file to work with
+    char filename[256];
+    snprintf(filename, sizeof(filename), "/tmp/fuzzfile_%02x%02x%02x%02x.h5", data[0], data[1], data[2], data[3]);
+
+    // Create a new file using default properties.
+    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file, exit early
+    }
 
     // Call the function-under-test
-    herr_t result = H5Dclose_async(dset_id, es_id);
+    status = H5Fstart_swmr_write(file_id);
 
-    // Return 0 to indicate the fuzzer can continue
+    // Close the file
+    H5Fclose(file_id);
+
+    // Remove the temporary file
+    remove(filename);
+
     return 0;
 }

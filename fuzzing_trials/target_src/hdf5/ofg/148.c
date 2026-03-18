@@ -1,26 +1,21 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
-    // Define and initialize parameters for H5Dcreate_async
-    const char *file_name = "test_file.h5";
-    const char *dataset_name = "test_dataset";
-    unsigned int flags = 0;  // Example flag, adjust as needed
-    hid_t loc_id = H5P_DEFAULT;
-    hid_t type_id = H5T_NATIVE_INT;
-    hid_t space_id = H5S_SCALAR;
-    hid_t lcpl_id = H5P_DEFAULT;
-    hid_t dcpl_id = H5P_DEFAULT;
-    hid_t dapl_id = H5P_DEFAULT;
-    hid_t es_id = H5ES_NONE;
+    // Ensure that size is large enough to extract a valid hid_t value
+    if (size < sizeof(hid_t)) {
+        return 0;
+    }
 
-    // Correct the function call by removing the extra arguments
-    hid_t dataset_id = H5Dcreate_async(loc_id, dataset_name, type_id, space_id, lcpl_id, dcpl_id, dapl_id, es_id);
+    // Extract a hid_t value from the input data
+    hid_t file_id = *((const hid_t *)data);
 
-    // Clean up: Close the dataset if it was created successfully
-    if (dataset_id >= 0) {
-        H5Dclose(dataset_id);
+    // Call the function-under-test
+    hid_t plist_id = H5Fget_create_plist(file_id);
+
+    // Perform any necessary cleanup
+    if (plist_id >= 0) {
+        H5Pclose(plist_id);
     }
 
     return 0;

@@ -1,25 +1,23 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    hid_t file_id;
-    herr_t status;
-    char filename[] = "fuzz_test_file.h5";
-
-    // Create a new HDF5 file using the default properties.
-    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+    // Ensure that the size is sufficient to extract a hid_t value
+    if (size < sizeof(hid_t)) {
+        return 0;
     }
 
-    // Check if size is sufficient for the function under test
-    if (size > 0) {
-        // Call the function-under-test
-        status = H5Fstart_swmr_write(file_id);
-    }
+    // Extract a hid_t value from the input data
+    hid_t dataset_id = *(const hid_t *)data;
 
-    // Close the file
-    H5Fclose(file_id);
+    // Call the function-under-test
+    hid_t dataspace_id = H5Dget_space(dataset_id);
+
+    // Perform any necessary cleanup
+    if (dataspace_id >= 0) {
+        H5Sclose(dataspace_id);
+    }
 
     return 0;
 }

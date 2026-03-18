@@ -1,89 +1,78 @@
 // This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fget_intent at H5F.c:1540:1 in H5Fpublic.h
-// H5Fflush at H5F.c:957:1 in H5Fpublic.h
-// H5Fget_access_plist at H5F.c:152:1 in H5Fpublic.h
-// H5Fget_vfd_handle at H5F.c:422:1 in H5Fpublic.h
-// H5Fget_freespace at H5F.c:1617:1 in H5Fpublic.h
-// H5Fset_libver_bounds at H5F.c:2404:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Dread at H5D.c:1041:1 in H5Dpublic.h
+// H5Dget_access_plist at H5D.c:805:1 in H5Dpublic.h
+// H5Dvlen_reclaim at H5Ddeprec.c:304:1 in H5Dpublic.h
+// H5Dget_space_status at H5D.c:668:1 in H5Dpublic.h
+// H5Dfill at H5D.c:1758:1 in H5Dpublic.h
+// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <hdf5.h>
+#include <stdio.h>
+#include <string.h>
+#include "H5Dpublic.h"
 
-static void test_H5Fget_intent(hid_t file_id) {
-    unsigned intent;
-    herr_t status = H5Fget_intent(file_id, &intent);
-    if (status >= 0) {
-        // Successfully retrieved intent
-    }
-}
+#define DUMMY_FILE "./dummy_file"
 
-static void test_H5Fflush(hid_t file_id) {
-    herr_t status = H5Fflush(file_id, H5F_SCOPE_GLOBAL);
-    if (status >= 0) {
-        // Successfully flushed file
-    }
-}
-
-static void test_H5Fget_access_plist(hid_t file_id) {
-    hid_t plist_id = H5Fget_access_plist(file_id);
-    if (plist_id >= 0) {
-        // Successfully retrieved access plist
-        H5Pclose(plist_id);
-    }
-}
-
-static void test_H5Fget_vfd_handle(hid_t file_id) {
-    void *file_handle;
-    herr_t status = H5Fget_vfd_handle(file_id, H5P_DEFAULT, &file_handle);
-    if (status >= 0) {
-        // Successfully retrieved VFD handle
-    }
-}
-
-static void test_H5Fget_freespace(hid_t file_id) {
-    hssize_t free_space = H5Fget_freespace(file_id);
-    if (free_space >= 0) {
-        // Successfully retrieved free space
-    }
-}
-
-static void test_H5Fset_libver_bounds(hid_t file_id) {
-    herr_t status = H5Fset_libver_bounds(file_id, H5F_LIBVER_EARLIEST, H5F_LIBVER_LATEST);
-    if (status >= 0) {
-        // Successfully set libver bounds
-    }
+static hid_t create_dummy_dataset() {
+    // Create a dummy dataset for testing purposes
+    // This function would create a dataset and return its identifier
+    // For simplicity, we return a dummy value here
+    return 1;
 }
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 4 * sizeof(hid_t)) {
+        return 0;
+    }
 
-    // Create a dummy file to work with
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Prepare environment
+    hid_t dset_id = create_dummy_dataset();
+    hid_t mem_type_id = *((hid_t *)Data);
+    hid_t mem_space_id = *((hid_t *)(Data + sizeof(hid_t)));
+    hid_t file_space_id = *((hid_t *)(Data + 2 * sizeof(hid_t)));
+    hid_t dxpl_id = *((hid_t *)(Data + 3 * sizeof(hid_t)));
+    void *buf = malloc(1024); // Allocate a buffer for reading data
 
-    hid_t file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id < 0) return 0;
+    // Invoke H5Dread
+    if (H5Dread(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf) < 0) {
+        fprintf(stderr, "H5Dread failed\n");
+    }
 
-    test_H5Fget_intent(file_id);
-    test_H5Fflush(file_id);
-    test_H5Fget_access_plist(file_id);
-    test_H5Fget_vfd_handle(file_id);
-    test_H5Fget_freespace(file_id);
-    test_H5Fset_libver_bounds(file_id);
+    // Invoke H5Dget_access_plist
+    hid_t access_plist = H5Dget_access_plist(dset_id);
+    if (access_plist < 0) {
+        fprintf(stderr, "H5Dget_access_plist failed\n");
+    }
 
-    H5Fclose(file_id);
-    remove("./dummy_file");
+    // Invoke H5Dvlen_reclaim
+    if (H5Dvlen_reclaim(mem_type_id, mem_space_id, dxpl_id, buf) < 0) {
+        fprintf(stderr, "H5Dvlen_reclaim failed\n");
+    }
+
+    // Invoke H5Dget_space_status
+    H5D_space_status_t allocation;
+    if (H5Dget_space_status(dset_id, &allocation) < 0) {
+        fprintf(stderr, "H5Dget_space_status failed\n");
+    }
+
+    // Invoke H5Dfill
+    int fill_value = 0;
+    if (H5Dfill(&fill_value, mem_type_id, buf, mem_type_id, mem_space_id) < 0) {
+        fprintf(stderr, "H5Dfill failed\n");
+    }
+
+    // Invoke H5Dwrite
+    if (H5Dwrite(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf) < 0) {
+        fprintf(stderr, "H5Dwrite failed\n");
+    }
+
+    // Cleanup
+    free(buf);
 
     return 0;
 }

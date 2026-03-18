@@ -1,24 +1,25 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_268(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for H5Aread_async
-    hid_t attr_id = H5I_INVALID_HID; // Invalid ID for example purposes
-    hid_t mem_type_id = H5I_INVALID_HID; // Invalid ID for example purposes
-    void *buf = malloc(1024); // Allocate memory for buffer
-    hid_t es_id = H5I_INVALID_HID; // Invalid ID for example purposes
+    // Initialize variables for the function call
+    hid_t group_id = H5I_INVALID_HID; // Invalid ID for testing
+    hsize_t idx = 0; // Index to retrieve
+    char name_buf[256]; // Buffer to store the object name
+    size_t name_buf_size = sizeof(name_buf);
 
-    // Check if the buffer allocation was successful
-    if (buf == NULL) {
-        return 0; // Return early if memory allocation fails
+    // Ensure the data is not empty
+    if (size > 0) {
+        // Use the first byte of data to set the index
+        idx = data[0];
     }
 
     // Call the function-under-test
-    herr_t result = H5Aread_async(attr_id, mem_type_id, buf, es_id);
+    ssize_t result = H5Gget_objname_by_idx(group_id, idx, name_buf, name_buf_size);
 
-    // Free allocated memory
-    free(buf);
+    // The result can be used for further checks or logging if needed
 
     return 0;
 }

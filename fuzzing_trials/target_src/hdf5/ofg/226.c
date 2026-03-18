@@ -1,36 +1,22 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_226(const uint8_t *data, size_t size) {
-    // Initialize variables for H5Fget_obj_ids function
-    hid_t file_id;
-    unsigned int types;
-    size_t max_objs;
-    hid_t *obj_id_list;
-
-    // Ensure the size is sufficient to extract required parameters
-    if (size < sizeof(hid_t) + sizeof(unsigned int) + sizeof(size_t)) {
+    // Ensure the data size is large enough to extract a valid hid_t
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Extract parameters from data
-    file_id = *(hid_t *)(data);
-    types = *(unsigned int *)(data + sizeof(hid_t));
-    max_objs = *(size_t *)(data + sizeof(hid_t) + sizeof(unsigned int));
-
-    // Allocate memory for obj_id_list based on max_objs
-    obj_id_list = (hid_t *)malloc(max_objs * sizeof(hid_t));
-    if (obj_id_list == NULL) {
-        return 0;
-    }
+    // Extract hid_t from the input data
+    hid_t attribute_id = *(const hid_t *)data;
 
     // Call the function-under-test
-    ssize_t result = H5Fget_obj_ids(file_id, types, max_objs, obj_id_list);
+    hid_t type_id = H5Aget_type(attribute_id);
 
-    // Free allocated memory
-    free(obj_id_list);
+    // Close the type_id if it's valid to avoid resource leaks
+    if (type_id >= 0) {
+        H5Tclose(type_id);
+    }
 
     return 0;
 }

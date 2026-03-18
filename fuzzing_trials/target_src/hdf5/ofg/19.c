@@ -1,33 +1,23 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <hdf5.h>
 
-// Remove the 'extern "C"' as it is not needed in a C file
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
+    // Declare and initialize variables for the parameters
+    hid_t loc_id = 1;  // Example non-null value for location identifier
+    const char *attr_name = "example_attribute";  // Example attribute name
+    hid_t type_id = 2;  // Example non-null value for datatype identifier
+    hid_t space_id = 3; // Example non-null value for dataspace identifier
+    hid_t acpl_id = 4;  // Example non-null value for attribute creation property list
+    hid_t aapl_id = 5;  // Example non-null value for attribute access property list
 
-    // Create a file using HDF5 to obtain a valid file identifier (hid_t)
-    hid_t file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        // If file creation fails, exit the fuzzer
-        return 0;
+    // Call the function-under-test
+    hid_t attribute_id = H5Acreate2(loc_id, attr_name, type_id, space_id, acpl_id, aapl_id);
+
+    // Perform cleanup if necessary
+    if (attribute_id >= 0) {
+        H5Aclose(attribute_id);
     }
-
-    // Enable metadata cache logging to ensure H5Fstop_mdc_logging can be called
-    if (H5Fstart_mdc_logging(file_id) < 0) {
-        // If starting the logging fails, close the file and exit
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Call the function-under-test with the file identifier
-    herr_t result = H5Fstop_mdc_logging(file_id);
-
-    // Close the file
-    H5Fclose(file_id);
-
-    // Close the HDF5 library
-    H5close();
 
     return 0;
 }

@@ -1,113 +1,105 @@
 // This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
 // H5Fcreate at H5F.c:638:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_info1 at H5Fdeprec.c:86:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fset_latest_format at H5Fdeprec.c:206:1 in H5Fpublic.h
+// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
+// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_access_plist at H5F.c:152:1 in H5Fpublic.h
-// H5Fget_info1 at H5Fdeprec.c:86:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fget_info1 at H5Fdeprec.c:86:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
+// H5Dread_multi at H5D.c:1109:1 in H5Dpublic.h
+// H5Dwrite_multi at H5D.c:1419:1 in H5Dpublic.h
+// H5Dread at H5D.c:1041:1 in H5Dpublic.h
+// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
+// H5Dclose at H5D.c:463:1 in H5Dpublic.h
+// H5Dclose at H5D.c:463:1 in H5Dpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdbool.h>
-#include "hdf5.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "H5Dpublic.h"
+#include "H5Fpublic.h"
+#include "H5Spublic.h"
+#include "H5Tpublic.h"
+#include "H5Ppublic.h"
 
-static void write_dummy_file() {
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        fputs("HDF5 dummy data", file);
-        fclose(file);
+static void initialize_buffers(void** buffer1, void** buffer2, size_t size) {
+    *buffer1 = malloc(size);
+    *buffer2 = malloc(size);
+    if (*buffer1 == NULL || *buffer2 == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
     }
+    memset(*buffer1, 0, size);
+    memset(*buffer2, 0, size);
+}
+
+static void cleanup_buffers(void* buffer1, void* buffer2) {
+    free(buffer1);
+    free(buffer2);
 }
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    write_dummy_file();
+    if (Size < sizeof(int)) return 0;
 
-    hid_t file_id1, file_id2, file_id3, file_id4;
-    H5F_info1_t file_info;
-    hid_t plist_id;
+    // Create a dummy file for HDF5 operations
+    const char *filename = "./dummy_file.h5";
+    hid_t file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
+
+    // Create dataspace and datatype
+    hid_t space_id = H5Screate(H5S_SCALAR);
+    hid_t type_id = H5Tcopy(H5T_NATIVE_INT);
+    if (space_id < 0 || type_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Create datasets
+    hid_t dset_id1 = H5Dcreate2(file_id, "dset1", type_id, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dset_id2 = H5Dcreate2(file_id, "dset2", type_id, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dset_id1 < 0 || dset_id2 < 0) {
+        H5Sclose(space_id);
+        H5Tclose(type_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Initialize buffers for reading and writing
+    void *buffer1, *buffer2;
+    initialize_buffers(&buffer1, &buffer2, sizeof(int));
+
+    // Perform read and write operations
     herr_t status;
+    hid_t dset_ids[] = {dset_id1, dset_id2};
+    hid_t mem_type_ids[] = {type_id, type_id};
+    hid_t mem_space_ids[] = {H5S_ALL, H5S_ALL};
+    hid_t file_space_ids[] = {H5S_ALL, H5S_ALL};
+    void *bufs[] = {buffer1, buffer2};
 
-    // H5Fcreate -> H5Fclose
-    file_id1 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id1 >= 0) {
-        H5Fclose(file_id1);
-    }
+    status = H5Dread_multi(2, dset_ids, mem_type_ids, mem_space_ids, file_space_ids, H5P_DEFAULT, bufs);
+    if (status < 0) goto cleanup;
 
-    // H5Fcreate -> H5Fget_info1 -> H5Fget_create_plist -> H5Fset_latest_format -> H5Fclose
-    file_id1 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id1 >= 0) {
-        H5Fget_info1(file_id1, &file_info);
-        plist_id = H5Fget_create_plist(file_id1);
-        if (plist_id >= 0) {
-            H5Pclose(plist_id);
-        }
-        H5Fset_latest_format(file_id1, true);
-        H5Fclose(file_id1);
-    }
+    status = H5Dwrite_multi(2, dset_ids, mem_type_ids, mem_space_ids, file_space_ids, H5P_DEFAULT, bufs);
+    if (status < 0) goto cleanup;
 
-    // H5Fcreate -> H5Fget_access_plist -> H5Fget_info1 -> H5Fget_create_plist -> H5Fclose
-    file_id2 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id2 >= 0) {
-        plist_id = H5Fget_access_plist(file_id2);
-        if (plist_id >= 0) {
-            H5Pclose(plist_id);
-        }
-        H5Fget_info1(file_id2, &file_info);
-        plist_id = H5Fget_create_plist(file_id2);
-        if (plist_id >= 0) {
-            H5Pclose(plist_id);
-        }
-        H5Fclose(file_id2);
-    }
+    status = H5Dread(dset_id1, type_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, buffer1);
+    if (status < 0) goto cleanup;
 
-    // H5Fopen -> H5Fget_info1 -> H5Fget_create_plist -> H5Fclose
-    file_id3 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id3 >= 0) {
-        H5Fget_info1(file_id3, &file_info);
-        plist_id = H5Fget_create_plist(file_id3);
-        if (plist_id >= 0) {
-            H5Pclose(plist_id);
-        }
-        H5Fclose(file_id3);
-    }
+    status = H5Dwrite(dset_id1, type_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, buffer1);
+    if (status < 0) goto cleanup;
 
-    // H5Fcreate -> H5Fget_create_plist -> H5Fclose
-    file_id4 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id4 >= 0) {
-        plist_id = H5Fget_create_plist(file_id4);
-        if (plist_id >= 0) {
-            H5Pclose(plist_id);
-        }
-        H5Fclose(file_id4);
-    }
-
-    // H5Fopen -> H5Fget_create_plist -> H5Fclose
-    file_id3 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id3 >= 0) {
-        plist_id = H5Fget_create_plist(file_id3);
-        if (plist_id >= 0) {
-            H5Pclose(plist_id);
-        }
-        H5Fclose(file_id3);
-    }
+cleanup:
+    // Cleanup resources
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+    H5Sclose(space_id);
+    H5Tclose(type_id);
+    H5Fclose(file_id);
+    cleanup_buffers(buffer1, buffer2);
 
     return 0;
 }

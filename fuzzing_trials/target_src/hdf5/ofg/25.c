@@ -1,29 +1,29 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract a valid hid_t
-    if (size < sizeof(hid_t)) {
+    // Declare and initialize variables for the function-under-test
+    hid_t loc_id = H5Fopen("testfile.h5", H5F_ACC_RDONLY, H5P_DEFAULT);
+    const char *group_name = "/"; // Root group
+    H5_index_t idx_type = H5_INDEX_NAME;
+    H5_iter_order_t order = H5_ITER_INC;
+    hsize_t n = 0; // Start with the first attribute
+    char name[256]; // Buffer to store the attribute name
+    size_t buf_size = sizeof(name);
+    hid_t lapl_id = H5P_DEFAULT;
+
+    // Ensure the data size is sufficient for fuzzing
+    if (size < 1) {
+        H5Fclose(loc_id);
         return 0;
     }
 
-    // Extract a hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Initialize an unsigned int to store the intent
-    unsigned int intent = 0;
-
     // Call the function-under-test
-    herr_t result = H5Fget_intent(file_id, &intent);
+    ssize_t result = H5Aget_name_by_idx(loc_id, group_name, idx_type, order, n, name, buf_size, lapl_id);
 
-    // Use the result and intent in some way to avoid compiler optimizations
-    if (result >= 0) {
-        // Normally, you might do something with the intent here
-        // For fuzzing, just ensure the variables are used
-        volatile unsigned int use_intent = intent;
-        (void)use_intent;
-    }
+    // Close the file
+    H5Fclose(loc_id);
 
     return 0;
 }

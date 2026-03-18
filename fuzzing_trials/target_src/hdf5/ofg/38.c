@@ -1,44 +1,25 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <hdf5.h>
 
+// Example iterator function to be used with H5Giterate
+herr_t example_iterate_function(hid_t group, const char *name, void *op_data) {
+    // Just a dummy function for illustration purposes
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Initialize variables for H5Gunlink parameters
-    hid_t group_id = H5I_INVALID_HID;  // Invalid ID to start with
-    char *name = NULL;
+    // Initialize variables
+    hid_t group_id = 0;  // Assuming a valid group ID is provided elsewhere
+    const char *group_name = "example_group";  // Example group name
+    int idx = 0;  // Start index for iteration
+    void *op_data = NULL;  // Optional user data, can be NULL
 
-    // Ensure size is sufficient to create a valid name string
-    if (size > 0) {
-        // Allocate memory for name and copy data into it
-        name = (char *)malloc(size + 1);
-        if (name == NULL) {
-            return 0; // Exit if memory allocation fails
-        }
-        memcpy(name, data, size);
-        name[size] = '\0'; // Null terminate the string
-    } else {
-        return 0; // Exit if size is not sufficient
-    }
+    // Call the function-under-test
+    herr_t result = H5Giterate(group_id, group_name, &idx, example_iterate_function, op_data);
 
-    // Create a temporary file to obtain a valid group ID
-    hid_t file_id = H5Fcreate("temp_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id >= 0) {
-        // Create a group to obtain a valid group ID
-        group_id = H5Gcreate2(file_id, "/temp_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if (group_id >= 0) {
-            // Call the function under test
-            H5Gunlink(group_id, name);
-
-            // Close the group
-            H5Gclose(group_id);
-        }
-        // Close the file
-        H5Fclose(file_id);
-    }
-
-    // Free allocated memory
-    free(name);
+    // Use the result for further processing or checks (if necessary)
+    // For fuzzing, we generally do not need to do anything with the result
 
     return 0;
 }

@@ -1,47 +1,10 @@
 // This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
 // H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fmount at H5F.c:1183:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fmount at H5F.c:1183:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fmount at H5F.c:1183:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fmount at H5F.c:1183:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fmount at H5F.c:1183:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fget_obj_count at H5F.c:216:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fget_obj_count at H5F.c:216:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Funmount at H5F.c:1301:1 in H5Fpublic.h
-// H5Funmount at H5F.c:1301:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Fget_filesize at H5F.c:1659:1 in H5Fpublic.h
+// H5Fget_vfd_handle at H5F.c:422:1 in H5Fpublic.h
+// H5Fget_intent at H5F.c:1540:1 in H5Fpublic.h
+// H5Fget_info2 at H5F.c:2055:1 in H5Fpublic.h
+// H5Fget_name at H5F.c:1999:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
@@ -49,93 +12,67 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "H5Fpublic.h"
-#include "H5Ppublic.h"
+#include <hdf5.h>
 
-static void write_dummy_file() {
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        const char *data = "dummy data";
-        fwrite(data, 1, strlen(data), file);
-        fclose(file);
+#define DUMMY_FILE "./dummy_file"
+
+static hid_t create_dummy_hdf5_file() {
+    hid_t file_id = H5Fcreate(DUMMY_FILE, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        fprintf(stderr, "Failed to create dummy HDF5 file.\n");
+        exit(EXIT_FAILURE);
     }
+    return file_id;
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    write_dummy_file();
+    if (Size < sizeof(hid_t)) {
+        return 0;
+    }
+    
+    // Create a dummy HDF5 file
+    hid_t file_id = create_dummy_hdf5_file();
 
-    hid_t file_id1 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id1 >= 0) H5Fclose(file_id1);
-
-    hid_t file_id2 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id2 >= 0) H5Fclose(file_id2);
-
-    hid_t file_id3 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id3 >= 0) H5Fclose(file_id3);
-
-    hid_t file_id4 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id4 >= 0) H5Fclose(file_id4);
-
-    hid_t file_id5 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id5 >= 0) H5Fclose(file_id5);
-
-    hid_t file_id6 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id6 >= 0) H5Fclose(file_id6);
-
-    hid_t file_id7 = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id7 >= 0) H5Fclose(file_id7);
-
-    hid_t file_id8 = H5Fopen("./dummy_file", H5F_ACC_RDONLY, H5P_DEFAULT);
-    hid_t file_id9 = H5Fopen("./dummy_file", H5F_ACC_RDONLY, H5P_DEFAULT);
-
-    if (file_id8 >= 0 && file_id9 >= 0) {
-        H5Fmount(file_id8, "/", file_id9, H5P_DEFAULT);
-        H5Fclose(file_id8);
-        H5Fclose(file_id9);
+    // Fuzz H5Fget_filesize
+    hsize_t filesize;
+    if (H5Fget_filesize(file_id, &filesize) < 0) {
+        fprintf(stderr, "H5Fget_filesize failed.\n");
     }
 
-    hid_t file_id10 = H5Fopen("./dummy_file", H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (file_id10 >= 0) {
-        H5Fmount(file_id10, "/", file_id10, H5P_DEFAULT);
-        H5Fclose(file_id10);
+    // Fuzz H5Fget_vfd_handle
+    void *file_handle;
+    if (H5Fget_vfd_handle(file_id, H5P_DEFAULT, &file_handle) < 0) {
+        fprintf(stderr, "H5Fget_vfd_handle failed.\n");
     }
 
-    hid_t file_id11 = H5Fopen("./dummy_file", H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (file_id11 >= 0) {
-        H5Fmount(file_id11, "/", file_id11, H5P_DEFAULT);
-        H5Fclose(file_id11);
+    // Fuzz H5Fget_intent
+    unsigned intent;
+    if (H5Fget_intent(file_id, &intent) < 0) {
+        fprintf(stderr, "H5Fget_intent failed.\n");
     }
 
-    hid_t file_id12 = H5Fopen("./dummy_file", H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (file_id12 >= 0) {
-        H5Fmount(file_id12, "/", file_id12, H5P_DEFAULT);
-        H5Fclose(file_id12);
+    // Fuzz H5Fget_info2
+    H5F_info2_t file_info;
+    if (H5Fget_info2(file_id, &file_info) < 0) {
+        fprintf(stderr, "H5Fget_info2 failed.\n");
     }
 
-    hid_t file_id13 = H5Fopen("./dummy_file", H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (file_id13 >= 0) {
-        H5Fmount(file_id13, "/", file_id13, H5P_DEFAULT);
-        H5Fclose(file_id13);
+    // Fuzz H5Fget_name
+    char name[1024];
+    if (H5Fget_name(file_id, name, sizeof(name)) < 0) {
+        fprintf(stderr, "H5Fget_name failed.\n");
     }
 
-    ssize_t obj_count1 = H5Fget_obj_count(file_id13, H5F_OBJ_ALL);
-    H5Fclose(file_id13);
+    // Close the file
+    if (H5Fclose(file_id) < 0) {
+        fprintf(stderr, "Failed to close file.\n");
+    }
 
-    ssize_t obj_count2 = H5Fget_obj_count(file_id13, H5F_OBJ_ALL);
-    H5Fclose(file_id13);
-
-    H5Funmount(file_id13, "/");
-    H5Funmount(file_id13, "/");
-
-    H5Fclose(file_id13);
-    H5Fclose(file_id13);
-    H5Fclose(file_id13);
-    H5Fclose(file_id13);
-    H5Fclose(file_id13);
-    H5Fclose(file_id13);
-    H5Fclose(file_id13);
+    // Cleanup
+    remove(DUMMY_FILE);
 
     return 0;
 }

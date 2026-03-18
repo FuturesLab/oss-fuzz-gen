@@ -2,32 +2,47 @@
 #include <stddef.h>
 #include <hdf5.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_261(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract an hid_t value
-    if (size < sizeof(hid_t)) {
+    // Initialize variables
+    herr_t status;
+    hid_t src_loc_id = H5I_INVALID_HID;
+    hid_t dst_loc_id = H5I_INVALID_HID;
+    const char *src_name = "source_group";
+    const char *dst_name = "destination_group";
+
+    // Check if size is sufficient to create a file and groups
+    if (size < 1) {
         return 0;
     }
 
-    // Extract an hid_t value from the input data
-    hid_t input_id = *(const hid_t *)data;
+    // Create a new file using default properties.
+    hid_t file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Create a group in the file.
+    src_loc_id = H5Gcreate2(file_id, src_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (src_loc_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Create another group in the file.
+    dst_loc_id = H5Gcreate2(file_id, dst_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dst_loc_id < 0) {
+        H5Gclose(src_loc_id);
+        H5Fclose(file_id);
+        return 0;
+    }
 
     // Call the function-under-test
-    hid_t plist_id = H5Aget_create_plist(input_id);
+    status = H5Gmove2(file_id, src_name, file_id, dst_name);
 
-    // Normally, you would do something with plist_id, like checking its validity
-    // For fuzzing, we just ensure the function is called
-    if (plist_id >= 0) {
-        // Close the property list if it was successfully retrieved
-        H5Pclose(plist_id);
-    }
+    // Clean up
+    H5Gclose(src_loc_id);
+    H5Gclose(dst_loc_id);
+    H5Fclose(file_id);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

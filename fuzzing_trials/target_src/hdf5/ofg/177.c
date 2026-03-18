@@ -1,25 +1,36 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_177(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t loc_id = H5I_INVALID_HID; // Invalid ID to start
-    const char *obj_name = "example_object";
-    const char *attr_name = "example_attribute";
-    H5A_info_t ainfo;
-    hid_t lapl_id = H5P_DEFAULT;
-
-    // Ensure there is some data to work with
-    if (size > 0) {
-        // Call the function-under-test
-        herr_t result = H5Aget_info_by_name(loc_id, obj_name, attr_name, &ainfo, lapl_id);
-
-        // Check the result (this is just for illustration; in a real fuzzing test you might not do this)
-        if (result < 0) {
-            // Handle error if needed
-        }
+    // Create a scalar dataspace for the attribute
+    hid_t space_id = H5Screate(H5S_SCALAR);
+    if (space_id < 0) {
+        return 0;
     }
+
+    // Create an attribute with the given dataspace and type
+    hid_t attr_id = H5Acreate2(space_id, "attribute", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
+    if (attr_id < 0) {
+        H5Sclose(space_id);
+        return 0;
+    }
+
+    hid_t mem_type_id = H5T_NATIVE_INT;
+
+    // Ensure data is not NULL and has enough size
+    if (size < sizeof(int)) {
+        H5Aclose(attr_id);
+        H5Sclose(space_id);
+        return 0;
+    }
+
+    // Use the data as input for the H5Awrite function
+    herr_t status = H5Awrite(attr_id, mem_type_id, (const void *)data);
+
+    // Close the attribute and dataspace to release resources
+    H5Aclose(attr_id);
+    H5Sclose(space_id);
 
     return 0;
 }

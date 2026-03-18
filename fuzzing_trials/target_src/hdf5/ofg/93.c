@@ -1,49 +1,39 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <hdf5.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to work with
-    if (size < sizeof(hid_t) * 4 + sizeof(size_t)) {
-        return 0;
-    }
+    // Define and initialize variables for the function-under-test
+    size_t count = 1; // Assuming we are writing to one dataset for simplicity
 
-    // Extract the number of datasets from the data
-    size_t num_datasets = (size_t)data[0] % 5 + 1; // Limit to a small number for simplicity
+    // Allocate and initialize arrays for dataset, mem_type, mem_space, file_space
+    hid_t dataset_id = H5I_INVALID_HID;
+    hid_t mem_type_id = H5I_INVALID_HID;
+    hid_t mem_space_id = H5I_INVALID_HID;
+    hid_t file_space_id = H5I_INVALID_HID;
 
-    // Allocate memory for the arrays of hid_t
-    hid_t *dset_id = (hid_t *)malloc(num_datasets * sizeof(hid_t));
-    hid_t *mem_type_id = (hid_t *)malloc(num_datasets * sizeof(hid_t));
-    hid_t *mem_space_id = (hid_t *)malloc(num_datasets * sizeof(hid_t));
-    hid_t *file_space_id = (hid_t *)malloc(num_datasets * sizeof(hid_t));
+    hid_t dataset_ids[1] = {dataset_id};
+    hid_t mem_type_ids[1] = {mem_type_id};
+    hid_t mem_space_ids[1] = {mem_space_id};
+    hid_t file_space_ids[1] = {file_space_id};
 
-    // Initialize the arrays with non-NULL values
-    for (size_t i = 0; i < num_datasets; ++i) {
-        dset_id[i] = (hid_t)(data[i % size] + 1); // Ensure non-zero
-        mem_type_id[i] = (hid_t)(data[(i + 1) % size] + 1); // Ensure non-zero
-        mem_space_id[i] = (hid_t)(data[(i + 2) % size] + 1); // Ensure non-zero
-        file_space_id[i] = (hid_t)(data[(i + 3) % size] + 1); // Ensure non-zero
-    }
+    // Initialize the plist_id
+    hid_t plist_id = H5P_DEFAULT;
 
-    // Extract the plist_id from the data
-    hid_t plist_id = (hid_t)(data[4 % size] + 1); // Ensure non-zero
-
-    // Prepare the buffer for the data
-    const void **buf = (const void **)malloc(num_datasets * sizeof(void *));
-    for (size_t i = 0; i < num_datasets; ++i) {
-        buf[i] = (const void *)(data + i);
-    }
+    // Create and initialize a data buffer
+    const void *buf[1] = {data};
 
     // Call the function-under-test
-    herr_t result = H5Dwrite_multi(num_datasets, dset_id, mem_type_id, mem_space_id, file_space_id, plist_id, buf);
+    herr_t result = H5Dwrite_multi(count, dataset_ids, mem_type_ids, mem_space_ids, file_space_ids, plist_id, buf);
 
-    // Free the allocated memory
-    free(dset_id);
-    free(mem_type_id);
-    free(mem_space_id);
-    free(file_space_id);
-    free(buf);
-
+    // Return 0 to indicate successful execution
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

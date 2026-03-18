@@ -1,54 +1,30 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>  // Include string.h for memcpy
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    hid_t dset_id = H5I_INVALID_HID; // Invalid ID for demonstration
-    hid_t fspace_id = H5I_INVALID_HID; // Invalid ID for demonstration
-    hsize_t index = 0;
-    hsize_t offset[H5S_MAX_RANK] = {0}; // Assuming maximum rank
-    unsigned int filter_mask = 0;
-    haddr_t addr = 0;
-    hsize_t size_array[H5S_MAX_RANK] = {0}; // Assuming maximum rank
+    // Declare and initialize variables for the function-under-test
+    hid_t dataset_id = 1; // Example dataset identifier, should be valid in real scenarios
+    hid_t mem_type_id = H5T_NATIVE_INT; // Memory datatype identifier
+    hid_t mem_space_id = H5S_ALL; // Memory dataspace identifier
+    hid_t file_space_id = H5S_ALL; // File dataspace identifier
+    hid_t plist_id = H5P_DEFAULT; // Property list identifier
 
-    // Ensure the data size is sufficient for fuzzing
-    if (size < sizeof(hsize_t) * 2 + sizeof(unsigned int) + sizeof(haddr_t)) {
-        return 0;
+    // Allocate a buffer for data reading
+    void *buffer = malloc(size);
+    if (buffer == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Fuzzing the parameters using the input data
-    index = *((hsize_t *)data);
-    data += sizeof(hsize_t);
-    size -= sizeof(hsize_t);
-
-    for (int i = 0; i < H5S_MAX_RANK && size >= sizeof(hsize_t); i++) {
-        offset[i] = *((hsize_t *)data);
-        data += sizeof(hsize_t);
-        size -= sizeof(hsize_t);
-    }
-
-    if (size >= sizeof(unsigned int)) {
-        filter_mask = *((unsigned int *)data);
-        data += sizeof(unsigned int);
-        size -= sizeof(unsigned int);
-    }
-
-    if (size >= sizeof(haddr_t)) {
-        addr = *((haddr_t *)data);
-        data += sizeof(haddr_t);
-        size -= sizeof(haddr_t);
-    }
-
-    for (int i = 0; i < H5S_MAX_RANK && size >= sizeof(hsize_t); i++) {
-        size_array[i] = *((hsize_t *)data);
-        data += sizeof(hsize_t);
-        size -= sizeof(hsize_t);
-    }
+    // Copy input data to the buffer
+    memcpy(buffer, data, size);
 
     // Call the function-under-test
-    herr_t result = H5Dget_chunk_info(dset_id, fspace_id, index, offset, &filter_mask, &addr, size_array);
+    herr_t status = H5Dread(dataset_id, mem_type_id, mem_space_id, file_space_id, plist_id, buffer);
 
-    // Return 0 to indicate the fuzzer can continue
+    // Free the allocated buffer
+    free(buffer);
+
     return 0;
 }

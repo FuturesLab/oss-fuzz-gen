@@ -1,34 +1,30 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h> // Include the string.h header for memcpy
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_275(const uint8_t *data, size_t size) {
-    // Define and initialize parameters for H5Dread_multi_async
-    const char *app_file = __FILE__;
-    const char *app_func = __func__;
-    unsigned int app_line = __LINE__;
-    unsigned int count = 1;
-    size_t typesize = sizeof(int);
-    hid_t mem_type_ids[1] = {H5T_NATIVE_INT};
-    hid_t mem_space_ids[1] = {H5Screate(H5S_SCALAR)};
-    hid_t file_space_ids[1] = {H5Screate(H5S_SCALAR)};
-    hid_t file_id = H5Fcreate("test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t dset_ids[1] = {H5Dcreate2(file_id, "dset", H5T_NATIVE_INT, H5Screate(H5S_SCALAR), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)};
-    hid_t dxpl_id = H5Pcreate(H5P_DATASET_XFER);
-    int buffer[1] = {0};
-    void *bufs[1] = {buffer};
-    hid_t es_id = H5EScreate();
+    // Initialize variables for the parameters
+    hid_t dset_id = H5I_INVALID_HID;
+    hid_t mem_type_id = H5I_INVALID_HID;
+    hid_t mem_space_id = H5I_INVALID_HID;
+    hid_t file_space_id = H5I_INVALID_HID;
+    hid_t dxpl_id = H5P_DEFAULT;
+    void *buf = malloc(size); // Allocate a buffer for data using the input size
+    hid_t es_id = H5I_INVALID_HID;
+
+    if (buf == NULL) {
+        return 0; // Exit if memory allocation failed
+    }
+
+    // Copy input data into the buffer
+    memcpy(buf, data, size);
 
     // Call the function-under-test
-    herr_t status = H5Dread_multi_async(count, dset_ids, mem_type_ids, mem_space_ids, file_space_ids, dxpl_id, bufs, es_id);
+    herr_t status = H5Dread_async(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf, es_id);
 
-    // Clean up resources
-    H5Dclose(dset_ids[0]);
-    H5Sclose(mem_space_ids[0]);
-    H5Sclose(file_space_ids[0]);
-    H5Pclose(dxpl_id);
-    H5ESclose(es_id);
-    H5Fclose(file_id);
+    // Free allocated resources
+    free(buf);
 
     return 0;
 }

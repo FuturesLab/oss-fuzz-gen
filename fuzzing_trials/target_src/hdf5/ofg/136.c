@@ -1,35 +1,26 @@
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
-    hid_t file_id;
-    void *buffer;
-    ssize_t result;
+    // Ensure that the input size is sufficient for our needs
+    if (size < 10) return 0;
 
-    // Initialize HDF5 library
-    H5open();
+    // Initialize the parameters for the function
+    const char *location = "location_name";
+    const char *attr_name = "attribute_name";
+    unsigned int lapl_id = 0; // Link Access Property List Identifier
+    hid_t loc_id = 0; // Location Identifier
+    const char *obj_name = "object_name";
+    const char *attr_name2 = "attribute_name2";
+    bool exists; // Changed _Bool to bool
+    hid_t dxpl_id = 0; // Data Transfer Property List Identifier
+    hid_t es_id = 0; // Event Stack Identifier
 
-    // Create a new HDF5 file to get a valid hid_t
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
-    }
+    // Call the function-under-test with the correct number of arguments
+    herr_t result = H5Aexists_by_name_async(loc_id, obj_name, attr_name2, &exists, lapl_id, es_id);
 
-    // Allocate buffer of the same size as input data
-    buffer = malloc(size);
-    if (buffer == NULL) {
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Call the function-under-test
-    result = H5Fget_file_image(file_id, buffer, size);
-
-    // Clean up
-    free(buffer);
-    H5Fclose(file_id);
-    H5close();
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

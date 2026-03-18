@@ -1,16 +1,10 @@
 // This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_intent at H5F.c:1540:1 in H5Fpublic.h
-// H5Fget_intent at H5F.c:1540:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fclear_elink_file_cache at H5F.c:2194:1 in H5Fpublic.h
-// H5Fget_vfd_handle at H5F.c:422:1 in H5Fpublic.h
-// H5Fget_vfd_handle at H5F.c:422:1 in H5Fpublic.h
-// H5Fget_filesize at H5F.c:1659:1 in H5Fpublic.h
-// H5Fget_filesize at H5F.c:1659:1 in H5Fpublic.h
-// H5Fget_mdc_image_info at H5F.c:2567:1 in H5Fpublic.h
-// H5Fget_mdc_image_info at H5F.c:2567:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Awrite_async at H5A.c:931:1 in H5Apublic.h
+// H5Arename_async at H5A.c:1669:1 in H5Apublic.h
+// H5Arename_by_name_async at H5A.c:1781:1 in H5Apublic.h
+// H5Aread_async at H5A.c:1037:1 in H5Apublic.h
+// H5Dread_async at H5D.c:1067:1 in H5Dpublic.h
+// H5Aclose_async at H5A.c:2224:1 in H5Apublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -20,58 +14,62 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "H5Fpublic.h"
-#include "H5Ppublic.h"
+#include "H5Dpublic.h"
+#include "H5Apublic.h"
 
-static hid_t create_dummy_hdf5_file() {
-    // Create a dummy HDF5 file for testing
-    hid_t file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    return file_id;
+#define DUMMY_FILE "./dummy_file"
+
+static hid_t generate_hid() {
+    return (hid_t)(rand() % 1000 + 1);
+}
+
+static void write_dummy_file() {
+    FILE *file = fopen(DUMMY_FILE, "w");
+    if (file) {
+        fprintf(file, "Dummy data for HDF5 testing.");
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(hid_t)) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Create a dummy file and get its identifier
-    hid_t file_id = create_dummy_hdf5_file();
-    if (file_id < 0) {
-        return 0;
-    }
+    write_dummy_file();
 
-    // Fuzz H5Fget_intent
-    unsigned intent;
-    H5Fget_intent(file_id, &intent);
-    H5Fget_intent(file_id, NULL);
+    // Extract different parts of data for different API calls
+    hid_t attr_id = generate_hid();
+    hid_t type_id = generate_hid();
+    hid_t es_id = generate_hid();
+    const void *buf = Data;
+    hid_t loc_id = generate_hid();
+    const char *old_name = "old_attr";
+    const char *new_name = "new_attr";
+    const char *obj_name = "object";
+    hid_t lapl_id = generate_hid();
+    hid_t dtype_id = generate_hid();
+    hid_t dset_id = generate_hid();
+    hid_t mem_type_id = generate_hid();
+    hid_t mem_space_id = generate_hid();
+    hid_t file_space_id = generate_hid();
+    hid_t dxpl_id = generate_hid();
 
-    // Fuzz H5Fget_create_plist
-    hid_t plist_id = H5Fget_create_plist(file_id);
-    if (plist_id >= 0) {
-        H5Pclose(plist_id);
-    }
+    // Call H5Awrite_async
+    H5Awrite_async(attr_id, type_id, buf, es_id);
 
-    // Fuzz H5Fclear_elink_file_cache
-    H5Fclear_elink_file_cache(file_id);
+    // Call H5Arename_async
+    H5Arename_async(loc_id, old_name, new_name, es_id);
 
-    // Fuzz H5Fget_vfd_handle
-    void *file_handle = NULL;
-    H5Fget_vfd_handle(file_id, H5P_DEFAULT, &file_handle);
-    H5Fget_vfd_handle(file_id, H5P_DEFAULT, NULL);
+    // Call H5Arename_by_name_async
+    H5Arename_by_name_async(loc_id, obj_name, old_name, new_name, lapl_id, es_id);
 
-    // Fuzz H5Fget_filesize
-    hsize_t file_size;
-    H5Fget_filesize(file_id, &file_size);
-    H5Fget_filesize(file_id, NULL);
+    // Call H5Aread_async
+    H5Aread_async(attr_id, dtype_id, (void *)buf, es_id);
 
-    // Fuzz H5Fget_mdc_image_info
-    haddr_t image_addr;
-    hsize_t image_size;
-    H5Fget_mdc_image_info(file_id, &image_addr, &image_size);
-    H5Fget_mdc_image_info(file_id, NULL, NULL);
+    // Call H5Dread_async
+    H5Dread_async(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, (void *)buf, es_id);
 
-    // Close the file
-    H5Fclose(file_id);
+    // Call H5Aclose_async
+    H5Aclose_async(attr_id, es_id);
 
     return 0;
 }

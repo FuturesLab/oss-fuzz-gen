@@ -1,47 +1,38 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to avoid out-of-bounds access
-    if (size < 2) return 0;
-
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a dummy file and dataset to work with
-    hid_t file_id = H5Fcreate("dummy.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t space_id = H5Screate(H5S_SCALAR);
-    hid_t dataset_id = H5Dcreate2(file_id, "dummy_dataset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Ensure the dataset is created successfully
-    if (dataset_id < 0) {
-        H5Sclose(space_id);
-        H5Fclose(file_id);
-        H5close();
+    // Initialize an HDF5 file
+    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
-    // Use the first byte of data to determine the hid_t value
-    hid_t loc_id = (hid_t)data[0];
+    // Create a dataspace
+    hsize_t dims[1] = {10};
+    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+    if (dataspace_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Use the second byte of data to create a null-terminated string for the dataset name
-    char dataset_name[2] = {(char)data[1], '\0'};
+    // Create a dataset
+    hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Use the dataset_id as the dapl_id for simplicity
-    hid_t dapl_id = dataset_id;
-
-    // Call the function under test
-    hid_t result = H5Dopen2(loc_id, dataset_name, dapl_id);
+    // Fuzzing the function-under-test
+    hid_t access_plist_id = H5Dget_access_plist(dataset_id);
 
     // Clean up
-    if (result >= 0) {
-        H5Dclose(result);
-    }
+    H5Pclose(access_plist_id);
     H5Dclose(dataset_id);
-    H5Sclose(space_id);
+    H5Sclose(dataspace_id);
     H5Fclose(file_id);
-    H5close();
 
     return 0;
 }
