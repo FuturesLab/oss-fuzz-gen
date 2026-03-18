@@ -1,26 +1,37 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_340(const uint8_t *data, size_t size) {
-    // Ensure that the size is at least the size of sqlite3_uint64
-    if (size < sizeof(sqlite3_uint64)) {
-        return 0;
+    // Initialize SQLite3 context
+    sqlite3 *db;
+
+    // Open a temporary in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // If opening the database fails, exit early
     }
 
-    // Extract a sqlite3_uint64 value from the input data
-    sqlite3_uint64 alloc_size = 0;
-    for (size_t i = 0; i < sizeof(sqlite3_uint64); ++i) {
-        alloc_size = (alloc_size << 8) | data[i];
+    // Create a SQL statement from the input data
+    char *errMsg = 0;
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0; // If memory allocation fails, exit early
     }
 
-    // Call the function-under-test
-    void *allocated_memory = sqlite3_malloc64(alloc_size);
+    // Copy the data into the SQL statement and null-terminate it
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Free the allocated memory if not NULL
-    if (allocated_memory != NULL) {
-        sqlite3_free(allocated_memory);
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

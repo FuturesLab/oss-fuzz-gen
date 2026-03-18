@@ -1,23 +1,43 @@
+#include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <sqlite3.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    sqlite3_int64 limit;
-    
-    // Ensure that there is enough data to read a sqlite3_int64 value
-    if (size < sizeof(sqlite3_int64)) {
+    sqlite3 *srcDb = NULL;
+    sqlite3 *destDb = NULL;
+    sqlite3_backup *backup = NULL;
+    int pageCount = 1; // Default page count for the backup step
+
+    // Open source and destination databases in memory
+    if (sqlite3_open(":memory:", &srcDb) != SQLITE_OK) {
+        return 0;
+    }
+    if (sqlite3_open(":memory:", &destDb) != SQLITE_OK) {
+        sqlite3_close(srcDb);
         return 0;
     }
 
-    // Copy the data into a sqlite3_int64 variable
-    limit = *((sqlite3_int64*)data);
+    // Create a backup object
+    backup = sqlite3_backup_init(destDb, "main", srcDb, "main");
+    if (backup == NULL) {
+        sqlite3_close(srcDb);
+        sqlite3_close(destDb);
+        return 0;
+    }
+
+    // Use the first byte of data to determine the page count, if available
+    if (size > 0) {
+        pageCount = (int)data[0];
+    }
 
     // Call the function-under-test
-    sqlite3_int64 result = sqlite3_soft_heap_limit64(limit);
+    sqlite3_backup_step(backup, pageCount);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    // Clean up
+    sqlite3_backup_finish(backup);
+    sqlite3_close(srcDb);
+    sqlite3_close(destDb);
 
     return 0;
 }

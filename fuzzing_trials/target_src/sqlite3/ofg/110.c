@@ -1,46 +1,33 @@
 #include <stdint.h>
-#include <stddef.h>  // Include the standard library for size_t
+#include <stddef.h>
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
     int rc;
-    char *errMsg = 0;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, value TEXT);";
 
-    // Open a new database connection
+    // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0;
+        return 0; // If opening the database fails, return immediately
     }
 
-    // Execute the SQL statement to create a table
+    // Create a SQL statement from the input data
+    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
+
+    // Execute the SQL statement
+    char *errMsg = 0;
     rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
+
+    // Free the SQL statement
+    sqlite3_free(sql);
+
+    // If there was an error, free the error message
+    if (errMsg) {
         sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
     }
 
-    // Prepare a SQL statement for testing
-    const char *sqlInsert = "INSERT INTO test (value) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, sqlInsert, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind data to the prepared statement
-    if (size > 0) {
-        sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
-    }
-
-    // Execute the prepared statement
-    rc = sqlite3_step(stmt);
-
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;

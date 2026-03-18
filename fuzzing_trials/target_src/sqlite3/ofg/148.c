@@ -1,47 +1,41 @@
-#include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <sqlite3.h>
+#include <stddef.h>  // For size_t and NULL
+#include <stdint.h>  // For uint8_t
+#include <sqlite3.h> // For SQLite3 functions
 
-extern int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
+// Remove the incorrect internal header inclusion
+// #include "/src/sqlite3/bld/sqlite3.h" // This line is not needed
+
+// Function prototype for the fuzzer
+int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
+    if (size < sizeof(int)) {
+        return 0;
+    }
+
+    // Initialize SQLite
+    sqlite3_initialize();
+
+    // Create a new SQLite database in memory
     sqlite3 *db;
+    char *errMsg = 0;
+    int rc = sqlite3_open(":memory:", &db);
+
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare a SQL statement using the fuzz data
     sqlite3_stmt *stmt;
-    int rc;
-    const char *sql = "SELECT ?";
+    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
 
-    // Ensure that the size is sufficient to extract an int64_t value
-    if (size < sizeof(int64_t)) {
-        return 0;
-    }
-
-    // Extract an int64_t value from the input data
-    int64_t value = *((int64_t*)data);
-
-    // Open a new in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
-
-    // Prepare an SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind the int64_t value to the SQL statement
-    rc = sqlite3_bind_int64(stmt, 1, value);
-    if (rc != SQLITE_OK) {
+    if (rc == SQLITE_OK) {
+        // Execute the SQL statement
+        sqlite3_step(stmt);
+        // Finalize the statement to release resources
         sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
     }
 
-    // Execute the SQL statement
-    rc = sqlite3_step(stmt);
-
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;

@@ -1,48 +1,89 @@
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>  // Include for NULL
+#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
 
-// Function to open a database and create a valid sqlite3_blob object
-sqlite3_blob* create_valid_blob() {
+// Mock function to open a database and prepare a blob for testing
+sqlite3_blob* prepare_blob(const uint8_t *data, size_t size) {
     sqlite3 *db;
     sqlite3_blob *blob = NULL;
-    int rc;
+    const char *db_name = "test.db";
+    const char *table_name = "test_table";
+    const char *column_name = "test_column";
+    int row_id = 1;
 
-    // Open a database connection
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open the database
+    if (sqlite3_open(db_name, &db) != SQLITE_OK) {
         return NULL;
     }
 
-    // Create a table and insert a blob
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);"
-                          "INSERT INTO test (data) VALUES (zeroblob(10));", NULL, NULL, NULL);
-    if (rc != SQLITE_OK) {
+    // Create table and insert data for testing
+    char *err_msg = NULL;
+    char create_table_sql[256];
+    snprintf(create_table_sql, sizeof(create_table_sql),
+             "CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY, %s BLOB);",
+             table_name, column_name);
+    if (sqlite3_exec(db, create_table_sql, 0, 0, &err_msg) != SQLITE_OK) {
+        sqlite3_free(err_msg);
         sqlite3_close(db);
         return NULL;
     }
 
-    // Open a blob handle
-    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 0, &blob);
-    if (rc != SQLITE_OK) {
+    char insert_sql[256];
+    snprintf(insert_sql, sizeof(insert_sql),
+             "INSERT OR REPLACE INTO %s (id, %s) VALUES (%d, ?);",
+             table_name, column_name, row_id);
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0) != SQLITE_OK) {
         sqlite3_close(db);
         return NULL;
     }
 
-    // Close the database connection but keep the blob handle
+    if (sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return NULL;
+    }
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return NULL;
+    }
+    sqlite3_finalize(stmt);
+
+    // Open the blob
+    if (sqlite3_blob_open(db, "main", table_name, column_name, row_id, 0, &blob) != SQLITE_OK) {
+        sqlite3_close(db);
+        return NULL;
+    }
+
+    // Close the database connection
     sqlite3_close(db);
+
     return blob;
 }
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    sqlite3_blob *blob = create_valid_blob();
-    if (blob != NULL) {
-        int bytes = sqlite3_blob_bytes(blob);
-        // Use 'bytes' in some way if needed, or just call the function to test it
-
-        // Close the blob handle after use
-        sqlite3_blob_close(blob);
+    sqlite3_blob *blob = prepare_blob(data, size);
+    if (blob == NULL) {
+        return 0;
     }
+
+    // Call the function-under-test
+    int blob_size = sqlite3_blob_bytes(blob);
+
+    // Optionally read from the blob to increase coverage
+    uint8_t *buffer = (uint8_t *)malloc(blob_size);
+    if (buffer != NULL) {
+        if (sqlite3_blob_read(blob, buffer, blob_size, 0) == SQLITE_OK) {
+            // Process buffer if needed
+        }
+        free(buffer);
+    }
+
+    // Clean up
+    sqlite3_blob_close(blob);
+
     return 0;
 }

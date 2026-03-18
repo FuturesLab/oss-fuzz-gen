@@ -1,41 +1,41 @@
-#include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-
-// Initialize a SQLite database in memory
-static sqlite3* initialize_database() {
-    sqlite3 *db;
-    int rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        sqlite3_close(db);
-        return NULL;
-    }
-    return db;
-}
+#include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Initialize database
-    sqlite3 *db = initialize_database();
-    if (db == NULL) {
-        return 0; // Failed to initialize database
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+    
+    // Open a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Prepare the SQL statement
-    const char *sql = (const char *)data;
-    int sql_length = (int)size;
-    sqlite3_stmt *stmt = NULL;
-    const char *tail = NULL;
+    // Create a simple table
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare a statement using the input data as SQL
+    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
 
     // Call the function-under-test
-    int rc = sqlite3_prepare(db, sql, sql_length, &stmt, &tail);
+    int data_count = sqlite3_data_count(stmt);
 
-    // Finalize the statement if it was successfully prepared
-    if (rc == SQLITE_OK && stmt != NULL) {
-        sqlite3_finalize(stmt);
-    }
-
-    // Close the database
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

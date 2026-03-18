@@ -7,44 +7,38 @@ int LLVMFuzzerTestOneInput_316(const uint8_t *data, size_t size) {
     sqlite3 *db;
     sqlite3_stmt *stmt;
     int rc;
-    
-    // Initialize a new in-memory SQLite database
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);"
+                      "INSERT INTO test (data) VALUES (?);";
+
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table for testing
-    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare the input data as an SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
     // Prepare the SQL statement
     rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
-        free(sql);
         sqlite3_close(db);
         return 0;
     }
 
-    // Execute the SQL statement using sqlite3_step
-    rc = sqlite3_step(stmt);
+    // Bind the blob data
+    int index = 1; // Bind to the first parameter in the SQL statement
+    const void *blob_data = (const void *)data;
+    int blob_size = (int)size;
+    void (*destructor_316)(void*) = SQLITE_TRANSIENT; // Use SQLITE_TRANSIENT to make SQLite copy the data
 
-    // Clean up
+    sqlite3_bind_blob(stmt, index, blob_data, blob_size, destructor_316);
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        // Handle error if needed
+    }
+
+    // Finalize the statement to clean up
     sqlite3_finalize(stmt);
-    free(sql);
     sqlite3_close(db);
 
     return 0;

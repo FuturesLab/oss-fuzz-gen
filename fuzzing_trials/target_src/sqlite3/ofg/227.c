@@ -2,50 +2,64 @@
 #include <stddef.h>
 #include <sqlite3.h>
 
-// Dummy comparison function
-int dummy_compare(void *pArg, int len1, const void *str1, int len2, const void *str2) {
-    // For simplicity, let's just return 0
-    return 0;
-}
-
-// Dummy destructor function
-void dummy_destructor_227(void *pArg) {
-    // Do nothing
-}
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_227(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-    const char *collationName = "test_collation";
+    // Initialize SQLite3 memory allocation
+    sqlite3_initialize();
 
-    // Open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Create an SQLite statement
+    sqlite3_stmt *stmt;
+    sqlite3 *db;
+
+    // Open a temporary in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the data is not empty
-    if (size == 0) {
+    // Create a table to perform operations on
+    const char *createTableSQL = "CREATE TABLE fuzz_table (id INTEGER PRIMARY KEY, value TEXT);";
+    if (sqlite3_exec(db, createTableSQL, 0, 0, 0) != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Use the first byte of data as collation encoding
-    int encoding = data[0] % 4; // 0 to 3 are valid encoding values
+    // Prepare an SQL statement to insert data
+    const char *insertSQL = "INSERT INTO fuzz_table (value) VALUES (?);";
+    if (sqlite3_prepare_v2(db, insertSQL, -1, &stmt, 0) != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Call the function-under-test
-    rc = sqlite3_create_collation_v2(db, collationName, encoding, NULL, dummy_compare, dummy_destructor_227);
+    // Bind the input data to the SQL statement
+    if (sqlite3_bind_text(stmt, 1, (const char*)data, (int)size, SQLITE_STATIC) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Close the database
+    // Execute the statement
+    sqlite3_step(stmt);
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Prepare a statement to query the data back
+    const char *querySQL = "SELECT * FROM fuzz_table;";
+    if (sqlite3_prepare_v2(db, querySQL, -1, &stmt, 0) != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the query and step through the results
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Access the data if needed, for example:
+        const unsigned char *text = sqlite3_column_text(stmt, 1);
+        (void)text; // Suppress unused variable warning
+    }
+
+    // Clean up by finalizing the statement and closing the database
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
+    // Return 0 to indicate successful execution
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

@@ -1,22 +1,29 @@
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
-#include <string.h> // Include for NULL
+#include <stdlib.h>
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
     int rc;
-    
-    // Initialize SQLite database in memory
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
+
+    // Open a temporary in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare an SQL statement using the input data
-    const char *sql = (const char *)data;
-    rc = sqlite3_prepare_v2(db, sql, size, &stmt, NULL);
+    // Execute the SQL statement to create a table
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare a statement from the input data
+    const char *tail;
+    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, &tail);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;

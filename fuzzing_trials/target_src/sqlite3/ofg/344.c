@@ -1,40 +1,45 @@
+#include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <sqlite3.h>
 #include <string.h>
 
-// Dummy function to simulate DW_TAG_subroutine_typeInfinite loop
-void dummy_subroutine_344() {
-    // Infinite loop simulation
-    while (1) {
-        break; // Break to avoid actual infinite loop in fuzzing
-    }
+// Example custom function to be used with sqlite3_create_function_v2
+void exampleFunc(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Example implementation: simply return the number of arguments
+    sqlite3_result_int(context, argc);
 }
 
 int LLVMFuzzerTestOneInput_344(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errMsg = 0;
-    const char *dbName = "test.db";
-    const char *key = "client_key";
-    void *clientData = (void *)data;
-
-    // Initialize SQLite database
-    if (sqlite3_open(dbName, &db) != SQLITE_OK) {
+    if (size < 1) {
         return 0;
     }
 
-    // Ensure data is not NULL and has a minimum size
-    if (size > 0) {
-        // Here we should use a valid SQLite function. Since `sqlite3_set_clientdata` does not exist,
-        // we can simulate some operation with the database using the input data.
-        // For example, we can prepare a statement and execute it.
-        char *sql = "CREATE TABLE IF NOT EXISTS fuzz_table (key TEXT, data BLOB);";
-        if (sqlite3_exec(db, sql, 0, 0, &errMsg) != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
+    // Initialize SQLite
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
     }
 
-    // Close the SQLite database
+    // Prepare parameters for sqlite3_create_function_v2
+    const char *functionName = "exampleFunction";
+    int numArgs = 1; // Let's assume the function takes one argument
+    int textRep = SQLITE_UTF8;
+    void *userData = NULL;
+
+    // Call the function-under-test
+    int result = sqlite3_create_function_v2(
+        db,
+        functionName,
+        numArgs,
+        textRep,
+        userData,
+        exampleFunc,  // xFunc
+        NULL,         // xStep
+        NULL,         // xFinal
+        NULL          // xDestroy_344
+    );
+
+    // Clean up
     sqlite3_close(db);
 
     return 0;

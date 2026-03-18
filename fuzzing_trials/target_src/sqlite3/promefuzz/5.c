@@ -1,14 +1,15 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
+// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_complete at sqlite3.c:170735:16 in sqlite3.h
+// sqlite3_bind_parameter_count at sqlite3.c:80264:16 in sqlite3.h
+// sqlite3_bind_parameter_name at sqlite3.c:80275:24 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_malloc64 at sqlite3.c:17383:18 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_bind_text64 at sqlite3.c:80167:16 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_memory_highwater at sqlite3.c:17269:26 in sqlite3.h
-// sqlite3_memory_used at sqlite3.c:17258:26 in sqlite3.h
-// sqlite3_status at sqlite3.c:10769:16 in sqlite3.h
-// sqlite3_memory_used at sqlite3.c:17258:26 in sqlite3.h
-// sqlite3_hard_heap_limit64 at sqlite3.c:17198:26 in sqlite3.h
-// sqlite3_soft_heap_limit64 at sqlite3.c:17156:26 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -16,67 +17,51 @@
 #include <stdio.h>
 #include <sqlite3.h>
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static sqlite3_stmt* prepare_dummy_statement(sqlite3* db) {
+    sqlite3_stmt* stmt = NULL;
+    if (db) {
+        const char* sql = "SELECT ?1, :param2, $param3, @param4";
+        sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     }
+    return stmt;
 }
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Prepare the environment
-    sqlite3 *db;
+    sqlite3* db;
     if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Use the data as an SQL statement
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
+    sqlite3_stmt* stmt = prepare_dummy_statement(db);
+    if (!stmt) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0';
 
-    // sqlite3_complete
-    int complete = sqlite3_complete(sql);
-
-    // Free the SQL statement buffer allocated by malloc
-    free(sql);
-
-    // sqlite3_close
-    int close_result = sqlite3_close(db);
-    if (close_result != SQLITE_OK) {
-        return 0;
+    int param_count = sqlite3_bind_parameter_count(stmt);
+    for (int i = 1; i <= param_count; ++i) {
+        const char* param_name = sqlite3_bind_parameter_name(stmt, i);
+        if (param_name) {
+            sqlite3_bind_int(stmt, i, i);
+        }
     }
 
-    // sqlite3_memory_highwater
-    sqlite3_int64 highwater = sqlite3_memory_highwater(0);
+    if (Size > 0) {
+        sqlite3_uint64 alloc_size = (sqlite3_uint64)Data[0];
+        void* mem = sqlite3_malloc64(alloc_size);
+        if (mem) {
+            memset(mem, 0, alloc_size);
+            sqlite3_free(mem);
+        }
 
-    // sqlite3_memory_used
-    sqlite3_int64 memory_used = sqlite3_memory_used();
-
-    // sqlite3_status
-    int current, highwater_status;
-    int status_result = sqlite3_status(SQLITE_STATUS_MEMORY_USED, &current, &highwater_status, 0);
-
-    // Check status result
-    if (status_result != SQLITE_OK) {
-        return 0;
+        if (Size > 1) {
+            const char* text = (const char*)Data + 1;
+            sqlite3_uint64 text_len = Size - 1;
+            sqlite3_bind_text64(stmt, 1, text, text_len, SQLITE_TRANSIENT, SQLITE_UTF8);
+        }
     }
 
-    // sqlite3_memory_used again
-    memory_used = sqlite3_memory_used();
-
-    // sqlite3_hard_heap_limit64
-    sqlite3_int64 hard_limit = sqlite3_hard_heap_limit64(-1);
-
-    // sqlite3_soft_heap_limit64
-    sqlite3_int64 soft_limit = sqlite3_soft_heap_limit64(-1);
-
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
     return 0;
 }

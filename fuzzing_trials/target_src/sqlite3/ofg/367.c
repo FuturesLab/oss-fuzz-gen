@@ -1,34 +1,26 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_367(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract an integer
-    if (size < sizeof(int)) {
-        return 0;
+    // Declare and initialize variables
+    int index = 0;  // Index to query, must be a valid integer
+    const char *keyword = NULL;  // Pointer to store the keyword name
+    int keywordLength = 0;  // Variable to store the length of the keyword
+
+    // Ensure that the index is within a reasonable range for testing
+    if (size > 0) {
+        index = data[0] % 100;  // Limit index to a reasonable range
     }
-
-    // Extract an integer from the input data
-    int keyword_index = *(const int *)data;
-
-    // Ensure keyword_index is non-negative
-    if (keyword_index < 0) {
-        return 0;
-    }
-
-    // Adjust the data pointer and size after extracting the integer
-    data += sizeof(int);
-    size -= sizeof(int);
-
-    // Prepare the output variables for the function call
-    const char *keyword_name = NULL;
-    int keyword_length = 0;
 
     // Call the function-under-test
-    sqlite3_keyword_name(keyword_index, &keyword_name, &keyword_length);
+    int result = sqlite3_keyword_name(index, &keyword, &keywordLength);
 
-    // Additional logic could be added here to use keyword_name and keyword_length
-    // For example, checking if keyword_name is valid and keyword_length is correct
+    // Use the result, keyword, and keywordLength in some way
+    // Here we just check if the result is SQLITE_OK and keyword is not NULL
+    if (result == SQLITE_OK && keyword != NULL) {
+        // Do something with keyword and keywordLength if needed
+    }
 
     return 0;
 }

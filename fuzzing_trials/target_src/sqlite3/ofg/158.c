@@ -1,20 +1,19 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdlib.h>
 #include <string.h>
 
-// A dummy destructor function to use with sqlite3_bind_text16
+// Dummy destructor_158 function to satisfy the sqlite3_bind_text16 signature
 void dummy_destructor_158(void *ptr) {
-    // Do nothing, just a placeholder
+    // Do nothing
 }
 
 int LLVMFuzzerTestOneInput_158(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO test (value) VALUES (?);";
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER, value TEXT); INSERT INTO test (id, value) VALUES (?, ?);";
 
-    // Open a new in-memory database
+    // Open a new database connection in memory
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
@@ -27,10 +26,13 @@ int LLVMFuzzerTestOneInput_158(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Bind the input data as UTF-16 text to the SQL statement
-    rc = sqlite3_bind_text16(stmt, 1, (const void *)data, size, dummy_destructor_158);
+    // Bind an integer to the first parameter
+    sqlite3_bind_int(stmt, 1, 1);
 
-    // Finalize the statement to clean up
+    // Bind the input data to the second parameter as UTF-16 text
+    rc = sqlite3_bind_text16(stmt, 2, (const void *)data, (int)size, dummy_destructor_158);
+    
+    // Finalize the statement
     sqlite3_finalize(stmt);
 
     // Close the database connection

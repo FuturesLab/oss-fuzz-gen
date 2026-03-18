@@ -1,27 +1,47 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_193(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated and not empty
-    if (size == 0) return 0;
-    
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) return 0;
-    
-    memcpy(filename, data, size);
-    filename[size] = '\0'; // Null-terminate the string
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    char *errMsg = 0;
 
-    sqlite3 *db = NULL;
-    int result = sqlite3_open(filename, &db);
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+
+    // Ensure null-terminated string for SQL statement
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+        // Call the function under test
+        const char *original_sql = sqlite3_sql(stmt);
+
+        // Use the result in some way to avoid compiler optimizations
+        if (original_sql != NULL) {
+            (void)strlen(original_sql);
+        }
+
+        // Finalize the statement
+        sqlite3_finalize(stmt);
+    }
 
     // Clean up
-    if (db != NULL) {
-        sqlite3_close(db);
-    }
-    free(filename);
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

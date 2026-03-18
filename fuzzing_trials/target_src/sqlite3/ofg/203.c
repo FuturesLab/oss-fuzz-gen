@@ -1,48 +1,58 @@
+#include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <sqlite3.h>
-
-// Define a dummy function pointer type for DW_TAG_subroutine_typeInfinite loop
-typedef int (*InfiniteLoopFunc)(void*);
-
-// Dummy implementations for the function pointers
-int dummyFunction(void* data) {
-    return 0; // Return a dummy value
-}
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_203(const uint8_t *data, size_t size) {
-    // Initialize variables
-    sqlite3 *db = NULL;
-    InfiniteLoopFunc func1 = dummyFunction;
-    void *param = (void*)data; // Use data as a parameter
-    InfiniteLoopFunc func2 = dummyFunction;
+    sqlite3 *db;
+    sqlite3_blob *blob;
+    int rc;
+    const char *db_filename = "test.db";
+    const char *table_name = "test_table";
+    const char *column_name = "test_column";
+    int row_id = 1;
+    void *buffer;
+    int buffer_size;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0; // Exit if the database cannot be opened
+    // Initialize SQLite database
+    rc = sqlite3_open(db_filename, &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Create a table to ensure the database has some structure
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    char *errMsg = NULL;
-    if (sqlite3_exec(db, createTableSQL, 0, 0, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Create a sample table and insert a row if not exists
+    const char *create_table_sql = "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, test_column BLOB);";
+    sqlite3_exec(db, create_table_sql, 0, 0, 0);
+
+    const char *insert_sql = "INSERT OR IGNORE INTO test_table (id, test_column) VALUES (1, zeroblob(100));";
+    sqlite3_exec(db, insert_sql, 0, 0, 0);
+
+    // Open a blob handle
+    rc = sqlite3_blob_open(db, "main", table_name, column_name, row_id, 0, &blob);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
-        return 0; // Exit if the table cannot be created
+        return 0;
     }
 
-    // Insert some data into the table
-    const char *insertSQL = "INSERT INTO test (value) VALUES ('test');";
-    if (sqlite3_exec(db, insertSQL, 0, 0, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Prepare a buffer for reading
+    buffer_size = size < 100 ? size : 100; // Limit buffer size to 100 for this example
+    buffer = malloc(buffer_size);
+    if (buffer == NULL) {
+        sqlite3_blob_close(blob);
         sqlite3_close(db);
-        return 0; // Exit if data cannot be inserted
+        return 0;
     }
 
-    // Call the function under test with a non-null input
-    int result = sqlite3_autovacuum_pages(db, func1, param, func2);
+    // Copy data to buffer
+    memcpy(buffer, data, buffer_size);
 
-    // Close the SQLite database
+    // Call the function-under-test
+    sqlite3_blob_read(blob, buffer, buffer_size, 0);
+
+    // Clean up
+    free(buffer);
+    sqlite3_blob_close(blob);
     sqlite3_close(db);
 
     return 0;

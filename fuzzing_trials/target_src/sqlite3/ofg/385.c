@@ -1,39 +1,42 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
+#include <stdlib.h>
 
-extern int LLVMFuzzerTestOneInput_385(const uint8_t *data, size_t size) {
-    // Initialize SQLite library
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0;
-    }
+// Dummy function to act as a callback
+void my_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Do nothing
+}
 
-    // Create an in-memory database
+int LLVMFuzzerTestOneInput_385(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
+    int rc;
+    const char *func_name = "my_function";
+    int nArg = 1; // Number of arguments the function takes
+    int eTextRep = SQLITE_UTF8; // Text encoding
+    void *pApp = NULL; // Application data pointer
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a SQL statement from the input data
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL) != SQLITE_OK) {
+    // Ensure data is null-terminated for use as a function name
+    char *func_name_from_data = (char *)malloc(size + 1);
+    if (func_name_from_data == NULL) {
         sqlite3_close(db);
-        sqlite3_shutdown();
         return 0;
     }
+    memcpy(func_name_from_data, data, size);
+    func_name_from_data[size] = '\0';
 
-    // Step through the SQL statement
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        // Process the row (optional)
-    }
+    // Call the function-under-test
+    sqlite3_create_function(db, func_name_from_data, nArg, eTextRep, pApp, my_function, NULL, NULL);
 
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Clean up
+    free(func_name_from_data);
     sqlite3_close(db);
-
-    // Shutdown SQLite library
-    sqlite3_shutdown();
 
     return 0;
 }

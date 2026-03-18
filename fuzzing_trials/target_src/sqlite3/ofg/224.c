@@ -1,42 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_224(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid string
     if (size == 0) {
         return 0;
     }
 
-    // Create an in-memory database
+    // Create a new SQLite memory database
     sqlite3 *db;
     if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table
-    const char *createTableSQL = "CREATE TABLE test (value TEXT);";
-    if (sqlite3_exec(db, createTableSQL, 0, 0, 0) != SQLITE_OK) {
+    // Create a table to insert data into
+    const char *create_table_sql = "CREATE TABLE IF NOT EXISTS fuzz_table (data TEXT);";
+    char *errmsg = NULL;
+    if (sqlite3_exec(db, create_table_sql, 0, 0, &errmsg) != SQLITE_OK) {
+        sqlite3_free(errmsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare an SQL statement for inserting data
+    // Prepare a statement to insert the data
     sqlite3_stmt *stmt;
-    const char *insertSQL = "INSERT INTO test (value) VALUES (?);";
-    if (sqlite3_prepare_v2(db, insertSQL, -1, &stmt, 0) != SQLITE_OK) {
+    const char *sql = "INSERT INTO fuzz_table (data) VALUES (?);";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Bind the fuzz data to the SQL statement
-    if (sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_STATIC) != SQLITE_OK) {
+    // Bind the input data to the statement
+    if (sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT) != SQLITE_OK) {
         sqlite3_finalize(stmt);
         sqlite3_close(db);
         return 0;
     }
 
-    // Execute the SQL statement
+    // Execute the statement
     sqlite3_step(stmt);
 
     // Clean up

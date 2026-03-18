@@ -2,35 +2,45 @@
 #include <sqlite3.h>
 #include <string.h>
 
-// Remove 'extern "C"' to fix the C++ linkage issue since this is C code
+// Dummy callback function to match the expected function pointer type
+void dummy_callback_135() {}
+
+// Fuzzing entry point
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
     sqlite3 *db;
     sqlite3_stmt *stmt;
     int rc;
-    const char *sql = "SELECT * FROM test WHERE id = ?";
-    int index = 1;
-    void *ptr = (void *)data; // Using data as a pointer for fuzzing
-    const char *type = "example_type";
-    // Correcting the type for the function pointer to match sqlite3's expected type
-    void (*destroy)(void*) = NULL;
+    char *errMsg = 0;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data TEXT);";
 
-    // Initialize SQLite in-memory database
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    // Execute SQL to create a table
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Call the function-under-test
-    sqlite3_bind_pointer(stmt, index, ptr, type, destroy);
+    // Prepare a SQL statement
+    sql = "INSERT INTO test (data) VALUES (?);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Finalize the statement and close the database
+    // Use the first byte of data as the index for binding
+    int index = size > 0 ? data[0] % 10 : 0;
+
+    // Bind a pointer to the statement
+    sqlite3_bind_pointer(stmt, index, (void *)data, "test_pointer", (void (*)(void *))dummy_callback_135);
+
+    // Clean up
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 

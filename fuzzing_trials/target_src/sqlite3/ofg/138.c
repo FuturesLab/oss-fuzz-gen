@@ -1,44 +1,44 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sqlite3.h>
-#include <stdlib.h>  // For malloc and free
-#include <string.h>  // For memcpy
+
+// Function prototype for internal SQLite function
+int sqlite3_value_bytes(sqlite3_value*);
 
 int LLVMFuzzerTestOneInput_138(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for splitting into two strings and an integer
-    if (size < 3) {
+    // Ensure the data is not NULL and has a size greater than 0
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Split the data into two strings and an unsigned int
-    size_t str1_len = size / 3;
-    size_t str2_len = size / 3;
-    unsigned int options = (unsigned int)data[size - 1];
+    // Create a new SQLite memory value
+    sqlite3_value *value;
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
 
-    // Allocate memory for the strings and ensure they are null-terminated
-    char *str1 = (char *)malloc(str1_len + 1);
-    char *str2 = (char *)malloc(str2_len + 1);
-
-    if (str1 == NULL || str2 == NULL) {
-        // Memory allocation failed
-        free(str1);
-        free(str2);
+    // Open a temporary SQLite database in memory
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Copy data into the strings
-    memcpy(str1, data, str1_len);
-    str1[str1_len] = '\0';
+    // Prepare a dummy SQL statement
+    if (sqlite3_prepare_v2(db, "SELECT ?", -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    memcpy(str2, data + str1_len, str2_len);
-    str2[str2_len] = '\0';
+    // Bind the input data to the SQL statement
+    sqlite3_bind_text(stmt, 1, (const char *)data, (int)size, SQLITE_TRANSIENT);
+
+    // Retrieve the bound value
+    value = sqlite3_column_value(stmt, 0);
 
     // Call the function-under-test
-    int result = sqlite3_strlike(str1, str2, options);
+    int bytes = sqlite3_value_bytes(value);
 
-    // Free the allocated memory
-    free(str1);
-    free(str2);
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

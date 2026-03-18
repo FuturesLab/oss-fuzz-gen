@@ -1,32 +1,48 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stddef.h> // Include for size_t
 
 int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    // Declare and initialize a sqlite3_blob pointer
-    sqlite3_blob *blob = NULL;
-
-    // Initialize SQLite database connection and prepare a blob for testing
     sqlite3 *db;
-    sqlite3_open(":memory:", &db);
+    sqlite3_blob *blob;
+    int rc;
+    
+    // Open a connection to an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
 
-    // Create a table and insert a blob for testing
-    sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);", 0, 0, 0);
-    sqlite3_exec(db, "INSERT INTO test (data) VALUES (zeroblob(10));", 0, 0, 0);
+    // Create a table and insert a blob
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Open a blob for testing
-    sqlite3_blob_open(db, "main", "test", "data", 1, 0, &blob);
+    rc = sqlite3_exec(db, "INSERT INTO test (data) VALUES (zeroblob(10));", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // If data is not null and size is greater than 0, write data to the blob
-    if (blob != NULL && data != NULL && size > 0) {
-        size_t write_size = size < 10 ? size : 10; // Ensure we don't write more than the blob size
-        sqlite3_blob_write(blob, data, write_size, 0);
+    // Open a blob handle
+    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 1, &blob);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
     // Call the function-under-test
+    // Write data to the blob, limiting the write size to the blob size (10 bytes here)
+    if (size > 0) {
+        int write_size = size < 10 ? size : 10; // Limit the write size to 10 bytes
+        sqlite3_blob_write(blob, data, write_size, 0);
+    }
+
     sqlite3_blob_close(blob);
 
-    // Clean up the database connection
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

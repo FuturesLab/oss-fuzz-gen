@@ -1,26 +1,27 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sqlite3.h>
+#include <string.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_351(const uint8_t *data, size_t size) {
-    // Initialize the sqlite3_str object
+    // Initialize a sqlite3_str object
     sqlite3_str *str = sqlite3_str_new(NULL);
 
-    // Ensure the data is null-terminated before passing it as a string
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Ensure the data is null-terminated for use as a C string
+    char *cstr = (char *)malloc(size + 1);
+    if (cstr == NULL) {
+        sqlite3_str_finish(str);
+        return 0;
     }
-    memcpy(inputString, data, size);
-    inputString[size] = '\0';
+    memcpy(cstr, data, size);
+    cstr[size] = '\0';
 
     // Call the function-under-test
-    sqlite3_str_appendall(str, inputString);
+    sqlite3_str_appendall(str, cstr);
 
     // Clean up
-    free(inputString);
+    free(cstr);
     sqlite3_str_finish(str);
 
     return 0;

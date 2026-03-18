@@ -1,52 +1,23 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <sqlite3.h>
+#include <sqlite3.h>  // Include the SQLite3 header for sqlite3_malloc
 
 int LLVMFuzzerTestOneInput_381(const uint8_t *data, size_t size) {
-    // Ensure the size is not zero to avoid passing zero to sqlite3_malloc
-    if (size == 0) return 0;
-
-    // Initialize SQLite
-    sqlite3 *db;
-    char *errMsg = 0;
-    int rc;
-
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        sqlite3_close(db);
+    // Ensure there is at least one byte to read
+    if (size < 1) {
         return 0;
     }
 
-    // Prepare a simple SQL statement using the input data
-    const char *sql = "CREATE TABLE IF NOT EXISTS fuzz_table(data BLOB);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
+    // Use the first byte of data to determine the size for sqlite3_malloc
+    int malloc_size = (int)data[0];
+
+    // Call the function-under-test
+    void *allocated_memory = sqlite3_malloc(malloc_size);
+
+    // Free the allocated memory if it is not NULL
+    if (allocated_memory != NULL) {
+        sqlite3_free(allocated_memory);
     }
-
-    // Insert the input data into the table
-    sqlite3_stmt *stmt;
-    sql = "INSERT INTO fuzz_table(data) VALUES(?);";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind the input data to the SQL statement
-    sqlite3_bind_blob(stmt, 1, data, (int)size, SQLITE_STATIC);
-
-    // Execute the statement
-    sqlite3_step(stmt);
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Close the database
-    sqlite3_close(db);
 
     return 0;
 }

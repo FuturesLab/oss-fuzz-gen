@@ -1,15 +1,15 @@
 #include <stdint.h>
-#include <sqlite3.h>
 #include <stddef.h>
+#include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_372(const uint8_t *data, size_t size) {
     sqlite3 *db;
     sqlite3_stmt *stmt;
     int rc;
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value REAL);"
-                      "INSERT INTO test (value) VALUES (?);";
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);"
+                      "INSERT INTO test (data) VALUES (?);";
 
-    // Open a new in-memory SQLite database
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
@@ -22,21 +22,16 @@ int LLVMFuzzerTestOneInput_372(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Ensure we have enough data to extract an integer and a double
-    if (size < sizeof(int) + sizeof(double)) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
+    // Ensure that the size is not zero to avoid binding a zero-length blob
+    if (size > 0) {
+        // Bind a zeroblob to the first parameter of the prepared statement
+        sqlite3_bind_zeroblob(stmt, 1, (int)size);
+
+        // Execute the statement
+        sqlite3_step(stmt);
     }
 
-    // Extract an integer and a double from the input data
-    int index = *((int *)data);
-    double value = *((double *)(data + sizeof(int)));
-
-    // Bind the double value to the prepared statement
-    sqlite3_bind_double(stmt, index, value);
-
-    // Finalize and close
+    // Clean up
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 

@@ -3,37 +3,23 @@
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_222(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    sqlite3_index_info indexInfo;
-    struct sqlite3_index_constraint constraints[1];
-    struct sqlite3_index_orderby orderby[1];
-    struct sqlite3_index_constraint_usage constraintUsage[1];
-
-    // Initialize the sqlite3_index_info structure
-    indexInfo.nConstraint = 1;
-    indexInfo.aConstraint = constraints;
-    indexInfo.nOrderBy = 1;
-    indexInfo.aOrderBy = orderby;
-    indexInfo.aConstraintUsage = constraintUsage;
-    indexInfo.idxNum = 0;
-    indexInfo.idxStr = NULL;
-    indexInfo.needToFreeIdxStr = 0;
-    indexInfo.orderByConsumed = 0;
-    indexInfo.estimatedCost = 0.0;
-    indexInfo.estimatedRows = 0;
-    indexInfo.idxFlags = 0;
-    indexInfo.colUsed = 0;
-
-    // Ensure the input data is not null
-    if (data == NULL || size == 0) {
+    // Ensure that the input size is sufficient to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Call a valid function-under-test
-    // Since sqlite3_vtab_distinct is not a standard function, replace it with a valid one
-    // For demonstration, let's assume a hypothetical function named sqlite3_test_function
-    // int result = sqlite3_test_function(&indexInfo, data, size); // Hypothetical function
+    // Extract an integer from the input data
+    int error_code = *(const int*)data;
 
-    // Return 0 to indicate no crash
+    // Call the function-under-test
+    const char *error_message = sqlite3_errstr(error_code);
+
+    // Use the error_message to avoid compiler optimizations removing the call
+    if (error_message != NULL) {
+        // Do something trivial with the error_message
+        volatile char first_char = error_message[0];
+        (void)first_char; // Prevent unused variable warning
+    }
+
     return 0;
 }

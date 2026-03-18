@@ -1,33 +1,47 @@
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
 #include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
     sqlite3 *db;
     sqlite3_stmt *stmt;
     int rc;
-
-    if (size == 0) {
-        return 0;
-    }
-
-    // Open an in-memory database
+    
+    // Open a temporary in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a statement using the input data
-    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
+    // Create a simple table
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare a SQL statement using the fuzzer input
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    free(sql);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
     // Call the function-under-test
-    int isExplain = sqlite3_stmt_isexplain(stmt);
+    sqlite3_reset(stmt);
 
-    // Finalize the statement and close the database
+    // Clean up
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 

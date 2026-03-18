@@ -1,86 +1,100 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_malloc64 at sqlite3.c:17383:18 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_free_table at sqlite3.c:141881:17 in sqlite3.h
-// sqlite3_free_filename at sqlite3.c:175855:17 in sqlite3.h
-// sqlite3_vmprintf at sqlite3.c:19305:18 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_db_readonly at sqlite3.c:175999:16 in sqlite3.h
+// sqlite3_filename_wal at sqlite3.c:175942:24 in sqlite3.h
+// sqlite3_wal_checkpoint_v2 at sqlite3.c:173557:16 in sqlite3.h
+// sqlite3_set_errmsg at sqlite3.c:173751:16 in sqlite3.h
+// sqlite3_wal_checkpoint at sqlite3.c:173627:16 in sqlite3.h
+// sqlite3_uri_parameter at sqlite3.c:175873:24 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sqlite3.h>
-#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
-static void fuzz_sqlite3_malloc64(sqlite3_uint64 size) {
-    void *ptr = sqlite3_malloc64(size);
-    if (ptr) {
-        sqlite3_free(ptr);
+// Helper function to create a dummy SQLite database
+static sqlite3* create_dummy_db() {
+    sqlite3 *db = NULL;
+    int rc = sqlite3_open("./dummy_file", &db);
+    if (rc != SQLITE_OK) {
+        if (db) sqlite3_close(db);
+        return NULL;
+    }
+    return db;
+}
+
+// Helper function to create a dummy file
+static void create_dummy_file() {
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fputs("Dummy content", file);
+        fclose(file);
     }
 }
 
-static void fuzz_sqlite3_free(void *ptr) {
-    sqlite3_free(ptr);
-}
-
-static void fuzz_sqlite3_free_table(char **result) {
-    if (result && *result) {
-        sqlite3_free_table(result);
-    }
-}
-
-static void fuzz_sqlite3_free_filename(sqlite3_filename filename) {
-    sqlite3_free_filename(filename);
-}
-
-static void fuzz_sqlite3_mprintf(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    char *result = sqlite3_vmprintf(fmt, args);
-    va_end(args);
-    if (result) {
-        sqlite3_free(result);
-    }
-}
-
-static void fuzz_sqlite3_malloc(int size) {
-    void *ptr = sqlite3_malloc(size);
-    if (ptr) {
-        sqlite3_free(ptr);
-    }
+// Helper function to extract a string from the input data
+static const char* extract_string(const uint8_t *Data, size_t Size, size_t *offset) {
+    if (*offset >= Size) return NULL;
+    const char *str = (const char *)&Data[*offset];
+    size_t str_len = strnlen(str, Size - *offset);
+    if (*offset + str_len >= Size) return NULL; // Ensure null-terminator is within bounds
+    *offset += str_len + 1;
+    return str;
 }
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(sqlite3_uint64) + sizeof(int)) {
-        return 0;
+    create_dummy_file();
+
+    sqlite3 *db = create_dummy_db();
+    if (!db) return 0;
+
+    size_t offset = 0;
+    const char *zDbName = extract_string(Data, Size, &offset);
+    const char *zParam = extract_string(Data, Size, &offset);
+    const char *zErrMsg = extract_string(Data, Size, &offset);
+
+    // Test sqlite3_db_readonly
+    if (zDbName) {
+        int readonly = sqlite3_db_readonly(db, zDbName);
     }
 
-    sqlite3_uint64 malloc64_size;
-    int malloc_size;
-    const char *fmt = "%s";
+    // Test sqlite3_filename_wal
+    if (zDbName && strlen(zDbName) > 0) {
+        const char *wal_filename = sqlite3_filename_wal(zDbName);
+        // Ensure that wal_filename is not NULL before accessing it
+        if (wal_filename) {
+            // Use wal_filename for any further operations if needed
+        }
+    }
 
-    malloc64_size = *((sqlite3_uint64*)Data);
-    Data += sizeof(sqlite3_uint64);
-    Size -= sizeof(sqlite3_uint64);
+    // Test sqlite3_wal_checkpoint_v2
+    int pnLog, pnCkpt;
+    int checkpoint_mode = SQLITE_CHECKPOINT_PASSIVE;
+    if (offset < Size) {
+        checkpoint_mode = Data[offset] % 5; // Randomly select a mode
+        offset++;
+    }
+    int rc = sqlite3_wal_checkpoint_v2(db, zDbName, checkpoint_mode, &pnLog, &pnCkpt);
 
-    malloc_size = *((int*)Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
+    // Test sqlite3_set_errmsg
+    if (zErrMsg) {
+        sqlite3_set_errmsg(db, rc, zErrMsg);
+    }
 
-    fuzz_sqlite3_malloc64(malloc64_size);
-    fuzz_sqlite3_free(NULL);
+    // Test sqlite3_wal_checkpoint
+    rc = sqlite3_wal_checkpoint(db, zDbName);
 
-    // Ensure dummy_result is safely initialized with a valid pointer
-    char *dummy_result[2] = { NULL, NULL };
-    fuzz_sqlite3_free_table(dummy_result);
+    // Test sqlite3_uri_parameter
+    if (zParam) {
+        const char *param_value = sqlite3_uri_parameter(zDbName, zParam);
+    }
 
-    fuzz_sqlite3_free_filename(NULL);
-    fuzz_sqlite3_mprintf(fmt, "test");
-    fuzz_sqlite3_malloc(malloc_size);
-
+    sqlite3_close(db);
     return 0;
 }

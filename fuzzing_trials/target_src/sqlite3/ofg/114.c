@@ -1,41 +1,35 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
 #include <string.h>
-#include <stdlib.h> // Include stdlib.h for malloc and free
 
-// A sample collation comparison function
-static int sample_collation(void *pArg, int len1, const void *str1, int len2, const void *str2) {
-    return strcmp((const char *)str1, (const char *)str2);
+// Example collation function
+int example_collation(void *notUsed, int len1, const void *str1, int len2, const void *str2) {
+    return strncmp((const char *)str1, (const char *)str2, len1 < len2 ? len1 : len2);
 }
 
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
     sqlite3 *db;
     int rc;
-    const char *collationName = "sample_collation";
-    int textRep = SQLITE_UTF8;
-    void *pArg = NULL;
+    char *errMsg = 0;
 
-    // Open an in-memory SQLite database
+    // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (rc) {
         return 0;
     }
 
-    // Ensure the data is null-terminated for collation name
-    char *nullTerminatedData = (char *)malloc(size + 1);
-    if (nullTerminatedData == NULL) {
-        sqlite3_close(db);
-        return 0;
+    // Ensure the data is null-terminated to safely use as a string
+    char collationName[256];
+    if (size > 255) {
+        size = 255;
     }
-    memcpy(nullTerminatedData, data, size);
-    nullTerminatedData[size] = '\0';
+    memcpy(collationName, data, size);
+    collationName[size] = '\0';
 
     // Call the function-under-test
-    sqlite3_create_collation(db, nullTerminatedData, textRep, pArg, sample_collation);
+    rc = sqlite3_create_collation(db, collationName, SQLITE_UTF8, NULL, example_collation);
 
-    // Clean up
-    free(nullTerminatedData);
+    // Close the database
     sqlite3_close(db);
 
     return 0;

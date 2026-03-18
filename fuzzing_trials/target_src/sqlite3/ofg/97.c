@@ -1,44 +1,34 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include this for size_t
 #include <sqlite3.h>
-#include <string.h>
 
+// Fuzzing function
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-    
-    // Open a new in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Ensure that the size is large enough to extract integers
+    if (size < sizeof(int) + 2 * sizeof(sqlite3_int64)) {
         return 0;
     }
 
-    // Prepare a list of module names to drop
-    const char *modules[] = {"module1", "module2", "module3", NULL};
+    // Extract the first integer from the data
+    int status_op = *(const int*)data;
+    data += sizeof(int);
+    size -= sizeof(int);
 
-    // Ensure the function is called with valid data
-    if (size > 0) {
-        // Copy the input data to a null-terminated string
-        char *input = (char *)malloc(size + 1);
-        if (!input) {
-            sqlite3_close(db);
-            return 0;
-        }
-        memcpy(input, data, size);
-        input[size] = '\0';
+    // Extract the first sqlite3_int64 from the data
+    sqlite3_int64 current = *(const sqlite3_int64*)data;
+    data += sizeof(sqlite3_int64);
+    size -= sizeof(sqlite3_int64);
 
-        // Call the function-under-test with the input
-        sqlite3_exec(db, input, 0, 0, 0);
+    // Extract the second sqlite3_int64 from the data
+    sqlite3_int64 highwater = *(const sqlite3_int64*)data;
+    data += sizeof(sqlite3_int64);
+    size -= sizeof(sqlite3_int64);
 
-        // Free the allocated memory
-        free(input);
-    }
+    // Extract the final integer from the data
+    int reset_flag = *(const int*)data;
 
-    // Call the function-under-test with the modules
-    sqlite3_drop_modules(db, modules);
-
-    // Close the database
-    sqlite3_close(db);
+    // Call the function-under-test
+    sqlite3_status64(status_op, &current, &highwater, reset_flag);
 
     return 0;
 }

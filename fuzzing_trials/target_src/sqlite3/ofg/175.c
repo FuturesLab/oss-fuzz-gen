@@ -1,57 +1,39 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
 #include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_175(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
+    sqlite3 *db = NULL;
     int rc;
-    char *errMsg = 0;
+    unsigned char *serialized_data;
+    sqlite3_int64 serialized_size;
+    unsigned int flags = 0;
 
-    // Initialize SQLite in-memory database
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Ensure the data is null-terminated and use it as the schema name
+    char *schema_name = (char *)malloc(size + 1);
+    if (schema_name == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(schema_name, data, size);
+    schema_name[size] = '\0';
 
-    // Prepare an insert statement
-    rc = sqlite3_prepare_v2(db, "INSERT INTO test (value) VALUES (?);", -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Call the function-under-test
+    serialized_data = sqlite3_serialize(db, schema_name, &serialized_size, flags);
+
+    // Free the allocated resources
+    free(schema_name);
+    if (serialized_data != NULL) {
+        sqlite3_free(serialized_data);
     }
-
-    // Bind the input data as a text value
-    sqlite3_bind_text(stmt, 1, (const char*)data, size, SQLITE_STATIC);
-
-    // Execute the statement
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    // Prepare a select statement
-    rc = sqlite3_prepare_v2(db, "SELECT id FROM test;", -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the select statement and call the function-under-test
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        int id = sqlite3_column_int(stmt, 0);
-        (void)id; // Use the result to avoid unused variable warning
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

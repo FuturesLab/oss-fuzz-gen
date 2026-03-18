@@ -1,73 +1,65 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdlib.h>
+#include <assert.h>
 #include <string.h>
 
-int LLVMFuzzerTestOneInput_310(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    sqlite3 *db = NULL;
+// Function to create a simple SQLite statement for testing
+sqlite3_stmt* create_test_stmt(sqlite3 *db) {
+    const char *sql = "CREATE TABLE test (id INTEGER, name TEXT);"
+                      "INSERT INTO test (id, name) VALUES (1, 'Alice');"
+                      "SELECT * FROM test;";
     sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    assert(rc == SQLITE_OK);
+    return stmt;
+}
+
+int LLVMFuzzerTestOneInput_310(const uint8_t *data, size_t size) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);"
-                      "INSERT INTO test (data) VALUES (?);";
+    int column_index;
 
-    // Open an in-memory SQLite database
+    // Initialize SQLite database in memory
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
+    assert(rc == SQLITE_OK);
 
-    // Execute the SQL to create the table
-    rc = sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);", NULL, NULL, NULL);
-    if (rc != SQLITE_OK) {
+    // Create a test statement
+    stmt = create_test_stmt(db);
+
+    // Ensure the statement is valid
+    if (stmt == NULL) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, "INSERT INTO test (data) VALUES (?);", -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Use the data as the blob to bind
-    const void *blob = (const void *)data;
-    int blob_size = (int)size;
-
-    // Define a destructor for the blob, using SQLITE_TRANSIENT to make SQLite copy the data
-    // Cast SQLITE_TRANSIENT to a function pointer
-    rc = sqlite3_bind_blob(stmt, 1, blob, blob_size, SQLITE_TRANSIENT);
-    if (rc != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement
+    // Execute the statement to ensure the table and data are set up
     rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
+    while (rc == SQLITE_ROW || rc == SQLITE_DONE) {
+        rc = sqlite3_step(stmt);
+    }
+    sqlite3_reset(stmt);
+
+    // Use the data to determine the column index
+    if (size > 0) {
+        column_index = data[0] % 2;  // Assuming we have 2 columns in the test table
+    } else {
+        column_index = 0;
     }
 
-    // Finalize the statement
-    sqlite3_finalize(stmt);
+    // Call the function-under-test
+    rc = sqlite3_step(stmt); // Move to the first row of the result set
+    if (rc == SQLITE_ROW) {
+        const void *column_name = sqlite3_column_name16(stmt, column_index);
 
-    // Prepare a simple select statement to exercise the database
-    rc = sqlite3_prepare_v2(db, "SELECT * FROM test;", -1, &stmt, NULL);
-    if (rc == SQLITE_OK) {
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            // Access the data to ensure the row is processed
-            const void *retrieved_blob = sqlite3_column_blob(stmt, 1);
-            int retrieved_blob_size = sqlite3_column_bytes(stmt, 1);
-            (void)retrieved_blob; // Use the retrieved_blob to avoid unused variable warning
-            (void)retrieved_blob_size;
+        // Check that the column name is not NULL
+        if (column_name != NULL) {
+            // Do something with the column name if needed
+            (void)column_name;  // Suppress unused variable warning
         }
     }
 
-    // Finalize the select statement and close the database
+    // Finalize the statement and close the database
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 

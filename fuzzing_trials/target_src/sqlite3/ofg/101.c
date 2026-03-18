@@ -1,39 +1,57 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// Define a dummy callback function outside of any other function
-void collation_needed_callback_101(void *pArg, sqlite3 *db, int eTextRep, const void *pName) {
-    // This is a stub function for the callback
-}
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_101(const uint8_t *data, size_t size) {
-    // Initialize sqlite3 database connection
     sqlite3 *db;
-    int rc = sqlite3_open(":memory:", &db);
+    sqlite3_stmt *stmt;
+    int rc;
+    const char *sql;
+    const void *result;
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure data is not NULL
-    void *pArg = (void *)data;
-    if (pArg == NULL) {
-        pArg = (void *)"default";
+    // Create a simple table
+    sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Call the function-under-test
-    sqlite3_collation_needed16(db, pArg, collation_needed_callback_101);
+    // Insert a sample row
+    sql = "INSERT INTO test (value) VALUES ('sample');";
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Close the database connection
+    // Prepare a statement using the input data
+    sql = "SELECT value FROM test WHERE id = ?;";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Bind the input data as an integer to the statement
+    int input_id = size > 0 ? data[0] % 2 : 0; // Ensure a valid index
+    sqlite3_bind_int(stmt, 1, input_id);
+
+    // Execute the statement and call the function-under-test
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        result = sqlite3_column_text16(stmt, 0);
+    }
+
+    // Cleanup
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

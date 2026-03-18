@@ -1,15 +1,15 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
+// sqlite3_create_collation at sqlite3.c:174754:16 in sqlite3.h
+// sqlite3_result_null at sqlite3.c:78859:17 in sqlite3.h
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_wal_checkpoint at sqlite3.c:173627:16 in sqlite3.h
-// sqlite3_backup_init at sqlite3.c:69968:28 in sqlite3.h
-// sqlite3_backup_step at sqlite3.c:70142:16 in sqlite3.h
-// sqlite3_backup_finish at sqlite3.c:70399:16 in sqlite3.h
-// sqlite3_wal_autocheckpoint at sqlite3.c:173506:16 in sqlite3.h
-// sqlite3_wal_hook at sqlite3.c:173527:18 in sqlite3.h
-// sqlite3_txn_state at sqlite3.c:172326:16 in sqlite3.h
-// sqlite3_wal_checkpoint_v2 at sqlite3.c:173557:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_create_collation16 at sqlite3.c:174792:16 in sqlite3.h
+// sqlite3_collation_needed at sqlite3.c:174822:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_create_collation_v2 at sqlite3.c:174767:16 in sqlite3.h
+// sqlite3_create_function at sqlite3.c:173127:16 in sqlite3.h
+// sqlite3_create_module_v2 at sqlite3.c:145711:16 in sqlite3.h
+// sqlite3_create_collation at sqlite3.c:174754:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
@@ -17,69 +17,86 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sqlite3.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 
-static int dummy_wal_hook(void *pArg, sqlite3 *db, const char *zDbName, int nPages) {
-    return SQLITE_OK; // Return SQLITE_OK for the hook
+static int dummy_compare(void* pArg, int len1, const void* str1, int len2, const void* str2) {
+    return memcmp(str1, str2, len1 < len2 ? len1 : len2);
 }
 
+static void dummy_collation_needed(void* pArg, sqlite3* db, int eTextRep, const char* zName) {
+    sqlite3_create_collation(db, zName, eTextRep, NULL, dummy_compare);
+}
+
+static void dummy_function(sqlite3_context* context, int argc, sqlite3_value** argv) {
+    sqlite3_result_null(context);
+}
+
+static int dummy_module_create(sqlite3* db, void* pAux, int argc, const char* const* argv, sqlite3_vtab** ppVTab, char** pzErr) {
+    return SQLITE_OK;
+}
+
+static sqlite3_module dummy_module = {
+    1,
+    dummy_module_create,
+    dummy_module_create,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
 int LLVMFuzzerTestOneInput_68(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there is data to process
+    if (Size < 4) { // Ensure enough data for UTF-16
+        return 0;
+    }
 
     sqlite3 *db;
-    sqlite3_backup *backup;
-    int rc;
-    const char *zDbName = "main";
-    int nPages = 1;
-    int checkpointMode = SQLITE_CHECKPOINT_PASSIVE;
-    int nLog, nCkpt;
-    int txnState;
-    int autoCheckpointN = 1000;
-
-    // Open a new in-memory database
-    rc = sqlite3_open(":memory:", &db);
+    int rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a dummy table to work with
-    sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, 0);
+    void* pArg = NULL;
+    int eTextRep = SQLITE_UTF8;
 
-    // Write data to the database based on the input
-    for (size_t i = 0; i < Size; i++) {
-        char sql[100];
-        snprintf(sql, sizeof(sql), "INSERT INTO test (value) VALUES ('%c');", Data[i]);
-        sqlite3_exec(db, sql, 0, 0, 0);
+    // Ensure UTF-16 data is properly sized and null-terminated
+    size_t utf16Size = (Size / 2) * 2; // Ensure it's an even number
+    uint16_t* zName16 = (uint16_t*)malloc(utf16Size + 2); // Extra space for null terminator
+    if (!zName16) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(zName16, Data, utf16Size);
+    zName16[utf16Size / 2] = 0; // Null-terminate the UTF-16 string
+
+    // Fuzzing sqlite3_create_collation16
+    if (utf16Size >= 4) { // Ensure there is at least 2 UTF-16 characters
+        sqlite3_create_collation16(db, zName16, eTextRep, pArg, dummy_compare);
     }
 
-    // Test sqlite3_wal_checkpoint
-    sqlite3_wal_checkpoint(db, zDbName);
+    // Fuzzing sqlite3_collation_needed
+    sqlite3_collation_needed(db, pArg, dummy_collation_needed);
 
-    // Initialize a backup
-    backup = sqlite3_backup_init(db, "main", db, "main");
-    if (backup) {
-        // Test sqlite3_backup_step
-        sqlite3_backup_step(backup, nPages);
-        sqlite3_backup_finish(backup);
+    // Fuzzing sqlite3_create_collation_v2
+    char* zName = (char*)malloc(Size + 1); // Allocate space for null-terminated string
+    if (!zName) {
+        free(zName16);
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(zName, Data, Size);
+    zName[Size] = '\0'; // Null-terminate the string
+    void (*xDestroy)(void*) = NULL;
+    sqlite3_create_collation_v2(db, zName, eTextRep, pArg, dummy_compare, xDestroy);
 
-    // Test sqlite3_wal_autocheckpoint
-    sqlite3_wal_autocheckpoint(db, autoCheckpointN);
+    // Fuzzing sqlite3_create_function
+    sqlite3_create_function(db, zName, -1, eTextRep, pArg, dummy_function, NULL, NULL);
 
-    // Test sqlite3_wal_hook
-    sqlite3_wal_hook(db, dummy_wal_hook, NULL);
+    // Fuzzing sqlite3_create_module_v2
+    void (*xDestroyModule)(void*) = NULL;
+    sqlite3_create_module_v2(db, zName, &dummy_module, pArg, xDestroyModule);
 
-    // Test sqlite3_txn_state
-    txnState = sqlite3_txn_state(db, zDbName);
+    // Fuzzing sqlite3_create_collation
+    sqlite3_create_collation(db, zName, eTextRep, pArg, dummy_compare);
 
-    // Test sqlite3_wal_checkpoint_v2
-    sqlite3_wal_checkpoint_v2(db, zDbName, checkpointMode, &nLog, &nCkpt);
-
-    // Clean up
+    free(zName);
+    free(zName16);
     sqlite3_close(db);
-
     return 0;
 }

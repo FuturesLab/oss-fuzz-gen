@@ -3,23 +3,25 @@
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_341(const uint8_t *data, size_t size) {
-    // Ensure that the size of data is at least the size of sqlite3_uint64
-    if (size < sizeof(sqlite3_uint64)) {
-        return 0;
-    }
+    // Use the input data in some way to maximize fuzzing
+    if (size > 0) {
+        // Attempt to open an in-memory SQLite database
+        sqlite3 *db;
+        int rc = sqlite3_open(":memory:", &db);
+        
+        if (rc == SQLITE_OK) {
+            // Prepare a SQL statement using the input data
+            sqlite3_stmt *stmt;
+            rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
+            
+            if (rc == SQLITE_OK) {
+                // Finalize the statement to avoid memory leaks
+                sqlite3_finalize(stmt);
+            }
 
-    // Extract a sqlite3_uint64 value from the input data
-    sqlite3_uint64 alloc_size = 0;
-    for (size_t i = 0; i < sizeof(sqlite3_uint64); ++i) {
-        alloc_size |= ((sqlite3_uint64)data[i]) << (i * 8);
-    }
-
-    // Call the function-under-test
-    void *allocated_memory = sqlite3_malloc64(alloc_size);
-
-    // If memory was allocated, free it
-    if (allocated_memory != NULL) {
-        sqlite3_free(allocated_memory);
+            // Close the database connection
+            sqlite3_close(db);
+        }
     }
 
     return 0;

@@ -1,39 +1,43 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this to define size_t
 #include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
+// Remove 'extern "C"' as it is not needed in C code
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
+    // Initialize SQLite3 context
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO test (value) VALUES ('test');";
-    const char *decl_type;
-    int rc;
+    sqlite3_open(":memory:", &db);
 
-    // Open a new in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Create a buffer to hold the data
+        void *buffer = malloc(size);
+        if (buffer != NULL) {
+            // Copy the data into the buffer
+            memcpy(buffer, data, size);
+
+            // Prepare a statement
+            sqlite3_stmt *stmt;
+            if (sqlite3_prepare_v2(db, (const char *)buffer, size, &stmt, NULL) == SQLITE_OK) {
+                // Bind the value
+                sqlite3_bind_text(stmt, 1, (const char *)buffer, size, SQLITE_TRANSIENT);
+
+                // Step through the statement
+                while (sqlite3_step(stmt) == SQLITE_ROW) {
+                    // Process the row
+                }
+
+                // Finalize the statement
+                sqlite3_finalize(stmt);
+            }
+
+            // Free the buffer
+            free(buffer);
+        }
     }
 
-    // Execute SQL to create a table and insert a row
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare a statement to select from the table
-    rc = sqlite3_prepare_v2(db, "SELECT * FROM test;", -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Call the function-under-test with the prepared statement and column index
-    decl_type = sqlite3_column_decltype(stmt, 1);
-
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Close the SQLite3 database
     sqlite3_close(db);
 
     return 0;

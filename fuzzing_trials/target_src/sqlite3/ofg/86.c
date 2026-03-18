@@ -1,43 +1,48 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdio.h>
 #include <string.h>
 
-// Helper function to create and prepare a dummy SQLite statement
-static sqlite3_stmt* create_dummy_stmt(sqlite3 *db) {
-    sqlite3_stmt *stmt = NULL;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return NULL;
-    }
-    return stmt;
-}
-
 int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    int result = 0;
+    // Initialize SQLite
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Create an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a dummy statement
-    stmt = create_dummy_stmt(db);
-    if (stmt == NULL) {
+    // Create a simple table
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Call the function-under-test
-    result = sqlite3_stmt_busy(stmt);
+    // Prepare a statement using the input data
+    char *sql = (char *)sqlite3_malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0'; // Ensure null-termination
 
-    // Print result for debugging purposes
-    printf("sqlite3_stmt_busy result: %d\n", result);
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    sqlite3_free(sql);
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    if (rc == SQLITE_OK) {
+        // Call the function-under-test
+        int busy = sqlite3_stmt_busy(stmt);
+
+        // Finalize the statement
+        sqlite3_finalize(stmt);
+    }
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

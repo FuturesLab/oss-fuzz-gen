@@ -1,45 +1,49 @@
-#include <sqlite3.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <sqlite3.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdlib.h>  // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_182(const uint8_t *data, size_t size) {
-    // Initialize SQLite database connection
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    sqlite3_stmt *stmt;
+    int rc;
+    char *errMsg = 0;
+    char *sql = "CREATE TABLE IF NOT EXISTS test(id INT, value TEXT); INSERT INTO test (id, value) VALUES (?, ?);";
+
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a dummy table for testing
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER, name TEXT);";
-    sqlite3_exec(db, createTableSQL, 0, 0, 0);
-
-    // Ensure data is null-terminated for string operations
-    char *dataCopy = (char *)malloc(size + 1);
-    if (dataCopy == NULL) {
+    // Execute SQL to create table
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
-    memcpy(dataCopy, data, size);
-    dataCopy[size] = '\0';
 
-    // Prepare test inputs
-    const char *dbName = "main"; // Using the default main database
-    const char *tableName = "test";
-    const char *columnName = dataCopy; // Use fuzzer input as column name
+    // Prepare a statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    const char *dataType = NULL;
-    const char *collSeq = NULL;
-    int notNull = 0;
-    int primaryKey = 0;
-    int autoInc = 0;
+    // Bind data to the statement
+    if (size > 0) {
+        sqlite3_bind_int(stmt, 1, data[0]);
+    }
+    if (size > 1) {
+        sqlite3_bind_text(stmt, 2, (const char *)(data + 1), size - 1, SQLITE_TRANSIENT);
+    }
 
     // Call the function-under-test
-    sqlite3_table_column_metadata(db, dbName, tableName, columnName, &dataType, &collSeq, &notNull, &primaryKey, &autoInc);
+    sqlite3_clear_bindings(stmt);
 
-    // Clean up
-    free(dataCopy);
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

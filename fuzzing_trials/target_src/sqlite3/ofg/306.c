@@ -1,73 +1,36 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <sqlite3.h>
 #include <string.h>
-#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_306(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
+    char *errmsg = 0;
     int rc;
-    const char *sql;
-    const void *declType;
-
+    
     // Initialize SQLite database in memory
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (rc) {
         return 0;
     }
 
-    // Create a simple table
-    sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Ensure the input data is null-terminated for use as a string
+    char *func_name = (char *)malloc(size + 1);
+    if (func_name == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(func_name, data, size);
+    func_name[size] = '\0';
 
-    // Prepare an insert statement
-    sql = "INSERT INTO test (value) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Use a fixed number of arguments for the function overload
+    int numArgs = 1;
 
-    // Bind the input data to the statement
-    rc = sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
-    if (rc != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Reset the statement to reuse it
-    sqlite3_reset(stmt);
-
-    // Prepare a select statement
-    sql = "SELECT * FROM test;";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the select statement
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Call the function-under-test
-        declType = sqlite3_column_decltype16(stmt, 1);
-    }
+    // Call the function-under-test
+    sqlite3_overload_function(db, func_name, numArgs);
 
     // Clean up
-    sqlite3_finalize(stmt);
+    free(func_name);
     sqlite3_close(db);
 
     return 0;

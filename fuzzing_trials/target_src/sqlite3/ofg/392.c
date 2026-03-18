@@ -1,52 +1,43 @@
 #include <stdint.h>
+#include <stddef.h>  // Include for size_t
+#include <string.h>  // Include for NULL
 #include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_392(const uint8_t *data, size_t size) {
-    sqlite3 *pDbSrc = NULL;
-    sqlite3 *pDbDest = NULL;
-    sqlite3_backup *pBackup = NULL;
-    char *srcDbName = NULL;
-    char *destDbName = NULL;
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
+    const char *sql = "SELECT * FROM test WHERE id = ?1 AND name = ?2;";
+    const char *param_name;
 
-    // Initialize SQLite databases
-    rc = sqlite3_open(":memory:", &pDbSrc);
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    rc = sqlite3_open(":memory:", &pDbDest);
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
-        sqlite3_close(pDbSrc);
+        sqlite3_close(db);
         return 0;
     }
 
-    // Ensure data is null-terminated for string usage
-    char *inputData = (char *)malloc(size + 1);
-    if (inputData == NULL) {
-        sqlite3_close(pDbSrc);
-        sqlite3_close(pDbDest);
+    // Use fuzzing data to determine which parameter index to use
+    if (size < sizeof(int)) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
         return 0;
     }
-    memcpy(inputData, data, size);
-    inputData[size] = '\0';
 
-    // Use inputData for database names
-    srcDbName = inputData;
-    destDbName = inputData; // Use the same input for both names for simplicity
+    int index = *((int*)data) % 3; // Modulo by 3 to ensure index is within range of parameters
 
     // Call the function-under-test
-    pBackup = sqlite3_backup_init(pDbDest, destDbName, pDbSrc, srcDbName);
+    param_name = sqlite3_bind_parameter_name(stmt, index);
 
     // Clean up
-    if (pBackup) {
-        sqlite3_backup_finish(pBackup);
-    }
-    sqlite3_close(pDbSrc);
-    sqlite3_close(pDbDest);
-    free(inputData);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

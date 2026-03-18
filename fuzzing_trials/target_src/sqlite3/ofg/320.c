@@ -1,45 +1,40 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sqlite3.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <string.h>
+#include <stdlib.h>  // Include this header for malloc and free
 
 int LLVMFuzzerTestOneInput_320(const uint8_t *data, size_t size) {
-    sqlite3_vfs vfs;
-    sqlite3_vfs *vfs_ptr = &vfs;
+    // Ensure the size is at least 2 to split the input data into two non-null strings
+    if (size < 2) return 0;
 
-    // Initialize the sqlite3_vfs structure with non-NULL values
-    vfs.zName = "test_vfs";
-    vfs.iVersion = 1;
-    vfs.szOsFile = 1024;
-    vfs.mxPathname = 256;
-    vfs.pNext = NULL;
-    vfs.pAppData = NULL;
-    vfs.xOpen = NULL;
-    vfs.xDelete = NULL;
-    vfs.xAccess = NULL;
-    vfs.xFullPathname = NULL;
-    vfs.xDlOpen = NULL;
-    vfs.xDlError = NULL;
-    vfs.xDlSym = NULL;
-    vfs.xDlClose = NULL;
-    vfs.xRandomness = NULL;
-    vfs.xSleep = NULL;
-    vfs.xCurrentTime = NULL;
-    vfs.xGetLastError = NULL;
-    vfs.xCurrentTimeInt64 = NULL;
-    vfs.xSetSystemCall = NULL;
-    vfs.xGetSystemCall = NULL;
-    vfs.xNextSystemCall = NULL;
+    // Split the input data into two parts
+    size_t mid = size / 2;
 
-    // Call the function under test
-    sqlite3_vfs_unregister(vfs_ptr);
+    // Allocate memory for the two strings and ensure they are null-terminated
+    char *pattern = (char *)malloc(mid + 1);
+    char *string = (char *)malloc(size - mid + 1);
+
+    if (pattern == NULL || string == NULL) {
+        // Handle memory allocation failure
+        free(pattern);
+        free(string);
+        return 0;
+    }
+
+    // Copy data into the allocated memory and null-terminate
+    memcpy(pattern, data, mid);
+    pattern[mid] = '\0';
+
+    memcpy(string, data + mid, size - mid);
+    string[size - mid] = '\0';
+
+    // Call the function-under-test
+    int result = sqlite3_strglob(pattern, string);
+
+    // Free allocated memory
+    free(pattern);
+    free(string);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

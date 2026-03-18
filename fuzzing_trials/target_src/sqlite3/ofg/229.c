@@ -1,32 +1,48 @@
+#include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <sqlite3.h>
+#include <string.h>
 
-// Dummy callback function to use with sqlite3_update_hook
-static void update_callback(void *arg, int op, char const *db, char const *tbl, sqlite3_int64 rowid) {
-    // This is a placeholder callback function. It does nothing.
-    (void)arg;
-    (void)op;
-    (void)db;
-    (void)tbl;
-    (void)rowid;
+// Dummy comparison function
+static int dummyCompare(void *pArg, int len1, const void *str1, int len2, const void *str2) {
+    return strncmp((const char *)str1, (const char *)str2, len1 < len2 ? len1 : len2);
+}
+
+// Dummy destructor_229 function
+static void dummyDestructor(void *pArg) {
+    // No operation
 }
 
 int LLVMFuzzerTestOneInput_229(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
-    void *arg = (void *)data; // Use the input data as the argument to the callback
 
-    // Open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (size == 0) {
         return 0;
     }
 
-    // Set the update hook with the dummy callback
-    sqlite3_update_hook(db, update_callback, arg);
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        return 0;
+    }
 
-    // Normally, you would execute some SQL statements here to trigger the update hook
+    // Use the input data as the collation name
+    char collationName[256];
+    size_t collationNameLen = size < 255 ? size : 255;
+    memcpy(collationName, data, collationNameLen);
+    collationName[collationNameLen] = '\0';
+
+    // Call the function-under-test
+    sqlite3_create_collation_v2(
+        db,
+        collationName,
+        SQLITE_UTF8,
+        NULL,
+        dummyCompare,
+        dummyDestructor
+    );
 
     // Close the database
     sqlite3_close(db);

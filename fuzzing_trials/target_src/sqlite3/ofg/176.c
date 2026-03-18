@@ -1,64 +1,61 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_176(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    int columnIndex;
     char *errMsg = 0;
+    int rc;
+    const char *dbName = "test.db";
+    const char *schema = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
+    unsigned char *serializedData;
+    sqlite3_int64 serializedSize;
+    unsigned int flags = 0;
 
-    // Initialize an in-memory database
+    // Initialize the SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (rc) {
         return 0;
     }
 
-    // Create a simple table
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER, value TEXT);";
-    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Insert a row into the table
-    const char *insertSQL = "INSERT INTO test (id, value) VALUES (1, 'test');";
-    rc = sqlite3_exec(db, insertSQL, 0, 0, &errMsg);
+    // Execute a simple schema
+    rc = sqlite3_exec(db, schema, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare a statement
-    const char *selectSQL = "SELECT * FROM test;";
-    rc = sqlite3_prepare_v2(db, selectSQL, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Ensure data is not NULL and has a valid size
+    if (size > 0 && data != NULL) {
+        // Prepare a statement from the input data
+        sqlite3_stmt *stmt;
+        rc = sqlite3_prepare_v2(db, (const char *)data, (int)size, &stmt, NULL);
+        if (rc == SQLITE_OK && stmt != NULL) {
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
+        }
     }
 
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Use data to determine the column index
-        columnIndex = (size > 0) ? data[0] % sqlite3_column_count(stmt) : 0;
+    // Call the function-under-test
+    serializedData = sqlite3_serialize(db, dbName, &serializedSize, flags);
 
-        // Call the function-under-test
-        int result = sqlite3_column_int(stmt, columnIndex);
-
-        // Print the result for debugging purposes
-        printf("Column index: %d, Result: %d\n", columnIndex, result);
+    // Free the serialized data if it was allocated
+    if (serializedData) {
+        sqlite3_free(serializedData);
     }
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

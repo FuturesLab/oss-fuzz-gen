@@ -1,56 +1,36 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stddef.h> // Include for size_t
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_185(const uint8_t *data, size_t size) {
+    // Initialize variables
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    const char *sql;
-    sqlite3_int64 result;
-
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    const char *dbName = "main"; // Use the in-memory database name for SQLite
+    const char *tableName = "test_table";
+    const char *columnName = "test_column";
+    const char *dataType = NULL;
+    const char *collationSeq = NULL;
+    int notNull = 0;
+    int primaryKey = 0;
+    int autoInc = 0;
+    
+    // Open an in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table
-    sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value INTEGER)";
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Create a sample table for testing
+    const char *createTableSQL = "CREATE TABLE test_table (test_column INTEGER);";
+    sqlite3_exec(db, createTableSQL, 0, 0, 0);
+
+    // Use the input data to modify the database or perform operations
+    // For demonstration, we'll just ensure the input is not null and has some size
+    if (data != NULL && size > 0) {
+        // Call the function under test
+        sqlite3_table_column_metadata(db, dbName, tableName, columnName, &dataType, &collationSeq, &notNull, &primaryKey, &autoInc);
     }
 
-    // Use the fuzzing input data to insert into the table
-    if (size > 0) {
-        char insert_sql[256];
-        snprintf(insert_sql, sizeof(insert_sql), "INSERT INTO test (value) VALUES (%d)", data[0]);
-        rc = sqlite3_exec(db, insert_sql, 0, 0, 0);
-        if (rc != SQLITE_OK) {
-            sqlite3_close(db);
-            return 0;
-        }
-    }
-
-    // Prepare a statement to select data
-    sql = "SELECT value FROM test WHERE id = 1";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement and fetch the result
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Call the function-under-test
-        result = sqlite3_column_int64(stmt, 0);
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Close the database
     sqlite3_close(db);
 
     return 0;

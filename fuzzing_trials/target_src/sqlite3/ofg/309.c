@@ -1,40 +1,64 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
+
+// Function to initialize a simple SQLite database and prepare a statement
+static sqlite3_stmt* prepareTestStatement(sqlite3 *db) {
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, name TEXT);"
+                      "INSERT INTO test (name) VALUES ('Alice'), ('Bob');"
+                      "SELECT * FROM test;";
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+
+    // Execute SQL to create table and insert data
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        return NULL;
+    }
+
+    // Prepare a statement to select from the test table
+    rc = sqlite3_prepare_v2(db, "SELECT * FROM test;", -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        return NULL;
+    }
+
+    return stmt;
+}
 
 int LLVMFuzzerTestOneInput_309(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
+    sqlite3 *db;
     sqlite3_stmt *stmt = NULL;
-    int result;
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB); INSERT INTO test (data) VALUES (?);";
+    int rc;
 
-    // Initialize SQLite in-memory database
-    result = sqlite3_open(":memory:", &db);
-    if (result != SQLITE_OK) {
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare the SQL statement
-    result = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (result != SQLITE_OK) {
+    // Prepare a test statement
+    stmt = prepareTestStatement(db);
+    if (stmt == NULL) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Bind the blob data to the SQL statement
-    if (size > 0) {
-        result = sqlite3_bind_blob(stmt, 1, (const void *)data, (int)size, SQLITE_STATIC);
-    } else {
-        // If size is 0, bind an empty blob
-        result = sqlite3_bind_blob(stmt, 1, "", 0, SQLITE_STATIC);
+    // Ensure the data size is sufficient to extract an integer index
+    if (size >= sizeof(int)) {
+        int index;
+        memcpy(&index, data, sizeof(int));
+
+        // Call the function-under-test
+        const void *columnName = sqlite3_column_name16(stmt, index);
+        
+        // Use the columnName in some way to prevent compiler optimizations from removing the call
+        if (columnName != NULL) {
+            volatile const void *use = columnName;
+            (void)use;
+        }
     }
 
-    // Execute the SQL statement
-    if (result == SQLITE_OK) {
-        sqlite3_step(stmt);
-    }
-
-    // Clean up
+    // Finalize the statement and close the database
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 

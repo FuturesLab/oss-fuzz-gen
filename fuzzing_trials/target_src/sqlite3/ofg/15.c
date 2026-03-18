@@ -3,37 +3,37 @@
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Initialize SQLite
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0;
-    }
-
-    // Create an in-memory SQLite database
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
+    sqlite3_stmt *stmt;
+    int rc;
+    const char *sql = "SELECT ?1, ?2, ?3";
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a SQL statement from the input data
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Execute the SQL statement
-    char *errMsg = 0;
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Bind input data to the SQL statement parameters
+    if (size >= 3) {
+        sqlite3_bind_int(stmt, 1, data[0]);
+        sqlite3_bind_int(stmt, 2, data[1]);
+        sqlite3_bind_int(stmt, 3, data[2]);
+    }
 
-    // Free the SQL statement
-    sqlite3_free(sql);
+    // Call the function-under-test
+    int param_count = sqlite3_bind_parameter_count(stmt);
 
-    // Close the database
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
-
-    // Optionally, you can use the memoryUsed value for further logic or checks
-    // For this harness, we simply call the function to ensure it executes
-    sqlite3_int64 memoryUsed = sqlite3_memory_used();
-
-    // Cleanup SQLite
-    sqlite3_shutdown();
 
     return 0;
 }

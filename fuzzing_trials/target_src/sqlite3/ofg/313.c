@@ -1,21 +1,32 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h> // Include the string.h header for memcpy
-#include <sqlite3.h>
+#include <stddef.h>   // Include for size_t
+#include <stdint.h>   // Include for uint8_t
+#include <sqlite3.h>  // Include for SQLite functions
 
 int LLVMFuzzerTestOneInput_313(const uint8_t *data, size_t size) {
-    // Allocate memory to be freed by sqlite3_free
-    void *ptr = malloc(size > 0 ? size : 1); // Ensure at least 1 byte is allocated
+    sqlite3 *db;
+    int rc;
+    int enable;
 
-    // Use the data to modify the allocated memory
-    if (ptr != NULL && size > 0) {
-        // Copy the fuzzing data into the allocated memory
-        memcpy(ptr, data, size);
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
+    // Ensure there is data to work with
+    if (size < sizeof(int)) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Use the data to determine the enable parameter
+    enable = (int)data[0] % 2; // Use the first byte of data to decide enable (0 or 1)
+
     // Call the function-under-test
-    sqlite3_free(ptr);
+    sqlite3_enable_load_extension(db, enable);
+
+    // Close the database connection
+    sqlite3_close(db);
 
     return 0;
 }

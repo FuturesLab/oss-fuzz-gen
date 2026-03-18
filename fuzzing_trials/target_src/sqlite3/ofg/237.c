@@ -1,35 +1,44 @@
-#include <stddef.h>  // Include for size_t
-#include <stdint.h>  // Include for uint8_t
-#include <sqlite3.h> // Include for SQLite functions
+#include <stdint.h>
+#include <stddef.h>
+#include <sqlite3.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_237(const uint8_t *data, size_t size) {
-    // Initialize SQLite
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0; // Initialization failed
+    // Ensure the input size is sufficient for splitting into components
+    if (size < 4) {
+        return 0;
     }
 
-    // Create an in-memory database
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
-        return 0; // Failed to open database
+    // Split the input data into parts for the function parameters
+    const char *filename = (const char *)data;
+    int flags = *(int *)(data + size - sizeof(int));
+    const char *vfs = (const char *)(data + size - sizeof(int) - 1);
+
+    // Ensure null termination of strings
+    char filename_buf[256];
+    char vfs_buf[256];
+    size_t filename_len = size - sizeof(int) - 1;
+    size_t vfs_len = size - sizeof(int) - 1 - filename_len;
+
+    if (filename_len > 255) filename_len = 255;
+    if (vfs_len > 255) vfs_len = 255;
+
+    memcpy(filename_buf, filename, filename_len);
+    filename_buf[filename_len] = '\0';
+
+    memcpy(vfs_buf, vfs, vfs_len);
+    vfs_buf[vfs_len] = '\0';
+
+    // Initialize the sqlite3 pointer
+    sqlite3 *db = NULL;
+
+    // Call the function under test
+    sqlite3_open_v2(filename_buf, &db, flags, vfs_buf);
+
+    // Close the database if it was opened
+    if (db != NULL) {
+        sqlite3_close(db);
     }
-
-    // Prepare a SQL statement using the input data
-    sqlite3_stmt *stmt;
-    const char *sql = (const char *)data;
-    if (sqlite3_prepare_v2(db, sql, size, &stmt, NULL) == SQLITE_OK) {
-        // Execute the statement
-        sqlite3_step(stmt);
-        // Finalize the statement
-        sqlite3_finalize(stmt);
-    }
-
-    // Close the database
-    sqlite3_close(db);
-
-    // Shutdown SQLite
-    sqlite3_shutdown();
 
     return 0;
 }

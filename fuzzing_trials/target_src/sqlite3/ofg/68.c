@@ -1,27 +1,26 @@
-#include <stddef.h>   // For size_t
-#include <stdlib.h>   // For NULL
-#include <stdint.h>   // For uint8_t
-#include <sqlite3.h>  // For SQLite functions
+#include <stdint.h>
+#include <stddef.h>
+#include <sqlite3.h>
+
+// Define a dummy function to be used as a callback for sqlite3_auto_extension
+int dummy_extension_function_68(void) {
+    // This function doesn't need to do anything for the purpose of fuzzing
+    return SQLITE_OK;
+}
 
 int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_mutex *mutex = NULL;
-    int rc;
-
-    // Open a temporary in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Ensure that the data and size are non-zero to call the function
+    if (size == 0) {
         return 0;
     }
 
-    // Ensure that the database pointer is not NULL
-    if (db != NULL) {
-        // Call the function-under-test
-        mutex = sqlite3_db_mutex(db);
-    }
+    // Call the function-under-test with the dummy function
+    int result = sqlite3_auto_extension(dummy_extension_function_68);
 
-    // Clean up by closing the database
-    sqlite3_close(db);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    if (result != SQLITE_OK) {
+        // Handle error case if necessary
+    }
 
     return 0;
 }

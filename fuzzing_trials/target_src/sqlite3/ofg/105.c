@@ -2,20 +2,20 @@
 #include <stddef.h>
 #include <sqlite3.h>
 
-int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Declare and initialize the input parameter for the function-under-test
-    sqlite3_int64 heap_limit = 0;
+// Dummy function to simulate DW_TAG_subroutine_typeInfinite loop
+// In practice, this should be replaced with an actual function pointer
+int dummy_function_105() {
+    return 0;
+}
 
-    // Ensure the size is sufficient to extract a sqlite3_int64 value
-    if (size >= sizeof(sqlite3_int64)) {
-        // Copy the data into the heap_limit variable
-        heap_limit = *(const sqlite3_int64 *)data;
-    }
+int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
+    // Ensure the function pointer is not NULL
+    int (*func_ptr)() = dummy_function_105;
 
     // Call the function-under-test
-    sqlite3_int64 result = sqlite3_soft_heap_limit64(heap_limit);
+    int result = sqlite3_cancel_auto_extension((void (*)())func_ptr);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
+    // Use the result to avoid compiler optimizations (if needed)
     (void)result;
 
     return 0;

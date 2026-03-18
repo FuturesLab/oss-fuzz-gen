@@ -1,38 +1,45 @@
-#include <stddef.h>  // For size_t
-#include <stdint.h>  // For uint8_t
-#include <sqlite3.h> // For SQLite functions and types
+#include <stdint.h>
+#include <sqlite3.h>
+#include <string.h>
+#include <stdlib.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// Function to initialize a SQLite database for testing
+static sqlite3* initialize_database() {
+    sqlite3 *db;
+    int rc = sqlite3_open(":memory:", &db); // Open an in-memory database
+    if (rc != SQLITE_OK) {
+        return NULL;
+    }
+    return db;
+}
 
+// Fuzzer entry point
 int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    // Initialize SQLite library
-    sqlite3_initialize();
+    // Initialize variables
+    sqlite3 *db = NULL;
+    char *zDb = NULL;
 
-    // Create a mutex
-    sqlite3_mutex *mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_FAST);
-    if (mutex == NULL) {
+    // Initialize the SQLite database
+    db = initialize_database();
+    if (db == NULL) {
         return 0;
     }
 
-    // Try to lock the mutex using the function-under-test
-    int result = sqlite3_mutex_try(mutex);
-
-    // Unlock the mutex if it was successfully locked
-    if (result == SQLITE_OK) {
-        sqlite3_mutex_leave(mutex);
+    // Ensure the data is null-terminated before using it as a string
+    zDb = (char *)malloc(size + 1);
+    if (zDb == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(zDb, data, size);
+    zDb[size] = '\0';
 
-    // Free the mutex
-    sqlite3_mutex_free(mutex);
+    // Call the function-under-test
+    sqlite3_wal_checkpoint(db, zDb);
 
-    // Shutdown SQLite library
-    sqlite3_shutdown();
+    // Cleanup
+    free(zDb);
+    sqlite3_close(db);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

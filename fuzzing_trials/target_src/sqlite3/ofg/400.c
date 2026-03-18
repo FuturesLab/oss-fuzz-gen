@@ -2,37 +2,42 @@
 #include <stddef.h>
 #include <sqlite3.h>
 #include <string.h>
+#include <stdlib.h> // Include stdlib.h for malloc and free
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// Mock function to initialize a valid sqlite3 pointer
+sqlite3* initialize_sqlite3() {
+    sqlite3 *db;
+    // Open a temporary in-memory database for testing
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return NULL;
+    }
+    return db;
+}
 
 int LLVMFuzzerTestOneInput_400(const uint8_t *data, size_t size) {
-    // Ensure data is large enough to extract meaningful parts
-    if (size < sizeof(int) + 1) {
+    sqlite3 *db = initialize_sqlite3();
+    if (db == NULL) {
         return 0;
     }
 
-    // Initialize variables
-    sqlite3 *db = NULL;
-    const char *zDbName = "main"; // Default database name
-    int op = *(int *)data; // Extract an integer for the operation
-    void *pArg = (void *)(data + sizeof(int)); // Use remaining data as pArg
-
-    // Open an in-memory database for testing
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Ensure the data is null-terminated for use as a string
+    char *zDbName = (char *)malloc(size + 1);
+    if (zDbName == NULL) {
+        sqlite3_close(db);
         return 0;
     }
+    memcpy(zDbName, data, size);
+    zDbName[size] = '\0';
+
+    int op = 0; // Example operation code, can vary to test different paths
+    int controlData = 0; // Example control data, can vary to test different paths
 
     // Call the function-under-test
-    sqlite3_file_control(db, zDbName, op, pArg);
+    sqlite3_file_control(db, zDbName, op, (void *)&controlData);
 
-    // Close the database
+    // Cleanup
+    free(zDbName);
     sqlite3_close(db);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

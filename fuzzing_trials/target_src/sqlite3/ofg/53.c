@@ -3,30 +3,19 @@
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    sqlite3_int64 changes;
-
-    // Initialize the SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Ensure that the input size is sufficient to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Execute a simple SQL command to ensure there are changes
-    const char *sql = "CREATE TABLE test(id INTEGER PRIMARY KEY, value TEXT);"
-                      "INSERT INTO test(value) VALUES('test');";
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Extract an integer from the input data
+    int arg = *(const int *)data;
 
     // Call the function-under-test
-    changes = sqlite3_changes64(db);
+    sqlite3_int64 result = sqlite3_memory_highwater(arg);
 
-    // Cleanup
-    sqlite3_close(db);
+    // Use the result in some way, e.g., print it (optional)
+    // printf("Highwater mark: %lld\n", result);
 
     return 0;
 }

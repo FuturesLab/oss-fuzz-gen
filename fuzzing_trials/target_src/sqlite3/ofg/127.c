@@ -1,5 +1,6 @@
-#include <stdint.h>
 #include <sqlite3.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,13 +10,13 @@ int LLVMFuzzerTestOneInput_127(const uint8_t *data, size_t size) {
     const char *tail = NULL;
     int rc;
 
-    // Initialize SQLite in-memory database
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated before using as a SQL statement
+    // Ensure the input data is null-terminated for use as a SQL statement
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
@@ -28,11 +29,9 @@ int LLVMFuzzerTestOneInput_127(const uint8_t *data, size_t size) {
     sqlite3_prepare_v2(db, sql, -1, &stmt, &tail);
 
     // Clean up
-    if (stmt != NULL) {
-        sqlite3_finalize(stmt);
-    }
-    free(sql);
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
+    free(sql);
 
     return 0;
 }

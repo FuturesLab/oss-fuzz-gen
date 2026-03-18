@@ -1,24 +1,37 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h> // Include for size_t
+#include <stdlib.h> // Include for NULL
 #include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h> // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_239(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated for the sqlite3_complete function
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Initialize SQLite
+    int result = sqlite3_initialize();
+    if (result != SQLITE_OK) {
+        return 0;
     }
 
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
+    // Create an in-memory database
+    sqlite3 *db;
+    result = sqlite3_open(":memory:", &db);
+    if (result != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0;
+    }
 
-    // Call the function-under-test
-    int result = sqlite3_complete(null_terminated_data);
+    // Prepare a SQL statement using the fuzz input
+    sqlite3_stmt *stmt;
+    result = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
 
-    // Free the allocated memory
-    free(null_terminated_data);
+    // Finalize the statement if it was prepared
+    if (result == SQLITE_OK && stmt != NULL) {
+        sqlite3_finalize(stmt);
+    }
+
+    // Close the database
+    sqlite3_close(db);
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
 
     return 0;
 }

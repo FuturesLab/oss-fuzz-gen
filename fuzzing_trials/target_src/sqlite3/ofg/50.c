@@ -1,57 +1,47 @@
-#include <stdint.h>
 #include <sqlite3.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
     char *errMsg = 0;
+    int rc;
 
-    // Initialize SQLite in-memory database
+    // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc) {
-        sqlite3_close(db);
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Create a simple table
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+    // Create a table
+    const char *sql = "CREATE TABLE test (id INT, value TEXT);";
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
         sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // Insert a row into the table
-    const char *insertSQL = "INSERT INTO test (value) VALUES ('example');";
-    rc = sqlite3_exec(db, insertSQL, 0, 0, &errMsg);
+    // Insert some data
+    sql = "INSERT INTO test (id, value) VALUES (1, 'Hello');";
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
         sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare a statement to select from the table
-    const char *selectSQL = "SELECT id, value FROM test;";
-    rc = sqlite3_prepare_v2(db, selectSQL, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Call the function-under-test
+    sqlite3_int64 changes = sqlite3_changes64(db);
 
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Fuzz the sqlite3_column_type function
-        int columnIndex = size > 0 ? data[0] % 2 : 0; // Ensure column index is valid
-        int columnType = sqlite3_column_type(stmt, columnIndex);
-    }
+    // Log the number of changes
+    printf("Number of changes: %lld\n", changes);
 
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Close the database
     sqlite3_close(db);
 
     return 0;

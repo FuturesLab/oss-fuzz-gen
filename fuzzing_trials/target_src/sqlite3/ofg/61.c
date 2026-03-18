@@ -1,28 +1,31 @@
-#include <stdint.h>
 #include <stddef.h>  // Include for size_t
-#include <stdlib.h>  // Include for NULL
+#include <stdint.h>
 #include <sqlite3.h>
 
-// Define a dummy callback function to be used as the progress handler
-int progress_handler_callback(void *unused) {
-    // This can be a simple function that returns 0 or 1
+// Define a simple progress callback function
+int progress_callback(void *unused) {
+    // This function can perform any operation, for now, it just returns 0
     return 0;
 }
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int progress_ops = 10;  // Number of virtual machine instructions between invocations of the progress handler
-    void *progress_handler_arg = (void *)data;  // Use the data as the argument to the progress handler
+    sqlite3 *db;
+    int rc;
+    void *user_data = (void *)data; // Use the input data as user data
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0; // If opening the database failed, exit early
     }
 
-    // Set the progress handler for the database connection
-    sqlite3_progress_handler(db, progress_ops, progress_handler_callback, progress_handler_arg);
+    // Use a fixed number of operations for the progress handler
+    int operations = 100;
 
-    // Clean up and close the database
+    // Call the function-under-test with the progress callback
+    sqlite3_progress_handler(db, operations, progress_callback, user_data);
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

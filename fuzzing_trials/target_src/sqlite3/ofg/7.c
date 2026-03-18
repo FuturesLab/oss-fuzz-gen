@@ -3,45 +3,47 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    const char *tail;
-    int rc;
-    char *errMsg = 0;
-
-    // Open an in-memory database for testing
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Initialize SQLite
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated for safe string operations
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Ensure the data is not NULL and has a size greater than 0
+    if (data != NULL && size > 0) {
+        // Create a copy of the data to ensure it's null-terminated
+        char *inputData = (char *)malloc(size + 1);
+        if (inputData != NULL) {
+            memcpy(inputData, data, size);
+            inputData[size] = '\0'; // Null-terminate the string
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v3(db, sql, -1, 0, &stmt, &tail);
+            // Open an in-memory SQLite database
+            sqlite3 *db;
+            if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
+                // Prepare a statement
+                sqlite3_stmt *stmt;
+                const char *sql = "SELECT ?";
+                if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+                    // Bind the input data to the statement
+                    sqlite3_bind_text(stmt, 1, inputData, -1, SQLITE_TRANSIENT);
 
-    // Clean up
-    if (stmt != NULL) {
-        sqlite3_finalize(stmt);
+                    // Execute the statement
+                    sqlite3_step(stmt);
+
+                    // Finalize the statement
+                    sqlite3_finalize(stmt);
+                }
+                // Close the database
+                sqlite3_close(db);
+            }
+
+            // Clean up
+            free(inputData);
+        }
     }
-    free(sql);
-    sqlite3_close(db);
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

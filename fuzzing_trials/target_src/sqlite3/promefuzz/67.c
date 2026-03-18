@@ -1,18 +1,13 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_bind_null at sqlite3.c:80129:16 in sqlite3.h
-// sqlite3_bind_zeroblob at sqlite3.c:80227:16 in sqlite3.h
-// sqlite3_bind_text64 at sqlite3.c:80167:16 in sqlite3.h
-// sqlite3_bind_text16 at sqlite3.c:80183:16 in sqlite3.h
-// sqlite3_bind_pointer at sqlite3.c:80139:16 in sqlite3.h
-// sqlite3_bind_parameter_count at sqlite3.c:80264:16 in sqlite3.h
-// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_mutex_alloc at sqlite3.c:15870:27 in sqlite3.h
+// sqlite3_mutex_free at sqlite3.c:15891:17 in sqlite3.h
+// sqlite3_mutex_notheld at sqlite3.c:15952:16 in sqlite3.h
+// sqlite3_mutex_try at sqlite3.c:15913:16 in sqlite3.h
+// sqlite3_mutex_held at sqlite3.c:15943:16 in sqlite3.h
+// sqlite3_mutex_alloc at sqlite3.c:15870:27 in sqlite3.h
+// sqlite3_mutex_leave at sqlite3.c:15928:17 in sqlite3.h
+// sqlite3_mutex_free at sqlite3.c:15891:17 in sqlite3.h
+// sqlite3_threadsafe at sqlite3.c:171135:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -21,83 +16,61 @@
 #include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 
-static void dummy_destructor(void* data) {
-    // Dummy destructor for sqlite3_bind_text64 and sqlite3_bind_text16
-    free(data);
+static int fuzz_sqlite3_mutex_alloc(int type) {
+    sqlite3_mutex *mutex = sqlite3_mutex_alloc(type);
+    if (mutex && (type == SQLITE_MUTEX_FAST || type == SQLITE_MUTEX_RECURSIVE)) {
+        sqlite3_mutex_free(mutex);
+    }
+    return 0;
+}
+
+static int fuzz_sqlite3_mutex_notheld(sqlite3_mutex *mutex) {
+    return sqlite3_mutex_notheld(mutex);
+}
+
+static int fuzz_sqlite3_mutex_try(sqlite3_mutex *mutex) {
+    return sqlite3_mutex_try(mutex);
+}
+
+static int fuzz_sqlite3_mutex_held(sqlite3_mutex *mutex) {
+    return sqlite3_mutex_held(mutex);
 }
 
 int LLVMFuzzerTestOneInput_67(const uint8_t *Data, size_t Size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
+    if (Size < 1) return 0;
 
-    // Open a new in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
+    // Limit the type to valid mutex types defined by SQLite
+    int type = Data[0] % (SQLITE_MUTEX_RECURSIVE + 1); // Valid types are 0 to SQLITE_MUTEX_RECURSIVE
+    sqlite3_mutex *mutex = sqlite3_mutex_alloc(type);
+
+    if (mutex) {
+        int result_notheld = fuzz_sqlite3_mutex_notheld(mutex);
+        int result_try = fuzz_sqlite3_mutex_try(mutex);
+        int result_held = fuzz_sqlite3_mutex_held(mutex);
+
+        // Use the results to prevent compiler optimizations
+        if (result_notheld || result_try || result_held) {
+            // Do something trivial
+            (void)0;
+        }
+
+        // Ensure we unlock the mutex if it was successfully locked
+        if (result_try == SQLITE_OK) {
+            sqlite3_mutex_leave(mutex);
+        }
+
+        // Only free dynamic mutexes
+        if (type == SQLITE_MUTEX_FAST || type == SQLITE_MUTEX_RECURSIVE) {
+            sqlite3_mutex_free(mutex);
+        }
     }
 
-    // Create a dummy table
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER, value TEXT);", 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    int threadsafe = sqlite3_threadsafe();
+    if (threadsafe) {
+        // Do something trivial
+        (void)0;
     }
-
-    // Prepare a statement with bindable parameters
-    rc = sqlite3_prepare_v2(db, "INSERT INTO test VALUES (?, ?);", -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Fuzzing sqlite3_bind_null
-    if (Size > 0) {
-        int index = Data[0] % 2 + 1; // Choose between 1 or 2
-        sqlite3_bind_null(stmt, index);
-    }
-
-    // Fuzzing sqlite3_bind_zeroblob
-    if (Size > 1) {
-        int index = Data[1] % 2 + 1;
-        int blobSize = Data[1];
-        sqlite3_bind_zeroblob(stmt, index, blobSize);
-    }
-
-    // Fuzzing sqlite3_bind_text64
-    if (Size > 2) {
-        int index = Data[2] % 2 + 1;
-        char *text = strndup((const char *)Data + 3, Size - 3);
-        sqlite3_bind_text64(stmt, index, text, (sqlite3_uint64)(Size - 3), dummy_destructor, SQLITE_UTF8);
-    }
-
-    // Fuzzing sqlite3_bind_text16
-    if (Size > 3) {
-        int index = Data[3] % 2 + 1;
-        void *text16 = malloc(Size - 4);
-        memcpy(text16, Data + 4, Size - 4);
-        sqlite3_bind_text16(stmt, index, text16, Size - 4, dummy_destructor);
-    }
-
-    // Fuzzing sqlite3_bind_pointer
-    if (Size > 4) {
-        int index = Data[4] % 2 + 1;
-        void *ptr = malloc(1);
-        sqlite3_bind_pointer(stmt, index, ptr, "test_pointer", dummy_destructor);
-    }
-
-    // Fuzzing sqlite3_bind_parameter_count
-    int param_count = sqlite3_bind_parameter_count(stmt);
-
-    // Execute the statement
-    sqlite3_step(stmt);
-
-    // Cleanup
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
 
     return 0;
 }

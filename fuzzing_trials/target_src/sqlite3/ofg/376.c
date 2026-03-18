@@ -1,39 +1,34 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_376(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    int dbIndex;
-
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+    // Ensure the input size is sufficient to create a SQL statement
+    if (size < 1) {
         return 0;
     }
 
-    // Ensure the data size is sufficient to extract an integer for dbIndex
-    if (size < sizeof(int)) {
-        sqlite3_close(db);
+    // Initialize an SQLite database in memory
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Extract an integer from the input data for dbIndex
-    memcpy(&dbIndex, data, sizeof(int));
+    // Create a simple table
+    const char *create_table_sql = "CREATE TABLE IF NOT EXISTS fuzz_table (id INTEGER PRIMARY KEY, value TEXT);";
+    sqlite3_exec(db, create_table_sql, 0, 0, 0);
 
-    // Since sqlite3_db_name is not a valid function, we will replace it with a valid operation.
-    // For demonstration, let's execute a simple SQL statement.
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
-    char *errMsg = NULL;
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
+    // Prepare a SQL statement from the input data
+    char *sql = sqlite3_mprintf("INSERT INTO fuzz_table (value) VALUES (%.*s);", (int)size, data);
+    if (sql) {
+        // Execute the SQL statement
+        sqlite3_exec(db, sql, 0, 0, 0);
+        sqlite3_free(sql);
     }
+
+    // Sleep for a short duration to simulate some processing delay
+    sqlite3_sleep(1);
 
     // Close the database
     sqlite3_close(db);

@@ -1,69 +1,92 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_libversion at sqlite3.c:171116:24 in sqlite3.h
-// sqlite3_sourceid at sqlite3.c:252248:24 in sqlite3.h
-// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
-// sqlite3_initialize at sqlite3.c:171208:16 in sqlite3.h
-// sqlite3_vfs_find at sqlite3.c:13246:25 in sqlite3.h
+// sqlite3_result_null at sqlite3.c:78859:17 in sqlite3.h
+// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_blob_open at sqlite3.c:90692:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_blob_write at sqlite3.c:91049:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_blob_read at sqlite3.c:91042:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_blob_close at sqlite3.c:90931:16 in sqlite3.h
+// sqlite3_create_function at sqlite3.c:173127:16 in sqlite3.h
+// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
 #include <sqlite3.h>
 
-static void invoke_sqlite3_libversion() {
-    const char *version = sqlite3_libversion();
-    (void)version; // Suppress unused variable warning
-}
-
-static void invoke_sqlite3_sourceid() {
-    const char *source_id = sqlite3_sourceid();
-    (void)source_id; // Suppress unused variable warning
-}
-
-static void invoke_sqlite3_config() {
-    // Example configuration options, these may not be valid or meaningful for all builds
-    int config_options[] = {SQLITE_CONFIG_SINGLETHREAD, SQLITE_CONFIG_MULTITHREAD, SQLITE_CONFIG_SERIALIZED};
-    for (int i = 0; i < sizeof(config_options) / sizeof(config_options[0]); i++) {
-        int rc = sqlite3_config(config_options[i]);
-        (void)rc; // Suppress unused variable warning
-    }
-}
-
-static void invoke_sqlite3_initialize() {
-    int rc = sqlite3_initialize();
-    (void)rc; // Suppress unused variable warning
-}
-
-static void invoke_sqlite3_vfs_find() {
-    sqlite3_vfs *vfs = sqlite3_vfs_find(NULL);
-    (void)vfs; // Suppress unused variable warning
+static void xFunc(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Simple function implementation
+    sqlite3_result_null(context);
 }
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    // Step 1: Invoke sqlite3_libversion
-    invoke_sqlite3_libversion();
+    sqlite3 *db;
+    sqlite3_blob *blob;
+    sqlite3_stmt *stmt;
+    const char *tail;
+    int rc;
+    
+    // Open a database connection
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
 
-    // Step 2: Invoke sqlite3_sourceid
-    invoke_sqlite3_sourceid();
+    // Create a table and insert a blob
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+    rc = sqlite3_exec(db, "INSERT INTO test (data) VALUES (zeroblob(100));", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Step 3: Invoke sqlite3_config multiple times
-    invoke_sqlite3_config();
-    invoke_sqlite3_config();
-    invoke_sqlite3_config();
-    invoke_sqlite3_config();
-    invoke_sqlite3_config();
-    invoke_sqlite3_config();
-    invoke_sqlite3_config();
+    // Open a blob handle
+    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 1, &blob);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Step 4: Initialize SQLite
-    invoke_sqlite3_initialize();
+    // Write to the blob
+    sqlite3_blob_write(blob, Data, Size > 100 ? 100 : Size, 0);
+    sqlite3_errmsg(db);
 
-    // Step 5: Find VFS
-    invoke_sqlite3_vfs_find();
+    // Read from the blob
+    uint8_t buffer[100];
+    sqlite3_blob_read(blob, buffer, Size > 100 ? 100 : Size, 0);
+    sqlite3_errmsg(db);
+
+    // Close the blob handle
+    sqlite3_blob_close(blob);
+
+    // Create a function
+    sqlite3_create_function(db, "fuzz_func", 1, SQLITE_UTF8, NULL, xFunc, NULL, NULL);
+
+    // Prepare a statement
+    rc = sqlite3_prepare_v2(db, "SELECT fuzz_func(data) FROM test;", -1, &stmt, &tail);
+    if (rc == SQLITE_OK) {
+        sqlite3_finalize(stmt);
+    }
+
+    // Close the database connection
+    sqlite3_close(db);
 
     return 0;
 }

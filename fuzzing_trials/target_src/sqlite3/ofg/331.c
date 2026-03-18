@@ -1,33 +1,27 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stdio.h>
 
+// Fuzzing harness for sqlite3_busy_timeout
 int LLVMFuzzerTestOneInput_331(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO test (value) VALUES (?);";
+    sqlite3 *db = NULL;
+    int timeout = 0;
 
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
+    // Open an in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // Exit if the database cannot be opened
     }
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Ensure that the size is sufficient to extract an integer for timeout
+    if (size >= sizeof(int)) {
+        // Extract an integer from the data for the timeout value
+        timeout = *(int *)data;
     }
 
-    // Bind the data to the SQL statement
-    const char *text = (const char *)data;
-    int text_length = (int)size;
-    rc = sqlite3_bind_text(stmt, 1, text, text_length, SQLITE_TRANSIENT);
+    // Call the function-under-test
+    sqlite3_busy_timeout(db, timeout);
 
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Close the database
     sqlite3_close(db);
 
     return 0;

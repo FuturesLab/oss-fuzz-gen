@@ -1,12 +1,12 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_312(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *err_msg = 0;
+    sqlite3_stmt *stmt;
     int rc;
+    const void *result;
 
     // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
@@ -14,21 +14,41 @@ int LLVMFuzzerTestOneInput_312(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
-    char *sql = strndup((const char *)data, size);
-    if (!sql) {
+    // Prepare a simple SQL statement
+    const char *sql = "CREATE TABLE test (id INTEGER, name TEXT);";
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &err_msg);
+    // Prepare an INSERT statement to ensure the table has a column
+    sql = "INSERT INTO test (id, name) VALUES (1, 'example');";
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
     if (rc != SQLITE_OK) {
-        sqlite3_free(err_msg);
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Clean up
-    free(sql);
+    // Prepare a SELECT statement
+    sql = "SELECT * FROM test;";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Use data to determine the column index
+    int column_index = 0;
+    if (size > 0) {
+        column_index = data[0] % sqlite3_column_count(stmt);
+    }
+
+    // Call the function-under-test
+    result = sqlite3_column_decltype16(stmt, column_index);
+
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

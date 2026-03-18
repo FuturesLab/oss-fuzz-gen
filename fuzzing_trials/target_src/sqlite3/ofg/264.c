@@ -1,41 +1,35 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sqlite3.h>
 
-// The extern "C" block is not needed in a C file, so we remove it.
 int LLVMFuzzerTestOneInput_264(const uint8_t *data, size_t size) {
-    // Initialize SQLite, this function should be called before any other SQLite functions.
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0; // Initialization failed, return 0.
+    // Ensure the data is not empty and null-terminated
+    if (size == 0 || data[size - 1] != '\0') {
+        return 0;
     }
-    
-    // Create a new in-memory database connection.
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
-        return 0; // Failed to open the database, return 0.
+
+    // Allocate memory for the null-terminated string
+    char *filename = (char *)malloc(size + 1);
+    if (filename == NULL) {
+        return 0;
     }
-    
-    // Prepare a SQL statement from the input data.
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        sqlite3_shutdown();
-        return 0; // Failed to prepare the statement, return 0.
+
+    // Copy the data into the filename buffer and null-terminate it
+    memcpy(filename, data, size);
+    filename[size] = '\0';
+
+    // Call the function-under-test
+    const char *journal_filename = sqlite3_filename_journal(filename);
+
+    // Check the result to ensure it's not NULL, indicating a potential issue with the input
+    if (journal_filename != NULL) {
+        // We don't need to do anything with journal_filename, just ensure the function is called
     }
-    
-    // Execute the SQL statement.
-    sqlite3_step(stmt);
-    
-    // Finalize the statement to release resources.
-    sqlite3_finalize(stmt);
-    
-    // Close the database connection.
-    sqlite3_close(db);
-    
-    // Shutdown SQLite to clean up any resources.
-    sqlite3_shutdown();
-    
-    // Return 0 to indicate successful execution.
+
+    // Free the allocated memory
+    free(filename);
+
     return 0;
 }

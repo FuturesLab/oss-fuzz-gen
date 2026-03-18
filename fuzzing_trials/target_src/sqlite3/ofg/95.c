@@ -2,11 +2,25 @@
 #include <stddef.h>
 #include <sqlite3.h>
 
-extern int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // The function sqlite3_thread_cleanup does not take any parameters and does not return a value.
-    // Thus, we can directly call it in the fuzzer test function.
-    sqlite3_thread_cleanup();
+int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
+    sqlite3 *db = NULL;
+    const char *modules[] = {"module1", "module2", "module3", NULL};
+    int rc;
 
-    // Return 0 to indicate successful execution of the fuzzer test.
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+
+    // Ensure the input data is not null and has a valid size
+    if (data != NULL && size > 0) {
+        // Call the function-under-test
+        sqlite3_drop_modules(db, modules);
+    }
+
+    // Close the database
+    sqlite3_close(db);
+
     return 0;
 }

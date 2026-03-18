@@ -3,22 +3,20 @@
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_169(const uint8_t *data, size_t size) {
-    // Initialize variables
-    sqlite3_str *pStr;
-    int n = 10; // Number of characters to append
-    char c = 'A'; // Character to append
+    if (size < 2) return 0; // Ensure there's enough data for the function parameters
 
-    // Create a new sqlite3_str object
-    pStr = sqlite3_str_new(NULL);
+    sqlite3_str *str;
+    int count = data[0]; // Use the first byte of data for the count
+    char c = (char)data[1]; // Use the second byte of data for the char
 
-    // Ensure pStr is not NULL before calling the function
-    if (pStr != NULL) {
-        // Call the function-under-test
-        sqlite3_str_appendchar(pStr, n, c);
+    // Initialize the sqlite3_str object
+    str = sqlite3_str_new(NULL);
 
-        // Free the sqlite3_str object
-        sqlite3_str_finish(pStr);
-    }
+    // Call the function-under-test
+    sqlite3_str_appendchar(str, count, c);
+
+    // Clean up
+    sqlite3_str_finish(str);
 
     return 0;
 }

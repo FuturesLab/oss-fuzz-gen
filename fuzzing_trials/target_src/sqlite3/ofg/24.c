@@ -2,32 +2,33 @@
 #include <sqlite3.h>
 #include <string.h>
 
-// Define a simple sqlite3_module structure
-static const sqlite3_module simpleModule = {
-    0,  // iVersion
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-    // Removed the excess NULLs
-};
-
+// Function to be fuzzed
 int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
     // Initialize SQLite database
     sqlite3 *db;
-    int rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    char *errMsg = 0;
+
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db)) {
+        sqlite3_close(db);
         return 0;
     }
 
-    // Prepare a non-null string for module name
-    const char *moduleName = "test_module";
+    // Convert input data to a string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Prepare a non-null pointer for the client data
-    void *clientData = (void *)data;
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Call the function-under-test
-    sqlite3_create_module(db, moduleName, &simpleModule, clientData);
-
-    // Close the database connection
+    // Clean up
+    sqlite3_free(errMsg);
+    free(sql);
     sqlite3_close(db);
 
     return 0;

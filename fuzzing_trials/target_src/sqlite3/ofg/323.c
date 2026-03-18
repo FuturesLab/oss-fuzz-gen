@@ -1,35 +1,51 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this for size_t
 #include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_323(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
-    int config_option;
-    void *config_value;
+    char *errMsg = 0;
 
-    // Open a new in-memory SQLite database
+    // Initialize SQLite database in memory
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure size is large enough to extract an integer and a pointer
-    if (size < sizeof(int) + sizeof(void *)) {
+    // Create a simple table
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // Extract an integer from the input data for the config option
-    config_option = *((int *)data);
+    // Prepare a SQL statement using the fuzzing input
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0'; // Ensure null-termination
 
-    // Extract a pointer-sized value from the input data for the config value
-    config_value = (void *)(data + sizeof(int));
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        free(sql);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Call the function under test
-    sqlite3_db_config(db, config_option, config_value);
+    // Call the function-under-test
+    sqlite3_step(stmt);
 
-    // Close the database
+    // Clean up
+    sqlite3_finalize(stmt);
+    free(sql);
     sqlite3_close(db);
 
     return 0;

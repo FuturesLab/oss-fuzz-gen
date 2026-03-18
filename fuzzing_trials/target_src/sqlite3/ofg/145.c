@@ -3,27 +3,43 @@
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    sqlite3 *db = NULL;
-    char *db_name = "test.db";
-    const char *zDb = "main";  // Default database name
-    int eMode = SQLITE_CHECKPOINT_PASSIVE;  // Default checkpoint mode
+    sqlite3 *db;
+    const char *zDb = "main"; // Default database name
+    int eMode = SQLITE_CHECKPOINT_PASSIVE; // Default checkpoint mode
     int nLog = 0;
     int nCkpt = 0;
+    int rc;
+    char *errMsg = 0;
 
-    // Open a connection to an SQLite database
-    if (sqlite3_open(db_name, &db) != SQLITE_OK) {
-        return 0;  // Exit if the database could not be opened
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Ensure the data is not null and has enough size for a meaningful operation
+    // Create a table and insert some data
+    rc = sqlite3_exec(db, "CREATE TABLE test(id INTEGER PRIMARY KEY, value TEXT);", 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    rc = sqlite3_exec(db, "INSERT INTO test(value) VALUES('sample');", 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Ensure the data is not NULL and has some content
     if (size > 0) {
-        // Use the first byte of data to determine the checkpoint mode
-        eMode = data[0] % 4;  // Modulo to ensure it stays within valid range
+        // Use the data to determine the checkpoint mode
+        eMode = data[0] % 4; // Assuming 4 different modes
     }
 
-    // Call the function under test
-    sqlite3_wal_checkpoint_v2(db, zDb, eMode, &nLog, &nCkpt);
+    // Call the function-under-test
+    rc = sqlite3_wal_checkpoint_v2(db, zDb, eMode, &nLog, &nCkpt);
 
     // Close the database connection
     sqlite3_close(db);

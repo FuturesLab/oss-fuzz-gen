@@ -1,24 +1,15 @@
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>  // Include for NULL
+#include <stddef.h>
+#include <stdio.h>
 #include <sqlite3.h>
 
-extern int LLVMFuzzerTestOneInput_161(const uint8_t *data, size_t size) {
-    // Declare a pointer for sqlite3_context
-    sqlite3_context *context = NULL;
+int LLVMFuzzerTestOneInput_161(const uint8_t *data, size_t size) {
+    // Call the function-under-test
+    const char *source_id = sqlite3_sourceid();
 
-    // Simulate a use of the data to initialize the context
-    // In a real fuzzing scenario, this would be replaced with actual logic
-    if (size > 0) {
-        // Normally, you would have a valid context here
-        // For demonstration, we assume context is set up correctly
-        // and use the data to manipulate or test the function
-    }
-
-    // Call the function-under-test with the initialized context
-    if (context != NULL) {
-        sqlite3_result_null(context);
-    }
+    // Print the source ID to ensure the function is called
+    // (In a real fuzzing scenario, you might not print this, but it's here for demonstration)
+    printf("SQLite3 Source ID: %s\n", source_id);
 
     return 0;
 }

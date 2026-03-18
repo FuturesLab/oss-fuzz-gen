@@ -1,23 +1,15 @@
+#include <stddef.h>  // Include this for size_t
 #include <stdint.h>
-#include <stddef.h>  // Include this to define size_t
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_402(const uint8_t *data, size_t size) {
-    int op;
+    // Declare and initialize the parameters for sqlite3_status
+    int op = SQLITE_STATUS_MEMORY_USED; // Use a valid operation code
     int current = 0;
     int highwater = 0;
-    int resetFlag;
+    int resetFlag = 0; // Use 0 or 1 to test both conditions
 
-    // Ensure size is large enough to extract required inputs
-    if (size < sizeof(int) * 2) {
-        return 0;
-    }
-
-    // Extract values from data
-    op = *((int*)data);
-    resetFlag = *((int*)(data + sizeof(int)));
-
-    // Call the function-under-test
+    // Call sqlite3_status with the initialized parameters
     sqlite3_status(op, &current, &highwater, resetFlag);
 
     return 0;

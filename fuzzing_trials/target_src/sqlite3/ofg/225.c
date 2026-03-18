@@ -1,45 +1,56 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_225(const uint8_t *data, size_t size) {
-    // Initialize SQLite3
-    if (sqlite3_initialize() != SQLITE_OK) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    const char *sql;
+    const char *columnName;
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the data is not null and size is greater than 0
-    if (data != NULL && size > 0) {
-        // Allocate memory for the buffer
-        void *buffer = sqlite3_malloc(size);
-        if (buffer != NULL) {
-            memcpy(buffer, data, size);
-
-            // Create a new SQLite3 database in memory
-            sqlite3 *db;
-            if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
-                // Prepare a statement using the input data as SQL
-                sqlite3_stmt *stmt;
-                if (sqlite3_prepare_v2(db, (const char *)buffer, (int)size, &stmt, NULL) == SQLITE_OK) {
-                    // Step through the statement
-                    while (sqlite3_step(stmt) == SQLITE_ROW) {
-                        // Access data from the row if needed
-                    }
-                    // Finalize the statement
-                    sqlite3_finalize(stmt);
-                }
-                // Close the database
-                sqlite3_close(db);
-            }
-
-            // Free the buffer
-            sqlite3_free(buffer);
-        }
+    // Create a simple table for testing
+    sql = "CREATE TABLE test (id INT, name TEXT);";
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Shutdown SQLite3
-    sqlite3_shutdown();
+    // Prepare an INSERT statement using the input data
+    sql = "INSERT INTO test (id, name) VALUES (?, ?);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Bind the input data to the statement
+    if (size > 0) {
+        sqlite3_bind_int(stmt, 1, data[0]);
+    }
+    if (size > 1) {
+        sqlite3_bind_text(stmt, 2, (const char *)(data + 1), size - 1, SQLITE_TRANSIENT);
+    }
+
+    // Execute the statement
+    sqlite3_step(stmt);
+
+    // Call the function-under-test
+    columnName = sqlite3_column_name(stmt, 0);
+    if (columnName != NULL) {
+        // Do something with columnName if needed
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

@@ -1,25 +1,22 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>  // Include this for size_t
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_153(const uint8_t *data, size_t size) {
-    // Declare and initialize a sqlite3_str object
-    sqlite3_str *strObj = sqlite3_str_new(NULL);
+    // Initialize a sqlite3_str object
+    sqlite3_str *str = sqlite3_str_new(NULL);
 
-    // If the size of data is greater than 0, use it to append a string to strObj
-    if (size > 0) {
+    // Ensure that the data is not NULL and has a size greater than 0
+    if (data != NULL && size > 0) {
         // Append the data to the sqlite3_str object
-        sqlite3_str_appendf(strObj, "%.*s", (int)size, data);
-    } else {
-        // Append a default string if size is 0
-        sqlite3_str_appendf(strObj, "default");
+        sqlite3_str_append(str, (const char *)data, size);
     }
 
-    // Call the function-under-test
-    int errCode = sqlite3_str_errcode(strObj);
+    // Call the function under test
+    int errcode = sqlite3_str_errcode(str);
 
-    // Clean up
-    sqlite3_str_finish(strObj);
+    // Clean up the sqlite3_str object
+    sqlite3_str_finish(str);
 
     return 0;
 }

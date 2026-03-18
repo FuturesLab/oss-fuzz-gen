@@ -1,16 +1,18 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
 // sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_mprintf at sqlite3.c:19329:18 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_mprintf at sqlite3.c:19329:18 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
 // sqlite3_blob_open at sqlite3.c:90692:16 in sqlite3.h
+// sqlite3_blob_close at sqlite3.c:90931:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_blob_reopen at sqlite3.c:91074:16 in sqlite3.h
+// sqlite3_blob_bytes at sqlite3.c:91059:16 in sqlite3.h
+// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
+// sqlite3_realloc64 at sqlite3.c:17630:18 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
+// sqlite3_randomness at sqlite3.c:20926:17 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
 // sqlite3_blob_close at sqlite3.c:90931:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
@@ -20,66 +22,81 @@
 #include <stdio.h>
 #include <sqlite3.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
-#include <stdio.h>
+#include <stdlib.h>
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static void prepare_database(sqlite3 **db) {
+    int rc = sqlite3_open(":memory:", db);
+    if (rc != SQLITE_OK) {
+        *db = NULL;
     }
 }
 
-int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Initialize SQLite database connection
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+static sqlite3_blob* prepare_blob(sqlite3 *db) {
+    sqlite3_blob *blob = NULL;
+    char *errMsg = 0;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);"
+                      "INSERT INTO test (data) VALUES (zeroblob(10));";
+    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc == SQLITE_OK) {
+        rc = sqlite3_blob_open(db, "main", "test", "data", 1, 1, &blob);
     }
-
-    // Prepare a dummy SQL statement
-    sqlite3_stmt *stmt;
-    const char *sql = "CREATE TABLE fuzz (id INTEGER PRIMARY KEY, data BLOB)";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Finalize the prepared statement
-    sqlite3_finalize(stmt);
-
-    // Execute a SQL statement
-    char *errMsg = NULL;
-    if (sqlite3_exec(db, "INSERT INTO fuzz (data) VALUES (zeroblob(10))", NULL, NULL, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Use sqlite3_mprintf to format a string
-    char *formatted1 = sqlite3_mprintf("INSERT INTO fuzz (data) VALUES (%Q)", "test");
-    if (formatted1) {
-        sqlite3_free(formatted1);
-    }
-
-    char *formatted2 = sqlite3_mprintf("SELECT * FROM fuzz WHERE id = %d", 1);
-    if (formatted2) {
-        sqlite3_free(formatted2);
-    }
-
-    // Open a BLOB for incremental I/O
-    sqlite3_blob *blob;
-    int rowid = 1;
-    if (sqlite3_blob_open(db, "main", "fuzz", "data", rowid, 0, &blob) == SQLITE_OK) {
+    if (rc != SQLITE_OK && blob) {
         sqlite3_blob_close(blob);
+        blob = NULL;
+    }
+    return blob;
+}
+
+int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
+    sqlite3 *db = NULL;
+    prepare_database(&db);
+    if (!db) return 0;
+
+    // sqlite3_errmsg
+    const char *errmsg = sqlite3_errmsg(db);
+
+    // sqlite3_blob_reopen
+    sqlite3_blob *blob = prepare_blob(db);
+    if (blob) {
+        sqlite3_int64 rowid = 1;
+        if (Size >= sizeof(sqlite3_int64)) {
+            memcpy(&rowid, Data, sizeof(sqlite3_int64));
+        }
+        sqlite3_blob_reopen(blob, rowid);
     }
 
-    // Clean up
-    sqlite3_close(db);
+    // sqlite3_blob_bytes
+    if (blob) {
+        int blob_size = sqlite3_blob_bytes(blob);
+    }
 
+    // sqlite3_realloc64
+    void *pOld = sqlite3_malloc(100);
+    if (pOld) {
+        sqlite3_uint64 newSize = 100;
+        if (Size >= sizeof(sqlite3_uint64)) {
+            memcpy(&newSize, Data, sizeof(sqlite3_uint64));
+        }
+        void *pNew = sqlite3_realloc64(pOld, newSize);
+        if (pNew) {
+            sqlite3_free(pNew);
+        } else {
+            sqlite3_free(pOld);
+        }
+    }
+
+    // sqlite3_randomness
+    if (Size > 0) {
+        void *randomBuffer = sqlite3_malloc(Size);
+        if (randomBuffer) {
+            sqlite3_randomness((int)Size, randomBuffer);
+            sqlite3_free(randomBuffer);
+        }
+    }
+
+    if (blob) sqlite3_blob_close(blob);
+    sqlite3_close(db);
     return 0;
 }

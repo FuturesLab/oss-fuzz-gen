@@ -1,36 +1,22 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_302(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function-under-test
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
-    int rc;
-
-    // Open a temporary in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Ensure that the size is not zero to avoid passing a NULL pointer
+    if (size == 0) {
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a string
-    char *funcName = (char *)sqlite3_malloc(size + 1);
-    if (funcName == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(funcName, data, size);
-    funcName[size] = '\0';
+    // Cast the data to a const char pointer
+    const char *input = (const char *)data;
 
     // Call the function-under-test
-    int numArgs = 1; // Arbitrary non-zero value for the number of arguments
-    sqlite3_overload_function(db, funcName, numArgs);
+    // The second parameter is the length of the string, which is the size of the input data
+    int result = sqlite3_keyword_check(input, (int)size);
 
-    // Clean up
-    sqlite3_free(funcName);
-    sqlite3_close(db);
+    // Use the result in some way, here we just return it for completeness
+    (void)result; // Suppress unused variable warning
 
     return 0;
 }

@@ -1,52 +1,29 @@
 #include <stdint.h>
+#include <stddef.h>  // Include this header to define size_t
 #include <sqlite3.h>
-#include <string.h>
+
+// Dummy callback function to use as the update hook
+void update_hook_callback_231(void *pArg, int op, char const *zDb, char const *zTbl, sqlite3_int64 rowid) {
+    // This is a placeholder function. In actual use, you would handle the update event here.
+}
 
 int LLVMFuzzerTestOneInput_231(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
     int rc;
-    const char *create_table_sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
-    const char *insert_sql = "INSERT INTO test (value) VALUES (?);";
 
-    // Open a database connection
+    // Initialize the SQLite database in memory
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create table
-    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Ensure the data is not NULL and has a reasonable size
+    if (size > 0) {
+        // Set the update hook with the dummy callback
+        sqlite3_update_hook(db, update_hook_callback_231, (void *)data);
     }
 
-    // Prepare an insert statement
-    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind the input data to the SQL statement
-    rc = sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
-    if (rc != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;

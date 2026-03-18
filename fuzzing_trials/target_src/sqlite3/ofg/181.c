@@ -1,35 +1,50 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h> // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_181(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3_stmt *stmt;
     int rc;
-
-    // Initialize an in-memory SQLite database
+    
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        return 0; // If opening the database fails, exit early
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Ensure the data is null-terminated for use as a string
-    char *zDbName = (char *)malloc(size + 1);
-    if (zDbName == NULL) {
+    // Prepare a simple SQL statement
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    memcpy(zDbName, data, size);
-    zDbName[size] = '\0';
+    // Execute the SQL statement to ensure the table is created
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Call the function-under-test
-    sqlite3_db_readonly(db, zDbName);
+    // Prepare another statement for inserting data
+    sql = "INSERT INTO test (value) VALUES (?);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Bind the input data to the statement
+    sqlite3_bind_text(stmt, 1, (const char *)data, (int)size, SQLITE_STATIC);
+
+    // Call the function under test
+    sqlite3_clear_bindings(stmt);
 
     // Clean up
-    free(zDbName);
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

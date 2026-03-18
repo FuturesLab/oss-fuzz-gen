@@ -1,36 +1,45 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_374(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *err_msg = 0;
+    sqlite3_stmt *stmt;
     int rc;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER, value REAL); INSERT INTO test (id, value) VALUES (?, ?);";
 
-    // Open an in-memory database
+    // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated to be used as a SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &err_msg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(err_msg);
+    // Ensure we have enough data to bind
+    if (size < sizeof(double) + sizeof(int)) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Clean up
-    free(sql);
+    // Extract the integer and double from the data
+    int index = *((int *)data);
+    double value = *((double *)(data + sizeof(int)));
+
+    // Bind the double value to the SQL statement
+    rc = sqlite3_bind_double(stmt, index, value);
+    if (rc != SQLITE_OK) {
+        // Handle error if needed
+    }
+
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

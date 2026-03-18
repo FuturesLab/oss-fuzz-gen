@@ -1,23 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // For size_t
+#include <stdlib.h>  // For NULL
 #include <sqlite3.h>
 
-int LLVMFuzzerTestOneInput_256(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to extract an integer
-    if (size < sizeof(int)) {
-        return 0;
-    }
+// Define a callback function for tracing
+static int traceCallback(unsigned int traceType, void *context, void *p, void *x) {
+    // Simple callback function that does nothing
+    return 0;
+}
 
-    // Extract an integer from the input data
-    int index = *(const int *)data;
+int LLVMFuzzerTestOneInput_256(const uint8_t *data, size_t size) {
+    sqlite3 *db;
+    unsigned int mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW | SQLITE_TRACE_CLOSE;  // Trace event mask
+    void *userData = NULL;  // User data for the callback
+
+    // Initialize SQLite database in memory
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;  // If opening fails, return early
+    }
 
     // Call the function-under-test
-    const char *option = sqlite3_compileoption_get(index);
+    sqlite3_trace_v2(db, mask, traceCallback, userData);
 
-    // Optionally, you can use the result for further processing or checks
-    if (option != NULL) {
-        // Do something with the option, if needed
-    }
+    // Close the SQLite database
+    sqlite3_close(db);
 
     return 0;
 }

@@ -1,32 +1,37 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this for the size_t type
-#include <stdlib.h>  // Include this for the NULL definition
+#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
+#include <stdlib.h> // Include this library for malloc
 
 int LLVMFuzzerTestOneInput_279(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
+    sqlite3 *db;
+    int rc;
+    char *errMsg = 0;
+    const char *dbName = "test.db";
+
+    // Open a new SQLite database connection
+    rc = sqlite3_open(dbName, &db);
+    if (rc) {
+        sqlite3_close(db);
         return 0;
     }
 
-    // Extract an integer from the input data
-    int input_value = *(const int *)data;
-
-    // Ensure the input_value is within a valid range for sqlite3_mutex_alloc
-    // SQLite mutex types are typically limited to a small range of integers
-    // For example, assuming valid mutex types are 0 to 10
-    int valid_mutex_type = input_value % 11; // Map input_value to a valid range
-
-    // Call the function-under-test
-    sqlite3_mutex *mutex = sqlite3_mutex_alloc(valid_mutex_type);
-
-    // Do something with the mutex to ensure it's used
-    if (mutex != NULL) {
-        sqlite3_mutex_enter(mutex); // Enter the mutex
-        // Perform some operations while the mutex is held
-        sqlite3_mutex_leave(mutex); // Leave the mutex
-        // Correctly free the mutex using sqlite3_mutex_free
-        sqlite3_mutex_free(mutex);  // Free the mutex
+    // Ensure the input data is null-terminated for use as a string
+    char *inputStr = (char *)malloc(size + 1);
+    if (inputStr == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(inputStr, data, size);
+    inputStr[size] = '\0';
+
+    // Call the function under test
+    int txnState = sqlite3_txn_state(db, inputStr);
+
+    // Clean up
+    free(inputStr);
+    sqlite3_close(db);
 
     return 0;
 }

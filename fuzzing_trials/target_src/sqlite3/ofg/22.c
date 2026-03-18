@@ -1,41 +1,40 @@
 #include <stdint.h>
 #include <sqlite3.h>
 #include <string.h>
+#include <stdlib.h> // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
+    sqlite3 *db;
     char *errMsg = 0;
+    int rc;
 
-    // Open an in-memory SQLite database
+    // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        // If the database could not be opened, return early
         return 0;
     }
 
-    // Create a SQL statement from the input data
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Ensure the data is null-terminated for use as a string
+    char *moduleName = (char *)malloc(size + 1);
+    if (moduleName == NULL) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the SQL statement
+    memcpy(moduleName, data, size);
+    moduleName[size] = '\0';
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+    // Define a dummy sqlite3_module structure
+    sqlite3_module dummyModule;
+    memset(&dummyModule, 0, sizeof(dummyModule));
 
-    // Free the allocated SQL statement
-    free(sql);
+    // Use a non-null pointer for the fourth parameter
+    void *pClientData = (void *)data;
 
     // Call the function-under-test
-    sqlite3_db_release_memory(db);
+    sqlite3_create_module(db, moduleName, &dummyModule, pClientData);
 
-    // Close the database
+    // Clean up
+    free(moduleName);
     sqlite3_close(db);
 
     return 0;

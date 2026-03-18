@@ -1,12 +1,19 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
-// sqlite3_bind_int64 at sqlite3.c:80118:16 in sqlite3.h
-// sqlite3_bind_double at sqlite3.c:80104:16 in sqlite3.h
-// sqlite3_bind_text64 at sqlite3.c:80167:16 in sqlite3.h
-// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_reset at sqlite3.c:78461:16 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_reset at sqlite3.c:78461:16 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_changes at sqlite3.c:172160:16 in sqlite3.h
 // sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
@@ -17,12 +24,29 @@
 #include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
 
-static sqlite3_stmt* prepare_dummy_stmt(sqlite3* db) {
-    const char* sql = "SELECT ?1, ?2, ?3, ?4;";
-    sqlite3_stmt* stmt = NULL;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
+
+static sqlite3* initialize_db() {
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return NULL;
+    }
+    return db;
+}
+
+static sqlite3_stmt* prepare_statement(sqlite3 *db) {
+    sqlite3_stmt *stmt;
+    const char *sql = "CREATE TABLE IF NOT EXISTS fuzz_table (id INTEGER PRIMARY KEY, data TEXT);"
+                      "INSERT INTO fuzz_table (data) VALUES (?);";
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
         return NULL;
     }
@@ -30,43 +54,60 @@ static sqlite3_stmt* prepare_dummy_stmt(sqlite3* db) {
 }
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 1) return 0; // Ensure there's at least some data
 
-    sqlite3* db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
-    }
+    // Write data to dummy file
+    write_dummy_file(Data, Size);
 
-    sqlite3_stmt* stmt = prepare_dummy_stmt(db);
+    // Initialize database
+    sqlite3 *db = initialize_db();
+    if (!db) return 0;
+
+    // Prepare statement
+    sqlite3_stmt *stmt = prepare_statement(db);
     if (!stmt) {
         sqlite3_close(db);
         return 0;
     }
 
-    int param_index = 1;
-    int int_value = (int)(Data[0]);
-    sqlite3_int64 int64_value = (sqlite3_int64)(Data[0]);
-    double double_value = (double)(Data[0]);
-    const char* text_value = (const char*)Data;
-    sqlite3_uint64 text_length = (sqlite3_uint64)Size;
-    unsigned char encoding = SQLITE_UTF8;
+    // Reset statement
+    int rc = sqlite3_reset(stmt);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Fuzz sqlite3_bind_int
-    sqlite3_bind_int(stmt, param_index++, int_value);
+    // Bind text
+    rc = sqlite3_bind_text(stmt, 1, (const char *)Data, Size, SQLITE_TRANSIENT);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Fuzz sqlite3_bind_int64
-    sqlite3_bind_int64(stmt, param_index++, int64_value);
+    // Step through the statement
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
+        const char *errmsg = sqlite3_errmsg(db);
+        (void)errmsg; // Suppress unused variable warning
+    }
 
-    // Fuzz sqlite3_bind_double
-    sqlite3_bind_double(stmt, param_index++, double_value);
+    // Reset the statement again
+    rc = sqlite3_reset(stmt);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Fuzz sqlite3_bind_text64
-    sqlite3_bind_text64(stmt, param_index++, text_value, text_length, SQLITE_STATIC, encoding);
+    // Get number of changes
+    int changes = sqlite3_changes(db);
+    (void)changes; // Suppress unused variable warning
 
-    // Rebind sqlite3_bind_int to explore more states
-    sqlite3_bind_int(stmt, param_index, int_value);
-
+    // Cleanup
     sqlite3_finalize(stmt);
     sqlite3_close(db);
+
     return 0;
 }

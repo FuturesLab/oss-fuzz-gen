@@ -1,30 +1,51 @@
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
 #include <sqlite3.h>
+#include <stdio.h>
+#include <string.h>
 
+// Fuzzing harness for sqlite3_reset
 int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
     sqlite3 *db;
     sqlite3_stmt *stmt;
     int rc;
 
-    // Open an in-memory database
+    // Initialize SQLite database in memory
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a SQL statement using the input data
-    const char *sql = (const char *)data;
-    rc = sqlite3_prepare_v2(db, sql, size, &stmt, NULL);
+    // Create a simple table for testing
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Call the function-under-test
-    int result = sqlite3_stmt_isexplain(stmt);
+    // Prepare a simple SQL statement
+    const char *sql = "INSERT INTO test (value) VALUES (?);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Clean up
+    // Bind the fuzzing input data as a parameter to the SQL statement
+    rc = sqlite3_bind_text(stmt, 1, (const char*)data, size, SQLITE_STATIC);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the SQL statement
+    rc = sqlite3_step(stmt);
+
+    // Reset the statement to its initial state
+    sqlite3_reset(stmt);
+
+    // Finalize the statement and close the database
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 

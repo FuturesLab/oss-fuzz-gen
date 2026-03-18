@@ -1,22 +1,29 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_298(const uint8_t *data, size_t size) {
-    // Ensure the input data is not empty
-    if (size == 0) {
+    // Define and initialize the parameters for sqlite3_realloc64
+    void *ptr = malloc(1);  // Allocate a non-NULL initial memory block
+    sqlite3_uint64 newSize;
+
+    // Ensure size is at least the size of sqlite3_uint64
+    if (size < sizeof(sqlite3_uint64)) {
+        free(ptr);
         return 0;
     }
 
-    // Cast the input data to a char pointer
-    const char *input = (const char *)data;
+    // Copy data into newSize ensuring it doesn't exceed the input size
+    newSize = *(sqlite3_uint64 *)data;
 
-    // Call the function-under-test with the input data
-    // The second parameter is the length of the input data
-    int result = sqlite3_keyword_check(input, (int)size);
+    // Call the function under test
+    void *newPtr = sqlite3_realloc64(ptr, newSize);
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    // Free the allocated memory if it was successfully reallocated
+    if (newPtr != NULL) {
+        free(newPtr);
+    }
 
     return 0;
 }

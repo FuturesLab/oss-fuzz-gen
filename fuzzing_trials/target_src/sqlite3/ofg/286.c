@@ -1,65 +1,28 @@
 #include <stdint.h>
-#include <stdlib.h>  // Include for NULL, malloc, and free
-#include <string.h>  // Include for memcpy
+#include <stddef.h>
 #include <sqlite3.h>
 
-// Dummy callback function to satisfy the function signature
-static void dummyDestructor(void *p) {
-    // Do nothing
+// Dummy callback function to be used as a commit hook
+int commit_hook_callback(void *user_data) {
+    // For fuzzing purposes, we can just return 0
+    return 0;
 }
 
-// Dummy sqlite3_module structure
-static const sqlite3_module dummyModule = {
-    0, // iVersion
-    NULL, // xCreate
-    NULL, // xConnect
-    NULL, // xBestIndex
-    NULL, // xDisconnect
-    NULL, // xDestroy
-    NULL, // xOpen
-    NULL, // xClose
-    NULL, // xFilter
-    NULL, // xNext
-    NULL, // xEof
-    NULL, // xColumn
-    NULL, // xRowid
-    NULL, // xUpdate
-    NULL, // xBegin
-    NULL, // xSync
-    NULL, // xCommit
-    NULL, // xRollback
-    NULL, // xFindFunction
-    NULL, // xRename
-    NULL, // xSavepoint
-    NULL, // xRelease
-    NULL, // xRollbackTo
-    NULL, // xShadowName
-};
-
 int LLVMFuzzerTestOneInput_286(const uint8_t *data, size_t size) {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
     int rc;
+    void *user_data = (void *)data;  // Use the input data as user data
 
-    // Open a new in-memory database
+    // Open a temporary in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0;
+        return 0;  // If opening the database fails, exit early
     }
 
-    // Ensure that data is null-terminated for use as a string
-    char *moduleName = (char *)malloc(size + 1);
-    if (!moduleName) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(moduleName, data, size);
-    moduleName[size] = '\0';
+    // Call the function-under-test
+    sqlite3_commit_hook(db, commit_hook_callback, user_data);
 
-    // Call the function under test
-    sqlite3_create_module_v2(db, moduleName, &dummyModule, NULL, dummyDestructor);
-
-    // Clean up
-    free(moduleName);
+    // Close the database
     sqlite3_close(db);
 
     return 0;

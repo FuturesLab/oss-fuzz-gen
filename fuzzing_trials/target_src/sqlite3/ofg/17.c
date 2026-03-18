@@ -1,38 +1,37 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h> // Include this for malloc and free
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
+    sqlite3 *db = NULL;
+    int checkpoint_threshold = 1000; // Arbitrary non-zero value for testing
+    int result;
 
-    // Ensure the data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) return 0;
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        free(sql);
+    // Open an in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc == SQLITE_OK) {
-        // Call the function-under-test
-        int param_count = sqlite3_bind_parameter_count(stmt);
-
-        // Clean up
-        sqlite3_finalize(stmt);
+    // Convert the input data to a string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    sqlite3_close(db);
+    // Execute the SQL command
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Call the function-under-test
+    result = sqlite3_wal_autocheckpoint(db, checkpoint_threshold);
+
+    // Free resources
+    sqlite3_free(errMsg);
     free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

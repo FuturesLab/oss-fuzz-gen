@@ -1,39 +1,46 @@
-#include <sqlite3.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <sqlite3.h>
 #include <string.h>
+#include <stdio.h>  // Include stdio.h for snprintf
 
 int LLVMFuzzerTestOneInput_234(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract meaningful inputs
-    if (size < 4) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    char *errMsg = 0;
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a buffer for the database name
-    char db_name[256];
-    size_t db_name_length = size < 255 ? size : 255;
-    memcpy(db_name, data, db_name_length);
-    db_name[db_name_length] = '\0'; // Ensure null-termination
+    // Create a simple table for testing
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Prepare a buffer for the optional VFS name
-    char vfs_name[256];
-    size_t vfs_name_length = size < 255 ? size : 255;
-    memcpy(vfs_name, data, vfs_name_length);
-    vfs_name[vfs_name_length] = '\0'; // Ensure null-termination
+    // Convert input data to a SQL statement
+    char sql[256];
+    snprintf(sql, sizeof(sql), "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
 
-    // Extract flags from the data
-    int flags = (int)data[0];
-
-    // Initialize a pointer for the SQLite database handle
-    sqlite3 *db = NULL;
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = sqlite3_open_v2(db_name, &db, flags, vfs_name);
+    sqlite3 *db_handle = sqlite3_db_handle(stmt);
 
-    // Close the database if it was opened
-    if (db != NULL) {
-        sqlite3_close(db);
-    }
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

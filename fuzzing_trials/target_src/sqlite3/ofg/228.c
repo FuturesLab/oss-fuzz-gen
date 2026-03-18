@@ -1,47 +1,40 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
-
-typedef void (*update_callback)(void *, int, char const *, char const *, sqlite3_int64);
-
-void my_update_hook(void *arg, int op, char const *db, char const *tbl, sqlite3_int64 rowid) {
-    // Custom update hook logic can be implemented here
-    (void)arg;  // Suppress unused variable warning
-    (void)op;
-    (void)db;
-    (void)tbl;
-    (void)rowid;
-}
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_228(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
-    void *user_data = (void *)data;  // Use the input data as user data
 
-    // Open a connection to an in-memory SQLite database
+    // Initialize SQLite
+    sqlite3_initialize();
+
+    // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Set the update hook with the custom callback
-    sqlite3_update_hook(db, my_update_hook, user_data);
+    // Prepare a dummy SQL statement
+    rc = sqlite3_prepare_v2(db, "SELECT ?;", -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Normally, you would execute some SQL commands here to trigger the update hook
-    // For example:
-    // sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, NULL);
-    // sqlite3_exec(db, "INSERT INTO test (value) VALUES ('test');", NULL, NULL, NULL);
+    // Bind the input data as a blob to the SQL statement
+    sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT);
 
-    // Close the SQLite database connection
+    // Execute the statement
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Access the result as text (UTF-16)
+        const void *result = sqlite3_column_text16(stmt, 0);
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

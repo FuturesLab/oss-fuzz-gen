@@ -1,52 +1,61 @@
+#include <stddef.h>  // For size_t
+#include <stdlib.h>  // For NULL
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_300(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    sqlite3_blob *blob;
-    int rc;
-    
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    sqlite3_stmt *stmt = NULL;
+    int index = 1; // Typically, index starts from 1 in SQLite
+
+    // Open an in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Create a table and insert a blob
-    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB)";
-    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Create a table
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    if (sqlite3_exec(db, createTableSQL, 0, 0, 0) != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    const char *insert_sql = "INSERT INTO test (data) VALUES (zeroblob(10))";
-    rc = sqlite3_exec(db, insert_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Prepare an SQL statement for inserting data
+    const char *insertSQL = "INSERT INTO test (value) VALUES (?);";
+    if (sqlite3_prepare_v2(db, insertSQL, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Open a blob handle
-    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 1, &blob);
-    if (rc != SQLITE_OK) {
+    // Bind the input data as a blob
+    if (sqlite3_bind_blob(stmt, index, data, size, SQLITE_STATIC) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare data to write
-    int write_size = size < 10 ? size : 10; // Ensure we do not exceed the blob size
-    const void *write_data = (const void *)data;
-    int offset = 0;
+    // Execute the statement and check the result
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Call the function-under-test
-    sqlite3_blob_write(blob, write_data, write_size, offset);
+    // Finalize the statement
+    sqlite3_finalize(stmt);
 
-    // Clean up
-    sqlite3_blob_close(blob);
+    // Optionally, you can query the table to further exercise the database
+    const char *selectSQL = "SELECT * FROM test;";
+    if (sqlite3_prepare_v2(db, selectSQL, -1, &stmt, NULL) == SQLITE_OK) {
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            // Access the results if needed
+            const unsigned char *text = sqlite3_column_text(stmt, 1);
+            (void)text; // Use the text if needed
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;
