@@ -11,26 +11,21 @@ extern "C" {
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-  char *input_string;
-  cJSON *json_string_reference;
-
-  if (size == 0)
+  if (size == 0 || data[size - 1] != '\0') {
+    // Ensure the string is null-terminated
     return 0;
+  }
 
-  // Ensure the input data is null-terminated
-  input_string = (char *)malloc(size + 1);
-  if (input_string == NULL)
-    return 0;
-
-  memcpy(input_string, data, size);
-  input_string[size] = '\0';
+  // Convert the input data to a string
+  const char *input_string = (const char *)data;
 
   // Call the function-under-test
-  json_string_reference = cJSON_CreateStringReference(input_string);
+  cJSON *json = cJSON_CreateStringReference(input_string);
 
-  // Clean up
-  cJSON_Delete(json_string_reference);
-  free(input_string);
+  // Clean up the created cJSON object
+  if (json != NULL) {
+    cJSON_Delete(json);
+  }
 
   return 0;
 }

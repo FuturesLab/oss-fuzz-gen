@@ -8,40 +8,36 @@ extern "C" {
 
 #include "../cJSON.h"
 
-int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size); /* required by C89 */
-
 int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-  cJSON *json;
-  char *key;
-
   if (size < 2) {
     return 0;
   }
 
-  // Ensure the data is null-terminated for string operations
-  char *data_copy = (char *)malloc(size + 1);
-  if (data_copy == NULL) {
+  // Ensure the data is null-terminated to be used as a string
+  char *key = (char *)malloc(size + 1);
+  if (key == NULL) {
     return 0;
   }
-  memcpy(data_copy, data, size);
-  data_copy[size] = '\0';
+  memcpy(key, data, size);
+  key[size] = '\0';
 
-  // Parse the JSON object from the data
-  json = cJSON_Parse(data_copy);
+  // Create a dummy JSON object
+  cJSON *json = cJSON_CreateObject();
   if (json == NULL) {
-    free(data_copy);
+    free(key);
     return 0;
   }
 
-  // Use part of the data as a key for the JSON object
-  key = data_copy;
+  // Add some items to the JSON object
+  cJSON_AddStringToObject(json, "exampleKey1", "exampleValue1");
+  cJSON_AddStringToObject(json, "exampleKey2", "exampleValue2");
 
-  // Call the function-under-test
+  // Call the function under test
   cJSON_DeleteItemFromObject(json, key);
 
   // Clean up
   cJSON_Delete(json);
-  free(data_copy);
+  free(key);
 
   return 0;
 }

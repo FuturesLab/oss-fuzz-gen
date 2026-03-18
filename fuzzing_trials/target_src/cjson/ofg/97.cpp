@@ -1,36 +1,37 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size); /* required by C89 */
-
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    if (size == 0) return 0;
-
-    // Create a cJSON array
-    cJSON *array = cJSON_CreateArray();
-    if (array == NULL) return 0;
-
-    // Parse the input data as a JSON item
-    cJSON *item = cJSON_ParseWithLength((const char *)data, size);
-    if (item == NULL) {
-        cJSON_Delete(array);
+    if (size < 2) {
         return 0;
     }
 
-    // Add the parsed item to the array
-    cJSON_AddItemToArray(array, item);
+    // Create a root JSON array
+    cJSON *root_array = cJSON_CreateArray();
+    if (root_array == NULL) {
+        return 0;
+    }
+
+    // Create a new JSON item from the input data
+    cJSON *new_item = cJSON_CreateString((const char *)data);
+    if (new_item == NULL) {
+        cJSON_Delete(root_array);
+        return 0;
+    }
+
+    // Add the new item to the root array
+    cJSON_bool result = cJSON_AddItemToArray(root_array, new_item);
 
     // Clean up
-    cJSON_Delete(array);
+    cJSON_Delete(root_array); // This will also delete new_item
 
-    return 0;
+    return result ? 0 : 1;
 }
 
 #ifdef __cplusplus

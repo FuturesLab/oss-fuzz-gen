@@ -18,30 +18,38 @@ int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
     return 0;
   }
 
-  // Ensure the data is null-terminated for string operations
-  char *data_copy = (char *)malloc(size + 1);
-  if (data_copy == NULL) {
+  // Ensure the data is null-terminated to be used as a string
+  char *input = (char *)malloc(size + 1);
+  if (input == NULL) {
     return 0;
   }
-  memcpy(data_copy, data, size);
-  data_copy[size] = '\0';
+  memcpy(input, data, size);
+  input[size] = '\0';
 
-  // Parse the data into a cJSON object
-  json = cJSON_Parse(data_copy);
+  // Parse the input data as a JSON object
+  json = cJSON_Parse(input);
   if (json == NULL) {
-    free(data_copy);
+    free(input);
     return 0;
   }
 
-  // Use the first part of the data as a key for deletion
-  key = data_copy;
+  // Use a portion of the input data as the key
+  key = (char *)malloc(size / 2 + 1);
+  if (key == NULL) {
+    cJSON_Delete(json);
+    free(input);
+    return 0;
+  }
+  memcpy(key, data, size / 2);
+  key[size / 2] = '\0';
 
   // Call the function-under-test
   cJSON_DeleteItemFromObject(json, key);
 
-  // Cleanup
+  // Clean up
   cJSON_Delete(json);
-  free(data_copy);
+  free(input);
+  free(key);
 
   return 0;
 }

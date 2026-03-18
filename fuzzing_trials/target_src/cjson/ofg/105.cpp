@@ -1,12 +1,12 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "/src/cjson/cJSON.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "/src/cjson/cJSON.h"
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
   // Ensure the input data is null-terminated

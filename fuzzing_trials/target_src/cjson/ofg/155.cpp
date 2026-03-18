@@ -1,10 +1,12 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include "/src/cjson/cJSON.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "/src/cjson/cJSON.h"
 
 int LLVMFuzzerTestOneInput_155(const uint8_t *data, size_t size) {
   if (size < 1) {
@@ -12,12 +14,12 @@ int LLVMFuzzerTestOneInput_155(const uint8_t *data, size_t size) {
   }
 
   // Use the first byte of data to determine the boolean value
-  cJSON_bool bool_value = (data[0] % 2 == 0) ? cJSON_False : cJSON_True;
+  cJSON_bool bool_value = (cJSON_bool)(data[0] % 2);
 
-  // Create a cJSON boolean object
+  // Call the function-under-test
   cJSON *json_bool = cJSON_CreateBool(bool_value);
 
-  // Clean up
+  // Clean up the created cJSON object
   if (json_bool != NULL) {
     cJSON_Delete(json_bool);
   }

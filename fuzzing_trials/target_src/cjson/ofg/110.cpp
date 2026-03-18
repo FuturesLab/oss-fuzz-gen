@@ -12,9 +12,9 @@ int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Ensure null-terminated string for the key
+    // Ensure the string is null-terminated
     char *key = (char *)malloc(size + 1);
-    if (key == NULL) {
+    if (!key) {
         return 0;
     }
     memcpy(key, data, size);

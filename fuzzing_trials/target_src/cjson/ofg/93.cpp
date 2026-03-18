@@ -1,27 +1,33 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated
-    if (size == 0 || data[size - 1] != '\0') {
-        return 0;
-    }
+#include "../cJSON.h"
 
-    // Create a string reference using the input data
-    cJSON *json_string_ref = cJSON_CreateStringReference((const char *)data);
-
-    // Clean up the cJSON object if it was created
-    if (json_string_ref != NULL) {
-        cJSON_Delete(json_string_ref);
-    }
-
+extern "C" int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
+  // Ensure the input data is null-terminated to be used as a string
+  char *inputString = (char *)malloc(size + 1);
+  if (inputString == NULL) {
     return 0;
+  }
+  memcpy(inputString, data, size);
+  inputString[size] = '\0';
+
+  // Call the function-under-test
+  cJSON *json = cJSON_CreateStringReference(inputString);
+
+  // Clean up
+  if (json != NULL) {
+    cJSON_Delete(json);
+  }
+  free(inputString);
+
+  return 0;
 }
 
 #ifdef __cplusplus

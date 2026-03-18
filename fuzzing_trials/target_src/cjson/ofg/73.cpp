@@ -8,21 +8,20 @@ extern "C" {
 
 #include "../cJSON.h"
 
-int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size);
+int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-  // Ensure there's at least one byte to read for the size
   if (size < sizeof(size_t)) {
-    return 0;
+    return 0; // Not enough data to extract a size_t value
   }
 
-  // Use the first few bytes of data to determine the size for cJSON_malloc
-  size_t malloc_size = *(const size_t *)data;
+  // Extract a size_t value from the input data
+  size_t alloc_size = *((const size_t *)data);
 
-  // Call cJSON_malloc with the derived size
-  void *allocated_memory = cJSON_malloc(malloc_size);
+  // Call the function-under-test
+  void *allocated_memory = cJSON_malloc(alloc_size);
 
-  // Free the allocated memory if it's not NULL
+  // If memory was successfully allocated, free it
   if (allocated_memory != NULL) {
     free(allocated_memory);
   }

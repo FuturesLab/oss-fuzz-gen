@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,8 +25,7 @@ int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
 
   double number_value = cJSON_GetNumberValue(json);
 
-  // Print the number value for debugging purposes
-  printf("Number value: %f\n", number_value);
+  (void)number_value; // Suppress unused variable warning
 
   cJSON_Delete(json);
 

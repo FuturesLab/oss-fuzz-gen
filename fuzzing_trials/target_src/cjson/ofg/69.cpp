@@ -11,31 +11,26 @@ extern "C" {
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-  if (size == 0) {
+  cJSON *json_object = cJSON_CreateObject();
+  if (json_object == NULL) {
     return 0;
   }
 
-  // Ensure the data is null-terminated
+  // Ensure the string is null-terminated
   char *key = (char *)malloc(size + 1);
   if (key == NULL) {
+    cJSON_Delete(json_object);
     return 0;
   }
   memcpy(key, data, size);
   key[size] = '\0';
 
-  // Create a cJSON object
-  cJSON *json = cJSON_CreateObject();
-  if (json == NULL) {
-    free(key);
-    return 0;
-  }
-
   // Call the function-under-test
-  cJSON *result = cJSON_AddNullToObject(json, key);
+  cJSON *result = cJSON_AddNullToObject(json_object, key);
 
   // Clean up
-  cJSON_Delete(json);
   free(key);
+  cJSON_Delete(json_object);
 
   return 0;
 }

@@ -11,35 +11,30 @@ extern "C" {
 int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-  cJSON *json;
-  cJSON *item;
-  char *key;
-  size_t offset = 4;
+  if (size < 2) return 0; // Ensure there's enough data for a key and JSON
 
-  if (size <= offset)
-    return 0;
-  if (data[size - 1] != '\0')
-    return 0;
+  // Allocate memory for the key and JSON string
+  size_t key_size = data[0] % (size - 1) + 1; // Ensure key size is less than size
+  char *key = (char *)malloc(key_size + 1);
+  if (!key) return 0;
 
-  json = cJSON_ParseWithOpts((const char *)data + offset, NULL, 1);
-  if (json == NULL)
-    return 0;
+  // Copy the key from the data
+  memcpy(key, data + 1, key_size);
+  key[key_size] = '\0'; // Null-terminate the key
 
-  key = (char *)malloc(size);
-  if (key == NULL) {
-    cJSON_Delete(json);
+  // Parse the remaining data as JSON
+  cJSON *json = cJSON_Parse((const char *)(data + 1 + key_size));
+  if (!json) {
+    free(key);
     return 0;
   }
 
-  memcpy(key, data, size);
-  key[size - 1] = '\0';
+  // Call the function-under-test
+  cJSON *item = cJSON_GetObjectItem(json, key);
 
-  item = cJSON_GetObjectItem(json, key);
-
-  /* Use item here if needed, but for fuzzing, we just need to call the function */
-
-  free(key);
+  // Clean up
   cJSON_Delete(json);
+  free(key);
 
   return 0;
 }

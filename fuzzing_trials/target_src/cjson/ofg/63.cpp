@@ -8,42 +8,38 @@ extern "C" {
 
 #include "../cJSON.h"
 
-int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size); /* required by C89 */
+int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size);
 
 int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-  cJSON *json;
-  char *buffer;
-  int buffer_size;
-  cJSON_bool formatted;
-  cJSON_bool result;
+    if (size < 2) {
+        return 0;
+    }
 
-  if (size < 5) // Ensure there is enough data for parsing and options
-    return 0;
+    // Parse the input data to create a cJSON object
+    cJSON *json = cJSON_Parse((const char *)data);
+    if (json == NULL) {
+        return 0;
+    }
 
-  // Parse JSON from the input data
-  json = cJSON_ParseWithOpts((const char *)data, NULL, 1);
-  if (json == NULL)
-    return 0;
+    // Allocate memory for the output buffer
+    int buffer_size = (int)size;
+    char *buffer = (char *)malloc(buffer_size);
+    if (buffer == NULL) {
+        cJSON_Delete(json);
+        return 0;
+    }
 
-  // Determine buffer size and formatted option from the input data
-  buffer_size = (int)data[0] + 1; // Ensure buffer size is at least 1
-  formatted = data[1] % 2 == 0 ? 1 : 0; // Use the second byte to decide formatting
+    // Determine if the output should be formatted
+    cJSON_bool formatted = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
 
-  // Allocate buffer for preallocated printing
-  buffer = (char *)malloc(buffer_size);
-  if (buffer == NULL) {
+    // Call the function under test
+    cJSON_bool result = cJSON_PrintPreallocated(json, buffer, buffer_size, formatted);
+
+    // Clean up
+    free(buffer);
     cJSON_Delete(json);
+
     return 0;
-  }
-
-  // Call the function-under-test
-  result = cJSON_PrintPreallocated(json, buffer, buffer_size, formatted);
-
-  // Clean up
-  free(buffer);
-  cJSON_Delete(json);
-
-  return 0;
 }
 
 #ifdef __cplusplus

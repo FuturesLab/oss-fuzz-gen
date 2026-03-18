@@ -8,45 +8,42 @@ extern "C" {
 #endif
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
-    // Ensure there is enough data for a valid cJSON string and a key
     if (size < 2) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *json_data = (char *)malloc(size + 1);
-    if (json_data == NULL) {
+    // Ensure the data is null-terminated to be used as a string.
+    char *json_string = (char *)malloc(size + 1);
+    if (!json_string) {
         return 0;
     }
-    memcpy(json_data, data, size);
-    json_data[size] = '\0';
+    memcpy(json_string, data, size);
+    json_string[size] = '\0';
 
-    // Parse the JSON data
-    cJSON *json = cJSON_Parse(json_data);
+    // Parse the input data as a JSON object.
+    cJSON *json = cJSON_Parse(json_string);
+    free(json_string);
+
     if (json == NULL) {
-        free(json_data);
         return 0;
     }
 
-    // Use the remaining data as a key, ensuring it's null-terminated
-    const char *key = (const char *)(data + 1);
-    size_t key_length = size - 1;
-    char *key_str = (char *)malloc(key_length + 1);
-    if (key_str == NULL) {
+    // Use a portion of the data as the key for cJSON_GetObjectItemCaseSensitive.
+    size_t key_size = size / 2;
+    char *key = (char *)malloc(key_size + 1);
+    if (!key) {
         cJSON_Delete(json);
-        free(json_data);
         return 0;
     }
-    memcpy(key_str, key, key_length);
-    key_str[key_length] = '\0';
+    memcpy(key, data + (size - key_size), key_size);
+    key[key_size] = '\0';
 
-    // Call the function-under-test
-    cJSON *item = cJSON_GetObjectItemCaseSensitive(json, key_str);
+    // Call the function-under-test.
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(json, key);
 
-    // Clean up
+    // Clean up.
+    free(key);
     cJSON_Delete(json);
-    free(json_data);
-    free(key_str);
 
     return 0;
 }

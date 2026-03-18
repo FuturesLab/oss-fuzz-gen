@@ -11,11 +11,14 @@ extern "C" {
 int LLVMFuzzerTestOneInput_132(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_132(const uint8_t *data, size_t size) {
-  if (size < 1) {
+  cJSON *json;
+  int index;
+
+  if (size < 2) {
     return 0;
   }
 
-  // Ensure the data is null-terminated for JSON parsing
+  // Ensure the data is null-terminated for parsing
   char *json_data = (char *)malloc(size + 1);
   if (json_data == NULL) {
     return 0;
@@ -23,23 +26,22 @@ int LLVMFuzzerTestOneInput_132(const uint8_t *data, size_t size) {
   memcpy(json_data, data, size);
   json_data[size] = '\0';
 
-  // Parse the input data as a JSON array
-  cJSON *json_array = cJSON_Parse(json_data);
+  // Parse the JSON data
+  json = cJSON_Parse(json_data);
   free(json_data);
 
-  if (json_array == NULL || !cJSON_IsArray(json_array)) {
-    cJSON_Delete(json_array);
+  if (json == NULL) {
     return 0;
   }
 
-  // Use the first byte of data to determine the index to delete
-  int index_to_delete = data[0] % cJSON_GetArraySize(json_array);
+  // Get the index from the data
+  index = (int)data[0]; // Use the first byte as an index
 
-  // Call the function-under-test
-  cJSON_DeleteItemFromArray(json_array, index_to_delete);
+  // Call the function under test
+  cJSON_DeleteItemFromArray(json, index);
 
   // Clean up
-  cJSON_Delete(json_array);
+  cJSON_Delete(json);
 
   return 0;
 }

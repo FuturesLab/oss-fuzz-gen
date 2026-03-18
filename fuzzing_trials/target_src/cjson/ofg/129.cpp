@@ -11,40 +11,37 @@ extern "C" {
 int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size) {
-  cJSON *json_array = NULL;
-  cJSON *detached_item = NULL;
-  int index;
+    cJSON *json_array;
+    cJSON *detached_item;
+    size_t offset = 4;
+    int index;
 
-  // Ensure the input data is not empty and null-terminated
-  if (size == 0 || data[size - 1] != '\0') {
-    return 0;
-  }
+    if (size <= offset)
+        return 0;
+    if (data[size - 1] != '\0')
+        return 0;
 
-  // Parse the input data into a cJSON object
-  json_array = cJSON_Parse((const char *)data);
-  if (json_array == NULL) {
-    return 0;
-  }
+    // Parse the input data as a JSON array
+    json_array = cJSON_ParseWithOpts((const char *)data + offset, NULL, 1);
 
-  // Ensure the parsed object is an array
-  if (!cJSON_IsArray(json_array)) {
+    if (json_array == NULL || !cJSON_IsArray(json_array))
+        return 0;
+
+    // Use the first 4 bytes of data to determine the index
+    index = (int)(data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24));
+
+    // Detach item from array
+    detached_item = cJSON_DetachItemFromArray(json_array, index);
+
+    // Free the detached item if it exists
+    if (detached_item != NULL) {
+        cJSON_Delete(detached_item);
+    }
+
+    // Delete the JSON array
     cJSON_Delete(json_array);
+
     return 0;
-  }
-
-  // Use a simple strategy to determine the index
-  index = (int)(data[0] % cJSON_GetArraySize(json_array));
-
-  // Call the function-under-test
-  detached_item = cJSON_DetachItemFromArray(json_array, index);
-
-  // Clean up
-  if (detached_item != NULL) {
-    cJSON_Delete(detached_item);
-  }
-  cJSON_Delete(json_array);
-
-  return 0;
 }
 
 #ifdef __cplusplus

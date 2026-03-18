@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -6,32 +7,29 @@
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size); /* required by C89 */
+#include "/src/cjson/cJSON.h"
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-  char *input_str;
-  cJSON *json;
-
-  // Ensure the input data is null-terminated
-  input_str = (char *)malloc(size + 1);
-  if (input_str == NULL) {
+  if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }
 
-  memcpy(input_str, data, size);
-  input_str[size] = '\0';
+  // Ensure that the input data is null-terminated
+  char *input_data = (char *)malloc(size + 1);
+  if (input_data == NULL) {
+    return 0;
+  }
+  memcpy(input_data, data, size);
+  input_data[size] = '\0';
 
   // Call the function-under-test
-  json = cJSON_Parse(input_str);
+  cJSON *json = cJSON_Parse(input_data);
 
   // Clean up
   if (json != NULL) {
     cJSON_Delete(json);
   }
-
-  free(input_str);
+  free(input_data);
 
   return 0;
 }

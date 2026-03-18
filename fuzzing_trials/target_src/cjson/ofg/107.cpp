@@ -11,12 +11,14 @@ extern "C" {
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
+  void *memory = NULL;
+
   if (size == 0) {
     return 0;
   }
 
-  // Allocate memory using malloc
-  void *memory = malloc(size);
+  // Allocate memory based on the input size
+  memory = malloc(size);
   if (memory == NULL) {
     return 0;
   }

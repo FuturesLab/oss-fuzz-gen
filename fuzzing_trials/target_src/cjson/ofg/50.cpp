@@ -7,43 +7,57 @@
 extern "C" {
 #endif
 
+int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size); /* required by C89 */
+
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to work with
-    if (size < 2) return 0;
-
-    // Split the input data into two parts
-    size_t half_size = size / 2;
-    size_t remaining_size = size - half_size;
-
-    // Create a null-terminated string for the key
-    char *key = (char *)malloc(half_size + 1);
-    if (key == NULL) return 0;
-    memcpy(key, data, half_size);
-    key[half_size] = '\0';
-
-    // Parse the remaining data as a JSON object
-    cJSON *json_object = cJSON_ParseWithLength((const char *)(data + half_size), remaining_size);
-    if (json_object == NULL) {
-        free(key);
-        return 0;
-    }
-
-    // Create a new cJSON item to add
-    cJSON *new_item = cJSON_CreateString("fuzzed_item");
-    if (new_item == NULL) {
-        cJSON_Delete(json_object);
-        free(key);
-        return 0;
-    }
-
-    // Call the function-under-test
-    cJSON_bool result = cJSON_AddItemToObjectCS(json_object, key, new_item);
-
-    // Clean up
-    cJSON_Delete(json_object);
-    free(key);
-
+  if (size < 2) {
     return 0;
+  }
+
+  // Create a root cJSON object
+  cJSON *root = cJSON_CreateObject();
+  if (root == NULL) {
+    return 0;
+  }
+
+  // Extract a key and value from the input data
+  size_t key_len = data[0] % size;
+  size_t value_len = (data[1] % (size - key_len)) + 1;
+
+  char *key = (char *)malloc(key_len + 1);
+  char *value = (char *)malloc(value_len + 1);
+
+  if (key == NULL || value == NULL) {
+    cJSON_Delete(root);
+    free(key);
+    free(value);
+    return 0;
+  }
+
+  memcpy(key, data + 1, key_len);
+  key[key_len] = '\0';
+
+  memcpy(value, data + 1 + key_len, value_len);
+  value[value_len] = '\0';
+
+  // Create a cJSON item for the value
+  cJSON *item = cJSON_CreateString(value);
+  if (item == NULL) {
+    cJSON_Delete(root);
+    free(key);
+    free(value);
+    return 0;
+  }
+
+  // Call the function-under-test
+  cJSON_bool result = cJSON_AddItemToObjectCS(root, key, item);
+
+  // Clean up
+  cJSON_Delete(root);
+  free(key);
+  free(value);
+
+  return result;
 }
 
 #ifdef __cplusplus
