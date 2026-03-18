@@ -1,80 +1,79 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_INTRA_DCT_ONLY at aomcx.h:2218:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION at aomcx.h:2007:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR at aomcx.h:2377:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_GOP_INFO at aomcx.h:2393:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES at aomcx.h:1998:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_TARGET_SEQ_LEVEL_IDX at aomcx.h:2025:1 in aomcx.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
 #include <cstring>
-#include <cstdlib>
-#include <cstdio>
 #include <cstdint>
-#include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <cstdint>
-#include <cstring>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
-#include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
-#include "aomcx.h"
+#include <aom/aom_integer.h>
+#include <aom/aom_image.h>
+#include <aom/aom_codec.h>
+#include <aom/aom_frame_buffer.h>
+#include <aom/aom_encoder.h>
+#include <aom/aom_external_partition.h>
+#include <aom/aom.h>
+#include <aom/aom_decoder.h>
+#include <aom/aomcx.h>
+#include <aom/aomdx.h>
+
+static aom_codec_ctx_t initialize_codec() {
+    aom_codec_ctx_t codec;
+    memset(&codec, 0, sizeof(codec));
+    codec.iface = aom_codec_av1_cx();
+    codec.err = aom_codec_enc_init(&codec, codec.iface, nullptr, 0);
+    return codec;
+}
+
+static void cleanup_codec(aom_codec_ctx_t &codec) {
+    aom_codec_destroy(&codec);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t) + sizeof(int)) {
+    if (Size < 1) return 0;
+
+    aom_codec_ctx_t codec = initialize_codec();
+    if (codec.err != AOM_CODEC_OK) {
         return 0;
     }
 
-    aom_codec_ctx_t codec;
-    std::memcpy(&codec, Data, sizeof(aom_codec_ctx_t));
+    aom_codec_err_t res;
+    uint32_t control_id = Data[0];
+    int control_value = Size > 1 ? Data[1] : 0;
 
-    int control_id = 0;
-    int value = 0;
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_INTRA_DCT_ONLY
-    std::memcpy(&value, Data + sizeof(aom_codec_ctx_t), sizeof(int));
-    if (aom_codec_control_typechecked_AV1E_SET_INTRA_DCT_ONLY(&codec, control_id, value) != AOM_CODEC_OK) {
-        return 0;
+    switch (control_id % 6) {
+        case 0:
+            res = aom_codec_control(&codec, AOME_SET_ENABLEAUTOALTREF, control_value);
+            break;
+        case 1:
+            res = aom_codec_control(&codec, AV1E_SET_FORCE_VIDEO_MODE, control_value);
+            break;
+        case 2:
+            res = aom_codec_control(&codec, AV1E_SET_SVC_FRAME_DROP_MODE, control_value);
+            break;
+        case 3:
+            res = aom_codec_control(&codec, AV1E_SET_ENABLE_QM, control_value);
+            break;
+        case 4:
+            res = aom_codec_control(&codec, AV1E_SET_AUTO_INTRA_TOOLS_OFF, control_value);
+            break;
+        case 5:
+            res = aom_codec_control(&codec, AV1E_SET_ENABLE_KEYFRAME_FILTERING, control_value);
+            break;
+        default:
+            res = AOM_CODEC_INVALID_PARAM;
+            break;
     }
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION
-    std::memcpy(&value, Data + sizeof(aom_codec_ctx_t), sizeof(int));
-    if (aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION(&codec, control_id, value) != AOM_CODEC_OK) {
-        return 0;
+    if (res != AOM_CODEC_OK) {
+        std::cerr << "Codec control failed with error: " << res << std::endl;
     }
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR
-    std::memcpy(&value, Data + sizeof(aom_codec_ctx_t), sizeof(int));
-    if (aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR(&codec, control_id, value) != AOM_CODEC_OK) {
-        return 0;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_GET_GOP_INFO
-    aom_gop_info_t gop_info;
-    if (aom_codec_control_typechecked_AV1E_GET_GOP_INFO(&codec, control_id, &gop_info) != AOM_CODEC_OK) {
-        return 0;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES
-    std::memcpy(&value, Data + sizeof(aom_codec_ctx_t), sizeof(int));
-    if (aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES(&codec, control_id, value) != AOM_CODEC_OK) {
-        return 0;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_TARGET_SEQ_LEVEL_IDX
-    std::memcpy(&value, Data + sizeof(aom_codec_ctx_t), sizeof(int));
-    if (aom_codec_control_typechecked_AV1E_SET_TARGET_SEQ_LEVEL_IDX(&codec, control_id, value) != AOM_CODEC_OK) {
-        return 0;
-    }
-
+    cleanup_codec(codec);
     return 0;
 }

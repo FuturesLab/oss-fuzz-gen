@@ -1,10 +1,14 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_GET_GOP_INFO at aomcx.h:2393:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO at aomcx.h:2353:1 in aomcx.h
-// aom_codec_version_str at aom_codec.c:28:13 in aom_codec.h
-// aom_codec_version_extra_str at aom_codec.c:30:13 in aom_codec.h
-// aom_codec_version at aom_codec.c:26:5 in aom_codec.h
-// aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH at aomcx.h:2296:1 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,73 +18,49 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
-#include "aom.h"
-#include "aom_encoder.h"
-#include "aom_codec.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aom_decoder.h"
-#include "aomcx.h"
-
-static aom_codec_ctx_t codec_ctx;
-
-static void initialize_codec() {
-    // Initialize codec context with dummy values
-    codec_ctx.name = "libaom";
-    codec_ctx.init_flags = 0; // Default flags
-    codec_ctx.priv = nullptr; // No private data
+extern "C" {
+#include <aom/aom_codec.h>
+#include <aom/aom_encoder.h>
+#include <aom/aomcx.h>
 }
 
-static void cleanup_codec() {
-    // Cleanup codec context if needed
+#include <cstdint>
+#include <cstdio>
+
+static void initialize_codec_context(aom_codec_ctx_t &codec_ctx, aom_codec_iface_t *iface) {
+    aom_codec_enc_cfg_t cfg;
+    aom_codec_err_t res = aom_codec_enc_config_default(iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) return;
+    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) return;
+}
+
+static void cleanup_codec_context(aom_codec_ctx_t &codec_ctx) {
+    aom_codec_destroy(&codec_ctx);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_gop_info_t)) return 0;
+    if (Size < 6) return 0;
 
-    initialize_codec();
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_ctx_t codec_ctx;
+    initialize_codec_context(codec_ctx, iface);
 
-    // Fuzzing aom_codec_control_typechecked_AV1E_GET_GOP_INFO
-    aom_gop_info_t gop_info;
-    memset(&gop_info, 0, sizeof(gop_info));
-    gop_info.gop_size = Data[0] % 250; // Randomize gop_size
-    
-    // Call the function with the codec context and gop_info
-    aom_codec_err_t err = aom_codec_control_typechecked_AV1E_GET_GOP_INFO(&codec_ctx, 0, &gop_info);
-    
-    // Check for errors
-    if (err != AOM_CODEC_OK) {
-        // Handle error if needed
-    }
+    uint32_t enable_low_complexity_decode = Data[0] % 2;
+    uint32_t fp_mt = Data[1] % 2;
+    uint32_t skip_postproc_filtering = Data[2] % 2;
+    uint32_t tile_rows = Data[3] % 64; // Arbitrary limit for tile rows
+    uint32_t disable_trellis_quant = Data[4] % 2;
+    uint32_t enable_obmc = Data[5] % 2;
 
-    // Fuzzing aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO
-    // Prepare dummy rate distribution info
-    const char *rate_distribution_info = reinterpret_cast<const char*>(Data) + 1; // Use part of the input data
-    err = aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO(&codec_ctx, 0, rate_distribution_info);
-    
-    // Check for errors
-    if (err != AOM_CODEC_OK) {
-        // Handle error if needed
-    }
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_LOW_COMPLEXITY_DECODE, enable_low_complexity_decode);
+    aom_codec_control(&codec_ctx, AV1E_SET_FP_MT, fp_mt);
+    aom_codec_control(&codec_ctx, AV1E_SET_SKIP_POSTPROC_FILTERING, skip_postproc_filtering);
+    aom_codec_control(&codec_ctx, AV1E_SET_TILE_ROWS, tile_rows);
+    aom_codec_control(&codec_ctx, AV1E_SET_DISABLE_TRELLIS_QUANT, disable_trellis_quant);
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_OBMC, enable_obmc);
 
-    // Call version functions
-    const char *version_str = aom_codec_version_str();
-    const char *extra_str = aom_codec_version_extra_str();
-    int version = aom_codec_version();
+    cleanup_codec_context(codec_ctx);
 
-    // Fuzzing aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH
-    // Prepare dummy partition info
-    const char *partition_info = reinterpret_cast<const char*>(Data) + 2; // Use part of the input data
-    err = aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH(&codec_ctx, 0, partition_info);
-    
-    // Check for errors
-    if (err != AOM_CODEC_OK) {
-        // Handle error if needed
-    }
-
-    cleanup_codec();
     return 0;
 }

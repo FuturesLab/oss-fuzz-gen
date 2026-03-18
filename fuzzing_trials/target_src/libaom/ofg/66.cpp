@@ -1,30 +1,40 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
-    #include <aom/aom_codec.h>
-    #include <aom/aom_decoder.h>
-    #include <aom/aomdx.h> // Include the necessary header for aom_codec_av1_dx
+#include <aom/aom_codec.h>
+#include <aom/aom_decoder.h>
+#include <aom/aomdx.h> // Include the header where aom_codec_av1_dx is declared
+
+// Dummy implementation of the callback functions
+int get_frame_buffer(void *priv, size_t min_size, aom_codec_frame_buffer_t *fb) {
+    // For fuzzing purposes, just return success
+    return 0;
 }
 
-extern "C" int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    // Initialize codec context
+int release_frame_buffer(void *priv, aom_codec_frame_buffer_t *fb) {
+    // For fuzzing purposes, just return success
+    return 0;
+}
+
+int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_err_t res = aom_codec_dec_init(&codec_ctx, iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0;
+    aom_codec_err_t result;
+    void *user_priv = (void *)data; // Use the input data as the user private data
+
+    // Initialize codec context with the correct codec interface, AV1
+    result = aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0);
+    if (result != AOM_CODEC_OK) {
+        return 0; // Exit if initialization fails
     }
 
-    // Initialize stream info
-    aom_codec_stream_info_t stream_info;
-    stream_info.is_kf = 0; // Initialize to a default value
+    // Call the function-under-test
+    result = aom_codec_set_frame_buffer_functions(&codec_ctx, get_frame_buffer, release_frame_buffer, user_priv);
 
-    // Call the function under test
-    aom_codec_err_t err = aom_codec_get_stream_info(&codec_ctx, &stream_info);
-
-    // Cleanup
+    // Destroy the codec context to clean up
     aom_codec_destroy(&codec_ctx);
 
     return 0;
 }
+
+} // extern "C"

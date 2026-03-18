@@ -1,5 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_set_cx_data_buf at aom_encoder.c:244:17 in aom_encoder.h
+// aom_codec_control_typechecked_AOME_SET_ROI_MAP at aomcx.h:1898:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_SVC_FRAME_DROP_MODE at aomcx.h:2362:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_TUNING at aomcx.h:1934:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER at aomcx.h:1922:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_TILE_ROWS at aomcx.h:1965:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD at aomcx.h:1919:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,74 +14,97 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
 #include <cstdint>
-#include <cstring>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
+#include <cstdio>
+#include <cstdlib>
+#include "aom.h"
+#include "aom_codec.h"
+#include "aomcx.h"
 #include "aom_decoder.h"
 #include "aom_encoder.h"
-#include "aom_integer.h"
-#include "aom_codec.h"
+#include "aom_external_partition.h"
+#include "aom_frame_buffer.h"
 #include "aom_image.h"
-#include "aom.h"
-#include "aomcx.h"
+#include "aom_integer.h"
+#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_78(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t) + sizeof(aom_fixed_buf_t)) {
+    if (Size < sizeof(aom_codec_ctx_t)) {
         return 0;
     }
 
-    // Prepare dummy codec context
+    // Initialize codec context
     aom_codec_ctx_t codec_ctx;
-    codec_ctx.name = "dummy_codec";
-    codec_ctx.iface = nullptr; // Assume an appropriate interface is assigned
+    codec_ctx.name = "Test Codec";
+    codec_ctx.iface = nullptr;
     codec_ctx.err = AOM_CODEC_OK;
     codec_ctx.init_flags = 0;
-    codec_ctx.config.raw = nullptr;
     codec_ctx.priv = nullptr;
 
-    // Prepare buffer
-    aom_fixed_buf_t buf;
-    buf.buf = const_cast<uint8_t*>(Data);
-    buf.sz = Size;
+    // Initialize ROI map
+    aom_roi_map_t roi_map;
+    roi_map.enabled = 1;
+    roi_map.roi_map = new unsigned char[Size];
+    roi_map.rows = Size / 2;
+    roi_map.delta_q[0] = 10;
+    roi_map.delta_qp_enabled = 1;
 
-    // Call the target function with various pad_before and pad_after
-    for (unsigned int pad_before = 0; pad_before < 16; ++pad_before) {
-        for (unsigned int pad_after = 0; pad_after < 16; ++pad_after) {
-            aom_codec_err_t result = aom_codec_set_cx_data_buf(&codec_ctx, &buf, pad_before, pad_after);
-            if (result != AOM_CODEC_OK) {
-                // Handle error if needed
-            }
-        }
+    // Define control IDs
+    int ctrl_id_set_roi_map = AOME_SET_ROI_MAP;
+    int ctrl_id_set_svc_frame_drop_mode = AV1E_SET_SVC_FRAME_DROP_MODE;
+    int ctrl_id_set_tuning = AOME_SET_TUNING;
+    int ctrl_id_get_last_quantizer = AOME_GET_LAST_QUANTIZER;
+    int ctrl_id_set_tile_rows = AV1E_SET_TILE_ROWS;
+    int ctrl_id_set_static_threshold = AOME_SET_STATIC_THRESHOLD;
+
+    // Invoke aom_codec_control_typechecked_AOME_SET_ROI_MAP
+    aom_codec_err_t res = aom_codec_control_typechecked_AOME_SET_ROI_MAP(&codec_ctx, ctrl_id_set_roi_map, &roi_map);
+    if (res != AOM_CODEC_OK) {
+        delete[] roi_map.roi_map;
+        return 0;
     }
 
-    // Assuming similar structures and logic for other functions
-    // as their signatures are not provided, we will simulate their usage.
-    
-    // Example for AV1E_SET_MIN_GF_INTERVAL
-    int min_gf_interval = Data[0] % 16; // Simplified way to get a value
-    // aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL(&codec_ctx, min_gf_interval);
+    // Invoke aom_codec_control_typechecked_AV1E_SET_SVC_FRAME_DROP_MODE
+    int frame_drop_mode = Data[0] % 3; // Simple mode selection
+    res = aom_codec_control_typechecked_AV1E_SET_SVC_FRAME_DROP_MODE(&codec_ctx, ctrl_id_set_svc_frame_drop_mode, frame_drop_mode);
+    if (res != AOM_CODEC_OK) {
+        delete[] roi_map.roi_map;
+        return 0;
+    }
 
-    // Example for AV1E_SET_EXTERNAL_RATE_CONTROL
-    aom_rc_funcs_t rc_funcs;
-    rc_funcs.rc_type = static_cast<aom_rc_type_t>(Data[1] % 6);
-    rc_funcs.priv = nullptr;
-    // aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL(&codec_ctx, &rc_funcs);
+    // Invoke aom_codec_control_typechecked_AOME_SET_TUNING
+    int tuning = Data[1] % 4; // Simple tuning selection
+    res = aom_codec_control_typechecked_AOME_SET_TUNING(&codec_ctx, ctrl_id_set_tuning, tuning);
+    if (res != AOM_CODEC_OK) {
+        delete[] roi_map.roi_map;
+        return 0;
+    }
 
-    // Example for AV1E_SET_SUPERBLOCK_SIZE
-    int superblock_size = Data[2] % 128; // Random size
-    // aom_codec_control_typechecked_AV1E_SET_SUPERBLOCK_SIZE(&codec_ctx, superblock_size);
+    // Invoke aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER
+    int last_quantizer;
+    res = aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER(&codec_ctx, ctrl_id_get_last_quantizer, &last_quantizer);
+    if (res != AOM_CODEC_OK) {
+        delete[] roi_map.roi_map;
+        return 0;
+    }
 
-    // Example for AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR
-    int max_consec_frame_drop_cbr = Data[3] % 10;
-    // aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(&codec_ctx, max_consec_frame_drop_cbr);
+    // Invoke aom_codec_control_typechecked_AV1E_SET_TILE_ROWS
+    int tile_rows = Data[2] % 4; // Simple tile row selection
+    res = aom_codec_control_typechecked_AV1E_SET_TILE_ROWS(&codec_ctx, ctrl_id_set_tile_rows, tile_rows);
+    if (res != AOM_CODEC_OK) {
+        delete[] roi_map.roi_map;
+        return 0;
+    }
 
-    // Example for AV1E_SET_FORCE_VIDEO_MODE
-    int force_video_mode = Data[4] % 2; // Boolean value
-    // aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE(&codec_ctx, force_video_mode);
+    // Invoke aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD
+    int static_threshold = Data[3] % 100; // Simple static threshold
+    res = aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD(&codec_ctx, ctrl_id_set_static_threshold, static_threshold);
+    if (res != AOM_CODEC_OK) {
+        delete[] roi_map.roi_map;
+        return 0;
+    }
 
+    // Clean up
+    delete[] roi_map.roi_map;
     return 0;
 }

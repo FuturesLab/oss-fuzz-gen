@@ -1,17 +1,12 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_img_alloc at aom_image.c:200:14 in aom_image.h
-// aom_img_free at aom_image.c:304:6 in aom_image.h
-// aom_img_wrap at aom_image.c:216:14 in aom_image.h
-// aom_img_free at aom_image.c:304:6 in aom_image.h
-// aom_img_alloc at aom_image.c:200:14 in aom_image.h
-// aom_img_set_rect at aom_image.c:234:5 in aom_image.h
-// aom_img_free at aom_image.c:304:6 in aom_image.h
-// aom_img_alloc at aom_image.c:200:14 in aom_image.h
-// aom_img_flip at aom_image.c:285:6 in aom_image.h
-// aom_img_free at aom_image.c:304:6 in aom_image.h
-// aom_img_alloc at aom_image.c:200:14 in aom_image.h
-// aom_img_remove_metadata at aom_image.c:412:6 in aom_image.h
-// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES at aomcx.h:1998:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_TARGET_SEQ_LEVEL_IDX at aomcx.h:2025:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS at aomcx.h:2004:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC at aomcx.h:2371:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE at aomcx.h:2022:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE at aomcx.h:2383:1 in aomcx.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -21,101 +16,68 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
+extern "C" {
+#include "aom_integer.h"
 #include "aom_image.h"
 #include "aom_codec.h"
 #include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
 #include "aom_encoder.h"
-#include "aom_integer.h"
+#include "aom_external_partition.h"
 #include "aom.h"
+#include "aom_decoder.h"
 #include "aomcx.h"
-
-static void fuzz_aom_img_alloc_and_free(const uint8_t *Data, size_t Size) {
-    if (Size < 16) return; // Ensure we have enough data
-
-    aom_image_t *img = nullptr;
-    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0] % 7); // Limit to known formats
-    unsigned int d_w = (Data[1] << 8) | Data[2];
-    unsigned int d_h = (Data[3] << 8) | Data[4];
-    unsigned int align = (Data[5] << 8) | Data[6];
-
-    img = aom_img_alloc(nullptr, fmt, d_w, d_h, align);
-    if (img) {
-        aom_img_free(img);
-    }
+#include "aomdx.h"
 }
 
-static void fuzz_aom_img_wrap(const uint8_t *Data, size_t Size) {
-    if (Size < 16) return; // Ensure we have enough data
-
-    aom_image_t img;
-    memset(&img, 0, sizeof(img));
-    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0] % 7); // Limit to known formats
-    unsigned int d_w = (Data[1] << 8) | Data[2];
-    unsigned int d_h = (Data[3] << 8) | Data[4];
-    unsigned int stride_align = (Data[5] << 8) | Data[6];
-
-    unsigned char dummy_data[1024]; // Example buffer
-    aom_image_t *wrapped_img = aom_img_wrap(&img, fmt, d_w, d_h, stride_align, dummy_data);
-    if (wrapped_img) {
-        aom_img_free(wrapped_img);
-    }
-}
-
-static void fuzz_aom_img_set_rect(const uint8_t *Data, size_t Size) {
-    if (Size < 16) return; // Ensure we have enough data
-
-    aom_image_t img;
-    memset(&img, 0, sizeof(img));
-
-    unsigned int x = (Data[0] << 8) | Data[1];
-    unsigned int y = (Data[2] << 8) | Data[3];
-    unsigned int w = (Data[4] << 8) | Data[5];
-    unsigned int h = (Data[6] << 8) | Data[7];
-    unsigned int border = (Data[8] << 8) | Data[9];
-
-    aom_img_alloc(&img, AOM_IMG_FMT_I420, w + x, h + y, 1); // Ensure valid allocation
-    aom_img_set_rect(&img, x, y, w, h, border);
-    aom_img_free(&img);
-}
-
-static void fuzz_aom_img_flip(const uint8_t *Data, size_t Size) {
-    if (Size < 16) return; // Ensure we have enough data
-
-    aom_image_t img;
-    memset(&img, 0, sizeof(img));
-    unsigned int d_w = (Data[0] << 8) | Data[1];
-    unsigned int d_h = (Data[2] << 8) | Data[3];
-
-    aom_img_alloc(&img, AOM_IMG_FMT_I420, d_w, d_h, 1); // Ensure valid allocation
-    aom_img_flip(&img);
-    aom_img_free(&img);
-}
-
-static void fuzz_aom_img_remove_metadata(const uint8_t *Data, size_t Size) {
-    if (Size < 16) return; // Ensure we have enough data
-
-    aom_image_t img;
-    memset(&img, 0, sizeof(img));
-    unsigned int d_w = (Data[0] << 8) | Data[1];
-    unsigned int d_h = (Data[2] << 8) | Data[3];
-
-    aom_img_alloc(&img, AOM_IMG_FMT_I420, d_w, d_h, 1); // Ensure valid allocation
-    aom_img_remove_metadata(&img);
-    aom_img_free(&img);
-}
+#include <cstdint>
+#include <cstring>
+#include <fstream>
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    fuzz_aom_img_alloc_and_free(Data, Size);
-    fuzz_aom_img_wrap(Data, Size);
-    fuzz_aom_img_set_rect(Data, Size);
-    fuzz_aom_img_flip(Data, Size);
-    fuzz_aom_img_remove_metadata(Data, Size);
+    if (Size < sizeof(int) * 3) return 0;
+
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+
+    // Dummy interface and private data
+    codec_ctx.iface = aom_codec_av1_cx();
+    codec_ctx.priv = nullptr;
+
+    // Prepare dummy file if needed
+    std::ofstream dummy_file("./dummy_file", std::ios::binary);
+    if (dummy_file.is_open()) {
+        dummy_file.write(reinterpret_cast<const char*>(Data), Size);
+        dummy_file.close();
+    }
+
+    // Extract integer values from input Data
+    int param1 = *reinterpret_cast<const int*>(Data);
+    int param2 = *reinterpret_cast<const int*>(Data + sizeof(int));
+    int param3 = *reinterpret_cast<const int*>(Data + 2 * sizeof(int));
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES
+    aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES(&codec_ctx, AV1E_SET_COLOR_PRIMARIES, param1);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_TARGET_SEQ_LEVEL_IDX
+    aom_codec_control_typechecked_AV1E_SET_TARGET_SEQ_LEVEL_IDX(&codec_ctx, AV1E_SET_TARGET_SEQ_LEVEL_IDX, param2);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS
+    aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS(&codec_ctx, AV1E_SET_MATRIX_COEFFICIENTS, param1);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC
+    int high_motion_content;
+    aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC(&codec_ctx, AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC, &high_motion_content);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE
+    int render_size[2] = {param1, param2};
+    aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE(&codec_ctx, AV1E_SET_RENDER_SIZE, render_size);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE
+    aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE(&codec_ctx, AV1E_SET_SCREEN_CONTENT_DETECTION_MODE, param3);
+
+    // Cleanup
+    aom_codec_destroy(&codec_ctx);
+
     return 0;
 }

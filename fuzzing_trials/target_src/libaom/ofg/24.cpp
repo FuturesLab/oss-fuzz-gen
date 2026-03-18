@@ -1,28 +1,25 @@
 #include <cstdint>
-#include <cstddef>
-#include <aom/aom_integer.h>
+#include <cstdlib>
 
 extern "C" {
-    size_t aom_uleb_size_in_bytes(uint64_t value);
+    #include <aom/aom_codec.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint64_t)) {
-        return 0; // Ensure there's enough data to form a uint64_t
+    // Ensure we have enough data to perform meaningful operations
+    if (size < sizeof(void *)) {
+        return 0;
     }
 
-    // Interpret the first 8 bytes of data as a uint64_t
-    uint64_t input_value = 0;
-    for (size_t i = 0; i < sizeof(uint64_t); ++i) {
-        input_value |= static_cast<uint64_t>(data[i]) << (i * 8);
-    }
+    // Cast the input data to a pointer of type aom_codec_iface_t
+    aom_codec_iface_t *iface = reinterpret_cast<aom_codec_iface_t *>(const_cast<uint8_t *>(data));
 
     // Call the function-under-test
-    size_t result = aom_uleb_size_in_bytes(input_value);
+    const char *iface_name = aom_codec_iface_name(iface);
 
-    // Use the result in some way to prevent optimization out
-    volatile size_t prevent_optimization = result;
-    (void)prevent_optimization;
+    // The result can be used for further checks or logging if needed
+    // For now, we simply call the function to ensure it executes
+    (void)iface_name; // Suppress unused variable warning
 
     return 0;
 }

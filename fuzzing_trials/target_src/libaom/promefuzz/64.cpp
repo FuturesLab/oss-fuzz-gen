@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_ERROR_RESILIENT_MODE at aomcx.h:1977:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT at aomcx.h:1992:1 in aomcx.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_SVC_PARAMS at aomcx.h:2259:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_OVERLAY at aomcx.h:2170:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR at aomcx.h:2365:1 in aomcx.h
 // aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL at aomcx.h:2317:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE at aomcx.h:2022:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX at aomcx.h:2028:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_GET_LOOPFILTER_LEVEL at aomcx.h:2320:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA at aomcx.h:2302:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_QUANTIZER_ONE_PASS at aomcx.h:2347:1 in aomcx.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,68 +20,63 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <exception>
 #include "aom.h"
 #include "aom_codec.h"
-#include "aom_decoder.h"
 #include "aom_encoder.h"
-#include "aom_external_partition.h"
-#include "aom_frame_buffer.h"
-#include "aom_image.h"
-#include "aom_integer.h"
 #include "aomcx.h"
-#include "aomdx.h"
-
-static void fuzz_AV1E_SET_ERROR_RESILIENT_MODE(aom_codec_ctx_t *ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-    int mode = *reinterpret_cast<const int *>(Data);
-    aom_codec_control_typechecked_AV1E_SET_ERROR_RESILIENT_MODE(ctx, 0, mode);
-}
-
-static void fuzz_AV1E_SET_TUNE_CONTENT(aom_codec_ctx_t *ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-    int content_type = *reinterpret_cast<const int *>(Data);
-    aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT(ctx, 0, content_type);
-}
-
-static void fuzz_AV1E_SET_LOOPFILTER_CONTROL(aom_codec_ctx_t *ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-    int loopfilter_control = *reinterpret_cast<const int *>(Data);
-    aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL(ctx, 0, loopfilter_control);
-}
-
-static void fuzz_AV1E_SET_RENDER_SIZE(aom_codec_ctx_t *ctx, const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(int)) return;
-    int dimensions[2];
-    dimensions[0] = *reinterpret_cast<const int *>(Data);
-    dimensions[1] = *reinterpret_cast<const int *>(Data + sizeof(int));
-    aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE(ctx, 0, dimensions);
-}
-
-static void fuzz_AV1E_GET_SEQ_LEVEL_IDX(aom_codec_ctx_t *ctx) {
-    int seq_level_idx;
-    aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX(ctx, 0, &seq_level_idx);
-}
-
-static void fuzz_AOME_GET_LOOPFILTER_LEVEL(aom_codec_ctx_t *ctx) {
-    int loopfilter_level;
-    aom_codec_control_typechecked_AOME_GET_LOOPFILTER_LEVEL(ctx, 0, &loopfilter_level);
-}
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *Data, size_t Size) {
-    aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-
-    try {
-        fuzz_AV1E_SET_ERROR_RESILIENT_MODE(&codec_ctx, Data, Size);
-        fuzz_AV1E_SET_TUNE_CONTENT(&codec_ctx, Data, Size);
-        fuzz_AV1E_SET_LOOPFILTER_CONTROL(&codec_ctx, Data, Size);
-        fuzz_AV1E_SET_RENDER_SIZE(&codec_ctx, Data, Size);
-        fuzz_AV1E_GET_SEQ_LEVEL_IDX(&codec_ctx);
-        fuzz_AOME_GET_LOOPFILTER_LEVEL(&codec_ctx);
-    } catch (const std::exception &e) {
-        fprintf(stderr, "Exception caught: %s\n", e.what());
+    if (Size < 6) {
+        return 0;
     }
 
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    codec_ctx.iface = aom_codec_av1_cx();
+    codec_ctx.err = AOM_CODEC_OK;
+
+    // Initialize SVC parameters
+    aom_svc_params_t svc_params;
+    memset(&svc_params, 0, sizeof(svc_params));
+    svc_params.number_spatial_layers = 1 + (Data[0] % 3);
+
+    // Set SVC parameters
+    if (aom_codec_control_typechecked_AV1E_SET_SVC_PARAMS(&codec_ctx, AV1E_SET_SVC_PARAMS, &svc_params) != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    // Enable or disable overlay
+    int enable_overlay = Data[1] % 2;
+    if (aom_codec_control_typechecked_AV1E_SET_ENABLE_OVERLAY(&codec_ctx, AV1E_SET_ENABLE_OVERLAY, enable_overlay) != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    // Set maximum consecutive frame drop
+    int max_frame_drop = Data[2] % 10;
+    if (aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(&codec_ctx, AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR, max_frame_drop) != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    // Set loop filter control
+    int loop_filter_control = Data[3] % 2;
+    if (aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL(&codec_ctx, AV1E_SET_LOOPFILTER_CONTROL, loop_filter_control) != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    // Enable or disable directional intra
+    int enable_directional_intra = Data[4] % 2;
+    if (aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA(&codec_ctx, AV1E_SET_ENABLE_DIRECTIONAL_INTRA, enable_directional_intra) != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    // Set quantizer for one-pass
+    int quantizer_one_pass = Data[5] % 63;
+    if (aom_codec_control_typechecked_AV1E_SET_QUANTIZER_ONE_PASS(&codec_ctx, AV1E_SET_QUANTIZER_ONE_PASS, quantizer_one_pass) != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    // Clean up
+    aom_codec_destroy(&codec_ctx);
     return 0;
 }

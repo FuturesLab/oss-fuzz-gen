@@ -1,6 +1,11 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control_typechecked_AV1E_SET_ERROR_RESILIENT_MODE at aomcx.h:1977:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX at aomcx.h:2028:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_CFL_INTRA at aomcx.h:2164:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS at aomcx.h:2004:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE at aomcx.h:2173:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_INTRA_DCT_ONLY at aomcx.h:2218:1 in aomcx.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,56 +19,57 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
 #include "aom_integer.h"
-#include "aom_codec.h"
 #include "aom_image.h"
+#include "aom_codec.h"
+#include "aom_frame_buffer.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
 #include "aom.h"
+#include "aom_decoder.h"
 #include "aomcx.h"
+#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size < 6) return 0;
-
-    int cpu_used = Data[0] % 9; // CPU usage level range typically -8 to 8
-    int seq_level_idx = Data[1] % 24; // Sequence level index range
-    int enable_tx_size_search = Data[2] % 2; // Boolean flag
-    int enable_directional_intra = Data[3] % 2; // Boolean flag
-    int spatial_layer_id = Data[4] % 5; // Example spatial layer ID range
-    int reference_frame = Data[5] % 5; // Example reference frame index range
-
-    aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-
-    // Initialize codec context with encoder interface
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    if (aom_codec_enc_init(&codec_ctx, iface, nullptr, 0)) {
+    if (Size < sizeof(aom_codec_ctx_t) + 6) {
         return 0;
     }
 
-    // Set CPU usage level
-    aom_codec_control(&codec_ctx, AOME_SET_CPUUSED, cpu_used);
+    // Prepare a dummy codec context
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-    // Get target sequence level index
-    int seq_level_idx_out;
-    aom_codec_control(&codec_ctx, AV1E_GET_TARGET_SEQ_LEVEL_IDX, &seq_level_idx_out);
+    // Extract some control values from input data
+    int control_value1 = Data[0] % 2;  // For boolean controls
+    int control_value2 = (Data[1] % 256);  // For integer controls
+    int control_value3 = (Data[2] % 256);
 
-    // Enable/Disable transaction size search
-    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_TX_SIZE_SEARCH, enable_tx_size_search);
+    // Initialize the codec context with dummy values
+    codec_ctx.name = "dummy_codec";
+    codec_ctx.iface = nullptr;
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.raw = nullptr;
+    codec_ctx.priv = nullptr;
 
-    // Enable/Disable directional intra prediction
-    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_DIRECTIONAL_INTRA, enable_directional_intra);
+    // Use control IDs from the library
+    int ctrl_id_error_resilient = AV1E_SET_ERROR_RESILIENT_MODE;
+    int ctrl_id_seq_level_idx = AV1E_GET_SEQ_LEVEL_IDX;
+    int ctrl_id_enable_cfl_intra = AV1E_SET_ENABLE_CFL_INTRA;
+    int ctrl_id_matrix_coefficients = AV1E_SET_MATRIX_COEFFICIENTS;
+    int ctrl_id_enable_palette = AV1E_SET_ENABLE_PALETTE;
+    int ctrl_id_intra_dct_only = AV1E_SET_INTRA_DCT_ONLY;
 
-    // Set spatial layer ID
-    aom_codec_control(&codec_ctx, AOME_SET_SPATIAL_LAYER_ID, spatial_layer_id);
+    // Invoke the target API functions with various inputs
+    aom_codec_control_typechecked_AV1E_SET_ERROR_RESILIENT_MODE(&codec_ctx, ctrl_id_error_resilient, control_value1);
+    aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX(&codec_ctx, ctrl_id_seq_level_idx, &control_value2);
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_CFL_INTRA(&codec_ctx, ctrl_id_enable_cfl_intra, control_value1);
+    aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS(&codec_ctx, ctrl_id_matrix_coefficients, control_value3);
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE(&codec_ctx, ctrl_id_enable_palette, control_value1);
+    aom_codec_control_typechecked_AV1E_SET_INTRA_DCT_ONLY(&codec_ctx, ctrl_id_intra_dct_only, control_value1);
 
-    // Use reference frame
-    aom_codec_control(&codec_ctx, AOME_USE_REFERENCE, reference_frame);
-
-    // Destroy the codec context
+    // Cleanup
+    // Assuming aom_codec_destroy is used to clean up the codec context
     aom_codec_destroy(&codec_ctx);
 
     return 0;

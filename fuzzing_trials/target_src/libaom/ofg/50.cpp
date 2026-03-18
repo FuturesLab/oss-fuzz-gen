@@ -1,22 +1,23 @@
-#include <cstdint>
-#include <cstdlib>
-#include <aom/aom_image.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <aom/aom_codec.h>
 
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Initialize parameters for aom_img_alloc
-    aom_image_t *img = nullptr;
-    aom_img_fmt_t fmt = AOM_IMG_FMT_I420; // A commonly used format
-    unsigned int d_w = 640; // Example width
-    unsigned int d_h = 480; // Example height
-    unsigned int align = 1; // Default alignment
+    // Declare and initialize the codec context
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_err_t err;
 
-    // Call the function under test
-    aom_image_t *result = aom_img_alloc(img, fmt, d_w, d_h, align);
+    // Initialize the codec context with some dummy values
+    codec_ctx.name = "dummy_codec";
+    codec_ctx.priv = (aom_codec_priv_t *)data; // Use the input data as a dummy private data
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.enc = NULL;
+    codec_ctx.err_detail = NULL;
+    codec_ctx.iface = NULL;
 
-    // Clean up if the image was allocated
-    if (result != nullptr) {
-        aom_img_free(result);
-    }
+    // Call the function-under-test
+    err = aom_codec_destroy(&codec_ctx);
 
+    // Return 0 as the fuzzer expects
     return 0;
 }

@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX at aomcx.h:2335:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES at aomcx.h:1998:1 in aomcx.h
 // aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC at aomcx.h:2374:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO at aomcx.h:2353:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH at aomcx.h:2356:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID at aomcx.h:1907:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC at aomcx.h:2326:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_EXTERNAL_PARTITION at aomcx.h:2299:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE at aomcx.h:2173:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES at aomcx.h:2167:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,82 +16,62 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstdint>
-#include <cstring>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
 #include "aom_integer.h"
-#include "aom_codec.h"
 #include "aom_image.h"
+#include "aom_codec.h"
+#include "aom_frame_buffer.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
 #include "aom.h"
+#include "aom_decoder.h"
 #include "aomcx.h"
+#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_84(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) return 0;
-
-    // Initialize codec context
-    aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-
-    // Initialize codec interface
-    aom_codec_iface_t *codec_iface = aom_codec_av1_cx();
-    if (!codec_iface) return 0;
-
-    // Initialize the codec
-    aom_codec_err_t res = aom_codec_enc_init(&codec_ctx, codec_iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) return 0;
-
-    // Set up dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    if (!dummyFile) {
-        aom_codec_destroy(&codec_ctx);
+    if (Size < sizeof(aom_codec_ctx_t)) {
         return 0;
     }
 
-    // Write data to dummy file
+    aom_codec_ctx_t codec_ctx;
+    codec_ctx.name = "test_codec";
+    codec_ctx.iface = nullptr;
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.enc = nullptr;
+    codec_ctx.priv = nullptr;
+
+    // Prepare dummy data for file operations
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    if (!dummyFile) {
+        return 0;
+    }
     dummyFile.write(reinterpret_cast<const char*>(Data), Size);
     dummyFile.close();
 
-    // Call API functions with fuzzed data
-    int target_seq_level_idx;
-    res = aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX(&codec_ctx, 0, &target_seq_level_idx);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES
+    int color_primaries = Data[0] % 12; // Assuming 12 different color primaries
+    aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES(&codec_ctx, AV1E_SET_COLOR_PRIMARIES, color_primaries);
 
-    res = aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC(&codec_ctx, 0, Data[0]);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC
+    int postencode_drop_rtc = Data[1] % 2; // 0 or 1
+    aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC(&codec_ctx, AV1E_SET_POSTENCODE_DROP_RTC, postencode_drop_rtc);
 
-    res = aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO(&codec_ctx, 0, reinterpret_cast<const char*>(Data));
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC
+    int rtc_external_rc = Data[2] % 2; // 0 or 1
+    aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC(&codec_ctx, AV1E_SET_RTC_EXTERNAL_RC, rtc_external_rc);
 
-    int luma_cdef_strength;
-    res = aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH(&codec_ctx, 0, &luma_cdef_strength);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_EXTERNAL_PARTITION
+    aom_ext_part_funcs_t ext_part_funcs;
+    ext_part_funcs.decision_mode = static_cast<aom_ext_part_decision_mode_t>(Data[3] % 2);
+    aom_codec_control_typechecked_AV1E_SET_EXTERNAL_PARTITION(&codec_ctx, AV1E_SET_EXTERNAL_PARTITION, &ext_part_funcs);
 
-    int version = aom_codec_version();
-    (void)version; // Suppress unused variable warning
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE
+    int enable_palette = Data[4] % 2; // 0 or 1
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE(&codec_ctx, AV1E_SET_ENABLE_PALETTE, enable_palette);
 
-    res = aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID(&codec_ctx, 0, Data[0]);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES
+    int enable_superres = Data[5] % 2; // 0 or 1
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES(&codec_ctx, AV1E_SET_ENABLE_SUPERRES, enable_superres);
 
-    // Clean up
-    aom_codec_destroy(&codec_ctx);
     return 0;
 }

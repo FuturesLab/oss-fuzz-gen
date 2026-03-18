@@ -3,20 +3,32 @@
 #include <aom/aom_image.h>
 
 extern "C" {
-    #include <aom/aom_codec.h>
-    #include <aom/aom_encoder.h>
-    #include <aom/aom_decoder.h>
+    // Include the necessary C headers and functions
+    #include <aom/aom_image.h>
+    #include <aom/aom_codec.h>  // Include the codec header for metadata-related definitions
 }
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Initialize aom_metadata_t structure
-    aom_metadata_t metadata;
-    metadata.payload = const_cast<uint8_t*>(data); // Cast data to non-const
-    metadata.sz = size;
-    metadata.type = AOM_FRAME_IS_KEY; // Assign a valid type
+    // Ensure that the size is sufficient for creating aom_metadata_t
+    if (size < sizeof(aom_metadata_t)) {
+        return 0;
+    }
+
+    // Allocate memory for aom_metadata_t
+    aom_metadata_t *metadata = (aom_metadata_t *)malloc(sizeof(aom_metadata_t));
+    if (metadata == NULL) {
+        return 0;
+    }
+
+    // Initialize the metadata fields with non-null values
+    metadata->payload = (uint8_t *)data;
+    metadata->sz = size;  // Corrected member name from 'payload_size' to 'sz'
 
     // Call the function-under-test
-    aom_img_metadata_free(&metadata);
+    aom_img_metadata_free(metadata);
+
+    // Free the allocated memory
+    free(metadata);
 
     return 0;
 }

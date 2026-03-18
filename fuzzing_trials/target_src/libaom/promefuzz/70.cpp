@@ -1,9 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_dx at av1_dx_iface.c:1796:20 in aomdx.h
-// aom_codec_dec_init_ver at aom_decoder.c:25:17 in aom_decoder.h
-// aom_codec_set_frame_buffer_functions at aom_decoder.c:120:17 in aom_decoder.h
-// aom_codec_decode at aom_decoder.c:94:17 in aom_decoder.h
-// aom_codec_get_stream_info at aom_decoder.c:75:17 in aom_decoder.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR at aomcx.h:2365:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR at aomcx.h:2377:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_GET_GOP_INFO at aomcx.h:2393:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING at aomcx.h:1971:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS at aomcx.h:2338:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_TRANSFER_CHARACTERISTICS at aomcx.h:2001:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,73 +14,53 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstring>
-#include <cstdint>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
+#include <fstream>
 #include "aom_integer.h"
-#include "aom_codec.h"
 #include "aom_image.h"
+#include "aom_codec.h"
+#include "aom_frame_buffer.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
 #include "aom.h"
+#include "aom_decoder.h"
 #include "aomcx.h"
-
-static int get_frame_buffer(void *priv, size_t min_size, aom_codec_frame_buffer_t *fb) {
-    fb->data = new uint8_t[min_size];
-    fb->size = min_size;
-    return 0;
-}
-
-static int release_frame_buffer(void *priv, aom_codec_frame_buffer_t *fb) {
-    delete[] fb->data;
-    fb->data = nullptr;
-    fb->size = 0;
-    return 0;
-}
+#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_70(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(int)) return 0;
 
-    // Initialize decoder context and interface
+    // Initialize codec context
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg;
-    cfg.threads = 1;
-    aom_codec_flags_t flags = 0;
-    int ver = AOM_DECODER_ABI_VERSION;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-    // Fuzz aom_codec_dec_init_ver
-    aom_codec_err_t res = aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver);
-    if (res != AOM_CODEC_OK) {
-        return 0;
+    // Prepare input data
+    int input_value = 0;
+    if (Size >= sizeof(int)) {
+        memcpy(&input_value, Data, sizeof(int));
     }
 
-    // Fuzz aom_codec_get_caps
-    aom_codec_caps_t caps = aom_codec_get_caps(iface);
+    // Dummy control ID for testing purposes
+    int dummy_control_id = 0;
 
-    // Fuzz aom_codec_set_frame_buffer_functions
-    res = aom_codec_set_frame_buffer_functions(&codec_ctx, get_frame_buffer, release_frame_buffer, nullptr);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
+    // Test aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR
+    aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(&codec_ctx, dummy_control_id, input_value);
 
-    // Fuzz aom_codec_decode
-    void *user_priv = nullptr;
-    res = aom_codec_decode(&codec_ctx, Data, Size, user_priv);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
+    // Test aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR
+    aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR(&codec_ctx, dummy_control_id, input_value);
 
-    // Fuzz aom_codec_get_stream_info
-    aom_codec_stream_info_t stream_info;
-    res = aom_codec_get_stream_info(&codec_ctx, &stream_info);
+    // Test aom_codec_control_typechecked_AV1E_GET_GOP_INFO
+    aom_gop_info_t gop_info;
+    aom_codec_control_typechecked_AV1E_GET_GOP_INFO(&codec_ctx, dummy_control_id, &gop_info);
 
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
+    // Test aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING(&codec_ctx, dummy_control_id, static_cast<unsigned int>(input_value));
+
+    // Test aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS
+    int num_operating_points = 0;
+    aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS(&codec_ctx, dummy_control_id, &num_operating_points);
+
+    // Test aom_codec_control_typechecked_AV1E_SET_TRANSFER_CHARACTERISTICS
+    aom_codec_control_typechecked_AV1E_SET_TRANSFER_CHARACTERISTICS(&codec_ctx, dummy_control_id, input_value);
+
     return 0;
 }
