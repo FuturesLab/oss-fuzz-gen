@@ -1,10 +1,7 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
-// lou_findTable at metadata.c:1063:1 in liblouis.h
-// lou_getTable at compileTranslationTable.c:5118:1 in liblouis.h
-// lou_indexTables at metadata.c:945:1 in liblouis.h
-// lou_findTables at metadata.c:1110:1 in liblouis.h
+// lou_getEmphClasses at compileTranslationTable.c:5070:1 in liblouis.h
+// lou_freeEmphClasses at compileTranslationTable.c:5095:1 in liblouis.h
+// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,86 +11,46 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
 #include <liblouis.h>
+}
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <cstdlib>
-#include <iostream>
+#include <fstream>
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Prepare a null-terminated string for tableList and query
-    char *tableList = strndup(reinterpret_cast<const char*>(Data), Size);
-    char *query = strndup(reinterpret_cast<const char*>(Data), Size);
-
-    // Prepare widechar buffers for input and output
-    widechar *inbuf = (widechar*)malloc(Size * sizeof(widechar));
-    widechar *outbuf = (widechar*)malloc(Size * sizeof(widechar));
-    if (!inbuf || !outbuf) {
-        free(tableList);
-        free(query);
-        free(inbuf);
-        free(outbuf);
+    if (Size == 0) {
         return 0;
     }
 
-    for (size_t i = 0; i < Size; ++i) {
-        inbuf[i] = static_cast<widechar>(Data[i]);
-    }
-
-    int inlen = Size;
-    int outlen = Size;
-
-    // Prepare typeform and spacing buffers
-    formtype *typeform = (formtype*)malloc(Size * sizeof(formtype));
-    char *spacing = (char*)malloc(Size);
-    if (!typeform || !spacing) {
-        free(tableList);
-        free(query);
-        free(inbuf);
-        free(outbuf);
-        free(typeform);
-        free(spacing);
+    // Prepare a dummy file with the input data
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    if (!dummyFile.is_open()) {
         return 0;
     }
+    dummyFile.write(reinterpret_cast<const char *>(Data), Size);
+    dummyFile.close();
 
-    // Fuzz lou_translateString
-    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, 0);
+    // Convert input Data to a null-terminated string
+    char *tableList = new char[Size + 1];
+    memcpy(tableList, Data, Size);
+    tableList[Size] = '\0';
 
-    // Fuzz lou_checkTable
-    lou_checkTable(tableList);
+    // Invoke lou_getEmphClasses
+    char const **emphClasses = lou_getEmphClasses(tableList);
 
-    // Fuzz lou_findTable
-    char *foundTable = lou_findTable(query);
-    if (foundTable) {
-        free(foundTable);
+    // If successful, free the emphasis classes
+    if (emphClasses) {
+        lou_freeEmphClasses(emphClasses);
     }
 
-    // Fuzz lou_getTable
-    const void *table = lou_getTable(tableList);
+    // Clean up the allocated tableList
+    delete[] tableList;
 
-    // Fuzz lou_indexTables
-    const char *tables[] = {tableList, nullptr};
-    lou_indexTables(tables);
-
-    // Fuzz lou_findTables
-    char **foundTables = lou_findTables(query);
-    if (foundTables) {
-        for (int i = 0; foundTables[i] != nullptr; ++i) {
-            free(foundTables[i]);
-        }
-        free(foundTables);
-    }
-
-    // Cleanup
-    free(tableList);
-    free(query);
-    free(inbuf);
-    free(outbuf);
-    free(typeform);
-    free(spacing);
+    // Free any other memory allocated by liblouis
+    lou_free();
 
     return 0;
 }

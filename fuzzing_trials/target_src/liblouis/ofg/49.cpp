@@ -3,38 +3,48 @@
 #include <cstring>
 
 extern "C" {
-    // Include the necessary header for the function-under-test
+    // Assuming the function is defined in an external C library
     void lou_indexTables(const char **);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to work with
-    if (size < 2) {
-        return 0;
+    // Define a maximum number of strings to pass to the function
+    const size_t maxStrings = 5;
+    const char *stringArray[maxStrings + 1]; // +1 for the NULL terminator
+
+    // Initialize all elements to NULL
+    for (size_t i = 0; i < maxStrings + 1; ++i) {
+        stringArray[i] = NULL;
     }
 
-    // Allocate memory for the table names
-    const char *tables[3];
-    char table1[256];
-    char table2[256];
+    // Create strings from the input data
+    size_t offset = 0;
+    for (size_t i = 0; i < maxStrings && offset < size; ++i) {
+        // Find the length of the next string
+        size_t len = 0;
+        while (offset + len < size && data[offset + len] != '\0') {
+            ++len;
+        }
 
-    // Copy data into the table names, ensuring null termination
-    size_t table1_len = (size / 2 < 255) ? size / 2 : 255;
-    size_t table2_len = ((size - table1_len) < 255) ? (size - table1_len) : 255;
+        // Allocate memory for the string and copy data
+        char *str = new char[len + 1];
+        std::memcpy(str, data + offset, len);
+        str[len] = '\0'; // Null-terminate the string
 
-    memcpy(table1, data, table1_len);
-    table1[table1_len] = '\0';
+        // Assign the string to the array
+        stringArray[i] = str;
 
-    memcpy(table2, data + table1_len, table2_len);
-    table2[table2_len] = '\0';
+        // Move the offset past the current string
+        offset += len + 1;
+    }
 
-    // Initialize the tables array with non-null values
-    tables[0] = table1;
-    tables[1] = table2;
-    tables[2] = nullptr; // Null-terminate the array
+    // Call the function with the array of strings
+    lou_indexTables(stringArray);
 
-    // Call the function-under-test
-    lou_indexTables(tables);
+    // Clean up allocated memory
+    for (size_t i = 0; i < maxStrings; ++i) {
+        delete[] stringArray[i];
+    }
 
     return 0;
 }

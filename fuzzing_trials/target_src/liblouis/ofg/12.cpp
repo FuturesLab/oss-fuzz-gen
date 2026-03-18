@@ -1,25 +1,29 @@
 #include <cstdint>
-#include <cstddef>
+#include <cstdlib>
 #include <cstring>
 
-// Assuming the function is part of a library that needs to be included.
+// Assuming the function is part of a library, include the necessary header
 extern "C" {
     const char ** lou_getEmphClasses(const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated before passing it to the function.
-    char *null_terminated_input = new char[size + 1];
-    memcpy(null_terminated_input, data, size);
-    null_terminated_input[size] = '\0';
+    // Ensure the input data is null-terminated
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Call the function-under-test with the null-terminated input.
-    const char **result = lou_getEmphClasses(null_terminated_input);
+    // Call the function-under-test
+    const char **result = lou_getEmphClasses(null_terminated_data);
 
-    // Clean up allocated memory.
-    delete[] null_terminated_input;
+    // Free allocated memory
+    free(null_terminated_data);
 
-    // The result is not used further, but you could add additional checks or processing here if needed.
+    // Optionally check the result or process it if needed
+    // For fuzzing purposes, we don't need to do anything with the result
 
     return 0;
 }

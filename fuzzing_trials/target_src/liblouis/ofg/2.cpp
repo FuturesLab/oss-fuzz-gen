@@ -1,14 +1,18 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstddef>  // Include for size_t
+#include <cstdint>  // Include for uint8_t
 
-// Assuming the function is part of a C library, we wrap it in extern "C"
 extern "C" {
-    void lou_logEnd();
+    #include "/src/liblouis/liblouis/liblouis.h"
 }
 
+// Fuzzing harness
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // The function lou_logEnd does not take any parameters, so we can directly call it.
+    if (size == 0) {
+        return 0;
+    }
+
+    // Call the function-under-test with some input
     lou_logEnd();
 
-    return 0; // Return 0 to indicate successful execution
+    return 0;
 }

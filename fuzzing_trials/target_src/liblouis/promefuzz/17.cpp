@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
 // lou_backTranslate at lou_backTranslateString.c:159:1 in liblouis.h
-// lou_translatePrehyphenated at lou_translateString.c:1410:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
-// lou_translate at lou_translateString.c:1135:1 in liblouis.h
 // lou_translateString at lou_translateString.c:1128:1 in liblouis.h
 // lou_charToDots at lou_translateString.c:4173:1 in liblouis.h
+// lou_backTranslateString at lou_backTranslateString.c:152:1 in liblouis.h
+// lou_dotsToChar at lou_translateString.c:4150:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,63 +15,63 @@
 #include <cstdint>
 #include <cstddef>
 #include <liblouis.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <fstream>
 
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    std::ofstream outFile("./dummy_file", std::ios::binary);
+    outFile.write(reinterpret_cast<const char*>(Data), Size);
+    outFile.close();
+}
+
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Prepare dummy file for tableList if needed
-    std::ofstream dummyFile("./dummy_file");
-    dummyFile << "dummy table content";
-    dummyFile.close();
-    const char *tableList = "./dummy_file";
+    // Setup dummy file if needed
+    writeDummyFile(Data, Size);
 
-    // Allocate buffers and variables for function parameters
-    widechar *inbuf = new widechar[Size];
-    widechar *outbuf = new widechar[Size];
-    int inlen = Size;
-    int outlen = Size;
-    formtype *typeform = nullptr;
-    char *spacing = nullptr;
-    int *outputPos = new int[Size];
-    int *inputPos = new int[Size];
+    // Prepare input data
+    const char *tableList = "./dummy_file";
+    widechar inbuf[256] = {0};
+    widechar outbuf[256] = {0};
+    int inlen = Size < 256 ? Size : 256;
+    int outlen = 256;
+    formtype typeform[256] = {0};
+    char spacing[256] = {0};
+    int outputPos[256] = {0};
+    int inputPos[256] = {0};
     int cursorPos = 0;
-    char *inputHyphens = new char[Size];
-    char *outputHyphens = new char[Size];
     int mode = 0;
 
-    // Populate input buffer with data
-    std::memcpy(inbuf, Data, Size);
+    // Copy data to widechar buffer
+    for (int i = 0; i < inlen; ++i) {
+        inbuf[i] = Data[i];
+    }
 
-    // Test lou_backTranslate
+    // Call lou_backTranslate
     lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
-    // Test lou_translatePrehyphenated
-    lou_translatePrehyphenated(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, inputHyphens, outputHyphens, mode);
+    // Reset lengths for lou_translateString
+    inlen = Size < 256 ? Size : 256;
+    outlen = 256;
 
-    // Test lou_checkTable
-    lou_checkTable(tableList);
-
-    // Test lou_translate
-    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
-
-    // Test lou_translateString
+    // Call lou_translateString
     lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
 
-    // Test lou_charToDots
-    lou_charToDots(tableList, inbuf, outbuf, outlen, mode);
+    // Call lou_charToDots
+    lou_charToDots(tableList, inbuf, outbuf, inlen, mode);
 
-    // Cleanup
-    delete[] inbuf;
-    delete[] outbuf;
-    delete[] outputPos;
-    delete[] inputPos;
-    delete[] inputHyphens;
-    delete[] outputHyphens;
+    // Call lou_backTranslateString
+    lou_backTranslateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
+
+    // Call lou_dotsToChar
+    lou_dotsToChar(tableList, inbuf, outbuf, inlen, mode);
+
+    // Call lou_checkTable
+    lou_checkTable(tableList);
 
     return 0;
 }

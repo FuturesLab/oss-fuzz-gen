@@ -1,28 +1,33 @@
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 
-// Assuming the function lou_getTable is part of a C library
 extern "C" {
+    // Declare the function-under-test
     const void * lou_getTable(const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated to be used as a C-string
+    // Ensure the input size is non-zero for creating a valid C-string
     if (size == 0) {
         return 0;
     }
 
-    // Create a buffer with an extra byte for the null terminator
-    char *input = new char[size + 1];
-    std::memcpy(input, data, size);
-    input[size] = '\0';  // Null-terminate the string
+    // Allocate memory for the input string and ensure it's null-terminated
+    char *inputString = (char *)malloc(size + 1);
+    if (inputString == NULL) {
+        return 0; // Return if memory allocation fails
+    }
+
+    // Copy the data into the input string and null-terminate it
+    memcpy(inputString, data, size);
+    inputString[size] = '\0';
 
     // Call the function-under-test
-    const void *result = lou_getTable(input);
+    const void *result = lou_getTable(inputString);
 
-    // Clean up
-    delete[] input;
+    // Clean up allocated memory
+    free(inputString);
 
     return 0;
 }

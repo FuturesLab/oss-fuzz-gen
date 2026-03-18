@@ -1,26 +1,31 @@
-#include <cstdint>
 #include <cstddef>
-#include <iostream>
+#include <cstdint>
+#include <cstring>
+#include <cstdlib>
 
-// Assuming the logcallback is a function pointer type
-typedef void (*logcallback)(const char*);
-
-// Sample log callback function
-void sampleLogCallback(const char* message) {
-    std::cout << "Log: " << message << std::endl;
+extern "C" {
+    #include "/src/liblouis/liblouis/liblouis.h" // Correct path to the library header
 }
 
-// Function under test
-extern "C" void lou_registerLogCallback(logcallback);
-
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Ensure the data is not null and has a minimum size
-    if (data == nullptr || size == 0) {
-        return 0;
-    }
-
-    // Register the sample log callback
-    lou_registerLogCallback(sampleLogCallback);
-
+    // Define and initialize all necessary parameters for the function call
+    const char *inputString = reinterpret_cast<const char*>(data);
+    const widechar *tableList = reinterpret_cast<const widechar*>(data);
+    int inputLength = static_cast<int>(size);
+    
+    // Allocate memory for the output buffer and initialize
+    widechar outputBuffer[1024];
+    int outputLength = 1024; // Assuming a fixed size for simplicity
+    
+    // Allocate memory for the formtype and initialize
+    formtype formType;
+    
+    // Allocate memory for the spacing buffer and initialize
+    char spacingBuffer[1024];
+    
+    // Call the function under test
+    int result = lou_translateString(inputString, tableList, &inputLength, outputBuffer, &outputLength, &formType, spacingBuffer, static_cast<int>(sizeof(spacingBuffer)));
+    
+    // Return 0 to indicate successful execution
     return 0;
 }

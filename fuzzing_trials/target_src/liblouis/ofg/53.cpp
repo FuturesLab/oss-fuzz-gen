@@ -1,21 +1,21 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <cstdint>
+#include <cstddef>
+#include <iostream>
 
+// Assuming the function lou_getDataPath is defined in an external C library
 extern "C" {
-    // Include the header where lou_getDataPath is declared
-    char *lou_getDataPath();
+    char * lou_getDataPath();
 }
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Call the function under test
+    // Call the function-under-test
     char *dataPath = lou_getDataPath();
 
-    // Print the result to ensure the function is called
-    if (dataPath != NULL) {
-        printf("Data Path: %s\n", dataPath);
+    // Check if the returned path is not NULL and print it for debugging purposes
+    if (dataPath != nullptr) {
+        std::cout << "Data Path: " << dataPath << std::endl;
     } else {
-        printf("Data Path is NULL\n");
+        std::cout << "Data Path is NULL" << std::endl;
     }
 
     return 0;

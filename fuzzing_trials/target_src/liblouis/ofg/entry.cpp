@@ -1,7 +1,7 @@
-// This is the entry of 59 fuzz drivers:
+// This is the entry of 60 fuzz drivers:
 // 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 2
 // 3, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 4
-// 3, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59
+// 3, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -71,6 +71,7 @@ extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *Data, size_t Size);
 extern "C" int LLVMFuzzerTestOneInput_57(const uint8_t *Data, size_t Size);
 extern "C" int LLVMFuzzerTestOneInput_58(const uint8_t *Data, size_t Size);
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *Data, size_t Size);
+extern "C" int LLVMFuzzerTestOneInput_60(const uint8_t *Data, size_t Size);
 
 // Entry function
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
@@ -90,7 +91,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     }
 
     // Select driver
-    switch (driverIndex % 59) {
+    switch (driverIndex % 60) {
         case 0:
             return LLVMFuzzerTestOneInput_1(remainData, remainSize);
         case 1:
@@ -209,6 +210,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
             return LLVMFuzzerTestOneInput_58(remainData, remainSize);
         case 58:
             return LLVMFuzzerTestOneInput_59(remainData, remainSize);
+        case 59:
+            return LLVMFuzzerTestOneInput_60(remainData, remainSize);
         default:
             return 0;
     }

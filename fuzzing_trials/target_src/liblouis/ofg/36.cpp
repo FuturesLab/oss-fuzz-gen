@@ -1,34 +1,23 @@
-extern "C" {
-    #include <stdio.h>
-    #include <stdlib.h>
-    #include <string.h>
-    #include <stdint.h> // Include for uint8_t type
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
-    // Function signature provided
-    void lou_logPrint(const char *message, void *userData);
+// Assuming the function is defined in a C library
+extern "C" {
+    int lou_checkTable(const char *);
 }
 
-// Fuzzer entry point
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Ensure the data size is non-zero to create a non-empty string
-    if (size == 0) return 0;
+    // Ensure the data is null-terminated
+    char *null_terminated_data = new char[size + 1];
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Allocate memory for the message and ensure it's null-terminated
-    char *message = (char *)malloc(size + 1);
-    if (message == NULL) return 0; // Check for allocation failure
+    // Call the function-under-test
+    int result = lou_checkTable(null_terminated_data);
 
-    memcpy(message, data, size);
-    message[size] = '\0'; // Null-terminate the string
-
-    // Dummy user data, as the function signature requires a void pointer
-    int dummyUserData = 42;
-    void *userData = &dummyUserData;
-
-    // Call the function under test
-    lou_logPrint(message, userData);
-
-    // Free the allocated memory
-    free(message);
+    // Clean up
+    delete[] null_terminated_data;
 
     return 0;
 }

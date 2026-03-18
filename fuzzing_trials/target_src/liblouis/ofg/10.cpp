@@ -1,34 +1,31 @@
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <cstdlib>
 
 extern "C" {
-    // Include the correct header where lou_findTable is declared
+    // Include the actual header for lou_findTable
     #include "/src/liblouis/liblouis/liblouis.h"
 }
 
+// Fuzzer entry point
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated for safe string operations
-    char *inputData = (char *)malloc(size + 1);
-    if (inputData == NULL) {
+    // Ensure the input data is null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
         return 0; // Exit if memory allocation fails
     }
 
-    // Copy the input data and null-terminate it
-    memcpy(inputData, data, size);
-    inputData[size] = '\0';
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the input
 
     // Call the function-under-test
-    char *result = lou_findTable(inputData);
+    char *result = lou_findTable(input);
 
-    // Normally, you would do something with the result here
-    // For fuzzing purposes, we're mainly interested in finding crashes
+    // Free the memory allocated for the input
+    free(input);
 
-    // Free the allocated memory
-    free(inputData);
-
-    // If lou_findTable allocates memory for the result, ensure to free it
+    // If result is non-NULL, free the result as well
     if (result != NULL) {
         free(result);
     }

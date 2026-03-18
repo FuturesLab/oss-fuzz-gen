@@ -1,28 +1,35 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h"  // Correct path to the actual header file
+    #include "/src/liblouis/liblouis/liblouis.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to initialize all parameters
-    if (size < 10) return 0;  // Adjust the size check based on realistic needs
+    // Ensure the input size is sufficient for the test
+    if (size < 5) {
+        return 0;
+    }
 
-    // Initialize parameters
+    // Initialize input parameters for lou_dotsToChar
     const char *dots = reinterpret_cast<const char *>(data);
 
     // Allocate memory for widechar arrays
-    widechar output1[5];  // Adjust size as needed
-    widechar output2[5];  // Adjust size as needed
+    widechar *chars = new widechar[size];
+    widechar *typeforms = new widechar[size];
 
-    // Initialize integers
-    int length = 5;  // Example length, adjust as necessary
-    int mode = 0;    // Example mode, adjust as necessary
+    // Initialize the other integer parameters
+    int length = static_cast<int>(size);
+    int mode = 0;  // Example mode, can be varied
 
-    // Call the function-under-test
-    lou_dotsToChar(dots, output1, output2, length, mode);
+    // Call the function under test
+    lou_dotsToChar(dots, chars, typeforms, length, mode);
+
+    // Clean up allocated memory
+    delete[] chars;
+    delete[] typeforms;
 
     return 0;
 }

@@ -1,37 +1,108 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-
-// Assuming widechar and formtype are defined somewhere in the project
-typedef uint16_t widechar;
-typedef int formtype;
+#include <iostream>
 
 extern "C" {
-    // Declare the function-under-test
-    int lou_backTranslate(const char *, const widechar *, int *, widechar *, int *, formtype *, char *, int *, int *, int *, int);
+    #include "/src/liblouis/liblouis/liblouis.h" // Correct path for the header where `lou_backTranslate` is declared
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for lou_backTranslate
-    const char *inputString = "example input";
-    widechar wideInput[] = {0x0065, 0x0078, 0x0061, 0x006D, 0x0070, 0x006C, 0x0065, 0}; // "example" in widechar
-    int inputLength = 7;
-    widechar wideOutput[256];
-    int outputLength = 256;
-    formtype form;
-    char outputString[256];
-    int cursorPos = 0;
-    int mode = 0;
-    int typeform = 0;
-    int retLength = 0;
-
-    // Ensure none of the pointers are NULL
-    if (size < sizeof(inputString) + sizeof(wideInput)) {
-        return 0;
+    if (size < 1) {
+        return 0; // Not enough data to proceed
     }
 
-    // Call the function-under-test
-    lou_backTranslate(inputString, wideInput, &inputLength, wideOutput, &outputLength, &form, outputString, &cursorPos, &mode, &typeform, retLength);
+    // Initialize parameters for lou_backTranslate
+    const char *tableList = "en-us-g2.ctb"; // Example table list
+    const widechar *inbuf = reinterpret_cast<const widechar*>(data);
+    int inlen = size / sizeof(widechar);
+    
+    int *inpos = (int*)malloc(inlen * sizeof(int));
+    if (inpos == NULL) {
+        return 0; // Allocation failed
+    }
+    for (int i = 0; i < inlen; ++i) {
+        inpos[i] = i;
+    }
+
+    widechar *outbuf = (widechar*)malloc(inlen * sizeof(widechar));
+    if (outbuf == NULL) {
+        free(inpos);
+        return 0; // Allocation failed
+    }
+
+    int *outlen = (int*)malloc(sizeof(int));
+    if (outlen == NULL) {
+        free(inpos);
+        free(outbuf);
+        return 0; // Allocation failed
+    }
+    *outlen = inlen;
+
+    formtype *typeform = (formtype*)malloc(inlen * sizeof(formtype));
+    if (typeform == NULL) {
+        free(inpos);
+        free(outbuf);
+        free(outlen);
+        return 0; // Allocation failed
+    }
+
+    char *spacing = (char*)malloc(inlen * sizeof(char));
+    if (spacing == NULL) {
+        free(inpos);
+        free(outbuf);
+        free(outlen);
+        free(typeform);
+        return 0; // Allocation failed
+    }
+
+    int *cursorPos = (int*)malloc(sizeof(int));
+    if (cursorPos == NULL) {
+        free(inpos);
+        free(outbuf);
+        free(outlen);
+        free(typeform);
+        free(spacing);
+        return 0; // Allocation failed
+    }
+    *cursorPos = 0;
+
+    int *cursorStatus = (int*)malloc(sizeof(int));
+    if (cursorStatus == NULL) {
+        free(inpos);
+        free(outbuf);
+        free(outlen);
+        free(typeform);
+        free(spacing);
+        free(cursorPos);
+        return 0; // Allocation failed
+    }
+    *cursorStatus = 0;
+
+    int *mode = (int*)malloc(sizeof(int));
+    if (mode == NULL) {
+        free(inpos);
+        free(outbuf);
+        free(outlen);
+        free(typeform);
+        free(spacing);
+        free(cursorPos);
+        free(cursorStatus);
+        return 0; // Allocation failed
+    }
+    *mode = 0;
+
+    int result = lou_backTranslate(tableList, inbuf, inpos, outbuf, outlen, typeform, spacing, cursorPos, cursorStatus, mode, 0);
+
+    // Free allocated memory
+    free(inpos);
+    free(outbuf);
+    free(outlen);
+    free(typeform);
+    free(spacing);
+    free(cursorPos);
+    free(cursorStatus);
+    free(mode);
 
     return 0;
 }

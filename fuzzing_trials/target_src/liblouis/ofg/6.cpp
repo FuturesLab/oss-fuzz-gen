@@ -1,34 +1,25 @@
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
+#include <iostream>
 
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h" // Correct path for the header file
+    #include "/src/liblouis/liblouis/liblouis.h" // Correct path to the header file
 }
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Define and initialize the function parameters
-    const char *tableList = "en-us-g2.ctb"; // Example table list
-    widechar inputText[256];
-    int inputLength = 256;
-    widechar outputBuffer[256];
-    int outputLength = 256;
-    formtype typeform[256];
-    char spacing[256];
-    int mode = 0;
+    // Define and initialize parameters for lou_backTranslateString
+    const char *tableList = "en-us-g2.ctb"; // Example table list, non-null
+    const widechar *inbuf = reinterpret_cast<const widechar *>(data); // Cast data to widechar*
+    int inlen = size / sizeof(widechar); // Calculate the length of the input buffer
+    widechar outbuf[256]; // Output buffer
+    int outlen = sizeof(outbuf) / sizeof(widechar); // Length of the output buffer
+    formtype typeform[256]; // Formtype buffer
+    char spacing[256]; // Spacing buffer
+    int spacinglen = sizeof(spacing); // Length of the spacing buffer
 
-    // Ensure the input data is not longer than the buffer
-    if (size > sizeof(inputText) / sizeof(widechar)) {
-        size = sizeof(inputText) / sizeof(widechar);
-    }
+    // Call the function under test
+    lou_backTranslateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, spacinglen);
 
-    // Copy the input data to inputText
-    memcpy(inputText, data, size * sizeof(widechar));
-
-    // Call the function-under-test
-    int result = lou_backTranslateString(tableList, inputText, &inputLength, outputBuffer, &outputLength, typeform, spacing, mode);
-
-    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

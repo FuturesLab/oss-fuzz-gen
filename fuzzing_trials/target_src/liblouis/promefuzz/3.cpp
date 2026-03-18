@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_logFile at logging.c:196:1 in liblouis.h
-// lou_setLogLevel at logging.c:143:1 in liblouis.h
-// lou_logPrint at logging.c:213:1 in liblouis.h
-// lou_registerLogCallback at logging.c:86:1 in liblouis.h
-// lou_indexTables at metadata.c:945:1 in liblouis.h
-// lou_logEnd at logging.c:229:1 in liblouis.h
+// lou_getEmphClasses at compileTranslationTable.c:5070:1 in liblouis.h
+// lou_freeEmphClasses at compileTranslationTable.c:5095:1 in liblouis.h
+// lou_freeTableInfo at metadata.c:1167:1 in liblouis.h
+// lou_freeTableFiles at compileTranslationTable.c:4933:1 in liblouis.h
+// lou_freeTableFile at metadata.c:1089:1 in liblouis.h
+// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,50 +14,43 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdarg>
-#include <cstdio>
-#include <cstdlib>
-#include "liblouis.h"
-
-static void dummyLogCallback(logLevels level, const char *message) {
-    // Dummy callback function for logging
-}
+#include <liblouis.h>
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Prepare a dummy file for logging
-    const char *dummyFileName = "./dummy_file";
-    FILE *dummyFile = fopen(dummyFileName, "w");
-    if (dummyFile) {
-        fwrite(Data, 1, Size, dummyFile);
-        fclose(dummyFile);
+    if (Size == 0) {
+        return 0;
     }
 
-    // Test lou_logFile
-    lou_logFile(dummyFileName);
+    // Prepare the input for lou_getEmphClasses
+    char *tableList = static_cast<char*>(malloc(Size + 1));
+    memcpy(tableList, Data, Size);
+    tableList[Size] = '\0';
 
-    // Test lou_setLogLevel
-    logLevels level = static_cast<logLevels>(Data[0] % 5); // Assuming 5 log levels
-    lou_setLogLevel(level);
+    // Invoke lou_getEmphClasses
+    const char **emphClasses = lou_getEmphClasses(tableList);
 
-    // Ensure null-termination for lou_logPrint
-    std::string logMessage(reinterpret_cast<const char *>(Data), Size);
-    logMessage.push_back('\0');
-    lou_logPrint("Fuzzing log message: %s", logMessage.c_str());
+    // If successful, free the returned emphasis classes
+    if (emphClasses != NULL) {
+        lou_freeEmphClasses(emphClasses);
+    }
 
-    // Test lou_registerLogCallback
-    lou_registerLogCallback(dummyLogCallback);
+    // Clean up the tableList
+    free(tableList);
 
-    // Prepare data for lou_indexTables with proper null-termination
-    std::vector<char> tableData(Data, Data + Size);
-    tableData.push_back('\0');
-    const char *tables[2] = {tableData.data(), nullptr};
-    lou_indexTables(tables);
+    // Test other functions with dummy data
+    char *dummyTableInfo = static_cast<char*>(malloc(10));
+    lou_freeTableInfo(dummyTableInfo);
 
-    // Test lou_logEnd
-    lou_logEnd();
+    char **dummyTableFiles = static_cast<char**>(malloc(2 * sizeof(char*)));
+    dummyTableFiles[0] = static_cast<char*>(malloc(10));
+    dummyTableFiles[1] = nullptr;
+    lou_freeTableFiles(dummyTableFiles);
+
+    char *dummyTableFile = static_cast<char*>(malloc(10));
+    lou_freeTableFile(dummyTableFile);
+
+    // Call lou_free at the end
+    lou_free();
 
     return 0;
 }

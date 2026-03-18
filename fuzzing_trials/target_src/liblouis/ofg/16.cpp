@@ -1,31 +1,30 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h"  // Correct path to the actual header file
+    #include "/src/liblouis/liblouis/liblouis.h"  // Correct path for the header file
 }
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < 10) {
-        return 0;
-    }
+    // Ensure there is enough data to work with
+    if (size < 5) return 0;
 
-    // Initialize the input parameters for lou_dotsToChar
-    const char *dots = reinterpret_cast<const char *>(data);
-    widechar inputBuffer[5];
-    widechar outputBuffer[5];
-    int inputLength = 5;
-    int outputLength = 5;
+    // Extract parameters from data
+    const char *dots = reinterpret_cast<const char*>(data);
+    size_t dots_len = strlen(dots);
+    if (dots_len >= size) return 0;  // Ensure the string is null-terminated within bounds
 
-    // Call the function under test
-    int result = lou_dotsToChar(dots, inputBuffer, outputBuffer, inputLength, outputLength);
+    // Allocate widechar buffers
+    widechar output1[256];
+    widechar output2[256];
 
-    // Print the result for debugging purposes (optional)
-    std::cout << "Result: " << result << std::endl;
+    // Set arbitrary values for the int parameters
+    int param1 = 1;
+    int param2 = 1;
+
+    // Call the function-under-test
+    lou_dotsToChar(dots, output1, output2, param1, param2);
 
     return 0;
 }

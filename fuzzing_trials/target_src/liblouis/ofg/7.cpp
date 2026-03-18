@@ -2,20 +2,18 @@
 #include <stddef.h>
 
 extern "C" {
-    // Include the correct header for the function-under-test
-    #include "/src/liblouis/liblouis/liblouis.h"
+    // Include the header or declare the function signature for lou_version
+    const char * lou_version();
 }
 
-// Fuzzing harness for lou_version
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
     // Call the function-under-test
     const char *version = lou_version();
 
-    // Optionally, you can use the version string in some way
-    // For this example, we will just check if it's not null
-    if (version != nullptr) {
-        // Do something with the version string if needed
-    }
+    // Optionally, you can use the returned version string in some way
+    // For example, you could print it or use it in a condition
+    // However, since this is a fuzzing harness, we typically don't need to do anything with it
+    (void)version; // Suppress unused variable warning
 
     return 0;
 }

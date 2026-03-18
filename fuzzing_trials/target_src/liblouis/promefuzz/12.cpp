@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_getTable at compileTranslationTable.c:5118:1 in liblouis.h
-// lou_getTypeformForEmphClass at compileTranslationTable.c:5244:1 in liblouis.h
-// lou_getEmphClasses at compileTranslationTable.c:5070:1 in liblouis.h
-// lou_freeEmphClasses at compileTranslationTable.c:5095:1 in liblouis.h
-// lou_compileString at compileTranslationTable.c:5430:1 in liblouis.h
-// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
+// lou_logPrint at logging.c:213:1 in liblouis.h
+// lou_version at compileTranslationTable.c:5419:1 in liblouis.h
+// lou_registerLogCallback at logging.c:86:1 in liblouis.h
+// lou_registerLogCallback at logging.c:86:1 in liblouis.h
+// lou_logEnd at logging.c:229:1 in liblouis.h
+// lou_setLogLevel at logging.c:143:1 in liblouis.h
+// lou_logFile at logging.c:196:1 in liblouis.h
+// lou_logFile at logging.c:196:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,41 +16,54 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <liblouis.h>
-#include <cstdint>
-#include <cstring>
+#include <cstdarg>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <liblouis.h>
+
+static void dummyLogCallback(logLevels level, const char *message) {
+    // Dummy log callback function
+}
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
     if (Size == 0) return 0;
 
-    // Convert input data to a null-terminated string
-    char *inputData = static_cast<char *>(malloc(Size + 1));
-    if (!inputData) return 0;
+    // Prepare a buffer for string operations
+    char buffer[256];
+    size_t copySize = Size < sizeof(buffer) - 1 ? Size : sizeof(buffer) - 1;
+    memcpy(buffer, Data, copySize);
+    buffer[copySize] = '\0';
 
-    memcpy(inputData, Data, Size);
-    inputData[Size] = '\0';
+    // 1. Test lou_logPrint
+    lou_logPrint(buffer);
 
-    // Fuzz lou_getTable
-    const void *table = lou_getTable(inputData);
+    // 2. Test lou_version
+    const char *version = lou_version();
+    (void)version; // Suppress unused variable warning
 
-    // Fuzz lou_getTypeformForEmphClass
-    if (Size > 1) {
-        lou_getTypeformForEmphClass(inputData, inputData + 1);
+    // 3. Test lou_registerLogCallback
+    lou_registerLogCallback(dummyLogCallback);
+    lou_registerLogCallback(NULL); // Reset to default
+
+    // 4. Test lou_logEnd
+    lou_logEnd();
+
+    // 5. Test lou_setLogLevel
+    if (Size > 0) {
+        logLevels level = static_cast<logLevels>(Data[0] % 5); // Assuming 5 levels
+        lou_setLogLevel(level);
     }
 
-    // Fuzz lou_getEmphClasses
-    char const **emphClasses = lou_getEmphClasses(inputData);
-    if (emphClasses) {
-        lou_freeEmphClasses(emphClasses);
+    // 6. Test lou_logFile
+    const char *filename = "./dummy_file";
+    FILE *file = fopen(filename, "w");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-
-    // Fuzz lou_compileString
-    lou_compileString(inputData, inputData);
-
-    // Clean up
-    lou_free();
-    free(inputData);
+    lou_logFile(filename);
+    lou_logFile(NULL); // Reset to stderr
 
     return 0;
 }

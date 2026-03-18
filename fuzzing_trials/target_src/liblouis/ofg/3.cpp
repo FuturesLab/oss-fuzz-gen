@@ -1,31 +1,48 @@
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h"  // Correct path for the header file
+    #include "/src/liblouis/liblouis/liblouis.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Define and initialize parameters for the function
-    const char *tableList = "en-us-g2.ctb";  // Example table list
-    widechar inputText[] = {0x0061, 0x0062, 0x0063, 0};  // Example widechar input (e.g., "abc")
-    int inputLength = 3;  // Length of the inputText
-    widechar outputText[256];  // Buffer for output text
-    int outputLength = 256;  // Length of the output buffer
-    formtype formInfo;  // Example formtype, initialize as needed
-    char spaceCharacter = ' ';  // Example space character
-    int cursorPos = 0;  // Example cursor position
-    int cursorStatus = 0;  // Example cursor status
-    int mode = 0;  // Example mode
-    int retLength = 0;  // To store the return length
+    // Initialize the parameters for lou_backTranslate
+    const char *tableList = "en-us-g2.ctb"; // Example table list
+    widechar inputText[] = {0x0061, 0x0062, 0x0063, 0}; // Example widechar input (abc)
+    int inputLength = sizeof(inputText) / sizeof(widechar) - 1;
+
+    // Allocate memory for output parameters
+    widechar outputText[256];
+    int outputLength = 256;
+    formtype typeforms[256];
+    char spacing[256];
+    int cursorPos = 0;
+    int cursorStatus = 0;
+    int mode = 0;
+
+    // Ensure data is not NULL and size is sufficient
+    if (data == NULL || size < sizeof(inputText)) {
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = lou_backTranslate(tableList, inputText, &inputLength, outputText, &outputLength, &formInfo, &spaceCharacter, &cursorPos, &cursorStatus, &mode, retLength);
+    int result = lou_backTranslate(
+        tableList,
+        inputText,
+        &inputLength,
+        outputText,
+        &outputLength,
+        typeforms,
+        spacing,
+        &cursorPos,
+        &cursorStatus,
+        &mode,
+        static_cast<int>(size)
+    );
 
-    // Output the result for debugging purposes
-    std::cout << "Result: " << result << std::endl;
+    // You can add additional verification or processing here if needed
 
     return 0;
 }

@@ -1,8 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_getTypeformForEmphClass at compileTranslationTable.c:5244:1 in liblouis.h
+// lou_listTables at metadata.c:1172:1 in liblouis.h
 // lou_getEmphClasses at compileTranslationTable.c:5070:1 in liblouis.h
-// lou_freeEmphClasses at compileTranslationTable.c:5095:1 in liblouis.h
-// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
+// lou_indexTables at metadata.c:945:1 in liblouis.h
+// lou_getTable at compileTranslationTable.c:5118:1 in liblouis.h
+// lou_registerTableResolver at compileTranslationTable.c:4865:1 in liblouis.h
+// lou_findTables at metadata.c:1110:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,51 +14,62 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <liblouis.h>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <fstream>
+#include "liblouis.h"
 
-static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    std::ofstream outFile("./dummy_file", std::ios::binary);
-    outFile.write(reinterpret_cast<const char*>(Data), Size);
-    outFile.close();
+static void cleanup(char **array) {
+    if (array) {
+        for (int i = 0; array[i] != nullptr; ++i) {
+            free(array[i]);
+        }
+        free(array);
+    }
+}
+
+static char **dummyResolver(const char *table, const char *base) {
+    return nullptr;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < 2) return 0;
+    // Prepare a null-terminated string from the input data
+    char *input = (char *)malloc(Size + 1);
+    if (!input) return 0;
+    memcpy(input, Data, Size);
+    input[Size] = '\0';
 
-    // Prepare tableList and emphClass strings
-    size_t halfSize = Size / 2;
-    char *tableList = new char[halfSize + 1];
-    char *emphClass = new char[Size - halfSize + 1];
+    // Fuzz lou_listTables
+    char **tableList = lou_listTables();
+    cleanup(tableList);
 
-    std::memcpy(tableList, Data, halfSize);
-    tableList[halfSize] = '\0';
-    std::memcpy(emphClass, Data + halfSize, Size - halfSize);
-    emphClass[Size - halfSize] = '\0';
-
-    // Invoke lou_getTypeformForEmphClass
-    formtype typeform = lou_getTypeformForEmphClass(tableList, emphClass);
-
-    // Invoke lou_getEmphClasses
-    char const **emphClasses = lou_getEmphClasses(tableList);
-
-    // If successful, free the emphasis classes
+    // Fuzz lou_getEmphClasses
+    const char **emphClasses = lou_getEmphClasses(input);
     if (emphClasses) {
-        lou_freeEmphClasses(emphClasses);
+        for (int i = 0; emphClasses[i] != nullptr; ++i) {
+            free((void *)emphClasses[i]);
+        }
+        free(emphClasses);
     }
 
-    // Dummy table file handling
-    writeDummyFile(Data, Size);
+    // Fuzz lou_indexTables
+    const char *tables[] = { input, nullptr };
+    lou_indexTables(tables);
 
-    // Free tableList and emphClass memory
-    delete[] tableList;
-    delete[] emphClass;
+    // Fuzz lou_getTable
+    const void *table = lou_getTable(input);
+    // Normally, you would do something with `table`, but since it's read-only, we skip it
 
-    // Cleanup liblouis resources
-    lou_free();
+    // Register dummy resolver function for lou_registerTableResolver
+    lou_registerTableResolver(dummyResolver);
 
+    // Fuzz lou_findTables
+    char **foundTables = lou_findTables(input);
+    cleanup(foundTables);
+
+    free(input);
     return 0;
 }

@@ -1,46 +1,58 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
+
+// Assume these types are defined somewhere in the included headers
+typedef unsigned int widechar;
+typedef int formtype;
 
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h"
+    // The function-under-test signature
+    int lou_translatePrehyphenated(const char *, const widechar *, int *, widechar *, int *, formtype *, char *, int *, int *, int *, char *, char *, int);
 }
 
-// Remove the redefinition of formtype, as it is already defined in liblouis.h
-// typedef uint16_t widechar; // Already defined in liblouis.h
-
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Initialize parameters for lou_translatePrehyphenated
-    const char *tableList = "exampleTable"; // Example table list, adjust as needed
-    widechar inputText[] = {0x0061, 0x0062, 0x0063, 0x0000}; // Example widechar input
-    int inputLength = 3; // Length of inputText excluding null terminator
-    widechar outputText[256]; // Buffer for output text
-    int outputLength = 256; // Length of outputText buffer
-    formtype typeform[256]; // Buffer for form types
-    char spacing[256]; // Buffer for spacing
-    int cursorPos = 0; // Example cursor position
-    int cursorStatus = 0; // Example cursor status
-    int mode = 0; // Example mode
-    char typeformString[256]; // Buffer for typeform string
-    char spacingString[256]; // Buffer for spacing string
-    int hyphenate = 0; // Example hyphenate flag
+    // Define and initialize the parameters for the function-under-test
 
-    // Call the function under test
-    int result = lou_translatePrehyphenated(
-        tableList,
-        inputText,
-        &inputLength,
-        outputText,
-        &outputLength,
-        typeform,
-        spacing,
-        &cursorPos,
-        &cursorStatus,
-        &mode,
-        typeformString,
-        spacingString,
-        hyphenate
+    // Ensure we have enough data to work with
+    if (size < sizeof(widechar) * 2 + sizeof(int) * 3 + sizeof(formtype) + 10) {
+        return 0;
+    }
+
+    // Initialize the parameters with some values
+    const char *inputString = reinterpret_cast<const char *>(data);
+    const widechar *inputWidechar = reinterpret_cast<const widechar *>(data);
+    
+    int someInt1 = 1;
+    int someInt2 = 2;
+    int someInt3 = 3;
+    
+    widechar outputWidechar[10];
+    formtype someFormtype = static_cast<formtype>(0);
+    
+    char someCharArray1[10];
+    char someCharArray2[10];
+    
+    int someInt4 = 4;
+    int someInt5 = 5;
+    int someInt6 = 6;
+
+    // Call the function-under-test
+    lou_translatePrehyphenated(
+        inputString,
+        inputWidechar,
+        &someInt1,
+        outputWidechar,
+        &someInt2,
+        &someFormtype,
+        someCharArray1,
+        &someInt3,
+        &someInt4,
+        &someInt5,
+        someCharArray2,
+        someCharArray2,
+        someInt6
     );
 
-    // Return 0 to indicate successful execution
     return 0;
 }

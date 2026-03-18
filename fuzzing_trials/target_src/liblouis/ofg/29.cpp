@@ -1,44 +1,39 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 
 extern "C" {
-    // Include the header where lou_findTables is declared
-    #include "/src/liblouis/liblouis/liblouis.h"
+    // Assuming the function is declared in a header file or elsewhere in the project
+    char ** lou_findTables(const char *);
 }
 
-// Fuzzer entry point
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Ensure the input data is not empty
-    if (size == 0) {
-        return 0;
+    // Ensure the data is null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Allocate memory for the input string and ensure it's null-terminated
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == nullptr) {
-        return 0;
-    }
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the input string
 
-    // Copy the data into the input string and null-terminate it
-    memcpy(inputString, data, size);
-    inputString[size] = '\0';
+    // Call the function under test
+    char **result = lou_findTables(input);
 
-    // Call the function-under-test
-    char **result = lou_findTables(inputString);
+    // Normally, we would process the result here, but since we're fuzzing,
+    // we are mainly interested in whether the function can handle the input
+    // without crashing. So we just free the input and return.
 
-    // Process the result if needed (for fuzzing purposes, we just free it)
-    if (result != nullptr) {
-        // Assuming lou_findTables returns a null-terminated array of strings
-        for (char **ptr = result; *ptr != nullptr; ++ptr) {
-            free(*ptr);
+    free(input);
+
+    // If result is not NULL, we should free the allocated memory for the result
+    // Assuming the result is a NULL-terminated array of strings
+    if (result != NULL) {
+        for (char **ptr = result; *ptr != NULL; ++ptr) {
+            free(*ptr); // Free each string
         }
-        free(result);
+        free(result); // Free the array itself
     }
-
-    // Free the allocated input string
-    free(inputString);
 
     return 0;
 }

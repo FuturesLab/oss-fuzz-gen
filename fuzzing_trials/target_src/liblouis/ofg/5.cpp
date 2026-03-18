@@ -1,36 +1,32 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h"
+    #include "/src/liblouis/liblouis/liblouis.h" // Correct path to the library header
 }
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Initialize parameters for lou_backTranslateString
-    const char *inputString = reinterpret_cast<const char *>(data);
+    if (size < 2) return 0; // Ensure there is enough data for meaningful input
 
-    // Create a widechar array for the input, ensuring it's not NULL
-    widechar wideInput[256];
-    for (size_t i = 0; i < sizeof(wideInput)/sizeof(wideInput[0]) && i < size; ++i) {
-        wideInput[i] = static_cast<widechar>(data[i]);
+    // Initialize parameters for the function
+    const char *tableList = reinterpret_cast<const char*>(data);
+    widechar inputText[256];
+    int inputLength = size < 256 ? size : 256;
+    for (int i = 0; i < inputLength; ++i) {
+        inputText[i] = static_cast<widechar>(data[i]);
     }
+    
+    int cursorPos = 0;
+    widechar outputText[256];
+    int outputLength = 256;
+    formtype typeform[256];
+    char spacing[256];
+    int mode = 0;
 
-    // Initialize integer pointers
-    int inputLength = static_cast<int>(size);
-    int outputLength = 256; // Arbitrary non-zero value
-
-    // Create a widechar array for the output, ensuring it's not NULL
-    widechar wideOutput[256] = {0};
-
-    // Initialize formtype
-    formtype form = 0; // Assuming formtype is an integer type
-
-    // Create a char array for the output, ensuring it's not NULL
-    char output[256] = {0};
-
-    // Call the function-under-test
-    lou_backTranslateString(inputString, wideInput, &inputLength, wideOutput, &outputLength, &form, output, 256);
+    // Call the function to fuzz
+    lou_backTranslateString(tableList, inputText, &cursorPos, outputText, &outputLength, typeform, spacing, mode);
 
     return 0;
 }

@@ -1,12 +1,11 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_logFile at logging.c:196:1 in liblouis.h
-// lou_setLogLevel at logging.c:143:1 in liblouis.h
-// lou_registerLogCallback at logging.c:86:1 in liblouis.h
-// lou_registerLogCallback at logging.c:86:1 in liblouis.h
-// lou_logPrint at logging.c:213:1 in liblouis.h
-// lou_indexTables at metadata.c:945:1 in liblouis.h
-// lou_logEnd at logging.c:229:1 in liblouis.h
-#include <iostream>
+// lou_listTables at metadata.c:1172:1 in liblouis.h
+// lou_getEmphClasses at compileTranslationTable.c:5070:1 in liblouis.h
+// lou_getTable at compileTranslationTable.c:5118:1 in liblouis.h
+// lou_compileString at compileTranslationTable.c:5430:1 in liblouis.h
+// lou_getTable at compileTranslationTable.c:5118:1 in liblouis.h
+// lou_setDataPath at compileTranslationTable.c:59:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
 #include <sstream>
 #include <string>
 #include <vector>
@@ -15,57 +14,61 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdarg>
+#include <liblouis.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "liblouis.h"
+#include <iostream>
 
-static void dummyLogCallback(logLevels level, const char *message) {
-    // Custom log callback for demonstration purposes
-    fprintf(stderr, "Callback log (level %d): %s\n", level, message);
+static void freeStringArray(char **array) {
+    if (array) {
+        for (int i = 0; array[i] != nullptr; ++i) {
+            free(array[i]);
+        }
+        free(array);
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    // Prepare a dummy file for lou_logFile
-    FILE *dummyFile = fopen("./dummy_file", "w");
-    if (dummyFile) {
-        fwrite(Data, 1, Size, dummyFile);
-        fclose(dummyFile);
+    // Prepare a null-terminated string from the input data
+    char *inputData = static_cast<char *>(malloc(Size + 1));
+    if (!inputData) return 0;
+    memcpy(inputData, Data, Size);
+    inputData[Size] = '\0';
+
+    // Test lou_listTables
+    char **tables = lou_listTables();
+    // Only free if tables is not null
+    if (tables) {
+        freeStringArray(tables);
     }
 
-    // Fuzz lou_logFile
-    lou_logFile("./dummy_file");
-
-    // Fuzz lou_setLogLevel
-    logLevels level = static_cast<logLevels>(Data[0] % 5); // Assuming 5 log levels
-    lou_setLogLevel(level);
-
-    // Fuzz lou_registerLogCallback
-    if (Data[0] % 2 == 0) {
-        lou_registerLogCallback(dummyLogCallback);
-    } else {
-        lou_registerLogCallback(nullptr);
+    // Test lou_getEmphClasses
+    char const **emphClasses = lou_getEmphClasses(inputData);
+    if (emphClasses) {
+        for (int i = 0; emphClasses[i] != nullptr; ++i) {
+            free(const_cast<char *>(emphClasses[i]));
+        }
+        free(const_cast<char **>(emphClasses));
     }
 
-    // Fuzz lou_logPrint
-    char formatString[100];
-    snprintf(formatString, sizeof(formatString), "Fuzz log: %.*s", static_cast<int>(Size), Data);
-    lou_logPrint(formatString);
+    // Test lou_compileString
+    if (lou_getTable(inputData)) { // Ensure the table is valid before compiling
+        lou_compileString(inputData, inputData);
+    }
 
-    // Ensure the fuzz data is null-terminated for lou_indexTables
-    std::vector<char> nullTerminatedData(Data, Data + Size);
-    nullTerminatedData.push_back('\0');
+    // Test lou_getTable
+    const void *table = lou_getTable(inputData);
+    // No explicit free function for table as per documentation
 
-    // Fuzz lou_indexTables
-    const char *tables[] = {nullTerminatedData.data(), nullptr};
-    lou_indexTables(tables);
+    // Test lou_setDataPath
+    lou_setDataPath(inputData);
 
-    // Fuzz lou_logEnd
-    lou_logEnd();
+    // Test lou_checkTable
+    lou_checkTable(inputData);
 
+    free(inputData);
     return 0;
 }

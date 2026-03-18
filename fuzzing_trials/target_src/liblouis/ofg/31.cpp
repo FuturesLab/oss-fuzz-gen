@@ -1,27 +1,31 @@
-#include <cstddef>
 #include <cstdint>
+#include <cstddef>
 #include <cstring>
 
 extern "C" {
-    // Include the header for the function-under-test
-    char * lou_setDataPath(const char *);
+    // Correctly include the header where lou_setDataPath is declared
+    #include "/src/liblouis/liblouis/liblouis.h"
 }
 
+// Fuzzing harness for lou_setDataPath
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    // Ensure that the input data is null-terminated
-    char *dataPath = new char[size + 1];
-    memcpy(dataPath, data, size);
-    dataPath[size] = '\0'; // Null-terminate the string
+    // Ensure the input data is null-terminated to be used as a C-style string
+    char *inputData = new char[size + 1];
+    memcpy(inputData, data, size);
+    inputData[size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    char *result = lou_setDataPath(dataPath);
+    char *result = lou_setDataPath(inputData);
 
     // Clean up
-    delete[] dataPath;
+    delete[] inputData;
 
-    // Optionally, handle the result if needed
-    // For instance, free the result if it was dynamically allocated
-    // free(result); // Uncomment if lou_setDataPath allocates memory
+    // If the function returns a non-null pointer, free it if necessary
+    // This depends on the implementation details of lou_setDataPath
+    // For example, if the function allocates memory that the caller must free:
+    // if (result != nullptr) {
+    //     free(result);
+    // }
 
     return 0;
 }
