@@ -1,34 +1,47 @@
-#include <stddef.h>
+#include <ares.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ares.h>
+#include <netinet/in.h>  // For struct in_addr
+#include <netdb.h>       // For struct hostent
+
+static void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
+  /* Dummy callback function to satisfy the ares_gethostbyaddr signature */
+  (void)arg;
+  (void)status;
+  (void)timeouts;
+  (void)host;
+}
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-  /* Ensure the input data is large enough to extract necessary parameters */
-  if (size < 10) {
+  ares_channel channel;
+  int init_status = ares_library_init(ARES_LIB_INIT_ALL);
+  if (init_status != ARES_SUCCESS) {
     return 0;
   }
 
-  /* Extract parameters from the input data */
-  const char *name = (const char *)data;
-  int dnsclass = data[0] % 256; // Using first byte for dnsclass
-  int type = data[1] % 256;     // Using second byte for type
-  unsigned short id = (unsigned short)((data[2] << 8) | data[3]); // Using third and fourth bytes for id
-  int rd = data[4] % 2;         // Using fifth byte for rd (0 or 1)
-  int max_udp_size = (int)((data[5] << 8) | data[6]); // Using sixth and seventh bytes for max_udp_size
-
-  /* Allocate memory for bufp and buflenp */
-  unsigned char *bufp = NULL;
-  int buflenp = 0;
-
-  /* Call the function under test */
-  ares_create_query(name, dnsclass, type, id, rd, &bufp, &buflenp, max_udp_size);
-
-  /* Free allocated memory if necessary */
-  if (bufp) {
-    free(bufp);
+  if (ares_init(&channel) != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
   }
+
+  // Ensure that the input data is large enough to be used as an address
+  if (size < sizeof(struct in_addr)) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+
+  // Use the input data as an IPv4 address
+  struct in_addr addr;
+  memcpy(&addr, data, sizeof(struct in_addr));
+
+  // Call the function-under-test
+  ares_gethostbyaddr(channel, &addr, sizeof(struct in_addr), AF_INET, dummy_callback, NULL);
+
+  // Clean up
+  ares_destroy(channel);
+  ares_library_cleanup();
 
   return 0;
 }

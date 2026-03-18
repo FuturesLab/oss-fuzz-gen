@@ -1,89 +1,72 @@
 // This fuzz driver is generated for library cares, aiming to fuzz the following functions:
-// ares_init at ares_init.c:67:5 in ares.h
-// ares_set_local_ip4 at ares_init.c:546:6 in ares.h
-// ares_set_local_dev at ares_init.c:568:6 in ares.h
-// ares_getnameinfo at ares_getnameinfo.c:188:6 in ares.h
-// ares_dup at ares_init.c:455:5 in ares.h
-// ares_destroy at ares_destroy.c:32:6 in ares.h
-// ares_reinit at ares_init.c:407:15 in ares.h
-// ares_cancel at ares_cancel.c:34:6 in ares.h
-// ares_destroy at ares_destroy.c:32:6 in ares.h
+// ares_library_init at ares_library_init.c:108:5 in ares.h
+// ares_dns_record_create at ares_dns_record.c:52:15 in ares_dns_record.h
+// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
+// ares_dns_record_get_id at ares_dns_record.c:92:16 in ares_dns_record.h
+// ares_dns_record_get_flags at ares_dns_record.c:109:16 in ares_dns_record.h
+// ares_dns_record_query_get at ares_dns_record.c:323:15 in ares_dns_record.h
+// ares_search_dnsrec at ares_search.c:473:15 in ares.h
+// ares_send_dnsrec at ares_send.c:227:15 in ares.h
+// ares_dns_record_query_add at ares_dns_record.c:252:15 in ares_dns_record.h
+// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
+// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ares.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <stdio.h>
+#include <ares_dns_record.h>
 
-static void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
-    (void)arg;
-    (void)status;
-    (void)timeouts;
-    (void)host;
+// Dummy callback function
+static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
+    (void)arg; (void)status; (void)timeouts; (void)abuf; (void)alen;
 }
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(unsigned int) + sizeof(struct sockaddr_in) + 1) {
-        return 0;
+    ares_channel channel = NULL;
+    ares_dns_record_t *dnsrec = NULL;
+    unsigned short qid = 0;
+    const char *name = NULL;
+    ares_dns_rec_type_t qtype;
+    ares_dns_class_t qclass;
+    unsigned short id, flags;
+    ares_status_t status;
+
+    // Initialize ares library
+    ares_library_init(ARES_LIB_INIT_ALL);
+
+    // Create a DNS record if size is sufficient
+    if (Size > 0) {
+        status = ares_dns_record_create(&dnsrec, 0, 0, 0, 0);
+        if (status != ARES_SUCCESS) {
+            ares_library_cleanup();
+            return 0;
+        }
+
+        // Fuzz ares_dns_record_get_id
+        id = ares_dns_record_get_id(dnsrec);
+
+        // Fuzz ares_dns_record_get_flags
+        flags = ares_dns_record_get_flags(dnsrec);
+
+        // Fuzz ares_dns_record_query_get
+        status = ares_dns_record_query_get(dnsrec, 0, &name, &qtype, &qclass);
+
+        // Fuzz ares_search_dnsrec
+        status = ares_search_dnsrec(channel, dnsrec, dummy_callback, NULL);
+
+        // Fuzz ares_send_dnsrec
+        status = ares_send_dnsrec(channel, dnsrec, dummy_callback, NULL, &qid);
+
+        // Fuzz ares_dns_record_query_add
+        status = ares_dns_record_query_add(dnsrec, "example.com", qtype, qclass);
+
+        // Clean up DNS record
+        ares_dns_record_destroy(dnsrec);
     }
 
-    ares_channel_t *channel = NULL;
-    ares_channel_t *dup_channel = NULL;
-    unsigned int local_ip;
-    struct sockaddr_in sa;
-    char dev_name[32];
-    int flags = 0;
-
-    // Initialize the channel
-    if (ares_init(&channel) != ARES_SUCCESS) {
-        return 0;
-    }
-
-    // Extract local_ip from Data
-    memcpy(&local_ip, Data, sizeof(unsigned int));
-    Data += sizeof(unsigned int);
-    Size -= sizeof(unsigned int);
-
-    // Extract sockaddr_in from Data
-    memcpy(&sa, Data, sizeof(struct sockaddr_in));
-    Data += sizeof(struct sockaddr_in);
-    Size -= sizeof(struct sockaddr_in);
-
-    // Extract dev_name from Data
-    size_t dev_name_len = (Size < 31) ? Size : 31;
-    memcpy(dev_name, Data, dev_name_len);
-    dev_name[dev_name_len] = '\0';
-
-    // Use ares_set_local_ip4
-    ares_set_local_ip4(channel, local_ip);
-
-    // Use ares_set_local_dev
-    ares_set_local_dev(channel, dev_name);
-
-    // Use ares_getnameinfo
-    ares_getnameinfo(channel, (struct sockaddr *)&sa, sizeof(sa), flags, dummy_callback, NULL);
-
-    // Use ares_dup
-    if (ares_dup(&dup_channel, channel) == ARES_SUCCESS) {
-        ares_destroy(dup_channel);
-    }
-
-    // Use ares_reinit
-    ares_reinit(channel);
-
-    // Use ares_cancel
-    ares_cancel(channel);
-
-    // Cleanup
-    ares_destroy(channel);
-
+    // Clean up ares library
+    ares_library_cleanup();
     return 0;
 }

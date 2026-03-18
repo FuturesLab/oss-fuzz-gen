@@ -1,39 +1,31 @@
 #include <stddef.h>
-#include <stdint.h>
-#include <string.h>
 #include <stdlib.h>
-#include <ares.h>
+#include <string.h>
+#include <stdint.h>
+
+#include "ares.h"
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-  /* Initialize ares library */
-  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
-    return 0;
+  if (size < 2) {
+    return 0; /* Not enough data to proceed */
   }
 
-  ares_channel channel;
-  int status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
+  // Split the input data into two parts for encoded and abuf
+  size_t half_size = size / 2;
+  const unsigned char *encoded = data;
+  const unsigned char *abuf = data + half_size;
+  int alen = (int)(size - half_size);
+
+  char *s = NULL;
+  long enclen = 0;
+
+  // Call the function under test
+  int result = ares_expand_name(encoded, abuf, alen, &s, &enclen);
+
+  // Free the allocated memory if the function succeeded
+  if (result == ARES_SUCCESS && s != NULL) {
+    ares_free_string(s);
   }
-
-  /* Ensure the data is null-terminated to be used as a string */
-  char *sortstr = (char *)malloc(size + 1);
-  if (sortstr == NULL) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
-  }
-  memcpy(sortstr, data, size);
-  sortstr[size] = '\0';
-
-  /* Call the function under test */
-  ares_set_sortlist(channel, sortstr);
-
-  /* Clean up */
-  free(sortstr);
-  ares_destroy(channel);
-  ares_library_cleanup();
 
   return 0;
 }

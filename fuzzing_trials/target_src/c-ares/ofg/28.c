@@ -1,34 +1,34 @@
-#include <stddef.h>
-#include <stdlib.h>
 #include <ares.h>
+#include <stddef.h>
+#include <stdint.h>
 
-// Custom memory allocation functions
-void *custom_malloc(size_t size) {
-    return malloc(size);
-}
+int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
+  ares_channel channel;
+  ares_status_t status;
+  struct ares_options options;
+  int optmask = 0;
 
-void custom_free(void *ptr) {
-    free(ptr);
-}
-
-void *custom_realloc(void *ptr, size_t size) {
-    return realloc(ptr, size);
-}
-
-int LLVMFuzzerTestOneInput_28(const unsigned char *data, size_t size) {
-    // Use the data to determine flags
-    int flags = 0;
-    if (size > 0) {
-        flags = data[0];
-    }
-
-    // Call the function-under-test
-    int result = ares_library_init_mem(flags, custom_malloc, custom_free, custom_realloc);
-
-    // Ensure the library is cleaned up after initialization
-    if (result == ARES_SUCCESS) {
-        ares_library_cleanup();
-    }
-
+  /* Initialize the ares library */
+  status = ares_library_init(ARES_LIB_INIT_ALL);
+  if (status != ARES_SUCCESS) {
     return 0;
+  }
+
+  /* Initialize the ares channel with default options */
+  status = ares_init_options(&channel, &options, optmask);
+  if (status != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
+  }
+
+  /* Reinitialize the ares channel */
+  status = ares_reinit(&channel);
+
+  /* Clean up the ares channel */
+  ares_destroy(channel);
+
+  /* Clean up the ares library */
+  ares_library_cleanup();
+
+  return 0;
 }

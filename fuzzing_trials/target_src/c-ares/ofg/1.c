@@ -1,34 +1,51 @@
-#include <stddef.h>
+#include <ares.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ares.h"
+#include <arpa/inet.h> // Include for struct in_addr
+#include <netdb.h>     // Include for struct hostent
+
+// Callback function for ares_gethostbyaddr
+static void host_callback(void *arg, int status, int timeouts, struct hostent *host) {
+  // This is a simple callback function that does nothing with the results.
+  (void)arg;
+  (void)status;
+  (void)timeouts;
+  (void)host;
+}
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    /* Ensure the data is large enough to extract necessary parameters */
-    if (size < 10) {
-        return 0;
-    }
+  // Initialize ares library
+  ares_library_init(ARES_LIB_INIT_ALL);
 
-    /* Extract parameters from the input data */
-    const char *name = (const char *)data;
-    int dnsclass = data[0] % 256; // Example: use first byte for dnsclass
-    int type = data[1] % 256;     // Example: use second byte for type
-    unsigned short id = (data[2] << 8) | data[3]; // Combine two bytes for id
-    int rd = data[4] % 2;         // Example: use fifth byte for rd
-    int max_udp_size = (data[5] << 8) | data[6]; // Combine two bytes for max_udp_size
+  ares_channel channel;
+  struct ares_options options;
+  int optmask = 0;
 
-    /* Allocate memory for bufp and buflenp */
-    unsigned char *bufp = NULL;
-    int buflenp = 0;
-
-    /* Call the function-under-test */
-    ares_create_query(name, dnsclass, type, id, rd, &bufp, &buflenp, max_udp_size);
-
-    /* Free allocated memory */
-    if (bufp) {
-        free(bufp);
-    }
-
+  // Initialize ares channel
+  if (ares_init_options(&channel, &options, optmask) != ARES_SUCCESS) {
+    ares_library_cleanup();
     return 0;
+  }
+
+  // Ensure the address is not NULL and has a minimum length
+  if (size < sizeof(struct in_addr)) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+
+  // Use the first few bytes of data as the address
+  struct in_addr addr;
+  memcpy(&addr, data, sizeof(struct in_addr));
+
+  // Call the function-under-test
+  ares_gethostbyaddr(channel, &addr, sizeof(struct in_addr), AF_INET, host_callback, NULL);
+
+  // Clean up
+  ares_destroy(channel);
+  ares_library_cleanup();
+
+  return 0;
 }

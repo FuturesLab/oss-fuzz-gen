@@ -1,18 +1,43 @@
+#include <ares.h>
+#include <ares_nameser.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <ares.h>
+#include <string.h>
 
+/* Fuzzing entry point */
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-  struct ares_uri_reply *uri_out = NULL;
+  ares_channel channel;
+  int status;
+
+  /* Initialize the ares library */
+  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
+    return 0;
+  }
+
+  /* Initialize the channel */
+  if (ares_init(&channel) != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
+  }
+
+  /* Ensure the data is null-terminated for ares_query */
+  char *query_name = (char *)malloc(size + 1);
+  if (!query_name) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+  memcpy(query_name, data, size);
+  query_name[size] = '\0';
 
   /* Call the function-under-test */
-  ares_parse_uri_reply(data, (int)size, &uri_out);
+  ares_query(channel, query_name, ns_c_in, ns_t_a, NULL, NULL);
 
-  /* Free the allocated memory if any */
-  if (uri_out) {
-    ares_free_data(uri_out);
-  }
+  /* Clean up */
+  free(query_name);
+  ares_destroy(channel);
+  ares_library_cleanup();
 
   return 0;
 }

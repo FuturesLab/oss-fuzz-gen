@@ -1,75 +1,67 @@
 // This fuzz driver is generated for library cares, aiming to fuzz the following functions:
-// ares_library_init at ares_library_init.c:108:5 in ares.h
-// ares_init at ares_init.c:67:5 in ares.h
-// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
-// ares_set_servers_ports at ares_update_servers.c:1245:5 in ares.h
-// ares_gethostbyname at ares_gethostbyname.c:99:6 in ares.h
-// ares_set_servers_ports at ares_update_servers.c:1245:5 in ares.h
-// ares_cancel at ares_cancel.c:34:6 in ares.h
-// ares_destroy at ares_destroy.c:32:6 in ares.h
-// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
+// ares_strerror at ares_strerror.c:30:13 in ares.h
+// ares_inet_ntop at inet_ntop.c:64:20 in ares.h
+// ares_inet_ntop at inet_ntop.c:64:20 in ares.h
+// ares_freeaddrinfo at ares_freeaddrinfo.c:57:6 in ares.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <ares.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
-static void host_callback(void *arg, int status, int timeouts, struct hostent *host) {
-    // Dummy callback function
+static void fuzz_ares_strerror(int code) {
+    const char *error_str = ares_strerror(code);
+    if (error_str) {
+        // Do something with the error string if needed
+    }
+}
+
+static void fuzz_ares_inet_ntop(int af, const void *src, size_t src_size) {
+    char dst[INET6_ADDRSTRLEN];
+    if (af == AF_INET && src_size >= sizeof(struct in_addr)) {
+        ares_inet_ntop(af, src, dst, sizeof(dst));
+    } else if (af == AF_INET6 && src_size >= sizeof(struct in6_addr)) {
+        ares_inet_ntop(af, src, dst, sizeof(dst));
+    }
+}
+
+static void fuzz_ares_freeaddrinfo(struct ares_addrinfo *ai) {
+    if (ai != NULL) {
+        ares_freeaddrinfo(ai);
+    }
 }
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-    
-    ares_channel_t *channel;
-    int status;
-    struct ares_addr_port_node servers;
-    char hostname[256];
-
-    // Initialize the ares library
-    status = ares_library_init(ARES_LIB_INIT_ALL);
-    if (status != ARES_SUCCESS) {
+    if (Size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize the channel
-    status = ares_init(&channel);
-    if (status != ARES_SUCCESS) {
-        ares_library_cleanup();
+    int code = *(int *)Data;
+    fuzz_ares_strerror(code);
+
+    if (Size < sizeof(int) + sizeof(int)) {
         return 0;
     }
 
-    // Setup server address and ports
-    memset(&servers, 0, sizeof(servers));
-    servers.family = AF_INET;
-    servers.addr.addr4.s_addr = htonl(INADDR_LOOPBACK);
-    servers.udp_port = htons(53);
-    servers.tcp_port = htons(53);
+    int af = *(int *)(Data + sizeof(int));
+    const void *src = Data + sizeof(int) + sizeof(int);
+    size_t remaining_size = Size - sizeof(int) - sizeof(int);
 
-    // Call ares_set_servers_ports
-    ares_set_servers_ports(channel, &servers);
+    fuzz_ares_inet_ntop(af, src, remaining_size);
 
-    // Prepare a hostname from the fuzz data
-    size_t hostname_len = Size > 255 ? 255 : Size;
-    memcpy(hostname, Data, hostname_len);
-    hostname[hostname_len] = '\0';
+    if (Size < sizeof(int) + sizeof(int) + sizeof(struct ares_addrinfo)) {
+        return 0;
+    }
 
-    // Call ares_gethostbyname
-    ares_gethostbyname(channel, hostname, AF_INET, host_callback, NULL);
-
-    // Call ares_set_servers_ports again
-    ares_set_servers_ports(channel, &servers);
-
-    // Call ares_cancel to cancel all queries
-    ares_cancel(channel);
-
-    // Cleanup
-    ares_destroy(channel);
-    ares_library_cleanup();
+    struct ares_addrinfo *ai = NULL;
+    ai = (struct ares_addrinfo *)malloc(sizeof(struct ares_addrinfo));
+    if (ai) {
+        memset(ai, 0, sizeof(struct ares_addrinfo));
+        fuzz_ares_freeaddrinfo(ai);
+    }
 
     return 0;
 }

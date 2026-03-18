@@ -1,47 +1,60 @@
 #include <ares.h>
-#include <sys/select.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <netinet/in.h>
 
-int LLVMFuzzerTestOneInput_16(const uint8_t* data, size_t size) {
-    // Initialize ares library
-    static int initialized = 0;
-    if (!initialized) {
-        ares_library_init(ARES_LIB_INIT_ALL);
-        initialized = 1;
-    }
+// Callback function for ares_getnameinfo
+static void nameinfo_callback(void *arg, int status, int timeouts, char *node, char *service) {
+  // Use parameters to avoid unused parameter warnings
+  (void)arg;
+  (void)status;
+  (void)timeouts;
+  (void)node;
+  (void)service;
+}
 
-    // Create a channel
-    ares_channel channel;
-    int status = ares_init(&channel);
-    if (status != ARES_SUCCESS) {
-        return 0;
-    }
+int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
+  if (size < sizeof(struct sockaddr_in)) {
+    return 0; // Not enough data to fill sockaddr_in
+  }
 
-    // Prepare file descriptor sets
-    fd_set read_fds;
-    fd_set write_fds;
-    FD_ZERO(&read_fds);
-    FD_ZERO(&write_fds);
+  ares_channel channel;
+  struct ares_options options;
+  int optmask = 0;
 
-    // Simulate the behavior of FuzzedDataProvider
-    int max_fd = (size > 0) ? data[0] % FD_SETSIZE : 0;
-    for (int i = 0; i < max_fd; ++i) {
-        if (size > 1 && data[i % size] % 2) {
-            FD_SET(i, &read_fds);
-        }
-        if (size > 2 && data[(i + 1) % size] % 2) {
-            FD_SET(i, &write_fds);
-        }
-    }
-
-    // Call the function under test
-    ares_process(channel, &read_fds, &write_fds);
-
-    // Clean up
-    ares_destroy(channel);
-
+  // Initialize ares library
+  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
     return 0;
+  }
+
+  // Initialize ares channel
+  if (ares_init_options(&channel, &options, optmask) != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
+  }
+
+  // Prepare sockaddr_in structure
+  struct sockaddr_in sa;
+  memcpy(&sa, data, sizeof(struct sockaddr_in));
+  sa.sin_family = AF_INET; // Ensure the family is set to AF_INET
+
+  // Use the remaining data for flags and arg
+  int flags_int = 0;
+  void *arg = NULL;
+  if (size > sizeof(struct sockaddr_in)) {
+    flags_int = *(int *)(data + sizeof(struct sockaddr_in));
+  }
+  if (size > sizeof(struct sockaddr_in) + sizeof(int)) {
+    arg = (void *)(data + sizeof(struct sockaddr_in) + sizeof(int));
+  }
+
+  // Call the function-under-test
+  ares_getnameinfo(channel, (struct sockaddr *)&sa, sizeof(sa), flags_int, nameinfo_callback, arg);
+
+  // Clean up
+  ares_destroy(channel);
+  ares_library_cleanup();
+
+  return 0;
 }

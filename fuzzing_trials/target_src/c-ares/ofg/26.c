@@ -1,22 +1,20 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 #include <ares.h>
-#include <ares_dns.h> // Include for ares_dns_addr_to_ptr
-#include <ares_nameser.h> // Include for struct ares_addr
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-  if (size < sizeof(struct ares_addr)) {
-    return 0;
+  int flags = 0;
+
+  /* Ensure the data is not empty and use the first byte to determine flags */
+  if (size > 0) {
+    flags = data[0]; /* Use the first byte of data as flags */
   }
 
-  struct ares_addr addr;
-  memcpy(&addr, data, sizeof(struct ares_addr));
+  /* Call the function-under-test */
+  int result = ares_library_init(flags);
 
-  char *result = ares_dns_addr_to_ptr(&addr);
-  if (result) {
-    ares_free_string(result);
-  }
-
+  /* Optionally, handle the result if needed */
+  /* (e.g., check for specific return values, log, etc.) */
+  /* For now, we simply return 0 to indicate the fuzzer continues */
   return 0;
 }
