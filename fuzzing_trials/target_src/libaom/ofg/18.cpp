@@ -1,30 +1,26 @@
 #include <cstdint>
-#include <cstddef>
-#include <iostream>
+#include <cstdlib>
+#include <cstring>
+#include <aom/aom_image.h> // Assuming this is the correct header for aom_img_metadata_alloc
 
-// Assuming OBU_TYPE is an enum or a type that can be represented as an integer
-typedef int OBU_TYPE;
-
-// Function signature from the task
-extern "C" const char * aom_obu_type_to_string(OBU_TYPE obu_type);
+extern "C" {
+    aom_metadata_t * aom_img_metadata_alloc(uint32_t type, const uint8_t *data, size_t length, aom_metadata_insert_flags_t flags);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to derive an OBU_TYPE
-    if (size < sizeof(OBU_TYPE)) {
-        return 0;
-    }
+    // Initialize parameters for aom_img_metadata_alloc
+    uint32_t type = 1; // Example type, assuming 1 is a valid type
+    const uint8_t *metadata_data = data; // Use the provided data as metadata
+    size_t length = size; // Use the size of the data
+    aom_metadata_insert_flags_t flags = static_cast<aom_metadata_insert_flags_t>(0); // Example flag, assuming 0 is a valid flag
 
-    // Use the first bytes of data to create an OBU_TYPE
-    OBU_TYPE obu_type = static_cast<OBU_TYPE>(data[0]);
+    // Call the function-under-test
+    aom_metadata_t *metadata = aom_img_metadata_alloc(type, metadata_data, length, flags);
 
-    // Call the function under test
-    const char *result = aom_obu_type_to_string(obu_type);
-
-    // Optional: Print the result for debugging purposes
-    if (result != nullptr) {
-        std::cout << "OBU_TYPE: " << obu_type << " -> " << result << std::endl;
-    } else {
-        std::cout << "OBU_TYPE: " << obu_type << " -> NULL" << std::endl;
+    // Clean up if necessary
+    if (metadata != nullptr) {
+        // Assuming there's a function to free the allocated metadata
+        free(metadata); // Replace with the appropriate function if different
     }
 
     return 0;

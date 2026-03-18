@@ -1,33 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+#include <aom/aom_integer.h>  // Assuming this is where aom_uleb_encode is declared
 
 extern "C" {
-    #include <aom/aom_codec.h>
-    #include <aom/aom_decoder.h>
-    #include <aom/aomdx.h>  // Include the header that declares aom_codec_av1_dx
+    // Include the function-under-test
+    int aom_uleb_encode(uint64_t value, size_t available, uint8_t *coded, size_t *coded_size);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    // Initialize codec context and stream info structures
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_stream_info_t stream_info;
+    // Initialize variables
+    uint64_t value = 12345; // A non-zero arbitrary value
+    size_t available = size > 0 ? size : 1; // Ensure available is at least 1
+    uint8_t *coded = new uint8_t[available]; // Allocate memory for coded
+    size_t coded_size = 0; // Initialize coded_size
 
-    // Ensure that the codec context is initialized
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    if (aom_codec_dec_init(&codec_ctx, iface, NULL, 0) != AOM_CODEC_OK) {
-        return 0; // Initialization failed, exit early
+    // Ensure data is not NULL and size is greater than 0
+    if (data != nullptr && size > 0) {
+        // Call the function-under-test
+        aom_uleb_encode(value, available, coded, &coded_size);
     }
 
-    // Initialize stream_info with some default values
-    stream_info.is_kf = 0;
-    stream_info.w = 0;
-    stream_info.h = 0;
-
-    // Call the function-under-test
-    aom_codec_err_t result = aom_codec_get_stream_info(&codec_ctx, &stream_info);
-
-    // Clean up the codec context
-    aom_codec_destroy(&codec_ctx);
+    // Clean up allocated memory
+    delete[] coded;
 
     return 0;
 }

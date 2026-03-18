@@ -1,31 +1,39 @@
+#include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <lcms2.h>
+#include <stdlib.h>
 
+// Function under test
+long cmsfilelength(FILE *file);
+
+// Fuzzer function
 int LLVMFuzzerTestOneInput_443(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient for the operations
-    if (size < sizeof(double)) {
+    // Check if the input size is zero, which means there's nothing to write
+    if (size == 0) {
         return 0;
     }
 
-    // Interpret the first part of the data as a double value for gamma
-    double gamma = *((double*)data);
-
-    // Declare and initialize the cmsToneCurve pointers using the gamma value
-    cmsToneCurve *toneCurve1 = cmsBuildGamma(NULL, gamma);
-    cmsToneCurve *toneCurve2 = cmsBuildGamma(NULL, gamma);
-    cmsToneCurve *toneCurve3 = cmsBuildGamma(NULL, gamma);
-
-    // Check if tone curves are created successfully
-    if (toneCurve1 == NULL || toneCurve2 == NULL || toneCurve3 == NULL) {
+    // Create a temporary file
+    FILE *tempFile = tmpfile();
+    if (tempFile == NULL) {
         return 0;
     }
 
-    // Create an array of cmsToneCurve pointers
-    cmsToneCurve *toneCurveArray[3] = {toneCurve1, toneCurve2, toneCurve3};
+    // Write the input data to the temporary file
+    fwrite(data, 1, size, tempFile);
 
-    // Call the function-under-test
-    cmsFreeToneCurveTriple(toneCurveArray);
+    // Rewind the file to the beginning for reading
+    rewind(tempFile);
+
+    // Call the function under test
+    long length = cmsfilelength(tempFile);
+
+    // Check the length to ensure the function is being tested
+    if (length != size) {
+        fprintf(stderr, "Mismatch in file length: expected %zu, got %ld\n", size, length);
+    }
+
+    // Close the temporary file
+    fclose(tempFile);
 
     return 0;
 }

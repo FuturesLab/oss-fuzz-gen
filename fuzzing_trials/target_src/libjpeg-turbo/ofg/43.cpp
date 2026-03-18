@@ -1,40 +1,40 @@
 extern "C" {
+    #include <stdint.h>
+    #include <stdlib.h>
+    #include <string.h>
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
     // Initialize the TurboJPEG decompressor handle
     tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
-        return 0;
+        return 0; // Initialization failed, exit early
     }
 
-    // Allocate memory for the decompressed image
-    int width = 100;  // Example width
-    int height = 100; // Example height
-    int pixelFormat = TJPF_RGB; // RGB pixel format
+    // Define the width and height for the output image
+    int width = 64;  // Example width
+    int height = 64; // Example height
+
+    // Calculate the size of the decompressed image buffer
+    int pixelFormat = TJPF_RGB;
     int pitch = width * tjPixelSize[pixelFormat];
-    unsigned char *dstBuffer = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (dstBuffer == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
+    size_t bufferSize = width * height * tjPixelSize[pixelFormat];
 
-    // Set default values for the parameters
-    int subsamp = TJSAMP_444; // Example subsampling
-    int flags = 0; // No flags
+    // Allocate memory for the decompressed image buffer
+    unsigned char *decompressedImage = (unsigned char *)malloc(bufferSize);
+    if (decompressedImage == nullptr) {
+        tjDestroy(handle);
+        return 0; // Memory allocation failed, exit early
+    }
 
     // Call the function-under-test
-    tjDecompress(handle, (unsigned char *)data, (unsigned long)size, dstBuffer, width, pitch, height, pixelFormat, flags);
+    int result = tjDecompress2(handle, data, size, decompressedImage, width, pitch, height, pixelFormat, 0);
 
-    // Clean up
-    free(dstBuffer);
+    // Free allocated resources
+    free(decompressedImage);
     tjDestroy(handle);
 
     return 0;

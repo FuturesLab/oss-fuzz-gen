@@ -1,25 +1,24 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_fragment_set_sample_aux_info at isom_write.c:9290:8 in isomedia.h
-// gf_isom_hint_direct_data at hint_track.c:441:8 in isomedia.h
-// gf_isom_remove_user_data at isom_write.c:3758:8 in isomedia.h
-// gf_isom_get_track_switch_group_count at isom_read.c:4813:8 in isomedia.h
-// gf_isom_add_user_data at isom_write.c:3803:8 in isomedia.h
-// gf_isom_add_user_data_boxes at isom_write.c:3856:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_set_meta_primary_item at meta.c:1987:8 in isomedia.h
+// gf_isom_set_image_sequence_alpha at isom_write.c:2334:8 in isomedia.h
+// gf_isom_update_bitrate_ex at sample_descs.c:1699:8 in isomedia.h
+// gf_isom_update_aperture_info at isom_write.c:2179:8 in isomedia.h
+// gf_isom_set_composition_offset_mode at isom_write.c:8001:8 in isomedia.h
+// gf_isom_use_compact_size at isom_write.c:3448:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-// Dummy struct definition for GF_ISOFile to allow compilation
-struct __tag_isom {
-    // Add minimal fields needed for compilation
-    GF_Err LastError;
-    char *fileName;
-};
-
-static void initialize_dummy_file(const uint8_t *Data, size_t Size) {
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
     if (file) {
         fwrite(Data, 1, Size, file);
@@ -28,56 +27,37 @@ static void initialize_dummy_file(const uint8_t *Data, size_t Size) {
 }
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
-    // Ensure we have enough data for a minimal operation
-    if (Size < 4) return 0;
+    if (Size < sizeof(u32) * 4 + sizeof(Bool)) return 0;
 
-    // Create a dummy GF_ISOFile object
-    GF_ISOFile isom_file;
-    memset(&isom_file, 0, sizeof(isom_file));
+    write_dummy_file(Data, Size);
 
-    u32 trackID = 1;
-    u32 sample_number_in_frag = 1;
-    u32 aux_type = 1;
-    u32 aux_info = 0;
-    u8 *aux_data = (u8 *)Data;
-    u32 aux_size = Size < 1024 ? Size : 1024;
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ_EDIT, NULL);
+    if (!isom_file) return 0;
 
-    u32 trackNumber = 1;
-    u8 hint_data[14] = {0};
-    u8 AtBegin = 1;
+    u32 track_num = *((u32 *)Data);
+    u32 item_num = *((u32 *)(Data + sizeof(u32)));
+    u32 sampleDescriptionIndex = *((u32 *)(Data + 2 * sizeof(u32)));
+    u32 bitrates = *((u32 *)(Data + 3 * sizeof(u32)));
+    Bool flag = *((Bool *)(Data + 4 * sizeof(u32)));
 
-    u32 UserDataType = 0;
-    bin128 UUID = {0};
+    // Fuzz gf_isom_set_meta_primary_item
+    gf_isom_set_meta_primary_item(isom_file, flag, track_num, item_num);
 
-    u32 alternateGroupID = 0;
-    u32 nb_groups = 0;
+    // Fuzz gf_isom_set_image_sequence_alpha
+    gf_isom_set_image_sequence_alpha(isom_file, track_num, sampleDescriptionIndex, flag);
 
-    GF_Err err;
+    // Fuzz gf_isom_update_bitrate_ex
+    gf_isom_update_bitrate_ex(isom_file, track_num, sampleDescriptionIndex, bitrates, bitrates, bitrates, flag);
 
-    // Test gf_isom_fragment_set_sample_aux_info
-    err = gf_isom_fragment_set_sample_aux_info(&isom_file, trackID, sample_number_in_frag, aux_type, aux_info, aux_data, aux_size);
-    if (err) return 0;
+    // Fuzz gf_isom_update_aperture_info
+    gf_isom_update_aperture_info(isom_file, track_num, flag);
 
-    // Test gf_isom_hint_direct_data
-    err = gf_isom_hint_direct_data(&isom_file, trackNumber, hint_data, sizeof(hint_data), AtBegin);
-    if (err) return 0;
+    // Fuzz gf_isom_set_composition_offset_mode
+    gf_isom_set_composition_offset_mode(isom_file, track_num, flag);
 
-    // Test gf_isom_remove_user_data
-    err = gf_isom_remove_user_data(&isom_file, trackNumber, UserDataType, UUID);
-    if (err) return 0;
+    // Fuzz gf_isom_use_compact_size
+    gf_isom_use_compact_size(isom_file, track_num, flag);
 
-    // Test gf_isom_get_track_switch_group_count
-    err = gf_isom_get_track_switch_group_count(&isom_file, trackNumber, &alternateGroupID, &nb_groups);
-    if (err) return 0;
-
-    // Test gf_isom_add_user_data
-    err = gf_isom_add_user_data(&isom_file, trackNumber, UserDataType, UUID, aux_data, aux_size);
-    if (err) return 0;
-
-    // Test gf_isom_add_user_data_boxes
-    initialize_dummy_file(Data, Size);
-    err = gf_isom_add_user_data_boxes(&isom_file, trackNumber, aux_data, aux_size);
-    if (err) return 0;
-
+    gf_isom_close(isom_file);
     return 0;
 }

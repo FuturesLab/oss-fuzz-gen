@@ -1,28 +1,29 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
 
+// Assuming the function is part of a C library, we wrap it with extern "C"
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    int tjPlaneWidth(int componentID, int width, int subsamp);
 }
 
+// Fuzzing harness for tjPlaneWidth
 extern "C" int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Failed to initialize, exit early
+    // Ensure the data size is sufficient to extract three integers
+    if (size < 3 * sizeof(int)) {
+        return 0;
     }
 
-    int width = 0;
-    int height = 0;
-    int jpegSubsamp = 0;
-    int jpegColorspace = 0;
+    // Extract three integers from the input data
+    int componentID = static_cast<int>(data[0]);
+    int width = static_cast<int>(data[1]);
+    int subsamp = static_cast<int>(data[2]);
 
     // Call the function-under-test
-    int result = tjDecompressHeader3(handle, data, (unsigned long)size, &width, &height, &jpegSubsamp, &jpegColorspace);
+    int result = tjPlaneWidth(componentID, width, subsamp);
 
-    // Clean up the TurboJPEG decompressor handle
-    tjDestroy(handle);
+    // Use the result in some way to avoid compiler optimizations
+    volatile int sink = result;
+    (void)sink;
 
     return 0;
 }

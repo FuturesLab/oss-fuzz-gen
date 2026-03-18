@@ -1,29 +1,32 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_323(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to cast to a cmsContext
-    if (size < sizeof(uintptr_t)) {
-        return 0;
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsUInt32Number nEntries = 256; // Example size for the tone curve
+    cmsUInt16Number toneCurveEntries[256];
+
+    // Initialize toneCurveEntries with non-NULL values
+    for (cmsUInt32Number i = 0; i < nEntries; i++) {
+        toneCurveEntries[i] = (cmsUInt16Number)(i * 256); // Example initialization
     }
 
-    // Declare and initialize variables
-    cmsContext context = (cmsContext)(uintptr_t)data;  // Casting data to cmsContext
-    cmsUInt32Number inputChannels = 3;  // Example value for input channels
-    cmsUInt32Number outputChannels = 3; // Example value for output channels
+    if (size >= sizeof(cmsUInt16Number) * nEntries) {
+        // Use the provided data to fill the toneCurveEntries
+        for (cmsUInt32Number i = 0; i < nEntries; i++) {
+            toneCurveEntries[i] = ((const cmsUInt16Number *)data)[i];
+        }
+    }
 
     // Call the function-under-test
-    cmsPipeline *pipeline = cmsPipelineAlloc(context, inputChannels, outputChannels);
+    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurve16(context, nEntries, toneCurveEntries);
 
-    // Check if the pipeline was successfully allocated
-    if (pipeline != NULL) {
-        // Do something with the pipeline if needed
-        // ...
-
-        // Free the allocated pipeline
-        cmsPipelineFree(pipeline);
+    // Clean up
+    if (toneCurve != NULL) {
+        cmsFreeToneCurve(toneCurve);
     }
+    cmsDeleteContext(context);
 
     return 0;
 }

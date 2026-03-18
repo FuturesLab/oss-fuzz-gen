@@ -1,30 +1,31 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-    cmsContext context = NULL;
-    cmsHANDLE handle;
+    // Initialize variables
+    cmsHPROFILE hProfile;
+    cmsProfileClassSignature profileClassSignature;
 
-    // Initialize the context using the data provided
-    if (size >= sizeof(cmsContext)) {
-        context = (cmsContext)(uintptr_t)data; // Cast the data to a cmsContext for fuzzing
-    } else {
-        // If the size is insufficient, create a default context
-        context = cmsCreateContext(NULL, NULL);
+    // Check if size is sufficient to extract a cmsProfileClassSignature
+    if (size < sizeof(cmsProfileClassSignature)) {
+        return 0;
     }
+
+    // Create a dummy profile for testing
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
+    }
+
+    // Extract cmsProfileClassSignature from data
+    profileClassSignature = *(cmsProfileClassSignature *)data;
 
     // Call the function-under-test
-    handle = cmsGBDAlloc(context);
+    cmsSetDeviceClass(hProfile, profileClassSignature);
 
-    // Clean up if necessary
-    if (handle != NULL) {
-        cmsGBDFree(handle);
-    }
-
-    if (context != NULL && size < sizeof(cmsContext)) {
-        cmsDeleteContext(context);
-    }
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

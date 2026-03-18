@@ -1,34 +1,36 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <string.h>
-#include <lcms2_plugin.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    char propertyName[256];
-    cmsFloat64Number result;
+    cmsHPROFILE hProfile;
+    cmsInfoType infoType;
+    const char *languageCode = "en";
+    const char *countryCode = "US";
+    char buffer[256];
+    cmsUInt32Number bufferSize = sizeof(buffer);
 
-    // Initialize the handle with a dummy non-NULL value
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Ensure the data size is sufficient for creating a profile
+    if (size < sizeof(cmsHPROFILE)) {
         return 0;
     }
 
-    // Ensure the propertyName is null-terminated and non-NULL
-    if (size > 0) {
-        size_t len = (size < sizeof(propertyName) - 1) ? size : sizeof(propertyName) - 1;
-        memcpy(propertyName, data, len);
-        propertyName[len] = '\0';
-    } else {
-        strcpy(propertyName, "DefaultProperty");
+    // Initialize the profile handle from the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
     }
 
-    // Call the function-under-test
-    result = cmsIT8GetPropertyDbl(handle, propertyName);
+    // Iterate over possible infoType values
+    for (int i = 0; i < 6; i++) {
+        infoType = (cmsInfoType)i;
 
-    // Clean up
-    cmsIT8Free(handle);
+        // Call the function-under-test
+        cmsGetProfileInfoUTF8(hProfile, infoType, languageCode, countryCode, buffer, bufferSize);
+    }
+
+    // Close the profile handle
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

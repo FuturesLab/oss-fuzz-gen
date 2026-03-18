@@ -1,33 +1,24 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <gpac/isomedia.h>
+#include <gpac/tools.h> // Include for u32 and u64 type definitions
 
 int LLVMFuzzerTestOneInput_152(const uint8_t *data, size_t size) {
-    // Ensure the input data is non-empty and has a minimum size for a valid MP4 header
-    if (size < 8) { // 8 bytes is a typical minimum size for MP4 headers
+    // Create a new empty ISO file in memory
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
         return 0;
     }
 
-    GF_ISOFile *the_file = gf_isom_open((const char *)data, GF_ISOM_OPEN_READ, NULL);
-    GF_ISOFile *orig_file = gf_isom_open((const char *)data, GF_ISOM_OPEN_READ, NULL);
+    // Assuming the first track for simplicity
     u32 trackNumber = 1;
-    u32 orig_track = 1;
-    u32 orig_desc_index = 1;
-    const char *URLname = "http://example.com";
-    const char *URNname = "urn:example";
-    u32 outDescriptionIndex = 0;
+    u64 dur = 1000; // Arbitrary non-zero duration
 
-    if (the_file && orig_file) {
-        gf_isom_clone_sample_description(the_file, trackNumber, orig_file, orig_track, orig_desc_index, URLname, URNname, &outDescriptionIndex);
-    }
+    // Attempt to force the track duration
+    gf_isom_force_track_duration(movie, trackNumber, dur);
 
-    if (the_file) {
-        gf_isom_close(the_file);
-    }
-    if (orig_file) {
-        gf_isom_close(orig_file);
-    }
+    // Close the ISO file
+    gf_isom_close(movie);
 
     return 0;
 }

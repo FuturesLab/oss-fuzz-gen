@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED at aomcx.h:2308:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX at aomcx.h:2335:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH at aomcx.h:2296:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO at aomcx.h:2353:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION at aomcx.h:2007:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH at aomcx.h:2305:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_DELTAQ_STRENGTH at aomcx.h:2314:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_FP_MT_UNIT_TEST at aomcx.h:2332:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_AUTO_INTRA_TOOLS_OFF at aomcx.h:2323:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_TILE_COLUMNS at aomcx.h:1962:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_FRAME_PARALLEL_DECODING at aomcx.h:1974:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_NOISE_SENSITIVITY at aomcx.h:1989:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,77 +14,51 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstring>
+#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
 #include "aom_integer.h"
-#include "aom_codec.h"
 #include "aom_image.h"
+#include "aom_codec.h"
+#include "aom_frame_buffer.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
 #include "aom.h"
+#include "aom_decoder.h"
 #include "aomcx.h"
+#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_86(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t) + sizeof(aom_svc_ref_frame_comp_pred_t) + sizeof(int) + sizeof(int)) {
+    if (Size < sizeof(aom_codec_ctx_t) + 6) {
         return 0; // Not enough data to proceed
     }
 
-    aom_codec_ctx_t codec;
-    aom_svc_ref_frame_comp_pred_t svc_ref_frame_comp_pred;
-    int chroma_sample_position;
-    int enable_tx_size_search;
-
     // Initialize codec context
-    memset(&codec, 0, sizeof(codec));
-    codec.name = "test_codec";
-    codec.iface = nullptr;
-    codec.err = AOM_CODEC_OK;
-    codec.init_flags = 0;
+    aom_codec_ctx_t codec_ctx;
+    codec_ctx.name = "AV1 Codec";
+    codec_ctx.iface = nullptr; // This would be set by a real initialization function
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.enc = nullptr;
+    codec_ctx.priv = nullptr;
 
-    // Initialize svc_ref_frame_comp_pred with fuzzer data
-    memcpy(&svc_ref_frame_comp_pred, Data, sizeof(svc_ref_frame_comp_pred));
-    Data += sizeof(svc_ref_frame_comp_pred);
-    Size -= sizeof(svc_ref_frame_comp_pred);
+    // Read values from input data
+    int deltaq_strength = Data[0];
+    int fp_mt_unit_test = Data[1];
+    int auto_intra_tools_off = Data[2];
+    int tile_columns = Data[3];
+    int frame_parallel_decoding = Data[4];
+    int noise_sensitivity = Data[5];
 
-    // Initialize chroma_sample_position with fuzzer data
-    memcpy(&chroma_sample_position, Data, sizeof(chroma_sample_position));
-    Data += sizeof(chroma_sample_position);
-    Size -= sizeof(chroma_sample_position);
+    // Explore various states by invoking target functions
+    aom_codec_control_typechecked_AV1E_SET_DELTAQ_STRENGTH(&codec_ctx, 0, deltaq_strength);
+    aom_codec_control_typechecked_AV1E_SET_FP_MT_UNIT_TEST(&codec_ctx, 0, fp_mt_unit_test);
+    aom_codec_control_typechecked_AV1E_SET_AUTO_INTRA_TOOLS_OFF(&codec_ctx, 0, auto_intra_tools_off);
+    aom_codec_control_typechecked_AV1E_SET_TILE_COLUMNS(&codec_ctx, 0, tile_columns);
+    aom_codec_control_typechecked_AV1E_SET_FRAME_PARALLEL_DECODING(&codec_ctx, 0, frame_parallel_decoding);
+    aom_codec_control_typechecked_AV1E_SET_NOISE_SENSITIVITY(&codec_ctx, 0, noise_sensitivity);
 
-    // Initialize enable_tx_size_search with fuzzer data
-    memcpy(&enable_tx_size_search, Data, sizeof(enable_tx_size_search));
-    Data += sizeof(enable_tx_size_search);
-    Size -= sizeof(enable_tx_size_search);
-
-    // Dummy file operations
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED
-    aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED(&codec, 0, &svc_ref_frame_comp_pred);
-
-    // Fuzz aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX
-    int target_seq_level_idx = 0;
-    aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX(&codec, 0, &target_seq_level_idx);
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH
-    aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH(&codec, 0, "./dummy_file");
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO
-    aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO(&codec, 0, reinterpret_cast<const char*>(Data));
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION
-    aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION(&codec, 0, chroma_sample_position);
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH
-    aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH(&codec, 0, enable_tx_size_search);
+    // Cleanup if necessary
+    // No explicit cleanup needed for this mockup
 
     return 0;
 }

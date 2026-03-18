@@ -1,36 +1,30 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_426(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
-    const char *language = "en";
-    const char *country = "US";
-    char *asciiString = NULL;
+    cmsHPROFILE hProfile = NULL;
+    cmsTagSignature tagSignature;
 
-    // Ensure size is non-zero and allocate memory for asciiString
-    if (size > 0) {
-        asciiString = (char *)malloc(size + 1);
-        if (asciiString == NULL) {
-            cmsMLUfree(mlu);
-            return 0;
-        }
-
-        // Copy data to asciiString and null-terminate it
-        memcpy(asciiString, data, size);
-        asciiString[size] = '\0';
-
-        // Call the function-under-test
-        cmsMLUsetASCII(mlu, language, country, asciiString);
-
-        // Free allocated memory
-        free(asciiString);
+    // Ensure the size is sufficient to extract a tag signature
+    if (size < sizeof(cmsTagSignature)) {
+        return 0;
     }
 
-    // Free cmsMLU object
-    cmsMLUfree(mlu);
+    // Initialize the tag signature from the input data
+    tagSignature = *(cmsTagSignature*)data;
+
+    // Create a dummy profile for testing purposes
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    cmsBool result = cmsIsTag(hProfile, tagSignature);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

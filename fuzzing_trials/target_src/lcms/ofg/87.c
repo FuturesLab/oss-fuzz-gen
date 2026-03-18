@@ -1,32 +1,33 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
+// Fuzzing harness for cmsIsToneCurveMonotonic
 int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    // Initialize the necessary variables
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
-    cmsStage *stage = cmsStageAllocIdentity(NULL, 3);
-    cmsStage *unlinkedStage = NULL;
-    
-    // Ensure the pipeline and stage are not NULL
-    if (pipeline == NULL || stage == NULL) {
+    // Ensure there is enough data to form a valid tone curve
+    if (size < 2) {
+        return 0; // Not enough data to form a valid cmsToneCurve
+    }
+
+    // Create a memory context
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Calculate the number of nodes we can create
+    size_t numNodes = size / sizeof(uint16_t);
+
+    // Allocate memory for cmsToneCurve
+    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurve16(context, numNodes, (const uint16_t *)data);
+
+    if (toneCurve == NULL) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Add the stage to the pipeline
-    cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
-
-    // Use the input data to determine the stage location
-    cmsStageLoc loc = (cmsStageLoc)(data[0] % 2); // Use the first byte to determine location
-
-    // Call the function-under-test
-    cmsPipelineUnlinkStage(pipeline, loc, &unlinkedStage);
+    // Call the function under test
+    cmsBool isMonotonic = cmsIsToneCurveMonotonic(toneCurve);
 
     // Clean up
-    if (unlinkedStage != NULL) {
-        cmsStageFree(unlinkedStage);
-    }
-    cmsPipelineFree(pipeline);
+    cmsFreeToneCurve(toneCurve);
+    cmsDeleteContext(context);
 
     return 0;
 }

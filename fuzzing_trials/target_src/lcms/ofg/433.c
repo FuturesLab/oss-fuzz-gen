@@ -1,27 +1,30 @@
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
-// Fuzzing harness for cmsGetHeaderManufacturer
 int LLVMFuzzerTestOneInput_433(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsUInt32Number manufacturer;
-
-    // Check if the size is sufficient to create a profile
-    if (size < sizeof(cmsHPROFILE)) {
+    // Initialize cmsHANDLE and char array
+    cmsHANDLE handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Create a profile from the input data
-    hProfile = cmsOpenProfileFromMem((void*)data, size);
-    if (hProfile == NULL) {
+    // Ensure the data is null-terminated for use as a string
+    char *sheetType = (char *)malloc(size + 1);
+    if (sheetType == NULL) {
+        cmsIT8Free(handle);
         return 0;
     }
+    memcpy(sheetType, data, size);
+    sheetType[size] = '\0';
 
-    // Call the function under test
-    manufacturer = cmsGetHeaderManufacturer(hProfile);
+    // Call the function-under-test
+    cmsBool result = cmsIT8SetSheetType(handle, sheetType);
 
-    // Close the profile
-    cmsCloseProfile(hProfile);
+    // Clean up
+    free(sheetType);
+    cmsIT8Free(handle);
 
     return 0;
 }

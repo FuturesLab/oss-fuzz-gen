@@ -1,84 +1,81 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// deflateInit_ at deflate.c:380:13 in zlib.h
-// deflateEnd at deflate.c:1294:13 in zlib.h
-// deflateResetKeep at deflate.c:645:13 in zlib.h
-// deflateSetHeader at deflate.c:715:13 in zlib.h
-// deflateParams at deflate.c:775:13 in zlib.h
+// deflateInit2_ at deflate.c:388:13 in zlib.h
+// deflateSetDictionary at deflate.c:560:13 in zlib.h
+// deflateGetDictionary at deflate.c:626:13 in zlib.h
 // deflatePending at deflate.c:723:13 in zlib.h
-// deflateUsed at deflate.c:738:13 in zlib.h
-// deflateCopy at deflate.c:1318:13 in zlib.h
+// deflatePrime at deflate.c:746:13 in zlib.h
+// deflateEnd at deflate.c:1294:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <zlib.h>
 
-static void initialize_stream(z_streamp strm) {
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
-    deflateInit(strm, Z_DEFAULT_COMPRESSION);
-}
+#define DUMMY_FILE "./dummy_file"
 
-static void cleanup_stream(z_streamp strm) {
-    deflateEnd(strm);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 2) return 0; // Ensure there is enough data
 
     z_stream strm;
-    initialize_stream(&strm);
+    memset(&strm, 0, sizeof(z_stream));
 
-    // Allocate memory for input and output
-    strm.next_in = (z_const Bytef *)Data;
-    strm.avail_in = Size;
-    strm.next_out = (Bytef *)malloc(Size);
-    strm.avail_out = Size;
+    int level = Data[0] % 10; // Compression level
+    int method = Z_DEFLATED; // Compression method
+    int windowBits = 15; // Default window size
+    int memLevel = 8; // Default memory level
+    int strategy = Z_DEFAULT_STRATEGY; // Default strategy
+    const char *version = ZLIB_VERSION;
+    int stream_size = sizeof(z_stream);
 
-    // Fuzz deflateResetKeep
-    deflateResetKeep(&strm);
+    // Initialize the deflate stream
+    int ret = deflateInit2_(&strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+    if (ret != Z_OK) return 0;
 
-    // Fuzz deflateSetHeader
-    gz_header header;
-    header.text = 1;
-    header.time = 0;
-    header.xflags = 0;
-    header.os = 0;
-    header.extra = Z_NULL;
-    header.extra_len = 0;
-    header.name = Z_NULL;
-    header.comment = Z_NULL;
-    header.hcrc = 0;
-    header.done = 0;
-    deflateSetHeader(&strm, &header);
+    // Prepare dummy input and output buffers
+    Bytef input[128];
+    Bytef output[128];
+    strm.next_in = input;
+    strm.avail_in = sizeof(input);
+    strm.next_out = output;
+    strm.avail_out = sizeof(output);
 
-    // Fuzz deflateParams
-    int level = Data[0] % 10; // valid levels are 0-9
-    int strategy = Data[0] % 5; // valid strategies are 0-4
-    deflateParams(&strm, level, strategy);
+    // Set dictionary if possible
+    if (Size > 2) {
+        uInt dictLength = Data[1] % (Size - 2); // Ensure dictLength is within bounds
+        deflateSetDictionary(&strm, Data + 2, dictLength);
+    }
 
-    // Fuzz deflatePending
+    // Get dictionary
+    Bytef dictionary[128];
+    uInt dictLength = sizeof(dictionary);
+    deflateGetDictionary(&strm, dictionary, &dictLength);
+
+    // Check pending output
     unsigned pending;
     int bits;
     deflatePending(&strm, &pending, &bits);
 
-    // Fuzz deflateUsed
-    deflateUsed(&strm, &bits);
+    // Prime some bits
+    if (Size > 3) {
+        int bitsToPrime = Data[2] % 16;
+        int value = Data[3];
+        deflatePrime(&strm, bitsToPrime, value);
+    }
 
-    // Fuzz deflateCopy
-    z_stream dest;
-    initialize_stream(&dest);
-    deflateCopy(&dest, &strm);
-    cleanup_stream(&dest);
+    // Cleanup the deflate stream
+    deflateEnd(&strm);
 
-    // Cleanup
-    free((void *)strm.next_out);
-    cleanup_stream(&strm);
+    // Write dummy file
+    write_dummy_file(Data, Size);
 
     return 0;
 }

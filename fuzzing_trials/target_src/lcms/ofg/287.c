@@ -2,26 +2,33 @@
 #include <stdlib.h>
 #include <lcms2.h>
 
-// Remove the 'extern "C"' linkage specification, as it is not needed in C
 int LLVMFuzzerTestOneInput_287(const uint8_t *data, size_t size) {
-    cmsContext context;
-    cmsFloat64Number adaptationState;
-
-    // Ensure size is sufficient to extract cmsFloat64Number
-    if (size < sizeof(cmsFloat64Number)) {
+    // Ensure that the data size is sufficient to create a cmsToneCurve
+    if (size < sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Initialize context
-    context = cmsCreateContext(NULL, NULL);
+    // Create a memory context for the tone curve
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
+        return 0;
+    }
 
-    // Extract a cmsFloat64Number from the data
-    adaptationState = *((cmsFloat64Number*)data);
+    // Allocate a tone curve using the provided data
+    cmsFloat32Number gamma = *((cmsFloat32Number *)data);
+    cmsToneCurve *toneCurve = cmsBuildGamma(context, gamma);
+
+    // Ensure the tone curve is created successfully
+    if (toneCurve == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
 
     // Call the function-under-test
-    cmsFloat64Number result = cmsSetAdaptationStateTHR(context, adaptationState);
+    cmsInt32Number parametricType = cmsGetToneCurveParametricType(toneCurve);
 
     // Clean up
+    cmsFreeToneCurve(toneCurve);
     cmsDeleteContext(context);
 
     return 0;

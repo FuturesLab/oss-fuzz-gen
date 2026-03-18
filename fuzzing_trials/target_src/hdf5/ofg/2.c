@@ -1,52 +1,50 @@
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to contain at least one character for the group name
+    // Declare and initialize variables
+    hid_t file_id;
+    hid_t group_id;
+    char *group_name;
+
+    // Ensure data is not empty and size is sufficient
     if (size < 1) {
         return 0;
     }
 
-    // Initialize the HDF5 library
-    H5open();
-
-    // Create a file to work with
-    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a temporary file to work with HDF5
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
         return 0;
     }
 
-    // Create a group in the file
-    hid_t group_id = H5Gcreate(file_id, "/fuzz_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (group_id < 0) {
+    // Allocate memory for group_name and ensure it's null-terminated
+    group_name = (char *)malloc(size + 1);
+    if (group_name == NULL) {
         H5Fclose(file_id);
         return 0;
     }
+    memcpy(group_name, data, size);
+    group_name[size] = '\0';
 
-    // Close the group
-    H5Gclose(group_id);
-
-    // Use the first part of the data as a group name
-    char group_name[256];
-    size_t group_name_length = size < 255 ? size : 255;
-    memcpy(group_name, data, group_name_length);
-    group_name[group_name_length] = '\0';
-
-    // Call the function-under-test
-    hid_t opened_group_id = H5Gopen1(file_id, group_name);
-
-    // Check if the group was opened successfully
-    if (opened_group_id >= 0) {
-        H5Gclose(opened_group_id);
+    // Create a group to ensure it exists
+    group_id = H5Gcreate1(file_id, group_name, 0);
+    if (group_id >= 0) {
+        H5Gclose(group_id);
     }
 
-    // Close the file
-    H5Fclose(file_id);
+    // Call the function-under-test
+    group_id = H5Gopen1(file_id, group_name);
 
-    // Close the HDF5 library
-    H5close();
+    // Clean up
+    if (group_id >= 0) {
+        H5Gclose(group_id);
+    }
+    H5Fclose(file_id);
+    free(group_name);
 
     return 0;
 }

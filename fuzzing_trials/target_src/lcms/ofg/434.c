@@ -3,21 +3,22 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_434(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile = NULL;
-    
-    // Check if the size is sufficient to create a profile
-    if (size >= sizeof(cmsHPROFILE)) {
-        // Create a profile from the input data
-        hProfile = cmsOpenProfileFromMem((void*)data, size);
-        
-        if (hProfile != NULL) {
-            // Call the function under test
-            cmsUInt32Number manufacturer = cmsGetHeaderManufacturer(hProfile);
-            
-            // Close the profile after use
-            cmsCloseProfile(hProfile);
-        }
+    // Declare and initialize the parameters for cmsXYZEncoded2Float
+    cmsCIEXYZ xyz;
+    cmsUInt16Number encoded[3];
+
+    // Ensure that the size is sufficient to extract the required data
+    if (size < sizeof(encoded)) {
+        return 0;
     }
+
+    // Initialize the encoded values from the input data
+    for (int i = 0; i < 3; i++) {
+        encoded[i] = ((cmsUInt16Number)data[i*2] << 8) | data[i*2 + 1];
+    }
+
+    // Call the function-under-test
+    cmsXYZEncoded2Float(&xyz, encoded);
 
     return 0;
 }

@@ -1,25 +1,34 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <zlib.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Initialize gzFile
-    gzFile file = gzdopen(0, "wb"); // Using file descriptor 0 (stdin) for simplicity
-
-    // Ensure that the file is not NULL
+    // Create a temporary file to write the input data
+    const char *filename = "temp.gz";
+    FILE *file = fopen(filename, "wb");
     if (file == NULL) {
         return 0;
     }
 
-    // Initialize parameters for gzsetparams
-    int compression_level = (size > 0) ? (data[0] % 10) : 6; // Valid range for compression level is 0-9
-    int strategy = (size > 1) ? (data[1] % 5) : Z_DEFAULT_STRATEGY; // Valid strategies are 0-4
+    // Write the input data to the file
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the file with gzopen
+    gzFile gz_file = gzopen(filename, "rb");
+    if (gz_file == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    gzsetparams(file, compression_level, strategy);
+    int eof = gzeof(gz_file);
 
-    // Clean up
-    gzclose(file);
+    // Close the gzFile
+    gzclose(gz_file);
+
+    // Remove the temporary file
+    remove(filename);
 
     return 0;
 }

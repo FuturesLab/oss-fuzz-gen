@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
+// tjGetErrorStr2 at turbojpeg.c:630:17 in turbojpeg.h
 // tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3Get at turbojpeg.c:807:15 in turbojpeg.h
-// tj3GetICCProfile at turbojpeg.c:1926:15 in turbojpeg.h
+// tj3SaveImage16 at turbojpeg-mp.c:487:15 in turbojpeg.h
+// tj3LoadImage16 at turbojpeg-mp.c:434:21 in turbojpeg.h
 // tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3TransformBufSize at turbojpeg.c:2831:18 in turbojpeg.h
-// tj3DecompressHeader at turbojpeg.c:1815:15 in turbojpeg.h
-// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
+// tjSaveImage at turbojpeg.c:3128:15 in turbojpeg.h
+// tjLoadImage at turbojpeg.c:3107:26 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,58 +16,91 @@
 #include <cstdint>
 #include <cstddef>
 #include <turbojpeg.h>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
+#include <cstdio>
+#include <cstring>
 
-extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+static void fuzz_tjGetErrorStr2(tjhandle handle) {
+    char *errorStr = tjGetErrorStr2(handle);
+    if (errorStr) {
+        // Use the error string in some way to prevent optimizing it away
+        printf("Error: %s\n", errorStr);
+    }
+}
 
-    tjhandle handle = nullptr;
-    unsigned char *iccBuf = nullptr;
-    size_t iccSize = 0;
-    tjtransform transform = {0};
-
-    // Fuzz tj3GetErrorStr
+static void fuzz_tj3GetErrorStr(tjhandle handle) {
     char *errorStr = tj3GetErrorStr(handle);
     if (errorStr) {
-        // Do something with errorStr, e.g., log or verify it
+        // Use the error string in some way to prevent optimizing it away
+        printf("Error: %s\n", errorStr);
     }
+}
 
-    // Fuzz tj3Get
-    int param = Data[0]; // Use the first byte as a parameter
-    int paramValue = tj3Get(handle, param);
-    (void)paramValue; // Suppress unused variable warning
+static void fuzz_tj3SaveImage16(tjhandle handle, const uint8_t *Data, size_t Size) {
+    const char *filename = "./dummy_file";
+    FILE *file = fopen(filename, "wb");
+    if (file && Data && Size > 0) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
 
-    // Fuzz tj3GetICCProfile
-    int iccProfileResult = tj3GetICCProfile(handle, &iccBuf, &iccSize);
-    if (iccProfileResult == 0 && iccBuf != nullptr) {
-        tj3Free(iccBuf);
+        const unsigned short *buffer = reinterpret_cast<const unsigned short*>(Data);
+        int width = 16;
+        int height = 16;
+        int pitch = 0;
+        int pixelFormat = TJPF_RGB;
+
+        tj3SaveImage16(handle, filename, buffer, width, pitch, height, pixelFormat);
     }
+}
 
-    // Fuzz tj3TransformBufSize
-    size_t transformBufSize = tj3TransformBufSize(handle, &transform);
-    (void)transformBufSize; // Suppress unused variable warning
-
-    // Fuzz tj3DecompressHeader
-    if (Size > 1) {
-        const unsigned char *jpegBuf = Data + 1;
-        size_t jpegSize = Size - 1;
-        int decompressHeaderResult = tj3DecompressHeader(handle, jpegBuf, jpegSize);
-        (void)decompressHeaderResult; // Suppress unused variable warning
+static void fuzz_tj3LoadImage16(tjhandle handle) {
+    const char *filename = "./dummy_file";
+    int width = 0, height = 0, pixelFormat = TJPF_UNKNOWN;
+    
+    unsigned short *imageBuffer = tj3LoadImage16(handle, filename, &width, 1, &height, &pixelFormat);
+    if (imageBuffer) {
+        tj3Free(imageBuffer);
     }
+}
 
-    // Fuzz tj3SetICCProfile
-    if (Size > 1) {
-        unsigned char *iccBuffer = (unsigned char *)malloc(Size - 1);
-        if (iccBuffer) {
-            std::memcpy(iccBuffer, Data + 1, Size - 1);
-            int setICCProfileResult = tj3SetICCProfile(handle, iccBuffer, Size - 1);
-            (void)setICCProfileResult; // Suppress unused variable warning
-            free(iccBuffer);
-        }
+static void fuzz_tjSaveImage(const uint8_t *Data, size_t Size) {
+    const char *filename = "./dummy_file";
+    FILE *file = fopen(filename, "wb");
+    if (file && Data && Size > 0) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+
+        unsigned char *buffer = const_cast<unsigned char*>(Data);
+        int width = 16;
+        int height = 16;
+        int pitch = 0;
+        int pixelFormat = TJPF_RGB;
+        int flags = 0;
+
+        tjSaveImage(filename, buffer, width, pitch, height, pixelFormat, flags);
     }
+}
+
+static void fuzz_tjLoadImage() {
+    const char *filename = "./dummy_file";
+    int width = 0, height = 0, pixelFormat = TJPF_UNKNOWN;
+    
+    unsigned char *imageBuffer = tjLoadImage(filename, &width, 1, &height, &pixelFormat, 0);
+    if (imageBuffer) {
+        free(imageBuffer);
+    }
+}
+
+extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
+    tjhandle handle = nullptr; // Simulate a handle
+
+    fuzz_tjGetErrorStr2(handle);
+    fuzz_tj3GetErrorStr(handle);
+    fuzz_tj3SaveImage16(handle, Data, Size);
+    fuzz_tj3LoadImage16(handle);
+    fuzz_tjSaveImage(Data, Size);
+    fuzz_tjLoadImage();
 
     return 0;
 }

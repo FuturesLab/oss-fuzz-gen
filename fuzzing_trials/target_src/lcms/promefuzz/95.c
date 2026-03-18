@@ -1,85 +1,77 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsPipelineAlloc at cmslut.c:1377:24 in lcms2.h
-// cmsPipelineFree at cmslut.c:1426:16 in lcms2.h
-// cmsMD5add at cmsmd5.c:172:16 in lcms2_plugin.h
-// cmsPipelineInputChannels at cmslut.c:1413:27 in lcms2.h
-// cmsPipelineCheckAndRetreiveStages at cmslut.c:110:20 in lcms2.h
-// cmsPipelineEvalReverseFloat at cmslut.c:1753:19 in lcms2.h
-// cmsPipelineOutputChannels at cmslut.c:1419:27 in lcms2.h
-// cmsPipelineStageCount at cmslut.c:1661:27 in lcms2.h
-#include <stddef.h>
+// cmsCIE94DeltaE at cmspcs.c:451:28 in lcms2.h
+// cmsCMCdeltaE at cmspcs.c:548:28 in lcms2.h
+// cmsDesaturateLab at cmsgmt.c:515:19 in lcms2.h
+// cmsGDBCompute at cmssm.c:550:19 in lcms2.h
+// cmsGDBCheckPoint at cmssm.c:390:19 in lcms2.h
+// cmsGDBAddPoint at cmssm.c:358:19 in lcms2.h
 #include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <lcms2.h>
-#include <lcms2_plugin.h>
+#include "lcms2.h"
 
-typedef struct {
-    cmsUInt32Number bits[2];
-    cmsUInt32Number buf[4];
-    unsigned char in[64];
-} MD5Context;
-
-static cmsHANDLE createMD5Context() {
-    // Properly allocate memory for MD5Context
-    MD5Context* ctx = (MD5Context*)malloc(sizeof(MD5Context));
-    if (ctx) {
-        memset(ctx, 0, sizeof(MD5Context)); // Initialize the context
+static cmsCIELab GenerateCIELab(const uint8_t *Data, size_t Size, size_t *Offset) {
+    cmsCIELab Lab;
+    if (*Offset + sizeof(cmsCIELab) <= Size) {
+        memcpy(&Lab, Data + *Offset, sizeof(cmsCIELab));
+        *Offset += sizeof(cmsCIELab);
+    } else {
+        Lab.L = 0.0;
+        Lab.a = 0.0;
+        Lab.b = 0.0;
     }
-    return (cmsHANDLE)ctx;
-}
-
-static void destroyMD5Context(cmsHANDLE handle) {
-    if (handle) {
-        free(handle);
-    }
-}
-
-static cmsPipeline* createDummyPipeline() {
-    // Use cmsPipelineAlloc to create a dummy pipeline
-    cmsPipeline* pipeline = cmsPipelineAlloc(NULL, 3, 3);
-    return pipeline;
-}
-
-static void destroyDummyPipeline(cmsPipeline* pipeline) {
-    if (pipeline) {
-        cmsPipelineFree(pipeline);
-    }
+    return Lab;
 }
 
 int LLVMFuzzerTestOneInput_95(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Test cmsMD5add
-    cmsHANDLE md5Handle = createMD5Context();
-    if (md5Handle) {
-        cmsMD5add(md5Handle, Data, (cmsUInt32Number)Size);
-        destroyMD5Context(md5Handle);
+    if (Size < sizeof(cmsCIELab) * 2 + sizeof(cmsFloat64Number) * 2 + sizeof(cmsUInt32Number)) {
+        return 0;
     }
 
-    // Test cmsPipelineInputChannels
-    cmsPipeline* pipeline = createDummyPipeline();
-    if (pipeline) {
-        cmsUInt32Number inputChannels = cmsPipelineInputChannels(pipeline);
+    size_t Offset = 0;
+    cmsCIELab Lab1 = GenerateCIELab(Data, Size, &Offset);
+    cmsCIELab Lab2 = GenerateCIELab(Data, Size, &Offset);
 
-        // Test cmsPipelineCheckAndRetreiveStages
-        cmsStage* stages[3];
-        cmsBool stagesResult = cmsPipelineCheckAndRetreiveStages(pipeline, 3, stages);
+    cmsFloat64Number l = 0.0, c = 0.0;
+    if (Offset + sizeof(cmsFloat64Number) * 2 <= Size) {
+        memcpy(&l, Data + Offset, sizeof(cmsFloat64Number));
+        Offset += sizeof(cmsFloat64Number);
+        memcpy(&c, Data + Offset, sizeof(cmsFloat64Number));
+        Offset += sizeof(cmsFloat64Number);
+    }
 
-        // Test cmsPipelineEvalReverseFloat
-        cmsFloat32Number target[3] = {0.0f, 0.0f, 0.0f};
-        cmsFloat32Number result[3];
-        cmsFloat32Number hint[3] = {1.0f, 1.0f, 1.0f};
-        cmsBool reverseResult = cmsPipelineEvalReverseFloat(target, result, hint, pipeline);
+    cmsUInt32Number dwFlags = 0;
+    if (Size > Offset + sizeof(cmsUInt32Number)) {
+        memcpy(&dwFlags, Data + Offset, sizeof(cmsUInt32Number));
+        Offset += sizeof(cmsUInt32Number);
+    }
 
-        // Test cmsPipelineOutputChannels
-        cmsUInt32Number outputChannels = cmsPipelineOutputChannels(pipeline);
+    // Fuzz cmsCIE94DeltaE
+    cmsCIE94DeltaE(&Lab1, &Lab2);
 
-        // Test cmsPipelineStageCount
-        cmsUInt32Number stageCount = cmsPipelineStageCount(pipeline);
+    // Fuzz cmsCMCdeltaE
+    cmsCMCdeltaE(&Lab1, &Lab2, l, c);
 
-        destroyDummyPipeline(pipeline);
+    // Fuzz cmsDesaturateLab
+    cmsDesaturateLab(&Lab1, 100.0, -100.0, 100.0, -100.0);
+
+    // Create a dummy GBD handle for testing
+    cmsHANDLE hGDB = NULL; // Assume a valid handle is obtained from some initialization function
+
+    // Ensure hGDB is a valid handle before calling cmsGDBCompute
+    if (hGDB != NULL) {
+        cmsGDBCompute(hGDB, dwFlags);
+
+        // Fuzz cmsGDBCheckPoint
+        cmsGDBCheckPoint(hGDB, &Lab1);
+
+        // Fuzz cmsGDBAddPoint
+        cmsGDBAddPoint(hGDB, &Lab2);
+
+        // Clean up the GBD handle
+        // Assume a valid cleanup function is available
     }
 
     return 0;

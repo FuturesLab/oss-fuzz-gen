@@ -1,28 +1,25 @@
 #include <cstdint>
-#include <cstddef>
-#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <aom/aom_image.h> // Assuming the header file for aom_img_metadata_alloc is included here
 
 extern "C" {
-    // Include the necessary header for the function-under-test
-    #include "aom/aom_codec.h"  // Assuming this is where OBU_TYPE is defined
+    aom_metadata_t * aom_img_metadata_alloc(uint32_t, const uint8_t *, size_t, aom_metadata_insert_flags_t);
 }
 
-// Fuzzing harness for the function-under-test
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract an OBU_TYPE
-    if (size < sizeof(OBU_TYPE)) {
-        return 0;
-    }
+    // Define and initialize parameters for aom_img_metadata_alloc
+    uint32_t kind = 1; // Example value for kind, can be varied
+    const uint8_t *metadata = data; // Use the input data directly as metadata
+    size_t metadata_size = size; // Use the input size as metadata size
+    aom_metadata_insert_flags_t flags = static_cast<aom_metadata_insert_flags_t>(0); // Example flag value
 
-    // Extract an OBU_TYPE from the input data
-    OBU_TYPE obu_type = static_cast<OBU_TYPE>(data[0] % 5); // Assuming there are 5 OBU_TYPEs
+    // Call the function under test
+    aom_metadata_t *metadata_result = aom_img_metadata_alloc(kind, metadata, metadata_size, flags);
 
-    // Call the function-under-test
-    const char *result = aom_obu_type_to_string(obu_type);
-
-    // Print the result for debugging purposes
-    if (result != nullptr) {
-        printf("OBU_TYPE: %d, String: %s\n", obu_type, result);
+    // Clean up if necessary
+    if (metadata_result != nullptr) {
+        free(metadata_result); // Assuming aom_metadata_t is allocated with malloc and can be freed with free
     }
 
     return 0;

@@ -1,22 +1,46 @@
-#include <cstdint>
-#include <cstddef> // Include this for size_t
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Assuming the function is part of a library, include the necessary header
 extern "C" {
-    int tj3YUVPlaneWidth(int componentID, int width, int subsamp);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+
+    // Include necessary C headers, source files, functions, and code here.
+    unsigned short * tj3LoadImage16(tjhandle handle, const char *filename, int *width, int pitch, int *height, int *pixelFormat);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    int componentID = 0; // Typically, component IDs range from 0 to 2 for Y, U, and V
-    int width = 1; // Width of the image, must be greater than 0
-    int subsamp = 0; // Subsampling type, often 0 (no subsampling), 1 (4:2:2), or 2 (4:2:0)
+    // Declare and initialize all necessary variables
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
+        return 0;
+    }
+
+    // Allocate and initialize memory for the filename
+    char *filename = (char *)malloc(size + 1);
+    if (filename == NULL) {
+        tjDestroy(handle);
+        return 0;
+    }
+    memcpy(filename, data, size);
+    filename[size] = '\0'; // Ensure null-terminated string
+
+    // Initialize other parameters
+    int width = 1;
+    int pitch = 1;
+    int height = 1;
+    int pixelFormat = TJPF_RGB;
 
     // Call the function-under-test
-    int result = tj3YUVPlaneWidth(componentID, width, subsamp);
+    unsigned short *image = tj3LoadImage16(handle, filename, &width, pitch, &height, &pixelFormat);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    // Clean up
+    free(filename);
+    tjDestroy(handle);
+    free(image); // Assuming tj3LoadImage16 allocates memory that needs to be freed
 
     return 0;
 }

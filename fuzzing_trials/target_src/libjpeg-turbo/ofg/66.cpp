@@ -1,5 +1,5 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,16 +8,12 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitCompress();  // Initialize a TurboJPEG compressor handle
-    if (handle == nullptr) {
-        return 0;  // If initialization fails, return early
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
+
+    // Ensure the handle is not NULL before calling tj3Destroy
+    if (handle != NULL) {
+        tj3Destroy(handle);
     }
-
-    // Call the function-under-test with the initialized handle
-    char *errorStr = tjGetErrorStr2(handle);
-
-    // Clean up the TurboJPEG handle
-    tjDestroy(handle);
 
     return 0;
 }

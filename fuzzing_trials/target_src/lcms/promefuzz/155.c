@@ -1,86 +1,77 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsFloat2LabEncodedV2 at cmspcs.c:254:16 in lcms2.h
-// cmsLabEncoded2FloatV2 at cmspcs.c:218:16 in lcms2.h
-// cmsLab2LCh at cmspcs.c:349:16 in lcms2.h
-// cmsLCh2Lab at cmspcs.c:358:16 in lcms2.h
-// cmsFloat2LabEncoded at cmspcs.c:298:16 in lcms2.h
-// cmsLabEncoded2Float at cmspcs.c:226:16 in lcms2.h
+// cmsBuildTabulatedToneCurve16 at cmsgamma.c:783:25 in lcms2.h
+// cmsDupToneCurve at cmsgamma.c:968:25 in lcms2.h
+// cmsFreeToneCurveTriple at cmsgamma.c:954:16 in lcms2.h
+// cmsEvalToneCurve16 at cmsgamma.c:1437:27 in lcms2.h
+// cmsGetToneCurveEstimatedTable at cmsgamma.c:774:34 in lcms2.h
+// cmsReverseToneCurve at cmsgamma.c:1137:25 in lcms2.h
+// cmsFreeToneCurveTriple at cmsgamma.c:954:16 in lcms2.h
+// cmsFreeToneCurveTriple at cmsgamma.c:954:16 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-#include "lcms2.h"
+#include <stdlib.h>
+#include <lcms2.h>
 
-static void fuzz_cmsFloat2LabEncodedV2(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIELab)) return;
+static cmsToneCurve* create_random_tone_curve(cmsContext ContextID, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt32Number)) return NULL;
 
-    cmsUInt16Number wLab[3];
-    cmsCIELab Lab;
+    cmsUInt32Number nEntries = *(cmsUInt32Number*)Data;
+    Data += sizeof(cmsUInt32Number);
+    Size -= sizeof(cmsUInt32Number);
 
-    memcpy(&Lab, Data, sizeof(cmsCIELab));
-    cmsFloat2LabEncodedV2(wLab, &Lab);
-}
+    if (Size < nEntries * sizeof(cmsUInt16Number)) return NULL;
 
-static void fuzz_cmsLabEncoded2FloatV2(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt16Number) * 3) return;
+    cmsUInt16Number* values = (cmsUInt16Number*)malloc(nEntries * sizeof(cmsUInt16Number));
+    if (!values) return NULL;
 
-    cmsCIELab Lab;
-    cmsUInt16Number wLab[3];
+    for (cmsUInt32Number i = 0; i < nEntries; i++) {
+        values[i] = *(cmsUInt16Number*)Data;
+        Data += sizeof(cmsUInt16Number);
+    }
 
-    memcpy(wLab, Data, sizeof(cmsUInt16Number) * 3);
-    cmsLabEncoded2FloatV2(&Lab, wLab);
-}
-
-static void fuzz_cmsLab2LCh(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIELab)) return;
-
-    cmsCIELCh LCh;
-    cmsCIELab Lab;
-
-    memcpy(&Lab, Data, sizeof(cmsCIELab));
-    cmsLab2LCh(&LCh, &Lab);
-}
-
-static void fuzz_cmsLCh2Lab(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIELCh)) return;
-
-    cmsCIELab Lab;
-    cmsCIELCh LCh;
-
-    memcpy(&LCh, Data, sizeof(cmsCIELCh));
-    cmsLCh2Lab(&Lab, &LCh);
-}
-
-static void fuzz_cmsFloat2LabEncoded(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIELab)) return;
-
-    cmsUInt16Number wLab[3];
-    cmsCIELab Lab;
-
-    memcpy(&Lab, Data, sizeof(cmsCIELab));
-    cmsFloat2LabEncoded(wLab, &Lab);
-}
-
-static void fuzz_cmsLabEncoded2Float(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt16Number) * 3) return;
-
-    cmsCIELab Lab;
-    cmsUInt16Number wLab[3];
-
-    memcpy(wLab, Data, sizeof(cmsUInt16Number) * 3);
-    cmsLabEncoded2Float(&Lab, wLab);
+    cmsToneCurve* curve = cmsBuildTabulatedToneCurve16(ContextID, nEntries, values);
+    free(values);
+    return curve;
 }
 
 int LLVMFuzzerTestOneInput_155(const uint8_t *Data, size_t Size) {
-    fuzz_cmsFloat2LabEncodedV2(Data, Size);
-    fuzz_cmsLabEncoded2FloatV2(Data, Size);
-    fuzz_cmsLab2LCh(Data, Size);
-    fuzz_cmsLCh2Lab(Data, Size);
-    fuzz_cmsFloat2LabEncoded(Data, Size);
-    fuzz_cmsLabEncoded2Float(Data, Size);
+    cmsContext ContextID = NULL; // Using default context
+
+    // Create a random tone curve
+    cmsToneCurve* curve = create_random_tone_curve(ContextID, Data, Size);
+    if (!curve) return 0;
+
+    // Duplicate the tone curve
+    cmsToneCurve* dupCurve = cmsDupToneCurve(curve);
+    if (dupCurve) {
+        cmsFreeToneCurveTriple((cmsToneCurve*[]){dupCurve, NULL, NULL});
+    }
+
+    // Evaluate tone curve
+    if (Size >= sizeof(cmsUInt16Number)) {
+        cmsUInt16Number inputValue = *(cmsUInt16Number*)Data;
+        cmsEvalToneCurve16(curve, inputValue);
+    }
+
+    // Get estimated table
+    const cmsUInt16Number* table = cmsGetToneCurveEstimatedTable(curve);
+    if (table) {
+        // Just accessing it to ensure it's not NULL
+        (void)table;
+    }
+
+    // Reverse tone curve
+    cmsToneCurve* reverseCurve = cmsReverseToneCurve(curve);
+    if (reverseCurve) {
+        cmsFreeToneCurveTriple((cmsToneCurve*[]){reverseCurve, NULL, NULL});
+    }
+
+    // Free original tone curve
+    cmsFreeToneCurveTriple((cmsToneCurve*[]){curve, NULL, NULL});
+
     return 0;
 }

@@ -1,142 +1,60 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
+// cmsOpenProfileFromFile at cmsio0.c:1232:23 in lcms2.h
+// cmsReadTag at cmsio0.c:1639:17 in lcms2.h
+// cmsIsMatrixShaper at cmsio1.c:806:20 in lcms2.h
+// cmsMD5computeID at cmsmd5.c:257:19 in lcms2.h
+// cmsIsTag at cmsio0.c:709:19 in lcms2.h
+// cmsGetTagCount at cmsio0.c:581:26 in lcms2.h
+// cmsSaveProfileToFile at cmsio0.c:1503:20 in lcms2.h
 // cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreateBCHSWabstractProfileTHR at cmsvirt.c:861:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreateExtendedTransform at cmsxform.c:1123:25 in lcms2.h
-// cmsTransform2DeviceLink at cmsvirt.c:1194:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
-// cmsCreateProofingTransform at cmsxform.c:1398:25 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
-// cmsCreateMultiprofileTransformTHR at cmsxform.c:1286:25 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
-// cmsCreateBCHSWabstractProfile at cmsvirt.c:946:32 in lcms2.h
-// cmsCreate_sRGBProfile at cmsvirt.c:680:23 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <lcms2.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-static cmsHPROFILE create_dummy_profile() {
-    return cmsCreate_sRGBProfile();
-}
-
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
+static cmsHPROFILE loadProfileFromData(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+    if (!file) return NULL;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+    return cmsOpenProfileFromFile("./dummy_file", "r");
 }
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    if (Size < 61) {
-        return 0;
+    if (Size < sizeof(cmsTagSignature)) return 0;
+
+    cmsHPROFILE hProfile = loadProfileFromData(Data, Size);
+    if (!hProfile) return 0;
+
+    cmsTagSignature sig = *(cmsTagSignature *)Data;
+
+    // Fuzz cmsReadTag
+    void* tagData = cmsReadTag(hProfile, sig);
+    if (tagData) {
+        // Handle tag data if necessary
     }
 
-    cmsContext context = NULL;
-    cmsUInt32Number nProfiles = Data[0] % 255 + 1;
-    cmsUInt32Number inputFormat = *(cmsUInt32Number *)(Data + 1);
-    cmsUInt32Number outputFormat = *(cmsUInt32Number *)(Data + 5);
-    cmsUInt32Number intent = *(cmsUInt32Number *)(Data + 9);
-    cmsUInt32Number flags = *(cmsUInt32Number *)(Data + 13);
-    cmsFloat64Number version = *(cmsFloat64Number *)(Data + 17);
+    // Fuzz cmsIsMatrixShaper
+    cmsBool isMatrixShaper = cmsIsMatrixShaper(hProfile);
 
-    cmsHPROFILE profiles[255];
-    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
-        profiles[i] = create_dummy_profile();
-    }
+    // Fuzz cmsMD5computeID
+    cmsBool md5Computed = cmsMD5computeID(hProfile);
 
-    cmsBool BPC[255] = {0};
-    cmsUInt32Number Intents[255] = {0};
-    cmsFloat64Number AdaptationStates[255] = {0};
+    // Fuzz cmsIsTag
+    cmsBool isTagPresent = cmsIsTag(hProfile, sig);
 
-    cmsHTRANSFORM transform = cmsCreateExtendedTransform(
-        context,
-        nProfiles,
-        profiles,
-        BPC,
-        Intents,
-        AdaptationStates,
-        NULL,
-        0,
-        inputFormat,
-        outputFormat,
-        flags
-    );
+    // Fuzz cmsGetTagCount
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
 
-    if (transform) {
-        cmsHPROFILE deviceLink = cmsTransform2DeviceLink(transform, version, flags);
-        if (deviceLink) {
-            cmsCloseProfile(deviceLink);
-        }
-        cmsDeleteTransform(transform);
-    }
+    // Fuzz cmsSaveProfileToFile
+    cmsBool saved = cmsSaveProfileToFile(hProfile, "./dummy_file");
 
-    cmsHTRANSFORM proofingTransform = cmsCreateProofingTransform(
-        profiles[0],
-        inputFormat,
-        profiles[1 % nProfiles],
-        outputFormat,
-        profiles[2 % nProfiles],
-        intent,
-        intent,
-        flags
-    );
-
-    if (proofingTransform) {
-        cmsDeleteTransform(proofingTransform);
-    }
-
-    cmsHTRANSFORM multiprofileTransform = cmsCreateMultiprofileTransformTHR(
-        context,
-        profiles,
-        nProfiles,
-        inputFormat,
-        outputFormat,
-        intent,
-        flags
-    );
-
-    if (multiprofileTransform) {
-        cmsDeleteTransform(multiprofileTransform);
-    }
-
-    cmsHPROFILE abstractProfile = cmsCreateBCHSWabstractProfile(
-        nProfiles,
-        *(cmsFloat64Number *)(Data + 21),
-        *(cmsFloat64Number *)(Data + 29),
-        *(cmsFloat64Number *)(Data + 37),
-        *(cmsFloat64Number *)(Data + 45),
-        *(cmsUInt32Number *)(Data + 53),
-        *(cmsUInt32Number *)(Data + 57)
-    );
-
-    if (abstractProfile) {
-        cmsCloseProfile(abstractProfile);
-    }
-
-    cmsHPROFILE abstractProfileTHR = cmsCreateBCHSWabstractProfileTHR(
-        context,
-        nProfiles,
-        *(cmsFloat64Number *)(Data + 21),
-        *(cmsFloat64Number *)(Data + 29),
-        *(cmsFloat64Number *)(Data + 37),
-        *(cmsFloat64Number *)(Data + 45),
-        *(cmsUInt32Number *)(Data + 53),
-        *(cmsUInt32Number *)(Data + 57)
-    );
-
-    if (abstractProfileTHR) {
-        cmsCloseProfile(abstractProfileTHR);
-    }
-
-    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
-        cmsCloseProfile(profiles[i]);
-    }
-
+    cmsCloseProfile(hProfile);
     return 0;
 }

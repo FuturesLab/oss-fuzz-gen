@@ -1,27 +1,32 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h> // Include this for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_360(const uint8_t *data, size_t size) {
-    if (size < 6 * sizeof(cmsFloat64Number)) {
-        return 0; // Not enough data to create two cmsCIELab structures
+    if (size < sizeof(cmsViewingConditions)) {
+        return 0; // Not enough data to fill cmsViewingConditions
     }
 
-    cmsCIELab Lab1, Lab2;
+    cmsHANDLE handle = NULL;
 
-    // Extract cmsFloat64Number values from the input data
-    Lab1.L = *((cmsFloat64Number *)(data));
-    Lab1.a = *((cmsFloat64Number *)(data + sizeof(cmsFloat64Number)));
-    Lab1.b = *((cmsFloat64Number *)(data + 2 * sizeof(cmsFloat64Number)));
+    // Initialize the handle with a default non-NULL value
+    cmsCIEXYZ whitePoint = {0.95047, 1.00000, 1.08883}; // D65 standard illuminant
 
-    Lab2.L = *((cmsFloat64Number *)(data + 3 * sizeof(cmsFloat64Number)));
-    Lab2.a = *((cmsFloat64Number *)(data + 4 * sizeof(cmsFloat64Number)));
-    Lab2.b = *((cmsFloat64Number *)(data + 5 * sizeof(cmsFloat64Number)));
+    // Create a cmsViewingConditions structure from the input data
+    cmsViewingConditions vc;
+    memcpy(&vc, data, sizeof(cmsViewingConditions));
 
-    // Call the function under test
-    cmsFloat64Number deltaE = cmsDeltaE(&Lab1, &Lab2);
+    // Ensure the white point values are valid
+    vc.whitePoint.X = whitePoint.X;
+    vc.whitePoint.Y = whitePoint.Y;
+    vc.whitePoint.Z = whitePoint.Z;
 
-    (void)deltaE; // Use deltaE to avoid unused variable warning
+    handle = cmsCIECAM02Init(NULL, &vc);
+    if (handle != NULL) {
+        // Perform some operations with the handle to increase code coverage
+        cmsCIECAM02Done(handle);
+    }
 
     return 0;
 }

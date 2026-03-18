@@ -1,47 +1,51 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_482(const uint8_t *data, size_t size) {
-    cmsContext context = NULL; // Assuming a default context
-    cmsUInt32Number numColors = 1;
-    cmsUInt32Number flags = 0;
+    cmsHANDLE handle;
+    char *firstProperty;
+    char *secondProperty;
+    const char *result;
 
-    // Ensure data is not empty to create non-NULL strings
     if (size < 2) {
-        return 0;
+        return 0; // Not enough data to proceed
     }
 
-    // Split the data into two parts for the two string parameters
-    size_t str1_len = size / 2;
-    size_t str2_len = size - str1_len;
-
-    char *prefix = (char *)malloc(str1_len + 1);
-    char *suffix = (char *)malloc(str2_len + 1);
-
-    if (prefix == NULL || suffix == NULL) {
-        free(prefix);
-        free(suffix);
-        return 0;
+    // Initialize handle (for demonstration purposes, using a dummy handle)
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
+        return 0; // Allocation failed, exit early
     }
 
-    memcpy(prefix, data, str1_len);
-    prefix[str1_len] = '\0';
+    // Allocate and copy data for firstProperty and secondProperty
+    firstProperty = (char *)malloc(size / 2 + 1);
+    secondProperty = (char *)malloc(size / 2 + 1);
 
-    memcpy(suffix, data + str1_len, str2_len);
-    suffix[str2_len] = '\0';
+    if (firstProperty == NULL || secondProperty == NULL) {
+        cmsIT8Free(handle);
+        free(firstProperty);
+        free(secondProperty);
+        return 0; // Memory allocation failed
+    }
+
+    // Copy the first half of the data to firstProperty
+    memcpy(firstProperty, data, size / 2);
+    firstProperty[size / 2] = '\0'; // Null-terminate
+
+    // Copy the second half of the data to secondProperty
+    memcpy(secondProperty, data + size / 2, size / 2);
+    secondProperty[size / 2] = '\0'; // Null-terminate
 
     // Call the function-under-test
-    cmsNAMEDCOLORLIST *namedColorList = cmsAllocNamedColorList(context, numColors, flags, prefix, suffix);
+    result = cmsIT8GetPropertyMulti(handle, firstProperty, secondProperty);
 
     // Clean up
-    if (namedColorList != NULL) {
-        cmsFreeNamedColorList(namedColorList);
-    }
-
-    free(prefix);
-    free(suffix);
+    cmsIT8Free(handle);
+    free(firstProperty);
+    free(secondProperty);
 
     return 0;
 }

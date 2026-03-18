@@ -1,118 +1,72 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// compressBound at compress.c:92:15 in zlib.h
-// compress2_z at compress.c:24:13 in zlib.h
-// uncompress2 at uncompr.c:79:13 in zlib.h
-// compressBound at compress.c:92:15 in zlib.h
-// compress2 at compress.c:63:13 in zlib.h
-// compressBound at compress.c:92:15 in zlib.h
-// compress at compress.c:78:13 in zlib.h
-// uncompress at uncompr.c:93:13 in zlib.h
-// zlibCompileFlags at zutil.c:31:15 in zlib.h
+// inflateInit_ at inflate.c:214:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflateValidate at inflate.c:1385:13 in zlib.h
+// inflateCopy at inflate.c:1328:13 in zlib.h
+// inflatePrime at inflate.c:219:13 in zlib.h
+// inflateSyncPoint at inflate.c:1320:13 in zlib.h
+// inflateSync at inflate.c:1264:13 in zlib.h
+// inflateSetDictionary at inflate.c:1187:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <zlib.h>
 
-static void fuzz_compress2_z(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    z_size_t destLen = compressBound(Size);
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (!dest) return;
-
-    int level = Data[0] % 10; // Compression level between 0 and 9
-    int result = compress2_z(dest, &destLen, Data, Size, level);
-
-    if (result == Z_OK) {
-        // Optionally, test decompression here
-    }
-
-    free(dest);
+static void initialize_stream(z_stream *strm) {
+    memset(strm, 0, sizeof(z_stream));
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
+    inflateInit(strm);
 }
 
-static void fuzz_uncompress2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    uLongf destLen = Size * 2; // Arbitrary choice for destination buffer size
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (!dest) return;
-
-    uLong sourceLen = Size;
-    int result = uncompress2(dest, &destLen, Data, &sourceLen);
-
-    if (result == Z_OK) {
-        // Successfully decompressed
-    }
-
-    free(dest);
-}
-
-static void fuzz_compress2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    uLongf destLen = compressBound(Size);
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (!dest) return;
-
-    int level = Data[0] % 10; // Compression level between 0 and 9
-    int result = compress2(dest, &destLen, Data, Size, level);
-
-    if (result == Z_OK) {
-        // Optionally, test decompression here
-    }
-
-    free(dest);
-}
-
-static void fuzz_compress(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    uLongf destLen = compressBound(Size);
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (!dest) return;
-
-    int result = compress(dest, &destLen, Data, Size);
-
-    if (result == Z_OK) {
-        // Optionally, test decompression here
-    }
-
-    free(dest);
-}
-
-static void fuzz_uncompress(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    uLongf destLen = Size * 2; // Arbitrary choice for destination buffer size
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (!dest) return;
-
-    int result = uncompress(dest, &destLen, Data, Size);
-
-    if (result == Z_OK) {
-        // Successfully decompressed
-    }
-
-    free(dest);
-}
-
-static void fuzz_zlibCompileFlags() {
-    uLong flags = zlibCompileFlags();
-    // Process flags if needed
+static void cleanup_stream(z_stream *strm) {
+    inflateEnd(strm);
 }
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    fuzz_compress2_z(Data, Size);
-    fuzz_uncompress2(Data, Size);
-    fuzz_compress2(Data, Size);
-    fuzz_compress(Data, Size);
-    fuzz_uncompress(Data, Size);
-    fuzz_zlibCompileFlags();
+    if (Size < 1) return 0;
 
+    z_stream strm;
+    initialize_stream(&strm);
+
+    // Prepare a dummy output buffer
+    Bytef out[256];
+    strm.next_out = out;
+    strm.avail_out = sizeof(out);
+
+    // Set input data to the stream
+    strm.next_in = (Bytef *)Data;
+    strm.avail_in = Size;
+
+    // Test inflateValidate
+    inflateValidate(&strm, Data[0] % 2);
+
+    // Test inflateCopy
+    z_stream dest;
+    initialize_stream(&dest);
+    inflateCopy(&dest, &strm);
+    cleanup_stream(&dest);
+
+    // Test inflatePrime
+    inflatePrime(&strm, Data[0] % 16, Data[0]);
+
+    // Test inflateSyncPoint
+    inflateSyncPoint(&strm);
+
+    // Test inflateSync
+    inflateSync(&strm);
+
+    // Test inflateSetDictionary
+    if (Size > 1) {
+        inflateSetDictionary(&strm, Data + 1, Size - 1);
+    }
+
+    cleanup_stream(&strm);
     return 0;
 }

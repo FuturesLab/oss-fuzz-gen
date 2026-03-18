@@ -1,28 +1,25 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_326(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    // Initialize the parameters for cmsSetHeaderProfileID
     cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
-    cmsUInt32Number intent = INTENT_PERCEPTUAL;
-    cmsUInt32Number flags = 0;
-    void *buffer = malloc(1024); // Allocate a buffer for the CSA
-    cmsUInt32Number bufferSize = 1024;
+    cmsUInt8Number profileID[16]; // Profile ID is typically 16 bytes
 
-    // Check if the profile was opened successfully
+    // Ensure the profile is valid before proceeding
     if (hProfile != NULL) {
+        // Fill profileID with some data, using the input data if available
+        for (size_t i = 0; i < 16 && i < size; ++i) {
+            profileID[i] = data[i];
+        }
+        
         // Call the function-under-test
-        cmsUInt32Number result = cmsGetPostScriptCSA(context, hProfile, intent, flags, buffer, bufferSize);
+        cmsSetHeaderProfileID(hProfile, profileID);
 
-        // Clean up
+        // Close the profile after use
         cmsCloseProfile(hProfile);
     }
-
-    // Free allocated resources
-    cmsDeleteContext(context);
-    free(buffer);
 
     return 0;
 }

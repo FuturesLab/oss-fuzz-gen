@@ -1,40 +1,39 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_208(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsHTRANSFORM transform = NULL;
-    cmsFloat64Number version = 1.0;  // Default version
-    cmsUInt32Number flags = 0;  // Default flags
-
-    // Create a dummy color profile
-    cmsHPROFILE inputProfile = cmsCreate_sRGBProfile();
-    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
-
-    if (inputProfile == NULL || outputProfile == NULL) {
-        if (inputProfile != NULL) cmsCloseProfile(inputProfile);
-        if (outputProfile != NULL) cmsCloseProfile(outputProfile);
+    // Check if the input size is sufficient to perform operations
+    if (size < sizeof(float) * 9) {
         return 0;
     }
 
-    // Create a transform
-    transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
-
-    if (transform == NULL) {
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
+    if (pipeline == NULL) {
         return 0;
+    }
+
+    // Use the input data to create a matrix for the stage
+    const float *matrixData = (const float *)data;
+    cmsStage *stage = cmsStageAllocMatrix(NULL, 3, 3, matrixData, NULL);
+    if (stage != NULL) {
+        cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
     }
 
     // Call the function-under-test
-    cmsHPROFILE deviceLinkProfile = cmsTransform2DeviceLink(transform, version, flags);
+    cmsStage *lastStage = cmsPipelineGetPtrToLastStage(pipeline);
+
+    // Use the lastStage in some way to ensure it is not optimized away
+    if (lastStage != NULL) {
+        // For example, retrieve some information from it
+        int inputChannels = cmsStageInputChannels(lastStage);
+        int outputChannels = cmsStageOutputChannels(lastStage);
+        (void)inputChannels;
+        (void)outputChannels;
+    }
 
     // Clean up
-    if (deviceLinkProfile != NULL) {
-        cmsCloseProfile(deviceLinkProfile);
-    }
-    cmsDeleteTransform(transform);
+    cmsPipelineFree(pipeline);
 
     return 0;
 }

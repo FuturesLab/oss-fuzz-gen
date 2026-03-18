@@ -1,24 +1,33 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_112(const uint8_t *data, size_t size) {
-    // Ensure that size is large enough to extract necessary parameters
-    if (size < 10) {
+    // Initialize variables
+    hid_t file_id;
+    _Bool is_enabled = 0;
+    _Bool is_logging = 0;
+
+    // Ensure data is large enough to create a valid file name
+    if (size < 1) {
         return 0;
     }
 
-    // Extract parameters from data
-    const char *app_file = (const char *)data;
-    const char *app_func = (const char *)(data + 1);
-    unsigned int app_line = (unsigned int)data[2];
-    
-    // Create dummy hid_t values for event_stack_id and dset_id
-    hid_t event_stack_id = H5I_INVALID_HID;
-    hid_t dset_id = H5I_INVALID_HID;
+    // Create a file name from the input data
+    char filename[256];
+    snprintf(filename, sizeof(filename), "/tmp/fuzzfile_%u.h5", data[0]);
 
-    // Call the function-under-test with correct number of arguments
-    herr_t result = H5Dclose_async(dset_id, event_stack_id);
+    // Create a new HDF5 file using the filename
+    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    // Return 0 to indicate the fuzzer should continue
+    // Call the function-under-test
+    H5Fget_mdc_logging_status(file_id, &is_enabled, &is_logging);
+
+    // Close the file
+    H5Fclose(file_id);
+
     return 0;
 }

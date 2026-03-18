@@ -1,27 +1,23 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) return 0;
+    GF_ISOFile *file = NULL;
+    Bool root_meta = 1; // Initialize with a non-NULL value
+    u32 track_num = 1;  // Initialize with a non-NULL value
 
-    u32 trackNumber = 1; // Assuming track number 1 for testing
-    GF_TextSampleDescriptor desc;
-    memset(&desc, 0, sizeof(GF_TextSampleDescriptor)); // Initialize descriptor
+    // Check if size is sufficient to create a file (this is a simplified example)
+    if (size > 0) {
+        // Instead of using gf_isom_open_from_buffer, use gf_isom_open which is a valid function
+        file = gf_isom_open((const char *)data, GF_ISOM_OPEN_READ, NULL);
 
-    // Create dummy URLname and URNname
-    const char *URLname = "http://example.com";
-    const char *URNname = "urn:example";
-
-    u32 outDescriptionIndex = 0;
-
-    // Call the function-under-test
-    gf_isom_new_text_description(movie, trackNumber, &desc, URLname, URNname, &outDescriptionIndex);
-
-    // Clean up
-    gf_isom_close(movie);
+        // Call the function-under-test
+        if (file != NULL) {
+            gf_isom_get_meta_primary_item_id(file, root_meta, track_num);
+            gf_isom_close(file);
+        }
+    }
 
     return 0;
 }

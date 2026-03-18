@@ -1,23 +1,27 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_206(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsIOHANDLER *iohandler = NULL;
+    // Initialize a cmsContext variable
+    cmsContext originalContext = cmsCreateContext(NULL, NULL);
 
-    if (context != NULL) {
-        iohandler = cmsOpenIOhandlerFromNULL(context);
-
-        // Perform any additional operations on iohandler if needed
-
-        // Clean up
-        if (iohandler != NULL) {
-            cmsCloseIOhandler(iohandler);
-        }
-
-        cmsDeleteContext(context);
+    // Check if the originalContext is NULL, if so return early
+    if (originalContext == NULL) {
+        return 0;
     }
+
+    // Create a non-NULL void pointer
+    void *userData = (void *)data;
+
+    // Call the function-under-test
+    cmsContext duplicatedContext = cmsDupContext(originalContext, userData);
+
+    // Clean up
+    if (duplicatedContext != NULL) {
+        cmsDeleteContext(duplicatedContext);
+    }
+    cmsDeleteContext(originalContext);
 
     return 0;
 }

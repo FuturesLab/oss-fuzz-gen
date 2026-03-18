@@ -3,27 +3,30 @@
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the parameters
-    if (size < sizeof(uint32_t) * 3) {
+    GF_ISOFile *movie = NULL;
+    u32 trackNumber;
+    u32 duration;
+
+    // Ensure size is sufficient to extract trackNumber and duration
+    if (size < 8) {
         return 0;
     }
 
-    // Initialize the GF_ISOFile structure
-    GF_ISOFile *the_file = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
-    if (!the_file) {
+    // Initialize trackNumber and duration from the input data
+    trackNumber = *(u32 *)data;
+    duration = *(u32 *)(data + 4);
+
+    // Create a new ISOFile for testing
+    movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
         return 0;
     }
-
-    // Extract parameters from the input data
-    uint32_t trackNumber = *((uint32_t *)data);
-    uint32_t referenceType = *((uint32_t *)(data + sizeof(uint32_t)));
-    GF_ISOTrackID ReferencedTrackID = *((GF_ISOTrackID *)(data + sizeof(uint32_t) * 2));
 
     // Call the function-under-test
-    gf_isom_set_track_reference(the_file, trackNumber, referenceType, ReferencedTrackID);
+    gf_isom_set_last_sample_duration(movie, trackNumber, duration);
 
-    // Cleanup
-    gf_isom_close(the_file);
+    // Clean up and close the movie
+    gf_isom_close(movie);
 
     return 0;
 }

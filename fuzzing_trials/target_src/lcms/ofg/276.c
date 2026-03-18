@@ -1,32 +1,55 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <wchar.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_276(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for creating a cmsToneCurve
-    if (size < sizeof(cmsFloat32Number)) {
+    // Initialize variables
+    cmsHANDLE dict;
+    cmsMLU *displayName = cmsMLUalloc(NULL, 1);
+    cmsMLU *displayValue = cmsMLUalloc(NULL, 1);
+
+    // Ensure displayName and displayValue are not NULL
+    if (displayName == NULL || displayValue == NULL) {
         return 0;
     }
 
-    // Create a memory context for LittleCMS
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
+    // Initialize the MLU structures
+    cmsMLUsetWide(displayName, "en", "US", L"DisplayName");
+    cmsMLUsetWide(displayValue, "en", "US", L"DisplayValue");
+
+    // Create a dictionary handle
+    dict = cmsDictAlloc(NULL);
+    if (dict == NULL) {
+        cmsMLUfree(displayName);
+        cmsMLUfree(displayValue);
         return 0;
     }
 
-    // Create a tone curve using the input data
-    cmsToneCurve *toneCurve = cmsBuildGamma(context, 2.2); // Using a gamma value of 2.2 as an example
-    if (toneCurve == NULL) {
-        cmsDeleteContext(context);
+    // Use input data to create keys and values
+    if (size < 4) { // Ensure there's enough data for at least one character
+        cmsDictFree(dict);
+        cmsMLUfree(displayName);
+        cmsMLUfree(displayValue);
         return 0;
     }
+
+    // Convert the first part of data to a wide string for the key
+    wchar_t key[2];
+    key[0] = (wchar_t)data[0];
+    key[1] = L'\0';
+
+    // Convert the second part of data to a wide string for the value
+    wchar_t value[2];
+    value[0] = (wchar_t)data[1];
+    value[1] = L'\0';
 
     // Call the function-under-test
-    cmsInt32Number parametricType = cmsGetToneCurveParametricType(toneCurve);
+    cmsBool result = cmsDictAddEntry(dict, key, value, displayName, displayValue);
 
     // Clean up
-    cmsFreeToneCurve(toneCurve);
-    cmsDeleteContext(context);
+    cmsDictFree(dict);
+    cmsMLUfree(displayName);
+    cmsMLUfree(displayValue);
 
     return 0;
 }

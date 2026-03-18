@@ -1,40 +1,47 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <gpac/isomedia.h>
+#include <unistd.h>   // For close() and write()
+#include <stdlib.h>   // For mkstemp()
+#include <stdio.h>    // For remove()
 
-// Define u32 and u64 if they are not already defined by the included headers
-typedef uint32_t u32;
-typedef uint64_t u64;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_131(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to extract all required parameters
-    if (size < sizeof(u32) + 3 * sizeof(u64) + sizeof(u32)) {
-        return 0;
+    GF_ISOFile *file = NULL;
+    Bool root_meta = 1; // Initialize with a non-zero value (true)
+    u32 track_num = 1;  // Initialize with a non-zero value
+
+    // Check if the data size is sufficient to open a file
+    if (size > 0) {
+        // Create a temporary file to simulate the input file
+        char tmpl[] = "/tmp/fuzzfileXXXXXX";
+        int fd = mkstemp(tmpl);
+        if (fd != -1) {
+            // Write data to the temporary file
+            write(fd, data, size);
+            close(fd);
+
+            // Open the ISO file using the temporary file path
+            file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+            if (file != NULL) {
+                // Call the function-under-test
+                gf_isom_get_meta_type(file, root_meta, track_num);
+
+                // Close the file after testing
+                gf_isom_close(file);
+            }
+
+            // Remove the temporary file
+            remove(tmpl);
+        }
     }
-
-    // Initialize the GF_ISOFile structure
-    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
-
-    // Extract parameters from the input data
-    u32 trackNumber = *((u32 *)data);
-    data += sizeof(u32);
-    
-    u64 EditTime = *((u64 *)data);
-    data += sizeof(u64);
-    
-    u64 EditDuration = *((u64 *)data);
-    data += sizeof(u64);
-    
-    u64 MediaTime = *((u64 *)data);
-    data += sizeof(u64);
-    
-    u32 media_rate = *((u32 *)data);
-
-    // Call the function-under-test
-    gf_isom_set_edit_with_rate(movie, trackNumber, EditTime, EditDuration, MediaTime, media_rate);
-
-    // Clean up and close the movie
-    gf_isom_close(movie);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

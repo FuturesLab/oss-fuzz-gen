@@ -1,5 +1,5 @@
-#include <cstdint> // Include standard library for uint8_t
-#include <cstddef> // Include standard library for size_t
+#include <cstddef>
+#include <cstdint>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,17 +8,26 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    // Declare and initialize the parameters for tjPlaneWidth
-    int componentID = 0; // Component ID, typically 0 for Y in YUV
-    int width = 1;       // Image width, must be greater than 0
-    int subsamp = TJSAMP_444; // Subsampling type, using 4:4:4 as an example
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // Initialization failed, exit the fuzzer
+    }
 
-    // Call the function under test
-    int result = tjPlaneWidth(componentID, width, subsamp);
+    // Ensure the data size is non-zero to avoid passing NULL to tj3DecompressHeader
+    if (size > 0) {
+        // Call the function-under-test
+        int result = tj3DecompressHeader(handle, data, size);
+        
+        // You might want to check the result for specific values or errors
+        // For example:
+        // if (result == -1) {
+        //     const char *errorMsg = tjGetErrorStr();
+        //     // Handle error if necessary
+        // }
+    }
 
-    // To ensure the function is called, we can use the result in some way
-    // For fuzzing purposes, the result can be ignored, but the call is necessary
-    (void)result; // Suppress unused variable warning
+    // Clean up
+    tjDestroy(handle);
 
-    return 0; // Return 0 to indicate successful execution
+    return 0;
 }

@@ -1,32 +1,50 @@
 #include <stdint.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_132(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for the parameters
-    if (size < 5) {
-        return 0;
-    }
+    // Initialize variables
+    cmsHANDLE handle;
+    char *propertyName;
+    char *propertyValue;
 
-    // Initialize the parameters for cmsIT8SetDataFormat
-    cmsHANDLE handle = cmsIT8Alloc(NULL);
+    // Create a dummy handle
+    handle = cmsIT8Alloc(0);
     if (handle == NULL) {
         return 0;
     }
 
-    int index = data[0]; // Use the first byte for the index
+    // Ensure the input size is sufficient for splitting into two strings
+    if (size < 2) {
+        cmsIT8Free(handle);
+        return 0;
+    }
 
-    // Use the rest of the data as a string for the third parameter
-    char format[256];
-    size_t format_size = (size - 1) < 255 ? (size - 1) : 255;
-    memcpy(format, &data[1], format_size);
-    format[format_size] = '\0'; // Ensure null-termination
+    // Allocate memory for propertyName and propertyValue
+    propertyName = (char *)malloc(size / 2 + 1);
+    propertyValue = (char *)malloc(size / 2 + 1);
 
-    // Call the function under test
-    cmsBool result = cmsIT8SetDataFormat(handle, index, format);
+    if (propertyName == NULL || propertyValue == NULL) {
+        free(propertyName);
+        free(propertyValue);
+        cmsIT8Free(handle);
+        return 0;
+    }
+
+    // Copy data into propertyName and propertyValue
+    memcpy(propertyName, data, size / 2);
+    propertyName[size / 2] = '\0'; // Null-terminate the string
+
+    memcpy(propertyValue, data + size / 2, size / 2);
+    propertyValue[size / 2] = '\0'; // Null-terminate the string
+
+    // Call the function-under-test
+    cmsIT8SetPropertyStr(handle, propertyName, propertyValue);
 
     // Clean up
+    free(propertyName);
+    free(propertyValue);
     cmsIT8Free(handle);
 
     return 0;

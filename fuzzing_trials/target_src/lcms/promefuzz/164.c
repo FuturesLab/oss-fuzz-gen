@@ -1,51 +1,79 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsMLUalloc at cmsnamed.c:33:19 in lcms2.h
-// cmsMLUgetUTF8 at cmsnamed.c:590:27 in lcms2.h
-// cmsMLUgetASCII at cmsnamed.c:542:27 in lcms2.h
-// cmsMLUtranslationsCount at cmsnamed.c:689:27 in lcms2.h
-// cmsMLUdup at cmsnamed.c:430:19 in lcms2.h
-// cmsMLUfree at cmsnamed.c:476:16 in lcms2.h
-// cmsMLUfree at cmsnamed.c:476:16 in lcms2.h
+// cmsIT8Alloc at cmscgats.c:1454:22 in lcms2.h
+// cmsIT8Free at cmscgats.c:1170:16 in lcms2.h
+// cmsIT8GetProperty at cmscgats.c:1578:23 in lcms2.h
+// cmsIT8DefineDblFormat at cmscgats.c:3041:16 in lcms2.h
+// cmsIT8GetSheetType at cmscgats.c:1508:23 in lcms2.h
+// cmsIT8GetPropertyMulti at cmscgats.c:1600:23 in lcms2.h
+// cmsIT8GetPatchName at cmscgats.c:2955:23 in lcms2.h
+// cmsIT8GetData at cmscgats.c:2862:23 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "lcms2.h"
 
-static void FuzzMLUFunctions(const uint8_t *Data, size_t Size) {
-    cmsContext context = NULL;
-    cmsUInt32Number nItems = (Size > 0) ? Data[0] : 2;
-    
-    cmsMLU* mlu = cmsMLUalloc(context, nItems);
-    if (!mlu) return;
+#define DUMMY_FILE "./dummy_file"
 
-    // Fuzz cmsMLUgetUTF8 and cmsMLUgetASCII
-    char langCode[3] = "en";
-    char countryCode[3] = "US";
-    char buffer[256];
-    cmsUInt32Number bufferSize = sizeof(buffer);
+static cmsHANDLE createDummyIT8Handle() {
+    return cmsIT8Alloc(NULL);
+}
 
-    cmsMLUgetUTF8(mlu, langCode, countryCode, buffer, bufferSize);
-    cmsMLUgetASCII(mlu, langCode, countryCode, buffer, bufferSize);
-
-    // Fuzz cmsMLUtranslationsCount
-    cmsUInt32Number count = cmsMLUtranslationsCount(mlu);
-
-    // Fuzz cmsMLUdup
-    cmsMLU* mluDup = cmsMLUdup(mlu);
-    if (mluDup) {
-        cmsMLUfree(mluDup);
-    }
-
-    // Cleanup
-    cmsMLUfree(mlu);
+static void destroyDummyIT8Handle(cmsHANDLE hIT8) {
+    cmsIT8Free(hIT8);
 }
 
 int LLVMFuzzerTestOneInput_164(const uint8_t *Data, size_t Size) {
-    FuzzMLUFunctions(Data, Size);
+    if (Size < 1) return 0;
+
+    cmsHANDLE hIT8 = createDummyIT8Handle();
+    if (!hIT8) return 0;
+
+    // Ensure the input data is treated as a null-terminated string
+    char* propertyKey = (char*)malloc(Size + 1);
+    if (!propertyKey) {
+        destroyDummyIT8Handle(hIT8);
+        return 0;
+    }
+    memcpy(propertyKey, Data, Size);
+    propertyKey[Size] = '\0';
+
+    // Test cmsIT8GetProperty
+    const char* propertyValue = cmsIT8GetProperty(hIT8, propertyKey);
+    if (propertyValue) {
+        printf("Property Value: %s\n", propertyValue);
+    }
+
+    // Test cmsIT8DefineDblFormat
+    cmsIT8DefineDblFormat(hIT8, propertyKey);
+
+    // Test cmsIT8GetSheetType
+    const char* sheetType = cmsIT8GetSheetType(hIT8);
+    if (sheetType) {
+        printf("Sheet Type: %s\n", sheetType);
+    }
+
+    // Test cmsIT8GetPropertyMulti
+    const char* multiPropertyValue = cmsIT8GetPropertyMulti(hIT8, propertyKey, propertyKey);
+    if (multiPropertyValue) {
+        printf("Multi Property Value: %s\n", multiPropertyValue);
+    }
+
+    // Test cmsIT8GetPatchName
+    char buffer[256];
+    const char* patchName = cmsIT8GetPatchName(hIT8, (int)Data[0], buffer);
+    if (patchName) {
+        printf("Patch Name: %s\n", patchName);
+    }
+
+    // Test cmsIT8GetData
+    const char* dataValue = cmsIT8GetData(hIT8, propertyKey, propertyKey);
+    if (dataValue) {
+        printf("Data Value: %s\n", dataValue);
+    }
+
+    free(propertyKey);
+    destroyDummyIT8Handle(hIT8);
     return 0;
 }

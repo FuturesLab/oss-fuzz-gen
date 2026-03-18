@@ -1,6 +1,5 @@
-#include <cstdint>
-#include <cstdlib>
-#include <iostream>
+#include <stddef.h>
+#include <stdint.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -9,22 +8,28 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    // Declare and initialize the integer pointer
-    int numScalingFactors = 0;
-    int *numScalingFactorsPtr = &numScalingFactors;
+    // Initialize variables
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
+        return 0; // If initialization fails, return early
+    }
+
+    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
+    unsigned long jpegSize = static_cast<unsigned long>(size);
+
+    // Allocate a buffer for the YUV image
+    int width = 1;  // Minimal non-zero width
+    int height = 1; // Minimal non-zero height
+    int subsamp = TJSAMP_444; // Use a common subsampling factor
+    int yuvSize = tjBufSizeYUV2(width, 1, height, subsamp);
+    unsigned char *yuvBuf = new unsigned char[yuvSize];
 
     // Call the function-under-test
-    tjscalingfactor *scalingFactors = tj3GetScalingFactors(numScalingFactorsPtr);
+    tjDecompressToYUV(handle, jpegBuf, jpegSize, yuvBuf, 1);
 
-    // Check if the function returned a non-NULL pointer
-    if (scalingFactors != NULL && numScalingFactors > 0) {
-        // Iterate over the scaling factors and print them
-        for (int i = 0; i < numScalingFactors; i++) {
-            std::cout << "Scaling Factor " << i << ": "
-                      << scalingFactors[i].num << "/"
-                      << scalingFactors[i].denom << std::endl;
-        }
-    }
+    // Clean up
+    delete[] yuvBuf;
+    tjDestroy(handle);
 
     return 0;
 }

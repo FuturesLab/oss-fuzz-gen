@@ -1,51 +1,43 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-
-// Include the necessary headers for GF_ISOFile and gf_isom_remove_track_kind
+#include <unistd.h>  // Include for close() and unlink()
+#include <fcntl.h>   // Include for mkstemp()
 #include <gpac/isomedia.h>
-#include <gpac/internal/isomedia_dev.h>
+#include <gpac/constants.h>
 
 int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to extract necessary parameters
-    if (size < sizeof(uint32_t) + 2) {
+    GF_ISOFile *file = NULL;
+    Bool root_meta = GF_FALSE;
+    u32 track_num = 1; // Initialize with a non-zero value
+
+    // Create a temporary file to simulate an ISO file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize GF_ISOFile
-    GF_ISOFile *movie = gf_isom_open_file("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) {
+    // Write data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Open the ISO file using the temporary file path
+    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        unlink(tmpl);
         return 0;
     }
 
-    // Extract trackNumber from the data
-    uint32_t trackNumber = *(uint32_t *)data;
-    data += sizeof(uint32_t);
-    size -= sizeof(uint32_t);
-
-    // Use the remaining data to create strings for schemeURI and value
-    const char *schemeURI = (const char *)data;
-    size_t schemeURILen = strnlen(schemeURI, size);
-    if (schemeURILen == size) {
-        gf_isom_close(movie);
-        return 0;
-    }
-
-    data += schemeURILen + 1;
-    size -= schemeURILen + 1;
-
-    const char *value = (const char *)data;
-    size_t valueLen = strnlen(value, size);
-    if (valueLen == size) {
-        gf_isom_close(movie);
-        return 0;
-    }
-
-    // Call the function-under-test
-    gf_isom_remove_track_kind(movie, trackNumber, schemeURI, value);
+    // Fuzz the function-under-test
+    gf_isom_has_meta_xml(file, root_meta, track_num);
 
     // Clean up
-    gf_isom_close(movie);
+    gf_isom_close(file);
+    unlink(tmpl);
 
     return 0;
 }

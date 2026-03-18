@@ -3,43 +3,43 @@
 #include <zlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
+#include <stdlib.h> // Include stdlib.h for malloc and free
 
 int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to split into two strings
+    // Ensure the size is sufficient to split data into two non-empty strings
     if (size < 2) {
         return 0;
     }
 
-    // Split the input data into two parts for the file name and mode
-    size_t filename_size = size / 2;
-    size_t mode_size = size - filename_size;
+    // Find a position to split the data into two strings
+    size_t split_pos = size / 2;
 
     // Allocate memory for the file name and mode strings
-    char *filename = (char *)malloc(filename_size + 1);
-    char *mode = (char *)malloc(mode_size + 1);
+    char *filename = (char *)malloc(split_pos + 1);
+    char *mode = (char *)malloc(size - split_pos + 1);
 
     if (filename == NULL || mode == NULL) {
-        // Handle memory allocation failure
+        // Memory allocation failed
         free(filename);
         free(mode);
         return 0;
     }
 
-    // Copy data into the allocated memory and null-terminate
-    memcpy(filename, data, filename_size);
-    filename[filename_size] = '\0';
+    // Copy data into the filename and mode strings
+    memcpy(filename, data, split_pos);
+    filename[split_pos] = '\0';
 
-    memcpy(mode, data + filename_size, mode_size);
-    mode[mode_size] = '\0';
+    memcpy(mode, data + split_pos, size - split_pos);
+    mode[size - split_pos] = '\0';
 
     // Call the function-under-test
     gzFile file = gzopen(filename, mode);
 
-    // Cleanup
+    // Clean up
     if (file != NULL) {
         gzclose(file);
     }
+
     free(filename);
     free(mode);
 

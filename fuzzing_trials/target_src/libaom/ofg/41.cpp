@@ -1,29 +1,34 @@
 #include <cstdint>
 #include <cstddef>
-#include <cstring> // Include this for std::memcpy
+#include <cstring>
+#include <cstdlib>
 
+// Since aom_util.h does not exist, we need to include the correct header
+// that contains the declaration for aom_uleb_encode_fixed_size.
+// Assuming the function is part of the libaom project, include the appropriate header.
 extern "C" {
-    #include <aom/aom_codec.h>
+    #include "aom/aom_codec.h"  // Example: replace with the actual header where the function is declared
+    #include "aom/aom_integer.h" // Include any other necessary headers for types
 }
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid aom_codec_ctx_t object
-    if (size < sizeof(aom_codec_ctx_t)) {
+    // Declare and initialize variables for the function parameters
+    uint64_t value = 0;
+    size_t fixed_size = 1;
+    size_t buffer_size = 10;
+    uint8_t buffer[10];
+    size_t encoded_size = 0;
+
+    // Ensure the data size is sufficient for our needs
+    if (size < sizeof(uint64_t)) {
         return 0;
     }
 
-    // Create an aom_codec_ctx_t object from the input data
-    aom_codec_ctx_t codec_ctx;
-    // Copy data into the codec_ctx structure
-    std::memcpy(&codec_ctx, data, sizeof(aom_codec_ctx_t));
+    // Copy data into the value to be encoded
+    memcpy(&value, data, sizeof(uint64_t));
 
-    // Call the function-under-test
-    const char *error_detail = aom_codec_error_detail(&codec_ctx);
-
-    // Use the result to avoid compiler optimizations that might remove the call
-    if (error_detail != nullptr) {
-        // Do something with error_detail, like logging or further processing
-    }
+    // Call the function under test
+    aom_uleb_encode_fixed_size(value, fixed_size, buffer_size, buffer, &encoded_size);
 
     return 0;
 }

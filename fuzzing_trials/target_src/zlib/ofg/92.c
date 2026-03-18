@@ -1,24 +1,26 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <zlib.h>
-#include <sys/types.h> // Include this for off64_t
-#include <inttypes.h>  // Include this for PRId64
+#include <inttypes.h>  // Include for int64_t
 
+// Define the fuzzing function for C
 int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract three values
+    // Ensure that the input size is large enough to extract the necessary parameters.
     if (size < sizeof(uLong) * 2 + sizeof(int64_t)) {
         return 0;
     }
 
-    // Initialize the parameters for crc32_combine64
+    // Extract uLong values from the input data.
     uLong crc1 = *(const uLong *)(data);
     uLong crc2 = *(const uLong *)(data + sizeof(uLong));
+
+    // Extract int64_t value from the input data.
     int64_t len2 = *(const int64_t *)(data + sizeof(uLong) * 2);
 
-    // Call the function-under-test
-    uLong result = crc32_combine(crc1, crc2, (z_off_t)len2);
+    // Call the function-under-test with the extracted parameters.
+    uLong result = crc32_combine64(crc1, crc2, len2);
 
-    // Use the result to prevent the compiler from optimizing the call away
+    // Use the result in some way to avoid compiler optimizations removing the call.
     (void)result;
 
     return 0;

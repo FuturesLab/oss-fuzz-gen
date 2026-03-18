@@ -1,30 +1,27 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsUInt32Number renderingIntent;
+    cmsHANDLE handle = NULL;
 
-    // Check if size is sufficient to extract a cmsUInt32Number
-    if (size < sizeof(cmsUInt32Number)) {
-        return 0;
+    // Initialize the handle using a non-NULL value
+    // For fuzzing, we assume the handle is a valid pointer
+    // In a real scenario, this should be a valid cmsHANDLE object
+    if (size >= sizeof(cmsHANDLE)) {
+        handle = (cmsHANDLE)data; // Cast data to cmsHANDLE for testing
+    } else {
+        // Allocate memory for handle if size is insufficient
+        handle = (cmsHANDLE)malloc(sizeof(cmsHANDLE));
     }
-
-    // Create a dummy profile for testing
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
-        return 0;
-    }
-
-    // Extract renderingIntent from the input data
-    renderingIntent = *(const cmsUInt32Number *)data;
 
     // Call the function-under-test
-    cmsSetHeaderRenderingIntent(hProfile, renderingIntent);
+    cmsGBDFree(handle);
 
-    // Close the profile to avoid memory leaks
-    cmsCloseProfile(hProfile);
+    // Free allocated memory if necessary
+    if (size < sizeof(cmsHANDLE)) {
+        free(handle);
+    }
 
     return 0;
 }

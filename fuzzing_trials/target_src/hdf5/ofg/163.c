@@ -2,16 +2,19 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_163(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract a valid hid_t
-    if (size < sizeof(hid_t)) {
+    // Initialize a hid_t variable for testing
+    hid_t file_id = H5Fopen("dummy_file.h5", H5F_ACC_RDWR, H5P_DEFAULT);
+    
+    // Ensure the file_id is valid
+    if (file_id < 0) {
         return 0;
     }
 
-    // Extract a hid_t from the input data
-    hid_t file_id = *((hid_t*)data);
-
     // Call the function-under-test
-    H5Freset_page_buffering_stats(file_id);
+    herr_t result = H5Freset_page_buffering_stats(file_id);
+
+    // Close the file to clean up
+    H5Fclose(file_id);
 
     return 0;
 }

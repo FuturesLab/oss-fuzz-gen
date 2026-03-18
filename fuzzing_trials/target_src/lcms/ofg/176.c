@@ -1,54 +1,34 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
+// Include the header where cmsPluginBase is defined
+#include <lcms2_plugin.h>
+
 int LLVMFuzzerTestOneInput_176(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHANDLE handle;
-    char *setName;
-    char *setValue;
-    cmsFloat64Number value;
+    cmsContext context;
+    cmsPluginBase *pluginData;
 
-    // Ensure size is sufficient to extract necessary data
-    if (size < sizeof(cmsFloat64Number) + 2) {
+    // Initialize context to non-NULL value
+    context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
         return 0;
     }
 
-    // Initialize handle
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Ensure that the size is sufficient for a cmsPluginBase structure
+    if (size < sizeof(cmsPluginBase)) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Allocate memory for setName and setValue
-    setName = (char *)malloc(2);
-    setValue = (char *)malloc(2);
-
-    if (setName == NULL || setValue == NULL) {
-        cmsIT8Free(handle);
-        free(setName);
-        free(setValue);
-        return 0;
-    }
-
-    // Copy data into setName and setValue
-    strncpy(setName, (const char *)data, 1);
-    setName[1] = '\0';
-    strncpy(setValue, (const char *)(data + 1), 1);
-    setValue[1] = '\0';
-
-    // Extract cmsFloat64Number value from data
-    memcpy(&value, data + 2, sizeof(cmsFloat64Number));
+    // Interpret the input data as a cmsPluginBase structure
+    pluginData = (cmsPluginBase *)data;
 
     // Call the function-under-test
-    cmsIT8SetDataDbl(handle, setName, setValue, value);
+    cmsBool result = cmsPluginTHR(context, pluginData);
 
-    // Clean up
-    cmsIT8Free(handle);
-    free(setName);
-    free(setValue);
+    // Clean up the context
+    cmsDeleteContext(context);
 
     return 0;
 }

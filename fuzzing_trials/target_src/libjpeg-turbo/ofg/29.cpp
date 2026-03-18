@@ -1,28 +1,28 @@
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    int tjSaveImage(const char *filename, unsigned char *buffer, int width, int pitch, int height, int pixelFormat, int flags);
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the parameters
-    if (size < 20) {
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
         return 0;
     }
 
-    // Extract parameters from the data
-    const char *filename = reinterpret_cast<const char*>(data);
-    unsigned char *buffer = const_cast<unsigned char*>(data + 5);
-    int width = static_cast<int>(data[10]);
-    int pitch = static_cast<int>(data[11]);
-    int height = static_cast<int>(data[12]);
-    int pixelFormat = static_cast<int>(data[13]);
-    int flags = static_cast<int>(data[14]);
+    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
+    unsigned long jpegSize = static_cast<unsigned long>(size);
+    int width = 0;
+    int height = 0;
 
-    // Call the function under test
-    tjSaveImage(filename, buffer, width, pitch, height, pixelFormat, flags);
+    // Fuzz the tjDecompressHeader function
+    int result = tjDecompressHeader(handle, jpegBuf, jpegSize, &width, &height);
+
+    // Clean up
+    tjDestroy(handle);
 
     return 0;
 }

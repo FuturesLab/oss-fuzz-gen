@@ -1,28 +1,34 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <lcms2.h>
+#include <string.h>
+#include <lcms2_plugin.h>
 
 int LLVMFuzzerTestOneInput_394(const uint8_t *data, size_t size) {
-    cmsPipeline *pipeline = NULL;
-    cmsStage *stage = NULL;
+    cmsHANDLE handle;
+    char *patchName;
 
-    // Initialize a cmsPipeline with a non-NULL value
-    pipeline = cmsPipelineAlloc(NULL, 3, 3);
-    if (pipeline == NULL) {
+    // Initialize the handle with some valid data
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Add a stage to the pipeline to ensure it's not empty
-    cmsStage *identityStage = cmsStageAllocIdentity(NULL, 3);
-    if (identityStage != NULL) {
-        cmsPipelineInsertStage(pipeline, cmsAT_END, identityStage);
+    // Ensure that the data can be used as a null-terminated string
+    patchName = (char *)malloc(size + 1);
+    if (patchName == NULL) {
+        cmsIT8Free(handle);
+        return 0;
     }
+    memcpy(patchName, data, size);
+    patchName[size] = '\0';
 
     // Call the function under test
-    stage = cmsPipelineGetPtrToFirstStage(pipeline);
+    cmsIT8GetPatchByName(handle, patchName);
 
     // Clean up
-    cmsPipelineFree(pipeline);
+    free(patchName);
+    cmsIT8Free(handle);
 
     return 0;
 }

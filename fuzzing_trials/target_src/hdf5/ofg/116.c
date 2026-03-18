@@ -1,26 +1,23 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    hid_t dataset_id;
-    hid_t dataspace_id;
-
-    // Ensure we have enough data to form a valid hid_t
+    // Ensure size is sufficient for a hid_t type
     if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Cast the first part of data to hid_t
-    dataset_id = *(const hid_t *)data;
+    // Extract a hid_t from the input data
+    hid_t dataset_id = *(hid_t *)data;
 
     // Call the function-under-test
-    dataspace_id = H5Dget_space(dataset_id);
+    hid_t dataspace_id = H5Dget_space(dataset_id);
 
-    // Normally, you would check the dataspace_id here and perform further operations
-    // For fuzzing, we just ensure that the function is called
+    // Normally, you would do some checks or further operations with dataspace_id
+    // For fuzzing, we just need to ensure the function is called
 
-    // If dataspace_id is valid, close it
+    // Close the dataspace_id if it's valid
     if (dataspace_id >= 0) {
         H5Sclose(dataspace_id);
     }

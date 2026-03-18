@@ -1,40 +1,28 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    // Declare and initialize parameters for H5Dread_multi
-    size_t count = 1; // Number of datasets to read
-    hid_t dset_id[1]; // Array of dataset identifiers
-    hid_t mem_type_id[1]; // Array of memory datatype identifiers
-    hid_t mem_space_id[1]; // Array of memory dataspace identifiers
-    hid_t file_space_id[1]; // Array of file dataspace identifiers
-    hid_t plist_id = H5P_DEFAULT; // Property list identifier
-    void *buf[1]; // Array of pointers to data buffers
-
-    // Initialize the dataset, datatype, and dataspace identifiers
-    dset_id[0] = H5I_INVALID_HID; // Invalid identifier for fuzzing
-    mem_type_id[0] = H5T_NATIVE_INT; // Example datatype
-    mem_space_id[0] = H5S_ALL; // Use the entire memory dataspace
-    file_space_id[0] = H5S_ALL; // Use the entire file dataspace
-
-    // Allocate memory for the data buffer
-    buf[0] = malloc(size);
-    if (buf[0] == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Ensure the data size is sufficient to extract meaningful values
+    if (size < sizeof(hid_t) * 2 + sizeof(hsize_t)) {
+        return 0;
     }
 
-    // Copy data into the buffer
-    if (size > 0) {
-        memcpy(buf[0], data, size);
-    }
+    // Initialize variables
+    hid_t dset_id = *((hid_t *)data); // Extract hid_t from data
+    hid_t fspace_id = *((hid_t *)(data + sizeof(hid_t))); // Extract another hid_t
+    hsize_t index = *((hsize_t *)(data + sizeof(hid_t) * 2)); // Extract hsize_t
+
+    // Initialize pointers for function call
+    hsize_t offset[H5S_MAX_RANK] = {0}; // Assuming a maximum rank
+    unsigned int filter_mask = 0;
+    haddr_t addr = 0;
+    hsize_t size_out = 0;
 
     // Call the function-under-test
-    herr_t status = H5Dread_multi(count, dset_id, mem_type_id, mem_space_id, file_space_id, plist_id, buf);
+    herr_t result = H5Dget_chunk_info(dset_id, fspace_id, index, offset, &filter_mask, &addr, &size_out);
 
-    // Free allocated memory
-    free(buf[0]);
-
+    // Use the result in some way (e.g., logging, further processing) if necessary
+    // For the purpose of fuzzing, we just return 0
     return 0;
 }

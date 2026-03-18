@@ -1,22 +1,44 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_478(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
-    cmsUInt32Number intent = 0; // Using 0 as a default intent
-    cmsUInt32Number flags = 0; // Using 0 as a default flag
-    void *buffer = malloc(size > 0 ? size : 1); // Allocate buffer, ensure non-NULL
-    cmsUInt32Number bufferSize = size > 0 ? size : 1; // Ensure non-zero buffer size
+    // Initialize variables for the function parameters
+    cmsHPROFILE hProfile;
+    cmsTagSignature tagSignature;
+    const void *tagData;
+    cmsUInt32Number tagSize;
 
-    if (hProfile != NULL) {
-        cmsGetPostScriptCRD(context, hProfile, intent, flags, buffer, bufferSize);
-        cmsCloseProfile(hProfile);
+    // Create a dummy profile for testing
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
     }
 
-    free(buffer);
-    cmsDeleteContext(context);
+    // Ensure there's enough data to extract tagSignature and tagSize
+    if (size < sizeof(cmsTagSignature) + sizeof(cmsUInt32Number)) {
+        cmsCloseProfile(hProfile);
+        return 0;
+    }
+
+    // Extract tagSignature and tagSize from the input data
+    tagSignature = *(cmsTagSignature *)data;
+    tagSize = *(cmsUInt32Number *)(data + sizeof(cmsTagSignature));
+
+    // Ensure tagSize does not exceed the remaining data size
+    if (tagSize > size - sizeof(cmsTagSignature) - sizeof(cmsUInt32Number)) {
+        cmsCloseProfile(hProfile);
+        return 0;
+    }
+
+    // Set tagData to point to the appropriate location in the input data
+    tagData = (const void *)(data + sizeof(cmsTagSignature) + sizeof(cmsUInt32Number));
+
+    // Call the function-under-test
+    cmsWriteRawTag(hProfile, tagSignature, tagData, tagSize);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_remove_user_data_item at isom_write.c:3705:8 in isomedia.h
-// gf_isom_add_uuid at isom_write.c:6258:8 in isomedia.h
-// gf_isom_append_sample_data at isom_write.c:1218:8 in isomedia.h
-// gf_isom_fragment_append_data at movie_fragments.c:3127:8 in isomedia.h
-// gf_isom_setup_track_fragment_template at movie_fragments.c:341:8 in isomedia.h
-// gf_isom_cenc_get_sample_aux_info at drm_sample.c:1645:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_text_add_karaoke at tx3g.c:335:8 in isomedia.h
+// gf_isom_text_reset_styles at tx3g.c:612:8 in isomedia.h
+// gf_isom_text_sample_write_bs at tx3g.c:440:8 in isomedia.h
+// gf_isom_text_set_wrap at tx3g.c:411:8 in isomedia.h
+// gf_isom_text_set_forced at tx3g.c:423:8 in isomedia.h
+// gf_isom_text_reset at tx3g.c:636:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -14,88 +12,105 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
+// Forward declare the structures since their definitions are not provided
+typedef struct GF_TextStyleBox GF_TextStyleBox;
+typedef struct GF_TextHighlightColorBox GF_TextHighlightColorBox;
+typedef struct GF_TextScrollDelayBox GF_TextScrollDelayBox;
+typedef struct GF_TextBoxBox GF_TextBoxBox;
+typedef struct GF_TextWrapBox GF_TextWrapBox;
+typedef struct GF_TextKaraokeBox GF_TextKaraokeBox;
+typedef struct _tag_array GF_List;
 
-static void write_dummy_file(const uint8_t *data, size_t size) {
-    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
-    if (file) {
-        fwrite(data, 1, size, file);
-        fclose(file);
+// Define the complete structure for GF_TextSample as per the library's internal implementation
+typedef struct _3gpp_text_sample {
+    char *text;
+    u32 len;
+    GF_TextStyleBox *styles;
+    GF_TextHighlightColorBox *highlight_color;
+    GF_TextScrollDelayBox *scroll_delay;
+    GF_TextBoxBox *box;
+    GF_TextWrapBox *wrap;
+    Bool is_forced;
+    GF_List *others;
+    GF_TextKaraokeBox *cur_karaoke;
+} GF_TextSample;
+
+static GF_TextSample* create_text_sample(const uint8_t *Data, size_t Size) {
+    GF_TextSample *sample = (GF_TextSample *)malloc(sizeof(GF_TextSample));
+    if (!sample) return NULL;
+
+    sample->text = (char *)malloc(Size + 1);
+    if (!sample->text) {
+        free(sample);
+        return NULL;
     }
+    memcpy(sample->text, Data, Size);
+    sample->text[Size] = '\0';
+    sample->len = Size;
+
+    sample->styles = NULL;
+    sample->highlight_color = NULL;
+    sample->scroll_delay = NULL;
+    sample->box = NULL;
+    sample->wrap = NULL;
+    sample->is_forced = 0;
+    sample->others = NULL;
+    sample->cur_karaoke = NULL;
+
+    return sample;
+}
+
+static GF_BitStream* create_bitstream() {
+    GF_BitStream *bs = gf_bs_new(NULL, 0, GF_BITSTREAM_WRITE);
+    return bs;
+}
+
+static void cleanup_text_sample(GF_TextSample *sample) {
+    if (!sample) return;
+    if (sample->text) free(sample->text);
+    free(sample);
+}
+
+static void cleanup_bitstream(GF_BitStream *bs) {
+    if (!bs) return;
+    gf_bs_del(bs);
 }
 
 int LLVMFuzzerTestOneInput_102(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 5 + sizeof(bin128)) {
+    if (Size == 0) return 0;
+
+    GF_TextSample *sample = create_text_sample(Data, Size);
+    if (!sample) return 0;
+
+    GF_BitStream *bs = create_bitstream();
+    if (!bs) {
+        cleanup_text_sample(sample);
         return 0;
     }
 
-    // Prepare input data
-    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_WRITE, NULL);
-    if (!isom_file) {
-        return 0;
+    // Fuzzing gf_isom_text_reset_styles
+    gf_isom_text_reset_styles(sample);
+
+    // Fuzzing gf_isom_text_sample_write_bs
+    gf_isom_text_sample_write_bs(sample, bs);
+
+    // Fuzzing gf_isom_text_set_wrap
+    gf_isom_text_set_wrap(sample, Data[0] % 2);
+
+    // Fuzzing gf_isom_text_set_forced
+    gf_isom_text_set_forced(sample, Data[0] % 2);
+
+    // Fuzzing gf_isom_text_reset
+    gf_isom_text_reset(sample);
+
+    // Fuzzing gf_isom_text_add_karaoke
+    if (Size >= 4) {
+        uint32_t start_time = *(uint32_t *)Data;
+        gf_isom_text_add_karaoke(sample, start_time);
     }
 
-    u32 trackNumber = *(u32 *)Data;
-    Data += sizeof(u32);
-    Size -= sizeof(u32);
-
-    u32 UserDataType = *(u32 *)Data;
-    Data += sizeof(u32);
-    Size -= sizeof(u32);
-
-    bin128 UUID;
-    memcpy(UUID, Data, sizeof(bin128));
-    Data += sizeof(bin128);
-    Size -= sizeof(bin128);
-
-    u32 UserDataIndex = *(u32 *)Data;
-    Data += sizeof(u32);
-    Size -= sizeof(u32);
-
-    u32 data_size = *(u32 *)Data;
-    Data += sizeof(u32);
-    Size -= sizeof(u32);
-
-    // Ensure data_size does not exceed remaining Size
-    if (data_size > Size) {
-        data_size = Size;
-    }
-
-    // Write remaining Data to dummy file
-    write_dummy_file(Data, Size);
-
-    // Call gf_isom_remove_user_data_item
-    gf_isom_remove_user_data_item(isom_file, trackNumber, UserDataType, UUID, UserDataIndex);
-
-    // Call gf_isom_add_uuid
-    gf_isom_add_uuid(isom_file, trackNumber, UUID, Data, data_size);
-
-    // Call gf_isom_append_sample_data
-    gf_isom_append_sample_data(isom_file, trackNumber, (u8 *)Data, data_size);
-
-    // Call gf_isom_fragment_append_data
-    gf_isom_fragment_append_data(isom_file, trackNumber, (u8 *)Data, data_size, 0);
-
-    // Call gf_isom_setup_track_fragment_template
-    gf_isom_setup_track_fragment_template(isom_file, trackNumber, (u8 *)Data, data_size, 0);
-
-    // Prepare buffer for gf_isom_cenc_get_sample_aux_info
-    u8 *out_buffer = NULL;
-    u32 outSize = 0;
-    u32 sampleNumber = 1;
-    u32 sampleDescIndex = 1;
-    u32 container_type = GF_ISOM_BOX_UUID_PSEC;
-
-    // Call gf_isom_cenc_get_sample_aux_info
-    gf_isom_cenc_get_sample_aux_info(isom_file, trackNumber, sampleNumber, sampleDescIndex, &container_type, &out_buffer, &outSize);
-
-    // Free allocated buffer
-    if (out_buffer) {
-        free(out_buffer);
-    }
-
-    // Close the ISO file
-    gf_isom_close(isom_file);
+    cleanup_text_sample(sample);
+    cleanup_bitstream(bs);
 
     return 0;
 }

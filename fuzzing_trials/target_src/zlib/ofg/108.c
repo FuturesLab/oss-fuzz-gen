@@ -1,52 +1,40 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <zlib.h>
-#include <string.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_108(const uint8_t *data, size_t size) {
-    z_stream strm;
+    // Declare and initialize variables for the function call
+    z_stream stream;
     const char *version = ZLIB_VERSION;
-    int stream_size = (int)sizeof(z_stream);
+    int stream_size = sizeof(z_stream);
 
     // Initialize the z_stream structure
-    memset(&strm, 0, sizeof(z_stream));
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
 
-    // Ensure data is not NULL and has a minimum size
-    if (data == NULL || size == 0) {
-        return 0;
+    // Allocate an output buffer
+    uInt output_buffer_size = 1024; // Arbitrary size for the output buffer
+    Bytef *output_buffer = (Bytef *)malloc(output_buffer_size);
+    if (output_buffer == NULL) {
+        return 0; // If allocation fails, exit the function
     }
+    stream.next_out = output_buffer;
+    stream.avail_out = output_buffer_size;
 
-    // Allocate memory for output buffer
-    size_t output_size = size * 2; // Initial guess for output size
-    uint8_t *output = (uint8_t *)malloc(output_size);
-    if (output == NULL) {
-        return 0;
-    }
-
-    // Set up the z_stream structure for inflation
-    strm.next_in = (Bytef *)data;
-    strm.avail_in = size;
-    strm.next_out = output;
-    strm.avail_out = output_size;
-
-    // Initialize the inflation process
-    int ret = inflateInit_(&strm, version, stream_size);
-    if (ret != Z_OK) {
-        free(output);
-        return 0;
-    }
-
-    // Perform inflation
-    ret = inflate(&strm, Z_NO_FLUSH);
-    if (ret != Z_STREAM_END && ret != Z_OK) {
-        inflateEnd(&strm);
-        free(output);
-        return 0;
+    // Call the function-under-test
+    int init_result = inflateInit_(&stream, version, stream_size);
+    if (init_result == Z_OK) {
+        // Inflate the input data
+        inflate(&stream, Z_NO_FLUSH);
     }
 
     // Cleanup
-    inflateEnd(&strm);
-    free(output);
+    inflateEnd(&stream);
+    free(output_buffer);
 
     return 0;
 }

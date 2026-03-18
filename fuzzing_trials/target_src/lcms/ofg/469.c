@@ -1,24 +1,36 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_469(const uint8_t *data, size_t size) {
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
+    cmsHANDLE handle;
+    void *buffer;
+    cmsUInt32Number bufferSize;
+    cmsBool result;
 
-    if (pipeline == NULL) {
-        return 0; // Allocation failed, exit early
+    // Initialize the handle with some valid data
+    handle = cmsIT8Alloc(NULL);
+    if (!handle) {
+        return 0;
     }
 
-    // Add a stage to the pipeline to ensure it's not NULL
-    cmsStage *stage = cmsStageAllocIdentity(NULL, 3);
-    if (stage != NULL) {
-        cmsPipelineInsertStage(pipeline, cmsAT_BEGIN, stage);
+    // Allocate a buffer with a size of at least 1 to avoid NULL
+    buffer = malloc(size > 0 ? size : 1);
+    if (!buffer) {
+        cmsIT8Free(handle);
+        return 0;
     }
 
-    // Fuzz the function
-    cmsContext contextID = cmsGetPipelineContextID(pipeline);
+    // Initialize bufferSize with a non-zero value
+    bufferSize = (cmsUInt32Number)(size > 0 ? size : 1);
 
-    // Clean up
-    cmsPipelineFree(pipeline);
+    // Call the function-under-test
+    result = cmsIT8SaveToMem(handle, buffer, &bufferSize);
+
+    // Free the allocated resources
+    free(buffer);
+    cmsIT8Free(handle);
 
     return 0;
 }

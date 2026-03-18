@@ -1,65 +1,69 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_append_edit at isom_write.c:2849:8 in isomedia.h
-// gf_isom_set_edit_with_rate at isom_write.c:2789:8 in isomedia.h
-// gf_isom_modify_edit at isom_write.c:2894:8 in isomedia.h
-// gf_isom_patch_last_sample_duration at isom_write.c:1425:8 in isomedia.h
-// gf_isom_get_edit at isom_read.c:2560:8 in isomedia.h
-// gf_isom_set_edit at isom_write.c:2783:8 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_new_xml_metadata_description at sample_descs.c:1188:8 in isomedia.h
+// gf_isom_subtitle_get_mime at sample_descs.c:1274:13 in isomedia.h
+// gf_isom_new_stxt_description at sample_descs.c:1418:8 in isomedia.h
+// gf_isom_stxt_get_description at sample_descs.c:1385:8 in isomedia.h
+// gf_isom_get_webvtt_config at sample_descs.c:1577:13 in isomedia.h
+// gf_isom_new_xml_subtitle_description at sample_descs.c:1326:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile *create_dummy_iso_file() {
-    // Allocate memory for the GF_ISOFile structure through an appropriate initializer
-    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+static GF_ISOFile* create_dummy_iso_file() {
+    // Allocate memory for a dummy GF_ISOFile structure using a placeholder size
+    size_t placeholder_size = 1024; // Adjust this size according to actual implementation needs
+    GF_ISOFile *file = (GF_ISOFile *)malloc(placeholder_size);
+    if (file) {
+        memset(file, 0, placeholder_size);
+    }
     return file;
 }
 
 static void cleanup_iso_file(GF_ISOFile *file) {
     if (file) {
-        gf_isom_close(file);
+        free(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_136(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    GF_ISOFile *isoFile = create_dummy_iso_file();
-    if (!isoFile) return 0;
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
     u32 trackNumber = Data[0];
-    u64 EditDuration = Size > 8 ? *(u64 *)(Data + 1) : 0;
-    u64 MediaTime = Size > 16 ? *(u64 *)(Data + 9) : 0;
-    GF_ISOEditType EditMode = Size > 24 ? (GF_ISOEditType)Data[17] : 0;
-    u64 EditTime = Size > 32 ? *(u64 *)(Data + 25) : 0;
-    u32 MediaRate = Size > 40 ? *(u32 *)(Data + 33) : 0;
-    u64 next_dts = Size > 48 ? *(u64 *)(Data + 41) : 0;
-    u32 edit_index = Size > 56 ? *(u32 *)(Data + 49) : 0;
+    const char *xmlnamespace = (Size > 1) ? (const char *)&Data[1] : NULL;
+    const char *schema_loc = (Size > 2) ? (const char *)&Data[2] : NULL;
+    const char *content_encoding = (Size > 3) ? (const char *)&Data[3] : NULL;
+    u32 outDescriptionIndex = 0;
 
-    // Fuzz gf_isom_append_edit
-    gf_isom_append_edit(isoFile, trackNumber, EditDuration, MediaTime, EditMode);
+    gf_isom_new_xml_metadata_description(iso_file, trackNumber, xmlnamespace, schema_loc, content_encoding, &outDescriptionIndex);
 
-    // Fuzz gf_isom_set_edit_with_rate
-    gf_isom_set_edit_with_rate(isoFile, trackNumber, EditTime, EditDuration, MediaTime, MediaRate);
+    u32 sampleDescriptionIndex = Data[0];
+    gf_isom_subtitle_get_mime(iso_file, trackNumber, sampleDescriptionIndex);
 
-    // Fuzz gf_isom_modify_edit
-    gf_isom_modify_edit(isoFile, trackNumber, edit_index, EditDuration, MediaTime, EditMode);
+    u32 type = Data[0];
+    const char *mime = (Size > 1) ? (const char *)&Data[1] : NULL;
+    const char *encoding = (Size > 2) ? (const char *)&Data[2] : NULL;
+    const char *config = (Size > 3) ? (const char *)&Data[3] : NULL;
 
-    // Fuzz gf_isom_patch_last_sample_duration
-    gf_isom_patch_last_sample_duration(isoFile, trackNumber, next_dts);
+    gf_isom_new_stxt_description(iso_file, trackNumber, type, mime, encoding, config, &outDescriptionIndex);
 
-    // Fuzz gf_isom_get_edit
-    u64 EditTimeOut = 0, SegmentDurationOut = 0, MediaTimeOut = 0;
-    GF_ISOEditType EditModeOut = 0;
-    gf_isom_get_edit(isoFile, trackNumber, edit_index, &EditTimeOut, &SegmentDurationOut, &MediaTimeOut, &EditModeOut);
+    const char *retrieved_mime = NULL;
+    const char *retrieved_encoding = NULL;
+    const char *retrieved_config = NULL;
 
-    // Fuzz gf_isom_set_edit
-    gf_isom_set_edit(isoFile, trackNumber, EditTime, EditDuration, MediaTime, EditMode);
+    gf_isom_stxt_get_description(iso_file, trackNumber, sampleDescriptionIndex, &retrieved_mime, &retrieved_encoding, &retrieved_config);
 
-    cleanup_iso_file(isoFile);
+    gf_isom_get_webvtt_config(iso_file, trackNumber, sampleDescriptionIndex);
+
+    const char *auxiliary_mimes = (Size > 1) ? (const char *)&Data[1] : NULL;
+
+    gf_isom_new_xml_subtitle_description(iso_file, trackNumber, xmlnamespace, schema_loc, auxiliary_mimes, &outDescriptionIndex);
+
+    cleanup_iso_file(iso_file);
     return 0;
 }

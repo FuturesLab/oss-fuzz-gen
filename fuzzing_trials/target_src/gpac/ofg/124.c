@@ -1,30 +1,44 @@
-#include <gpac/isomedia.h>
-#include <gpac/constants.h> // Include the header where GF_ISO_HINT_FORMAT_RTP might be defined
 #include <stdint.h>
-#include <stddef.h>
-
-// Ensure that the GF_ISO_HINT_FORMAT_RTP is defined
-#ifndef GF_ISO_HINT_FORMAT_RTP
-#define GF_ISO_HINT_FORMAT_RTP 1 // Assuming 1 is a valid value for RTP hint format
-#endif
+#include <stdlib.h>
+#include <unistd.h> // For mkstemp, write, close, unlink
+#include <gpac/isomedia.h> // Assuming this is the correct header for GF_ISOFile and related types
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) {
+    // Initialize variables
+    GF_ISOFile *file = NULL;
+    Bool root_meta = 1; // Assuming 1 is a valid value for Bool
+    u32 track_num = 1; // Initialize with a non-zero value
+
+    // Create a temporary file for fuzzing
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Ensure the trackNumber is a valid non-zero value.
-    u32 trackNumber = (size > 0) ? (u32)data[0] : 1;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
 
-    // Use a valid hint type from GF_ISOHintFormat enum.
-    GF_ISOHintFormat HintType = GF_ISO_HINT_FORMAT_RTP;
+    // Close the file descriptor
+    close(fd);
 
-    // Call the function-under-test
-    gf_isom_setup_hint_track(movie, trackNumber, HintType);
+    // Open the file using GF_ISOFile
+    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        return 0;
+    }
 
-    // Clean up
-    gf_isom_close(movie);
+    // Call the function under test
+    gf_isom_has_meta_xml(file, root_meta, track_num);
+
+    // Close the file
+    gf_isom_close(file);
+
+    // Remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

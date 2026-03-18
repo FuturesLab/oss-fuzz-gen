@@ -1,30 +1,27 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_479(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
-    cmsUInt32Number intent = 0; // Use a simple value for intent
-    cmsUInt32Number flags = 0;  // Use a simple value for flags
-    void *buffer = malloc(1024); // Allocate a buffer
-    cmsUInt32Number bufferSize = 1024; // Define the buffer size
+    cmsHPROFILE hProfile;
+    cmsColorSpaceSignature pcs;
 
-    // Check if the profile was opened successfully
-    if (hProfile != NULL) {
-        // Call the function-under-test
-        cmsUInt32Number result = cmsGetPostScriptCRD(context, hProfile, intent, flags, buffer, bufferSize);
-
-        // Cleanup
-        cmsCloseProfile(hProfile);
+    // Ensure the data size is sufficient for creating a profile
+    if (size < sizeof(cmsUInt32Number)) {
+        return 0;
     }
 
-    // Free the allocated buffer
-    free(buffer);
+    // Create a profile from memory using the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
 
-    // Cleanup the context
-    cmsDeleteContext(context);
+    // Call the function-under-test
+    pcs = cmsGetPCS(hProfile);
+
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

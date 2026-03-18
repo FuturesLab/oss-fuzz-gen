@@ -1,38 +1,49 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
-// Define a sampler function separately as a regular function, not a lambda
-int samplerFunc(const cmsFloat32Number In[], cmsFloat32Number Out[], void *Cargo) {
-    for (int i = 0; i < 3; ++i) {
-        Out[i] = In[i] * 2.0f; // Simple transformation for testing
-    }
-    return 1;
-}
-
 int LLVMFuzzerTestOneInput_270(const uint8_t *data, size_t size) {
-    // Ensure size is large enough to extract necessary parameters
-    if (size < sizeof(cmsUInt32Number)) {
+    // Initialize variables
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3); // Allocate a pipeline with 3 input and 3 output channels
+    cmsUInt32Number stageIndex = 0; // Initialize stage index
+
+    // Ensure the pipeline is not NULL
+    if (pipeline == NULL) {
         return 0;
     }
 
-    // Initialize parameters for cmsStageAllocCLutFloat
-    cmsUInt32Number nGridPoints = 3;
-    cmsUInt32Number inputChan = 3;
-    cmsUInt32Number outputChan = 3;
-    cmsStage *stage = cmsStageAllocCLutFloat(NULL, nGridPoints, inputChan, outputChan, NULL);
-    if (stage == NULL) {
+    // Add a simple identity stage to the pipeline for testing
+    cmsStage *identityStage = cmsStageAllocIdentity(NULL, 3);
+    if (identityStage == NULL) {
+        cmsPipelineFree(pipeline);
+        return 0;
+    }
+    cmsPipelineInsertStage(pipeline, cmsAT_BEGIN, identityStage);
+
+    // Check if the input data is large enough to be used meaningfully
+    if (size < 3 * sizeof(cmsFloat32Number)) {
+        cmsPipelineFree(pipeline);
         return 0;
     }
 
-    void *cargo = NULL; // No additional data needed for this simple sampler function
+    // Convert input data to float array for the pipeline
+    cmsFloat32Number input[3];
+    for (int i = 0; i < 3; i++) {
+        input[i] = ((cmsFloat32Number)data[i]) / 255.0f; // Normalize data to [0, 1]
+    }
 
-    cmsUInt32Number nPoints = *(cmsUInt32Number *)data; // Use the first bytes of data as nPoints
+    // Prepare an output buffer
+    cmsFloat32Number output[3];
 
-    // Call the function-under-test
-    cmsBool result = cmsStageSampleCLutFloat(stage, samplerFunc, cargo, nPoints);
+    // Evaluate the pipeline with the input data
+    cmsPipelineEvalFloat(input, output, pipeline);
+
+    // Call the function-under-test with a valid stage index and a non-null pointer
+    cmsStage *retrievedStage;
+    cmsBool result = cmsPipelineCheckAndRetreiveStages(pipeline, stageIndex, &retrievedStage);
 
     // Clean up
-    cmsStageFree(stage);
+    cmsPipelineFree(pipeline);
 
-    return 0;
+    return result ? 0 : 1;
 }

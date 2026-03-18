@@ -2,21 +2,25 @@
 #include <stddef.h>
 #include <hdf5.h>
 
-// Define the function for fuzzing
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract meaningful data
-    if (size < 2) {
+    // Ensure that the input size is large enough to provide meaningful data
+    if (size < sizeof(hid_t) + sizeof(hsize_t)) {
         return 0;
     }
 
-    // Define and initialize the parameters for H5Freopen_async
-    // Removed unused parameters param1, param2, and param3
-    hid_t param4 = (hid_t)1;  // Dummy hid_t, assuming 1 is a valid ID
-    hid_t param5 = (hid_t)2;  // Dummy hid_t, assuming 2 is a valid ID
+    // Extract a valid location ID and index position from the input data
+    hid_t loc_id = *((hid_t *)data);
+    hsize_t n = *((hsize_t *)(data + sizeof(hid_t)));
 
-    // Call the function-under-test with the correct number of arguments
-    hid_t result = H5Freopen_async(param4, param5);
+    // Set a valid attribute name and other parameters
+    const char *attr_name = "attribute_name"; // Non-NULL attribute name
+    H5_index_t idx_type = H5_INDEX_NAME; // Valid index type
+    H5_iter_order_t order = H5_ITER_INC; // Valid iteration order
+    hid_t lapl_id = H5P_DEFAULT; // Link access property list
 
-    // Return 0 as required by the fuzzer
+    // Call the function-under-test
+    herr_t result = H5Adelete_by_idx(loc_id, attr_name, idx_type, order, n, lapl_id);
+
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

@@ -1,6 +1,5 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <cstdint>  // For uint8_t
+#include <cstddef>  // For size_t
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -9,44 +8,19 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for tjDecompressToYUVPlanes
-    tjhandle handle = tjInitDecompress();
-    if (handle == NULL) {
-        return 0; // If initialization fails, return immediately
+    if (size < 3) {
+        return 0; // Ensure there is enough data to extract three integers
     }
 
-    unsigned long jpegSize = (unsigned long)size;
-    const unsigned char *jpegBuf = data;
+    // Extract three integers from the input data
+    int componentID = data[0]; // Use the first byte as the component ID
+    int width = data[1];       // Use the second byte as the width
+    int subsamp = data[2];     // Use the third byte as the subsampling
 
-    // Assuming maximum dimensions for testing purposes
-    int width = 128;
-    int height = 128;
-    int numPlanes = 3; // Y, U, V planes
+    // Call the function under test with the extracted parameters
+    int height = tjPlaneHeight(componentID, width, subsamp);
 
-    // Allocate memory for YUV planes
-    unsigned char *yuvPlanes[3];
-    for (int i = 0; i < numPlanes; i++) {
-        yuvPlanes[i] = (unsigned char *)malloc(width * height);
-        if (yuvPlanes[i] == NULL) {
-            // If memory allocation fails, clean up and return
-            for (int j = 0; j < i; j++) {
-                free(yuvPlanes[j]);
-            }
-            tjDestroy(handle);
-            return 0;
-        }
-    }
-
-    int strides[3] = {width, width / 2, width / 2}; // Typical YUV420 strides
-
-    // Call the function-under-test
-    int result = tjDecompressToYUVPlanes(handle, jpegBuf, jpegSize, yuvPlanes, width, strides, height, 0);
-
-    // Clean up
-    for (int i = 0; i < numPlanes; i++) {
-        free(yuvPlanes[i]);
-    }
-    tjDestroy(handle);
+    (void)height; // Use the result to avoid unused variable warning
 
     return 0;
 }

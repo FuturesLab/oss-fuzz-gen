@@ -1,39 +1,39 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <hdf5.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_165(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a file to work with
-    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit
-    }
-
-    // Ensure that the data is null-terminated to be used as a string
+    hid_t file_id;
+    hid_t group_id;
     char group_name[256];
-    size_t copy_size = size < 255 ? size : 255;
-    if (size > 0) {
-        memcpy(group_name, data, copy_size);
+    size_t name_len;
+
+    // Ensure we have enough data to work with
+    if (size < 2) {
+        return 0;
     }
-    group_name[copy_size] = '\0';
 
-    // Use the data to call the function-under-test
-    hid_t group_id = H5Gcreate2(file_id, group_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Open a new HDF5 file to work with
+    file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    // Close the group if it was successfully created
+    // Copy data to group_name ensuring null-termination
+    name_len = size < 255 ? size : 255;
+    memcpy(group_name, data, name_len);
+    group_name[name_len] = '\0';
+
+    // Call the function-under-test
+    group_id = H5Gcreate1(file_id, group_name, name_len);
+
+    // Close the group and file if they were successfully created
     if (group_id >= 0) {
         H5Gclose(group_id);
     }
-
-    // Close the file
     H5Fclose(file_id);
-
-    // Close HDF5 library
-    H5close();
 
     return 0;
 }

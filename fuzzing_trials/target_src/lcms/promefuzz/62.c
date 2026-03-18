@@ -1,86 +1,90 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsBuildTabulatedToneCurve16 at cmsgamma.c:783:25 in lcms2.h
-// cmsBuildTabulatedToneCurveFloat at cmsgamma.c:832:25 in lcms2.h
-// cmsBuildSegmentedToneCurve at cmsgamma.c:797:25 in lcms2.h
-// cmsJoinToneCurve at cmsgamma.c:980:25 in lcms2.h
+// cmsFloat2XYZEncoded at cmspcs.c:374:16 in lcms2.h
+// _cmsAdjustEndianess16 at cmsplugin.c:37:28 in lcms2_plugin.h
+// cmsBuildGamma at cmsgamma.c:909:25 in lcms2.h
+// cmsEvalToneCurve16 at cmsgamma.c:1437:27 in lcms2.h
 // cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsReverseToneCurveEx at cmsgamma.c:1070:25 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsGetToneCurveEstimatedTableEntries at cmsgamma.c:768:27 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
+// _cmsDoubleTo8Fixed8 at cmsplugin.c:370:27 in lcms2_plugin.h
+// _cms8Fixed8toDouble at cmsplugin.c:365:28 in lcms2_plugin.h
+// cmsXYZEncoded2Float at cmspcs.c:429:16 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <lcms2.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <lcms2.h>
+#include <lcms2_plugin.h>
 
-static cmsToneCurve* create_random_tone_curve16(cmsContext ContextID, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number)) return NULL;
-    cmsUInt32Number nEntries = *(cmsUInt32Number*)Data;
-    if (nEntries == 0 || Size < sizeof(cmsUInt32Number) + nEntries * sizeof(cmsUInt16Number)) return NULL;
-    const cmsUInt16Number *values = (const cmsUInt16Number*)(Data + sizeof(cmsUInt32Number));
-    return cmsBuildTabulatedToneCurve16(ContextID, nEntries, values);
+static void fuzz_cmsFloat2XYZEncoded(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsCIEXYZ)) return;
+
+    cmsCIEXYZ *fXYZ = (cmsCIEXYZ *)Data;
+    cmsUInt16Number XYZ[3];
+
+    cmsFloat2XYZEncoded(XYZ, fXYZ);
 }
 
-static cmsToneCurve* create_random_tone_curve_float(cmsContext ContextID, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number)) return NULL;
-    cmsUInt32Number nEntries = *(cmsUInt32Number*)Data;
-    if (nEntries == 0 || Size < sizeof(cmsUInt32Number) + nEntries * sizeof(cmsFloat32Number)) return NULL;
-    const cmsFloat32Number *values = (const cmsFloat32Number*)(Data + sizeof(cmsUInt32Number));
-    return cmsBuildTabulatedToneCurveFloat(ContextID, nEntries, values);
+static void fuzz__cmsAdjustEndianess16(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt16Number)) return;
+
+    cmsUInt16Number Word;
+    memcpy(&Word, Data, sizeof(cmsUInt16Number));
+
+    _cmsAdjustEndianess16(Word);
 }
 
-static cmsToneCurve* create_random_segmented_tone_curve(cmsContext ContextID, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number)) return NULL;
-    cmsUInt32Number nSegments = *(cmsUInt32Number*)Data;
-    if (nSegments == 0 || Size < sizeof(cmsUInt32Number) + nSegments * sizeof(cmsCurveSegment)) return NULL;
-    const cmsCurveSegment *segments = (const cmsCurveSegment*)(Data + sizeof(cmsUInt32Number));
-    return cmsBuildSegmentedToneCurve(ContextID, nSegments, segments);
+static void fuzz_cmsEvalToneCurve16(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt16Number)) return;
+
+    cmsToneCurve *Curve = cmsBuildGamma(NULL, 2.2);
+    if (Curve == NULL) return;
+
+    cmsUInt16Number v;
+    memcpy(&v, Data, sizeof(cmsUInt16Number));
+
+    cmsEvalToneCurve16(Curve, v);
+
+    cmsFreeToneCurve(Curve);
+}
+
+static void fuzz__cmsDoubleTo8Fixed8(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsFloat64Number)) return;
+
+    cmsFloat64Number val;
+    memcpy(&val, Data, sizeof(cmsFloat64Number));
+
+    _cmsDoubleTo8Fixed8(val);
+}
+
+static void fuzz__cms8Fixed8toDouble(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt16Number)) return;
+
+    cmsUInt16Number fixed8;
+    memcpy(&fixed8, Data, sizeof(cmsUInt16Number));
+
+    _cms8Fixed8toDouble(fixed8);
+}
+
+static void fuzz_cmsXYZEncoded2Float(const uint8_t *Data, size_t Size) {
+    if (Size < 3 * sizeof(cmsUInt16Number)) return;
+
+    cmsUInt16Number XYZ[3];
+    memcpy(XYZ, Data, 3 * sizeof(cmsUInt16Number));
+
+    cmsCIEXYZ fxyz;
+    cmsXYZEncoded2Float(&fxyz, XYZ);
 }
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *Data, size_t Size) {
-    cmsContext ContextID = NULL;
-
-    // Create a tone curve using 16-bit values
-    cmsToneCurve *curve16 = create_random_tone_curve16(ContextID, Data, Size);
-
-    // Create a tone curve using float values
-    cmsToneCurve *curveFloat = create_random_tone_curve_float(ContextID, Data, Size);
-
-    // Attempt to join two tone curves
-    if (curve16 != NULL && curveFloat != NULL) {
-        cmsToneCurve *joinedCurve = cmsJoinToneCurve(ContextID, curve16, curveFloat, 128); // Arbitrary number of points
-        if (joinedCurve != NULL) {
-            cmsFreeToneCurve(joinedCurve);
-        }
-    }
-
-    if (curve16 != NULL) {
-        cmsUInt32Number nResultSamples = 256; // Arbitrary choice
-        cmsToneCurve *reversedCurve = cmsReverseToneCurveEx(nResultSamples, curve16);
-        if (reversedCurve) {
-            cmsFreeToneCurve(reversedCurve);
-        }
-        cmsFreeToneCurve(curve16);
-    }
-
-    if (curveFloat != NULL) {
-        cmsUInt32Number entries = cmsGetToneCurveEstimatedTableEntries(curveFloat);
-        (void)entries; // Use the entries count in some way if needed
-        cmsFreeToneCurve(curveFloat);
-    }
-
-    // Create segmented tone curve
-    cmsToneCurve *segmentedCurve = create_random_segmented_tone_curve(ContextID, Data, Size);
-    if (segmentedCurve != NULL) {
-        cmsFreeToneCurve(segmentedCurve);
-    }
+    fuzz_cmsFloat2XYZEncoded(Data, Size);
+    fuzz__cmsAdjustEndianess16(Data, Size);
+    fuzz_cmsEvalToneCurve16(Data, Size);
+    fuzz__cmsDoubleTo8Fixed8(Data, Size);
+    fuzz__cms8Fixed8toDouble(Data, Size);
+    fuzz_cmsXYZEncoded2Float(Data, Size);
 
     return 0;
 }

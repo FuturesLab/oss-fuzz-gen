@@ -3,14 +3,18 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_202(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    hid_t dset_id = 1; // Example dataset identifier, should be a valid hid_t
-    hsize_t size_array[1] = {10}; // Example size array
-    hid_t es_id = 2; // Example event set identifier, should be a valid hid_t
+    // Initialize variables for H5Dget_chunk_storage_size
+    hid_t dataset_id = 1; // Assuming a valid dataset ID for testing
+    hsize_t chunk_offset[2] = {1, 1}; // Example non-null values for chunk offset
+    hsize_t storage_size = 0;
 
     // Call the function-under-test
-    herr_t result = H5Dset_extent_async(dset_id, size_array, es_id);
+    herr_t result = H5Dget_chunk_storage_size(dataset_id, chunk_offset, &storage_size);
 
-    // Return 0 to indicate the fuzzing function completed
+    // Use the result and storage_size in some way to avoid compiler optimizations
+    if (result >= 0) {
+        // Do something with storage_size if needed
+    }
+
     return 0;
 }

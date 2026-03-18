@@ -1,42 +1,37 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <zlib.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <zlib.h>
 
+// Remove the 'extern "C"' linkage specification for C++ and use C linkage
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a gzFile
-    char filename[] = "/tmp/fuzz_gzfile_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
+    // Create a temporary file to write the input data
+    FILE *tempFile = tmpfile();
+    if (tempFile == NULL) {
         return 0;
     }
 
-    // Write the fuzzer data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(filename);
-        return 0;
-    }
+    // Write the input data to the temporary file
+    fwrite(data, 1, size, tempFile);
+    rewind(tempFile);
 
-    // Close the file descriptor
-    close(fd);
-
-    // Open the file as a gzFile
-    gzFile gzfile = gzopen(filename, "rb");
+    // Open the temporary file as a gzFile
+    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
     if (gzfile == NULL) {
-        unlink(filename);
+        fclose(tempFile);
         return 0;
     }
 
-    // Call the function-under-test
+    // Attempt to read from the gzFile to invoke the function under test
+    char buffer[256];
+    while (gzread(gzfile, buffer, sizeof(buffer)) > 0) {
+        // Process the data if needed
+    }
+
+    // Close the gzFile
     gzclose(gzfile);
 
-    // Clean up the temporary file
-    unlink(filename);
+    // Close the temporary file
+    fclose(tempFile);
 
     return 0;
 }

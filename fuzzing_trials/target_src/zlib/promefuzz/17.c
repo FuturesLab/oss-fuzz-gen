@@ -1,14 +1,11 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// uncompress at uncompr.c:93:13 in zlib.h
-// compressBound at compress.c:92:15 in zlib.h
-// compress2_z at compress.c:24:13 in zlib.h
-// compressBound at compress.c:92:15 in zlib.h
-// compress_z at compress.c:73:13 in zlib.h
-// uncompress2 at uncompr.c:79:13 in zlib.h
-// compressBound at compress.c:92:15 in zlib.h
-// compress2 at compress.c:63:13 in zlib.h
-// compressBound at compress.c:92:15 in zlib.h
-// compress at compress.c:78:13 in zlib.h
+// gzopen at gzlib.c:288:16 in zlib.h
+// gzsetparams at gzwrite.c:630:13 in zlib.h
+// gzgetc_ at gzread.c:496:13 in zlib.h
+// gzseek64 at gzlib.c:367:19 in zlib.h
+// gzseek at gzlib.c:438:17 in zlib.h
+// gzread at gzread.c:392:13 in zlib.h
+// gzclose at gzclose.c:11:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -16,125 +13,47 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 #include <zlib.h>
 
-static void fuzz_compress2_z(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    Bytef *dest = NULL;
-    z_size_t destLen = compressBound(Size);
-    dest = (Bytef *)malloc(destLen);
-
-    if (dest == NULL) return;
-
-    int level = Data[0] % 10; // Compression level between 0 and 9
-    int result = compress2_z(dest, &destLen, Data, Size, level);
-
-    if (result == Z_OK) {
-        // Do something with compressed data if needed
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-
-    free(dest);
-}
-
-static void fuzz_compress_z(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    Bytef *dest = NULL;
-    z_size_t destLen = compressBound(Size);
-    dest = (Bytef *)malloc(destLen);
-
-    if (dest == NULL) return;
-
-    int result = compress_z(dest, &destLen, Data, Size);
-
-    if (result == Z_OK) {
-        // Do something with compressed data if needed
-    }
-
-    free(dest);
-}
-
-static void fuzz_uncompress2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    uLongf destLen = Size * 2; // Assume the decompressed data will be twice the size
-    Bytef *dest = (Bytef *)malloc(destLen);
-
-    if (dest == NULL) return;
-
-    uLong sourceLen = Size;
-    int result = uncompress2(dest, &destLen, Data, &sourceLen);
-
-    if (result == Z_OK) {
-        // Do something with uncompressed data if needed
-    }
-
-    free(dest);
-}
-
-static void fuzz_compress2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    Bytef *dest = NULL;
-    uLongf destLen = compressBound(Size);
-    dest = (Bytef *)malloc(destLen);
-
-    if (dest == NULL) return;
-
-    int level = Data[0] % 10; // Compression level between 0 and 9
-    int result = compress2(dest, &destLen, Data, Size, level);
-
-    if (result == Z_OK) {
-        // Do something with compressed data if needed
-    }
-
-    free(dest);
-}
-
-static void fuzz_compress(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    Bytef *dest = NULL;
-    uLongf destLen = compressBound(Size);
-    dest = (Bytef *)malloc(destLen);
-
-    if (dest == NULL) return;
-
-    int result = compress(dest, &destLen, Data, Size);
-
-    if (result == Z_OK) {
-        // Do something with compressed data if needed
-    }
-
-    free(dest);
-}
-
-static void fuzz_uncompress(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    uLongf destLen = Size * 2; // Assume the decompressed data will be twice the size
-    Bytef *dest = (Bytef *)malloc(destLen);
-
-    if (dest == NULL) return;
-
-    int result = uncompress(dest, &destLen, Data, Size);
-
-    if (result == Z_OK) {
-        // Do something with uncompressed data if needed
-    }
-
-    free(dest);
 }
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    fuzz_compress2_z(Data, Size);
-    fuzz_compress_z(Data, Size);
-    fuzz_uncompress2(Data, Size);
-    fuzz_compress2(Data, Size);
-    fuzz_compress(Data, Size);
-    fuzz_uncompress(Data, Size);
+    if (Size < 1) return 0;
+
+    // Write input data to a dummy file
+    write_dummy_file(Data, Size);
+
+    // Open the dummy file with gzopen
+    gzFile file = gzopen("./dummy_file", "rb+");
+    if (!file) return 0;
+
+    // Fuzz gzsetparams
+    int level = Data[0] % 10; // Compression levels range from 0 to 9
+    int strategy = Data[0] % 5; // Strategies range from 0 to 4
+    gzsetparams(file, level, strategy);
+
+    // Fuzz gzgetc_
+    gzgetc_(file);
+
+    // Fuzz gzseek64
+    gzseek64(file, (z_off64_t)(Data[0] % Size), SEEK_SET);
+
+    // Fuzz gzseek
+    gzseek(file, (z_off_t)(Data[0] % Size), SEEK_CUR);
+
+    // Prepare buffer for gzread
+    unsigned char buffer[1024];
+    gzread(file, buffer, sizeof(buffer));
+
+    // Close the gzFile
+    gzclose(file);
 
     return 0;
 }

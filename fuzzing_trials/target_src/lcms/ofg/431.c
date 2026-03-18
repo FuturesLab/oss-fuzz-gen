@@ -3,25 +3,35 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_431(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsPSResourceType resourceType = cmsPS_RESOURCE_CSA;
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
-    cmsUInt32Number intent = INTENT_PERCEPTUAL;
-    cmsUInt32Number flags = 0;
+    cmsHPROFILE hProfile;
+    cmsTagSignature tagSignature;
+    void *buffer;
+    cmsUInt32Number bufferSize;
+    cmsUInt32Number result;
 
-    // Create an IOHANDLER that does not perform actual I/O
-    cmsIOHANDLER* ioHandler = cmsOpenIOhandlerFromNULL(context);
-
-    if (hProfile != NULL && ioHandler != NULL) {
-        cmsGetPostScriptColorResource(context, resourceType, hProfile, intent, flags, ioHandler);
-        cmsCloseProfile(hProfile);
+    // Ensure that the data size is sufficient for our needs
+    if (size < sizeof(cmsTagSignature) + sizeof(cmsUInt32Number)) {
+        return 0;
     }
+
+    // Initialize hProfile
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
+
+    // Extract tagSignature from data
+    tagSignature = *(cmsTagSignature *)data;
+
+    // Initialize buffer and bufferSize
+    bufferSize = *(cmsUInt32Number *)(data + sizeof(cmsTagSignature));
+    buffer = (void *)(data + sizeof(cmsTagSignature) + sizeof(cmsUInt32Number));
+
+    // Call the function-under-test
+    result = cmsReadRawTag(hProfile, tagSignature, buffer, bufferSize);
 
     // Clean up
-    if (ioHandler != NULL) {
-        cmsCloseIOhandler(ioHandler);
-    }
-    cmsDeleteContext(context);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

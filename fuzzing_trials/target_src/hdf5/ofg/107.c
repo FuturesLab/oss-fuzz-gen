@@ -1,38 +1,43 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <hdf5.h>
 
-// Define a simple operator function that matches the H5D_operator_t signature
-herr_t my_operator_107(void *elem, hid_t type_id, hsize_t ndim, const hsize_t *point, void *operator_data) {
-    // For fuzzing purposes, we can simply return 0 (continue iteration)
-    return 0;
+// Dummy operator function to be used with H5Diterate
+herr_t dummy_operator_107(void *elem, hid_t type_id, hsize_t ndim, const hsize_t *point, void *operator_data) {
+    // Perform some operation on the element
+    return 0; // Return 0 to continue iteration
 }
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    void *buf = (void *)data; // Use the input data as the buffer
-
-    // Initialize HDF5 library
-    if (H5open() < 0) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create a dummy dataspace and datatype for testing
-    hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-    hid_t datatype_id = H5Tcopy(H5T_NATIVE_INT);
+    // Initialize the HDF5 library
+    H5open();
 
-    if (dataspace_id < 0 || datatype_id < 0) {
-        if (dataspace_id >= 0) H5Sclose(dataspace_id);
-        if (datatype_id >= 0) H5Tclose(datatype_id);
-        H5close();
+    // Create a simple memory buffer to iterate over
+    void *buffer = malloc(size);
+    if (buffer == NULL) {
         return 0;
     }
+    memcpy(buffer, data, size);
 
-    // Call the function-under-test
-    H5Diterate(buf, datatype_id, dataspace_id, my_operator_107, NULL);
+    // Create a dummy datatype and dataspace
+    hid_t dtype_id = H5Tcopy(H5T_NATIVE_INT);
+    hid_t dspace_id = H5Screate_simple(1, (const hsize_t *)&size, NULL);
+
+    // Call H5Diterate with the dummy operator
+    H5Diterate(buffer, dtype_id, dspace_id, dummy_operator_107, NULL);
 
     // Clean up
-    H5Sclose(dataspace_id);
-    H5Tclose(datatype_id);
+    H5Tclose(dtype_id);
+    H5Sclose(dspace_id);
+    free(buffer);
+
+    // Close the HDF5 library
     H5close();
 
     return 0;

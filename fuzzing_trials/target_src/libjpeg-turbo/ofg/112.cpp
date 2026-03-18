@@ -1,52 +1,44 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
+#include <iostream>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+
+    // Define a dummy tjhandle for testing purposes
+    typedef void* tjhandle;
+
+    // // Mock function to simulate tj3LoadImage16
+    // unsigned short* tj3LoadImage16(tjhandle handle, const char* filename, int* width, int pixelFormat, int* height, int* flags) {
+    //     // Simulate loading an image and returning a pointer to image data
+    //     static unsigned short dummyData[10] = {0};
+    //     *width = 1024;
+    //     *height = 768;
+    //     *flags = 0;
+    //     return dummyData;
+    // }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_112(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // If initialization fails, return early
-    }
-
-    // Allocate memory for YUV planes
-    const int numPlanes = 3; // YUV has 3 planes
-    unsigned char *yuvPlanes[numPlanes];
-    int planeSizes[numPlanes];
-
-    // For simplicity, assume a small image size for plane allocation
-    int width = 16;
-    int height = 16;
-    int subsampling = TJSAMP_420;
-    int stride = 0; // Assuming no specific stride requirement
-
-    for (int i = 0; i < numPlanes; ++i) {
-        planeSizes[i] = tjPlaneSizeYUV(i, width, stride, height, subsampling);
-        yuvPlanes[i] = static_cast<unsigned char*>(malloc(planeSizes[i]));
-        if (yuvPlanes[i] == nullptr) {
-            // Clean up and return if allocation fails
-            for (int j = 0; j < i; ++j) {
-                free(yuvPlanes[j]);
-            }
-            tjDestroy(handle);
-            return 0;
-        }
-    }
+    // Initialize variables for the function parameters
+    tjhandle handle = nullptr; // Assuming a valid handle would be provided in a real scenario
+    const char* filename = "dummy.jpg"; // Dummy filename for testing
+    int width = 0;
+    int pixelFormat = TJPF_RGB; // Assume a valid pixel format
+    int height = 0;
+    int flags = 0;
 
     // Call the function-under-test
-    tj3DecompressToYUVPlanes8(handle, data, size, yuvPlanes, planeSizes);
+    unsigned short* imageData = tj3LoadImage16(handle, filename, &width, pixelFormat, &height, &flags);
 
-    // Clean up
-    for (int i = 0; i < numPlanes; ++i) {
-        free(yuvPlanes[i]);
+    // Check if imageData is not NULL and perform some basic operations
+    if (imageData != nullptr) {
+        // Example operation: Print the width and height
+        std::cout << "Image Width: " << width << ", Height: " << height << std::endl;
     }
-    tjDestroy(handle);
 
     return 0;
 }

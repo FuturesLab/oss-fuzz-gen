@@ -1,16 +1,14 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3JPEGBufSize at turbojpeg.c:903:18 in turbojpeg.h
-// tj3Get at turbojpeg.c:807:15 in turbojpeg.h
+// tjInitTransform at turbojpeg.c:2751:20 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3TransformBufSize at turbojpeg.c:2831:18 in turbojpeg.h
 // tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
-// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
+// tj3Transform at turbojpeg.c:2870:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Compress16 at turbojpeg-mp.c:71:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3Transform at turbojpeg.c:2870:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3Free at turbojpeg.c:890:16 in turbojpeg.h
 // tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
 #include <iostream>
@@ -23,47 +21,60 @@
 #include <cstdint>
 #include <cstddef>
 #include <turbojpeg.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+
+static tjhandle createTurboJPEGInstance() {
+    tjhandle handle = tjInitTransform();
+    if (!handle) {
+        fprintf(stderr, "Error initializing TurboJPEG: %s\n", tj3GetErrorStr(NULL));
+    }
+    return handle;
+}
+
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Initialize TurboJPEG instance for compression
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    tjhandle handle = createTurboJPEGInstance();
     if (!handle) return 0;
 
-    // Set parameters using tj3Set
-    tj3Set(handle, TJPARAM_QUALITY, Data[0] % 101); // Quality between 0 to 100
-    tj3Set(handle, TJPARAM_SUBSAMP, Data[0] % 5);   // Subsampling options
-    tj3Set(handle, TJPARAM_PRECISION, 16);          // Precision: 16 bits
-    tj3Set(handle, TJPARAM_NOREALLOC, 1);           // No realloc option
+    // Initial buffer allocation
+    size_t bufSize = tj3TransformBufSize(handle, nullptr);
+    unsigned char *buffer = (unsigned char *)tj3Alloc(bufSize);
 
-    // Estimate JPEG buffer size
-    int width = 100, height = 100; // Example dimensions
-    size_t jpegBufSize = tj3JPEGBufSize(width, height, TJSAMP_444);
+    // Perform first transformation
+    size_t dstSize = bufSize;
+    unsigned char *dstBufs[1] = {buffer};
+    size_t dstSizes[1] = {dstSize};
+    tjtransform transforms[1] = {};
+    if (tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, transforms) == -1) {
+        fprintf(stderr, "Transform error: %s\n", tj3GetErrorStr(handle));
+    }
 
-    // Get a parameter value
-    tj3Get(handle, TJPARAM_QUALITY);
+    // Set some parameter
+    int param = 0; // Example parameter, should be replaced with a real one
+    int value = 0; // Example value, should be replaced with a real one
+    if (tj3Set(handle, param, value) == -1) {
+        fprintf(stderr, "Set error: %s\n", tj3GetErrorStr(handle));
+    }
 
-    // Allocate buffer for JPEG image
-    unsigned char *jpegBuf = static_cast<unsigned char *>(tj3Alloc(jpegBufSize));
+    // Perform second transformation
+    if (tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, transforms) == -1) {
+        fprintf(stderr, "Transform error: %s\n", tj3GetErrorStr(handle));
+    }
 
-    // Set ICC profile
-    unsigned char iccProfile[] = {0x00, 0x01, 0x02}; // Dummy ICC profile
-    tj3SetICCProfile(handle, iccProfile, sizeof(iccProfile));
-
-    // Set additional parameters
-    tj3Set(handle, TJPARAM_FASTUPSAMPLE, 1);
-    tj3Set(handle, TJPARAM_FASTDCT, 1);
-
-    // Prepare dummy source buffer for compression
-    std::vector<unsigned short> srcBuf(width * height * 3, 0); // Example RGB buffer
-
-    // Perform compression
-    size_t jpegSize = jpegBufSize;
-    tj3Compress16(handle, srcBuf.data(), width, 0, height, TJPF_RGB, &jpegBuf, &jpegSize);
-
-    // Free resources
-    tj3Free(jpegBuf);
+    // Final cleanup
+    tj3Free(buffer);
     tj3Destroy(handle);
 
     return 0;

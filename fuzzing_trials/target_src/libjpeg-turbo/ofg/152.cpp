@@ -1,42 +1,28 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
+#include <iostream>
 
+// Include the necessary header for the function-under-test
 extern "C" {
+    // Include the correct path for the turbojpeg header
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    // Alternatively, you can use one of the other paths if needed:
+    // #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    // #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
+// Fuzzing harness for the function TJBUFSIZEYUV
 extern "C" int LLVMFuzzerTestOneInput_152(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint16_t) * 3) { // Use uint16_t as a substitute for J16SAMPLE
-        return 0; // Not enough data to form even a single pixel.
-    }
-
-    // Initialize tjhandle
-    tjhandle handle = tjInitCompress();
-    if (handle == NULL) {
-        return 0; // Initialization failed, exit early.
-    }
-
-    // Prepare parameters for tj3Compress16
-    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data); // Use uint16_t
-    int width = 1;  // Minimal width
-    int height = 1; // Minimal height
-    int pitch = width * sizeof(uint16_t); // Use uint16_t
-    int pixelFormat = TJPF_RGB; // Assume RGB format for simplicity
-
-    unsigned char *jpegBuf = NULL;
-    size_t jpegSize = 0;
+    // Initialize variables with non-zero values to ensure they are not NULL
+    int width = 1;
+    int height = 1;
+    int subsamp = TJSAMP_420; // Use a valid subsampling option
 
     // Call the function-under-test
-    int result = tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
+    unsigned long bufferSize = TJBUFSIZEYUV(width, height, subsamp);
 
-    // Clean up
-    if (jpegBuf != NULL) {
-        tjFree(jpegBuf);
-    }
-    tjDestroy(handle);
+    // Print the result to verify the function call (optional)
+    std::cout << "Buffer size: " << bufferSize << std::endl;
 
     return 0;
 }

@@ -1,24 +1,28 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <lcms2.h>
+#include <lcms2.h>  // Include the Little CMS library header
+
+// Function-under-test
+void cmsXYZ2xyY(cmsCIExyY *dest, const cmsCIEXYZ *source);
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Define and initialize variables for cmsCIELab and cmsCIELCh
-    cmsCIELab lab;
-    cmsCIELCh lch;
+    // Declare and initialize variables
+    cmsCIExyY dest;
+    cmsCIEXYZ source;
 
-    // Ensure we have enough data to fill cmsCIELab structure
-    if (size < sizeof(cmsCIELab)) {
+    // Ensure there is enough data to fill the cmsCIEXYZ structure
+    if (size < sizeof(cmsCIEXYZ)) {
         return 0;
     }
 
-    // Populate cmsCIELab with data
-    lab.L = ((double)data[0]) + ((double)data[1] / 255.0);
-    lab.a = ((double)data[2]) - 128.0;
-    lab.b = ((double)data[3]) - 128.0;
+    // Copy data into the cmsCIEXYZ structure
+    // Assuming data is in the correct format for cmsCIEXYZ
+    source.X = ((const double *)data)[0];
+    source.Y = ((const double *)data)[1];
+    source.Z = ((const double *)data)[2];
 
     // Call the function-under-test
-    cmsLab2LCh(&lch, &lab);
+    cmsXYZ2xyY(&dest, &source);
 
     return 0;
 }

@@ -1,68 +1,116 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// crc32 at crc32.c:945:15 in zlib.h
-// crc32 at crc32.c:945:15 in zlib.h
-// crc32_combine_gen at crc32.c:963:15 in zlib.h
-// crc32_combine_op at crc32.c:968:15 in zlib.h
-// get_crc_table at crc32.c:481:29 in zlib.h
-// crc32_combine64 at crc32.c:975:15 in zlib.h
-// crc32_z at crc32.c:625:15 in zlib.h
-// crc32_z at crc32.c:625:15 in zlib.h
+// compressBound_z at compress.c:87:18 in zlib.h
+// compress2_z at compress.c:24:13 in zlib.h
+// uncompress at uncompr.c:93:13 in zlib.h
+// compressBound_z at compress.c:87:18 in zlib.h
+// compress_z at compress.c:73:13 in zlib.h
+// uncompress at uncompr.c:93:13 in zlib.h
+// compressBound at compress.c:92:15 in zlib.h
+// compress2 at compress.c:63:13 in zlib.h
+// uncompress at uncompr.c:93:13 in zlib.h
+// compressBound at compress.c:92:15 in zlib.h
+// compress at compress.c:78:13 in zlib.h
+// uncompress at uncompr.c:93:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <zlib.h>
 
-static void fuzz_crc32(const uint8_t *Data, size_t Size) {
-    uLong crc = crc32(0L, Z_NULL, 0);
-    crc = crc32(crc, Data, (uInt)Size);
+static void fuzz_compress2_z(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    z_size_t destLen = compressBound_z(Size);
+    Bytef *dest = (Bytef *)malloc(destLen);
+    if (dest == NULL) return;
+
+    int level = Data[0] % 10; // Compression level between 0-9
+    int result = compress2_z(dest, &destLen, Data, Size, level);
+
+    if (result == Z_OK) {
+        // Optionally, test decompression if compression was successful
+        uLongf uncompressedLen = Size;
+        Bytef *uncompressed = (Bytef *)malloc(uncompressedLen);
+        if (uncompressed != NULL) {
+            uncompress(uncompressed, &uncompressedLen, dest, destLen);
+            free(uncompressed);
+        }
+    }
+
+    free(dest);
 }
 
-static void fuzz_crc32_combine_gen(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(z_off_t)) return;
-    z_off_t len2;
-    memcpy(&len2, Data, sizeof(z_off_t));
-    crc32_combine_gen(len2);
+static void fuzz_compress_z(const uint8_t *Data, size_t Size) {
+    z_size_t destLen = compressBound_z(Size);
+    Bytef *dest = (Bytef *)malloc(destLen);
+    if (dest == NULL) return;
+
+    int result = compress_z(dest, &destLen, Data, Size);
+
+    if (result == Z_OK) {
+        // Optionally, test decompression if compression was successful
+        uLongf uncompressedLen = Size;
+        Bytef *uncompressed = (Bytef *)malloc(uncompressedLen);
+        if (uncompressed != NULL) {
+            uncompress(uncompressed, &uncompressedLen, dest, destLen);
+            free(uncompressed);
+        }
+    }
+
+    free(dest);
 }
 
-static void fuzz_crc32_combine_op(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uLong) * 3) return;
-    uLong crc1, crc2, op;
-    memcpy(&crc1, Data, sizeof(uLong));
-    memcpy(&crc2, Data + sizeof(uLong), sizeof(uLong));
-    memcpy(&op, Data + 2 * sizeof(uLong), sizeof(uLong));
-    crc32_combine_op(crc1, crc2, op);
+static void fuzz_compress2(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    uLongf destLen = compressBound(Size);
+    Bytef *dest = (Bytef *)malloc(destLen);
+    if (dest == NULL) return;
+
+    int level = Data[0] % 10; // Compression level between 0-9
+    int result = compress2(dest, &destLen, Data, Size, level);
+
+    if (result == Z_OK) {
+        // Optionally, test decompression if compression was successful
+        uLongf uncompressedLen = Size;
+        Bytef *uncompressed = (Bytef *)malloc(uncompressedLen);
+        if (uncompressed != NULL) {
+            uncompress(uncompressed, &uncompressedLen, dest, destLen);
+            free(uncompressed);
+        }
+    }
+
+    free(dest);
 }
 
-static void fuzz_get_crc_table() {
-    get_crc_table();
-}
+static void fuzz_compress(const uint8_t *Data, size_t Size) {
+    uLongf destLen = compressBound(Size);
+    Bytef *dest = (Bytef *)malloc(destLen);
+    if (dest == NULL) return;
 
-static void fuzz_crc32_combine64(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uLong) * 2 + sizeof(z_off64_t)) return;
-    uLong crc1, crc2;
-    z_off64_t len2;
-    memcpy(&crc1, Data, sizeof(uLong));
-    memcpy(&crc2, Data + sizeof(uLong), sizeof(uLong));
-    memcpy(&len2, Data + 2 * sizeof(uLong), sizeof(z_off64_t));
-    crc32_combine64(crc1, crc2, len2);
-}
+    int result = compress(dest, &destLen, Data, Size);
 
-static void fuzz_crc32_z(const uint8_t *Data, size_t Size) {
-    uLong crc = crc32_z(0L, Z_NULL, 0);
-    crc = crc32_z(crc, Data, (z_size_t)Size);
+    if (result == Z_OK) {
+        // Optionally, test decompression if compression was successful
+        uLongf uncompressedLen = Size;
+        Bytef *uncompressed = (Bytef *)malloc(uncompressedLen);
+        if (uncompressed != NULL) {
+            uncompress(uncompressed, &uncompressedLen, dest, destLen);
+            free(uncompressed);
+        }
+    }
+
+    free(dest);
 }
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size) {
-    fuzz_crc32(Data, Size);
-    fuzz_crc32_combine_gen(Data, Size);
-    fuzz_crc32_combine_op(Data, Size);
-    fuzz_get_crc_table();
-    fuzz_crc32_combine64(Data, Size);
-    fuzz_crc32_z(Data, Size);
+    fuzz_compress2_z(Data, Size);
+    fuzz_compress_z(Data, Size);
+    fuzz_compress2(Data, Size);
+    fuzz_compress(Data, Size);
     return 0;
 }

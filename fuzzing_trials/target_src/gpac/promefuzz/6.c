@@ -1,13 +1,10 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_update_aperture_info at isom_write.c:2179:8 in isomedia.h
-// gf_isom_fragment_set_sample_av1_switch_frame_group at isom_write.c:7745:8 in isomedia.h
-// gf_isom_finalize_for_fragment at movie_fragments.c:85:8 in isomedia.h
-// gf_isom_set_sample_rap_group at isom_write.c:7715:8 in isomedia.h
-// gf_isom_set_track_group at isom_write.c:8456:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_track_cenc_add_sample_info at drm_sample.c:1309:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_set_next_moof_number at movie_fragments.c:3474:6 in isomedia.h
+// gf_isom_guess_specification at isom_read.c:4276:5 in isomedia.h
+// gf_isom_get_track_count at isom_read.c:783:5 in isomedia.h
+// gf_isom_segment_get_track_fragment_count at isom_read.c:895:5 in isomedia.h
+// gf_isom_get_track_kind_count at isom_read.c:1136:5 in isomedia.h
+// gf_isom_get_sample_description_count at isom_read.c:1373:5 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -15,95 +12,67 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+static GF_ISOFile* create_dummy_isofile() {
+    // Allocate a dummy buffer for GF_ISOFile since its size is unknown
+    GF_ISOFile *file = (GF_ISOFile *)malloc(1024); // Assuming 1024 bytes is enough for fuzzing
+    if (!file) return NULL;
+    memset(file, 0, 1024);
+    return file;
+}
+
+static void destroy_dummy_isofile(GF_ISOFile *file) {
+    if (file) {
+        free(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 8 + sizeof(Bool) * 7) return 0;
-
-    write_dummy_file(Data, Size);
-
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    if (!isom_file) return 0;
-
-    u32 offset = 0;
-
-    u32 trackNumber = *(u32 *)(Data + offset);
-    offset += sizeof(u32);
-    Bool remove = *(Bool *)(Data + offset);
-    offset += sizeof(Bool);
-
-    // Fuzz gf_isom_update_aperture_info
-    gf_isom_update_aperture_info(isom_file, trackNumber, remove);
-
-    u32 trackID = *(u32 *)(Data + offset);
-    offset += sizeof(u32);
-    u32 sample_number_in_frag = *(u32 *)(Data + offset);
-    offset += sizeof(u32);
-    Bool is_switch_Frame = *(Bool *)(Data + offset);
-    offset += sizeof(Bool);
-
-    // Fuzz gf_isom_fragment_set_sample_av1_switch_frame_group
-    gf_isom_fragment_set_sample_av1_switch_frame_group(isom_file, trackID, sample_number_in_frag, is_switch_Frame);
-
-    u32 media_segment_type = *(u32 *)(Data + offset);
-    offset += sizeof(u32);
-    Bool mvex_after_tracks = *(Bool *)(Data + offset);
-    offset += sizeof(Bool);
-
-    // Fuzz gf_isom_finalize_for_fragment
-    gf_isom_finalize_for_fragment(isom_file, media_segment_type, mvex_after_tracks);
-
-    u32 sampleNumber = *(u32 *)(Data + offset);
-    offset += sizeof(u32);
-    Bool is_rap = *(Bool *)(Data + offset);
-    offset += sizeof(Bool);
-    u32 num_leading_samples = *(u32 *)(Data + offset);
-    offset += sizeof(u32);
-
-    // Fuzz gf_isom_set_sample_rap_group
-    gf_isom_set_sample_rap_group(isom_file, trackNumber, sampleNumber, is_rap, num_leading_samples);
-
-    u32 track_group_id = *(u32 *)(Data + offset);
-    offset += sizeof(u32);
-    u32 group_type = *(u32 *)(Data + offset);
-    offset += sizeof(u32);
-    Bool do_add = *(Bool *)(Data + offset);
-    offset += sizeof(Bool);
-
-    // Fuzz gf_isom_set_track_group
-    gf_isom_set_track_group(isom_file, trackNumber, track_group_id, group_type, do_add);
-
-    u32 container_type = *(u32 *)(Data + offset);
-    offset += sizeof(u32);
-    Bool use_subsamples = *(Bool *)(Data + offset);
-    offset += sizeof(Bool);
-
-    // Ensure we do not read beyond the buffer
-    if (offset + sizeof(Bool) * 2 > Size) {
-        gf_isom_close(isom_file);
+    if (Size < sizeof(u32)) {
         return 0;
     }
 
-    Bool use_saio_32bit = *(Bool *)(Data + offset);
-    offset += sizeof(Bool);
-    Bool is_multi_key = *(Bool *)(Data + offset);
-    offset += sizeof(Bool);
-
-    u8 *buf = NULL;
-    u32 len = 0;
-    if (offset < Size) {
-        buf = (u8 *)(Data + offset);
-        len = (u32)(Size - offset);
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) {
+        return 0;
     }
 
-    // Fuzz gf_isom_track_cenc_add_sample_info
-    gf_isom_track_cenc_add_sample_info(isom_file, trackNumber, container_type, buf, len, use_subsamples, use_saio_32bit, is_multi_key);
+    // Extract a u32 value from the input data
+    u32 moof_number = *((u32 *)Data);
+    Data += sizeof(u32);
+    Size -= sizeof(u32);
 
-    gf_isom_close(isom_file);
+    // Fuzz gf_isom_set_next_moof_number
+    gf_isom_set_next_moof_number(isom_file, moof_number);
+
+    // Fuzz gf_isom_guess_specification
+    u32 spec = gf_isom_guess_specification(isom_file);
+
+    // Fuzz gf_isom_get_track_count
+    u32 track_count = gf_isom_get_track_count(isom_file);
+
+    // If there's enough data left, extract another u32 for moof_index
+    if (Size >= sizeof(u32)) {
+        u32 moof_index = *((u32 *)Data);
+        Data += sizeof(u32);
+        Size -= sizeof(u32);
+
+        // Fuzz gf_isom_segment_get_track_fragment_count
+        u32 fragment_count = gf_isom_segment_get_track_fragment_count(isom_file, moof_index);
+    }
+
+    // If there's enough data left, extract another u32 for trackNumber
+    if (Size >= sizeof(u32)) {
+        u32 trackNumber = *((u32 *)Data);
+        Data += sizeof(u32);
+        Size -= sizeof(u32);
+
+        // Fuzz gf_isom_get_track_kind_count
+        u32 kind_count = gf_isom_get_track_kind_count(isom_file, trackNumber);
+
+        // Fuzz gf_isom_get_sample_description_count
+        u32 sample_desc_count = gf_isom_get_sample_description_count(isom_file, trackNumber);
+    }
+
+    destroy_dummy_isofile(isom_file);
     return 0;
 }

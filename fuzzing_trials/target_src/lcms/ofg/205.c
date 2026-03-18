@@ -3,20 +3,25 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_205(const uint8_t *data, size_t size) {
-    // Initialize a cmsContext. For the purpose of fuzzing, we can use NULL or create a dummy context.
-    cmsContext context = cmsCreateContext(NULL, NULL);
-
-    // Use the input data to create a memory-based IO handler.
-    // The 'AccessMode' parameter is required, let's use "r" for read mode.
-    cmsIOHANDLER *iohandler = cmsOpenIOhandlerFromMem(context, (void *)data, (cmsUInt32Number)size, "r");
-
-    // Clean up resources if necessary.
-    if (iohandler != NULL) {
-        cmsCloseIOhandler(iohandler);
+    // Ensure the data size is sufficient for creating a profile
+    if (size < sizeof(cmsHPROFILE)) {
+        return 0;
     }
 
-    // Destroy the context if it was created.
-    cmsDeleteContext(context);
+    // Create a memory-based profile from the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
+
+    // Allocate memory for the profile ID
+    cmsUInt8Number profileID[16];
+    
+    // Call the function-under-test
+    cmsGetHeaderProfileID(hProfile, profileID);
+
+    // Close the profile to free resources
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

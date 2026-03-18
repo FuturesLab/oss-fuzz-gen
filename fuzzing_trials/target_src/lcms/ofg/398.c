@@ -1,33 +1,43 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_398(const uint8_t *data, size_t size) {
-    // Initialize a cmsContext
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
+    if (size < 3) {
+        // Not enough data to represent a single RGB pixel
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        cmsDeleteContext(context);
+    cmsHTRANSFORM transform;
+    cmsContext context;
+
+    // Initialize a color transform
+    cmsHPROFILE inputProfile = cmsCreate_sRGBProfile();
+    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
+
+    if (inputProfile == NULL || outputProfile == NULL) {
+        cmsCloseProfile(inputProfile);
+        cmsCloseProfile(outputProfile);
         return 0;
     }
-    memcpy(filename, data, size);
-    filename[size] = '\0';
 
-    // Call the function-under-test
-    cmsHANDLE handle = cmsIT8LoadFromFile(context, filename);
+    transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
 
-    // Cleanup
-    if (handle != NULL) {
-        cmsIT8Free(handle);
+    // Ensure the transform is created successfully
+    if (transform != NULL) {
+        // Call the function-under-test
+        context = cmsGetTransformContextID(transform);
+
+        // Use the transform on the input data
+        uint8_t output[3];
+        cmsDoTransform(transform, data, output, 1);
+
+        // Cleanup
+        cmsDeleteTransform(transform);
     }
-    free(filename);
-    cmsDeleteContext(context);
+
+    cmsCloseProfile(inputProfile);
+    cmsCloseProfile(outputProfile);
 
     return 0;
 }

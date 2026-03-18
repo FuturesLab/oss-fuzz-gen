@@ -3,33 +3,17 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_89(const uint8_t *data, size_t size) {
-    z_stream stream;
-    int windowBits;
-
-    // Initialize the z_stream structure
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-
-    // Initialize the inflate state
-    if (inflateInit(&stream) != Z_OK) {
-        return 0;
-    }
-
-    // Ensure the size is sufficient to extract an integer for windowBits
-    if (size < sizeof(int)) {
-        inflateEnd(&stream);
-        return 0;
-    }
-
-    // Use the first bytes of data to determine the windowBits
-    windowBits = *((int*)data);
+    // Initialize a non-zero adler value
+    uLong adler = 1;
 
     // Call the function-under-test
-    inflateReset2(&stream, windowBits);
+    uLong result = adler32(adler, data, (uInt)size);
 
-    // Clean up
-    inflateEnd(&stream);
+    // Use the result to avoid any compiler optimizations removing the call
+    // This is a no-op, just to use the result
+    if (result == 0) {
+        return 1;
+    }
 
     return 0;
 }

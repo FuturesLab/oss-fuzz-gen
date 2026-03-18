@@ -1,25 +1,26 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <hdf5.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_171(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    const void *src_buf = data;
-    void *dst_buf = malloc(size);  // Allocate memory for destination buffer
-    if (dst_buf == NULL) {
-        return 0;  // Exit if memory allocation fails
+    // Ensure that the data size is sufficient for creating a valid filename
+    if (size < 5) {
+        return 0;
     }
 
-    // Initialize HDF5 library
-    hid_t src_type = H5T_NATIVE_INT;  // Example data type for source
-    hid_t dst_type = H5T_NATIVE_INT;  // Example data type for destination
-    hid_t plist_id = H5P_DEFAULT;     // Default property list
+    // Create a temporary filename from the input data
+    char filename[256];
+    size_t filename_length = size < sizeof(filename) ? size : sizeof(filename) - 1;
+    memcpy(filename, data, filename_length);
+    filename[filename_length] = '\0'; // Null-terminate the filename
+
+    // Use a valid file access property list identifier
+    hid_t fapl_id = H5P_DEFAULT;
 
     // Call the function-under-test
-    herr_t result = H5Dfill(src_buf, src_type, dst_buf, dst_type, plist_id);
+    herr_t result = H5Fdelete(filename, fapl_id);
 
-    // Free allocated memory
-    free(dst_buf);
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

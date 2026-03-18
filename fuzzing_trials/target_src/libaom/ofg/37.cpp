@@ -1,40 +1,23 @@
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <aom/aom_image.h>
+#include <cstring>
+#include <iostream>
+
+// Assume the function aom_uleb_decode is defined in an external C library
+extern "C" {
+    int aom_uleb_decode(const uint8_t *buffer, size_t buffer_size, uint64_t *value, size_t *length);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    aom_image_t img;
-    aom_img_fmt_t fmt = AOM_IMG_FMT_I420; // Choose a valid image format
-    unsigned int d_w = 640; // Width of the image
-    unsigned int d_h = 480; // Height of the image
-    unsigned int stride = 640; // Stride of the image
-    unsigned char *img_data = nullptr;
-
-    // Ensure the data size is sufficient for the image data
-    if (size < d_w * d_h) {
-        return 0;
-    }
-
-    // Allocate memory for image data
-    img_data = (unsigned char *)malloc(d_w * d_h);
-    if (img_data == nullptr) {
-        return 0;
-    }
-
-    // Copy data into img_data
-    for (size_t i = 0; i < d_w * d_h; ++i) {
-        img_data[i] = data[i % size];
-    }
+    // Declare and initialize variables
+    uint64_t value = 0;
+    size_t length = 0;
 
     // Call the function-under-test
-    aom_image_t *result = aom_img_wrap(&img, fmt, d_w, d_h, stride, img_data);
+    int result = aom_uleb_decode(data, size, &value, &length);
 
-    // Clean up allocated memory
-    if (result != nullptr) {
-        aom_img_free(result);
-    }
-    free(img_data);
+    // Optionally print result for debugging purposes
+    std::cout << "Result: " << result << ", Value: " << value << ", Length: " << length << std::endl;
 
     return 0;
 }

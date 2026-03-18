@@ -1,59 +1,41 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient for processing
-    if (size < 3) {
-        return 0; // Not enough data to form a color
+    cmsHPROFILE hProfile;
+    void *buffer;
+    cmsUInt32Number bufferSize;
+    cmsBool result;
+
+    // Initialize the LCMS context
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Create a profile from the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+
+    // Check if the profile was created successfully
+    if (hProfile == NULL) {
+        cmsDeleteContext(context);
+        return 0;
     }
 
-    // Initialize variables for function-under-test
-    cmsContext context;
-    cmsHPROFILE inputProfile;
-    cmsHPROFILE outputProfile;
-    cmsUInt32Number inputFormat;
-    cmsUInt32Number outputFormat;
-    cmsUInt32Number intent;
-    cmsUInt32Number flags;
-
-    // Create a new context
-    context = cmsCreateContext(NULL, NULL);
-
-    // Initialize input and output profiles
-    inputProfile = cmsCreate_sRGBProfile();
-    outputProfile = cmsCreate_sRGBProfile();
-
-    // Initialize format, intent, and flags with non-zero values
-    inputFormat = TYPE_RGB_8;
-    outputFormat = TYPE_RGB_8;
-    intent = INTENT_PERCEPTUAL;
-    flags = 0;
-
-    // Call the function-under-test
-    cmsHTRANSFORM transform = cmsCreateTransformTHR(
-        context,
-        inputProfile,
-        inputFormat,
-        outputProfile,
-        outputFormat,
-        intent,
-        flags
-    );
-
-    // Prepare input and output buffers
-    uint8_t inputColor[3] = {data[0], data[1], data[2]};
-    uint8_t outputColor[3];
-
-    // Perform the color transformation
-    if (transform != NULL) {
-        cmsDoTransform(transform, inputColor, outputColor, 1);
-        cmsDeleteTransform(transform);
+    // Allocate a buffer for saving the profile
+    bufferSize = size * 2; // Assume the buffer size is twice the input size
+    buffer = malloc(bufferSize);
+    if (buffer == NULL) {
+        cmsCloseProfile(hProfile);
+        cmsDeleteContext(context);
+        return 0;
     }
 
-    // Clean up resources
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
+    // Call the function under test
+    result = cmsSaveProfileToMem(hProfile, buffer, &bufferSize);
+
+    // Clean up
+    free(buffer);
+    cmsCloseProfile(hProfile);
     cmsDeleteContext(context);
 
     return 0;

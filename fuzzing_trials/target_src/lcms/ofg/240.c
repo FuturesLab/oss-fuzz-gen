@@ -1,34 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <string.h> // Include for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_240(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsUInt32Number Intent;
-    cmsUInt32Number Direction;
-    cmsBool result;
+    // Declare and initialize the cmsCIExyY structure
+    cmsCIExyY whitePoint;
+    cmsHPROFILE profile;
 
-    // Ensure size is sufficient to extract necessary parameters
-    if (size < sizeof(cmsUInt32Number) * 2) {
+    // Ensure that the data size is sufficient to fill the cmsCIExyY structure
+    if (size < sizeof(cmsCIExyY)) {
         return 0;
     }
 
-    // Create a profile from memory
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
-        return 0;
-    }
-
-    // Extract Intent and Direction from the data
-    Intent = *((cmsUInt32Number*)data);
-    Direction = *((cmsUInt32Number*)(data + sizeof(cmsUInt32Number)));
+    // Copy data into the cmsCIExyY structure
+    // Note: This is a simple way to initialize the structure with data.
+    // In a real-world scenario, you might want to ensure the data is valid for the context.
+    memcpy(&whitePoint, data, sizeof(cmsCIExyY));
 
     // Call the function-under-test
-    result = cmsIsCLUT(hProfile, Intent, Direction);
+    profile = cmsCreateLab4Profile(&whitePoint);
 
-    // Close the profile
-    cmsCloseProfile(hProfile);
+    // Clean up: Check if the profile was created and free it
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
 
     return 0;
 }

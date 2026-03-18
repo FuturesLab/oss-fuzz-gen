@@ -1,44 +1,38 @@
-#include <gpac/isomedia.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <unistd.h> // Include for close() and mkstemp()
+#include <gpac/isomedia.h>
+
+// Function to initialize a GF_ISOFile
+GF_ISOFile* init_gf_isofile() {
+    // Use a GPAC library function to create or initialize a GF_ISOFile
+    // Assuming there is a function like gf_isom_open_file or similar for initialization
+    return gf_isom_open_file(NULL, GF_ISOM_OPEN_WRITE, NULL);
+}
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for the necessary parameters
-    if (size < sizeof(u32) + 1) {
+    // Ensure there is enough data for the parameters
+    if (size < sizeof(u32) * 3 + sizeof(bin128)) {
         return 0;
     }
 
-    // Initialize GF_ISOFile
-    GF_ISOFile *file = gf_isom_open(NULL, GF_ISOM_OPEN_READ, NULL);
-    if (!file) {
+    // Initialize parameters
+    GF_ISOFile *movie = init_gf_isofile();
+    if (!movie) {
         return 0;
     }
 
-    // Extract parameters from the data
-    Bool root_meta = (Bool)data[0];
-    u32 track_num = *(u32 *)(data + 1);
-
-    // Create a temporary file for outName
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        gf_isom_close(file);
-        return 0;
-    }
-    close(fd);
-
-    // Initialize is_binary
-    Bool is_binary = GF_FALSE;
+    u32 trackNumber = *(u32 *)(data);
+    u32 UserDataType = *(u32 *)(data + sizeof(u32));
+    bin128 UUID;
+    memcpy(UUID, data + 2 * sizeof(u32), sizeof(bin128));
+    u32 UserDataIndex = *(u32 *)(data + 2 * sizeof(u32) + sizeof(bin128));
 
     // Call the function-under-test
-    gf_isom_extract_meta_xml(file, root_meta, track_num, tmpl, &is_binary);
+    gf_isom_remove_user_data_item(movie, trackNumber, UserDataType, UUID, UserDataIndex);
 
-    // Clean up
-    remove(tmpl);
-    gf_isom_close(file);
+    // Cleanup
+    gf_isom_close(movie);
 
     return 0;
 }

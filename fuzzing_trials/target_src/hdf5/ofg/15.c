@@ -1,21 +1,37 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for our needs
-    if (size < 2) {
-        return 0;
-    }
+    hid_t file_id;
+    hid_t dataset_id;
+    hid_t dataspace_id;
+    hsize_t dims[1] = {10}; // Example dimension size
+    herr_t status;
+    int num_attrs;
 
-    // Initialize parameters for H5Fflush_async
-    hid_t file_id = H5I_INVALID_HID; // Example file identifier
-    H5F_scope_t scope = H5F_SCOPE_GLOBAL; // Example scope
-    hid_t es_id = H5I_INVALID_HID; // Example event stack identifier
+    // Initialize HDF5 library
+    H5open();
+
+    // Create a new file using the default properties.
+    file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Create the data space for the dataset.
+    dataspace_id = H5Screate_simple(1, dims, NULL);
+
+    // Create a dataset in the file.
+    dataset_id = H5Dcreate2(file_id, "dset", H5T_NATIVE_INT, dataspace_id, 
+                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
     // Call the function-under-test
-    herr_t result = H5Fflush_async(file_id, scope, es_id);
+    num_attrs = H5Aget_num_attrs(dataset_id);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Clean up
+    H5Dclose(dataset_id);
+    H5Sclose(dataspace_id);
+    H5Fclose(file_id);
+
+    // Close HDF5 library
+    H5close();
+
     return 0;
 }

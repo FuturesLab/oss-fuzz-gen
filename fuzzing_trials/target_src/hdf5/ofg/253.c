@@ -2,22 +2,30 @@
 #include <stddef.h>
 #include <hdf5.h>
 
-// Define a simple operator function
-herr_t my_operator_253(hid_t location_id, const char *attr_name, const H5A_info_t *ainfo, void *op_data) {
-    // This is a simple operator function that does nothing
-    return 0;
-}
-
 int LLVMFuzzerTestOneInput_253(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t loc_id = H5I_INVALID_HID; // Use an invalid ID for simplicity
-    unsigned int idx = 0; // Initialize index
-    H5A_operator1_t op = my_operator_253; // Set the operator function
-    void *op_data = (void *)data; // Use the input data as op_data
+    // Declare and initialize variables for the function parameters
+    hid_t loc_id = H5P_DEFAULT; // Location identifier
+    hid_t type_id = H5T_NATIVE_INT; // Datatype identifier
+    hid_t space_id = H5Screate(H5S_SCALAR); // Dataspace identifier
+    hid_t dcpl_id = H5P_DEFAULT; // Dataset creation property list
+    hid_t dapl_id = H5P_DEFAULT; // Dataset access property list
+
+    // Ensure that the dataspace is created successfully
+    if (space_id < 0) {
+        return 0;
+    }
 
     // Call the function-under-test
-    herr_t result = H5Aiterate1(loc_id, &idx, op, op_data);
+    hid_t dataset_id = H5Dcreate_anon(loc_id, type_id, space_id, dcpl_id, dapl_id);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Check if dataset creation was successful
+    if (dataset_id >= 0) {
+        // Close the dataset to prevent resource leaks
+        H5Dclose(dataset_id);
+    }
+
+    // Close the dataspace
+    H5Sclose(space_id);
+
     return 0;
 }

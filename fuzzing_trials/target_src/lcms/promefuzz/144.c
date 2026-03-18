@@ -1,20 +1,12 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsBuildGamma at cmsgamma.c:909:25 in lcms2.h
-// cmsEstimateGamma at cmsgamma.c:1465:28 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsBuildGamma at cmsgamma.c:909:25 in lcms2.h
-// cmsSmoothToneCurve at cmsgamma.c:1213:20 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsBuildGamma at cmsgamma.c:909:25 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsOpenProfileFromFile at cmsio0.c:1232:23 in lcms2.h
-// cmsDetectRGBProfileGamma at cmsgmt.c:605:28 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsBuildParametricToneCurve at cmsgamma.c:880:25 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsBuildGamma at cmsgamma.c:909:25 in lcms2.h
-// cmsIsToneCurveLinear at cmsgamma.c:1329:19 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
+// cmsStageAllocCLutFloatGranular at cmslut.c:642:21 in lcms2.h
+// cmsStageSampleCLutFloat at cmslut.c:813:19 in lcms2.h
+// cmsStageFree at cmslut.c:1209:16 in lcms2.h
+// cmsStageAllocCLut16bitGranular at cmslut.c:547:21 in lcms2.h
+// cmsStageSampleCLut16bit at cmslut.c:747:19 in lcms2.h
+// cmsStageFree at cmslut.c:1209:16 in lcms2.h
+// cmsSliceSpaceFloat at cmslut.c:910:26 in lcms2.h
+// cmsSliceSpace16 at cmslut.c:879:19 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -22,91 +14,56 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <lcms2.h>
+#include <string.h>
+#include "lcms2.h"
 
-static void fuzz_cmsEstimateGamma(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number)) return;
+#define MAX_CLUT_POINTS 16
+#define MAX_INPUT_CHANNELS 16
+#define MAX_OUTPUT_CHANNELS 16
 
-    cmsFloat64Number precision = *((cmsFloat64Number*)Data);
-    cmsToneCurve* toneCurve = cmsBuildGamma(NULL, 2.2); // Example gamma value for testing
-
-    if (toneCurve) {
-        cmsEstimateGamma(toneCurve, precision);
-        cmsFreeToneCurve(toneCurve);
+static cmsBool SampleFloatFn(const cmsFloat32Number In[], cmsFloat32Number Out[], void* Cargo) {
+    // Simple sampler function for floating point
+    for (int i = 0; i < MAX_OUTPUT_CHANNELS; i++) {
+        Out[i] = In[i % MAX_INPUT_CHANNELS];
     }
+    return TRUE;
 }
 
-static void fuzz_cmsSmoothToneCurve(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number)) return;
-
-    cmsFloat64Number lambda = *((cmsFloat64Number*)Data);
-    cmsToneCurve* toneCurve = cmsBuildGamma(NULL, 2.2); // Example gamma value for testing
-
-    if (toneCurve) {
-        cmsSmoothToneCurve(toneCurve, lambda);
-        cmsFreeToneCurve(toneCurve);
+static cmsBool Sample16Fn(const cmsUInt16Number In[], cmsUInt16Number Out[], void* Cargo) {
+    // Simple sampler function for 16-bit
+    for (int i = 0; i < MAX_OUTPUT_CHANNELS; i++) {
+        Out[i] = In[i % MAX_INPUT_CHANNELS];
     }
-}
-
-static void fuzz_cmsBuildGamma(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number)) return;
-
-    cmsFloat64Number gamma = *((cmsFloat64Number*)Data);
-    cmsToneCurve* toneCurve = cmsBuildGamma(NULL, gamma);
-
-    if (toneCurve) {
-        cmsFreeToneCurve(toneCurve);
-    }
-}
-
-static void fuzz_cmsDetectRGBProfileGamma(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number)) return;
-
-    cmsFloat64Number threshold = *((cmsFloat64Number*)Data);
-
-    FILE *f = fopen("./dummy_file", "wb");
-    if (!f) return;
-    fwrite(Data + sizeof(cmsFloat64Number), 1, Size - sizeof(cmsFloat64Number), f);
-    fclose(f);
-
-    cmsHPROFILE profile = cmsOpenProfileFromFile("./dummy_file", "r");
-    if (profile) {
-        cmsDetectRGBProfileGamma(profile, threshold);
-        cmsCloseProfile(profile);
-    }
-}
-
-static void fuzz_cmsBuildParametricToneCurve(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsInt32Number) + sizeof(cmsFloat64Number)) return;
-
-    cmsInt32Number type = *((cmsInt32Number*)Data);
-    const cmsFloat64Number* params = (const cmsFloat64Number*)(Data + sizeof(cmsInt32Number));
-
-    cmsToneCurve* toneCurve = cmsBuildParametricToneCurve(NULL, type, params);
-
-    if (toneCurve) {
-        cmsFreeToneCurve(toneCurve);
-    }
-}
-
-static void fuzz_cmsIsToneCurveLinear(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number)) return;
-
-    cmsToneCurve* toneCurve = cmsBuildGamma(NULL, 2.2); // Example gamma value for testing
-
-    if (toneCurve) {
-        cmsIsToneCurveLinear(toneCurve);
-        cmsFreeToneCurve(toneCurve);
-    }
+    return TRUE;
 }
 
 int LLVMFuzzerTestOneInput_144(const uint8_t *Data, size_t Size) {
-    fuzz_cmsEstimateGamma(Data, Size);
-    fuzz_cmsSmoothToneCurve(Data, Size);
-    fuzz_cmsBuildGamma(Data, Size);
-    fuzz_cmsDetectRGBProfileGamma(Data, Size);
-    fuzz_cmsBuildParametricToneCurve(Data, Size);
-    fuzz_cmsIsToneCurveLinear(Data, Size);
+    if (Size < sizeof(cmsUInt32Number) * MAX_CLUT_POINTS + sizeof(cmsFloat32Number)) return 0;
+
+    cmsUInt32Number clutPoints[MAX_CLUT_POINTS];
+    memcpy(clutPoints, Data, sizeof(cmsUInt32Number) * MAX_CLUT_POINTS);
+    Data += sizeof(cmsUInt32Number) * MAX_CLUT_POINTS;
+    Size -= sizeof(cmsUInt32Number) * MAX_CLUT_POINTS;
+
+    cmsFloat32Number table[MAX_CLUT_POINTS * MAX_INPUT_CHANNELS * MAX_OUTPUT_CHANNELS];
+    if (Size < sizeof(cmsFloat32Number) * MAX_CLUT_POINTS * MAX_INPUT_CHANNELS * MAX_OUTPUT_CHANNELS) return 0;
+    memcpy(table, Data, sizeof(cmsFloat32Number) * MAX_CLUT_POINTS * MAX_INPUT_CHANNELS * MAX_OUTPUT_CHANNELS);
+
+    cmsContext context = NULL; // NULL context for default
+    cmsStage* stage = cmsStageAllocCLutFloatGranular(context, clutPoints, MAX_INPUT_CHANNELS, MAX_OUTPUT_CHANNELS, table);
+    if (stage) {
+        cmsStageSampleCLutFloat(stage, SampleFloatFn, NULL, 0);
+        cmsStageFree(stage);
+    }
+
+    stage = cmsStageAllocCLut16bitGranular(context, clutPoints, MAX_INPUT_CHANNELS, MAX_OUTPUT_CHANNELS, (const cmsUInt16Number*)table);
+    if (stage) {
+        cmsStageSampleCLut16bit(stage, Sample16Fn, NULL, 0);
+        cmsStageFree(stage);
+    }
+
+    cmsSliceSpaceFloat(MAX_INPUT_CHANNELS, clutPoints, SampleFloatFn, NULL);
+    cmsSliceSpace16(MAX_INPUT_CHANNELS, clutPoints, Sample16Fn, NULL);
 
     return 0;
 }

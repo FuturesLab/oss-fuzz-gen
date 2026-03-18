@@ -1,87 +1,105 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// deflateInit_ at deflate.c:380:13 in zlib.h
-// deflate at deflate.c:982:13 in zlib.h
-// deflateParams at deflate.c:775:13 in zlib.h
-// deflate at deflate.c:982:13 in zlib.h
-// deflateParams at deflate.c:775:13 in zlib.h
-// deflate at deflate.c:982:13 in zlib.h
-// deflate at deflate.c:982:13 in zlib.h
-// deflateEnd at deflate.c:1294:13 in zlib.h
+// inflateInit2_ at inflate.c:173:13 in zlib.h
+// inflateGetHeader at inflate.c:1219:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflate at inflate.c:474:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflateSetDictionary at inflate.c:1187:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflate at inflate.c:474:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflateCopy at inflate.c:1328:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflateReset2 at inflate.c:136:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
 #include <zlib.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void initialize_stream(z_stream *strm, const uint8_t *Data, size_t Size) {
+    memset(strm, 0, sizeof(z_stream));
+    strm->next_in = Data;
+    strm->avail_in = Size;
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
+}
+
+static void initialize_header(gz_header *head) {
+    memset(head, 0, sizeof(gz_header));
 }
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
     z_stream strm;
-    memset(&strm, 0, sizeof(z_stream));
-    int level = Z_DEFAULT_COMPRESSION;
-    int strategy = Z_DEFAULT_STRATEGY;
-    int flush = Z_NO_FLUSH;
+    initialize_stream(&strm, Data, Size);
 
-    // Prepare input and output buffers
-    Bytef *input = (Bytef *)Data;
-    uInt input_size = Size;
-    Bytef output[1024];
-    uInt output_size = sizeof(output);
+    gz_header head;
+    initialize_header(&head);
 
-    // Initialize the deflate stream
-    if (deflateInit_(&strm, level, ZLIB_VERSION, sizeof(z_stream)) != Z_OK) {
+    int ret = inflateInit2_(&strm, MAX_WBITS + 16, ZLIB_VERSION, sizeof(z_stream));
+    if (ret != Z_OK) return 0;
+
+    ret = inflateGetHeader(&strm, &head);
+    if (ret != Z_OK) {
+        inflateEnd(&strm);
         return 0;
     }
 
-    // First deflate call
-    strm.next_in = input;
-    strm.avail_in = input_size;
-    strm.next_out = output;
-    strm.avail_out = output_size;
-    deflate(&strm, flush);
+    unsigned char out[1024];
+    strm.next_out = out;
+    strm.avail_out = sizeof(out);
 
-    // First deflateParams call
-    deflateParams(&strm, level, strategy);
+    ret = inflate(&strm, Z_NO_FLUSH);
+    if (ret != Z_OK && ret != Z_STREAM_END) {
+        inflateEnd(&strm);
+        return 0;
+    }
 
-    // Second deflate call
-    strm.next_in = input;
-    strm.avail_in = input_size;
-    strm.next_out = output;
-    strm.avail_out = output_size;
-    deflate(&strm, flush);
+    const Bytef dict[] = "dummy_dictionary";
+    ret = inflateSetDictionary(&strm, dict, sizeof(dict));
+    if (ret != Z_OK) {
+        inflateEnd(&strm);
+        return 0;
+    }
 
-    // Second deflateParams call
-    deflateParams(&strm, level, strategy);
+    ret = inflate(&strm, Z_FINISH);
+    if (ret != Z_OK && ret != Z_STREAM_END) {
+        inflateEnd(&strm);
+        return 0;
+    }
 
-    // Third deflate call
-    strm.next_in = input;
-    strm.avail_in = input_size;
-    strm.next_out = output;
-    strm.avail_out = output_size;
-    deflate(&strm, flush);
+    z_stream copy;
+    initialize_stream(&copy, NULL, 0);
 
-    // Fourth deflate call
-    strm.next_in = input;
-    strm.avail_in = input_size;
-    strm.next_out = output;
-    strm.avail_out = output_size;
-    deflate(&strm, flush);
+    ret = inflateCopy(&copy, &strm);
+    if (ret != Z_OK) {
+        inflateEnd(&strm);
+        return 0;
+    }
 
-    // Clean up
-    deflateEnd(&strm);
+    ret = inflateEnd(&copy);
+    if (ret != Z_OK) {
+        inflateEnd(&strm);
+        return 0;
+    }
 
+    ret = inflateReset2(&strm, MAX_WBITS);
+    if (ret != Z_OK) {
+        inflateEnd(&strm);
+        return 0;
+    }
+
+    ret = inflateEnd(&strm);
     return 0;
 }

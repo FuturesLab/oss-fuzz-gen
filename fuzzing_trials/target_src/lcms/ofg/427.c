@@ -1,31 +1,30 @@
-#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
-
-extern long cmsfilelength(FILE *);
+#include <stddef.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_427(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
+    // Ensure the data size is sufficient to extract the required parameters
+    if (size < sizeof(double) * 4 + sizeof(cmsCIELab)) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    size_t written = fwrite(data, 1, size, temp_file);
-    if (written != size) {
-        fclose(temp_file);
-        return 0;
-    }
+    // Initialize the cmsCIELab structure
+    cmsCIELab lab;
+    lab.L = (double)data[0]; // Using the first byte for L
+    lab.a = (double)data[1]; // Using the second byte for a
+    lab.b = (double)data[2]; // Using the third byte for b
 
-    // Rewind the file to the beginning for reading
-    rewind(temp_file);
+    // Extract double values from the data
+    double d1 = *(double*)(data + 3);
+    double d2 = *(double*)(data + 3 + sizeof(double));
+    double d3 = *(double*)(data + 3 + 2 * sizeof(double));
+    double d4 = *(double*)(data + 3 + 3 * sizeof(double));
 
-    // Call the function-under-test
-    long length = cmsfilelength(temp_file);
+    // Call the function under test
+    cmsBool result = cmsDesaturateLab(&lab, d1, d2, d3, d4);
 
-    // Close the temporary file
-    fclose(temp_file);
+    // Use the result to prevent it from being optimized out
+    (void)result;
 
     return 0;
 }

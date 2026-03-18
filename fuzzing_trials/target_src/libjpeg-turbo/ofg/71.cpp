@@ -1,51 +1,47 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 
-// Include the correct path for turbojpeg.h
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
-// Define a non-NULL string for the filename
-#define FILENAME "test_image.jpg"
-
-// Define a sample width, height, and pitch
-#define WIDTH 10
-#define HEIGHT 10
-#define PITCH (WIDTH * sizeof(uint16_t))  // Corrected to use uint16_t
-
 extern "C" int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the image buffer
-    if (size < WIDTH * HEIGHT * sizeof(uint16_t)) {  // Corrected to use uint16_t
+    // Declare and initialize variables
+    tjhandle handle = tjInitCompress();
+    if (!handle) {
         return 0;
     }
 
-    // Initialize TurboJPEG handle
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (handle == NULL) {
+    // Ensure size is sufficient for at least one pixel
+    if (size < sizeof(uint16_t)) { // Assuming J16SAMPLE is uint16_t
+        tjDestroy(handle);
         return 0;
     }
 
-    // Allocate memory for the image buffer
-    uint16_t *imageBuffer = (uint16_t *)malloc(WIDTH * HEIGHT * sizeof(uint16_t));  // Corrected to use uint16_t
-    if (imageBuffer == NULL) {
-        tj3Destroy(handle);
-        return 0;
-    }
+    // Initialize J16SAMPLE pointer
+    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data);
 
-    // Copy data into the image buffer
-    memcpy(imageBuffer, data, WIDTH * HEIGHT * sizeof(uint16_t));  // Corrected to use uint16_t
+    // Define image dimensions and pixel format
+    int width = 1;  // Minimum width
+    int height = size / (sizeof(uint16_t) * width);  // Calculate height based on available data
+    int pitch = width * sizeof(uint16_t);
+    int pixelFormat = TJPF_RGB;  // Example pixel format
 
-    // Call the function under test
-    int result = tj3SaveImage16(handle, FILENAME, imageBuffer, WIDTH, PITCH, HEIGHT, TJPF_RGB);
+    // Initialize destination buffer and size
+    unsigned char *jpegBuf = nullptr;
+    size_t jpegSize = 0;
+
+    // Call the function-under-test
+    int result = tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
 
     // Clean up
-    free(imageBuffer);
-    tj3Destroy(handle);
+    if (jpegBuf) {
+        tjFree(jpegBuf);
+    }
+    tjDestroy(handle);
 
     return 0;
 }

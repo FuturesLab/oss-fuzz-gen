@@ -1,31 +1,35 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_370(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to fill two cmsCIELab structures
-    if (size < 6 * sizeof(cmsFloat64Number)) {
-        return 0;
+    // Declare and initialize variables
+    cmsNAMEDCOLORLIST *namedColorList;
+    cmsUInt32Number index;
+    char name[32];  // Assuming a size for the name
+    char prefix[32]; // Assuming a size for the prefix
+    char suffix[32]; // Assuming a size for the suffix
+    cmsUInt16Number PCS[3]; // Assuming 3 components for PCS
+    cmsUInt16Number colorant[3]; // Assuming 3 components for colorant
+
+    // Initialize the named color list
+    namedColorList = cmsAllocNamedColorList(NULL, 1, 3, "prefix", "suffix");
+    if (namedColorList == NULL) {
+        return 0; // Exit if allocation fails
     }
 
-    cmsCIELab lab1;
-    cmsCIELab lab2;
+    // Add a named color to the list
+    cmsAppendNamedColor(namedColorList, "colorName", PCS, colorant);
 
-    // Initialize the cmsCIELab structures with data from the input
-    lab1.L = *((cmsFloat64Number*)(data));
-    lab1.a = *((cmsFloat64Number*)(data + sizeof(cmsFloat64Number)));
-    lab1.b = *((cmsFloat64Number*)(data + 2 * sizeof(cmsFloat64Number)));
-
-    lab2.L = *((cmsFloat64Number*)(data + 3 * sizeof(cmsFloat64Number)));
-    lab2.a = *((cmsFloat64Number*)(data + 4 * sizeof(cmsFloat64Number)));
-    lab2.b = *((cmsFloat64Number*)(data + 5 * sizeof(cmsFloat64Number)));
+    // Set index to a valid value within the range
+    index = 0;
 
     // Call the function-under-test
-    cmsFloat64Number deltaE = cmsBFDdeltaE(&lab1, &lab2);
+    cmsBool result = cmsNamedColorInfo(namedColorList, index, name, prefix, suffix, PCS, colorant);
 
-    // Use the result in some way to prevent optimization out
-    volatile cmsFloat64Number result = deltaE;
-    (void)result;
+    // Clean up
+    cmsFreeNamedColorList(namedColorList);
 
     return 0;
 }

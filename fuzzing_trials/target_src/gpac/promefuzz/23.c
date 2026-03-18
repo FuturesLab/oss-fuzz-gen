@@ -1,74 +1,60 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_is_ismacryp_media at drm_sample.c:218:6 in isomedia.h
-// gf_isom_is_adobe_protection_media at drm_sample.c:1901:6 in isomedia.h
-// gf_isom_get_sample_sync at isom_read.c:2080:6 in isomedia.h
-// gf_isom_get_sample_group_info at isom_read.c:5374:6 in isomedia.h
-// gf_isom_is_self_contained at isom_read.c:2158:6 in isomedia.h
-// gf_isom_add_sample_group_info at isom_write.c:7555:8 in isomedia.h
+// gf_isom_get_sample_duration at isom_read.c:1990:5 in isomedia.h
+// gf_isom_get_last_created_track_id at isom_write.c:596:15 in isomedia.h
+// gf_isom_get_highest_track_in_scalable_segment at isom_read.c:3640:15 in isomedia.h
+// gf_isom_has_track_reference at isom_read.c:1295:5 in isomedia.h
+// gf_isom_is_track_referenced at isom_read.c:1316:5 in isomedia.h
+// gf_isom_enum_track_references at isom_read.c:1219:22 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
-
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
-
 int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    // Ensure there is enough data for track number and indices
-    if (Size < 3 * sizeof(u32)) {
-        return 0;
-    }
-
-    // Write the input data to a dummy file
-    write_dummy_file(Data, Size);
-
-    // Create a dummy GF_ISOFile object
-    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, NULL);
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
     if (!isom_file) {
         return 0;
     }
 
-    // Extract track number and indices from input
-    u32 trackNumber = *((u32 *)(Data));
-    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
-    u32 sampleNumber = *((u32 *)(Data + 2 * sizeof(u32)));
+    // Write data to a dummy file if needed
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
+    }
 
-    // Fuzz gf_isom_is_ismacryp_media
-    gf_isom_is_ismacryp_media(isom_file, trackNumber, sampleDescriptionIndex);
+    // Fuzz gf_isom_get_sample_duration
+    u32 trackNumber = (u32)(Data[0] % 10 + 1); // Example track number
+    u32 sampleNumber = (u32)(Data[1] % 10 + 1); // Example sample number
+    u32 duration = gf_isom_get_sample_duration(isom_file, trackNumber, sampleNumber);
 
-    // Fuzz gf_isom_is_adobe_protection_media
-    gf_isom_is_adobe_protection_media(isom_file, trackNumber, sampleDescriptionIndex);
+    // Fuzz gf_isom_get_last_created_track_id
+    GF_ISOTrackID lastTrackID = gf_isom_get_last_created_track_id(isom_file);
 
-    // Fuzz gf_isom_get_sample_sync
-    gf_isom_get_sample_sync(isom_file, trackNumber, sampleNumber);
+    // Fuzz gf_isom_get_highest_track_in_scalable_segment
+    u32 baseTrackNumber = (u32)(Data[2] % 10 + 1); // Example base track number
+    GF_ISOTrackID highestTrackID = gf_isom_get_highest_track_in_scalable_segment(isom_file, baseTrackNumber);
 
-    // Fuzz gf_isom_get_sample_group_info
-    u32 grouping_type = *((u32 *)(Data + 3 * sizeof(u32)));
-    u32 default_index = 0;
-    const u8 *data = NULL;
-    u32 size = 0;
-    gf_isom_get_sample_group_info(isom_file, trackNumber, sampleDescriptionIndex, grouping_type, &default_index, &data, &size);
+    // Fuzz gf_isom_has_track_reference
+    u32 referenceType = (u32)(Data[3] % 256); // Example reference type
+    GF_ISOTrackID refTrackID = (GF_ISOTrackID)(Data[4] % 10 + 1); // Example referenced track ID
+    u32 referenceIndex = gf_isom_has_track_reference(isom_file, trackNumber, referenceType, refTrackID);
 
-    // Fuzz gf_isom_is_self_contained
-    gf_isom_is_self_contained(isom_file, trackNumber, sampleDescriptionIndex);
+    // Fuzz gf_isom_is_track_referenced
+    u32 referencingTrackNumber = gf_isom_is_track_referenced(isom_file, trackNumber, referenceType);
 
-    // Fuzz gf_isom_add_sample_group_info
-    GF_Err err;
-    u32 sampleGroupDescriptionIndex = 0;
-    err = gf_isom_add_sample_group_info(isom_file, trackNumber, grouping_type, (void *)Data, Size, GF_FALSE, &sampleGroupDescriptionIndex);
+    // Fuzz gf_isom_enum_track_references
+    u32 idx = (u32)(Data[5] % 10); // Example index
+    u32 referenceCount = 0;
+    u32 refType = 0;
+    const GF_ISOTrackID *trackIDs = gf_isom_enum_track_references(isom_file, trackNumber, idx, &refType, &referenceCount);
 
-    // Clean up
+    // Cleanup
     gf_isom_close(isom_file);
+
     return 0;
 }

@@ -1,30 +1,24 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHPROFILE hProfile;
-    cmsProfileClassSignature deviceClass;
-
-    // Ensure size is sufficient to extract meaningful data
-    if (size < sizeof(cmsProfileClassSignature)) {
+    // Ensure the input data is large enough to initialize cmsCIEXYZ
+    if (size < sizeof(cmsCIEXYZ)) {
         return 0;
     }
 
-    // Initialize the profile using a dummy profile for fuzzing
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
-        return 0;
-    }
+    // Initialize cmsCIEXYZ structure from input data
+    cmsCIEXYZ xyz;
+    xyz.X = *(const float *)(data);
+    xyz.Y = *(const float *)(data + sizeof(float));
+    xyz.Z = *(const float *)(data + 2 * sizeof(float));
 
-    // Extract a cmsProfileClassSignature from the input data
-    deviceClass = *(cmsProfileClassSignature *)data;
+    // Declare and initialize cmsUInt16Number array
+    cmsUInt16Number encodedXYZ[3] = {0, 0, 0};
 
-    // Call the function under test
-    cmsSetDeviceClass(hProfile, deviceClass);
-
-    // Clean up
-    cmsCloseProfile(hProfile);
+    // Call the function-under-test
+    cmsFloat2XYZEncoded(encodedXYZ, &xyz);
 
     return 0;
 }

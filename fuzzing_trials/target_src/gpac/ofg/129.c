@@ -1,34 +1,26 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <gpac/isomedia.h>
-#include <gpac/constants.h>
-
-// Ensure the necessary types are defined
-typedef uint64_t u64;
+#include <gpac/list.h> // Include necessary for GF_List
 
 int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract the required parameters
-    if (size < sizeof(u64) + sizeof(Bool)) {
-        return 0;
-    }
+    // Initialize GF_ISOFile using the appropriate library function
+    GF_ISOFile *file = gf_isom_open(NULL, GF_ISOM_OPEN_READ, NULL);
 
-    // Initialize the GF_ISOFile structure
-    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) {
-        return 0;
-    }
+    if (!file) return 0;
 
-    // Extract the u64 duration from the data
-    u64 duration = *((u64 *)data);
-
-    // Extract the Bool remove_mehd from the data
-    Bool remove_mehd = *((Bool *)(data + sizeof(u64)));
+    Bool root_meta = GF_TRUE; // or GF_FALSE, try both
+    u32 track_num = 1; // Example track number
+    u32 item_id = 1; // Example item ID
+    GF_ImageItemProperties prop;
+    GF_List *unmapped_props = gf_list_new();
 
     // Call the function-under-test
-    gf_isom_set_movie_duration(movie, duration, remove_mehd);
+    gf_isom_get_meta_image_props(file, root_meta, track_num, item_id, &prop, unmapped_props);
 
     // Clean up
-    gf_isom_close(movie);
+    gf_isom_close(file); // Properly close the initialized file
+    gf_list_del(unmapped_props);
 
     return 0;
 }

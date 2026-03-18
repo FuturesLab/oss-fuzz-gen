@@ -1,62 +1,74 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// gzsetparams at gzwrite.c:630:13 in zlib.h
-// gzwrite at gzwrite.c:255:13 in zlib.h
-// gzputc at gzwrite.c:307:13 in zlib.h
-// gzprintf at gzwrite.c:487:15 in zlib.h
-// gzerror at gzlib.c:513:22 in zlib.h
-// gzopen at gzlib.c:288:16 in zlib.h
-// gzclose_w at gzwrite.c:667:13 in zlib.h
+// deflateInit_ at deflate.c:380:13 in zlib.h
+// deflateEnd at deflate.c:1294:13 in zlib.h
+// deflateSetHeader at deflate.c:715:13 in zlib.h
+// deflateParams at deflate.c:775:13 in zlib.h
+// deflatePending at deflate.c:723:13 in zlib.h
+// deflateCopy at deflate.c:1318:13 in zlib.h
+// deflateUsed at deflate.c:738:13 in zlib.h
+// deflateTune at deflate.c:820:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
 
-static void fuzz_gzsetparams(gzFile file, const uint8_t *Data, size_t Size) {
-    if (Size < 2) return;
-    int level = Data[0] % 10; // Compression level 0-9
-    int strategy = Data[1] % 5; // Strategy 0-4
-    gzsetparams(file, level, strategy);
+static void initialize_stream(z_streamp strm) {
+    memset(strm, 0, sizeof(z_stream));
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
+    deflateInit(strm, Z_DEFAULT_COMPRESSION);
 }
 
-static void fuzz_gzwrite(gzFile file, const uint8_t *Data, size_t Size) {
-    gzwrite(file, Data, Size);
-}
-
-static void fuzz_gzputc(gzFile file, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    gzputc(file, Data[0]);
-}
-
-static void fuzz_gzprintf(gzFile file, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    gzprintf(file, "%.*s", (int)Size, Data);
-}
-
-static void fuzz_gzerror(gzFile file) {
-    int errnum;
-    gzerror(file, &errnum);
+static void cleanup_stream(z_streamp strm) {
+    deflateEnd(strm);
 }
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    if (Size < 1) return 0;
 
-    gzFile gzfile = gzopen("./dummy_file", "wb");
-    if (!gzfile) return 0;
+    z_stream strm;
+    initialize_stream(&strm);
 
-    fuzz_gzsetparams(gzfile, Data, Size);
-    fuzz_gzwrite(gzfile, Data, Size);
-    fuzz_gzputc(gzfile, Data, Size);
-    fuzz_gzprintf(gzfile, Data, Size);
-    fuzz_gzerror(gzfile);
+    // Setup a dummy gzip header
+    gz_header header;
+    memset(&header, 0, sizeof(gz_header));
+    header.text = 1;
+    deflateSetHeader(&strm, &header);
 
-    gzclose_w(gzfile);
+    // Fuzz deflateParams
+    int level = Data[0] % 10;  // zlib supports levels 0-9
+    int strategy = Data[0] % 5; // assuming 5 different strategies
+    deflateParams(&strm, level, strategy);
+
+    // Fuzz deflatePending
+    unsigned pending;
+    int bits;
+    deflatePending(&strm, &pending, &bits);
+
+    // Fuzz deflateCopy
+    z_stream dest_strm;
+    initialize_stream(&dest_strm);
+    deflateCopy(&dest_strm, &strm);
+
+    // Fuzz deflateUsed
+    int used_bits;
+    deflateUsed(&strm, &used_bits);
+
+    // Fuzz deflateTune
+    int good_length = Data[0] % 258; // max good length
+    int max_lazy = Data[0] % 258; // max lazy length
+    int nice_length = Data[0] % 258; // max nice length
+    int max_chain = Data[0] % 4096; // max chain length
+    deflateTune(&strm, good_length, max_lazy, nice_length, max_chain);
+
+    cleanup_stream(&strm);
+    cleanup_stream(&dest_strm);
     return 0;
 }

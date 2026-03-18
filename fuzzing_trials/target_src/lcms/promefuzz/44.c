@@ -1,62 +1,73 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsCreateContext at cmsplugin.c:824:22 in lcms2.h
-// cmsCreate_sRGBProfileTHR at cmsvirt.c:653:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsUnregisterPluginsTHR at cmsplugin.c:780:16 in lcms2.h
-// cmsCreateProfilePlaceholder at cmsio0.c:526:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsGBDAlloc at cmssm.c:302:22 in lcms2.h
-// cmsGBDFree at cmssm.c:313:16 in lcms2.h
-// cmsCreateXYZProfileTHR at cmsvirt.c:577:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
+// _cmsMAT3inverse at cmsmtrx.c:129:20 in lcms2_plugin.h
+// _cmsMAT3solve at cmsmtrx.c:156:20 in lcms2_plugin.h
+// _cmsMAT3identity at cmsmtrx.c:84:16 in lcms2_plugin.h
+// _cmsMAT3eval at cmsmtrx.c:169:16 in lcms2_plugin.h
+// _cmsMAT3per at cmsmtrx.c:114:16 in lcms2_plugin.h
+// _cmsMAT3isIdentity at cmsmtrx.c:98:19 in lcms2_plugin.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include "lcms2.h"
+#include <string.h>
+#include "lcms2_plugin.h"
 
-static cmsContext createContext() {
-    return cmsCreateContext(NULL, NULL);
+static void initializeMatrix(cmsMAT3* mat, const uint8_t* data, size_t size) {
+    // Assuming cmsMAT3 has a structure that we can fill with data
+    if (size >= sizeof(cmsMAT3)) {
+        memcpy(mat, data, sizeof(cmsMAT3));
+    } else {
+        memset(mat, 0, sizeof(cmsMAT3));
+    }
+}
+
+static void initializeVector(cmsVEC3* vec, const uint8_t* data, size_t size) {
+    // Assuming cmsVEC3 has a structure that we can fill with data
+    if (size >= sizeof(cmsVEC3)) {
+        memcpy(vec, data, sizeof(cmsVEC3));
+    } else {
+        memset(vec, 0, sizeof(cmsVEC3));
+    }
 }
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    // Create a new context
-    cmsContext context = createContext();
-    if (context == NULL) return 0;
-
-    // Fuzz cmsCreate_sRGBProfileTHR
-    cmsHPROFILE sRGBProfile = cmsCreate_sRGBProfileTHR(context);
-    if (sRGBProfile != NULL) {
-        cmsCloseProfile(sRGBProfile);
+    if (Size < sizeof(cmsMAT3) * 2 + sizeof(cmsVEC3) * 2) {
+        return 0;
     }
 
-    // Fuzz cmsUnregisterPluginsTHR
-    cmsUnregisterPluginsTHR(context);
+    cmsMAT3 a, b, r;
+    cmsVEC3 x, v, result;
 
-    // Fuzz cmsCreateProfilePlaceholder
-    cmsHPROFILE placeholderProfile = cmsCreateProfilePlaceholder(context);
-    if (placeholderProfile != NULL) {
-        cmsCloseProfile(placeholderProfile);
-    }
+    initializeMatrix(&a, Data, Size);
+    initializeMatrix(&b, Data + sizeof(cmsMAT3), Size - sizeof(cmsMAT3));
+    initializeVector(&x, Data + sizeof(cmsMAT3) * 2, Size - sizeof(cmsMAT3) * 2);
+    initializeVector(&v, Data + sizeof(cmsMAT3) * 2 + sizeof(cmsVEC3), Size - sizeof(cmsMAT3) * 2 - sizeof(cmsVEC3));
 
-    // Fuzz cmsGBDAlloc
-    cmsHANDLE gbdHandle = cmsGBDAlloc(context);
-    if (gbdHandle != NULL) {
-        cmsGBDFree(gbdHandle);
-    }
+    // Test _cmsMAT3inverse
+    cmsBool inverseRes = _cmsMAT3inverse(&a, &r);
 
-    // Fuzz cmsCreateXYZProfileTHR
-    cmsHPROFILE xyzProfile = cmsCreateXYZProfileTHR(context);
-    if (xyzProfile != NULL) {
-        cmsCloseProfile(xyzProfile);
-    }
+    // Test _cmsMAT3solve
+    cmsBool solveRes = _cmsMAT3solve(&x, &a, &v);
 
-    // Clean up context
-    cmsDeleteContext(context);
+    // Test _cmsMAT3identity
+    _cmsMAT3identity(&r);
+
+    // Test _cmsMAT3eval
+    _cmsMAT3eval(&result, &a, &v);
+
+    // Test _cmsMAT3per
+    _cmsMAT3per(&r, &a, &b);
+
+    // Test _cmsMAT3isIdentity
+    cmsBool isIdentityRes = _cmsMAT3isIdentity(&a);
+
+    // Use the results to avoid compiler warnings
+    (void)inverseRes;
+    (void)solveRes;
+    (void)isIdentityRes;
 
     return 0;
 }

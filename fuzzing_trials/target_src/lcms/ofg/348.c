@@ -3,21 +3,17 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_348(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a non-NULL pointer
-    if (size < sizeof(void *)) {
+    // Ensure there is enough data for cmsCIELab and cmsUInt16Number
+    if (size < sizeof(cmsCIELab) + sizeof(cmsUInt16Number)) {
         return 0;
     }
 
-    // Use the data as a pointer to pass to cmsPlugin
-    void *pluginData = (void *)data;
+    // Initialize cmsCIELab and cmsUInt16Number
+    cmsCIELab lab;
+    const cmsUInt16Number *encoded = (const cmsUInt16Number *)data;
 
-    // Call the function-under-test
-    cmsBool result = cmsPlugin(pluginData);
-
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (result) {
-        // Do something if cmsPlugin returns true
-    }
+    // Call the function under test
+    cmsLabEncoded2Float(&lab, encoded);
 
     return 0;
 }

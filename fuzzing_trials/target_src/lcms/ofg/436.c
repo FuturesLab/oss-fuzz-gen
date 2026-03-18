@@ -1,32 +1,36 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
 #include <lcms2.h>
 
+// Removed 'extern "C"' as it is not needed in C code
 int LLVMFuzzerTestOneInput_436(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for extracting a cmsFloat64Number
-    if (size < sizeof(cmsFloat64Number)) {
-        return 0;
-    }
+    // Define and initialize the parameters for cmsCreateMultiprofileTransform
+    cmsHPROFILE profiles[3];
+    cmsUInt32Number nProfiles = 3;
+    cmsUInt32Number inputFormat = TYPE_RGB_8;
+    cmsUInt32Number outputFormat = TYPE_RGB_8;
+    cmsUInt32Number intent = INTENT_PERCEPTUAL;
+    cmsUInt32Number flags = 0;
 
-    // Initialize the cmsContext
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return 0;
-    }
-
-    // Extract a cmsFloat64Number from the data
-    cmsFloat64Number gammaValue;
-    memcpy(&gammaValue, data, sizeof(cmsFloat64Number));
+    // Create sample profiles for testing
+    profiles[0] = cmsCreate_sRGBProfile();
+    profiles[1] = cmsCreateLab4Profile(NULL);
+    profiles[2] = cmsCreateXYZProfile();
 
     // Call the function-under-test
-    cmsToneCurve *toneCurve = cmsBuildGamma(context, gammaValue);
+    cmsHTRANSFORM transform = cmsCreateMultiprofileTransform(
+        profiles, nProfiles, inputFormat, outputFormat, intent, flags);
 
     // Clean up
-    if (toneCurve != NULL) {
-        cmsFreeToneCurve(toneCurve);
+    if (transform != NULL) {
+        cmsDeleteTransform(transform);
     }
-    cmsDeleteContext(context);
+
+    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
+        if (profiles[i] != NULL) {
+            cmsCloseProfile(profiles[i]);
+        }
+    }
 
     return 0;
 }

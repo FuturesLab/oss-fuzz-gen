@@ -1,21 +1,28 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
-    // Initialize a cmsContext
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsHPROFILE hProfile = NULL;
+    cmsContext contextID;
 
-    // Check if the context was created successfully
-    if (context == NULL) {
+    // Check if the size is sufficient to simulate a profile
+    if (size < sizeof(cmsHPROFILE)) {
         return 0;
     }
 
-    // Call the function-under-test with a valid context
-    cmsUnregisterPluginsTHR(context);
+    // Simulate creating a profile from the input data
+    // In a real scenario, you would use a function like cmsOpenProfileFromMem
+    // to create a profile from the data, but here we simulate it for fuzzing purposes
+    hProfile = cmsOpenProfileFromMem(data, size);
 
-    // Clean up the context
-    cmsDeleteContext(context);
+    // Ensure the profile is not NULL
+    if (hProfile != NULL) {
+        // Call the function-under-test
+        contextID = cmsGetProfileContextID(hProfile);
+
+        // Close the profile to prevent memory leaks
+        cmsCloseProfile(hProfile);
+    }
 
     return 0;
 }

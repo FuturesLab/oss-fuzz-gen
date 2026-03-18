@@ -1,11 +1,14 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 // aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE at aomcx.h:2173:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_CONFIG at aomcx.h:2264:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS at aomcx.h:2004:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR at aomcx.h:2365:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA at aomcx.h:2302:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_TRANSFER_CHARACTERISTICS at aomcx.h:2001:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,81 +18,80 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include <aom/aom_codec.h>
+#include <aom/aom_encoder.h>
+#include <aom/aomcx.h>
+}
+
 #include <cstdint>
-#include <cstring>
-#include <iostream>
-#include <fstream>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
-#include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
-#include "aomcx.h"
+#include <cstdio>
+#include <cstdlib>
+
+static void initialize_codec(aom_codec_ctx_t *codec_ctx, aom_codec_iface_t *iface) {
+    aom_codec_enc_cfg_t cfg;
+    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to get default codec config.\n");
+        exit(1);
+    }
+
+    if (aom_codec_enc_init(codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to initialize codec.\n");
+        exit(1);
+    }
+}
+
+static void cleanup_codec(aom_codec_ctx_t *codec_ctx) {
+    if (aom_codec_destroy(codec_ctx) != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to destroy codec.\n");
+    }
+}
+
+static void fuzz_codec_controls(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    int cq_level = Data[0] % 64; // CQ level range
+    if (aom_codec_control(codec_ctx, AOME_SET_CQ_LEVEL, cq_level) != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to set CQ level.\n");
+    }
+
+    if (Size < 2) return;
+    int enable_auto_alt_ref = Data[1] % 2;
+    if (aom_codec_control(codec_ctx, AOME_SET_ENABLEAUTOALTREF, enable_auto_alt_ref) != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to set auto alt ref.\n");
+    }
+
+    if (Size < 3) return;
+    int num_spatial_layers = Data[2] % 5 + 1; // 1 to 5 layers
+    if (aom_codec_control(codec_ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, num_spatial_layers) != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to set number of spatial layers.\n");
+    }
+
+    int loop_filter_level;
+    if (aom_codec_control(codec_ctx, AOME_GET_LOOPFILTER_LEVEL, &loop_filter_level) != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to get loop filter level.\n");
+    }
+
+    if (Size < 4) return;
+    int arnr_max_frames = Data[3] % 16; // ARNR max frames range
+    if (aom_codec_control(codec_ctx, AOME_SET_ARNR_MAXFRAMES, arnr_max_frames) != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to set ARNR max frames.\n");
+    }
+
+    if (Size < 5) return;
+    int sharpness = Data[4] % 8; // Sharpness range
+    if (aom_codec_control(codec_ctx, AOME_SET_SHARPNESS, sharpness) != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to set sharpness.\n");
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_90(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t)) {
-        return 0;
-    }
-
-    // Prepare codec context
     aom_codec_ctx_t codec_ctx;
-    std::memset(&codec_ctx, 0, sizeof(aom_codec_ctx_t));
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
 
-    // Prepare dummy file if needed
-    std::ofstream dummy_file("./dummy_file");
-    if (dummy_file.is_open()) {
-        dummy_file.write(reinterpret_cast<const char*>(Data), Size);
-        dummy_file.close();
-    }
+    initialize_codec(&codec_ctx, iface);
+    fuzz_codec_controls(&codec_ctx, Data, Size);
+    cleanup_codec(&codec_ctx);
 
-    // Initialize codec context with a valid interface
-    codec_ctx.iface = aom_codec_av1_cx();
-    if (!codec_ctx.iface) {
-        return 0;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE
-    if (Size > sizeof(aom_codec_ctx_t)) {
-        int enable_palette = Data[sizeof(aom_codec_ctx_t)] % 2;
-        aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE(&codec_ctx, 0, enable_palette);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_CONFIG
-    if (Size > sizeof(aom_codec_ctx_t) + 1) {
-        aom_svc_ref_frame_config_t ref_frame_config;
-        std::memset(&ref_frame_config, 0, sizeof(ref_frame_config));
-        aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_CONFIG(&codec_ctx, 0, &ref_frame_config);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS
-    if (Size > sizeof(aom_codec_ctx_t) + 2) {
-        int matrix_coefficients = Data[sizeof(aom_codec_ctx_t) + 2];
-        aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS(&codec_ctx, 0, matrix_coefficients);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR
-    if (Size > sizeof(aom_codec_ctx_t) + 3) {
-        int max_consec_frame_drop = Data[sizeof(aom_codec_ctx_t) + 3];
-        aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(&codec_ctx, 0, max_consec_frame_drop);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA
-    if (Size > sizeof(aom_codec_ctx_t) + 4) {
-        int enable_directional_intra = Data[sizeof(aom_codec_ctx_t) + 4] % 2;
-        aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA(&codec_ctx, 0, enable_directional_intra);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_TRANSFER_CHARACTERISTICS
-    if (Size > sizeof(aom_codec_ctx_t) + 5) {
-        int transfer_characteristics = Data[sizeof(aom_codec_ctx_t) + 5];
-        aom_codec_control_typechecked_AV1E_SET_TRANSFER_CHARACTERISTICS(&codec_ctx, 0, transfer_characteristics);
-    }
-
-    // Cleanup and return
-    aom_codec_destroy(&codec_ctx);
     return 0;
 }

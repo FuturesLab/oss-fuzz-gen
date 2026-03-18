@@ -1,26 +1,42 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_247(const uint8_t *data, size_t size) {
-    hid_t file_id;
-    herr_t status;
+    // Initialize HDF5 library
+    H5open();
 
-    // Create a temporary file name
-    const char *file_name = "temp_fuzz_file.h5";
-
-    // Create a new HDF5 file using default properties
-    file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a file to work with
+    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
-        return 0; // Unable to create file, exit early
+        return 0;
     }
 
-    // Call the function-under-test with the file identifier
-    // Assuming H5Fformat_convert is the intended function to fuzz
-    // This function should be replaced with the actual function you intend to test
-    status = H5Fformat_convert(file_id);
+    // Create a simple dataspace
+    hsize_t dims[1] = {10};
+    hid_t space_id = H5Screate_simple(1, dims, NULL);
+    if (space_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Close the file
+    // Create a dataset
+    hid_t dataset_id = H5Dcreate(file_id, "dataset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Fuzz the H5Dclose function
+    H5Dclose(dataset_id);
+
+    // Cleanup
+    H5Sclose(space_id);
     H5Fclose(file_id);
+
+    // Close the HDF5 library
+    H5close();
 
     return 0;
 }

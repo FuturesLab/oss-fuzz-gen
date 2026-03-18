@@ -1,27 +1,25 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_200(const uint8_t *data, size_t size) {
     // Initialize variables
-    hid_t dataset_id;
-    hsize_t chunk_dims[2] = {1, 1}; // Assuming a 2D chunk for simplicity
-    hsize_t storage_size;
+    hid_t loc_id = H5P_DEFAULT;  // Using default property list as a placeholder
+    const char *obj_name = "test_object";
+    const char *attr_name = "test_attribute";
+    hid_t type_id = H5T_NATIVE_INT;  // Using native integer type as a placeholder
+    hid_t space_id = H5S_SCALAR;     // Using scalar dataspace as a placeholder
+    hid_t acpl_id = H5P_DEFAULT;     // Using default attribute creation property list
+    hid_t aapl_id = H5P_DEFAULT;     // Using default attribute access property list
+    hid_t lapl_id = H5P_DEFAULT;     // Using default link access property list
 
-    // Ensure data size is sufficient for hid_t
-    if (size < sizeof(hid_t)) {
-        return 0;
-    }
-
-    // Extract dataset_id from input data
-    dataset_id = *(const hid_t *)data;
-    
     // Call the function-under-test
-    herr_t result = H5Dget_chunk_storage_size(dataset_id, chunk_dims, &storage_size);
+    hid_t attribute_id = H5Acreate_by_name(loc_id, obj_name, attr_name, type_id, space_id, acpl_id, aapl_id, lapl_id);
 
-    // Use the result and storage_size in some way to avoid compiler optimizations
-    (void)result;
-    (void)storage_size;
+    // Close the attribute if it was created successfully
+    if (attribute_id >= 0) {
+        H5Aclose(attribute_id);
+    }
 
     return 0;
 }

@@ -1,61 +1,106 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsCreate_sRGBProfile at cmsvirt.c:680:23 in lcms2.h
-// cmsIsTag at cmsio0.c:709:19 in lcms2.h
-// cmsReadTag at cmsio0.c:1639:17 in lcms2.h
-// cmsLinkTag at cmsio0.c:2071:19 in lcms2.h
-// cmsWriteTag at cmsio0.c:1792:19 in lcms2.h
-// cmsWriteRawTag at cmsio0.c:2040:19 in lcms2.h
-// cmsTagLinkedTo at cmsio0.c:2098:28 in lcms2.h
+// cmsOpenProfileFromStream at cmsio0.c:1265:24 in lcms2.h
 // cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsCreateDeviceLinkFromCubeFile at cmscgats.c:3289:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsOpenIOhandlerFromFile at cmsio0.c:378:25 in lcms2.h
+// cmsOpenProfileFromIOhandler2THR at cmsio0.c:1178:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsCloseIOhandler at cmsio0.c:510:19 in lcms2.h
+// cmsCreateDeviceLinkFromCubeFileTHR at cmscgats.c:3211:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsOpenProfileFromFileTHR at cmsio0.c:1204:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsOpenIOhandlerFromFile at cmsio0.c:378:25 in lcms2.h
+// cmsCloseIOhandler at cmsio0.c:510:19 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include "lcms2.h"
+#include <lcms2.h>
 
-static cmsHPROFILE createDummyProfile() {
-    // Create an empty profile for testing purposes
-    return cmsCreate_sRGBProfile();
+static void fuzz_cmsOpenProfileFromStream(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    file = fopen("./dummy_file", "rb");
+    if (!file) return;
+
+    cmsHPROFILE profile = cmsOpenProfileFromStream(file, "r");
+    if (profile) {
+        cmsCloseProfile(profile);
+    }
+    // Remove the fclose here to prevent double-free.
+    // fclose(file);
+}
+
+static void fuzz_cmsCreateDeviceLinkFromCubeFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    cmsHPROFILE profile = cmsCreateDeviceLinkFromCubeFile("./dummy_file");
+    if (profile) {
+        cmsCloseProfile(profile);
+    }
+}
+
+static void fuzz_cmsOpenProfileFromIOhandler2THR(const uint8_t *Data, size_t Size) {
+    cmsContext context = NULL;
+    cmsIOHANDLER *ioHandler = cmsOpenIOhandlerFromFile(context, "./dummy_file", "rb");
+    if (!ioHandler) return;
+
+    cmsHPROFILE profile = cmsOpenProfileFromIOhandler2THR(context, ioHandler, FALSE);
+    if (profile) {
+        cmsCloseProfile(profile);
+    }
+    cmsCloseIOhandler(ioHandler);
+}
+
+static void fuzz_cmsCreateDeviceLinkFromCubeFileTHR(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    cmsContext context = NULL;
+    cmsHPROFILE profile = cmsCreateDeviceLinkFromCubeFileTHR(context, "./dummy_file");
+    if (profile) {
+        cmsCloseProfile(profile);
+    }
+}
+
+static void fuzz_cmsOpenProfileFromFileTHR(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    cmsContext context = NULL;
+    cmsHPROFILE profile = cmsOpenProfileFromFileTHR(context, "./dummy_file", "r");
+    if (profile) {
+        cmsCloseProfile(profile);
+    }
+}
+
+static void fuzz_cmsOpenIOhandlerFromFile(const uint8_t *Data, size_t Size) {
+    cmsContext context = NULL;
+    cmsIOHANDLER *ioHandler = cmsOpenIOhandlerFromFile(context, "./dummy_file", "rb");
+    if (ioHandler) {
+        cmsCloseIOhandler(ioHandler);
+    }
 }
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsTagSignature) * 2) {
-        return 0;
-    }
-
-    cmsHPROFILE hProfile = createDummyProfile();
-    if (!hProfile) {
-        return 0;
-    }
-
-    cmsTagSignature sig = *(cmsTagSignature*)Data;
-    cmsTagSignature dest = *(cmsTagSignature*)(Data + sizeof(cmsTagSignature));
-
-    // Test cmsIsTag
-    cmsBool isTag = cmsIsTag(hProfile, sig);
-
-    // Test cmsReadTag
-    void* tagData = cmsReadTag(hProfile, sig);
-    if (tagData) {
-        // Use tagData if needed
-    }
-
-    // Test cmsLinkTag
-    cmsBool linkTag = cmsLinkTag(hProfile, sig, dest);
-
-    // Test cmsWriteTag
-    cmsBool writeTag = cmsWriteTag(hProfile, sig, tagData);
-
-    // Test cmsWriteRawTag
-    cmsBool writeRawTag = cmsWriteRawTag(hProfile, sig, Data, Size);
-
-    // Test cmsTagLinkedTo
-    cmsTagSignature linkedTo = cmsTagLinkedTo(hProfile, sig);
-
-    cmsCloseProfile(hProfile);
+    fuzz_cmsOpenProfileFromStream(Data, Size);
+    fuzz_cmsCreateDeviceLinkFromCubeFile(Data, Size);
+    fuzz_cmsOpenProfileFromIOhandler2THR(Data, Size);
+    fuzz_cmsCreateDeviceLinkFromCubeFileTHR(Data, Size);
+    fuzz_cmsOpenProfileFromFileTHR(Data, Size);
+    fuzz_cmsOpenIOhandlerFromFile(Data, Size);
     return 0;
 }

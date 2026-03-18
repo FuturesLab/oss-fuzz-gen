@@ -1,28 +1,32 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <zlib.h> // Include zlib for uLong and adler32_combine64
-#include <stdio.h> // For NULL definition
-#include <sys/types.h> // Include for off_t type
+#include <sys/types.h> // Include this for off_t
+#include <zlib.h>
+
+// Function prototype for the function-under-test
+uLong adler32_combine64(uLong adler1, uLong adler2, off_t len2);
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for adler32_combine64
-    uLong adler1 = 1; // Initial value for adler1
-    uLong adler2 = 0; // Initial value for adler2
-    off_t len2 = 0; // Initial length for len2
-
-    // Ensure size is greater than a minimum threshold to extract values
-    if (size >= sizeof(uLong) * 2 + sizeof(off_t)) {
-        // Extract values from data
-        adler1 = *((uLong *)data);
-        adler2 = *((uLong *)(data + sizeof(uLong)));
-        len2 = *((off_t *)(data + sizeof(uLong) * 2));
+    // Ensure there is enough data to extract three values
+    if (size < sizeof(uLong) * 2 + sizeof(off_t)) {
+        return 0;
     }
+
+    // Extract uLong values from the input data
+    uLong adler1 = *((const uLong *)data);
+    uLong adler2 = *((const uLong *)(data + sizeof(uLong)));
+
+    // Extract off_t value from the input data
+    off_t len2 = *((const off_t *)(data + sizeof(uLong) * 2));
 
     // Call the function-under-test
     uLong result = adler32_combine64(adler1, adler2, len2);
 
-    // Use the result to avoid unused variable warning
-    (void)result;
+    // Use the result in some way to prevent optimization out
+    if (result == 0) {
+        // Do something trivial
+        return 0;
+    }
 
     return 0;
 }

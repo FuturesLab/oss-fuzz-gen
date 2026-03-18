@@ -1,77 +1,60 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_vvc_set_inband_config at avc_ext.c:2427:8 in isomedia.h
-// gf_isom_set_sample_av1_switch_frame_group at isom_write.c:7740:8 in isomedia.h
-// gf_isom_get_sample_rap_roll_info at isom_read.c:5119:8 in isomedia.h
-// gf_isom_fragment_set_sample_rap_group at isom_write.c:7720:8 in isomedia.h
-// gf_isom_fragment_set_sample_av1_switch_frame_group at isom_write.c:7745:8 in isomedia.h
-// gf_isom_set_sample_rap_group at isom_write.c:7715:8 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_keep_utc_times at isom_read.c:5543:6 in isomedia.h
+// gf_isom_is_inplace_rewrite at isom_write.c:9035:6 in isomedia.h
+// gf_isom_is_smooth_streaming_moov at isom_read.c:5848:6 in isomedia.h
+// gf_isom_has_movie at isom_read.c:835:6 in isomedia.h
+// gf_isom_is_fragmented at movie_fragments.c:3523:6 in isomedia.h
+// gf_isom_is_JPEG2000 at isom_read.c:4270:6 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include "isomedia.h"
 
+// Define a size for the dummy structure, assuming a reasonable size
+#define DUMMY_ISO_FILE_SIZE 1024
+
 static GF_ISOFile* create_dummy_iso_file() {
-    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    // Allocate memory for GF_ISOFile with a dummy size
+    GF_ISOFile *file = (GF_ISOFile *)malloc(DUMMY_ISO_FILE_SIZE);
+    if (!file) return NULL;
+    memset(file, 0, DUMMY_ISO_FILE_SIZE);
+    return file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_close(iso_file);
+static void destroy_dummy_iso_file(GF_ISOFile *file) {
+    if (file) {
+        free(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 1) return 0; // Ensure there's at least one byte for meaningful operations
 
-    // Dummy file creation
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    GF_ISOFile *isoFile = create_dummy_iso_file();
+    if (!isoFile) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    // Fuzz gf_isom_keep_utc_times
+    Bool keep_utc = Data[0] % 2; // Use the first byte for boolean
+    gf_isom_keep_utc_times(isoFile, keep_utc);
 
-    // Randomly initialize parameters for each function
-    u32 trackNumber = (Size > 4) ? *(u32 *)Data : 1;
-    u32 sampleDescriptionIndex = (Size > 8) ? *(u32 *)(Data + 4) : 1;
-    u32 sampleNumber = (Size > 12) ? *(u32 *)(Data + 8) : 1;
-    Bool is_rap = (Size > 13) ? (Data[12] % 2) : 0;
-    u32 num_leading_samples = (Size > 17) ? *(u32 *)(Data + 13) : 0;
-    Bool keep_xps = (Size > 18) ? (Data[17] % 2) : 0;
-    Bool is_switch_Frame = (Size > 19) ? (Data[18] % 2) : 0;
+    // Fuzz gf_isom_is_inplace_rewrite
+    Bool inplace_rewrite = gf_isom_is_inplace_rewrite(isoFile);
 
-    // Call gf_isom_vvc_set_inband_config
-    gf_isom_vvc_set_inband_config(iso_file, trackNumber, sampleDescriptionIndex, keep_xps);
+    // Fuzz gf_isom_is_smooth_streaming_moov
+    Bool is_smooth_streaming = gf_isom_is_smooth_streaming_moov(isoFile);
 
-    // Call gf_isom_set_sample_av1_switch_frame_group
-    gf_isom_set_sample_av1_switch_frame_group(iso_file, trackNumber, sampleNumber, is_switch_Frame);
+    // Fuzz gf_isom_has_movie
+    Bool has_movie = gf_isom_has_movie(isoFile);
 
-    // Prepare variables for gf_isom_get_sample_rap_roll_info
-    Bool is_rap_out;
-    GF_ISOSampleRollType roll_type;
-    s32 roll_distance;
+    // Fuzz gf_isom_is_fragmented
+    Bool is_fragmented = gf_isom_is_fragmented(isoFile);
 
-    // Call gf_isom_get_sample_rap_roll_info
-    gf_isom_get_sample_rap_roll_info(iso_file, trackNumber, sampleNumber, &is_rap_out, &roll_type, &roll_distance);
-
-    // Call gf_isom_fragment_set_sample_rap_group
-    gf_isom_fragment_set_sample_rap_group(iso_file, trackNumber, sampleNumber, is_rap, num_leading_samples);
-
-    // Call gf_isom_fragment_set_sample_av1_switch_frame_group
-    gf_isom_fragment_set_sample_av1_switch_frame_group(iso_file, trackNumber, sampleNumber, is_switch_Frame);
-
-    // Call gf_isom_set_sample_rap_group
-    gf_isom_set_sample_rap_group(iso_file, trackNumber, sampleNumber, is_rap, num_leading_samples);
+    // Fuzz gf_isom_is_JPEG2000
+    Bool is_jpeg2000 = gf_isom_is_JPEG2000(isoFile);
 
     // Cleanup
-    cleanup_iso_file(iso_file);
+    destroy_dummy_iso_file(isoFile);
 
     return 0;
 }

@@ -1,37 +1,32 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <lcms2.h>
+#include <lcms2.h>  // Include the Little CMS library header
 
-// Define a dummy cmsStage structure for testing purposes
-typedef struct {
-    cmsTagTypeSignature Type;
-    cmsStageSignature Signature;
-    cmsContext ContextID;
-} DummyCmsStage;
-
-// Function to initialize a dummy cmsStage
-DummyCmsStage* initializeDummyCmsStage() {
-    DummyCmsStage* stage = (DummyCmsStage*)malloc(sizeof(DummyCmsStage));
-    if (stage != NULL) {
-        stage->Type = cmsSigCurveSetElemType;
-        stage->Signature = cmsSigCurveSetElemType;
-        stage->ContextID = (cmsContext)1;  // Assign a non-NULL context ID
-    }
-    return stage;
-}
-
+// Define the LLVMFuzzerTestOneInput function
 int LLVMFuzzerTestOneInput_222(const uint8_t *data, size_t size) {
-    // Initialize a dummy cmsStage
-    DummyCmsStage* stage = initializeDummyCmsStage();
-    if (stage == NULL) {
+    // Declare and initialize variables
+    cmsHPROFILE hProfile;
+    cmsUInt32Number flags;
+
+    // Ensure there is enough data to read from
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Call the function under test
-    cmsContext contextID = cmsGetStageContextID((const cmsStage*)stage);
+    // Create a profile using cmsOpenProfileFromMem
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
 
-    // Clean up
-    free(stage);
+    // Extract flags from the input data
+    flags = *(const cmsUInt32Number *)data;
+
+    // Call the function-under-test
+    cmsSetHeaderFlags(hProfile, flags);
+
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

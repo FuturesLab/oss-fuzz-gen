@@ -1,33 +1,40 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <unistd.h>
+#include <fcntl.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    u32 trackNumber = 1; // Assuming track number 1 for testing
-    u8 *stsd_data = NULL;
-    u32 stsd_data_size = 0;
+    GF_ISOFile *movie = NULL;
+    Bool leave_empty;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
 
-    // Ensure the size is sufficient for stsd_data
-    if (size > 0) {
-        stsd_data = (u8 *)malloc(size);
-        if (stsd_data != NULL) {
-            // Copy data to stsd_data
-            memcpy(stsd_data, data, size);
-            stsd_data_size = (u32)size;
-        }
+    // Create a temporary ISO file for fuzzing
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    write(fd, data, size);
+    close(fd);
+
+    // Open the ISO file
+    movie = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (movie == NULL) {
+        unlink(tmpl);
+        return 0;
     }
 
-    // Call the function-under-test
-    gf_isom_set_track_stsd_templates(movie, trackNumber, stsd_data, stsd_data_size);
+    // Try different values for leave_empty
+    leave_empty = GF_FALSE;
+    gf_isom_reset_alt_brands_ex(movie, leave_empty);
+
+    leave_empty = GF_TRUE;
+    gf_isom_reset_alt_brands_ex(movie, leave_empty);
 
     // Clean up
-    if (stsd_data != NULL) {
-        free(stsd_data);
-    }
     gf_isom_close(movie);
+    unlink(tmpl);
 
     return 0;
 }

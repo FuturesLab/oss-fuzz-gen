@@ -1,34 +1,34 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_220(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
+    // Declare and initialize variables
+    hid_t file_id = H5I_INVALID_HID;
+    H5FD_mem_t type = H5FD_MEM_DEFAULT; // Corrected type name
+    size_t nsects = 1;
+    H5F_sect_info_t *sect_info = NULL;
+    ssize_t result;
 
-    // Create a file using HDF5 to get a valid hid_t
-    hid_t file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a temporary HDF5 file to work with
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
-        return 0; // Failed to create file, exit
+        return 0; // If file creation fails, exit
     }
 
-    // Prepare the hsize_t variable to hold the file size
-    hsize_t file_size = 0;
+    // Allocate memory for section information
+    sect_info = (H5F_sect_info_t *)malloc(nsects * sizeof(H5F_sect_info_t));
+    if (sect_info == NULL) {
+        H5Fclose(file_id);
+        return 0; // If memory allocation fails, exit
+    }
 
     // Call the function-under-test
-    herr_t status = H5Fget_filesize(file_id, &file_size);
+    result = H5Fget_free_sections(file_id, type, nsects, sect_info);
 
-    // Check the status and file size for debugging purposes
-    if (status >= 0) {
-        // Successfully retrieved file size
-        // You can add additional checks or logging here if needed
-    }
-
-    // Close the file
+    // Clean up resources
+    free(sect_info);
     H5Fclose(file_id);
-
-    // Close the HDF5 library
-    H5close();
 
     return 0;
 }

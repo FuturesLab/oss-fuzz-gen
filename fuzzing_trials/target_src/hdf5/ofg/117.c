@@ -1,30 +1,33 @@
 #include <stdint.h>
-#include <string.h>  // For memcpy
 #include <hdf5.h>
+#include <stdlib.h>
+#include <stdio.h> // Include stdio.h for snprintf
 
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Ensure the size is appropriate for an hid_t, which is typically a 32 or 64-bit integer
-    if (size < sizeof(hid_t)) {
+    // Initialize variables
+    hid_t file_id = -1;
+    haddr_t address = 0;
+
+    // Ensure that the size is sufficient to create a file name
+    if (size < 5) {
         return 0;
     }
 
-    // Initialize the HDF5 library
-    H5open();
+    // Create a temporary file name from the input data
+    char filename[6];
+    snprintf(filename, sizeof(filename), "fuzz_%c%c%c%c", data[0], data[1], data[2], data[3]);
 
-    // Extract an hid_t from the input data
-    hid_t dataset_id;
-    memcpy(&dataset_id, data, sizeof(hid_t));
-
-    // Call the function-under-test
-    hid_t dataspace_id = H5Dget_space(dataset_id);
-
-    // Perform cleanup if dataspace_id is valid
-    if (dataspace_id >= 0) {
-        H5Sclose(dataspace_id);
+    // Create a new HDF5 file using the input data
+    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
     }
 
-    // Close the HDF5 library
-    H5close();
+    // Call the function-under-test
+    H5Fget_eoa(file_id, &address);
+
+    // Close the file
+    H5Fclose(file_id);
 
     return 0;
 }

@@ -1,9 +1,14 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC at aomcx.h:2374:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH at aomcx.h:2356:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_FRAME_PARALLEL_DECODING at aomcx.h:1974:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS at aomcx.h:1943:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID at aomcx.h:1907:1 in aomcx.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,66 +19,59 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
-#include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
-#include "aomcx.h"
-
-// Dummy interface pointer for demonstration
-aom_codec_iface_t *dummy_iface = nullptr;
+#include "aom/aom_integer.h"
+#include "aom/aom_image.h"
+#include "aom/aom_codec.h"
+#include "aom/aom_frame_buffer.h"
+#include "aom/aom_encoder.h"
+#include "aom/aom_external_partition.h"
+#include "aom/aom.h"
+#include "aom/aom_decoder.h"
+#include "aom/aomcx.h"
+#include "aom/aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) {
+    if (Size < 6) {
+        // Ensure there is enough data to read from the input
         return 0;
     }
 
-    // Initialize codec context
     aom_codec_ctx_t codec_ctx;
     memset(&codec_ctx, 0, sizeof(codec_ctx));
-    codec_ctx.iface = dummy_iface;
 
-    // Prepare dummy file for file-based operations
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) {
+    int superblock_size = Data[0] % 4;  // Assuming 4 possible superblock sizes
+    int auto_tiles = Data[1] % 2;       // Enable or disable auto tiles
+    int adaptive_sharpness = Data[2] % 2; // Enable or disable adaptive sharpness
+    int sharpness = Data[3] % 8;        // Assuming sharpness levels from 0 to 7
+    int enable_restoration = Data[4] % 2; // Enable or disable restoration
+    int cdf_update_mode = Data[5] % 3;  // Assuming 3 possible CDF update modes
+
+    // Initialize codec
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    if (!iface) return 0;
+
+    aom_codec_enc_cfg_t cfg;
+    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
         return 0;
     }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
 
-    // Fuzz aom_codec_version
-    int version = aom_codec_version();
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
+        return 0;
+    }
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC
-    uint32_t drop_rtc = *reinterpret_cast<const uint32_t *>(Data);
-    aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC(&codec_ctx, 0, drop_rtc);
+    // Fuzz the target functions
+    aom_codec_control(&codec_ctx, AV1E_SET_SUPERBLOCK_SIZE, superblock_size);
+    aom_codec_control(&codec_ctx, AV1E_SET_AUTO_TILES, auto_tiles);
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_ADAPTIVE_SHARPNESS, adaptive_sharpness);
+    aom_codec_control(&codec_ctx, AOME_SET_SHARPNESS, sharpness);
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_RESTORATION, enable_restoration);
+    aom_codec_control(&codec_ctx, AV1E_SET_CDF_UPDATE_MODE, cdf_update_mode);
 
-    // Fuzz aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH
-    int luma_cdef_strength = 0;
-    aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH(&codec_ctx, 0, &luma_cdef_strength);
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_FRAME_PARALLEL_DECODING
-    unsigned int parallel_decoding = Data[0] % 2; // Use first byte to decide boolean
-    aom_codec_control_typechecked_AV1E_SET_FRAME_PARALLEL_DECODING(&codec_ctx, 0, parallel_decoding);
-
-    // Fuzz aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS
-    int spatial_layers = *reinterpret_cast<const uint32_t *>(Data);
-    aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS(&codec_ctx, 0, spatial_layers);
-
-    // Fuzz aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID
-    int spatial_layer_id = *reinterpret_cast<const uint32_t *>(Data);
-    aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID(&codec_ctx, 0, spatial_layer_id);
-
-    // Cleanup
-    // Normally, you would call aom_codec_destroy(&codec_ctx) if initialized.
+    // Destroy codec
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

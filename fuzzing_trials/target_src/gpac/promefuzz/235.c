@@ -1,74 +1,68 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_new_mpha_description at sample_descs.c:1879:8 in isomedia.h
-// gf_isom_get_data_reference at isom_read.c:1723:8 in isomedia.h
-// gf_isom_truehd_config_new at sample_descs.c:436:8 in isomedia.h
-// gf_isom_flac_config_new at sample_descs.c:839:8 in isomedia.h
-// gf_isom_set_media_language at isom_write.c:297:8 in isomedia.h
-// gf_isom_set_adobe_protection at drm_sample.c:1846:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_get_decoder_config at isom_read.c:1406:19 in isomedia.h
+// gf_isom_get_mpeg4_subtype at isom_read.c:1671:5 in isomedia.h
+// gf_isom_get_copyright_count at isom_read.c:1473:5 in isomedia.h
+// gf_isom_set_next_moof_number at movie_fragments.c:3474:6 in isomedia.h
+// gf_isom_guess_specification at isom_read.c:4276:5 in isomedia.h
+// gf_isom_get_brands at isom_read.c:2657:12 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "isomedia.h"
 
-static GF_ISOFile *initialize_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot directly allocate it.
-    // Assuming there's a function to create or initialize it, we'll use that.
-    // This is a placeholder for the actual initialization function if available.
-    return NULL; // Placeholder: replace with actual initialization if available.
-}
-
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        // Assuming there's a function to properly clean up the GF_ISOFile.
-        // This is a placeholder for the actual cleanup function if available.
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_235(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    GF_ISOFile *isom_file = initialize_iso_file();
+    // Prepare the dummy file
+    write_dummy_file(Data, Size);
+
+    // Initialize necessary variables
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
     if (!isom_file) return 0;
 
-    u32 trackNumber = Data[0];
-    u32 sampleDescriptionIndex = 1;
-    u32 outDescriptionIndex;
-    u32 mha_subtype = 0;
-    u32 format_info = 0;
-    u32 peak_data_rate = 0;
-    u32 scheme_type = 0;
-    u32 scheme_version = 1;
-    Bool is_selective_enc = 0;
+    u32 trackNumber = *((u32 *) Data);
+    u32 sampleDescriptionIndex = *((u32 *) (Data + sizeof(u32)));
+    u32 moofNumber = *((u32 *) (Data + sizeof(u32) * 2));
 
-    char *URLname = NULL;
-    char *URNname = NULL;
-    char *code = "eng";
-    char *metadata = NULL;
-    u32 metadata_size = 0;
+    // Test gf_isom_get_decoder_config
+    GF_DecoderConfig *decoderConfig = gf_isom_get_decoder_config(isom_file, trackNumber, sampleDescriptionIndex);
+    if (decoderConfig) {
+        free(decoderConfig);
+    }
 
-    // gf_isom_new_mpha_description
-    u8 dsi[5] = {1, 0, 0, 0, 0};
-    gf_isom_new_mpha_description(isom_file, trackNumber, URLname, URNname, &outDescriptionIndex, dsi, 5, mha_subtype);
+    // Test gf_isom_get_mpeg4_subtype
+    u32 subtype = gf_isom_get_mpeg4_subtype(isom_file, trackNumber, sampleDescriptionIndex);
 
-    // gf_isom_get_data_reference
-    const char *outURL = NULL;
-    const char *outURN = NULL;
-    gf_isom_get_data_reference(isom_file, trackNumber, sampleDescriptionIndex, &outURL, &outURN);
+    // Test gf_isom_get_copyright_count
+    u32 copyrightCount = gf_isom_get_copyright_count(isom_file);
 
-    // gf_isom_truehd_config_new
-    gf_isom_truehd_config_new(isom_file, trackNumber, URLname, URNname, format_info, peak_data_rate, &outDescriptionIndex);
+    // Test gf_isom_set_next_moof_number
+    gf_isom_set_next_moof_number(isom_file, moofNumber);
 
-    // gf_isom_flac_config_new
-    gf_isom_flac_config_new(isom_file, trackNumber, (u8 *)metadata, metadata_size, URLname, URNname, &outDescriptionIndex);
+    // Test gf_isom_guess_specification
+    u32 specification = gf_isom_guess_specification(isom_file);
 
-    // gf_isom_set_media_language
-    gf_isom_set_media_language(isom_file, trackNumber, code);
+    // Test gf_isom_get_brands
+    const u32 *brands = gf_isom_get_brands(isom_file);
 
-    // gf_isom_set_adobe_protection
-    gf_isom_set_adobe_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, is_selective_enc, metadata, metadata_size);
+    // Cleanup
+    gf_isom_close(isom_file);
 
-    cleanup_iso_file(isom_file);
     return 0;
 }

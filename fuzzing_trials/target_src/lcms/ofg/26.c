@@ -1,32 +1,31 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsUInt32Number nEntries = 10; // Arbitrary non-zero number of entries
-    cmsFloat32Number floatArray[10]; // Array to hold float values
+    // Initialize variables for the function-under-test
+    cmsHPROFILE hProfile;
+    cmsFloat64Number version;
 
-    // Ensure the size is sufficient to fill the floatArray
-    if (size < sizeof(floatArray)) {
-        cmsDeleteContext(context);
+    // Ensure that the size is sufficient for extracting a cmsFloat64Number
+    if (size < sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Fill the floatArray with data from the input
-    for (size_t i = 0; i < nEntries; i++) {
-        floatArray[i] = ((cmsFloat32Number *)data)[i];
+    // Create a dummy profile for testing
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
     }
+
+    // Extract a cmsFloat64Number from the input data
+    version = *((cmsFloat64Number*)data);
 
     // Call the function-under-test
-    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurveFloat(context, nEntries, floatArray);
+    cmsSetProfileVersion(hProfile, version);
 
-    // Clean up
-    if (toneCurve != NULL) {
-        cmsFreeToneCurve(toneCurve);
-    }
-    cmsDeleteContext(context);
+    // Clean up the profile after testing
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

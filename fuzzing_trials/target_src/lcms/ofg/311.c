@@ -1,40 +1,49 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <lcms2_plugin.h>
-#include <wchar.h> // Include for wchar_t
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <string.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_311(const uint8_t *data, size_t size) {
-    cmsHANDLE dictHandle = NULL;
-    const cmsDICTentry *entryList = NULL;
-
-    // Initialize a dictionary handle using the data provided
-    if (size > 0) {
-        dictHandle = cmsDictAlloc(NULL);
-        if (dictHandle != NULL) {
-            // Add a dummy entry to ensure the dictionary is not empty
-            // Use dummy wchar_t strings for Name and Value
-            const wchar_t *dummyName = L"DummyName";
-            const wchar_t *dummyValue = L"DummyValue";
-            cmsDictAddEntry(dictHandle, dummyName, dummyValue, (const cmsMLU*)data, (const cmsMLU*)data);
-        }
+    // Ensure that the input data is large enough to extract strings
+    if (size < 4) {
+        return 0;
     }
 
-    // Call the function-under-test
-    entryList = cmsDictGetEntryList(dictHandle);
+    // Allocate a cmsMLU structure
+    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
 
-    // Cleanup
-    if (dictHandle != NULL) {
-        cmsDictFree(dictHandle);
+    // Extract strings from the data
+    size_t str1_len = data[0] % (size - 1) + 1; // Ensure non-zero length
+    size_t str2_len = data[1] % (size - str1_len - 1) + 1;
+    size_t str3_len = data[2] % (size - str1_len - str2_len - 1) + 1;
+
+    // Ensure that the lengths do not exceed the buffer size
+    if (str1_len + str2_len + str3_len > size - 3) {
+        cmsMLUfree(mlu);
+        return 0;
     }
+
+    // Allocate and copy strings
+    char *str1 = (char *)malloc(str1_len + 1);
+    char *str2 = (char *)malloc(str2_len + 1);
+    char *str3 = (char *)malloc(str3_len + 1);
+
+    memcpy(str1, data + 3, str1_len);
+    memcpy(str2, data + 3 + str1_len, str2_len);
+    memcpy(str3, data + 3 + str1_len + str2_len, str3_len);
+
+    str1[str1_len] = '\0';
+    str2[str2_len] = '\0';
+    str3[str3_len] = '\0';
+
+    // Call the function under test
+    cmsMLUsetUTF8(mlu, str1, str2, str3);
+
+    // Clean up
+    free(str1);
+    free(str2);
+    free(str3);
+    cmsMLUfree(mlu);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

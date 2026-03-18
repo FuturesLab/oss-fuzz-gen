@@ -1,40 +1,41 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    hid_t dataset_id = H5I_INVALID_HID;
-    hid_t type_id = H5T_NATIVE_INT;
-    hid_t space_id = H5S_SIMPLE;
-    hsize_t buf_size = 0;
+    hid_t file_id;
+    void *buffer;
+    ssize_t result;
 
-    // Ensure the data size is sufficient for creating a dataset
-    if (size < sizeof(int)) {
+    // Initialize HDF5 library
+    H5open();
+
+    // Create a temporary HDF5 file in memory
+    file_id = H5Fcreate("tempfile", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        // Unable to create file, exit the fuzzer
         return 0;
     }
 
-    // Create a simple dataspace
-    hsize_t dims[1] = { size / sizeof(int) };
-    space_id = H5Screate_simple(1, dims, NULL);
-    if (space_id < 0) {
+    // Allocate a buffer with the size of the input data
+    buffer = malloc(size);
+    if (buffer == NULL) {
+        // Memory allocation failed, close the file and exit
+        H5Fclose(file_id);
         return 0;
     }
 
-    // Create a dataset in memory
-    dataset_id = H5Dcreate2(H5P_DEFAULT, "fuzz_dataset", type_id, space_id, 
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dataset_id < 0) {
-        H5Sclose(space_id);
-        return 0;
-    }
+    // Copy input data to the buffer
+    memcpy(buffer, data, size);
 
-    // Call the function under test
-    herr_t status = H5Dvlen_get_buf_size(dataset_id, type_id, space_id, &buf_size);
+    // Call the function-under-test
+    result = H5Fget_file_image(file_id, buffer, size);
 
-    // Clean up resources
-    H5Dclose(dataset_id);
-    H5Sclose(space_id);
+    // Clean up
+    free(buffer);
+    H5Fclose(file_id);
+    H5close();
 
     return 0;
 }

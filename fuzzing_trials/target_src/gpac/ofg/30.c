@@ -1,28 +1,30 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract necessary parameters
-    if (size < sizeof(uint32_t) * 2) {
-        return 0;
+    if (size < 4) {
+        return 0; // Ensure there's enough data for trackNumber
     }
 
-    // Initialize the parameters for gf_isom_remove_sample_group
-    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_READ, NULL);
-    if (movie == NULL) {
-        return 0;
-    }
+    // Initialize a GF_ISOFile object
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_READ, NULL);
 
-    // Extract track and grouping_type from the input data
-    uint32_t track = *((uint32_t *)data);
-    uint32_t grouping_type = *((uint32_t *)(data + sizeof(uint32_t)));
+    // Extract trackNumber from the input data
+    u32 trackNumber = *((u32 *)data);
+
+    // Create non-NULL schemeURI and value strings
+    const char *schemeURI = "http://example.com/scheme";
+    const char *value = "example_value";
 
     // Call the function-under-test
-    gf_isom_remove_sample_group(movie, track, grouping_type);
+    gf_isom_remove_track_kind(movie, trackNumber, schemeURI, value);
 
-    // Close the movie file
-    gf_isom_close(movie);
+    // Clean up
+    if (movie != NULL) {
+        gf_isom_close(movie);
+    }
 
     return 0;
 }

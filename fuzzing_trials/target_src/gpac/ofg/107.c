@@ -1,39 +1,50 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
 #include <gpac/isomedia.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    u32 track = 1; // Assuming track 1 for simplicity
-    u32 grouping_type = 1; // Arbitrary grouping type
-    void *group_data = NULL;
-    u32 data_size = size;
-    Bool is_default = GF_FALSE;
-    u32 sampleGroupDescriptionIndex = 0;
+    GF_ISOFile *file = NULL;
+    u32 track = 0;
+    FILE *temp_file = NULL;
+    char temp_filename[] = "/tmp/fuzz_input_XXXXXX";
 
-    // Ensure movie is not NULL
-    if (movie == NULL) {
+    // Ensure that the size is sufficient to extract a track number
+    if (size < sizeof(u32)) {
         return 0;
     }
 
-    // Allocate memory for data
-    group_data = malloc(data_size);
-    if (group_data == NULL) {
-        gf_isom_close(movie);
-        return 0;
+    // Create a temporary file to write the input data
+    int fd = mkstemp(temp_filename);
+    if (fd == -1) {
+        return 0; // Exit if the temporary file could not be created
     }
 
-    // Copy data into group_data
-    memcpy(group_data, data, data_size);
+    // Write the input data to the temporary file
+    temp_file = fdopen(fd, "wb");
+    if (!temp_file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, temp_file);
+    fclose(temp_file);
+
+    // Initialize the GF_ISOFile structure using the temporary file
+    file = gf_isom_open(temp_filename, GF_ISOM_OPEN_READ, NULL);
+    if (!file) {
+        remove(temp_filename); // Clean up the temporary file
+        return 0; // Exit if the file could not be opened
+    }
+
+    // Extract a track number from the data
+    track = *((u32 *)data);
 
     // Call the function-under-test
-    gf_isom_add_sample_group_info(movie, track, grouping_type, group_data, data_size, is_default, &sampleGroupDescriptionIndex);
+    gf_isom_find_od_id_for_track(file, track);
 
     // Clean up
-    free(group_data);
-    gf_isom_close(movie);
+    gf_isom_close(file);
+    remove(temp_filename); // Clean up the temporary file
 
     return 0;
 }

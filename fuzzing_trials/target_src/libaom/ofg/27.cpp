@@ -1,22 +1,29 @@
 #include <cstdint>
-#include <cstddef>
+#include <cstring>
+#include <aom/aom_codec.h>
 
+// Ensure the C functions are linked correctly in C++
 extern "C" {
-    // Include the necessary header for the function under test
-    #include <aom/aom_codec.h>
+    aom_codec_err_t aom_codec_set_option(aom_codec_ctx_t *, const char *, const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Call the function under test
-    const char *version_extra_str = aom_codec_version_extra_str();
+    // Initialize variables
+    aom_codec_ctx_t codec_ctx;
+    const char *option_name = "some_option";
+    const char *option_value = "some_value";
 
-    // Ensure the returned string is not NULL and perform some basic operations
-    if (version_extra_str != nullptr) {
-        // For fuzzing purposes, we can check the length of the string
-        size_t length = 0;
-        while (version_extra_str[length] != '\0') {
-            length++;
-        }
+    // Ensure data size is sufficient to avoid buffer overflow
+    if (size < 1) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    aom_codec_err_t result = aom_codec_set_option(&codec_ctx, option_name, option_value);
+
+    // Use the result to prevent compiler optimizations
+    if (result != AOM_CODEC_OK) {
+        // Handle error if necessary
     }
 
     return 0;

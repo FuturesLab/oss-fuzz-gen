@@ -3,30 +3,30 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
-    cmsCIEXYZ blackPoint;
-    cmsHPROFILE hProfile;
-    cmsUInt32Number intent = 0;
-    cmsUInt32Number flags = 0;
+    // Initialize a memory context
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Initialize blackPoint with some non-NULL values
-    blackPoint.X = 0.0;
-    blackPoint.Y = 0.0;
-    blackPoint.Z = 0.0;
+    // Create a profile from memory using the provided data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMemTHR(context, data, size);
 
-    // Create a profile using cmsOpenProfileFromMem to ensure it's not NULL
-    if (size > 0) {
-        hProfile = cmsOpenProfileFromMem(data, size);
-    } else {
-        return 0;
-    }
-
+    // Check if the profile was created successfully
     if (hProfile != NULL) {
         // Call the function-under-test
-        cmsBool result = cmsDetectBlackPoint(&blackPoint, hProfile, intent, flags);
+        cmsIOHANDLER *ioHandler = cmsGetProfileIOhandler(hProfile);
 
-        // Close the profile after use
+        // If ioHandler is not NULL, perform any required operations
+        if (ioHandler != NULL) {
+            // Example operation: Use available API functions to interact with the IO handler
+            // Since we cannot access ioHandler->Type directly, we avoid this operation.
+            // Instead, we can perform other operations allowed by the API.
+        }
+
+        // Close the profile
         cmsCloseProfile(hProfile);
     }
+
+    // Free the memory context
+    cmsDeleteContext(context);
 
     return 0;
 }

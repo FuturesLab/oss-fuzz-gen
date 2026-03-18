@@ -1,36 +1,34 @@
 #include <stdint.h>
-#include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Define and initialize variables for the function-under-test
-    cmsHPROFILE hProfile;
-    cmsInfoType infoType;
-    const char *languageCode = "en";
-    const char *countryCode = "US";
-    char buffer[256];
-    cmsUInt32Number bufferSize = sizeof(buffer);
+    // Define and initialize variables
+    cmsFloat32Number inputFloats[3] = {0.0f, 0.0f, 0.0f};
+    cmsFloat32Number outputFloats[3] = {0.0f, 0.0f, 0.0f};
+    cmsPipeline *pipeline;
 
-    // Ensure the data size is sufficient to extract necessary information
-    if (size < sizeof(cmsInfoType)) {
+    // Check if the size is sufficient to extract data
+    if (size < sizeof(cmsFloat32Number) * 3) {
         return 0;
     }
 
-    // Use the first few bytes of data to set infoType
-    memcpy(&infoType, data, sizeof(cmsInfoType));
+    // Initialize inputFloats with data from the fuzzer
+    for (int i = 0; i < 3; i++) {
+        inputFloats[i] = ((cmsFloat32Number *)data)[i];
+    }
 
-    // Create a dummy profile for testing
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
+    // Create a simple pipeline for testing
+    pipeline = cmsPipelineAlloc(NULL, 3, 3);
+    if (pipeline == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    cmsUInt32Number result = cmsGetProfileInfoUTF8(hProfile, infoType, languageCode, countryCode, buffer, bufferSize);
+    cmsPipelineEvalFloat(inputFloats, outputFloats, pipeline);
 
-    // Clean up
-    cmsCloseProfile(hProfile);
+    // Free the allocated pipeline
+    cmsPipelineFree(pipeline);
 
     return 0;
 }

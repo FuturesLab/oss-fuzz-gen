@@ -1,5 +1,5 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,21 +8,25 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Initialize tjhandle, assuming tj3Init() is used to create a handle
+    // Initialize tjhandle
     tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
+    if (handle == nullptr) {
+        return 0; // If initialization fails, exit early
+    }
 
-    // Ensure the handle is not NULL
-    if (handle == NULL) {
+    // Ensure the data size is sufficient for the integer parameter
+    if (size < sizeof(int)) {
+        tj3Destroy(handle);
         return 0;
     }
 
-    // Define an integer value for the second parameter
-    int param = 0; // You can try other values as needed
+    // Extract an integer from the input data
+    int param = *reinterpret_cast<const int*>(data);
 
     // Call the function-under-test
     int result = tj3Get(handle, param);
 
-    // Clean up the handle after use
+    // Clean up
     tj3Destroy(handle);
 
     return 0;

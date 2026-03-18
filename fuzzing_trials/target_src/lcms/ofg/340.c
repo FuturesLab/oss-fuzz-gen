@@ -1,36 +1,35 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_340(const uint8_t *data, size_t size) {
-    cmsStage *stage = NULL;
-    cmsPipeline *pipeline = NULL;
-    cmsContext context = cmsCreateContext(NULL, NULL);
-
-    // Create a simple pipeline with one stage
-    if (context != NULL) {
-        pipeline = cmsPipelineAlloc(context, 3, 3);
-        if (pipeline != NULL) {
-            stage = cmsStageAllocIdentity(context, 3);
-            if (stage != NULL) {
-                cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
-            }
-        }
+    // Ensure there is enough data to extract parameters
+    if (size < sizeof(cmsInt32Number) + sizeof(cmsFloat64Number)) {
+        return 0;
     }
+
+    // Initialize cmsContext
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
+        return 0;
+    }
+
+    // Extract cmsInt32Number from data
+    cmsInt32Number type = *(const cmsInt32Number *)data;
+    data += sizeof(cmsInt32Number);
+    size -= sizeof(cmsInt32Number);
+
+    // Extract cmsFloat64Number from data
+    const cmsFloat64Number *params = (const cmsFloat64Number *)data;
 
     // Call the function-under-test
-    if (stage != NULL) {
-        cmsUInt32Number outputChannels = cmsStageOutputChannels(stage);
-    }
+    cmsToneCurve *toneCurve = cmsBuildParametricToneCurve(context, type, params);
 
     // Clean up
-    if (pipeline != NULL) {
-        cmsPipelineFree(pipeline);
+    if (toneCurve != NULL) {
+        cmsFreeToneCurve(toneCurve);
     }
-    if (context != NULL) {
-        cmsDeleteContext(context);
-    }
+    cmsDeleteContext(context);
 
     return 0;
 }

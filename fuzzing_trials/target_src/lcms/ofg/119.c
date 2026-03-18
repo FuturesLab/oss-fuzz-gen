@@ -1,36 +1,32 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    cmsCIEXYZ blackPoint;
-    cmsHPROFILE hProfile;
-    cmsUInt32Number intent;
-    cmsUInt32Number flags;
-
-    // Initialize the blackPoint with some values
-    blackPoint.X = 0.0;
-    blackPoint.Y = 0.0;
-    blackPoint.Z = 0.0;
-
-    // Create a profile from memory
-    if (size < sizeof(cmsHPROFILE)) {
-        return 0;
-    }
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
         return 0;
     }
 
-    // Set intent and flags to some non-zero values
-    intent = INTENT_PERCEPTUAL;
-    flags = cmsFLAGS_BLACKPOINTCOMPENSATION;
+    // Ensure the data is null-terminated to be used as a string
+    char *cubeFilePath = (char *)malloc(size + 1);
+    if (cubeFilePath == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
+    memcpy(cubeFilePath, data, size);
+    cubeFilePath[size] = '\0';
 
     // Call the function-under-test
-    cmsBool result = cmsDetectBlackPoint(&blackPoint, hProfile, intent, flags);
+    cmsHPROFILE profile = cmsCreateDeviceLinkFromCubeFileTHR(context, cubeFilePath);
 
     // Clean up
-    cmsCloseProfile(hProfile);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
+    free(cubeFilePath);
+    cmsDeleteContext(context);
 
     return 0;
 }

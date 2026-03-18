@@ -1,29 +1,22 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_276(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    size_t count = 1;
-    
-    // Initialize hid_t arrays with valid identifiers
-    hid_t dset_id[] = {H5I_INVALID_HID};
-    hid_t mem_type_id[] = {H5T_NATIVE_INT};
-    hid_t mem_space_id[] = {H5S_ALL};
-    hid_t file_space_id[] = {H5S_ALL};
-    
-    // Initialize a single hid_t variable
-    hid_t dxpl_id = H5P_DEFAULT;
-    
-    // Initialize a buffer for data
-    int data_buffer = 0;
-    void *bufs[] = {&data_buffer};
-    
-    // Initialize an event stack identifier
-    hid_t es_id = H5ES_NONE;
-    
+    // Declare and initialize variables
+    hid_t file_id = -1; // Default invalid ID
+    H5F_scope_t scope = H5F_SCOPE_GLOBAL; // Default scope
+
+    // Ensure size is sufficient for our needs
+    if (size < sizeof(hid_t) + sizeof(H5F_scope_t)) {
+        return 0;
+    }
+
+    // Extract values from data
+    file_id = *(const hid_t *)data;
+    scope = *(const H5F_scope_t *)(data + sizeof(hid_t));
+
     // Call the function-under-test
-    herr_t result = H5Dread_multi_async(count, dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, bufs, es_id);
-    
+    H5Fflush(file_id, scope);
+
     return 0;
 }

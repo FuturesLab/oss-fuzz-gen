@@ -1,24 +1,41 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "gpac/isomedia.h" // Include the header file for GPAC library
+#include <gpac/isomedia.h>
 
-extern int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (movie == NULL) {
+int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
+    GF_ISOFile *file = NULL;
+    Bool root_meta = 1; // Initialize to a non-zero value (true)
+    u32 track_num = 1;  // Initialize to a valid track number
+    u32 item_ID = 1;    // Initialize to a valid item ID
+
+    // Create a temporary file name for the ISO media file
+    char temp_filename[] = "/tmp/fuzz_isomedia_XXXXXX";
+    int fd = mkstemp(temp_filename);
+    if (fd == -1) {
         return 0;
     }
 
-    // Ensure OD_ID is within a valid range, e.g., 0 to UINT32_MAX
-    u32 OD_ID = size > 0 ? (u32)data[0] : 1; // Use the first byte of data or a default value
+    // Write the data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    // Attempt to open the ISO media file using the temporary file name
+    file = gf_isom_open(temp_filename, GF_ISOM_OPEN_READ, NULL);
+    if (!file) {
+        unlink(temp_filename);
+        return 0;
+    }
 
     // Call the function-under-test
-    gf_isom_set_root_od_id(movie, OD_ID);
+    gf_isom_get_meta_item_by_id(file, root_meta, track_num, item_ID);
 
-    // Clean up
-    gf_isom_close(movie);
+    // Close the file and clean up
+    gf_isom_close(file);
+    unlink(temp_filename);
 
     return 0;
 }

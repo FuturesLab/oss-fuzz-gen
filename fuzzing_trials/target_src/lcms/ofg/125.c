@@ -1,26 +1,32 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_125(const uint8_t *data, size_t size) {
-    // Initialize a memory context
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    // Declare and initialize variables
+    cmsHPROFILE hProfile;
+    cmsProfileClassSignature profileClassSignature;
 
-    if (context == NULL) {
-        return 0; // Early return if context creation fails
+    // Create a dummy profile for fuzzing
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0; // Exit if profile creation fails
     }
+
+    // Ensure the size is sufficient to extract a cmsProfileClassSignature
+    if (size < sizeof(cmsProfileClassSignature)) {
+        cmsCloseProfile(hProfile);
+        return 0;
+    }
+
+    // Extract cmsProfileClassSignature from the input data
+    profileClassSignature = *(cmsProfileClassSignature *)data;
 
     // Call the function-under-test
-    cmsHANDLE handle = cmsGBDAlloc(context);
-
-    if (handle != NULL) {
-        // Use the handle in some way if needed, or just ensure it was allocated
-        // For example, we could perform some operations on the handle here
-        // but since this is a fuzzing harness, the main goal is to test allocation
-    }
+    cmsSetDeviceClass(hProfile, profileClassSignature);
 
     // Clean up
-    cmsDeleteContext(context);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

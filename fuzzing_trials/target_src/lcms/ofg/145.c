@@ -1,23 +1,26 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <lcms2.h>
+#include <stddef.h>
+#include <stdio.h>
+
+// Define the cmsLogErrorHandlerFunction type
+typedef void (*cmsLogErrorHandlerFunction)(const char *module, const char *message);
+
+// Example error handler function
+void exampleErrorHandler(const char *module, const char *message) {
+    printf("Error in module %s: %s\n", module, message);
+}
+
+// Function under test
+void cmsSetLogErrorHandler(cmsLogErrorHandlerFunction handler);
 
 int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    // Initialize a cmsContext object
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return 0; // Return if context creation fails
+    // Ensure that the data is not empty
+    if (size == 0) {
+        return 0;
     }
 
-    // Use the input data to create a profile
-    cmsHPROFILE profile = cmsOpenProfileFromMem(data, size);
-    if (profile != NULL) {
-        // Perform operations on the profile if needed
-        cmsCloseProfile(profile);
-    }
-
-    // Clean up
-    cmsDeleteContext(context);
+    // Call the function under test with a valid error handler
+    cmsSetLogErrorHandler(exampleErrorHandler);
 
     return 0;
 }

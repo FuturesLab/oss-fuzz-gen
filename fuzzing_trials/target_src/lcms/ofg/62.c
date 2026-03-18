@@ -1,36 +1,31 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <lcms2.h>
-#include <string.h>  // For memcpy
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsContext context = (cmsContext)1;  // Non-NULL context
-    cmsUInt32Number nSegments = 1;  // Number of segments
-    cmsCurveSegment segment;  // A single curve segment
-    cmsCurveSegment* segments = &segment;  // Pointer to the segment
-
-    // Initialize the segment with some default values
-    segment.SampledPoints = NULL;
-    segment.nGridPoints = 0;
-    segment.Type = 0;  // Assuming a valid segment type
-    memset(segment.Params, 0, sizeof(segment.Params));  // Initialize Params array to zero
-
-    // Check if the input data is sufficient to be used
-    if (size < sizeof(cmsFloat64Number)) {
-        return 0;  // Not enough data to proceed
+    if (size < sizeof(cmsUInt32Number) * 2 + sizeof(cmsFloat64Number) * 4) {
+        // Not enough data to extract all parameters
+        return 0;
     }
 
-    // Use the input data to initialize the segment's parameter
-    cmsFloat64Number param = *((cmsFloat64Number*)data);
-    memcpy(segment.Params, &param, sizeof(cmsFloat64Number));  // Copy the parameter into the Params array
+    // Extract parameters from the input data
+    cmsUInt32Number nChannels = data[0] % 10 + 1; // Ensure nChannels is between 1 and 10
+    cmsFloat64Number L = *((cmsFloat64Number*)(data + 1));
+    L = fmod(L, 100.0); // L* between 0 and 100 using fmod
+    cmsFloat64Number a = *((cmsFloat64Number*)(data + 1 + sizeof(cmsFloat64Number)));
+    cmsFloat64Number b = *((cmsFloat64Number*)(data + 1 + 2 * sizeof(cmsFloat64Number)));
+    cmsFloat64Number c = *((cmsFloat64Number*)(data + 1 + 3 * sizeof(cmsFloat64Number)));
+    cmsUInt32Number intent = data[1 + 4 * sizeof(cmsFloat64Number)] % 4; // Intent between 0 and 3
+    cmsUInt32Number flags = data[2 + 4 * sizeof(cmsFloat64Number)]; // Use as flags
 
     // Call the function-under-test
-    cmsToneCurve* toneCurve = cmsBuildSegmentedToneCurve(context, nSegments, segments);
+    cmsHPROFILE profile = cmsCreateBCHSWabstractProfile(nChannels, L, a, b, c, intent, flags);
 
-    // Clean up
-    if (toneCurve != NULL) {
-        cmsFreeToneCurve(toneCurve);
+    // Check if the profile was created successfully
+    if (profile != NULL) {
+        // Do something with the profile, if necessary
+        cmsCloseProfile(profile);
     }
 
     return 0;

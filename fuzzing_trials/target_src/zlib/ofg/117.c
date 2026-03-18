@@ -1,46 +1,40 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stddef.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Ensure the input data is not empty
-    if (size == 0) {
+    z_stream stream;
+    int ret;
+
+    // Initialize the z_stream structure
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+
+    // Initialize deflate with default compression level
+    ret = deflateInit(&stream, Z_DEFAULT_COMPRESSION);
+    if (ret != Z_OK) {
         return 0;
     }
 
-    // Create a temporary file to simulate a gzFile
-    char filename[] = "/tmp/fuzz_gzfile_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
+    // Set input data for the z_stream
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
+
+    // Prepare an output buffer
+    uint8_t out_buffer[1024];
+    stream.next_out = out_buffer;
+    stream.avail_out = sizeof(out_buffer);
+
+    // Perform deflate operation
+    ret = deflate(&stream, Z_FINISH);
+    if (ret != Z_STREAM_END) {
+        deflateEnd(&stream);
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(filename);
-        return 0;
-    }
-
-    // Rewind the file descriptor to the beginning
-    lseek(fd, 0, SEEK_SET);
-
-    // Open the file as a gzFile
-    gzFile gzfile = gzdopen(fd, "rb");
-    if (gzfile == NULL) {
-        close(fd);
-        unlink(filename);
-        return 0;
-    }
-
-    // Call the function-under-test
-    int result = gzdirect(gzfile);
-
-    // Clean up
-    gzclose(gzfile);
-    unlink(filename);
+    // End deflation and clean up
+    deflateEnd(&stream);
 
     return 0;
 }

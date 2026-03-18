@@ -1,19 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
+// Fuzzing harness for cmsGetTransformInputFormat
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsOpenProfileFromMem(data, size);
+    cmsHTRANSFORM transform;
+    cmsHPROFILE hProfile;
+    cmsUInt32Number inputFormat;
+    cmsUInt32Number outputFormat;
+    cmsUInt32Number intent;
+    cmsUInt32Number flags;
 
-    // Check if the profile was created successfully
-    if (profile != NULL) {
-        // Perform operations on the profile if needed
-        // ...
+    // Initialize the LCMS library
+    cmsSetLogErrorHandler(NULL);
 
-        // Close the profile to avoid memory leaks
-        cmsCloseProfile(profile);
+    // Create a dummy profile to use for the transform
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
     }
+
+    // Set up dummy values for transform creation
+    inputFormat = TYPE_RGB_8;  // Use a common format
+    outputFormat = TYPE_RGB_8; // Use a common format
+    intent = INTENT_PERCEPTUAL;
+    flags = 0;
+
+    // Create a transform using the dummy profile and formats
+    transform = cmsCreateTransform(hProfile, inputFormat, hProfile, outputFormat, intent, flags);
+    if (transform == NULL) {
+        cmsCloseProfile(hProfile);
+        return 0;
+    }
+
+    // Call the function-under-test
+    cmsUInt32Number result = cmsGetTransformInputFormat(transform);
+
+    // Clean up
+    cmsDeleteTransform(transform);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

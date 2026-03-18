@@ -1,40 +1,29 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <wchar.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
+    // Initialize variables for the function parameters
     cmsHPROFILE hProfile;
-    void *memBuffer;
-    cmsUInt32Number bufferSize;
-    cmsBool result;
+    cmsInfoType infoType;
+    const char *languageCode = "en";
+    const char *countryCode = "US";
+    wchar_t buffer[256];
+    cmsUInt32Number bufferSize = sizeof(buffer) / sizeof(buffer[0]);
 
-    // Initialize the memory buffer
-    memBuffer = malloc(size);
-    if (memBuffer == NULL) {
+    // Ensure the data size is sufficient for our needs
+    if (size < sizeof(cmsHPROFILE) + sizeof(cmsInfoType)) {
         return 0;
     }
 
-    // Copy the input data to the memory buffer
-    memcpy(memBuffer, data, size);
+    // Extract cmsHPROFILE and cmsInfoType from the input data
+    hProfile = *(cmsHPROFILE *)data;
+    infoType = *(cmsInfoType *)(data + sizeof(cmsHPROFILE));
 
-    // Create a profile from the input data
-    hProfile = cmsOpenProfileFromMem(memBuffer, size);
-    if (hProfile == NULL) {
-        free(memBuffer);
-        return 0;
-    }
+    // Call the function-under-test
+    cmsUInt32Number result = cmsGetProfileInfo(hProfile, infoType, languageCode, countryCode, buffer, bufferSize);
 
-    // Initialize the bufferSize to a non-zero value
-    bufferSize = size;
-
-    // Call the function under test
-    result = cmsSaveProfileToMem(hProfile, memBuffer, &bufferSize);
-
-    // Clean up
-    cmsCloseProfile(hProfile);
-    free(memBuffer);
-
+    // Return 0 to indicate successful execution
     return 0;
 }

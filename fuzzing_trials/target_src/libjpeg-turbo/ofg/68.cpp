@@ -1,5 +1,5 @@
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,21 +8,31 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    tjhandle handle = nullptr;
+    if (size < 3) {
+        return 0; // Not enough data to proceed
+    }
 
-    // Initialize the TurboJPEG decompressor
-    handle = tj3Init(TJINIT_DECOMPRESS);
+    // Initialize parameters for tj3CompressFromYUV8
+    tjhandle handle = tj3Init(TJINIT_COMPRESS);
     if (handle == nullptr) {
-        return 0; // Initialization failed, exit the fuzzer
+        return 0; // Initialization failed
     }
 
-    // Assuming the function under test is tjDecompressHeader3, which requires valid input
-    int width, height, jpegSubsamp, jpegColorspace;
-    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
-        // Decompression header succeeded, proceed with further processing if needed
-    }
+    const unsigned char *srcBuf = data;
+    int width = static_cast<int>(data[0]); // Set width from data
+    int height = static_cast<int>(data[1]); // Set height from data
+    int subsamp = static_cast<int>(data[2] % 3); // Ensure subsamp is a valid value
+
+    unsigned char *jpegBuf = nullptr;
+    size_t jpegSize = 0;
+
+    // Call the function-under-test
+    tj3CompressFromYUV8(handle, srcBuf, width, height, subsamp, &jpegBuf, &jpegSize);
 
     // Clean up
+    if (jpegBuf != nullptr) {
+        tj3Free(jpegBuf);
+    }
     tj3Destroy(handle);
 
     return 0;

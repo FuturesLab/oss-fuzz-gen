@@ -3,23 +3,25 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_169(const uint8_t *data, size_t size) {
-    // Initialize variables with non-NULL values
-    cmsHANDLE handle = cmsIT8Alloc(NULL);
-    int row = 1; // Example row index
-    int col = 1; // Example column index
-    cmsFloat64Number value = 1.0; // Example double value
+    cmsHPROFILE hProfile = NULL;
+    cmsUInt32Number renderingIntent;
 
-    // Ensure handle is valid before calling the function
-    if (handle != NULL) {
-        // Call the function-under-test
-        cmsBool result = cmsIT8SetDataRowColDbl(handle, row, col, value);
-
-        // Optionally, you can check the result or perform further operations
-        // For fuzzing purposes, we typically focus on calling the function
-
-        // Free the handle after use
-        cmsIT8Free(handle);
+    // Check if the input data is large enough to be a valid profile
+    if (size < sizeof(cmsHPROFILE)) {
+        return 0;
     }
+
+    // Create a memory-based profile from the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
+
+    // Call the function under test
+    renderingIntent = cmsGetHeaderRenderingIntent(hProfile);
+
+    // Close the profile to free resources
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

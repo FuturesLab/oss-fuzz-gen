@@ -1,31 +1,39 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
-// Define a reasonable size for the cmsToneCurve initialization
-#define TONE_CURVE_POINTS 256
-
 int LLVMFuzzerTestOneInput_183(const uint8_t *data, size_t size) {
-    // Check if the input size is enough to create a tone curve with TONE_CURVE_POINTS
-    if (size < TONE_CURVE_POINTS * sizeof(uint16_t)) {
+    // Initialize variables
+    cmsContext context = (cmsContext)1; // Dummy non-NULL context
+    cmsCIExyY whitePoint;
+    cmsToneCurve *toneCurve = NULL;
+    cmsHPROFILE profile = NULL;
+
+    // Ensure the data size is sufficient for initializing cmsCIExyY
+    if (size < sizeof(cmsCIExyY)) {
         return 0;
     }
 
-    // Create a tone curve using cmsBuildTabulatedToneCurve16
-    cmsToneCurve *originalCurve = cmsBuildTabulatedToneCurve16(NULL, TONE_CURVE_POINTS, (const uint16_t *)data);
-    if (originalCurve == NULL) {
+    // Initialize cmsCIExyY from input data
+    whitePoint.x = *((const double *)data);
+    whitePoint.y = *((const double *)(data + sizeof(double)));
+    whitePoint.Y = *((const double *)(data + 2 * sizeof(double)));
+
+    // Create a tone curve with a simple gamma value
+    toneCurve = cmsBuildGamma(context, 2.2); // Using a gamma of 2.2 as an example
+
+    if (toneCurve == NULL) {
         return 0;
     }
 
-    // Call the function under test
-    cmsToneCurve *duplicatedCurve = cmsDupToneCurve(originalCurve);
+    // Call the function-under-test
+    profile = cmsCreateGrayProfileTHR(context, &whitePoint, toneCurve);
 
     // Clean up
-    if (duplicatedCurve != NULL) {
-        cmsFreeToneCurve(duplicatedCurve);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
-    cmsFreeToneCurve(originalCurve);
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }

@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_get_global_headers at aom_encoder.c:281:18 in aom_encoder.h
-// aom_codec_encode at aom_encoder.c:168:17 in aom_encoder.h
-// aom_codec_enc_config_set at aom_encoder.c:298:17 in aom_encoder.h
+// aom_img_alloc at aom_image.c:200:14 in aom_image.h
+// aom_img_plane_height at aom_image.c:320:5 in aom_image.h
+// aom_img_plane_width at aom_image.c:313:5 in aom_image.h
+// aom_img_flip at aom_image.c:285:6 in aom_image.h
+// aom_img_set_rect at aom_image.c:234:5 in aom_image.h
+// aom_img_add_metadata at aom_image.c:380:5 in aom_image.h
+// aom_img_free at aom_image.c:304:6 in aom_image.h
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -17,88 +19,75 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include "aom.h"
-#include "aom_codec.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_image.h"
-#include "aomcx.h"
-#include "aomdx.h"
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
 #include "aom_integer.h"
+#include "aom_image.h"
+#include "aom_codec.h"
+#include "aom_frame_buffer.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
+#include "aom.h"
+#include "aomcx.h"
+#include "aom_decoder.h"
+#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t)) {
-        return 0;
+    if (Size < sizeof(uint32_t) * 5) return 0;
+
+    // Extract some test parameters from the input data
+    uint32_t fmt = *reinterpret_cast<const uint32_t*>(Data);
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
+
+    uint32_t width = *reinterpret_cast<const uint32_t*>(Data) % 0x08000000;
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
+
+    uint32_t height = *reinterpret_cast<const uint32_t*>(Data) % 0x08000000;
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
+
+    uint32_t align = *reinterpret_cast<const uint32_t*>(Data) % 65536;
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
+
+    uint32_t plane_index = *reinterpret_cast<const uint32_t*>(Data) % 3;
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
+
+    // Allocate an image
+    aom_image_t *img = aom_img_alloc(nullptr, static_cast<aom_img_fmt_t>(fmt), width, height, align);
+    if (!img) return 0;
+
+    // Test aom_img_plane_height and aom_img_plane_width
+    int plane_height = aom_img_plane_height(img, plane_index);
+    int plane_width = aom_img_plane_width(img, plane_index);
+
+    // Test aom_img_flip
+    aom_img_flip(img);
+
+    // Test aom_img_set_rect with arbitrary rectangle
+    unsigned int rect_x = width / 4;
+    unsigned int rect_y = height / 4;
+    unsigned int rect_w = width / 2;
+    unsigned int rect_h = height / 2;
+    unsigned int border = 0;
+    aom_img_set_rect(img, rect_x, rect_y, rect_w, rect_h, border);
+
+    // If there's remaining data, test aom_img_add_metadata
+    if (Size >= sizeof(uint32_t) + 1) {
+        uint32_t metadata_type = *reinterpret_cast<const uint32_t*>(Data);
+        Data += sizeof(uint32_t);
+        Size -= sizeof(uint32_t);
+
+        aom_metadata_insert_flags_t insert_flag = static_cast<aom_metadata_insert_flags_t>(Data[0]);
+        Data += 1;
+        Size -= 1;
+
+        int metadata_result = aom_img_add_metadata(img, metadata_type, Data, Size, insert_flag);
     }
 
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Use a valid codec interface
-    aom_codec_enc_cfg_t cfg;
-
-    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
-        return 0;
-    }
-
-    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
-        return 0;
-    }
-
-    // Fuzz aom_codec_destroy
-    aom_codec_err_t destroy_result = aom_codec_destroy(&codec_ctx);
-    if (destroy_result != AOM_CODEC_OK && destroy_result != AOM_CODEC_INVALID_PARAM && destroy_result != AOM_CODEC_ERROR) {
-        std::cerr << "Unexpected result from aom_codec_destroy: " << destroy_result << std::endl;
-    }
-
-    // Fuzz aom_codec_get_global_headers
-    aom_fixed_buf_t *global_headers = aom_codec_get_global_headers(&codec_ctx);
-    if (global_headers) {
-        free(global_headers->buf);
-        free(global_headers);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_TILE_ROWS
-    int tile_rows = static_cast<int>(Data[0] % 64); // Assuming a maximum of 64 tile rows
-    aom_codec_err_t tile_rows_result = aom_codec_control(&codec_ctx, AV1E_SET_TILE_ROWS, tile_rows);
-    if (tile_rows_result != AOM_CODEC_OK && tile_rows_result != AOM_CODEC_INVALID_PARAM) {
-        std::cerr << "Unexpected result from AV1E_SET_TILE_ROWS: " << tile_rows_result << std::endl;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_OBMC
-    int enable_obmc = static_cast<int>(Data[1] % 2); // Enable or disable
-    aom_codec_err_t obmc_result = aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_OBMC, enable_obmc);
-    if (obmc_result != AOM_CODEC_OK && obmc_result != AOM_CODEC_INVALID_PARAM) {
-        std::cerr << "Unexpected result from AV1E_SET_ENABLE_OBMC: " << obmc_result << std::endl;
-    }
-
-    // Fuzz aom_codec_encode
-    aom_image_t img;
-    std::memset(&img, 0, sizeof(aom_image_t));
-    img.fmt = AOM_IMG_FMT_I420;
-    img.w = 640;
-    img.h = 480;
-    img.planes[0] = const_cast<uint8_t*>(Data);
-    img.stride[0] = 640;
-
-    aom_codec_err_t encode_result = aom_codec_encode(&codec_ctx, &img, 0, 1, 0);
-    if (encode_result != AOM_CODEC_OK && encode_result != AOM_CODEC_INVALID_PARAM && encode_result != AOM_CODEC_INCAPABLE) {
-        std::cerr << "Unexpected result from aom_codec_encode: " << encode_result << std::endl;
-    }
-
-    // Fuzz aom_codec_enc_config_set
-    aom_codec_enc_cfg_t enc_cfg;
-    std::memset(&enc_cfg, 0, sizeof(aom_codec_enc_cfg_t));
-    enc_cfg.g_usage = static_cast<unsigned int>(Data[2]);
-    enc_cfg.g_timebase.num = 1;
-    enc_cfg.g_timebase.den = 30;
-
-    aom_codec_err_t config_set_result = aom_codec_enc_config_set(&codec_ctx, &enc_cfg);
-    if (config_set_result != AOM_CODEC_OK && config_set_result != AOM_CODEC_INVALID_PARAM && config_set_result != AOM_CODEC_INCAPABLE) {
-        std::cerr << "Unexpected result from aom_codec_enc_config_set: " << config_set_result << std::endl;
-    }
-
-    aom_codec_destroy(&codec_ctx); // Ensure the codec is destroyed properly
+    // Free the image
+    aom_img_free(img);
 
     return 0;
 }

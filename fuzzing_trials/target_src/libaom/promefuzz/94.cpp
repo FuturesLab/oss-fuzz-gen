@@ -1,9 +1,13 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_dx at av1_dx_iface.c:1796:20 in aomdx.h
-// aom_codec_dec_init_ver at aom_decoder.c:25:17 in aom_decoder.h
-// aom_codec_get_stream_info at aom_decoder.c:75:17 in aom_decoder.h
-// aom_codec_decode at aom_decoder.c:94:17 in aom_decoder.h
-// aom_codec_set_frame_buffer_functions at aom_decoder.c:120:17 in aom_decoder.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,74 +17,53 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+#include <aom/aom.h>
+#include <aom/aom_encoder.h>
+#include <aom/aomcx.h>
+#include <aom/aom_codec.h>
+#include <aom/aom_image.h>
+#include <aom/aom_integer.h>
+#include <aom/aom_frame_buffer.h>
+#include <aom/aom_external_partition.h>
+#include <aom/aom_decoder.h>
+#include <aom/aomdx.h>
 #include <cstdint>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
-#include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
-#include "aomcx.h"
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_94(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < sizeof(int)) {
+        return 0; // Not enough data to extract parameters
     }
 
-    // Initialize decoder context
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg;
-    cfg.threads = 1;  // Default thread count
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-    // Initialize the decoder
-    aom_codec_err_t res = aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0;
+    // Assume Data contains some valid configuration data
+    codec_ctx.iface = aom_codec_av1_cx();
+    codec_ctx.init_flags = 0;
+
+    // Initialize the codec context
+    if (aom_codec_enc_init(&codec_ctx, codec_ctx.iface, nullptr, codec_ctx.init_flags) != AOM_CODEC_OK) {
+        return 0; // Failed to initialize codec
     }
 
-    // Set up a dummy stream info structure
-    aom_codec_stream_info_t stream_info;
-    stream_info.w = 0;
+    // Extract parameter from data
+    int param = *reinterpret_cast<const int*>(Data);
 
-    // Get stream info
-    res = aom_codec_get_stream_info(&codec_ctx, &stream_info);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
+    // Fuzz various control functions
+    aom_codec_control(&codec_ctx, AV1E_SET_BITRATE_ONE_PASS_CBR, param);
+    aom_codec_control(&codec_ctx, AV1E_SET_CDF_UPDATE_MODE, param);
+    aom_codec_control(&codec_ctx, AV1E_SET_SKIP_POSTPROC_FILTERING, param);
+    aom_codec_control(&codec_ctx, AV1E_SET_TILE_COLUMNS, param);
+    aom_codec_control(&codec_ctx, AV1E_SET_FORCE_VIDEO_MODE, param);
+    aom_codec_control(&codec_ctx, AV1E_SET_AUTO_TILES, param);
+
+    // Clean up the codec context
+    if (aom_codec_destroy(&codec_ctx) != AOM_CODEC_OK) {
+        return 0; // Failed to destroy codec
     }
-
-    // Decode data
-    res = aom_codec_decode(&codec_ctx, Data, Size, nullptr);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
-
-    // Set frame buffer functions: Dummy callbacks
-    auto cb_get = [](void *priv, size_t min_size, aom_codec_frame_buffer_t *fb) -> int {
-        return 0;
-    };
-    auto cb_release = [](void *priv, aom_codec_frame_buffer_t *fb) -> int {
-        return 0;
-    };
-
-    res = aom_codec_set_frame_buffer_functions(&codec_ctx, cb_get, cb_release, nullptr);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
-
-    // Retrieve codec capabilities
-    aom_codec_caps_t caps = aom_codec_get_caps(iface);
-
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

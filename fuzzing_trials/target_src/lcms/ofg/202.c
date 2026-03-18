@@ -1,28 +1,20 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <lcms2.h>
+#include <stddef.h>
+#include "lcms2.h"  // Assuming this is the correct header file where cmsColorSpaceSignature is defined
 
+// Remove 'extern "C"' as it is not valid in C code
 int LLVMFuzzerTestOneInput_202(const uint8_t *data, size_t size) {
-    // Initialize the cmsContext
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
+    // Ensure the input size is sufficient to extract a cmsColorSpaceSignature
+    if (size < sizeof(cmsColorSpaceSignature)) {
         return 0;
     }
 
-    // Initialize cmsCIExyY structure
-    cmsCIExyY whitePoint;
-    whitePoint.x = (size > 0) ? (double)data[0] / 255.0 : 0.3127; // Default D65 white point
-    whitePoint.y = (size > 1) ? (double)data[1] / 255.0 : 0.3290;
-    whitePoint.Y = (size > 2) ? (double)data[2] / 255.0 : 1.0;
+    // Extract cmsColorSpaceSignature from the input data
+    cmsColorSpaceSignature colorSpaceSignature = *(const cmsColorSpaceSignature *)data;
 
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateLab4ProfileTHR(context, &whitePoint);
+    // Call the function under test
+    int result = _cmsLCMScolorSpace(colorSpaceSignature);
 
-    // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-    cmsDeleteContext(context);
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

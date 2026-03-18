@@ -1,32 +1,37 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <lcms2.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <lcms2_plugin.h>
 
-// Fuzzing harness for cmsEstimateGamma
 int LLVMFuzzerTestOneInput_354(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read a cmsFloat64Number
-    if (size < sizeof(cmsFloat64Number)) {
+    cmsHANDLE handle;
+    int row, col;
+    cmsFloat64Number result;
+
+    // Initialize handle to a valid non-NULL value
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Initialize variables
-    cmsToneCurve *toneCurve;
-    cmsFloat64Number value;
-
-    // Create a dummy tone curve for testing
-    toneCurve = cmsBuildGamma(NULL, 2.2);
-    if (toneCurve == NULL) {
+    // Ensure there is enough data to extract row and col
+    if (size < sizeof(int) * 2) {
+        cmsIT8Free(handle);
         return 0;
     }
 
-    // Read a cmsFloat64Number from the input data
-    value = *((cmsFloat64Number *)data);
+    // Extract row and col from data
+    row = *(int *)(data);
+    col = *(int *)(data + sizeof(int));
 
     // Call the function-under-test
-    cmsFloat64Number result = cmsEstimateGamma(toneCurve, value);
+    result = cmsIT8GetDataRowColDbl(handle, row, col);
+
+    // Output the result for debugging purposes
+    printf("Result: %f\n", result);
 
     // Clean up
-    cmsFreeToneCurve(toneCurve);
+    cmsIT8Free(handle);
 
     return 0;
 }

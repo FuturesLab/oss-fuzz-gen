@@ -1,63 +1,61 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_delete_text_sample at tx3g.c:646:6 in isomedia.h
-// gf_isom_text_sample_size at tx3g.c:498:5 in isomedia.h
-// gf_isom_text_add_karaoke at tx3g.c:335:8 in isomedia.h
-// gf_isom_new_text_sample at tx3g.c:602:16 in isomedia.h
-// gf_isom_text_set_highlight_color at tx3g.c:321:8 in isomedia.h
-// gf_isom_text_set_scroll_delay at tx3g.c:358:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_has_movie at isom_read.c:835:6 in isomedia.h
+// gf_isom_disable_odf_conversion at isom_read.c:652:6 in isomedia.h
+// gf_isom_is_single_av at isom_read.c:4218:6 in isomedia.h
+// gf_isom_needs_layer_reconstruction at isom_read.c:5516:6 in isomedia.h
+// gf_isom_is_smooth_streaming_moov at isom_read.c:5848:6 in isomedia.h
+// gf_isom_moov_first at isom_read.c:4964:6 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include "isomedia.h"
 
-static void fuzz_gf_isom_delete_text_sample(GF_TextSample *tx_samp) {
-    gf_isom_delete_text_sample(tx_samp);
+static GF_ISOFile* create_dummy_iso_file(const uint8_t *Data, size_t Size) {
+    // Create a dummy ISO file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return NULL;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Open the dummy file using gpac API
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return iso_file;
 }
 
-static u32 fuzz_gf_isom_text_sample_size(GF_TextSample *tx_samp) {
-    return gf_isom_text_sample_size(tx_samp);
-}
-
-static GF_Err fuzz_gf_isom_text_add_karaoke(GF_TextSample *tx_samp, u32 start_time) {
-    return gf_isom_text_add_karaoke(tx_samp, start_time);
-}
-
-static GF_TextSample* fuzz_gf_isom_new_text_sample() {
-    return gf_isom_new_text_sample();
-}
-
-static GF_Err fuzz_gf_isom_text_set_highlight_color(GF_TextSample *tx_samp, u32 argb) {
-    return gf_isom_text_set_highlight_color(tx_samp, argb);
-}
-
-static GF_Err fuzz_gf_isom_text_set_scroll_delay(GF_TextSample *tx_samp, u32 scroll_delay) {
-    return gf_isom_text_set_scroll_delay(tx_samp, scroll_delay);
+static void cleanup_iso_file(GF_ISOFile *iso_file) {
+    if (iso_file) {
+        gf_isom_close(iso_file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_99(const uint8_t *Data, size_t Size) {
-    if (Size < 3 * sizeof(u32)) return 0;
+    GF_ISOFile *iso_file = create_dummy_iso_file(Data, Size);
+    if (!iso_file) return 0;
 
-    u32 start_time = *((u32 *)Data);
-    u32 argb = *((u32 *)(Data + sizeof(u32)));
-    u32 scroll_delay = *((u32 *)(Data + 2 * sizeof(u32)));
+    // Test gf_isom_has_movie
+    Bool has_movie = gf_isom_has_movie(iso_file);
 
-    GF_TextSample *tx_samp = fuzz_gf_isom_new_text_sample();
-    if (!tx_samp) return 0;
+    // Test gf_isom_disable_odf_conversion
+    gf_isom_disable_odf_conversion(iso_file, (Size > 3 && Data[3] % 2 == 0) ? GF_TRUE : GF_FALSE);
 
-    fuzz_gf_isom_text_add_karaoke(tx_samp, start_time);
-    fuzz_gf_isom_text_set_highlight_color(tx_samp, argb);
-    fuzz_gf_isom_text_set_scroll_delay(tx_samp, scroll_delay);
+    // Test gf_isom_is_single_av
+    Bool is_single_av = gf_isom_is_single_av(iso_file);
 
-    u32 size = fuzz_gf_isom_text_sample_size(tx_samp);
+    // Test gf_isom_needs_layer_reconstruction
+    Bool needs_reconstruction = gf_isom_needs_layer_reconstruction(iso_file);
 
-    (void)size; // Suppress unused variable warning
+    // Test gf_isom_is_smooth_streaming_moov
+    Bool is_smooth_streaming = gf_isom_is_smooth_streaming_moov(iso_file);
 
-    fuzz_gf_isom_delete_text_sample(tx_samp);
+    // Test gf_isom_moov_first
+    Bool moov_first = gf_isom_moov_first(iso_file);
+
+    // Cleanup
+    cleanup_iso_file(iso_file);
 
     return 0;
 }

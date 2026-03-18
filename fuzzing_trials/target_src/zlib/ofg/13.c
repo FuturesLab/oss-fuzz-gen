@@ -3,16 +3,15 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    uLong adler = 1; // Initial value for the adler32 checksum
-    const Bytef *buffer = data;
-    z_size_t length = (z_size_t)size;
+    // Initialize the adler value
+    uLong adler = 1; // Starting value for adler32
 
     // Call the function-under-test
-    uLong checksum = adler32_z(adler, buffer, length);
+    uLong result = adler32_z(adler, (const Bytef *)data, (z_size_t)size);
 
-    // Use the checksum in some way to prevent compiler optimizations from removing the call
-    if (checksum == 0) {
-        return 1;
+    // Use the result to prevent compiler optimizations from removing the call
+    if (result == 0) {
+        // Do nothing, just a dummy check to use the result
     }
 
     return 0;

@@ -1,34 +1,43 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include "aom/aom_image.h"  // Assuming this is the correct header for aom_metadata_t
+#include <aom/aom_image.h>
 
 extern "C" {
-    #include "aom/aom_image.h"
+    // Include the necessary library headers
+    #include <aom/aom_codec.h>
+    #include <aom/aom_image.h>
 }
 
+// Fuzzing harness for the function aom_img_metadata_free
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Allocate memory for aom_metadata_t
-    aom_metadata_t *metadata = (aom_metadata_t *)malloc(sizeof(aom_metadata_t));
-    if (metadata == NULL) {
-        return 0;  // Return if memory allocation fails
+    // Create an aom_metadata_t object
+    aom_metadata_t metadata;
+    metadata.payload = nullptr;
+    metadata.sz = 0;
+
+    // Ensure size is not zero to avoid division by zero
+    if (size == 0) {
+        return 0;
     }
 
-    // Initialize the metadata with some data
-    metadata->payload = (uint8_t *)malloc(size);
-    if (metadata->payload == NULL) {
-        free(metadata);
-        return 0;  // Return if memory allocation fails
+    // Allocate memory for the payload based on the input size
+    metadata.payload = static_cast<uint8_t*>(malloc(size));
+    if (metadata.payload == nullptr) {
+        return 0;
     }
-    memcpy(metadata->payload, data, size);
-    metadata->sz = size;
+
+    // Copy the input data to the payload
+    memcpy(metadata.payload, data, size);
+    metadata.sz = size;
 
     // Call the function under test
-    aom_img_metadata_free(metadata);
+    aom_img_metadata_free(&metadata);
 
-    // Free the allocated memory for metadata
-    free(metadata->payload);
-    free(metadata);
+    // Free the allocated memory if it wasn't freed by the function
+    if (metadata.payload != nullptr) {
+        free(metadata.payload);
+    }
 
     return 0;
 }

@@ -1,116 +1,84 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// gzclose at gzclose.c:11:13 in zlib.h
-// zlibVersion at zutil.c:27:22 in zlib.h
-// gzerror at gzlib.c:513:22 in zlib.h
-// gzputc at gzwrite.c:307:13 in zlib.h
-// gzgets at gzread.c:562:16 in zlib.h
-// gzputs at gzwrite.c:350:13 in zlib.h
+// gztell64 at gzlib.c:446:19 in zlib.h
+// gzseek at gzlib.c:438:17 in zlib.h
 // gzgetc at gzread.c:469:13 in zlib.h
+// gzoffset at gzlib.c:490:17 in zlib.h
+// gzoffset64 at gzlib.c:469:19 in zlib.h
+// gztell at gzlib.c:461:17 in zlib.h
 // gzopen at gzlib.c:288:16 in zlib.h
 // gzclose at gzclose.c:11:13 in zlib.h
-// gzopen at gzlib.c:288:16 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <zlib.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <zlib.h>
 
-static void fuzz_zlibVersion() {
-    const char *version = zlibVersion();
-    if (version) {
-        printf("zlib version: %s\n", version);
+static void handle_gzfile_operations(gzFile file) {
+    // Test gztell64
+    z_off64_t tell64 = gztell64(file);
+    if (tell64 == -1) {
+        perror("gztell64 failed");
     }
-}
 
-static void fuzz_gzerror(gzFile file) {
-    int errnum;
-    const char *error_message = gzerror(file, &errnum);
-    if (error_message) {
-        printf("gzerror: %s, errnum: %d\n", error_message, errnum);
+    // Test gzseek
+    z_off_t seek_result = gzseek(file, 0, SEEK_CUR);
+    if (seek_result == -1) {
+        perror("gzseek failed");
     }
-}
 
-static void fuzz_gzputc(gzFile file, int c) {
-    int result = gzputc(file, c);
-    if (result == -1) {
-        printf("gzputc error\n");
-    } else {
-        printf("gzputc wrote: %c\n", result);
+    // Test gzgetc
+    int byte = gzgetc(file);
+    if (byte == -1) {
+        perror("gzgetc failed");
     }
-}
 
-static void fuzz_gzgets(gzFile file, char *buf, int len) {
-    char *result = gzgets(file, buf, len);
-    if (result) {
-        printf("gzgets read: %s\n", result);
-    } else {
-        printf("gzgets error or EOF\n");
+    // Test gzoffset
+    z_off_t offset = gzoffset(file);
+    if (offset == -1) {
+        perror("gzoffset failed");
     }
-}
 
-static void fuzz_gzputs(gzFile file, const char *s) {
-    int result = gzputs(file, s);
-    if (result == -1) {
-        printf("gzputs error\n");
-    } else {
-        printf("gzputs wrote: %d bytes\n", result);
+    // Test gzoffset64
+    z_off64_t offset64 = gzoffset64(file);
+    if (offset64 == -1) {
+        perror("gzoffset64 failed");
     }
-}
 
-static void fuzz_gzgetc(gzFile file) {
-    int result = gzgetc(file);
-    if (result == -1) {
-        printf("gzgetc error or EOF\n");
-    } else {
-        printf("gzgetc read: %c\n", result);
+    // Test gztell
+    z_off_t tell = gztell(file);
+    if (tell == -1) {
+        perror("gztell failed");
     }
 }
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Write input data to a dummy file
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (!dummy_file) {
+        perror("Failed to open dummy file");
+        return 0;
+    }
+    fwrite(Data, 1, Size, dummy_file);
+    fclose(dummy_file);
 
-    fuzz_zlibVersion();
-
-    FILE *fp = fopen("./dummy_file", "wb");
-    if (!fp) return 0;
-    fwrite(Data, 1, Size, fp);
-    fclose(fp);
-
-    gzFile gzfile = gzopen("./dummy_file", "rb");
-    if (!gzfile) return 0;
-
-    // Fuzz gzerror
-    fuzz_gzerror(gzfile);
-
-    // Fuzz gzgetc
-    fuzz_gzgetc(gzfile);
-
-    // Prepare buffer for gzgets
-    char buffer[256];
-    fuzz_gzgets(gzfile, buffer, sizeof(buffer));
-
-    gzclose(gzfile);
-
-    gzfile = gzopen("./dummy_file", "wb");
-    if (!gzfile) return 0;
-
-    // Fuzz gzputc
-    fuzz_gzputc(gzfile, Data[0]);
-
-    // Prepare a null-terminated string for gzputs
-    char *str = (char *)malloc(Size + 1);
-    if (str) {
-        memcpy(str, Data, Size);
-        str[Size] = '\0';
-        fuzz_gzputs(gzfile, str);
-        free(str);
+    // Open the dummy file as a gzFile
+    gzFile file = gzopen("./dummy_file", "rb");
+    if (!file) {
+        perror("Failed to open gzFile");
+        return 0;
     }
 
-    gzclose(gzfile);
+    // Perform operations on the gzFile
+    handle_gzfile_operations(file);
+
+    // Close the gzFile
+    if (gzclose(file) != Z_OK) {
+        perror("gzclose failed");
+    }
 
     return 0;
 }

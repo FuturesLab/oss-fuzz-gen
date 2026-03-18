@@ -1,25 +1,29 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
-// Assuming the function is part of a C library
 extern "C" {
-    size_t tj3YUVPlaneSize(int componentID, int width, int stride, int height, int subsamp);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    int componentID = 0;
-    int width = 1;
-    int stride = 1;
-    int height = 1;
-    int subsamp = 0;
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
+        return 0; // Initialization failed, exit early
+    }
 
-    // Call the function-under-test with the initialized parameters
-    size_t result = tj3YUVPlaneSize(componentID, width, stride, height, subsamp);
+    unsigned char *iccProfile = nullptr;
+    size_t iccProfileSize = 0;
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    // Call the function-under-test
+    int result = tj3GetICCProfile(handle, &iccProfile, &iccProfileSize);
+
+    // Clean up
+    if (iccProfile) {
+        tjFree(iccProfile);
+    }
+    tjDestroy(handle);
 
     return 0;
 }

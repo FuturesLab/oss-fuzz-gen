@@ -1,27 +1,32 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    GF_ISOFile *the_file = gf_isom_open("test.mp4", GF_ISOM_OPEN_READ, NULL);
-    if (!the_file) {
+    GF_ISOFile *movie = NULL;
+    u32 trackNumber;
+    Bool enableTrack;
+
+    if (size < sizeof(u32) + sizeof(Bool)) {
         return 0;
     }
 
-    u32 trackNumber = 1; // Assuming track number 1 for testing
-    GF_AV1Config cfg; // Initialize AV1 configuration
-    cfg.marker = 1; // Example initialization, set marker to 1
+    // Initialize trackNumber and enableTrack from the input data
+    trackNumber = *((u32 *)data);
+    enableTrack = *((Bool *)(data + sizeof(u32)));
 
-    const char *URLname = "http://example.com";
-    const char *URNname = "urn:example";
+    // Create a new ISO file for testing
+    movie = gf_isom_open("test.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
+        return 0;
+    }
 
-    u32 outDescriptionIndex = 0;
+    // Call the function-under-test
+    gf_isom_set_track_enabled(movie, trackNumber, enableTrack);
 
-    // Call the function under test
-    gf_isom_av1_config_new(the_file, trackNumber, &cfg, URLname, URNname, &outDescriptionIndex);
-
-    // Clean up
-    gf_isom_close(the_file);
+    // Close and cleanup
+    gf_isom_close(movie);
 
     return 0;
 }

@@ -3,25 +3,33 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_231(const uint8_t *data, size_t size) {
-    if (size < 1) return 0;
+    // Declare and initialize variables for the parameters
+    hid_t loc_id = 1; // Assuming a valid hid_t for location
+    char obj_name[256] = "object_name";
+    char old_attr_name[256] = "old_attribute_name";
+    char new_attr_name[256] = "new_attribute_name";
+    hid_t lapl_id = H5P_DEFAULT; // Using the default property list
 
-    // Initialize parameters for H5Acreate_by_name_async
-    const char *loc_name = "location_name";
-    const char *attr_name = "attribute_name";
-    unsigned int crt_intmd = (unsigned int)data[0]; // Use first byte of data
-    hid_t loc_id = H5I_INVALID_HID; // Invalid ID for fuzzing
-    const char *obj_name = "object_name";
-    hid_t type_id = H5T_NATIVE_INT; // Use a native type for simplicity
-    hid_t space_id = H5S_ALL; // Use all dataspace
-    hid_t acpl_id = H5P_DEFAULT; // Default property list
-    hid_t aapl_id = H5P_DEFAULT; // Default property list
-    hid_t lapl_id = H5P_DEFAULT; // Default property list
-    hid_t es_id = H5ES_NONE; // No event set
+    // Use input data to modify the attribute names for fuzzing
+    if (size > 0) {
+        size_t copy_size = size < 255 ? size : 255;
+        memcpy(obj_name, data, copy_size);
+        obj_name[copy_size] = '\0'; // Ensure null termination
+    }
+    if (size > 1) {
+        size_t copy_size = size - 1 < 255 ? size - 1 : 255;
+        memcpy(old_attr_name, data + 1, copy_size);
+        old_attr_name[copy_size] = '\0'; // Ensure null termination
+    }
+    if (size > 2) {
+        size_t copy_size = size - 2 < 255 ? size - 2 : 255;
+        memcpy(new_attr_name, data + 2, copy_size);
+        new_attr_name[copy_size] = '\0'; // Ensure null termination
+    }
 
-    // Call the function-under-test with the correct number of arguments
-    hid_t result = H5Acreate_by_name_async(loc_id, obj_name, attr_name, type_id, space_id, acpl_id, aapl_id, lapl_id, es_id);
+    // Call the function-under-test
+    herr_t result = H5Arename_by_name(loc_id, obj_name, old_attr_name, new_attr_name, lapl_id);
 
-    // Normally, you would check the result and perform cleanup if necessary
-    // But for fuzzing purposes, we'll just return
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

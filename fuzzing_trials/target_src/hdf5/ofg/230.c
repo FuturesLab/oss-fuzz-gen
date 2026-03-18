@@ -3,21 +3,23 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_230(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to work with
-    if (size < 3) return 0;
+    // Declare and initialize variables
+    hid_t loc_id = 1;  // Example valid hid_t, should be a valid location ID
+    const char *obj_name = "example_object";  // Example object name
+    H5_index_t idx_type = H5_INDEX_NAME;  // Example index type
+    H5_iter_order_t order = H5_ITER_INC;  // Example iteration order
+    hsize_t n = 0;  // Example index position
+    H5A_info_t ainfo;  // Attribute info structure
+    hid_t lapl_id = H5P_DEFAULT;  // Link access property list
 
-    // Initialize variables for the function call
-    hid_t loc_id = (hid_t)data[0];  // Use the first byte as an example identifier
-    const char *obj_name = "example_object";
-    const char *old_attr_name = "old_attribute";
-    const char *new_attr_name = "new_attribute";
-    hid_t lapl_id = (hid_t)data[1];  // Use the second byte as another identifier
+    // Ensure that the input data is not null and has a minimum size
+    if (data == NULL || size < 1) {
+        return 0;
+    }
 
     // Call the function-under-test
-    herr_t result = H5Arename_by_name(loc_id, obj_name, old_attr_name, new_attr_name, lapl_id);
+    herr_t result = H5Aget_info_by_idx(loc_id, obj_name, idx_type, order, n, &ainfo, lapl_id);
 
-    // Optionally handle the result or check for errors
-    // For fuzzing, we generally don't need to handle the result
-
+    // Return 0 to indicate successful execution
     return 0;
 }

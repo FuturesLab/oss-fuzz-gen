@@ -8,15 +8,24 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Initialize the integer parameter with a non-zero value
-    int initValue = 1;
+    // Ensure the size is non-zero to avoid tjAlloc(0) which might return NULL
+    if (size == 0) {
+        return 0;
+    }
+
+    // Use the size as the input for tjAlloc
+    int allocationSize = static_cast<int>(size);
 
     // Call the function-under-test
-    tjhandle handle = tj3Init(initValue);
+    unsigned char *allocatedMemory = tjAlloc(allocationSize);
 
-    // Check if the handle is valid and clean up if necessary
-    if (handle != NULL) {
-        tj3Destroy(handle);
+    // Check if the allocation was successful
+    if (allocatedMemory != NULL) {
+        // Perform operations on allocatedMemory if needed
+        // ...
+
+        // Free the allocated memory
+        tjFree(allocatedMemory);
     }
 
     return 0;

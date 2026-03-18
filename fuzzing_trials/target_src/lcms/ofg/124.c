@@ -1,47 +1,37 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include <lcms2_plugin.h>
+#include <string.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsIT8SetPropertyStr
-    cmsHANDLE handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Initialize variables for the function parameters
+    cmsMLU *mlu;
+    const char *language = "en";
+    const char *country = "US";
+    char outputBuffer[256];
+    cmsUInt32Number bufferSize = sizeof(outputBuffer);
+
+    // Create a memory context
+    cmsContext contextID = cmsCreateContext(NULL, NULL);
+
+    // Create a cmsMLU object
+    mlu = cmsMLUalloc(contextID, 1);
+
+    // Check if mlu allocation was successful
+    if (mlu == NULL) {
+        cmsDeleteContext(contextID);
         return 0;
     }
 
-    // Ensure size is sufficient for two null-terminated strings
-    if (size < 4) {
-        cmsIT8Free(handle);
-        return 0;
-    }
-
-    // Split the data into two strings
-    size_t half_size = size / 2;
-    char *property = (char *)malloc(half_size + 1);
-    char *value = (char *)malloc(size - half_size + 1);
-
-    if (property == NULL || value == NULL) {
-        free(property);
-        free(value);
-        cmsIT8Free(handle);
-        return 0;
-    }
-
-    memcpy(property, data, half_size);
-    property[half_size] = '\0';
-
-    memcpy(value, data + half_size, size - half_size);
-    value[size - half_size] = '\0';
+    // Set some dummy data into the cmsMLU object
+    cmsMLUsetASCII(mlu, language, country, "Test String");
 
     // Call the function-under-test
-    cmsIT8SetPropertyStr(handle, property, value);
+    cmsUInt32Number result = cmsMLUgetUTF8(mlu, language, country, outputBuffer, bufferSize);
 
-    // Cleanup
-    free(property);
-    free(value);
-    cmsIT8Free(handle);
+    // Clean up
+    cmsMLUfree(mlu);
+    cmsDeleteContext(contextID);
 
     return 0;
 }

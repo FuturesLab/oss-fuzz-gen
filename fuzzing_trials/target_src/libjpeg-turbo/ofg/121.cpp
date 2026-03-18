@@ -1,7 +1,5 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -11,41 +9,27 @@ extern "C" {
 
 extern "C" int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
     if (size < 10) {
-        return 0; // Ensure there is enough data for the parameters
+        return 0; // Ensure there's enough data for the parameters
     }
 
     // Initialize parameters for tjCompress
     tjhandle handle = tjInitCompress();
-    if (handle == NULL) {
-        return 0; // Handle initialization failure
-    }
-
-    unsigned char *srcBuf = (unsigned char *)malloc(size);
-    if (srcBuf == NULL) {
-        tjDestroy(handle);
-        return 0; // Memory allocation failure
-    }
-    memcpy(srcBuf, data, size);
-
-    int width = 100; // Example width
-    int height = 100; // Example height
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int pitch = width * tjPixelSize[pixelFormat];
-
-    unsigned char *jpegBuf = NULL;
-    unsigned long jpegSize = 0;
-    int jpegSubsamp = TJSAMP_444; // Example subsampling
-    int jpegQual = 75; // Example quality
-    int flags = 0; // Example flags
+    unsigned char *srcBuf = (unsigned char *)data;
+    int width = 2;  // Minimal width for testing
+    int pitch = 2;  // Minimal pitch for testing
+    int height = 2; // Minimal height for testing
+    int pixelFormat = TJPF_RGB; // Use a valid pixel format
+    unsigned char *jpegBuf = nullptr; // Output buffer
+    unsigned long jpegSize = 0; // Size of the JPEG buffer
+    int jpegSubsamp = TJSAMP_444; // Use a valid subsampling option
+    int jpegQual = 75; // A typical quality value
+    int flags = 0; // No special flags
 
     // Call the function-under-test
-    int result = tjCompress(handle, srcBuf, width, pitch, height, pixelFormat, jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
+    tjCompress(handle, srcBuf, width, pitch, height, pixelFormat, jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
 
     // Clean up
-    if (jpegBuf != NULL) {
-        tjFree(jpegBuf);
-    }
-    free(srcBuf);
+    tjFree(jpegBuf);
     tjDestroy(handle);
 
     return 0;

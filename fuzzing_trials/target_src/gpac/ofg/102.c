@@ -1,38 +1,28 @@
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include for mkstemp, close, and unlink
-#include <fcntl.h>  // Include for write
+#include <stddef.h>
 #include <gpac/isomedia.h>
+#include <gpac/constants.h>
 
 int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    GF_ISOFile *movie = gf_isom_open("test.mp4", GF_ISOM_OPEN_READ, NULL);
+
+    if (!movie) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
+    // Ensure the data is large enough to extract trackNumber and duration
+    if (size < sizeof(uint32_t) * 2) {
+        gf_isom_close(movie);
         return 0;
     }
-    close(fd);
 
-    // Define the OpenMode and temporary directory
-    GF_ISOOpenMode openMode = GF_ISOM_OPEN_READ;
-    const char *tmp_dir = "/tmp";
+    // Extract trackNumber and duration from the input data
+    uint32_t trackNumber = *((uint32_t *)data);
+    uint32_t duration = *((uint32_t *)(data + sizeof(uint32_t)));
 
     // Call the function-under-test
-    GF_EXPORT *result = gf_isom_open(tmpl, openMode, tmp_dir);
+    gf_isom_set_last_sample_duration(movie, trackNumber, duration);
 
-    // Clean up
-    if (result != NULL) {
-        gf_isom_close(result);
-    }
-    unlink(tmpl);
-
+    gf_isom_close(movie);
     return 0;
 }

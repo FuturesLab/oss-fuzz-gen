@@ -1,19 +1,20 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tjLoadImage at turbojpeg.c:3107:26 in turbojpeg.h
-// tjSaveImage at turbojpeg.c:3128:15 in turbojpeg.h
-// tjFree at turbojpeg.c:896:16 in turbojpeg.h
-// tj3SaveImage16 at turbojpeg-mp.c:487:15 in turbojpeg.h
-// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
+// tjBufSizeYUV at turbojpeg.c:1007:25 in turbojpeg.h
 // tjAlloc at turbojpeg.c:883:26 in turbojpeg.h
+// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
 // tjBufSize at turbojpeg.c:933:25 in turbojpeg.h
 // tjCompress at turbojpeg.c:1235:15 in turbojpeg.h
-// tjFree at turbojpeg.c:896:16 in turbojpeg.h
 // tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
 // tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
-// tjAlloc at turbojpeg.c:883:26 in turbojpeg.h
-// tjDecompress2 at turbojpeg.c:2059:15 in turbojpeg.h
-// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjDecodeYUVPlanes at turbojpeg.c:2652:15 in turbojpeg.h
 // tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
+// tjDecompressHeader2 at turbojpeg.c:1903:15 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
+// tjDecodeYUV at turbojpeg.c:2724:15 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -25,69 +26,73 @@
 #include <cstddef>
 #include <turbojpeg.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 10) return 0; // Ensure there's enough data for meaningful fuzzing
 
-    // Prepare dummy file for tjLoadImage and tjSaveImage
-    const char *dummyFile = "./dummy_file";
-    FILE *file = fopen(dummyFile, "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Fuzz tjBufSizeYUV
+    int width = Data[0];
+    int height = Data[1];
+    int subsamp = Data[2] % 6; // Valid subsampling values are 0-5
+    unsigned long yuvBufSize = tjBufSizeYUV(width, height, subsamp);
 
-    // Variables for tjLoadImage
-    int width = 0, height = 0, pixelFormat = 0;
-    unsigned char *imageBuffer = nullptr;
-
-    // Fuzz tjLoadImage
-    imageBuffer = tjLoadImage(dummyFile, &width, 1, &height, &pixelFormat, 0);
-    if (imageBuffer) {
-        // Fuzz tjSaveImage
-        tjSaveImage(dummyFile, imageBuffer, width, width * tjPixelSize[pixelFormat], height, pixelFormat, 0);
-        tjFree(imageBuffer);
+    // Fuzz tjAlloc
+    unsigned char *allocatedBuffer = tjAlloc(yuvBufSize);
+    if (allocatedBuffer) {
+        std::memset(allocatedBuffer, 0, yuvBufSize);
     }
-
-    // Variables for tj3SaveImage16
-    tjhandle handle = nullptr;
-    unsigned short *buffer16 = reinterpret_cast<unsigned short*>(malloc(Size * sizeof(unsigned short)));
-    if (buffer16) {
-        memcpy(buffer16, Data, Size);
-        tj3SaveImage16(handle, dummyFile, buffer16, width, width, height, pixelFormat);
-        free(buffer16);
-    }
-
-    // Buffer for tjCompress
-    unsigned char *compressedBuf = nullptr;
-    unsigned long compressedSize = 0;
 
     // Fuzz tjCompress
-    tjhandle compressHandle = tjInitCompress();
-    if (compressHandle) {
-        compressedBuf = tjAlloc(tjBufSize(width, height, pixelFormat));
-        if (compressedBuf) {
-            tjCompress(compressHandle, imageBuffer, width, width * tjPixelSize[pixelFormat], height, tjPixelSize[pixelFormat],
-                       compressedBuf, &compressedSize, TJSAMP_444, 75, 0);
-            tjFree(compressedBuf);
+    tjhandle handle = tjInitCompress();
+    if (handle) {
+        unsigned long maxCompressedSize = tjBufSize(width, height, subsamp); // Get the maximum size needed
+        unsigned char *dstBuf = (unsigned char *)malloc(maxCompressedSize);
+        if (dstBuf) {
+            unsigned long compressedSize = maxCompressedSize;
+            int result = tjCompress(handle, allocatedBuffer, width, 0, height, TJPF_RGB, dstBuf, &compressedSize, subsamp, 75, 0);
+            free(dstBuf);
         }
-        tjDestroy(compressHandle);
+        tjDestroy(handle);
     }
 
-    // Buffer for tjDecompress2
-    unsigned char *decompressedBuf = nullptr;
-
-    // Fuzz tjDecompress2
-    tjhandle decompressHandle = tjInitDecompress();
-    if (decompressHandle) {
-        decompressedBuf = tjAlloc(width * height * tjPixelSize[pixelFormat]);
-        if (decompressedBuf) {
-            tjDecompress2(decompressHandle, Data, Size, decompressedBuf, width, width * tjPixelSize[pixelFormat], height, pixelFormat, 0);
-            tjFree(decompressedBuf);
+    // Fuzz tjDecodeYUVPlanes
+    const unsigned char *srcPlanes[3] = {allocatedBuffer, allocatedBuffer, allocatedBuffer};
+    int strides[3] = {width, width / 2, width / 2};
+    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]); // Ensure enough space for RGB
+    if (dstBuf) {
+        handle = tjInitDecompress();
+        if (handle) {
+            int result = tjDecodeYUVPlanes(handle, srcPlanes, strides, subsamp, dstBuf, width, 0, height, TJPF_RGB, 0);
+            tjDestroy(handle);
         }
-        tjDestroy(decompressHandle);
+        free(dstBuf);
+    }
+
+    // Fuzz tjDecompressHeader2
+    handle = tjInitDecompress();
+    if (handle && Size >= 10) {
+        int imgWidth = 0, imgHeight = 0, imgSubsamp = 0;
+        int result = tjDecompressHeader2(handle, (unsigned char *)Data, Size, &imgWidth, &imgHeight, &imgSubsamp);
+        tjDestroy(handle);
+    }
+
+    // Fuzz tjDecodeYUV
+    handle = tjInitDecompress();
+    if (handle) {
+        dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]); // Ensure enough space for RGB
+        if (dstBuf) {
+            int result = tjDecodeYUV(handle, allocatedBuffer, 1, subsamp, dstBuf, width, 0, height, TJPF_RGB, 0);
+            free(dstBuf);
+        }
+        tjDestroy(handle);
+    }
+
+    // Cleanup
+    if (allocatedBuffer) {
+        tjFree(allocatedBuffer);
     }
 
     return 0;

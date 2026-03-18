@@ -1,63 +1,69 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_segment_get_track_fragment_count at isom_read.c:895:5 in isomedia.h
-// gf_isom_get_timescale at isom_read.c:962:5 in isomedia.h
-// gf_isom_has_time_offset at isom_read.c:1868:5 in isomedia.h
-// gf_isom_get_media_type at isom_read.c:1586:5 in isomedia.h
-// gf_isom_set_next_moof_number at movie_fragments.c:3474:6 in isomedia.h
-// gf_isom_new_track at isom_write.c:863:5 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_reset_fragment_info at isom_read.c:4976:6 in isomedia.h
+// gf_isom_has_keep_utc_times at isom_read.c:5550:6 in isomedia.h
+// gf_isom_has_sync_shadows at isom_read.c:1894:6 in isomedia.h
+// gf_isom_has_sample_dependency at isom_read.c:1904:6 in isomedia.h
+// gf_isom_is_smooth_streaming_moov at isom_read.c:5848:6 in isomedia.h
+// gf_isom_is_fragmented at movie_fragments.c:3523:6 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Create a dummy GF_ISOFile structure
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    return iso_file;
+// Define a dummy size for GF_ISOFile since its structure is not fully available
+#define DUMMY_GFI_ISOFILE_SIZE 1024
+
+static GF_ISOFile* create_dummy_isofile() {
+    GF_ISOFile *isom_file = (GF_ISOFile*)malloc(DUMMY_GFI_ISOFILE_SIZE);
+    if (!isom_file) return NULL;
+    memset(isom_file, 0, DUMMY_GFI_ISOFILE_SIZE);
+    return isom_file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_close(iso_file);
+static void destroy_dummy_isofile(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        free(isom_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_234(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32)) return 0;
+    if (Size < 1) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return 0;
 
-    u32 moof_index = *((u32*)Data);
-    u32 track_number = moof_index % 10; // Just a random track number for testing
-    u32 media_type = 'vide'; // Example media type
+    // Use the first byte as a boolean for keep_sample_count
+    Bool keep_sample_count = Data[0] % 2;
 
-    // Test gf_isom_segment_get_track_fragment_count
-    u32 fragment_count = gf_isom_segment_get_track_fragment_count(iso_file, moof_index);
-    printf("Track Fragment Count: %u\n", fragment_count);
+    // Call gf_isom_reset_fragment_info
+    gf_isom_reset_fragment_info(isom_file, keep_sample_count);
 
-    // Test gf_isom_get_timescale
-    u32 timescale = gf_isom_get_timescale(iso_file);
-    printf("Timescale: %u\n", timescale);
+    // Call gf_isom_has_keep_utc_times
+    Bool has_utc = gf_isom_has_keep_utc_times(isom_file);
 
-    // Test gf_isom_has_time_offset
-    u32 time_offset = gf_isom_has_time_offset(iso_file, track_number);
-    printf("Time Offset: %u\n", time_offset);
+    // Use the second byte as a track number
+    u32 track_number = (Size > 1) ? Data[1] : 0;
 
-    // Test gf_isom_get_media_type
-    u32 media_type_result = gf_isom_get_media_type(iso_file, track_number);
-    printf("Media Type: %u\n", media_type_result);
+    // Call gf_isom_has_sync_shadows
+    Bool has_sync_shadows = gf_isom_has_sync_shadows(isom_file, track_number);
 
-    // Test gf_isom_set_next_moof_number
-    gf_isom_set_next_moof_number(iso_file, moof_index + 1);
+    // Call gf_isom_has_sample_dependency
+    Bool has_sample_dependency = gf_isom_has_sample_dependency(isom_file, track_number);
 
-    // Test gf_isom_new_track
-    u32 new_track = gf_isom_new_track(iso_file, 0, media_type, timescale);
-    printf("New Track ID: %u\n", new_track);
+    // Call gf_isom_is_smooth_streaming_moov
+    Bool is_smooth_streaming = gf_isom_is_smooth_streaming_moov(isom_file);
 
-    cleanup_iso_file(iso_file);
+    // Call gf_isom_is_fragmented
+    Bool is_fragmented = gf_isom_is_fragmented(isom_file);
+
+    // Clean up
+    destroy_dummy_isofile(isom_file);
+
     return 0;
 }

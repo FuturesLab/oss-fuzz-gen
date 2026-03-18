@@ -1,54 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>  // Include for FILE operations
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
 
-// Include the correct path for turbojpeg.h
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-
-    unsigned short * tj3LoadImage16(tjhandle handle, const char *filename, int *width, int pitch, int *height, int *pixelFormat);
+// Declaration of the function-under-test
+int tj3YUVPlaneWidth(int componentID, int width, int align);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tjInitDecompress();
-    if (handle == NULL) {
-        return 0; // Exit if handle initialization fails
-    }
-
-    // Create a temporary filename for testing
-    const char *filename = "temp_image.tiff";
-
-    // Write the input data to the file
-    FILE *file = fopen(filename, "wb");
-    if (file == NULL) {
-        tjDestroy(handle);
+    // Ensure there is enough data to extract three integers
+    if (size < 3 * sizeof(int)) {
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
-    // Initialize other parameters
-    int width = 0;
-    int pitch = 0;
-    int height = 0;
-    int pixelFormat = TJPF_RGB;
+    // Extract three integers from the input data
+    int componentID = static_cast<int>(data[0]);
+    int width = static_cast<int>(data[1]);
+    int align = static_cast<int>(data[2]);
 
     // Call the function-under-test
-    unsigned short *image = tj3LoadImage16(handle, filename, &width, pitch, &height, &pixelFormat);
+    int result = tj3YUVPlaneWidth(componentID, width, align);
 
-    // Clean up
-    if (image != NULL) {
-        free(image); // Use free instead of tjFree for unsigned short *
-    }
-    tjDestroy(handle);
-
-    // Remove the temporary file
-    remove(filename);
+    // Print the result (optional, for debugging purposes)
+    printf("tj3YUVPlaneWidth(%d, %d, %d) = %d\n", componentID, width, align, result);
 
     return 0;
 }

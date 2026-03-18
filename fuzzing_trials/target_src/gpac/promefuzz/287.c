@@ -1,66 +1,116 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_opus_config_get_desc at sample_descs.c:557:8 in isomedia.h
-// gf_isom_set_cenc_protection at drm_sample.c:758:8 in isomedia.h
-// gf_isom_set_sample_cenc_default_group at isom_write.c:7843:8 in isomedia.h
-// gf_isom_get_cenc_info at drm_sample.c:726:8 in isomedia.h
-// gf_isom_rtp_set_timescale at hint_track.c:226:8 in isomedia.h
-// gf_isom_copy_sample_info at isom_write.c:8078:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_cenc_allocate_storage at drm_sample.c:1142:8 in isomedia.h
+// gf_isom_get_tmcd_config at sample_descs.c:1953:8 in isomedia.h
+// gf_isom_check_data_reference at isom_read.c:1705:8 in isomedia.h
+// gf_isom_add_desc_to_description at isom_write.c:1631:8 in isomedia.h
+// gf_isom_remove_stream_description at isom_write.c:909:8 in isomedia.h
+// gf_isom_svc_config_del at avc_ext.c:1818:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
+static GF_ISOFile* create_dummy_isofile() {
+    // Allocate memory for the known size of the struct, assuming the size is known
+    size_t isofile_size = 1024; // Example size, should be replaced with actual size if known
+    GF_ISOFile *file = (GF_ISOFile *)malloc(isofile_size);
     if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+        memset(file, 0, isofile_size);
+    }
+    return file;
+}
+
+static void cleanup_isofile(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        free(isom_file);
     }
 }
 
+static void fuzz_gf_isom_cenc_allocate_storage(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(u32)) return;
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return;
+
+    u32 trackNumber = *(u32 *)Data;
+    gf_isom_cenc_allocate_storage(isom_file, trackNumber);
+
+    cleanup_isofile(isom_file);
+}
+
+static void fuzz_gf_isom_get_tmcd_config(const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(u32)) return;
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return;
+
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    u32 tmcd_flags, tmcd_fps_num, tmcd_fps_den, tmcd_fpt;
+
+    gf_isom_get_tmcd_config(isom_file, trackNumber, sampleDescriptionIndex, &tmcd_flags, &tmcd_fps_num, &tmcd_fps_den, &tmcd_fpt);
+
+    cleanup_isofile(isom_file);
+}
+
+static void fuzz_gf_isom_check_data_reference(const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(u32)) return;
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return;
+
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+
+    gf_isom_check_data_reference(isom_file, trackNumber, sampleDescriptionIndex);
+
+    cleanup_isofile(isom_file);
+}
+
+static void fuzz_gf_isom_add_desc_to_description(const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(u32) + sizeof(GF_Descriptor)) return;
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return;
+
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    GF_Descriptor *theDesc = (GF_Descriptor *)(Data + 2 * sizeof(u32));
+
+    gf_isom_add_desc_to_description(isom_file, trackNumber, sampleDescriptionIndex, theDesc);
+
+    cleanup_isofile(isom_file);
+}
+
+static void fuzz_gf_isom_remove_stream_description(const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(u32)) return;
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return;
+
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+
+    gf_isom_remove_stream_description(isom_file, trackNumber, sampleDescriptionIndex);
+
+    cleanup_isofile(isom_file);
+}
+
+static void fuzz_gf_isom_svc_config_del(const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(u32)) return;
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return;
+
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+
+    gf_isom_svc_config_del(isom_file, trackNumber, sampleDescriptionIndex);
+
+    cleanup_isofile(isom_file);
+}
+
 int LLVMFuzzerTestOneInput_287(const uint8_t *Data, size_t Size) {
-    // Create a dummy ISO file and other structures
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) return 0;
-
-    GF_OpusConfig opcfg;
-    u32 trackNumber = 1;
-    u32 sampleDescriptionIndex = 1;
-    u32 scheme_type = 0;
-    u32 scheme_version = 1;
-    u32 default_IsEncrypted = 0;
-    u32 default_crypt_byte_block = 0;
-    u32 default_skip_byte_block = 0;
-    u8 *key_info = (u8 *)Data;
-    u32 key_info_size = Size;
-    u32 outOriginalFormat, outSchemeType, outSchemeVersion;
-    u32 TimeScale = 90000;
-    GF_ISOFile *dst = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    GF_ISOFile *src = isom_file;
-    u32 dst_track = 1;
-    u32 src_track = 1;
-    u32 sampleNumber = 1;
-
-    // Write data to a dummy file
-    write_dummy_file(Data, Size);
-
-    // Invoke the target functions
-    gf_isom_opus_config_get_desc(isom_file, trackNumber, sampleDescriptionIndex, &opcfg);
-    gf_isom_set_cenc_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, default_IsEncrypted, default_crypt_byte_block, default_skip_byte_block, key_info, key_info_size);
-    gf_isom_set_sample_cenc_default_group(isom_file, trackNumber, sampleNumber);
-    gf_isom_get_cenc_info(isom_file, trackNumber, sampleDescriptionIndex, &outOriginalFormat, &outSchemeType, &outSchemeVersion);
-    gf_isom_rtp_set_timescale(isom_file, trackNumber, sampleDescriptionIndex, TimeScale);
-    gf_isom_copy_sample_info(dst, dst_track, src, src_track, sampleNumber);
-
-    // Clean up
-    gf_isom_close(isom_file);
-    gf_isom_close(dst);
-
+    fuzz_gf_isom_cenc_allocate_storage(Data, Size);
+    fuzz_gf_isom_get_tmcd_config(Data, Size);
+    fuzz_gf_isom_check_data_reference(Data, Size);
+    fuzz_gf_isom_add_desc_to_description(Data, Size);
+    fuzz_gf_isom_remove_stream_description(Data, Size);
+    fuzz_gf_isom_svc_config_del(Data, Size);
     return 0;
 }

@@ -6,24 +6,27 @@ int LLVMFuzzerTestOneInput_180(const uint8_t *data, size_t size) {
     // Initialize HDF5 library
     H5open();
 
-    // Create a file and an attribute to read
-    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t dataspace_id = H5Screate(H5S_SCALAR);
-    hid_t attr_id = H5Acreate2(file_id, "attr", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Prepare a buffer to read into
-    int read_data;
-    
-    // Ensure data is not NULL and size is sufficient
-    if (data != NULL && size >= sizeof(int)) {
-        // Call the function-under-test
-        herr_t status = H5Aread(attr_id, H5T_NATIVE_INT, &read_data);
+    // Ensure we have enough data to extract two hid_t values
+    if (size < 2 * sizeof(hid_t)) {
+        return 0;
     }
 
-    // Clean up
-    H5Aclose(attr_id);
-    H5Sclose(dataspace_id);
-    H5Fclose(file_id);
+    // Extract two hid_t values from the input data
+    hid_t attr_id = *(const hid_t *)data;
+    hid_t mem_type_id = *(const hid_t *)(data + sizeof(hid_t));
+
+    // Allocate a buffer for the data to be read
+    void *buf = malloc(1024); // Allocate a buffer of 1024 bytes
+
+    if (buf == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+
+    // Call the function-under-test
+    herr_t status = H5Aread(attr_id, mem_type_id, buf);
+
+    // Free the allocated buffer
+    free(buf);
 
     // Close HDF5 library
     H5close();

@@ -1,40 +1,40 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    GF_ISOFile *the_file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL); // Create a dummy ISO file
-    if (the_file == NULL) {
-        return 0; // Exit if the file creation fails
+    // Write data to a temporary file
+    char tmp_filename[] = "/tmp/fuzz_input_XXXXXX";
+    int fd = mkstemp(tmp_filename);
+    if (fd == -1) {
+        return 0;
     }
+    FILE *tmp_file = fdopen(fd, "wb");
+    if (!tmp_file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, tmp_file);
+    fclose(tmp_file);
 
-    u32 trackNumber = 1; // Set a valid track number
-    u32 desc_index = 1; // Set a valid descriptor index
-    u32 scheme_type = 0x63656E63; // Example scheme type ('cenc')
-    u32 scheme_version = 1; // Example scheme version
-    Bool is_selective_enc = GF_TRUE; // Set selective encryption to true
-
-    // Allocate memory for metadata and ensure it is not NULL
-    char *metadata = (char *)malloc(size + 1);
-    if (metadata == NULL) {
-        gf_isom_close(the_file);
+    // Open the ISO file from the temporary file
+    GF_ISOFile *movie = gf_isom_open(tmp_filename, GF_ISOM_OPEN_READ, NULL);
+    if (movie == NULL) {
+        remove(tmp_filename);
         return 0;
     }
 
-    // Copy data into metadata and ensure it's null-terminated
-    memcpy(metadata, data, size);
-    metadata[size] = '\0';
+    u32 trackNumber = size > 0 ? data[0] : 1;  // Ensure trackNumber is not zero
+    u32 StreamDescriptionIndex = size > 1 ? data[1] : 1;  // Ensure StreamDescriptionIndex is not zero
+    u16 bitDepth = size > 2 ? data[2] : 8;  // Some default bit depth
 
-    u32 len = size; // Set the length of the metadata
+    gf_isom_set_visual_bit_depth(movie, trackNumber, StreamDescriptionIndex, bitDepth);
 
-    // Call the function-under-test
-    gf_isom_set_adobe_protection(the_file, trackNumber, desc_index, scheme_type, scheme_version, is_selective_enc, metadata, len);
+    gf_isom_close(movie);
 
-    // Clean up resources
-    free(metadata);
-    gf_isom_close(the_file);
+    // Clean up temporary file
+    remove(tmp_filename);
 
     return 0;
 }

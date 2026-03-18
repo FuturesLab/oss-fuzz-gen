@@ -1,33 +1,21 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_196(const uint8_t *data, size_t size) {
-    hid_t file_id;
-    unsigned long fileno;
-    herr_t status;
+    // Declare and initialize variables
+    hid_t loc_id = H5I_GROUP; // Use a valid HDF5 identifier type, such as a group
+    hsize_t idx = 0; // Initialize index to 0
 
-    // Ensure that the data size is sufficient for creating a file name
-    if (size < 5) {
-        return 0;
-    }
-
-    // Create a temporary file name from the input data
-    char filename[6];
-    snprintf(filename, sizeof(filename), "%.*s", 5, data);
-
-    // Create a new HDF5 file using the input data as part of the file name
-    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
+    // Ensure the size is appropriate for fuzzing
+    if (size > 0) {
+        // Use the data to influence the idx value
+        idx = (hsize_t)(data[0] % 10); // Example: limit index to a small range
     }
 
     // Call the function-under-test
-    status = H5Fget_fileno(file_id, &fileno);
+    H5G_obj_t obj_type = H5Gget_objtype_by_idx(loc_id, idx);
 
-    // Close the file
-    H5Fclose(file_id);
+    // Use obj_type for further processing or validation if needed
 
     return 0;
 }

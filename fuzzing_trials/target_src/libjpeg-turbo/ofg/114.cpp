@@ -1,5 +1,5 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -7,23 +7,28 @@ extern "C" {
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
+// Define J16SAMPLE as uint16_t, which is typically used for 16-bit samples
+typedef uint16_t J16SAMPLE;
+
 extern "C" int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Initialize variables for the function call
     tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Return if initialization fails
+    if (handle == NULL) {
+        return 0; // If initialization fails, exit early
     }
 
-    // Define image dimensions and allocate buffer for decompressed image
-    int width = 100;  // Example width
-    int height = 100; // Example height
-    uint16_t *dstBuf = new uint16_t[width * height * 3]; // Assuming RGB format
+    // Define dimensions for the output image
+    int width = 128;  // Example width
+    int height = 128; // Example height
+
+    // Allocate memory for the decompressed image
+    J16SAMPLE *outputImage = new J16SAMPLE[width * height * 3]; // Assuming RGB format
 
     // Call the function-under-test
-    int result = tj3Decompress16(handle, data, size, dstBuf, width, height);
+    int result = tj3Decompress16(handle, data, size, outputImage, width, height);
 
     // Clean up
-    delete[] dstBuf;
+    delete[] outputImage;
     tjDestroy(handle);
 
     return 0;

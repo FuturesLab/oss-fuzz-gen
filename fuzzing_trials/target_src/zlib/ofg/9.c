@@ -1,48 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <zlib.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <unistd.h>   // Include this for `close` and `unlink`
+#include <fcntl.h>    // Include this for `mkstemp`
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-// Remove the 'extern "C"' linkage specification for C++ as this is a C file
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
     // Create a temporary file to write the input data
-    char filename[] = "tempfile.gz";
-    FILE *file = fopen(filename, "wb");
-    if (file == NULL) {
+    char filename[] = "/tmp/fuzz_gzrewind_XXXXXX";
+    int fd = mkstemp(filename);
+    if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the file
-    if (fwrite(data, 1, size, file) != size) {
-        fclose(file);
-        remove(filename);
+    // Write the data to the file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(filename);
         return 0;
     }
-    fclose(file);
+
+    // Close the file descriptor
+    close(fd);
 
     // Open the file with gzopen
     gzFile gzfile = gzopen(filename, "rb");
     if (gzfile == NULL) {
-        remove(filename);
+        unlink(filename);
         return 0;
     }
 
-    // Attempt to read from the gzFile to ensure coverage
-    char buffer[4096];
-    while (gzread(gzfile, buffer, sizeof(buffer)) > 0) {
-        // Process the buffer if needed
-    }
-
     // Call the function-under-test
-    gzrewind(gzfile);
+    int result = gzrewind(gzfile);
 
-    // Close the gzFile
+    // Clean up
     gzclose(gzfile);
-
-    // Remove the temporary file
-    remove(filename);
+    unlink(filename);
 
     return 0;
 }

@@ -1,49 +1,36 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
+// Define a sample sampler function
+static int MySampler(const cmsUInt16Number In[], cmsUInt16Number Out[], void* Cargo) {
+    for (int i = 0; i < 3; i++) {
+        Out[i] = In[i];
+    }
+    return 1; // Return 1 to indicate success
+}
+
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    const char *result;
-    
-    // Ensure the data is large enough to split into two non-null strings
-    if (size < 2) {
+    // Initialize a cmsStage object
+    cmsStage *stage = cmsStageAllocCLut16bit(NULL, 3, 3, 3, NULL);
+    if (stage == NULL) {
         return 0;
     }
 
-    // Create a cmsHANDLE for testing
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Ensure the data size is sufficient for the test
+    if (size < sizeof(cmsUInt32Number)) {
+        cmsStageFree(stage);
         return 0;
     }
 
-    // Split the input data into two strings
-    size_t half_size = size / 2;
-    char *str1 = (char *)malloc(half_size + 1);
-    char *str2 = (char *)malloc(half_size + 1);
-
-    if (str1 == NULL || str2 == NULL) {
-        cmsIT8Free(handle);
-        free(str1);
-        free(str2);
-        return 0;
-    }
-
-    memcpy(str1, data, half_size);
-    str1[half_size] = '\0';
-
-    memcpy(str2, data + half_size, half_size);
-    str2[half_size] = '\0';
+    // Use the first bytes of data as the cmsUInt32Number parameter
+    cmsUInt32Number nPoints = *(cmsUInt32Number*)data;
 
     // Call the function-under-test
-    result = cmsIT8GetData(handle, str1, str2);
+    cmsStageSampleCLut16bit(stage, MySampler, NULL, nPoints);
 
-    // Clean up
-    cmsIT8Free(handle);
-    free(str1);
-    free(str2);
+    // Free the cmsStage object
+    cmsStageFree(stage);
 
     return 0;
 }

@@ -1,30 +1,28 @@
-#include <cstddef>
 #include <cstdint>
-#include <cstdlib>  // Include for the free function
+#include <cstdlib>
+#include <cstring>
 
-// Assuming tj3Alloc is defined in a C library
 extern "C" {
-    void * tj3Alloc(size_t);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    
+    void tj3Free(void *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    // Ensure size is not zero to avoid passing zero to tj3Alloc
-    if (size == 0) {
-        return 0;
+    // Allocate memory for a buffer with the same size as the input data
+    void *buffer = malloc(size);
+    if (buffer == nullptr) {
+        return 0; // If allocation fails, return early
     }
 
-    // Call the function-under-test with the size of the input data
-    void* allocatedMemory = tj3Alloc(size);
+    // Copy the input data into the buffer
+    memcpy(buffer, data, size);
 
-    // Optionally, you can add checks or further operations on allocatedMemory
-    // For example, you could check if the memory allocation was successful
-    if (allocatedMemory != nullptr) {
-        // Simulate some operations on the allocated memory
-        // ...
+    // Call the function-under-test
+    tj3Free(buffer);
 
-        // Free the allocated memory if needed
-        free(allocatedMemory);
-    }
-
+    // Return 0 to indicate successful execution
     return 0;
 }

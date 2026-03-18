@@ -1,38 +1,23 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <lcms2_plugin.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_419(const uint8_t *data, size_t size) {
-    // Initialize variables for the function call
+    cmsContext context;
     cmsHANDLE handle;
-    char *sheetType;
 
-    // Ensure size is sufficient for a null-terminated string
-    if (size < 1) {
-        return 0;
-    }
+    // Initialize the context with some non-NULL value
+    context = cmsCreateContext(NULL, NULL);
 
-    // Allocate memory for sheetType and ensure it is null-terminated
-    sheetType = (char *)malloc(size + 1);
-    if (sheetType == NULL) {
-        return 0;
-    }
-    memcpy(sheetType, data, size);
-    sheetType[size] = '\0';
+    // Call the function-under-test
+    handle = cmsIT8Alloc(context);
 
-    // Initialize handle with a non-NULL value
-    handle = cmsIT8Alloc(NULL);
+    // Clean up
     if (handle != NULL) {
-        // Call the function under test
-        cmsIT8SetSheetType(handle, sheetType);
-
-        // Free the handle after use
         cmsIT8Free(handle);
     }
 
-    // Free allocated memory for sheetType
-    free(sheetType);
+    cmsDeleteContext(context);
 
     return 0;
 }

@@ -3,19 +3,28 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t dataset_id = 1; // Assuming a valid dataset ID for demonstration
-    hsize_t dims[2] = {1, 1}; // Initialize dimensions with non-zero values
-
-    // Check if the input size is sufficient to modify dimensions
-    if (size >= sizeof(hsize_t) * 2) {
-        // Modify dimensions using the input data
-        dims[0] = *(const hsize_t *)data;
-        dims[1] = *(const hsize_t *)(data + sizeof(hsize_t));
+    // Ensure there is enough data to read from
+    if (size < sizeof(hid_t) + sizeof(hsize_t)) {
+        return 0;
     }
+
+    // Initialize variables
+    hid_t dataset_id;
+    hsize_t dims[1];
+
+    // Extract dataset_id from the data
+    dataset_id = *((hid_t *)data);
+    data += sizeof(hid_t);
+    size -= sizeof(hid_t);
+
+    // Extract hsize_t value from the data
+    dims[0] = *((hsize_t *)data);
 
     // Call the function-under-test
     herr_t result = H5Dset_extent(dataset_id, dims);
+
+    // Use the result in some way (e.g., just to avoid compiler warnings)
+    (void)result;
 
     return 0;
 }

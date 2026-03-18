@@ -1,5 +1,6 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // For memcpy
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,27 +9,44 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
+    // Initialize variables
     tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        return 0; // Return if handle initialization fails
+    if (handle == nullptr) {
+        return 0; // If initialization fails, exit early
     }
 
-    const unsigned char *srcBuf = data;
-    int pad = 1; // Set padding to 1 for simplicity
-    int width = 16; // Set a default width
-    int height = 16; // Set a default height
-    int flags = 0; // No special flags
+    // Ensure there's enough data for the parameters
+    if (size < 8) {
+        tjDestroy(handle);
+        return 0;
+    }
 
-    // Calculate the size of the destination buffer
-    int dstBufSize = width * height * 3; // Assuming 3 bytes per pixel for RGB
-    unsigned char *dstBuf = new unsigned char[dstBufSize];
+    // Extract parameters from the input data
+    int width = data[0] + 1;  // Avoid zero width
+    int height = data[1] + 1; // Avoid zero height
+    int strides[3] = {width, width / 2, width / 2}; // YUV strides
+
+    // Allocate memory for YUV and RGB buffers
+    unsigned char *yuvBuffer = (unsigned char *)malloc(width * height * 3 / 2);
+    unsigned char *rgbBuffer = (unsigned char *)malloc(width * height * 3);
+
+    if (yuvBuffer == nullptr || rgbBuffer == nullptr) {
+        free(yuvBuffer);
+        free(rgbBuffer);
+        tjDestroy(handle);
+        return 0;
+    }
+
+    // Copy input data to yuvBuffer
+    size_t copySize = size < (width * height * 3 / 2) ? size : (width * height * 3 / 2);
+    memcpy(yuvBuffer, data, copySize);
 
     // Call the function-under-test
-    tj3DecodeYUV8(handle, srcBuf, pad, dstBuf, width, height, width * 3, flags);
+    tj3DecodeYUV8(handle, yuvBuffer, strides[0], rgbBuffer, width, 0, height, 0);
 
     // Clean up
-    delete[] dstBuf;
+    free(yuvBuffer);
+    free(rgbBuffer);
     tjDestroy(handle);
 
     return 0;

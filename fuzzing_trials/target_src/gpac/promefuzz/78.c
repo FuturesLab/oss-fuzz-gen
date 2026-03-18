@@ -1,58 +1,60 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_freeze_order at isom_read.c:76:8 in isomedia.h
-// gf_isom_update_duration at isom_write.c:8330:8 in isomedia.h
-// gf_isom_last_error at isom_read.c:46:8 in isomedia.h
-// gf_isom_start_fragment at movie_fragments.c:2583:8 in isomedia.h
-// gf_isom_set_timescale at isom_write.c:451:8 in isomedia.h
-// gf_isom_can_access_movie at isom_write.c:34:8 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_set_track_flags at isom_write.c:277:8 in isomedia.h
+// gf_isom_remove_track_references at isom_write.c:5036:8 in isomedia.h
+// gf_isom_3gp_config_update at sample_descs.c:660:8 in isomedia.h
+// gf_isom_rtp_set_timescale at hint_track.c:226:8 in isomedia.h
+// gf_isom_set_media_timescale at isom_write.c:5276:8 in isomedia.h
+// gf_isom_set_forced_text at tx3g.c:973:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
+static GF_ISOFile* create_dummy_isofile() {
+    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return file;
+}
+
+static void cleanup_isofile(GF_ISOFile *file) {
     if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+        gf_isom_close(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *Data, size_t Size) {
-    // Check if the input size is sufficient
-    if (Size < 1) return 0;
+    if (Size < sizeof(u32) * 4) return 0;
 
-    // Simulate an ISO file object
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    GF_ISOFile *isom_file = create_dummy_isofile();
     if (!isom_file) return 0;
 
-    // Fuzz gf_isom_freeze_order
-    gf_isom_freeze_order(isom_file);
+    u32 trackNumber = *((u32*)Data);
+    u32 flags = *((u32*)(Data + sizeof(u32)));
+    GF_ISOMTrackFlagOp op = (GF_ISOMTrackFlagOp)(*(Data + 2 * sizeof(u32)));
+    u32 new_timescale = *((u32*)(Data + 3 * sizeof(u32)));
 
-    // Fuzz gf_isom_update_duration
-    gf_isom_update_duration(isom_file);
+    // Fuzz gf_isom_set_track_flags
+    gf_isom_set_track_flags(isom_file, trackNumber, flags, op);
 
-    // Fuzz gf_isom_last_error
-    gf_isom_last_error(isom_file);
+    // Fuzz gf_isom_remove_track_references
+    gf_isom_remove_track_references(isom_file, trackNumber);
 
-    // Fuzz gf_isom_start_fragment with random moof_first flag
-    GF_ISOStartFragmentFlags moof_first = (GF_ISOStartFragmentFlags) (Data[0] % 2);
-    gf_isom_start_fragment(isom_file, moof_first);
+    // Fuzz gf_isom_3gp_config_update
+    GF_3GPConfig config;
+    gf_isom_3gp_config_update(isom_file, trackNumber, &config, flags);
 
-    // Fuzz gf_isom_set_timescale with a random timescale
-    u32 timescale = (Size > 4) ? *(u32 *)(Data + 1) : 1000;
-    gf_isom_set_timescale(isom_file, timescale);
+    // Fuzz gf_isom_rtp_set_timescale
+    gf_isom_rtp_set_timescale(isom_file, trackNumber, flags, new_timescale);
 
-    // Fuzz gf_isom_can_access_movie with random mode
-    GF_ISOOpenMode mode = (GF_ISOOpenMode) (Data[0] % 3);
-    gf_isom_can_access_movie(isom_file, mode);
+    // Fuzz gf_isom_set_media_timescale
+    gf_isom_set_media_timescale(isom_file, trackNumber, new_timescale, flags, op);
 
-    // Cleanup
-    gf_isom_close(isom_file);
+    // Fuzz gf_isom_set_forced_text
+    gf_isom_set_forced_text(isom_file, trackNumber, flags, op);
 
+    cleanup_isofile(isom_file);
     return 0;
 }

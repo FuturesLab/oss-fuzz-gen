@@ -1,31 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_229(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsMLU *mlu;
-    const char *language = "en";
-    const char *country = "US";
-    char output[256];
-    cmsUInt32Number bufferSize = sizeof(output);
+    // Initialize variables for the function call
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsColorSpaceSignature colorSpace;
+    cmsFloat64Number limit;
 
-    // Create a new MLU object
-    mlu = cmsMLUalloc(NULL, 1);
-    if (mlu == NULL) {
+    // Ensure the size is sufficient to extract necessary data
+    if (size < sizeof(cmsColorSpaceSignature) + sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Set a dummy string in the MLU object
-    cmsMLUsetASCII(mlu, language, country, "Test String");
+    // Extract colorSpace and limit from the input data
+    colorSpace = *(cmsColorSpaceSignature*)data;
+    limit = *(cmsFloat64Number*)(data + sizeof(cmsColorSpaceSignature));
 
-    // Call the function under test
-    cmsMLUgetASCII(mlu, language, country, output, bufferSize);
+    // Call the function-under-test
+    cmsHPROFILE profile = cmsCreateInkLimitingDeviceLinkTHR(context, colorSpace, limit);
 
     // Clean up
-    cmsMLUfree(mlu);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
+    cmsDeleteContext(context);
 
     return 0;
 }

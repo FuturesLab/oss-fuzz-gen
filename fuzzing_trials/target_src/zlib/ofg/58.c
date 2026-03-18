@@ -2,47 +2,37 @@
 #include <stddef.h>
 #include <zlib.h>
 #include <stdio.h>
-#include <unistd.h> // Include for off_t
-
-// Function to initialize a gzFile for testing
-gzFile initialize_gzfile() {
-    // Create a temporary file
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
-        return NULL;
-    }
-
-    // Write some data to the file
-    fputs("This is a test data for gzFile.\n", tempFile);
-    fflush(tempFile);
-
-    // Rewind the file to the beginning
-    rewind(tempFile);
-
-    // Open the file as a gzFile
-    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
-    if (gzfile == NULL) {
-        fclose(tempFile);
-    }
-
-    return gzfile;
-}
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    // Initialize a gzFile
-    gzFile gzfile = initialize_gzfile();
-    if (gzfile == NULL) {
+    gzFile file;
+    char filename[] = "/tmp/fuzz_gzfile.gz";
+
+    // Write the input data to a temporary file
+    FILE *fp = fopen(filename, "wb");
+    if (fp == NULL) {
+        return 0;
+    }
+    fwrite(data, 1, size, fp);
+    fclose(fp);
+
+    // Open the file with gzopen
+    file = gzopen(filename, "rb");
+    if (file == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    off_t offset = gztell(gzfile); // Use gztell which returns off_t
+    z_off_t offset = gztell(file);
 
-    // Print the offset for debugging purposes
+    // Print the offset for debugging purposes (optional)
     printf("Offset: %lld\n", (long long)offset);
 
     // Close the gzFile
-    gzclose(gzfile);
+    gzclose(file);
+
+    // Remove the temporary file
+    remove(filename);
 
     return 0;
 }

@@ -1,30 +1,31 @@
 #include <stdint.h>
-#include <zlib.h>
 #include <stdio.h>
+#include <zlib.h>
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a gzFile
-    const char *filename = "temp.gz";
-    FILE *file = fopen(filename, "wb");
+    gzFile file;
+    char filename[] = "/tmp/fuzz_input.gz";
+    FILE *fp;
+
+    // Write the data to a temporary file
+    fp = fopen(filename, "wb");
+    if (fp == NULL) {
+        return 0;
+    }
+    fwrite(data, 1, size, fp);
+    fclose(fp);
+
+    // Open the file with gzopen
+    file = gzopen(filename, "rb");
     if (file == NULL) {
         return 0;
     }
 
-    // Write the input data to the file
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the file as a gzFile
-    gzFile gzfile = gzopen(filename, "rb");
-    if (gzfile == NULL) {
-        return 0;
-    }
-
     // Call the function-under-test
-    int result = gzclose(gzfile);
+    gzclose(file);
 
-    // Remove the temporary file
+    // Clean up
     remove(filename);
 
-    return result;
+    return 0;
 }

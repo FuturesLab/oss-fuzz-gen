@@ -1,79 +1,89 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// inflateInit_ at inflate.c:214:13 in zlib.h
-// inflatePrime at inflate.c:219:13 in zlib.h
-// inflateSync at inflate.c:1264:13 in zlib.h
+// inflateInit2_ at inflate.c:173:13 in zlib.h
+// crc32 at crc32.c:945:15 in zlib.h
+// crc32 at crc32.c:945:15 in zlib.h
 // inflate at inflate.c:474:13 in zlib.h
-// inflateSync at inflate.c:1264:13 in zlib.h
-// inflateSyncPoint at inflate.c:1320:13 in zlib.h
-// inflateCopy at inflate.c:1328:13 in zlib.h
-// inflateUndermine at inflate.c:1370:13 in zlib.h
-// inflateMark at inflate.c:1397:14 in zlib.h
+// crc32 at crc32.c:945:15 in zlib.h
 // inflateEnd at inflate.c:1155:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
+// deflateInit2_ at deflate.c:388:13 in zlib.h
+// deflateSetDictionary at deflate.c:560:13 in zlib.h
+// deflatePrime at deflate.c:746:13 in zlib.h
+// deflateEnd at deflate.c:1294:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
 
-static void initialize_stream(z_stream *strm) {
-    memset(strm, 0, sizeof(z_stream));
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file != NULL) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < 1) return 0;
+
+    // Initialize z_stream structures
+    z_stream strm_inflate;
+    z_stream strm_deflate;
+    memset(&strm_inflate, 0, sizeof(z_stream));
+    memset(&strm_deflate, 0, sizeof(z_stream));
+
+    // Allocate output buffers
+    Bytef out_buffer_inflate[1024];
+    Bytef out_buffer_deflate[1024];
+
+    // Initialize inflate
+    int windowBits = 15;
+    if (inflateInit2_(&strm_inflate, windowBits, ZLIB_VERSION, sizeof(z_stream)) != Z_OK) {
         return 0;
     }
 
-    z_stream strm;
-    initialize_stream(&strm);
+    // Compute crc32
+    uLong crc = crc32(0L, Z_NULL, 0);
+    crc = crc32(crc, Data, (uInt)Size);
 
-    uint8_t out_buffer[256];
-    strm.next_in = (z_const Bytef *)Data;
-    strm.avail_in = Size;
-    strm.next_out = out_buffer;
-    strm.avail_out = sizeof(out_buffer);
+    // Set input for inflate
+    strm_inflate.next_in = (Bytef *)Data;
+    strm_inflate.avail_in = (uInt)Size;
+    strm_inflate.next_out = out_buffer_inflate;
+    strm_inflate.avail_out = sizeof(out_buffer_inflate);
 
-    if (inflateInit(&strm) != Z_OK) {
+    // Perform inflate
+    inflate(&strm_inflate, Z_NO_FLUSH);
+    crc = crc32(crc, out_buffer_inflate, sizeof(out_buffer_inflate) - strm_inflate.avail_out);
+
+    // End inflate
+    inflateEnd(&strm_inflate);
+
+    // Initialize deflate
+    int level = Z_DEFAULT_COMPRESSION;
+    int method = Z_DEFLATED;
+    int memLevel = 8;
+    int strategy = Z_DEFAULT_STRATEGY;
+    if (deflateInit2_(&strm_deflate, level, method, windowBits, memLevel, strategy, ZLIB_VERSION, sizeof(z_stream)) != Z_OK) {
         return 0;
     }
 
-    // Attempt to manipulate the bit stream
-    inflatePrime(&strm, 5, 31);
+    // Set dictionary for deflate
+    if (Size > 0) {
+        deflateSetDictionary(&strm_deflate, Data, (uInt)Size);
+    }
 
-    // Synchronize the stream to recover from potential errors
-    inflateSync(&strm);
+    // Prime deflate with some bits
+    deflatePrime(&strm_deflate, 8, Data[0]);
 
-    // Decompress data
-    inflate(&strm, Z_NO_FLUSH);
-
-    // Synchronize again
-    inflateSync(&strm);
-
-    // Check synchronization point
-    inflateSyncPoint(&strm);
-
-    // Copy the stream state
-    z_stream dest_strm;
-    initialize_stream(&dest_strm);
-    inflateCopy(&dest_strm, &strm);
-
-    // Manage decompression integrity
-    inflateUndermine(&strm, 1);
-
-    // Retrieve marker
-    inflateMark(&strm);
-
-    // Clean up
-    inflateEnd(&strm);
-    inflateEnd(&dest_strm);
+    // Cleanup deflate
+    deflateEnd(&strm_deflate);
 
     return 0;
 }

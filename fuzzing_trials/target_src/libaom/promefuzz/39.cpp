@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ at aomcx.h:2350:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_CQ_LEVEL at aomcx.h:1937:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF at aomcx.h:1913:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_ARNR_STRENGTH at aomcx.h:1931:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF at aomcx.h:2034:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_SET_ARNR_MAXFRAMES at aomcx.h:1928:1 in aomcx.h
 // aom_codec_control_typechecked_AOME_SET_SHARPNESS at aomcx.h:1916:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_ENABLE_SB_QP_SWEEP at aomcx.h:2344:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_DISABLE_TRELLIS_QUANT at aomcx.h:2049:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_RESTORATION at aomcx.h:2040:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_AUTO_TILES at aomcx.h:2368:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,71 +14,62 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
 #include <iostream>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
+#include <fstream>
+#include <cstdint>
+#include <cstring>
 #include "aom_integer.h"
-#include "aom_codec.h"
 #include "aom_image.h"
+#include "aom_codec.h"
+#include "aom_frame_buffer.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
 #include "aom.h"
+#include "aom_decoder.h"
 #include "aomcx.h"
+#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) * 2) {
-        return 0; // Not enough data to read two integers
-    }
+    if (Size < 6) return 0;
 
+    // Initialize codec context
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    aom_codec_err_t res = aom_codec_enc_init(&codec_ctx, iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Failed to initialize codec
-    }
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    codec_ctx.name = "test_codec";
+    codec_ctx.iface = nullptr;
+    codec_ctx.err = static_cast<aom_codec_err_t>(0);
+    codec_ctx.init_flags = 0;
+    codec_ctx.priv = nullptr;
 
-    int value1 = *reinterpret_cast<const int*>(Data);
-    int value2 = *reinterpret_cast<const int*>(Data + sizeof(int));
+    // Prepare a dummy file
+    std::ofstream dummy_file("./dummy_file", std::ios::binary);
+    if (!dummy_file) return 0;
+    dummy_file.write(reinterpret_cast<const char*>(Data), Size);
+    dummy_file.close();
 
-    // Fuzz aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ
-    res = aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ(&codec_ctx, 0, value1);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_ENABLE_RATE_GUIDE_DELTAQ: " << aom_codec_err_to_string(res) << std::endl;
-    }
+    // Fuzz aom_codec_control_typechecked_AOME_SET_CQ_LEVEL
+    int cq_level = Data[0] % 64; // Example: CQ level between 0 and 63
+    aom_codec_control_typechecked_AOME_SET_CQ_LEVEL(&codec_ctx, AOME_SET_CQ_LEVEL, cq_level);
+
+    // Fuzz aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF
+    int auto_alt_ref = Data[1] % 2; // Enable or disable
+    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF(&codec_ctx, AOME_SET_ENABLEAUTOALTREF, auto_alt_ref);
+
+    // Fuzz aom_codec_control_typechecked_AOME_SET_ARNR_STRENGTH
+    int arnr_strength = Data[2] % 8; // Example: ARNR strength between 0 and 7
+    aom_codec_control_typechecked_AOME_SET_ARNR_STRENGTH(&codec_ctx, AOME_SET_ARNR_STRENGTH, arnr_strength);
+
+    // Fuzz aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF
+    int auto_bwd_ref = Data[3] % 2; // Enable or disable
+    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF(&codec_ctx, AOME_SET_ENABLEAUTOBWDREF, auto_bwd_ref);
+
+    // Fuzz aom_codec_control_typechecked_AOME_SET_ARNR_MAXFRAMES
+    int arnr_maxframes = Data[4] % 15; // Example: ARNR max frames between 0 and 14
+    aom_codec_control_typechecked_AOME_SET_ARNR_MAXFRAMES(&codec_ctx, AOME_SET_ARNR_MAXFRAMES, arnr_maxframes);
 
     // Fuzz aom_codec_control_typechecked_AOME_SET_SHARPNESS
-    res = aom_codec_control_typechecked_AOME_SET_SHARPNESS(&codec_ctx, 0, value1);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AOME_SET_SHARPNESS: " << aom_codec_err_to_string(res) << std::endl;
-    }
+    int sharpness = Data[5] % 8; // Example: Sharpness level between 0 and 7
+    aom_codec_control_typechecked_AOME_SET_SHARPNESS(&codec_ctx, AOME_SET_SHARPNESS, sharpness);
 
-    // Fuzz aom_codec_control_typechecked_AV1E_ENABLE_SB_QP_SWEEP
-    res = aom_codec_control_typechecked_AV1E_ENABLE_SB_QP_SWEEP(&codec_ctx, 0, value1);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_ENABLE_SB_QP_SWEEP: " << aom_codec_err_to_string(res) << std::endl;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_DISABLE_TRELLIS_QUANT
-    res = aom_codec_control_typechecked_AV1E_SET_DISABLE_TRELLIS_QUANT(&codec_ctx, 0, value1);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_SET_DISABLE_TRELLIS_QUANT: " << aom_codec_err_to_string(res) << std::endl;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_RESTORATION
-    res = aom_codec_control_typechecked_AV1E_SET_ENABLE_RESTORATION(&codec_ctx, 0, value1);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_SET_ENABLE_RESTORATION: " << aom_codec_err_to_string(res) << std::endl;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_AUTO_TILES
-    res = aom_codec_control_typechecked_AV1E_SET_AUTO_TILES(&codec_ctx, 0, value2);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_SET_AUTO_TILES: " << aom_codec_err_to_string(res) << std::endl;
-    }
-
-    aom_codec_destroy(&codec_ctx);
     return 0;
 }

@@ -1,25 +1,31 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to extract necessary values
-    if (size < sizeof(cmsInt32Number)) {
+    // Declare and initialize variables
+    cmsHPROFILE hProfile;
+    cmsUInt32Number model;
+
+    // Check if size is sufficient to extract a cmsUInt32Number
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Extract a cmsInt32Number from the data
-    cmsInt32Number index = *((const cmsInt32Number *)data);
+    // Create a profile for testing
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
+    }
 
-    // Create a dummy cmsToneCurve for testing
-    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Example gamma value
+    // Extract cmsUInt32Number from the input data
+    model = *(const cmsUInt32Number *)data;
 
     // Call the function-under-test
-    const cmsCurveSegment *segment = cmsGetToneCurveSegment(index, toneCurve);
+    cmsSetHeaderModel(hProfile, model);
 
-    // Clean up
-    if (toneCurve != NULL) {
-        cmsFreeToneCurve(toneCurve);
-    }
+    // Close the profile after testing
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

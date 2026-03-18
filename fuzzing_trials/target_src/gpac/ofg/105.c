@@ -1,25 +1,39 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Initialize variables for function parameters
-    GF_ISOFile *file = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!file) {
-        return 0; // Exit if file creation fails
+    GF_ISOFile *movie;
+    char *url_string;
+
+    // Ensure the size is sufficient to create a valid string
+    if (size < 1) {
+        return 0;
     }
 
-    u32 track_number = 1; // Example track number
-    u32 track_group_id = 1; // Example track group ID
-    u32 group_type = 1; // Example group type
-    Bool do_add = true; // Example boolean value
+    // Initialize a movie object
+    movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    gf_isom_set_track_group(file, track_number, track_group_id, group_type, do_add);
+    // Allocate memory for the URL string and ensure it's null-terminated
+    url_string = (char *)malloc(size + 1);
+    if (url_string == NULL) {
+        gf_isom_close(movie);
+        return 0;
+    }
+    memcpy(url_string, data, size);
+    url_string[size] = '\0';
 
-    // Close the file and clean up
-    gf_isom_close(file);
+    // Call the function under test
+    gf_isom_set_root_od_url(movie, url_string);
+
+    // Clean up
+    free(url_string);
+    gf_isom_close(movie);
 
     return 0;
 }

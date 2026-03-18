@@ -1,79 +1,70 @@
 // This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fget_access_plist at H5F.c:152:1 in H5Fpublic.h
-// H5Fget_name at H5F.c:1999:1 in H5Fpublic.h
-// H5Fget_obj_count at H5F.c:216:1 in H5Fpublic.h
-// H5Fget_obj_ids at H5F.c:333:1 in H5Fpublic.h
-// H5Fget_vfd_handle at H5F.c:422:1 in H5Fpublic.h
+// H5Fcreate_async at H5F.c:673:1 in H5Fpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Dget_space_async at H5D.c:625:1 in H5Dpublic.h
+// H5Freopen_async at H5F.c:1477:1 in H5Fpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Dclose at H5D.c:463:1 in H5Dpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include "H5Fpublic.h"
-#include "H5Ppublic.h"
+#include <H5Dpublic.h>
+#include <H5Fpublic.h>
+#include <H5Spublic.h>
+#include <H5Tpublic.h>
+#include <H5Ppublic.h>
+#include <H5ESpublic.h>
 
-static hid_t create_dummy_file() {
-    hid_t file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id < 0) {
-        file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    }
-    return file_id;
+static hid_t create_file(const char *filename) {
+    return H5Fcreate_async(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT, H5ES_NONE);
+}
+
+static hid_t create_dataset(hid_t file_id, const char *dset_name) {
+    hsize_t dims[2] = {10, 10};
+    hid_t space_id = H5Screate_simple(2, dims, NULL);
+    hid_t dset_id = H5Dcreate_async(file_id, dset_name, H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT, H5ES_NONE);
+    H5Sclose(space_id);
+    return dset_id;
+}
+
+static void write_dataset(hid_t dset_id) {
+    int data[10][10] = {0};
+    H5Dwrite_async(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data, H5ES_NONE);
 }
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(hid_t)) return 0;
+    if (Size < 1) return 0;
 
-    hid_t file_id = create_dummy_file();
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (!dummy_file) return 0;
+    fwrite(Data, 1, Size, dummy_file);
+    fclose(dummy_file);
+
+    hid_t file_id = create_file("./dummy_file");
     if (file_id < 0) return 0;
 
-    // Fuzz H5Fget_create_plist
-    hid_t plist_id = H5Fget_create_plist(file_id);
-    if (plist_id >= 0) {
-        H5Pclose(plist_id);
+    hid_t dset_id = create_dataset(file_id, "dset");
+    if (dset_id < 0) {
+        H5Fclose(file_id);
+        return 0;
     }
 
-    // Fuzz H5Fget_access_plist
-    plist_id = H5Fget_access_plist(file_id);
-    if (plist_id >= 0) {
-        H5Pclose(plist_id);
+    write_dataset(dset_id);
+
+    hid_t space_id = H5Dget_space_async(dset_id, H5ES_NONE);
+    if (space_id >= 0) {
+        H5Sclose(space_id);
     }
 
-    // Fuzz H5Fget_name
-    char name[1024];
-    ssize_t name_len = H5Fget_name(file_id, name, sizeof(name));
-    if (name_len >= 0) {
-        // Successfully retrieved the file name
+    hid_t reopened_file_id = H5Freopen_async(file_id, H5ES_NONE);
+    if (reopened_file_id >= 0) {
+        H5Fclose(reopened_file_id);
     }
 
-    // Fuzz H5Fget_obj_count
-    unsigned types = *(unsigned *)Data;
-    ssize_t obj_count = H5Fget_obj_count(file_id, types);
-    if (obj_count >= 0) {
-        // Successfully retrieved the object count
-    }
-
-    // Fuzz H5Fget_obj_ids
-    hid_t obj_id_list[10];
-    ssize_t obj_ids_count = H5Fget_obj_ids(file_id, types, 10, obj_id_list);
-    if (obj_ids_count >= 0) {
-        // Successfully retrieved the object IDs
-    }
-
-    // Fuzz H5Fget_vfd_handle
-    void *file_handle = NULL;
-    herr_t status = H5Fget_vfd_handle(file_id, H5P_DEFAULT, &file_handle);
-    if (status >= 0 && file_handle != NULL) {
-        // Successfully retrieved the VFD handle
-    }
-
+    H5Dclose(dset_id);
     H5Fclose(file_id);
+
     return 0;
 }

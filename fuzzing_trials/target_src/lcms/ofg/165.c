@@ -1,33 +1,53 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_165(const uint8_t *data, size_t size) {
-    // Define the input and output arrays for cmsPipelineEval16
-    cmsUInt16Number input[3] = {0, 0, 0};
-    cmsUInt16Number output[3] = {0, 0, 0};
-
-    // Ensure the size is sufficient to fill the input array
-    if (size < sizeof(input)) {
+    // Check if there is enough data for meaningful input
+    if (size < 12 + 32) { // 12 for pcs and device, 32 for colorName
         return 0;
     }
 
-    // Copy data into the input array
-    for (size_t i = 0; i < 3; i++) {
-        input[i] = (cmsUInt16Number)((data[i * 2] << 8) | data[i * 2 + 1]);
+    // Initialize a valid CMS context
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Allocate a named color list with a valid context
+    cmsNAMEDCOLORLIST *namedColorList = cmsAllocNamedColorList(context, 1, 32, "prefix", "suffix");
+    if (namedColorList == NULL) {
+        cmsDeleteContext(context);
+        return 0; // Exit if allocation fails
     }
 
-    // Create a dummy cmsPipeline object for testing
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
-    if (pipeline == NULL) {
-        return 0;
-    }
+    // Use the input data to set the color name
+    char colorName[33];
+    memcpy(colorName, data + 12, 32);
+    colorName[32] = '\0'; // Ensure null termination
+
+    // Use the input data to modify pcs and device arrays
+    cmsUInt16Number pcs[3] = {
+        data[0] | (data[1] << 8),
+        data[2] | (data[3] << 8),
+        data[4] | (data[5] << 8)
+    };
+    cmsUInt16Number device[3] = {
+        data[6] | (data[7] << 8),
+        data[8] | (data[9] << 8),
+        data[10] | (data[11] << 8)
+    };
 
     // Call the function-under-test
-    cmsPipelineEval16(input, output, pipeline);
+    cmsBool result = cmsAppendNamedColor(namedColorList, colorName, pcs, device);
 
-    // Free the allocated pipeline
-    cmsPipelineFree(pipeline);
+    // Check the result to ensure the function is invoked correctly
+    if (result == FALSE) {
+        // Handle the error case if needed
+    }
+
+    // Clean up
+    cmsFreeNamedColorList(namedColorList);
+    cmsDeleteContext(context);
 
     return 0;
 }

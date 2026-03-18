@@ -1,62 +1,70 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// gzdopen at gzlib.c:298:16 in zlib.h
-// gzeof at gzlib.c:498:13 in zlib.h
-// gzgetc_ at gzread.c:496:13 in zlib.h
-// gzdirect at gzread.c:623:13 in zlib.h
-// gzflush at gzwrite.c:603:13 in zlib.h
-// gzclose_r at gzread.c:641:13 in zlib.h
+// gzopen at gzlib.c:288:16 in zlib.h
+// gzprintf at gzwrite.c:487:15 in zlib.h
+// gzsetparams at gzwrite.c:630:13 in zlib.h
+// gzwrite at gzwrite.c:255:13 in zlib.h
+// gzputc at gzwrite.c:307:13 in zlib.h
+// gzclose_w at gzwrite.c:667:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <stdarg.h>
 #include <zlib.h>
 
-static void fuzz_gzdopen_gzeof_gzgetc_gzdirect_gzclose_r(const uint8_t *Data, size_t Size) {
+static gzFile create_gzfile(const char *filename) {
+    return gzopen(filename, "wb");
+}
+
+static void write_dummy_file(const char *filename, const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(filename, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
+
+static void fuzz_gzprintf(gzFile file, const uint8_t *Data, size_t Size) {
     if (Size < 1) return;
+    // Ensure null-termination of format string
+    char *format = (char *)malloc(Size + 1);
+    if (!format) return;
+    memcpy(format, Data, Size);
+    format[Size] = '\0';
+    gzprintf(file, "%s", format);
+    free(format);
+}
 
-    // Create a dummy file with the input data
-    int fd = open("./dummy_file", O_RDWR | O_CREAT | O_TRUNC, 0666);
-    if (fd < 0) return;
-    write(fd, Data, Size);
-    lseek(fd, 0, SEEK_SET);
+static void fuzz_gzsetparams(gzFile file, const uint8_t *Data, size_t Size) {
+    if (Size < 2) return;
+    int level = Data[0] % 10; // Compression level 0-9
+    int strategy = Data[1] % 4; // Strategy 0-3
+    gzsetparams(file, level, strategy);
+}
 
-    // Prepare mode strings
-    const char *modes[] = {"r", "w", "a"};
-    size_t mode_index = Data[0] % (sizeof(modes) / sizeof(modes[0]));
-    const char *mode = modes[mode_index];
+static void fuzz_gzwrite(gzFile file, const uint8_t *Data, size_t Size) {
+    gzwrite(file, Data, Size);
+}
 
-    // gzdopen
-    gzFile gz_file = gzdopen(fd, mode);
-    if (gz_file == NULL) {
-        close(fd);
-        return;
-    }
-
-    // gzeof
-    int eof = gzeof(gz_file);
-
-    // gzgetc_
-    int c = gzgetc_(gz_file);
-
-    // gzdirect
-    int direct = gzdirect(gz_file);
-
-    // Conditionally use gzflush only if mode is not 'r'
-    if (mode[0] != 'r') {
-        int flush_result = gzflush(gz_file, Z_FINISH);
-    }
-
-    // gzclose_r
-    int close_result = gzclose_r(gz_file);
-
-    // Cleanup
-    close(fd);
+static void fuzz_gzputc(gzFile file, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    gzputc(file, Data[0]);
 }
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    fuzz_gzdopen_gzeof_gzgetc_gzdirect_gzclose_r(Data, Size);
+    const char *filename = "./dummy_file.gz";
+    gzFile file = create_gzfile(filename);
+    if (!file) return 0;
+
+    write_dummy_file(filename, Data, Size);
+
+    // Since fuzz_gzvprintf requires a va_list, it is omitted from this fuzzing loop.
+    fuzz_gzprintf(file, Data, Size);
+    fuzz_gzsetparams(file, Data, Size);
+    fuzz_gzwrite(file, Data, Size);
+    fuzz_gzputc(file, Data, Size);
+
+    gzclose_w(file);
     return 0;
 }

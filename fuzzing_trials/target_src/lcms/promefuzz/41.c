@@ -1,72 +1,92 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// _cmsVEC3distance at cmsmtrx.c:72:28 in lcms2_plugin.h
-// _cmsVEC3cross at cmsmtrx.c:50:16 in lcms2_plugin.h
-// _cmsMAT3eval at cmsmtrx.c:169:16 in lcms2_plugin.h
-// _cmsVEC3dot at cmsmtrx.c:58:28 in lcms2_plugin.h
-// _cmsMAT3solve at cmsmtrx.c:156:20 in lcms2_plugin.h
-// _cmsVEC3minus at cmsmtrx.c:42:16 in lcms2_plugin.h
+// cmsGetEncodedCMMversion at cmserr.c:30:15 in lcms2.h
+// cmsPlugin at cmsplugin.c:541:19 in lcms2.h
+// cmsPluginTHR at cmsplugin.c:546:19 in lcms2.h
+// cmsDupContext at cmsplugin.c:893:22 in lcms2.h
+// cmsOpenProfileFromIOhandler2THR at cmsio0.c:1178:23 in lcms2.h
+// cmsCreateContext at cmsplugin.c:824:22 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <lcms2_plugin.h>
+#include "lcms2.h"
 
-static cmsVEC3 randomVec3(const uint8_t **data, size_t *size) {
-    cmsVEC3 vec;
-    if (*size < sizeof(cmsFloat64Number) * 3) {
-        memset(&vec, 0, sizeof(cmsVEC3));
-        return vec;
-    }
-    memcpy(&vec, *data, sizeof(cmsVEC3));
-    *data += sizeof(cmsVEC3);
-    *size -= sizeof(cmsVEC3);
-    return vec;
+// Define the structure for _cms_io_handler since it's a forward declaration in the header
+struct _cms_io_handler {
+    void* stream;
+    cmsContext ContextID;
+    cmsUInt32Number UsedSpace;
+    cmsUInt32Number ReportedSize;
+    char PhysicalFile[cmsMAX_PATH];
+    cmsUInt32Number (* Read)(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count);
+    cmsBool (* Seek)(struct _cms_io_handler* iohandler, cmsUInt32Number offset);
+    cmsBool (* Close)(struct _cms_io_handler* iohandler);
+    cmsUInt32Number (* Tell)(struct _cms_io_handler* iohandler);
+    cmsBool (* Write)(struct _cms_io_handler* iohandler, cmsUInt32Number size, const void* Buffer);
+};
+
+static cmsUInt32Number dummyReadFunction(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count) {
+    return size * count;
 }
 
-static cmsMAT3 randomMat3(const uint8_t **data, size_t *size) {
-    cmsMAT3 mat;
-    if (*size < sizeof(cmsFloat64Number) * 9) {
-        memset(&mat, 0, sizeof(cmsMAT3));
-        return mat;
-    }
-    memcpy(&mat, *data, sizeof(cmsMAT3));
-    *data += sizeof(cmsMAT3);
-    *size -= sizeof(cmsMAT3);
-    return mat;
+static cmsBool dummySeekFunction(struct _cms_io_handler* iohandler, cmsUInt32Number offset) {
+    return TRUE;
+}
+
+static cmsBool dummyCloseFunction(struct _cms_io_handler* iohandler) {
+    return TRUE;
+}
+
+static cmsUInt32Number dummyTellFunction(struct _cms_io_handler* iohandler) {
+    return 0;
+}
+
+static cmsBool dummyWriteFunction(struct _cms_io_handler* iohandler, cmsUInt32Number size, const void* Buffer) {
+    return TRUE;
 }
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // 1. Test cmsGetEncodedCMMversion
+    int version = cmsGetEncodedCMMversion();
+    
+    // 2. Test cmsPlugin
+    cmsBool pluginResult = cmsPlugin(NULL);
+    
+    // 3. Test cmsPluginTHR
+    cmsContext dummyContext = NULL;
+    cmsBool pluginTHRResult = cmsPluginTHR(dummyContext, NULL);
+    
+    // 4. Test cmsDupContext
+    cmsContext newContext = cmsDupContext(dummyContext, NULL);
+    if (newContext) {
+        // Cleanup duplicated context
+        // Assuming a function like cmsDeleteContext exists for cleanup
+        // cmsDeleteContext(newContext);
+    }
+    
+    // 5. Test cmsOpenProfileFromIOhandler2THR
+    struct _cms_io_handler dummyIOHandler;
+    dummyIOHandler.ContextID = dummyContext;
+    dummyIOHandler.Read = dummyReadFunction;
+    dummyIOHandler.Seek = dummySeekFunction;
+    dummyIOHandler.Close = dummyCloseFunction;
+    dummyIOHandler.Tell = dummyTellFunction;
+    dummyIOHandler.Write = dummyWriteFunction;
 
-    // Fuzz _cmsVEC3distance
-    cmsVEC3 vecA = randomVec3(&Data, &Size);
-    cmsVEC3 vecB = randomVec3(&Data, &Size);
-    cmsFloat64Number distance = _cmsVEC3distance(&vecA, &vecB);
-
-    // Fuzz _cmsVEC3cross
-    cmsVEC3 resultCross;
-    _cmsVEC3cross(&resultCross, &vecA, &vecB);
-
-    // Fuzz _cmsMAT3eval
-    cmsMAT3 matrix = randomMat3(&Data, &Size);
-    cmsVEC3 resultEval;
-    _cmsMAT3eval(&resultEval, &matrix, &vecA);
-
-    // Fuzz _cmsVEC3dot
-    cmsFloat64Number dotProduct = _cmsVEC3dot(&vecA, &vecB);
-
-    // Fuzz _cmsMAT3solve
-    cmsVEC3 resultSolve;
-    cmsBool solveSuccess = _cmsMAT3solve(&resultSolve, &matrix, &vecB);
-
-    // Fuzz _cmsVEC3minus
-    cmsVEC3 resultMinus;
-    _cmsVEC3minus(&resultMinus, &vecA, &vecB);
+    cmsHPROFILE profile = cmsOpenProfileFromIOhandler2THR(dummyContext, &dummyIOHandler, FALSE);
+    if (profile) {
+        // Assuming a function like cmsCloseProfile exists for cleanup
+        // cmsCloseProfile(profile);
+    }
+    
+    // 6. Test cmsCreateContext
+    cmsContext createdContext = cmsCreateContext(NULL, NULL);
+    if (createdContext) {
+        // Cleanup created context
+        // Assuming a function like cmsDeleteContext exists for cleanup
+        // cmsDeleteContext(createdContext);
+    }
 
     return 0;
 }

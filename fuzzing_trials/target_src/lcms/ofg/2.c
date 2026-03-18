@@ -1,39 +1,40 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <lcms2.h>
+#include <string.h> // Include string.h for memcpy
+#include <lcms2.h> // Include the Little CMS library header
+
+// Define a function to convert bytes to a double in a safe way
+static double bytes_to_double(const uint8_t *data, size_t size) {
+    if (size < sizeof(double)) return 0.0;
+    double value;
+    memcpy(&value, data, sizeof(double));
+    return value;
+}
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for two cmsCIELab structures
-    if (size < 2 * sizeof(cmsCIELab)) {
-        return 0;
+    if (size < 6 * sizeof(double)) {
+        return 0; // Ensure there is enough data for two cmsCIELab structures
     }
 
-    // Create two cmsCIELab structures from the input data
-    cmsCIELab lab1;
-    cmsCIELab lab2;
+    // Initialize two cmsCIELab structures
+    cmsCIELab Lab1, Lab2;
 
-    // Copy data into the first cmsCIELab structure
-    const uint8_t *ptr = data;
-    lab1.L = *((cmsFloat64Number*)ptr);
-    ptr += sizeof(cmsFloat64Number);
-    lab1.a = *((cmsFloat64Number*)ptr);
-    ptr += sizeof(cmsFloat64Number);
-    lab1.b = *((cmsFloat64Number*)ptr);
-    ptr += sizeof(cmsFloat64Number);
+    // Populate Lab1 with data
+    Lab1.L = bytes_to_double(data, size);
+    Lab1.a = bytes_to_double(data + sizeof(double), size - sizeof(double));
+    Lab1.b = bytes_to_double(data + 2 * sizeof(double), size - 2 * sizeof(double));
 
-    // Copy data into the second cmsCIELab structure
-    lab2.L = *((cmsFloat64Number*)ptr);
-    ptr += sizeof(cmsFloat64Number);
-    lab2.a = *((cmsFloat64Number*)ptr);
-    ptr += sizeof(cmsFloat64Number);
-    lab2.b = *((cmsFloat64Number*)ptr);
+    // Populate Lab2 with data
+    Lab2.L = bytes_to_double(data + 3 * sizeof(double), size - 3 * sizeof(double));
+    Lab2.a = bytes_to_double(data + 4 * sizeof(double), size - 4 * sizeof(double));
+    Lab2.b = bytes_to_double(data + 5 * sizeof(double), size - 5 * sizeof(double));
 
     // Call the function under test
-    cmsFloat64Number deltaE = cmsCIE94DeltaE(&lab1, &lab2);
+    cmsFloat64Number deltaE = cmsCIE94DeltaE(&Lab1, &Lab2);
 
-    // Use deltaE in some way to avoid compiler optimizations removing the call
-    // (In a real fuzzing scenario, this would not be necessary)
-    (void)deltaE;
+    // Use the result to prevent the compiler from optimizing the function call away
+    volatile cmsFloat64Number result = deltaE;
+    (void)result;
 
     return 0;
 }

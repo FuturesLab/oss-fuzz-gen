@@ -1,98 +1,69 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// _cmsReadFloat32Number at cmsplugin.c:169:20 in lcms2_plugin.h
-// _cmsWriteAlignment at cmsplugin.c:462:19 in lcms2_plugin.h
-// _cmsReadUInt8Number at cmsplugin.c:111:20 in lcms2_plugin.h
-// _cmsWriteUInt32Number at cmsplugin.c:295:20 in lcms2_plugin.h
-// _cmsWriteUInt8Number at cmsplugin.c:258:20 in lcms2_plugin.h
-// _cmsReadAlignment at cmsplugin.c:445:19 in lcms2_plugin.h
+// cmsIT8Alloc at cmscgats.c:1454:22 in lcms2.h
+// cmsIT8Free at cmscgats.c:1170:16 in lcms2.h
+// cmsIT8FindDataFormat at cmscgats.c:2805:15 in lcms2.h
+// cmsIT8SetDataDbl at cmscgats.c:2940:19 in lcms2.h
+// cmsIT8SetPropertyDbl at cmscgats.c:1543:19 in lcms2.h
+// cmsIT8SetPropertyUncooked at cmscgats.c:1563:19 in lcms2.h
+// cmsIT8SetIndexColumn at cmscgats.c:3025:19 in lcms2.h
+// cmsIT8SaveToFile at cmscgats.c:2007:19 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "lcms2_plugin.h"
+#include "lcms2.h"
 
-static cmsUInt32Number MockRead(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count) {
-    FILE* file = (FILE*)iohandler->stream;
-    return fread(Buffer, size, count, file);
+static cmsHANDLE CreateDummyIT8Handle() {
+    // This function should create a dummy IT8 handle for testing purposes.
+    // In a real scenario, this would be replaced by a proper initialization.
+    return cmsIT8Alloc(NULL); // Use library function to allocate a proper handle
 }
 
-static cmsBool MockSeek(struct _cms_io_handler* iohandler, cmsUInt32Number offset) {
-    FILE* file = (FILE*)iohandler->stream;
-    return fseek(file, offset, SEEK_SET) == 0;
-}
-
-static cmsBool MockClose(struct _cms_io_handler* iohandler) {
-    FILE* file = (FILE*)iohandler->stream;
-    return fclose(file) == 0;
-}
-
-static cmsUInt32Number MockTell(struct _cms_io_handler* iohandler) {
-    FILE* file = (FILE*)iohandler->stream;
-    return (cmsUInt32Number)ftell(file);
-}
-
-static cmsBool MockWrite(struct _cms_io_handler* iohandler, cmsUInt32Number size, const void* Buffer) {
-    FILE* file = (FILE*)iohandler->stream;
-    return fwrite(Buffer, size, 1, file) == 1;
-}
-
-static cmsIOHANDLER* CreateMockIOHandler(const uint8_t* Data, size_t Size) {
-    cmsIOHANDLER* io = (cmsIOHANDLER*)malloc(sizeof(cmsIOHANDLER));
-    if (!io) return NULL;
-
-    FILE* file = fopen("./dummy_file", "wb+");
-    if (!file) {
-        free(io);
-        return NULL;
-    }
-
-    fwrite(Data, 1, Size, file);
-    rewind(file);
-
-    io->stream = file;
-    io->Read = MockRead;
-    io->Seek = MockSeek;
-    io->Close = MockClose;
-    io->Tell = MockTell;
-    io->Write = MockWrite;
-
-    return io;
+static void DestroyDummyIT8Handle(cmsHANDLE hIT8) {
+    // Free the IT8 handle using the library's function
+    cmsIT8Free(hIT8);
 }
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure there's enough data
+    if (Size < 1) return 0; // Not enough data to proceed
 
-    cmsIOHANDLER* io = CreateMockIOHandler(Data, Size);
-    if (!io) return 0;
+    // Create a dummy IT8 handle
+    cmsHANDLE hIT8 = CreateDummyIT8Handle();
+    if (!hIT8) return 0;
 
-    cmsFloat32Number float32Num;
-    cmsUInt8Number uint8Num;
-    cmsUInt32Number uint32Num = 0;
+    // Prepare input strings by splitting the data
+    size_t halfSize = Size / 2;
+    char *input1 = (char *)malloc(halfSize + 1);
+    char *input2 = (char *)malloc(Size - halfSize + 1);
 
-    // Fuzz _cmsReadFloat32Number
-    _cmsReadFloat32Number(io, &float32Num);
+    if (!input1 || !input2) {
+        DestroyDummyIT8Handle(hIT8);
+        free(input1);
+        free(input2);
+        return 0;
+    }
 
-    // Fuzz _cmsWriteAlignment
-    _cmsWriteAlignment(io);
+    memcpy(input1, Data, halfSize);
+    input1[halfSize] = '\0';
 
-    // Fuzz _cmsReadUInt8Number
-    _cmsReadUInt8Number(io, &uint8Num);
+    memcpy(input2, Data + halfSize, Size - halfSize);
+    input2[Size - halfSize] = '\0';
 
-    // Fuzz _cmsWriteUInt32Number
-    _cmsWriteUInt32Number(io, uint32Num);
+    // Call the target functions with the prepared inputs
+    cmsIT8FindDataFormat(hIT8, input1);
+    cmsIT8SetDataDbl(hIT8, input1, input2, (cmsFloat64Number)0.0);
+    cmsIT8SetPropertyDbl(hIT8, input1, (cmsFloat64Number)0.0);
+    cmsIT8SetPropertyUncooked(hIT8, input1, input2);
+    cmsIT8SetIndexColumn(hIT8, input1);
 
-    // Fuzz _cmsWriteUInt8Number
-    _cmsWriteUInt8Number(io, uint8Num);
+    // Save to a dummy file
+    cmsIT8SaveToFile(hIT8, "./dummy_file");
 
-    // Fuzz _cmsReadAlignment
-    _cmsReadAlignment(io);
-
-    io->Close(io);
-    free(io);
+    // Cleanup
+    DestroyDummyIT8Handle(hIT8);
+    free(input1);
+    free(input2);
 
     return 0;
 }

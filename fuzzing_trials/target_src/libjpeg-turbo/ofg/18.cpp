@@ -1,8 +1,6 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio> // Include for FILE operations
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -11,41 +9,48 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Initialize variables for the function call
-    tjhandle handle = tjInitDecompress();
+    if (size < 4) {
+        return 0; // Ensure there's enough data for width and height
+    }
+
+    // Initialize the TurboJPEG compressor
+    tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
         return 0;
     }
 
-    // Create a temporary file to simulate an image file
-    const char *filename = "temp_image.ppm";
-    FILE *file = fopen(filename, "wb");
-    if (file == nullptr) {
+    // Extract width and height from the input data
+    int width = data[0] + 1; // Avoid zero width
+    int height = data[1] + 1; // Avoid zero height
+
+    // Ensure the input buffer is large enough for the image data
+    if (size < static_cast<size_t>(width * height * 3 + 4)) {
         tjDestroy(handle);
         return 0;
     }
 
-    // Write the input data to the file
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Set up the input image buffer
+    const unsigned char *srcBuf = data + 4;
 
-    // Initialize other parameters
-    int width = 0;
-    int pitch = 0;
-    int height = 0;
-    int pixelFormat = TJPF_RGB;
+    // Allocate the output buffer
+    unsigned char *dstBuf = (unsigned char *)malloc(width * height);
+    if (dstBuf == nullptr) {
+        tjDestroy(handle);
+        return 0;
+    }
 
-    // Call the function-under-test
-    unsigned short *image = tj3LoadImage16(handle, filename, &width, pitch, &height, &pixelFormat);
+    // Set the padding and subsampling options
+    int pitch = width * 3;
+    int pixelFormat = TJPF_RGB; // Set a valid pixel format
+    int subsamp = TJSAMP_444; // Use a valid subsampling option
+    int flags = 0; // No special flags
+
+    // Call the function-under-test with correct number of arguments
+    tjEncodeYUV3(handle, srcBuf, width, pitch, height, pixelFormat, dstBuf, 4, subsamp, flags);
 
     // Clean up
-    if (image != nullptr) {
-        tjFree(reinterpret_cast<unsigned char*>(image)); // Cast to unsigned char* for tjFree
-    }
+    free(dstBuf);
     tjDestroy(handle);
-
-    // Remove the temporary file
-    remove(filename);
 
     return 0;
 }

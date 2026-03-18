@@ -3,51 +3,22 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
+    // Initialize variables for H5Acreate2 function
+    hid_t loc_id = 1; // Assuming a valid location identifier
+    const char *attr_name = "fuzz_attribute";
+    hid_t type_id = H5T_NATIVE_INT; // Assuming native int type
+    hid_t space_id = H5Screate(H5S_SCALAR); // Create a simple scalar dataspace
+    hid_t acpl_id = H5P_DEFAULT; // Default attribute creation property list
+    hid_t aapl_id = H5P_DEFAULT; // Default attribute access property list
 
-    // Create a memory file to avoid file I/O
-    hid_t file_id = H5Fcreate("tempfile", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
+    // Call the function-under-test
+    hid_t attr_id = H5Acreate2(loc_id, attr_name, type_id, space_id, acpl_id, aapl_id);
+
+    // Perform cleanup
+    if (attr_id >= 0) {
+        H5Aclose(attr_id);
     }
-
-    // Create a dataspace
-    hsize_t dims[1] = {10};
-    hid_t space_id = H5Screate_simple(1, dims, NULL);
-    if (space_id < 0) {
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Create a dataset
-    hid_t dset_id = H5Dcreate(file_id, "dset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dset_id < 0) {
-        H5Sclose(space_id);
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Create an attribute
-    hid_t attr_id = H5Acreate(dset_id, "attr", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
-    if (attr_id < 0) {
-        H5Dclose(dset_id);
-        H5Sclose(space_id);
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Close the attribute, dataspace, and dataset
-    H5Aclose(attr_id);
     H5Sclose(space_id);
-    H5Dclose(dset_id);
-
-    // Fuzz the function H5Aget_num_attrs
-    int num_attrs = H5Aget_num_attrs(file_id);
-
-    // Cleanup
-    H5Fclose(file_id);
-    H5close();
 
     return 0;
 }

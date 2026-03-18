@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
 // H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Aexists at H5A.c:2364:1 in H5Apublic.h
-// H5Aexists_by_name at H5A.c:2474:1 in H5Apublic.h
-// H5Aopen at H5A.c:531:1 in H5Apublic.h
-// H5Aexists at H5A.c:2364:1 in H5Apublic.h
-// H5Aexists_by_name at H5A.c:2474:1 in H5Apublic.h
-// H5Aread at H5A.c:1014:1 in H5Apublic.h
-// H5Aclose at H5A.c:2194:1 in H5Apublic.h
+// H5Freset_page_buffering_stats at H5F.c:2485:1 in H5Fpublic.h
+// H5Fget_page_buffering_stats at H5F.c:2519:1 in H5Fpublic.h
+// H5Freset_page_buffering_stats at H5F.c:2485:1 in H5Fpublic.h
+// H5Fget_page_buffering_stats at H5F.c:2519:1 in H5Fpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
@@ -16,93 +14,39 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <string.h>
-#include "H5Apublic.h"
 #include "H5Fpublic.h"
-#include "H5Ppublic.h"
+#include "H5Ppublic.h" // Include the header for property list constants
 
-static hid_t create_dummy_file() {
-    hid_t file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        fprintf(stderr, "Failed to create dummy file\n");
+static void write_dummy_file(const char *filename) {
+    FILE *file = fopen(filename, "w");
+    if (file) {
+        fputs("dummy data", file);
+        fclose(file);
     }
-    return file_id;
 }
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return 0;
-    }
+    if (Size < 1) return 0; // Ensure there's at least some data
 
-    hid_t file_id = create_dummy_file();
-    if (file_id < 0) {
-        return 0;
-    }
+    const char *filename = "./dummy_file";
+    write_dummy_file(filename);
 
-    const char *obj_name = "dummy_object";
-    const char *attr_name = "dummy_attribute";
+    hid_t file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
 
-    // Convert the first byte of data to a valid hid_t
-    hid_t obj_id = Data[0];
-    hid_t attr_id = -1;
+    unsigned accesses[2] = {0, 0};
+    unsigned hits[2] = {0, 0};
+    unsigned misses[2] = {0, 0};
+    unsigned evictions[2] = {0, 0};
+    unsigned bypasses[2] = {0, 0};
 
-    // Convert the second byte of data to a valid hid_t
-    hid_t lapl_id = Data[1];
+    H5Freset_page_buffering_stats(file_id);
+    H5Fget_page_buffering_stats(file_id, accesses, hits, misses, evictions, bypasses);
+    H5Freset_page_buffering_stats(file_id);
+    H5Fget_page_buffering_stats(file_id, accesses, hits, misses, evictions, bypasses);
 
-    // Invoke H5Aexists
-    htri_t exists = H5Aexists(obj_id, attr_name);
-    if (exists < 0) {
-        fprintf(stderr, "H5Aexists error\n");
-    }
-
-    // Invoke H5Aexists_by_name
-    htri_t exists_by_name = H5Aexists_by_name(obj_id, obj_name, attr_name, lapl_id);
-    if (exists_by_name < 0) {
-        fprintf(stderr, "H5Aexists_by_name error\n");
-    }
-
-    // Invoke H5Aopen
-    attr_id = H5Aopen(obj_id, attr_name, H5P_DEFAULT);
-    if (attr_id < 0) {
-        fprintf(stderr, "H5Aopen error\n");
-    }
-
-    // Re-invoke H5Aexists
-    exists = H5Aexists(obj_id, attr_name);
-    if (exists < 0) {
-        fprintf(stderr, "H5Aexists error\n");
-    }
-
-    // Re-invoke H5Aexists_by_name
-    exists_by_name = H5Aexists_by_name(obj_id, obj_name, attr_name, lapl_id);
-    if (exists_by_name < 0) {
-        fprintf(stderr, "H5Aexists_by_name error\n");
-    }
-
-    // Prepare a buffer for H5Aread
-    char buf[256];
-
-    // Invoke H5Aread
-    if (attr_id >= 0) {
-        herr_t read_status = H5Aread(attr_id, H5T_NATIVE_CHAR, buf);
-        if (read_status < 0) {
-            fprintf(stderr, "H5Aread error\n");
-        }
-    }
-
-    // Invoke H5Aclose
-    if (attr_id >= 0) {
-        herr_t close_status = H5Aclose(attr_id);
-        if (close_status < 0) {
-            fprintf(stderr, "H5Aclose error\n");
-        }
-    }
-
-    // Invoke H5Fclose
-    herr_t file_close_status = H5Fclose(file_id);
-    if (file_close_status < 0) {
-        fprintf(stderr, "H5Fclose error\n");
-    }
+    H5Fclose(file_id);
+    H5Fclose(file_id); // Attempt to close again to test behavior
 
     return 0;
 }

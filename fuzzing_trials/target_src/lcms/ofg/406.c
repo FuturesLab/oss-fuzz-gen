@@ -3,25 +3,47 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_406(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsCIEXYZ) * 4) {
-        return 0; // Not enough data to fill all parameters
-    }
+    cmsPipeline *pipeline1 = NULL;
+    cmsPipeline *pipeline2 = NULL;
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    cmsCIEXYZ *Result = (cmsCIEXYZ *)malloc(sizeof(cmsCIEXYZ));
-    const cmsCIEXYZ *SourceWhitePoint = (const cmsCIEXYZ *)(data);
-    const cmsCIEXYZ *DestWhitePoint = (const cmsCIEXYZ *)(data + sizeof(cmsCIEXYZ));
-    const cmsCIEXYZ *PCS = (const cmsCIEXYZ *)(data + 2 * sizeof(cmsCIEXYZ));
-
-    // Ensure Result is not NULL
-    if (Result == NULL) {
+    if (context == NULL || size < sizeof(float) * 3) {
         return 0;
     }
 
-    // Call the function-under-test
-    cmsBool success = cmsAdaptToIlluminant(Result, SourceWhitePoint, DestWhitePoint, PCS);
+    // Create two pipelines with a single stage each for testing
+    pipeline1 = cmsPipelineAlloc(context, 3, 3);
+    pipeline2 = cmsPipelineAlloc(context, 3, 3);
+
+    if (pipeline1 == NULL || pipeline2 == NULL) {
+        cmsPipelineFree(pipeline1);
+        cmsPipelineFree(pipeline2);
+        cmsDeleteContext(context);
+        return 0;
+    }
+
+    // Use the input data to create a transformation stage
+    float *matrix = (float *)data;
+    cmsStage *stage1 = cmsStageAllocMatrix(context, 3, 3, matrix, NULL);
+    cmsStage *stage2 = cmsStageAllocIdentity(context, 3);
+
+    if (stage1 == NULL || stage2 == NULL) {
+        cmsPipelineFree(pipeline1);
+        cmsPipelineFree(pipeline2);
+        cmsDeleteContext(context);
+        return 0;
+    }
+
+    cmsPipelineInsertStage(pipeline1, cmsAT_BEGIN, stage1);
+    cmsPipelineInsertStage(pipeline2, cmsAT_BEGIN, stage2);
+
+    // Fuzz the function-under-test
+    cmsBool result = cmsPipelineCat(pipeline1, pipeline2);
 
     // Clean up
-    free(Result);
+    cmsPipelineFree(pipeline1);
+    cmsPipelineFree(pipeline2);
+    cmsDeleteContext(context);
 
     return 0;
 }

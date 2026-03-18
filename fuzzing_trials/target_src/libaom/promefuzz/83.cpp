@@ -1,10 +1,14 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_ERROR_RESILIENT_MODE at aomcx.h:1977:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT at aomcx.h:1992:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL at aomcx.h:2317:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE at aomcx.h:2022:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS at aomcx.h:2004:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX at aomcx.h:2028:1 in aomcx.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,69 +18,83 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
-#include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
-#include "aomcx.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include "aom/aom.h"
+#include "aom/aom_encoder.h"
+#include "aom/aom_codec.h"
+#include "aom/aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_83(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t)) {
-        return 0;  // Not enough data to proceed
+    if (Size < sizeof(int)) {
+        return 0;
     }
 
-    // Initialize codec context
-    aom_codec_ctx_t codec_ctx;
-    codec_ctx.name = reinterpret_cast<const char *>(Data);
-    codec_ctx.iface = nullptr;
-    codec_ctx.err = AOM_CODEC_OK;
-    codec_ctx.init_flags = 0;
-    codec_ctx.priv = nullptr;
+    aom_codec_ctx_t codec;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
 
-    uint32_t control_id = 0;
-    if (Size > 0) {
-        control_id = Data[0];
+    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
+        return 0;
     }
 
-    // Fuzzing various control functions
-    if (Size > 1) {
-        int error_resilient_mode = Data[1] % 2;  // 0 or 1
-        aom_codec_control_typechecked_AV1E_SET_ERROR_RESILIENT_MODE(&codec_ctx, control_id, error_resilient_mode);
+    if (aom_codec_enc_init(&codec, iface, &cfg, 0) != AOM_CODEC_OK) {
+        return 0;
     }
 
-    if (Size > 2) {
-        int tune_content = Data[2] % 3;  // Example values for content tuning
-        aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT(&codec_ctx, control_id, tune_content);
+    int control_id = 0;
+    if (Size >= sizeof(int)) {
+        memcpy(&control_id, Data, sizeof(int));
     }
 
-    if (Size > 3) {
-        int loopfilter_control = Data[3] % 4;  // Example loop filter control values
-        aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL(&codec_ctx, control_id, loopfilter_control);
+    switch (control_id % 6) {
+        case 0:
+            if (Size >= sizeof(int) * 2) {
+                unsigned int noise_sensitivity;
+                memcpy(&noise_sensitivity, Data + sizeof(int), sizeof(unsigned int));
+                aom_codec_control(&codec, AV1E_SET_NOISE_SENSITIVITY, noise_sensitivity);
+            }
+            break;
+        case 1:
+            if (Size >= sizeof(int) * 2) {
+                unsigned int fp_mt_unit_test;
+                memcpy(&fp_mt_unit_test, Data + sizeof(int), sizeof(unsigned int));
+                aom_codec_control(&codec, AV1E_SET_FP_MT_UNIT_TEST, fp_mt_unit_test);
+            }
+            break;
+        case 2:
+            {
+                unsigned int auto_intra_tools_off = 1;
+                aom_codec_control(&codec, AV1E_SET_AUTO_INTRA_TOOLS_OFF, auto_intra_tools_off);
+            }
+            break;
+        case 3:
+            if (Size >= sizeof(int) * 2) {
+                unsigned int tile_columns;
+                memcpy(&tile_columns, Data + sizeof(int), sizeof(unsigned int));
+                aom_codec_control(&codec, AV1E_SET_TILE_COLUMNS, tile_columns);
+            }
+            break;
+        case 4:
+            if (Size >= sizeof(int) * 2) {
+                unsigned int frame_parallel_decoding;
+                memcpy(&frame_parallel_decoding, Data + sizeof(int), sizeof(unsigned int));
+                aom_codec_control(&codec, AV1E_SET_FRAME_PARALLEL_DECODING, frame_parallel_decoding);
+            }
+            break;
+        case 5:
+            if (Size >= sizeof(int) * 2) {
+                unsigned int cdf_update_mode;
+                memcpy(&cdf_update_mode, Data + sizeof(int), sizeof(unsigned int));
+                aom_codec_control(&codec, AV1E_SET_CDF_UPDATE_MODE, cdf_update_mode);
+            }
+            break;
+        default:
+            break;
     }
 
-    if (Size > 5) {
-        int render_dimensions[2] = {Data[4] % 256, Data[5] % 256};
-        aom_codec_control_typechecked_AV1E_SET_RENDER_SIZE(&codec_ctx, control_id, render_dimensions);
-    }
-
-    if (Size > 6) {
-        int matrix_coefficients = Data[6] % 5;  // Example coefficient values
-        aom_codec_control_typechecked_AV1E_SET_MATRIX_COEFFICIENTS(&codec_ctx, control_id, matrix_coefficients);
-    }
-
-    if (Size > 7) {
-        int seq_level_idx;
-        aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX(&codec_ctx, control_id, &seq_level_idx);
-    }
-
-    // Cleanup any allocated resources
-    // Assuming that destroy function is available and should be called
-    aom_codec_destroy(&codec_ctx);
-
+    aom_codec_destroy(&codec);
     return 0;
 }

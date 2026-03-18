@@ -1,25 +1,28 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>  // Include for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for a cmsCIExyY structure
     if (size < sizeof(cmsCIExyY)) {
-        return 0;
+        return 0; // Not enough data to fill cmsCIExyY structure
     }
 
-    // Create a cmsCIExyY structure from the input data
     cmsCIExyY whitePoint;
-    const cmsCIExyY *wp = &whitePoint;
-
     // Copy data into the cmsCIExyY structure
     memcpy(&whitePoint, data, sizeof(cmsCIExyY));
 
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateLab2Profile(wp);
+    // Ensure the values are within a reasonable range for color coordinates
+    if (whitePoint.x < 0.0 || whitePoint.x > 1.0 ||
+        whitePoint.y < 0.0 || whitePoint.y > 1.0 ||
+        whitePoint.Y < 0.0 || whitePoint.Y > 1.0) {
+        return 0;
+    }
 
-    // If a profile was created, release it
+    // Call the function under test
+    cmsHPROFILE profile = cmsCreateLab2Profile(&whitePoint);
+
+    // If a profile was created, free it
     if (profile != NULL) {
         cmsCloseProfile(profile);
     }

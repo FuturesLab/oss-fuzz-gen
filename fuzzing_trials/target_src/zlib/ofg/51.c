@@ -1,32 +1,32 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    z_stream strm;
+    z_stream stream;
     int ret;
-    unsigned char out[4096];
+    unsigned char outbuffer[1024];
 
     // Initialize the z_stream structure
-    strm.zalloc = Z_NULL;
-    strm.zfree = Z_NULL;
-    strm.opaque = Z_NULL;
-    strm.avail_in = (uInt)size;
-    strm.next_in = (Bytef *)data;
-    strm.avail_out = sizeof(out);
-    strm.next_out = out;
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    stream.avail_in = size;
+    stream.next_in = (Bytef *)data;
+    stream.avail_out = sizeof(outbuffer);
+    stream.next_out = outbuffer;
 
-    // Initialize the inflate process
-    ret = inflateInit(&strm);
+    // Initialize the inflation process
+    ret = inflateInit(&stream);
     if (ret != Z_OK) {
         return 0;
     }
 
     // Call the function-under-test
-    inflate(&strm, Z_NO_FLUSH);
+    ret = inflate(&stream, Z_NO_FLUSH);
 
     // Clean up
-    inflateEnd(&strm);
+    inflateEnd(&stream);
 
     return 0;
 }

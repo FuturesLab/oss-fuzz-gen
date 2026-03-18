@@ -1,6 +1,5 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -9,13 +8,20 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    char *errorStr = tjGetErrorStr();
-
-    // Check if the error string is not NULL and print it
-    if (errorStr != NULL) {
-        printf("Error String: %s\n", errorStr);
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
+        return 0;
     }
 
+    // Call the function-under-test
+    char *errorStr = tjGetErrorStr2(handle);
+
+    // Use the errorStr to prevent compiler optimizations
+    if (errorStr != NULL) {
+        volatile char *volatileErrorStr = errorStr;
+        (void)volatileErrorStr;
+    }
+
+    tjDestroy(handle);
     return 0;
 }

@@ -1,37 +1,26 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stdbool.h>
 #include <hdf5.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    hid_t file_id;
-    void *buf;
-    size_t buf_size;
-    ssize_t result;
+    // Ensure the data size is sufficient for our needs
+    if (size < 10) return 0;
 
-    // Initialize the HDF5 library
-    H5open();
+    // Initialize variables for the function-under-test
+    const char *loc_name = "location_name";
+    const char *attr_name = "attribute_name";
+    unsigned int lapl_id = 0; // Link access property list identifier
+    hid_t file_id = H5I_INVALID_HID; // Invalid file identifier for testing
+    bool exists = false; // Use bool instead of _Bool for consistency with the function signature
+    hid_t es_id = H5I_INVALID_HID; // Invalid event stack identifier for testing
 
-    // Create a temporary HDF5 file in memory
-    file_id = H5Fcreate("temp.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
-    }
+    // Call the function-under-test with the correct number of arguments
+    herr_t result = H5Aexists_by_name_async(file_id, loc_name, attr_name, &exists, lapl_id, es_id);
 
-    // Allocate a buffer with the same size as the input data
-    buf_size = size;
-    buf = malloc(buf_size);
-    if (buf == NULL) {
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Call the function under test
-    result = H5Fget_file_image(file_id, buf, buf_size);
-
-    // Clean up
-    free(buf);
-    H5Fclose(file_id);
-    H5close();
+    // Use the result and exists variable to avoid compiler warnings
+    (void)result;
+    (void)exists;
 
     return 0;
 }

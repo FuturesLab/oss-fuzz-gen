@@ -4,6 +4,8 @@
 // aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 // aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 // aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 // aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
@@ -15,40 +17,70 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aomdx.h"
-#include "aom_external_partition.h"
-#include "aom_image.h"
 #include "aom_codec.h"
-#include "aom.h"
 #include "aom_encoder.h"
-#include "aom_decoder.h"
-#include "aom_frame_buffer.h"
-#include "aom_integer.h"
+#include "aom.h"
 #include "aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0; // Ensure we have enough data
+    if (Size < sizeof(aom_codec_enc_cfg_t)) {
+        return 0;
+    }
 
-    // Prepare the environment
+    // Prepare encoder configuration
+    aom_codec_enc_cfg_t cfg;
+    memcpy(&cfg, Data, sizeof(cfg));
+
+    // Initialize codec context
     aom_codec_ctx_t codec;
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Get AV1 codec interface
-    aom_codec_err_t res = aom_codec_enc_init(&codec, iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) return 0;
+    memset(&codec, 0, sizeof(codec));
 
-    // Diverse invocations of the target functions
-    int max_consec_frame_drop_ms = *(reinterpret_cast<const int*>(Data)) % 1000; // Example value
-    aom_codec_control(&codec, AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR, max_consec_frame_drop_ms);
+    // Initialize encoder interface
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    if (!iface) {
+        return 0;
+    }
 
-    int s_frame_mode = *(reinterpret_cast<const int*>(Data + sizeof(int))) % 4; // Example mode
-    aom_codec_control(&codec, AV1E_SET_S_FRAME_MODE, s_frame_mode);
+    // Initialize the encoder
+    aom_codec_err_t res = aom_codec_enc_init_ver(&codec, iface, &cfg, 0, AOM_ENCODER_ABI_VERSION);
+    if (res != AOM_CODEC_OK) {
+        return 0;
+    }
 
-    aom_rc_funcs_t rc_funcs; // Example external rate control functions
-    rc_funcs.rc_type = AOM_RC_QP; // Example rate control type
-    aom_codec_control(&codec, AV1E_SET_EXTERNAL_RATE_CONTROL, &rc_funcs);
+    // Set active map
+    aom_active_map_t active_map;
+    active_map.rows = 1;
+    active_map.active_map = new unsigned char[1];
+    active_map.active_map[0] = 1;
+    res = aom_codec_control(&codec, AOME_SET_ACTIVEMAP, &active_map);
+    delete[] active_map.active_map;
+
+    // Set ROI map
+    aom_roi_map_t roi_map;
+    roi_map.enabled = 1;
+    roi_map.rows = 1;
+    roi_map.roi_map = new unsigned char[1];
+    roi_map.roi_map[0] = 0;
+    res = aom_codec_control(&codec, AOME_SET_ROI_MAP, &roi_map);
+    delete[] roi_map.roi_map;
+
+    // Get last quantizer
+    int last_quantizer;
+    res = aom_codec_control(&codec, AOME_GET_LAST_QUANTIZER, &last_quantizer);
+
+    // Set tile rows
+    int tile_rows = 2;
+    res = aom_codec_control(&codec, AV1E_SET_TILE_ROWS, tile_rows);
+
+    // Get active map
+    aom_active_map_t retrieved_active_map;
+    res = aom_codec_control(&codec, AV1E_GET_ACTIVEMAP, &retrieved_active_map);
 
     // Cleanup
     aom_codec_destroy(&codec);
+
     return 0;
 }

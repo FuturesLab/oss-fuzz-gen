@@ -1,41 +1,35 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    const char *loc_name = "test_location";
-    const char *attr_name = "test_attribute";
-    H5_index_t index_type = H5_INDEX_NAME;
-    H5_iter_order_t order = H5_ITER_INC;
-    hsize_t n = 0; // Typically, a valid index would be used
-    hid_t loc_id = H5I_INVALID_HID; // Typically, a valid HDF5 ID would be used
-    hid_t aapl_id = H5P_DEFAULT;
-    hid_t lapl_id = H5P_DEFAULT;
-    hid_t es_id = H5ES_NONE;
+    // Declare variables for the function parameters
+    hid_t loc_id;
+    unsigned int idx;
 
-    // Use the input data to influence the fuzzing process
-    if (size > 0) {
-        loc_name = (const char *)data;
+    // Initialize loc_id with a valid HDF5 file or group identifier
+    // For fuzzing purposes, we can create a temporary HDF5 file in memory
+    hid_t file_id = H5Fcreate("tempfile", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Exit if file creation failed
     }
-    if (size > 1) {
-        attr_name = (const char *)(data + 1);
+
+    // Assign the file_id to loc_id
+    loc_id = file_id;
+
+    // Initialize idx with a value derived from the input data
+    if (size > 0) {
+        idx = data[0] % 256;  // Use the first byte of data to determine the index
+    } else {
+        idx = 0; // Default to 0 if size is 0
     }
 
     // Call the function-under-test
-    hid_t result = H5Aopen_by_idx_async(
-        loc_id,
-        loc_name,
-        index_type,
-        order,
-        n,
-        aapl_id,
-        lapl_id,
-        es_id
-    );
+    hid_t attribute_id = H5Aopen_idx(loc_id, idx);
 
-    // The result can be checked or used further if needed
-    // For fuzzing purposes, we generally don't need to do anything with it
+    // Close the file to clean up resources
+    H5Fclose(file_id);
 
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

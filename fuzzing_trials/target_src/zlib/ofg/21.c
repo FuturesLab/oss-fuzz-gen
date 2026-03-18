@@ -8,31 +8,29 @@ int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
-    stream.avail_in = 0;
-    stream.next_in = Z_NULL;
 
-    // Initialize gz_header structure
-    gz_header header;
-    header.text = 0;
-    header.time = 0;
-    header.xflags = 0;
-    header.os = 0;
-    header.extra = (Bytef *)data;
-    header.extra_len = size;
-    header.extra_max = size;
-    header.name = (Bytef *)data;
-    header.name_max = size;
-    header.comment = (Bytef *)data;
-    header.comm_max = size;
-    header.hcrc = 0;
-    header.done = 0;
-
-    // Initialize the stream for compression
+    // Initialize the deflate state
     if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
         return 0;
     }
 
-    // Call deflateSetHeader with the initialized structures
+    // Allocate and initialize gz_header structure
+    gz_header header;
+    header.text = 1; // Set some non-zero value
+    header.time = 123456789;
+    header.xflags = 0;
+    header.os = 255;
+    header.extra = (Bytef *)data;
+    header.extra_len = size;
+    header.extra_max = size;
+    header.name = (Bytef *)"example";
+    header.name_max = 7;
+    header.comment = (Bytef *)"comment";
+    header.comm_max = 7;
+    header.hcrc = 0;
+    header.done = 0;
+
+    // Call the function-under-test
     deflateSetHeader(&stream, &header);
 
     // Clean up

@@ -3,40 +3,41 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Initialize the z_stream structures
-    z_stream source_stream;
-    z_stream dest_stream;
+    // Initialize source and destination z_stream structures
+    z_stream source;
+    z_stream dest;
 
-    // Ensure the data size is sufficient for initialization
-    if (size < sizeof(z_stream) * 2) {
+    // Initialize the source stream with some default values
+    source.zalloc = Z_NULL;
+    source.zfree = Z_NULL;
+    source.opaque = Z_NULL;
+    source.avail_in = size;
+    source.next_in = (Bytef *)data;
+
+    // Initialize the destination stream with some default values
+    dest.zalloc = Z_NULL;
+    dest.zfree = Z_NULL;
+    dest.opaque = Z_NULL;
+    dest.avail_in = 0;
+    dest.next_in = Z_NULL;
+
+    // Initialize the source stream for deflation
+    if (deflateInit(&source, Z_DEFAULT_COMPRESSION) != Z_OK) {
         return 0;
     }
 
-    // Initialize the source stream
-    source_stream.next_in = (Bytef *)data;
-    source_stream.avail_in = (uInt)size;
-    source_stream.zalloc = Z_NULL;
-    source_stream.zfree = Z_NULL;
-    source_stream.opaque = Z_NULL;
-
-    // Initialize the destination stream
-    dest_stream.next_in = Z_NULL;
-    dest_stream.avail_in = 0;
-    dest_stream.zalloc = Z_NULL;
-    dest_stream.zfree = Z_NULL;
-    dest_stream.opaque = Z_NULL;
-
-    // Initialize the source stream for deflate
-    if (deflateInit(&source_stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+    // Initialize the destination stream for deflation
+    if (deflateInit(&dest, Z_DEFAULT_COMPRESSION) != Z_OK) {
+        deflateEnd(&source);
         return 0;
     }
 
     // Call the function-under-test
-    deflateCopy(&dest_stream, &source_stream);
+    deflateCopy(&dest, &source);
 
-    // Clean up
-    deflateEnd(&source_stream);
-    deflateEnd(&dest_stream);
+    // Clean up the streams
+    deflateEnd(&source);
+    deflateEnd(&dest);
 
     return 0;
 }

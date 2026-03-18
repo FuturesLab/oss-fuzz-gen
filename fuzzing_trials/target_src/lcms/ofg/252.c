@@ -1,51 +1,30 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_252(const uint8_t *data, size_t size) {
-    // Initialize variables for cmsDoTransform
-    cmsHTRANSFORM transform;
-    cmsHPROFILE inputProfile, outputProfile;
-    cmsUInt32Number inputFormat, outputFormat;
-    cmsUInt32Number intent = INTENT_PERCEPTUAL;
-    cmsUInt32Number flags = 0;
-    cmsUInt32Number numPixels = size / 4; // Assume each pixel is 4 bytes (e.g., RGBA)
+    cmsHPROFILE hProfile;
+    cmsUInt32Number Intent;
+    cmsUInt32Number Flags;
+    cmsBool result;
 
-    // Allocate input and output buffers
-    void *inputBuffer = malloc(size);
-    void *outputBuffer = malloc(size);
-
-    // Ensure inputBuffer and outputBuffer are not NULL
-    if (inputBuffer == NULL || outputBuffer == NULL) {
-        free(inputBuffer);
-        free(outputBuffer);
+    // Ensure size is sufficient to extract parameters
+    if (size < sizeof(cmsUInt32Number) * 2) {
         return 0;
     }
 
-    // Copy data to inputBuffer
-    memcpy(inputBuffer, data, size);
+    // Initialize the parameters from the input data
+    Intent = *(cmsUInt32Number *)data;
+    Flags = *(cmsUInt32Number *)(data + sizeof(cmsUInt32Number));
 
-    // Create a dummy input and output profile
-    inputProfile = cmsCreate_sRGBProfile();
-    outputProfile = cmsCreate_sRGBProfile();
+    // Create a dummy profile for fuzzing
+    hProfile = cmsCreate_sRGBProfile();
 
-    // Define input and output formats
-    inputFormat = TYPE_RGBA_8;
-    outputFormat = TYPE_RGBA_8;
-
-    // Create a color transform
-    transform = cmsCreateTransform(inputProfile, inputFormat, outputProfile, outputFormat, intent, flags);
-
-    // Call the function-under-test
-    cmsDoTransform(transform, inputBuffer, outputBuffer, numPixels);
+    // Call the function under test
+    result = cmsIsCLUT(hProfile, Intent, Flags);
 
     // Clean up
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
-    free(inputBuffer);
-    free(outputBuffer);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

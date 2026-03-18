@@ -3,30 +3,26 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_308(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Declare and initialize variables
     cmsHPROFILE hProfile;
-    cmsTagSignature tagSig;
-    const void *tagData;
+    cmsUInt32Number manufacturer;
 
-    // Ensure size is sufficient to extract data
-    if (size < sizeof(cmsTagSignature) + sizeof(void *)) {
+    // Check if the size of the input data is sufficient
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Create a dummy profile
+    // Create a profile for testing
     hProfile = cmsCreate_sRGBProfile();
     if (hProfile == NULL) {
         return 0;
     }
 
-    // Extract tag signature from input data
-    tagSig = *(cmsTagSignature *)data;
-
-    // Extract tag data from input data
-    tagData = (const void *)(data + sizeof(cmsTagSignature));
+    // Extract a cmsUInt32Number from the input data
+    manufacturer = *(const cmsUInt32Number *)data;
 
     // Call the function-under-test
-    cmsBool result = cmsWriteTag(hProfile, tagSig, tagData);
+    cmsSetHeaderManufacturer(hProfile, manufacturer);
 
     // Clean up
     cmsCloseProfile(hProfile);

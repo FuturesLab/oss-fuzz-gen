@@ -1,37 +1,27 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_391(const uint8_t *data, size_t size) {
-    cmsPipeline *pipeline1 = cmsPipelineAlloc(NULL, 3, 3);
-    cmsPipeline *pipeline2 = cmsPipelineAlloc(NULL, 3, 3);
-
-    if (pipeline1 == NULL || pipeline2 == NULL) {
-        if (pipeline1 != NULL) cmsPipelineFree(pipeline1);
-        if (pipeline2 != NULL) cmsPipelineFree(pipeline2);
-        return 0;
+    if (size < 3 * sizeof(double)) {
+        return 0; // Not enough data
     }
 
-    // Add some dummy stages to the pipelines
-    cmsStage *stage1 = cmsStageAllocIdentity(NULL, 3);
-    cmsStage *stage2 = cmsStageAllocIdentity(NULL, 3);
+    // Construct a cmsCIEXYZ structure from the input data
+    cmsCIEXYZ inputXYZ;
+    inputXYZ.X = ((double *)data)[0];
+    inputXYZ.Y = ((double *)data)[1];
+    inputXYZ.Z = ((double *)data)[2];
 
-    if (stage1 != NULL && stage2 != NULL) {
-        cmsPipelineInsertStage(pipeline1, cmsAT_END, stage1);
-        cmsPipelineInsertStage(pipeline2, cmsAT_END, stage2);
+    cmsCIExyY outputxyY;
 
-        // Fuzz the function
-        cmsBool result = cmsPipelineCat(pipeline1, pipeline2);
+    // Use the function under test
+    cmsXYZ2xyY(&outputxyY, &inputXYZ);
 
-        // Use the result in some way to avoid compiler optimizations
-        if (result) {
-            // Do something with the result if needed
-        }
-    }
-
-    // Clean up
-    cmsPipelineFree(pipeline1);
-    cmsPipelineFree(pipeline2);
+    // Access the fields of the cmsCIExyY structure to ensure they are valid.
+    volatile double x = outputxyY.x;
+    volatile double y = outputxyY.y;
+    volatile double Y = outputxyY.Y;
 
     return 0;
 }

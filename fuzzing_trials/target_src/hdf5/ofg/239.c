@@ -3,21 +3,20 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_239(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for our needs
-    if (size < 3) {
+    // Ensure that the data size is sufficient for our needs
+    if (size < 5) {
         return 0;
     }
 
-    // Initialize parameters for H5Fcreate
-    const char *filename = "fuzz_test_file.h5";
-    unsigned int flags = (unsigned int)data[0]; // Use first byte as flags
-    hid_t create_plist = H5P_DEFAULT; // Default property list
-    hid_t access_plist = H5P_DEFAULT; // Default property list
+    // Prepare the parameters for H5Fopen
+    const char *filename = "testfile.h5"; // Using a fixed filename for testing
+    unsigned int flags = (unsigned int)data[0]; // Use the first byte for flags
+    hid_t fapl_id = (hid_t)data[1]; // Use the second byte for fapl_id
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(filename, flags, create_plist, access_plist);
+    hid_t file_id = H5Fopen(filename, flags, fapl_id);
 
-    // Close the file if it was successfully created
+    // Close the file if it was successfully opened
     if (file_id >= 0) {
         H5Fclose(file_id);
     }

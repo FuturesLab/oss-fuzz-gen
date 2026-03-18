@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
+    // Create a temporary file to hold the input data
     FILE *tempFile = tmpfile();
     if (tempFile == NULL) {
         return 0;
@@ -23,8 +23,11 @@ int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Call the function-under-test
-    gzrewind(gzfile);
+    // Attempt to read from the gzFile to ensure input is processed
+    char buffer[1024];
+    while (gzread(gzfile, buffer, sizeof(buffer)) > 0) {
+        // Process the data (in this example, we just read it)
+    }
 
     // Clean up
     gzclose(gzfile);

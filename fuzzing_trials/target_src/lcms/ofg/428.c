@@ -1,29 +1,28 @@
-#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <lcms2.h>
 
-// Function signature to be fuzzed
-long cmsfilelength(FILE *file);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_428(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzzing data
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    if (size < sizeof(cmsCIELab) + 4 * sizeof(double)) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    fwrite(data, 1, size, tempFile);
+    cmsCIELab lab;
+    double d1, d2, d3, d4;
 
-    // Reset the file pointer to the beginning of the file
-    rewind(tempFile);
+    // Initialize the cmsCIELab structure
+    lab.L = (double)data[0];
+    lab.a = (double)data[1];
+    lab.b = (double)data[2];
+
+    // Extract doubles from the input data
+    d1 = *((double*)(data + sizeof(cmsCIELab)));
+    d2 = *((double*)(data + sizeof(cmsCIELab) + sizeof(double)));
+    d3 = *((double*)(data + sizeof(cmsCIELab) + 2 * sizeof(double)));
+    d4 = *((double*)(data + sizeof(cmsCIELab) + 3 * sizeof(double)));
 
     // Call the function-under-test
-    long length = cmsfilelength(tempFile);
-
-    // Close the temporary file
-    fclose(tempFile);
+    cmsBool result = cmsDesaturateLab(&lab, d1, d2, d3, d4);
 
     return 0;
 }

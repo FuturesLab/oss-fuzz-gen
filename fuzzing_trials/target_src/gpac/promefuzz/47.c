@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_decoder_config at isom_read.c:1406:19 in isomedia.h
-// gf_isom_get_sample_description_count at isom_read.c:1373:5 in isomedia.h
-// gf_isom_get_sample_size at isom_read.c:2007:5 in isomedia.h
-// gf_isom_get_media_subtype at isom_read.c:1644:5 in isomedia.h
-// gf_isom_get_media_timescale at isom_read.c:1459:5 in isomedia.h
-// gf_isom_get_udta_count at isom_read.c:2692:5 in isomedia.h
+// gf_isom_new_webvtt_description at sample_descs.c:1637:8 in isomedia.h
+// gf_isom_ac4_config_new at sample_descs.c:775:8 in isomedia.h
+// gf_isom_new_text_description at tx3g.c:197:8 in isomedia.h
+// gf_isom_get_xml_metadata_description at sample_descs.c:1166:8 in isomedia.h
+// gf_isom_get_ismacryp_info at drm_sample.c:257:8 in isomedia.h
+// gf_isom_subtitle_set_mime at sample_descs.c:1294:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,49 +12,73 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static GF_ISOFile* create_dummy_iso_file() {
+    // Since GF_ISOFile is an incomplete type, just return a null pointer for testing purposes.
+    return NULL;
+}
+
+static GF_AC4Config* create_dummy_ac4_config() {
+    GF_AC4Config* ac4_config = (GF_AC4Config*)malloc(sizeof(GF_AC4Config));
+    if (ac4_config) {
+        memset(ac4_config, 0, sizeof(GF_AC4Config));
     }
+    return ac4_config;
+}
+
+static GF_TextSampleDescriptor* create_dummy_text_descriptor() {
+    GF_TextSampleDescriptor* text_desc = (GF_TextSampleDescriptor*)malloc(sizeof(GF_TextSampleDescriptor));
+    if (text_desc) {
+        memset(text_desc, 0, sizeof(GF_TextSampleDescriptor));
+    }
+    return text_desc;
 }
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3) return 0;
+    GF_ISOFile* iso_file = create_dummy_iso_file();
 
-    // Prepare dummy file
-    write_dummy_file(Data, Size);
+    u32 trackNumber = Size > 0 ? Data[0] : 0;
+    u32 outDescriptionIndex = 0;
+    const char* url = (Size > 1) ? (const char*)&Data[1] : NULL;
+    const char* urn = (Size > 2) ? (const char*)&Data[2] : NULL;
+    const char* config = (Size > 3) ? (const char*)&Data[3] : NULL;
 
-    // Allocate a dummy GF_ISOFile structure
-    GF_ISOFile *isom_file = NULL;
+    // Test gf_isom_new_webvtt_description
+    gf_isom_new_webvtt_description(iso_file, trackNumber, url, urn, &outDescriptionIndex, config);
 
-    // Extract trackNumber and sampleDescriptionIndex from Data
-    u32 trackNumber = *(u32 *)Data;
-    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
-    u32 sampleNumber = *(u32 *)(Data + 2 * sizeof(u32));
-
-    // Test gf_isom_get_decoder_config
-    GF_DecoderConfig *decoderConfig = gf_isom_get_decoder_config(isom_file, trackNumber, sampleDescriptionIndex);
-    if (decoderConfig) {
-        // Assume a proper function to free decoderConfig
-        free(decoderConfig);
+    // Test gf_isom_ac4_config_new
+    GF_AC4Config* ac4_config = create_dummy_ac4_config();
+    if (ac4_config) {
+        gf_isom_ac4_config_new(iso_file, trackNumber, ac4_config, url, urn, &outDescriptionIndex);
+        free(ac4_config);
     }
 
-    // Test gf_isom_get_sample_description_count
-    u32 sampleDescriptionCount = gf_isom_get_sample_description_count(isom_file, trackNumber);
+    // Test gf_isom_new_text_description
+    GF_TextSampleDescriptor* text_desc = create_dummy_text_descriptor();
+    if (text_desc) {
+        gf_isom_new_text_description(iso_file, trackNumber, text_desc, url, urn, &outDescriptionIndex);
+        free(text_desc);
+    }
 
-    // Test gf_isom_get_sample_size
-    u32 sampleSize = gf_isom_get_sample_size(isom_file, trackNumber, sampleNumber);
+    // Test gf_isom_get_xml_metadata_description
+    const char* xmlnamespace = NULL;
+    const char* schema_loc = NULL;
+    const char* content_encoding = NULL;
+    gf_isom_get_xml_metadata_description(iso_file, trackNumber, outDescriptionIndex, &xmlnamespace, &schema_loc, &content_encoding);
 
-    // Test gf_isom_get_media_subtype
-    u32 mediaSubtype = gf_isom_get_media_subtype(isom_file, trackNumber, sampleDescriptionIndex);
+    // Test gf_isom_get_ismacryp_info
+    u32 outOriginalFormat = 0;
+    u32 outSchemeType = 0;
+    u32 outSchemeVersion = 0;
+    const char* outSchemeURI = NULL;
+    const char* outKMS_URI = NULL;
+    Bool outSelectiveEncryption = 0;
+    u32 outIVLength = 0;
+    u32 outKeyIndicationLength = 0;
+    gf_isom_get_ismacryp_info(iso_file, trackNumber, outDescriptionIndex, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outSchemeURI, &outKMS_URI, &outSelectiveEncryption, &outIVLength, &outKeyIndicationLength);
 
-    // Test gf_isom_get_media_timescale
-    u32 mediaTimescale = gf_isom_get_media_timescale(isom_file, trackNumber);
-
-    // Test gf_isom_get_udta_count
-    u32 udtaCount = gf_isom_get_udta_count(isom_file, trackNumber);
+    // Test gf_isom_subtitle_set_mime
+    const char* full_mime = (Size > 4) ? (const char*)&Data[4] : NULL;
+    gf_isom_subtitle_set_mime(iso_file, trackNumber, outDescriptionIndex, full_mime);
 
     return 0;
 }

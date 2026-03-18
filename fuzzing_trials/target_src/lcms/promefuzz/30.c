@@ -1,136 +1,127 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsGetHeaderFlags at cmsio0.c:997:27 in lcms2.h
 // cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsGetHeaderModel at cmsio0.c:1027:27 in lcms2.h
+// cmsCreateBCHSWabstractProfileTHR at cmsvirt.c:861:23 in lcms2.h
 // cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreate_sRGBProfile at cmsvirt.c:680:23 in lcms2.h
-// cmsCreateMultiprofileTransform at cmsxform.c:1316:25 in lcms2.h
+// cmsCreateBCHSWabstractProfile at cmsvirt.c:946:32 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsCreateExtendedTransform at cmsxform.c:1123:25 in lcms2.h
 // cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
+// cmsCreateTransform at cmsxform.c:1355:32 in lcms2.h
+// cmsTransform2DeviceLink at cmsvirt.c:1194:23 in lcms2.h
 // cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsIsCLUT at cmsio1.c:830:20 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsGetPostScriptColorResource at cmsps2.c:1525:27 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsSaveProfileToIOhandler at cmsio0.c:1447:27 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
+// cmsSetAdaptationState at cmsxform.c:77:28 in lcms2.h
+// cmsCreate_sRGBProfile at cmsvirt.c:680:23 in lcms2.h
+// cmsSetProfileVersion at cmsio0.c:1139:17 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
-// Define a dummy cmsIOHANDLER to avoid incomplete type errors
-typedef struct {
-    void* stream;
-    cmsContext ContextID;
-    cmsUInt32Number UsedSpace;
-    cmsUInt32Number ReportedSize;
-    char PhysicalFile[256];
-    cmsUInt32Number (*Read)(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count);
-    cmsBool (*Seek)(struct _cms_io_handler* iohandler, cmsUInt32Number offset);
-    cmsBool (*Close)(struct _cms_io_handler* iohandler);
-    cmsUInt32Number (*Tell)(struct _cms_io_handler* iohandler);
-    cmsBool (*Write)(struct _cms_io_handler* iohandler, cmsUInt32Number size, const void* Buffer);
-} DummyIOHANDLER;
+static void fuzz_cmsCreateBCHSWabstractProfileTHR(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt32Number) * 3 + sizeof(cmsFloat64Number) * 4) return;
 
-static cmsHPROFILE createDummyProfile() {
-    // Create a dummy profile for testing
-    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
-    return hProfile;
+    cmsContext ContextID = NULL;
+    cmsUInt32Number nLUTPoints = *(cmsUInt32Number*)Data;
+    cmsFloat64Number Bright = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number));
+    cmsFloat64Number Contrast = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number) + sizeof(cmsFloat64Number));
+    cmsFloat64Number Hue = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number) + 2 * sizeof(cmsFloat64Number));
+    cmsFloat64Number Saturation = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number) + 3 * sizeof(cmsFloat64Number));
+    cmsUInt32Number TempSrc = *(cmsUInt32Number*)(Data + sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number));
+    cmsUInt32Number TempDest = *(cmsUInt32Number*)(Data + 2 * sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number));
+
+    cmsHPROFILE profile = cmsCreateBCHSWabstractProfileTHR(ContextID, nLUTPoints, Bright, Contrast, Hue, Saturation, TempSrc, TempDest);
+    if (profile) {
+        cmsCloseProfile(profile);
+    }
 }
 
-static void fuzz_cmsCreateMultiprofileTransform(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsHPROFILE) + 4 * sizeof(cmsUInt32Number)) return;
+static void fuzz_cmsCreateBCHSWabstractProfile(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt32Number) * 3 + sizeof(cmsFloat64Number) * 4) return;
 
-    cmsHPROFILE hProfiles[255];
-    cmsUInt32Number nProfiles = Data[0] % 256; // Limit to 255 profiles
-    Data++; Size--;
+    cmsUInt32Number nLUTPoints = *(cmsUInt32Number*)Data;
+    cmsFloat64Number Bright = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number));
+    cmsFloat64Number Contrast = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number) + sizeof(cmsFloat64Number));
+    cmsFloat64Number Hue = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number) + 2 * sizeof(cmsFloat64Number));
+    cmsFloat64Number Saturation = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number) + 3 * sizeof(cmsFloat64Number));
+    cmsUInt32Number TempSrc = *(cmsUInt32Number*)(Data + sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number));
+    cmsUInt32Number TempDest = *(cmsUInt32Number*)(Data + 2 * sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number));
 
-    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
-        hProfiles[i] = createDummyProfile();
+    cmsHPROFILE profile = cmsCreateBCHSWabstractProfile(nLUTPoints, Bright, Contrast, Hue, Saturation, TempSrc, TempDest);
+    if (profile) {
+        cmsCloseProfile(profile);
     }
+}
 
-    if (Size < 4 * sizeof(cmsUInt32Number)) return;
+static void fuzz_cmsCreateExtendedTransform(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt32Number) * 7 + sizeof(cmsFloat64Number)) return;
 
-    cmsUInt32Number InputFormat = *(cmsUInt32Number*)Data; Data += sizeof(cmsUInt32Number);
-    cmsUInt32Number OutputFormat = *(cmsUInt32Number*)Data; Data += sizeof(cmsUInt32Number);
-    cmsUInt32Number Intent = *(cmsUInt32Number*)Data; Data += sizeof(cmsUInt32Number);
-    cmsUInt32Number dwFlags = *(cmsUInt32Number*)Data;
+    cmsContext ContextID = NULL;
+    cmsUInt32Number nProfiles = Data[0] % 256; // Ensuring nProfiles is between 1 and 255
+    cmsHPROFILE hProfiles[256] = {0};
+    cmsBool BPC[256] = {0};
+    cmsUInt32Number Intents[256] = {0};
+    cmsFloat64Number AdaptationStates[256] = {0.0};
+    cmsHPROFILE hGamutProfile = NULL;
+    cmsUInt32Number nGamutPCSposition = *(cmsUInt32Number*)(Data + 1);
+    cmsUInt32Number InputFormat = *(cmsUInt32Number*)(Data + 1 + sizeof(cmsUInt32Number));
+    cmsUInt32Number OutputFormat = *(cmsUInt32Number*)(Data + 1 + 2 * sizeof(cmsUInt32Number));
+    cmsUInt32Number dwFlags = *(cmsUInt32Number*)(Data + 1 + 3 * sizeof(cmsUInt32Number));
 
-    cmsHTRANSFORM transform = cmsCreateMultiprofileTransform(hProfiles, nProfiles, InputFormat, OutputFormat, Intent, dwFlags);
+    cmsHTRANSFORM transform = cmsCreateExtendedTransform(ContextID, nProfiles, hProfiles, BPC, Intents, AdaptationStates, hGamutProfile, nGamutPCSposition, InputFormat, OutputFormat, dwFlags);
     if (transform) {
         cmsDeleteTransform(transform);
     }
+}
 
-    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
-        cmsCloseProfile(hProfiles[i]);
+static void fuzz_cmsTransform2DeviceLink(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsFloat64Number) + sizeof(cmsUInt32Number)) return;
+
+    cmsHTRANSFORM hTransform = cmsCreateTransform(NULL, TYPE_RGB_8, NULL, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
+    if (!hTransform) return;
+
+    cmsFloat64Number Version = *(cmsFloat64Number*)Data;
+    cmsUInt32Number dwFlags = *(cmsUInt32Number*)(Data + sizeof(cmsFloat64Number));
+
+    cmsHPROFILE profile = cmsTransform2DeviceLink(hTransform, Version, dwFlags);
+    if (profile) {
+        cmsCloseProfile(profile);
     }
+
+    cmsDeleteTransform(hTransform);
 }
 
-static void fuzz_cmsIsCLUT(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsHPROFILE) + 2 * sizeof(cmsUInt32Number)) return;
+static void fuzz_cmsSetAdaptationState(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsFloat64Number)) return;
 
-    cmsHPROFILE hProfile = createDummyProfile();
-    cmsUInt32Number Intent = *(cmsUInt32Number*)Data; Data += sizeof(cmsUInt32Number);
-    cmsUInt32Number UsedDirection = *(cmsUInt32Number*)Data;
-
-    cmsIsCLUT(hProfile, Intent, UsedDirection);
-
-    cmsCloseProfile(hProfile);
+    cmsFloat64Number d = *(cmsFloat64Number*)Data;
+    cmsSetAdaptationState(d);
 }
 
-static void fuzz_cmsGetPostScriptColorResource(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsContext) + sizeof(cmsPSResourceType) + sizeof(cmsHPROFILE) + 2 * sizeof(cmsUInt32Number)) return;
+static void fuzz_cmsSetProfileVersion(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsFloat64Number)) return;
 
-    cmsContext ContextID = (cmsContext) Data;
-    Data += sizeof(cmsContext);
-    Size -= sizeof(cmsContext);
+    cmsHPROFILE hProfile = cmsCreate_sRGBProfile(); // Create a valid profile to avoid NULL pointer dereference
+    if (!hProfile) return;
 
-    cmsPSResourceType Type = *(cmsPSResourceType*)Data; Data += sizeof(cmsPSResourceType);
-    cmsHPROFILE hProfile = createDummyProfile();
+    cmsFloat64Number Version = *(cmsFloat64Number*)Data;
+    cmsSetProfileVersion(hProfile, Version);
 
-    cmsUInt32Number Intent = *(cmsUInt32Number*)Data; Data += sizeof(cmsUInt32Number);
-    cmsUInt32Number dwFlags = *(cmsUInt32Number*)Data;
-
-    DummyIOHANDLER ioHandler = {0};
-    cmsGetPostScriptColorResource(ContextID, Type, hProfile, Intent, dwFlags, (cmsIOHANDLER*)&ioHandler);
-
-    cmsCloseProfile(hProfile);
-}
-
-static void fuzz_cmsSaveProfileToIOhandler(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsHPROFILE) + sizeof(DummyIOHANDLER)) return;
-
-    cmsHPROFILE hProfile = createDummyProfile();
-    DummyIOHANDLER ioHandler = {0};
-    cmsSaveProfileToIOhandler(hProfile, (cmsIOHANDLER*)&ioHandler);
-
-    cmsCloseProfile(hProfile);
-}
-
-static void fuzz_cmsGetHeaderFlags(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsHPROFILE)) return;
-
-    cmsHPROFILE hProfile = createDummyProfile();
-    cmsGetHeaderFlags(hProfile);
-    cmsCloseProfile(hProfile);
-}
-
-static void fuzz_cmsGetHeaderModel(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsHPROFILE)) return;
-
-    cmsHPROFILE hProfile = createDummyProfile();
-    cmsGetHeaderModel(hProfile);
     cmsCloseProfile(hProfile);
 }
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    fuzz_cmsCreateMultiprofileTransform(Data, Size);
-    fuzz_cmsIsCLUT(Data, Size);
-    fuzz_cmsGetPostScriptColorResource(Data, Size);
-    fuzz_cmsSaveProfileToIOhandler(Data, Size);
-    fuzz_cmsGetHeaderFlags(Data, Size);
-    fuzz_cmsGetHeaderModel(Data, Size);
+    fuzz_cmsCreateBCHSWabstractProfileTHR(Data, Size);
+    fuzz_cmsCreateBCHSWabstractProfile(Data, Size);
+    fuzz_cmsCreateExtendedTransform(Data, Size);
+    fuzz_cmsTransform2DeviceLink(Data, Size);
+    fuzz_cmsSetAdaptationState(Data, Size);
+    fuzz_cmsSetProfileVersion(Data, Size);
+
     return 0;
 }

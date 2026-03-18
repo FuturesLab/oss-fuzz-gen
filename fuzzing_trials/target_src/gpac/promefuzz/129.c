@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_has_sample_dependency at isom_read.c:1904:6 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_is_track_enabled at isom_read.c:1054:4 in isomedia.h
+// gf_isom_add_user_data at isom_write.c:3803:8 in isomedia.h
+// gf_isom_has_sync_points at isom_read.c:2603:4 in isomedia.h
+// gf_isom_fragment_set_sample_aux_info at isom_write.c:9290:8 in isomedia.h
+// gf_isom_get_user_data_count at isom_read.c:2735:5 in isomedia.h
+// gf_isom_is_track_in_root_od at isom_read.c:1018:4 in isomedia.h
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_get_last_producer_time_box at isom_read.c:5800:6 in isomedia.h
-// gf_isom_get_sample_sync at isom_read.c:2080:6 in isomedia.h
-// gf_isom_is_track_fragmented at movie_fragments.c:3512:6 in isomedia.h
-// gf_isom_is_single_av at isom_read.c:4218:6 in isomedia.h
-// gf_isom_is_self_contained at isom_read.c:2158:6 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -14,107 +14,53 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static GF_ISOFile* create_dummy_iso_file() {
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return isom_file;
+}
+
+static void destroy_dummy_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_129(const uint8_t *Data, size_t Size) {
-    if (Size < 3 * sizeof(u32) + 2 * sizeof(u64) + sizeof(Bool)) {
-        return 0;
-    }
+    if (Size < 4) return 0; // Ensure there's enough data for basic operations
 
-    // Initialize a GF_ISOFile structure
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) {
-        return 0;
-    }
+    // Create a dummy ISO file
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    // Initialize variables for the first function
-    GF_ISOTrackID refTrackID;
-    u64 ntp, timestamp;
-    Bool reset_info;
+    u32 trackNumber = Data[0];
+    u32 UserDataType = Data[1];
+    u32 sample_number_in_frag = Data[2];
+    u32 aux_type = Data[3];
+    u32 aux_info = (Size > 4) ? Data[4] : 0;
+    u32 dataSize = (Size > 5) ? Size - 5 : 0;
+    u8 *data = (dataSize > 0) ? (u8 *)Data + 5 : NULL;
+    bin128 UUID;
+    memset(UUID, 0, sizeof(UUID));
 
-    // Extract data for the first function
-    if (Size >= sizeof(GF_ISOTrackID) + 2 * sizeof(u64) + sizeof(Bool)) {
-        refTrackID = *(GF_ISOTrackID *) Data;
-        Data += sizeof(GF_ISOTrackID);
-        ntp = *(u64 *) Data;
-        Data += sizeof(u64);
-        timestamp = *(u64 *) Data;
-        Data += sizeof(u64);
-        reset_info = *(Bool *) Data;
-        Data += sizeof(Bool);
-        Size -= sizeof(GF_ISOTrackID) + 2 * sizeof(u64) + sizeof(Bool);
+    // Fuzz gf_isom_is_track_enabled
+    u8 track_enabled = gf_isom_is_track_enabled(iso_file, trackNumber);
 
-        // Call the first target API function
-        gf_isom_get_last_producer_time_box(isom_file, &refTrackID, &ntp, &timestamp, reset_info);
-    }
+    // Fuzz gf_isom_add_user_data
+    GF_Err add_user_data_err = gf_isom_add_user_data(iso_file, trackNumber, UserDataType, UUID, data, dataSize);
 
-    // Initialize variables for the second function
-    u32 trackNumber, sampleNumber;
+    // Fuzz gf_isom_has_sync_points
+    u8 has_sync_points = gf_isom_has_sync_points(iso_file, trackNumber);
 
-    // Extract data for the second function
-    if (Size >= 2 * sizeof(u32)) {
-        trackNumber = *(u32 *) Data;
-        Data += sizeof(u32);
-        sampleNumber = *(u32 *) Data;
-        Data += sizeof(u32);
-        Size -= 2 * sizeof(u32);
+    // Fuzz gf_isom_fragment_set_sample_aux_info
+    GF_Err set_sample_aux_info_err = gf_isom_fragment_set_sample_aux_info(iso_file, trackNumber, sample_number_in_frag, aux_type, aux_info, data, dataSize);
 
-        // Call the second target API function
-        gf_isom_get_sample_sync(isom_file, trackNumber, sampleNumber);
-    }
+    // Fuzz gf_isom_get_user_data_count
+    u32 user_data_count = gf_isom_get_user_data_count(iso_file, trackNumber, UserDataType, UUID);
 
-    // Initialize variables for the third function
-    GF_ISOTrackID TrackID;
+    // Fuzz gf_isom_is_track_in_root_od
+    u8 is_track_in_root_od = gf_isom_is_track_in_root_od(iso_file, trackNumber);
 
-    // Extract data for the third function
-    if (Size >= sizeof(GF_ISOTrackID)) {
-        TrackID = *(GF_ISOTrackID *) Data;
-        Data += sizeof(GF_ISOTrackID);
-        Size -= sizeof(GF_ISOTrackID);
-
-        // Call the third target API function
-        gf_isom_is_track_fragmented(isom_file, TrackID);
-    }
-
-    // Call the fourth target API function
-    gf_isom_is_single_av(isom_file);
-
-    // Initialize variables for the fifth function
-    u32 sampleDescriptionIndex;
-
-    // Extract data for the fifth function
-    if (Size >= sizeof(u32)) {
-        trackNumber = *(u32 *) Data;
-        Data += sizeof(u32);
-        sampleDescriptionIndex = *(u32 *) Data;
-        Data += sizeof(u32);
-        Size -= 2 * sizeof(u32);
-
-        // Call the fifth target API function
-        gf_isom_is_self_contained(isom_file, trackNumber, sampleDescriptionIndex);
-    }
-
-    // Extract data for the sixth function
-    if (Size >= sizeof(u32)) {
-        trackNumber = *(u32 *) Data;
-        Data += sizeof(u32);
-        Size -= sizeof(u32);
-
-        // Call the sixth target API function
-        gf_isom_has_sample_dependency(isom_file, trackNumber);
-    }
-
-    // Use a dummy file for any file-related operations
-    write_dummy_file(Data, Size);
-
-    // Close the ISO file
-    gf_isom_close(isom_file);
+    destroy_dummy_iso_file(iso_file);
 
     return 0;
 }

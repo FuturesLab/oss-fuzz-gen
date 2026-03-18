@@ -1,25 +1,40 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
-// Define a sample cmsSAMPLER16 function
-static int sampleSampler16(const cmsUInt16Number In[], cmsUInt16Number Out[], void* Cargo) {
-    // A simple sampler function that just copies input to output
-    for (int i = 0; i < 3; i++) {
-        Out[i] = In[i];
-    }
-    return 1; // Return 1 to indicate success
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
-    cmsUInt32Number nSamples = 3; // Example number of samples
-    cmsUInt32Number sampleArray[3] = {1, 2, 3}; // Example sample array
-    cmsSAMPLER16 sampler = sampleSampler16; // Use the defined sampler function
-    void* cargo = (void*)data; // Use data as cargo
+    // Ensure there is enough data to work with
+    if (size < sizeof(uint16_t) * 256) {
+        return 0;
+    }
 
-    // Call the function under test
-    cmsBool result = cmsSliceSpace16(nSamples, sampleArray, sampler, cargo);
+    // Create a memory context
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Allocate memory for cmsToneCurve
+    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurve16(context, 256, (const uint16_t*)data);
+
+    // Check if the tone curve is monotonic
+    if (toneCurve != NULL) {
+        cmsBool result = cmsIsToneCurveMonotonic(toneCurve);
+        (void)result; // To avoid unused variable warning
+    }
+
+    // Free the tone curve
+    if (toneCurve != NULL) {
+        cmsFreeToneCurve(toneCurve);
+    }
+
+    // Delete the context
+    cmsDeleteContext(context);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

@@ -1,28 +1,23 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
 
+// Assuming the function is part of a C library, we wrap it with extern "C"
 extern "C" {
+    // Include the necessary header where tjGetErrorStr is declared
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitCompress(); // Initialize TurboJPEG compressor handle
-    if (handle == NULL) {
-        return 0; // Return if initialization fails
-    }
+    // Call the function-under-test
+    char *errorStr = tjGetErrorStr();
 
-    // Ensure that the data is not NULL and size is greater than zero
-    if (data != NULL && size > 0) {
-        // Call the function-under-test
-        int result = tj3SetICCProfile(handle, (unsigned char *)data, size);
-        
-        // Optionally handle the result if needed
-        // For example, check if result is 0 (success) or -1 (failure)
+    // Print the error string to ensure the function is being called
+    if (errorStr != nullptr) {
+        printf("Error: %s\n", errorStr);
     }
-
-    tjDestroy(handle); // Clean up the TurboJPEG handle
 
     return 0;
 }

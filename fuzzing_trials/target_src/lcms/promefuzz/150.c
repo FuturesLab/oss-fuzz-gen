@@ -1,70 +1,80 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsCreate_sRGBProfile at cmsvirt.c:680:23 in lcms2.h
-// cmsGetHeaderCreationDateTime at cmsio0.c:1063:20 in lcms2.h
-// _cmsAdjustEndianess64 at cmsplugin.c:79:17 in lcms2_plugin.h
-// _cmsReadUInt64Number at cmsplugin.c:206:21 in lcms2_plugin.h
-// _cmsEncodeDateTimeNumber at cmsplugin.c:407:16 in lcms2_plugin.h
-// _cmsDecodeDateTimeNumber at cmsplugin.c:390:16 in lcms2_plugin.h
-// cmsGetHeaderAttributes at cmsio0.c:1039:16 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsMLUalloc at cmsnamed.c:33:19 in lcms2.h
+// cmsMLUsetUTF8 at cmsnamed.c:368:19 in lcms2.h
+// cmsMLUdup at cmsnamed.c:430:19 in lcms2.h
+// cmsMLUfree at cmsnamed.c:476:16 in lcms2.h
+// cmsMLUsetUTF8 at cmsnamed.c:368:19 in lcms2.h
+// cmsMLUsetASCII at cmsnamed.c:336:19 in lcms2.h
+// cmsMLUgetTranslation at cmsnamed.c:663:26 in lcms2.h
+// cmsMLUsetWide at cmsnamed.c:413:20 in lcms2.h
+// cmsDictAlloc at cmsnamed.c:1090:21 in lcms2.h
+// cmsDictAddEntry at cmsnamed.c:1137:19 in lcms2.h
+// cmsDictFree at cmsnamed.c:1101:16 in lcms2.h
+// cmsMLUfree at cmsnamed.c:476:16 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
+#include <wchar.h>
 #include "lcms2.h"
-#include "lcms2_plugin.h"
 
-static cmsHPROFILE create_dummy_profile() {
-    // Create a dummy ICC profile for testing
-    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
-    if (!hProfile) {
-        fprintf(stderr, "Failed to create dummy ICC profile\n");
-        exit(1);
+static cmsMLU* create_dummy_mlu() {
+    cmsMLU* mlu = cmsMLUalloc(NULL, 1);
+    if (mlu) {
+        cmsMLUsetUTF8(mlu, "en", "US", "Dummy");
     }
-    return hProfile;
-}
-
-static cmsUInt32Number dummy_read(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count) {
-    return size * count;
+    return mlu;
 }
 
 int LLVMFuzzerTestOneInput_150(const uint8_t *Data, size_t Size) {
-    // Prepare environment for cmsGetHeaderCreationDateTime
-    cmsHPROFILE hProfile = create_dummy_profile();
-    struct tm creationTime;
-    cmsGetHeaderCreationDateTime(hProfile, &creationTime);
+    if (Size < 6) return 0; // Ensure we have enough data for language and country codes
 
-    // Prepare environment for _cmsAdjustEndianess64
-    cmsUInt64Number input64 = 0;
-    cmsUInt64Number output64 = 0;
-    if (Size >= sizeof(cmsUInt64Number)) {
-        memcpy(&input64, Data, sizeof(cmsUInt64Number));
-        _cmsAdjustEndianess64(&output64, &input64);
+    cmsMLU* mlu = create_dummy_mlu();
+    if (!mlu) return 0;
+
+    // Test cmsMLUdup
+    cmsMLU* mlu_dup = cmsMLUdup(mlu);
+    if (mlu_dup) {
+        cmsMLUfree(mlu_dup);
     }
 
-    // Prepare environment for _cmsReadUInt64Number
-    cmsIOHANDLER ioHandler;
-    memset(&ioHandler, 0, sizeof(ioHandler));
-    ioHandler.Read = dummy_read;
-    cmsUInt64Number read64;
-    _cmsReadUInt64Number(&ioHandler, &read64);
+    // Test cmsMLUsetUTF8
+    char LanguageCode[3] = { (char)Data[0], (char)Data[1], '\0' };
+    char CountryCode[3] = { (char)Data[2], (char)Data[3], '\0' };
 
-    // Prepare environment for _cmsEncodeDateTimeNumber
-    cmsDateTimeNumber encodedTime;
-    _cmsEncodeDateTimeNumber(&encodedTime, &creationTime);
+    // Ensure UTF8String is null-terminated
+    size_t utf8StringSize = Size - 4;
+    char* UTF8String = (char*)malloc(utf8StringSize + 1);
+    if (UTF8String) {
+        memcpy(UTF8String, Data + 4, utf8StringSize);
+        UTF8String[utf8StringSize] = '\0';
+        cmsMLUsetUTF8(mlu, LanguageCode, CountryCode, UTF8String);
 
-    // Prepare environment for _cmsDecodeDateTimeNumber
-    struct tm decodedTime;
-    _cmsDecodeDateTimeNumber(&encodedTime, &decodedTime);
+        // Test cmsMLUsetASCII
+        cmsMLUsetASCII(mlu, LanguageCode, CountryCode, UTF8String);
 
-    // Prepare environment for cmsGetHeaderAttributes
-    cmsUInt64Number flags;
-    cmsGetHeaderAttributes(hProfile, &flags);
+        free(UTF8String);
+    }
+
+    // Test cmsMLUgetTranslation
+    char ObtainedLanguage[3] = {0};
+    char ObtainedCountry[3] = {0};
+    cmsMLUgetTranslation(mlu, LanguageCode, CountryCode, ObtainedLanguage, ObtainedCountry);
+
+    // Test cmsMLUsetWide
+    wchar_t WideString[] = L"WideString";
+    cmsMLUsetWide(mlu, LanguageCode, CountryCode, WideString);
+
+    // Test cmsDictAddEntry
+    cmsHANDLE hDict = cmsDictAlloc(NULL);
+    if (hDict) {
+        cmsDictAddEntry(hDict, WideString, WideString, mlu, mlu);
+        cmsDictFree(hDict);
+    }
 
     // Clean up
-    cmsCloseProfile(hProfile);
+    cmsMLUfree(mlu);
 
     return 0;
 }

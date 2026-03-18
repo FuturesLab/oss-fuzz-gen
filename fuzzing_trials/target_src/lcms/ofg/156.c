@@ -1,35 +1,33 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
-    // Ensure the input size is greater than 0
-    if (size == 0) {
+    cmsHANDLE handle;
+    char filename[256];
+
+    // Initialize handle with a non-NULL value
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Allocate memory for the file path and ensure it's null-terminated
-    char *filePath = (char *)malloc(size + 1);
-    if (filePath == NULL) {
+    // Ensure the filename is null-terminated and not empty
+    if (size < 1) {
+        cmsIT8Free(handle);
         return 0;
     }
 
-    // Copy the data to the file path and null-terminate it
-    memcpy(filePath, data, size);
-    filePath[size] = '\0';
+    size_t filename_size = size < sizeof(filename) ? size : sizeof(filename) - 1;
+    memcpy(filename, data, filename_size);
+    filename[filename_size] = '\0';
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateDeviceLinkFromCubeFile(filePath);
+    cmsIT8SaveToFile(handle, filename);
 
-    // Free the allocated memory
-    free(filePath);
-
-    // If the profile is created, release it
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
+    // Clean up
+    cmsIT8Free(handle);
 
     return 0;
 }

@@ -1,25 +1,40 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_260(const uint8_t *data, size_t size) {
-    // Initialize a cmsContext
     cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return 0;
+    cmsToneCurve *curve1 = NULL;
+    cmsToneCurve *curve2 = NULL;
+    cmsUInt32Number nPoints = 2; // A simple choice for the number of points
+
+    if (size < sizeof(cmsFloat32Number) * nPoints * 2) {
+        return 0; // Not enough data to create two tone curves
     }
 
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsOpenProfileFromMemTHR(context, data, size);
+    // Create two tone curves from the input data
+    curve1 = cmsBuildTabulatedToneCurveFloat(context, nPoints, (const cmsFloat32Number *)data);
+    curve2 = cmsBuildTabulatedToneCurveFloat(context, nPoints, (const cmsFloat32Number *)(data + sizeof(cmsFloat32Number) * nPoints));
 
-    // Check if the profile was created successfully
-    if (profile != NULL) {
-        // Do something with the profile if needed
-        // For fuzzing purposes, we can just close the profile
-        cmsCloseProfile(profile);
+    if (curve1 != NULL && curve2 != NULL) {
+        // Call the function under test
+        cmsToneCurve *resultCurve = cmsJoinToneCurve(context, curve1, curve2, nPoints);
+
+        // Clean up the result curve if it was created
+        if (resultCurve != NULL) {
+            cmsFreeToneCurve(resultCurve);
+        }
     }
 
-    // Free the context
+    // Clean up the tone curves
+    if (curve1 != NULL) {
+        cmsFreeToneCurve(curve1);
+    }
+    if (curve2 != NULL) {
+        cmsFreeToneCurve(curve2);
+    }
+
+    // Clean up the context
     cmsDeleteContext(context);
 
     return 0;

@@ -1,34 +1,35 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>  // For mkstemp, write, close, remove
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_127(const uint8_t *data, size_t size) {
-    GF_ISOFile *movie = NULL;
-    u32 trackNumber = 1; // Initialize trackNumber to a non-zero value
+    GF_ISOFile *file;
+    Bool root_meta;
+    u32 track_num, from_id, type;
 
-    // Create a temporary ISO file from the input data
-    if (size > 0) {
-        char tmpl[] = "/tmp/fuzzfileXXXXXX";
-        int fd = mkstemp(tmpl);
-        if (fd != -1) {
-            write(fd, data, size);
-            close(fd);
-
-            // Open the ISO file
-            movie = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-            if (movie != NULL) {
-                // Call the function-under-test
-                gf_isom_remove_edits(movie, trackNumber);
-
-                // Close the movie
-                gf_isom_close(movie);
-            }
-
-            // Remove the temporary file
-            remove(tmpl);
-        }
+    // Initialize the parameters
+    file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_READ, NULL);
+    if (!file) {
+        return 0;
     }
+
+    // Ensure the data size is sufficient to extract parameters
+    if (size < sizeof(u32) * 3 + sizeof(Bool)) {
+        gf_isom_close(file);
+        return 0;
+    }
+
+    // Extract parameters from the data
+    root_meta = (Bool)data[0];
+    track_num = *((u32 *)(data + 1));
+    from_id = *((u32 *)(data + 1 + sizeof(u32)));
+    type = *((u32 *)(data + 1 + 2 * sizeof(u32)));
+
+    // Call the function-under-test
+    gf_isom_meta_get_item_ref_count(file, root_meta, track_num, from_id, type);
+
+    // Clean up
+    gf_isom_close(file);
 
     return 0;
 }

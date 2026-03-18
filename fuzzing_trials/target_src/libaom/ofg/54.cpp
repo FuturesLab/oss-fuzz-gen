@@ -1,32 +1,30 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
 #include <aom/aom_image.h>
 
-extern "C" {
-    // Include the necessary header for the function-under-test
-    #include <aom/aom_image.h>
-}
-
-// Function signature for the function-under-test
-size_t aom_img_num_metadata(const aom_image_t *img);
-
 extern "C" int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Declare and initialize an aom_image_t structure
-    aom_image_t img;
-    memset(&img, 0, sizeof(aom_image_t));  // Initialize the structure to zero
+    // Initialize variables
+    aom_image_t *img = nullptr;
+    aom_img_fmt_t fmt = AOM_IMG_FMT_I420; // Using a valid image format
+    unsigned int width = 640;  // Default width
+    unsigned int height = 480; // Default height
+    unsigned int align = 1;    // Default alignment
 
-    // Set some non-NULL values for the fields in aom_image_t
-    img.fmt = AOM_IMG_FMT_I420;  // Set a valid format
-    img.w = 640;                 // Set a width
-    img.h = 480;                 // Set a height
-    img.d_w = 640;               // Set a display width
-    img.d_h = 480;               // Set a display height
-    img.bit_depth = 8;           // Set a bit depth
+    // Adjust width, height, and alignment based on input data if size permits
+    if (size >= 12) {
+        width = (unsigned int)data[0] + ((unsigned int)data[1] << 8);
+        height = (unsigned int)data[2] + ((unsigned int)data[3] << 8);
+        align = (unsigned int)data[4] % 32 + 1; // Ensure alignment is non-zero
+        fmt = (aom_img_fmt_t)(data[5] % 4); // Assuming 4 different formats for simplicity
+    }
 
     // Call the function-under-test
-    size_t num_metadata = aom_img_num_metadata(&img);
+    img = aom_img_alloc(img, fmt, width, height, align);
 
-    // Return 0 to indicate successful execution
+    // Clean up
+    if (img != nullptr) {
+        aom_img_free(img);
+    }
+
     return 0;
 }

@@ -1,72 +1,68 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_set_sample_cenc_default_group at isom_write.c:7843:8 in isomedia.h
-// gf_isom_clone_track at isom_write.c:4340:8 in isomedia.h
-// gf_isom_set_sample_flags at isom_write.c:8052:8 in isomedia.h
-// gf_isom_rtp_set_timescale at hint_track.c:226:8 in isomedia.h
-// gf_isom_set_sample_padding at isom_read.c:2492:8 in isomedia.h
-// gf_isom_copy_sample_info at isom_write.c:8078:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_enum_udta_keys at isom_read.c:4660:8 in isomedia.h
+// gf_isom_get_sample_references at isom_read.c:6727:8 in isomedia.h
+// gf_isom_sdp_clean_track at hint_track.c:790:8 in isomedia.h
+// gf_isom_rewrite_track_dependencies at isom_write.c:5120:8 in isomedia.h
+// gf_isom_set_qt_key at isom_write.c:6653:8 in isomedia.h
+// gf_isom_sdp_clean at hint_track.c:884:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <string.h>
 #include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
+static GF_ISOFile* create_dummy_iso_file() {
+    // Assuming a temporary directory is required, use NULL for default
+    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return file;
+}
+
+static void destroy_dummy_iso_file(GF_ISOFile *file) {
     if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+        gf_isom_close(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_284(const uint8_t *Data, size_t Size) {
-    // Ensure there is enough data for all parameters
-    if (Size < sizeof(u32) * 10) return 0;
+    if (Size < sizeof(u32) * 3) return 0; // Ensure there's enough data for indices and track/sample numbers
 
-    // Prepare dummy ISO file
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    GF_ISOFile *dest_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    if (!isom_file || !dest_file) {
-        if (isom_file) gf_isom_close(isom_file);
-        if (dest_file) gf_isom_close(dest_file);
-        return 0;
-    }
+    // Fuzz gf_isom_enum_udta_keys
+    u32 idx = *((u32 *)Data);
+    GF_QT_UDTAKey out_key;
+    memset(&out_key, 0, sizeof(GF_QT_UDTAKey)); // Initialize out_key
+    gf_isom_enum_udta_keys(iso_file, idx, &out_key);
 
-    // Extract parameters from input data
-    u32 trackNumber = ((u32 *)Data)[0];
-    u32 sampleNumber = ((u32 *)Data)[1];
-    u32 padding_bytes = ((u32 *)Data)[2];
-    u32 HintDescriptionIndex = ((u32 *)Data)[3];
-    u32 TimeScale = ((u32 *)Data)[4];
-    u32 isLeading = ((u32 *)Data)[5];
-    u32 dependsOn = ((u32 *)Data)[6];
-    u32 dependedOn = ((u32 *)Data)[7];
-    u32 redundant = ((u32 *)Data)[8];
-    u32 flags = ((u32 *)Data)[9];
-    u32 dest_track = 0;
+    // Fuzz gf_isom_get_sample_references
+    u32 trackNumber = *((u32 *)(Data + sizeof(u32)));
+    u32 sampleNumber = *((u32 *)(Data + 2 * sizeof(u32)));
+    u32 refID;
+    u32 nb_refs;
+    const u32 *refs;
+    gf_isom_get_sample_references(iso_file, trackNumber, sampleNumber, &refID, &nb_refs, &refs);
 
-    // Call target functions with diverse parameters
-    gf_isom_set_sample_cenc_default_group(isom_file, trackNumber, sampleNumber);
-    gf_isom_clone_track(isom_file, trackNumber, dest_file, flags, &dest_track);
-    gf_isom_set_sample_flags(isom_file, trackNumber, sampleNumber, isLeading, dependsOn, dependedOn, redundant);
-    gf_isom_rtp_set_timescale(isom_file, trackNumber, HintDescriptionIndex, TimeScale);
-    gf_isom_set_sample_padding(isom_file, trackNumber, padding_bytes);
-    gf_isom_copy_sample_info(dest_file, dest_track, isom_file, trackNumber, sampleNumber);
+    // Fuzz gf_isom_sdp_clean_track
+    gf_isom_sdp_clean_track(iso_file, trackNumber);
 
-    // Cleanup
-    gf_isom_close(isom_file);
-    gf_isom_close(dest_file);
+    // Fuzz gf_isom_rewrite_track_dependencies
+    gf_isom_rewrite_track_dependencies(iso_file, trackNumber);
+
+    // Fuzz gf_isom_set_qt_key
+    GF_QT_UDTAKey qt_key;
+    memset(&qt_key, 0, sizeof(GF_QT_UDTAKey)); // Initialize qt_key
+    // Ensure qt_key.name is a valid string
+    qt_key.name = "dummy_key_name";
+    gf_isom_set_qt_key(iso_file, &qt_key);
+
+    // Fuzz gf_isom_sdp_clean
+    gf_isom_sdp_clean(iso_file);
+
+    destroy_dummy_iso_file(iso_file);
 
     return 0;
 }

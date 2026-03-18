@@ -1,41 +1,38 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <gpac/isomedia.h>
+#include <gpac/constants.h> // Include additional necessary headers for constants like u32, u64
 
 int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate opening from memory
-    char tmp_filename[] = "tempfileXXXXXX";
-    int fd = mkstemp(tmp_filename);
-    if (fd == -1) {
+    // Ensure the input data is large enough for the required fields
+    if (size < sizeof(u32) * 2 + sizeof(u64)) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        remove(tmp_filename);
-        return 0;
-    }
-    close(fd);
-
-    // Open the ISO file using the temporary file
-    GF_ISOFile *file = gf_isom_open(tmp_filename, GF_ISOM_OPEN_READ, NULL);
-    remove(tmp_filename); // Remove the temporary file
-
-    if (!file) {
+    // Initialize the GF_ISOFile structure
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
         return 0;
     }
 
-    u32 track = 1; // Assuming track 1 for testing purposes
-    Bool use_negative_offsets = GF_TRUE; // Use negative offsets as a test case
+    // Extract trackNumber, StreamDescriptionIndex, and dataOffset from the input data
+    u32 trackNumber = *((u32 *)data);
+    u32 StreamDescriptionIndex = *((u32 *)(data + sizeof(u32)));
+    u64 dataOffset = *((u64 *)(data + sizeof(u32) * 2));
 
-    // Call the function under test
-    gf_isom_set_composition_offset_mode(file, track, use_negative_offsets);
+    // Initialize the GF_ISOSample structure
+    GF_ISOSample *sample = gf_isom_sample_new();
+    if (!sample) {
+        gf_isom_close(movie);
+        return 0;
+    }
+
+    // Call the function-under-test
+    gf_isom_add_sample_reference(movie, trackNumber, StreamDescriptionIndex, sample, dataOffset);
 
     // Clean up
-    gf_isom_close(file);
+    gf_isom_sample_del(&sample);
+    gf_isom_close(movie);
 
     return 0;
 }

@@ -1,35 +1,45 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h> // Include this for the close() and unlink() functions
+#include <fcntl.h>  // Include this for mkstemp() function
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) return 0;
+    GF_ISOFile *file = NULL;
+    Bool root_meta = 1; // Set to true
+    u32 track_num = 1;  // Initialize with a non-zero value
+    char outName[] = "output.xml"; // Output file name
+    Bool is_binary = 0; // Initialize with false
 
-    GF_ISOTrackID TrackID = 1;  // Assuming a valid TrackID
-    s32 refID = 1;              // Assuming a valid refID
-    u32 nb_refs = size / sizeof(s32); // Calculate number of references based on input size
-
-    // Allocate memory for refs and copy data
-    s32 *refs = (s32 *)malloc(nb_refs * sizeof(s32));
-    if (!refs) {
-        gf_isom_close(movie);
+    // Create a temporary file to simulate the input ISO file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Copy data into refs
-    for (u32 i = 0; i < nb_refs; i++) {
-        refs[i] = (s32)data[i % size];
+    // Write the data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Open the ISO file from the temporary file
+    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        return 0;
     }
 
     // Call the function under test
-    gf_isom_fragment_add_sample_references(movie, TrackID, refID, nb_refs, refs);
+    gf_isom_extract_meta_xml(file, root_meta, track_num, outName, &is_binary);
 
-    // Cleanup
-    free(refs);
-    gf_isom_close(movie);
+    // Clean up
+    gf_isom_close(file);
+    unlink(tmpl); // Remove the temporary file
 
     return 0;
 }

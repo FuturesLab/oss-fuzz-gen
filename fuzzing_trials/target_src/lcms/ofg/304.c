@@ -1,17 +1,23 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_304(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateXYZProfile();
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsHANDLE handle = NULL;
 
-    // Check if the profile was created successfully
-    if (profile != NULL) {
-        // Normally, you would perform additional operations on the profile here,
-        // such as using it in a color transformation, but for the purpose of this
-        // fuzzing harness, we simply release the profile.
-        cmsCloseProfile(profile);
+    if (size > 0) {
+        // Call the function-under-test with the provided data
+        handle = cmsIT8LoadFromMem(context, (const void *)data, (cmsUInt32Number)size);
+        
+        // If handle is not NULL, we should free it to avoid memory leaks
+        if (handle != NULL) {
+            cmsIT8Free(handle);
+        }
     }
+
+    // Clean up the context
+    cmsDeleteContext(context);
 
     return 0;
 }

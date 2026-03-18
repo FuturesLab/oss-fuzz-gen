@@ -1,6 +1,5 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstdio>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -9,20 +8,31 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    // Declare and initialize the integer variable to be passed to the function
-    int numScalingFactors = 0;
+    // Initialize variables
+    tjhandle handle = tjInitDecompress();
+    unsigned char *jpegBuf = const_cast<unsigned char*>(data);
+    unsigned long jpegSize = static_cast<unsigned long>(size);
+    int width = 1, height = 1, jpegSubsamp = 0, jpegColorspace = 0;
 
-    // Call the function-under-test
-    tjscalingfactor *scalingFactors = tj3GetScalingFactors(&numScalingFactors);
-
-    // Check if the function returned a valid pointer
-    if (scalingFactors != nullptr && numScalingFactors > 0) {
-        // Iterate over the scaling factors and print them (for debugging purposes)
-        for (int i = 0; i < numScalingFactors; ++i) {
-            printf("Scaling Factor %d: %d/%d\n", i, scalingFactors[i].num, scalingFactors[i].denom);
-        }
+    // Get the JPEG header to determine the width and height
+    if (tjDecompressHeader3(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp, &jpegColorspace) != 0) {
+        tjDestroy(handle);
+        return 0;
     }
 
-    // Return 0 to indicate successful execution
+    // Allocate memory for the YUV buffer
+    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, jpegSubsamp));
+    if (yuvBuf == NULL) {
+        tjDestroy(handle);
+        return 0;
+    }
+
+    // Call the function-under-test
+    tjDecompressToYUV(handle, jpegBuf, jpegSize, yuvBuf, 4);
+
+    // Clean up
+    free(yuvBuf);
+    tjDestroy(handle);
+
     return 0;
 }

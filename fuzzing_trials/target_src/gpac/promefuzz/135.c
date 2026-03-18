@@ -1,58 +1,76 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_chapter_count at isom_read.c:1526:5 in isomedia.h
-// gf_isom_set_default_sync_track at isom_read.c:4209:6 in isomedia.h
-// gf_isom_get_chunk_count at isom_read.c:6307:5 in isomedia.h
-// gf_isom_get_avg_sample_size at isom_read.c:2030:5 in isomedia.h
-// gf_isom_get_highest_track_in_scalable_segment at isom_read.c:3640:15 in isomedia.h
-// gf_isom_get_last_created_track_id at isom_write.c:596:15 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_set_nalu_length_field at isom_write.c:8502:8 in isomedia.h
+// gf_isom_lhvc_force_inband_config at avc_ext.c:2330:8 in isomedia.h
+// gf_isom_lhvc_config_update at avc_ext.c:2343:8 in isomedia.h
+// gf_isom_get_bitrate at isom_read.c:5967:8 in isomedia.h
+// gf_isom_hevc_config_update at avc_ext.c:2318:8 in isomedia.h
+// gf_isom_get_visual_info at isom_read.c:3821:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // As we cannot allocate GF_ISOFile directly due to incomplete type,
-    // we assume a function or API in gpac library initializes it.
-    // Here, we simulate this by returning NULL for now.
-    return NULL;
+static void initialize_iso_file(GF_ISOFile *isom_file) {
+    // Assume the function to initialize GF_ISOFile is available
+    // This is a placeholder as the actual structure is not defined here
 }
 
-static void cleanup_iso_file(GF_ISOFile* iso_file) {
-    // Cleanup resources if necessary
-    // Currently, we do not allocate memory for iso_file, so nothing to free
+static void initialize_hevc_config(GF_HEVCConfig *cfg) {
+    // Assume the function to initialize GF_HEVCConfig is available
+    // This is a placeholder as the actual structure is not defined here
+}
+
+static int create_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+    return 1;
 }
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32)) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    GF_ISOFile* iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    if (!isom_file) return 0;
 
-    u32 trackNumber = *(u32*)Data;
-    Data += sizeof(u32);
-    Size -= sizeof(u32);
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    u32 nalu_size_length = *(u32 *)(Data + 2 * sizeof(u32));
 
-    // Fuzz gf_isom_get_chapter_count
-    u32 chapter_count = gf_isom_get_chapter_count(iso_file, trackNumber);
+    // Fuzz gf_isom_set_nalu_length_field
+    gf_isom_set_nalu_length_field(isom_file, trackNumber, sampleDescriptionIndex, nalu_size_length);
 
-    // Fuzz gf_isom_set_default_sync_track
-    gf_isom_set_default_sync_track(iso_file, trackNumber);
+    // Fuzz gf_isom_lhvc_force_inband_config
+    gf_isom_lhvc_force_inband_config(isom_file, trackNumber, sampleDescriptionIndex);
 
-    // Fuzz gf_isom_get_chunk_count
-    u32 chunk_count = gf_isom_get_chunk_count(iso_file, trackNumber);
+    // Fuzz gf_isom_lhvc_config_update
+    GF_HEVCConfig cfg;
+    initialize_hevc_config(&cfg);
+    gf_isom_lhvc_config_update(isom_file, trackNumber, sampleDescriptionIndex, &cfg, 0);
 
-    // Fuzz gf_isom_get_avg_sample_size
-    u32 avg_sample_size = gf_isom_get_avg_sample_size(iso_file, trackNumber);
+    // Fuzz gf_isom_get_bitrate
+    u32 average_bitrate, max_bitrate, decode_buffer_size;
+    gf_isom_get_bitrate(isom_file, trackNumber, sampleDescriptionIndex, &average_bitrate, &max_bitrate, &decode_buffer_size);
 
-    // Fuzz gf_isom_get_highest_track_in_scalable_segment
-    GF_ISOTrackID highest_track_id = gf_isom_get_highest_track_in_scalable_segment(iso_file, trackNumber);
+    // Fuzz gf_isom_hevc_config_update
+    gf_isom_hevc_config_update(isom_file, trackNumber, sampleDescriptionIndex, &cfg);
 
-    // Fuzz gf_isom_get_last_created_track_id
-    GF_ISOTrackID last_created_track_id = gf_isom_get_last_created_track_id(iso_file);
+    // Fuzz gf_isom_get_visual_info
+    u32 Width, Height;
+    gf_isom_get_visual_info(isom_file, trackNumber, sampleDescriptionIndex, &Width, &Height);
 
-    // Cleanup
-    cleanup_iso_file(iso_file);
+    // Write to a dummy file if needed
+    if (!create_dummy_file(Data, Size)) {
+        gf_isom_close(isom_file);
+        return 0;
+    }
 
+    gf_isom_close(isom_file);
     return 0;
 }

@@ -1,30 +1,32 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
-// Define a reasonable size for cmsStage initialization
-#define CMS_STAGE_SIZE 256
-
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    cmsStage *stage = NULL;
+    // Declare and initialize variables
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsUInt32Number nEntries = 256; // A reasonable number of entries for a tone curve
+    cmsFloat32Number toneCurveEntries[256];
 
-    // Ensure size is sufficient for a meaningful test
-    if (size < CMS_STAGE_SIZE) {
+    // Ensure the size is sufficient to fill the toneCurveEntries array
+    if (size < nEntries * sizeof(cmsFloat32Number)) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Allocate memory for the cmsStage with a defined size
-    stage = (cmsStage *)malloc(CMS_STAGE_SIZE);
-    if (stage == NULL) {
-        return 0;
+    // Fill the toneCurveEntries array with data
+    for (cmsUInt32Number i = 0; i < nEntries; i++) {
+        toneCurveEntries[i] = ((const cmsFloat32Number*)data)[i];
     }
 
-    // Initialize the cmsStage with some data
-    memcpy(stage, data, CMS_STAGE_SIZE);
+    // Call the function under test
+    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurveFloat(context, nEntries, toneCurveEntries);
 
-    // Call the function-under-test
-    cmsStageFree(stage);
+    // Clean up
+    if (toneCurve != NULL) {
+        cmsFreeToneCurve(toneCurve);
+    }
+    cmsDeleteContext(context);
 
     return 0;
 }

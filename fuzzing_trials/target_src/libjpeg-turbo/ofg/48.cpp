@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -8,32 +8,29 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // If initialization fails, return early
-    }
-
-    // Allocate a buffer for the decompressed image
-    int width = 800;  // Example width
-    int height = 600; // Example height
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int pitch = width * tjPixelSize[pixelFormat];
-    unsigned char *dstBuf = (unsigned char *)malloc(pitch * height);
-    if (dstBuf == nullptr) {
-        tjDestroy(handle);
-        return 0; // If memory allocation fails, return early
-    }
-
-    // Set decompression parameters
-    int subsamp = TJSAMP_444; // Example subsampling
-    int flags = 0; // Example flags
-
     // Call the function-under-test
-    tjDecompress2(handle, data, (unsigned long)size, dstBuf, width, pitch, height, pixelFormat, flags);
+    tjhandle handle = tjInitDecompress();
 
-    // Clean up
-    free(dstBuf);
-    tjDestroy(handle);
+    if (handle != nullptr) {
+        // Assuming the data is a valid JPEG image, we might want to perform some operations
+        // like getting the image header or decompressing it.
+        int width, height, jpegSubsamp, jpegColorspace;
+        if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+            // Allocate buffer for decompressed image
+            unsigned char *buffer = new unsigned char[width * height * tjPixelSize[TJPF_RGB]];
+
+            // Decompress image
+            if (tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT) == 0) {
+                // Successfully decompressed image
+            }
+
+            // Clean up buffer
+            delete[] buffer;
+        }
+
+        // Clean up the handle
+        tjDestroy(handle);
+    }
 
     return 0;
 }

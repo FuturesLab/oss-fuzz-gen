@@ -1,30 +1,31 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_172(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to be used as a file name.
-    if (size < 5) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create a null-terminated string for the file name.
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        return 0;
+    // Create a null-terminated string from the input data
+    char filename[size + 1];
+    for (size_t i = 0; i < size; i++) {
+        filename[i] = (char)data[i];
     }
-    memcpy(filename, data, size);
     filename[size] = '\0';
 
-    // Use a valid hid_t value. H5P_DEFAULT is a commonly used default value.
-    hid_t fapl_id = H5P_DEFAULT;
+    // Use a valid file access property list identifier
+    hid_t fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    if (fapl_id < 0) {
+        return 0; // Failed to create property list, exit
+    }
 
-    // Call the function-under-test.
-    herr_t result = H5Fdelete(filename, fapl_id);
+    // Call the function-under-test
+    H5Fdelete(filename, fapl_id);
 
-    // Clean up.
-    free(filename);
+    // Close the property list
+    H5Pclose(fapl_id);
 
     return 0;
 }

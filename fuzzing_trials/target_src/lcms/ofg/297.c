@@ -1,27 +1,28 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <string.h> // For memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_297(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsUInt32Number flags;
-
-    // Ensure the input size is sufficient to create a profile
-    if (size < sizeof(cmsHPROFILE)) {
+    // Ensure the input size is sufficient to extract a cmsFloat64Number
+    if (size < sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Create a profile from the input data
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
+    // Initialize a cmsContext
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
         return 0;
     }
+
+    // Extract a cmsFloat64Number from the input data
+    cmsFloat64Number adaptationState;
+    memcpy(&adaptationState, data, sizeof(cmsFloat64Number));
 
     // Call the function-under-test
-    flags = cmsGetHeaderFlags(hProfile);
+    cmsFloat64Number result = cmsSetAdaptationStateTHR(context, adaptationState);
 
-    // Close the profile
-    cmsCloseProfile(hProfile);
+    // Clean up
+    cmsDeleteContext(context);
 
     return 0;
 }

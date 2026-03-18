@@ -1,21 +1,25 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for a cmsCIExyY structure
+    // Ensure we have enough data to initialize cmsCIExyY
     if (size < sizeof(cmsCIExyY)) {
         return 0;
     }
 
-    // Cast the input data to a cmsCIExyY pointer
-    const cmsCIExyY* whitePoint = (const cmsCIExyY*)data;
+    // Cast the input data to cmsCIExyY
+    cmsCIExyY *xyY = (cmsCIExyY *)data;
 
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateLab2Profile(whitePoint);
+    // Create a Lab2 profile using the input data
+    cmsHPROFILE profile = cmsCreateLab2Profile(xyY);
 
-    // Clean up the created profile if it was successfully created
+    // Check if the profile was created successfully
     if (profile != NULL) {
+        // Do something with the profile, if needed
+        // ...
+
+        // Release the profile after use
         cmsCloseProfile(profile);
     }
 

@@ -1,77 +1,69 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_apple_enum_tag_ex at isom_read.c:4491:8 in isomedia.h
-// gf_isom_guess_specification at isom_read.c:4276:5 in isomedia.h
-// gf_isom_apple_get_tag at isom_read.c:4448:8 in isomedia.h
-// gf_isom_apple_set_tag at isom_write.c:6583:8 in isomedia.h
-// gf_isom_apple_enum_tag at isom_read.c:4654:8 in isomedia.h
-// gf_isom_apple_set_tag_ex at isom_write.c:6298:8 in isomedia.h
+// gf_isom_add_meta_item_sample_ref at meta.c:1806:8 in isomedia.h
+// gf_isom_iff_create_image_grid_item at iff.c:1929:8 in isomedia.h
+// gf_isom_iff_create_image_identity_item at iff.c:2107:8 in isomedia.h
+// gf_isom_get_meta_image_props at meta.c:735:8 in isomedia.h
+// gf_isom_add_meta_item_memory at meta.c:1800:8 in isomedia.h
+// gf_isom_iff_create_image_item_from_track at iff.c:2118:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdint.h>
 #include "isomedia.h"
 
-static GF_ISOFile* open_iso_file(const uint8_t *Data, size_t Size) {
+static void prepare_dummy_file() {
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return NULL;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return isom_file;
-}
-
-static void close_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
+    if (file) {
+        // Write some dummy data to the file
+        const char *dummy_data = "dummy data for ISO file";
+        fwrite(dummy_data, 1, strlen(dummy_data), file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *isom_file = open_iso_file(Data, Size);
-    if (!isom_file) return 0;
+    if (Size < sizeof(GF_ImageItemProperties) + sizeof(u32) * 4 + sizeof(Bool)) {
+        return 0;
+    }
 
-    // Fuzz gf_isom_apple_enum_tag_ex
-    u32 idx = 0;
-    GF_ISOiTunesTag out_tag;
-    const u8 *data;
-    u32 data_len;
-    u64 out_int_val;
-    u32 out_int_val2;
-    u32 out_flags;
-    const char *out_mean;
-    const char *out_name;
-    u32 out_locale;
-    gf_isom_apple_enum_tag_ex(isom_file, idx, &out_tag, &data, &data_len, &out_int_val, &out_int_val2, &out_flags, &out_mean, &out_name, &out_locale);
+    prepare_dummy_file();
 
-    // Fuzz gf_isom_guess_specification
-    u32 brand = gf_isom_guess_specification(isom_file);
+    GF_ISOFile *isom_file = NULL;  // Assuming an appropriate method exists to initialize this
+    Bool root_meta = (Bool)(Data[0] % 2);
+    u32 track_num = *(u32 *)(Data + 1);
+    const char *item_name = "item_name";
+    u32 item_id = 0;
+    u32 item_type = 'abcd';
+    const char *mime_type = "image/jpeg";
+    const char *content_encoding = "identity";
+    GF_ImageItemProperties *image_props = (GF_ImageItemProperties *)(Data + 5);
+    GF_ISOTrackID tk_id = *(GF_ISOTrackID *)(Data + 5 + sizeof(GF_ImageItemProperties));
+    u32 sample_num = *(u32 *)(Data + 5 + sizeof(GF_ImageItemProperties) + sizeof(GF_ISOTrackID));
 
-    // Fuzz gf_isom_apple_get_tag
-    GF_ISOiTunesTag tag = 0;
-    const u8 *tag_data;
-    u32 tag_data_len;
-    gf_isom_apple_get_tag(isom_file, tag, &tag_data, &tag_data_len);
+    // Fuzz gf_isom_add_meta_item_sample_ref
+    gf_isom_add_meta_item_sample_ref(isom_file, root_meta, track_num, item_name, &item_id, item_type, mime_type, content_encoding, image_props, tk_id, sample_num);
 
-    // Fuzz gf_isom_apple_set_tag
-    u64 int_val = 0;
-    u32 int_val2 = 0;
-    gf_isom_apple_set_tag(isom_file, tag, Data, Size, int_val, int_val2);
+    // Fuzz gf_isom_iff_create_image_grid_item
+    gf_isom_iff_create_image_grid_item(isom_file, root_meta, track_num, item_name, item_id, image_props);
 
-    // Fuzz gf_isom_apple_enum_tag
-    gf_isom_apple_enum_tag(isom_file, idx, &out_tag, &data, &data_len, &out_int_val, &out_int_val2, &out_flags);
+    // Fuzz gf_isom_iff_create_image_identity_item
+    gf_isom_iff_create_image_identity_item(isom_file, root_meta, track_num, item_name, item_id, image_props);
 
-    // Fuzz gf_isom_apple_set_tag_ex
-    const char *name = NULL;
-    const char *mean = NULL;
-    u32 locale = 0;
-    gf_isom_apple_set_tag_ex(isom_file, tag, Data, Size, int_val, int_val2, name, mean, locale);
+    // Fuzz gf_isom_get_meta_image_props
+    GF_ImageItemProperties out_image_props;
+    GF_List *unmapped_props = NULL;
+    gf_isom_get_meta_image_props(isom_file, root_meta, track_num, item_id, &out_image_props, unmapped_props);
 
-    close_iso_file(isom_file);
+    // Fuzz gf_isom_add_meta_item_memory
+    char *data = "sample data";
+    u32 data_len = strlen(data);
+    GF_List *item_extent_refs = NULL;
+    gf_isom_add_meta_item_memory(isom_file, root_meta, track_num, item_name, &item_id, item_type, mime_type, content_encoding, image_props, data, data_len, item_extent_refs);
+
+    // Fuzz gf_isom_iff_create_image_item_from_track
+    u32 media_track = *(u32 *)(Data + 5 + sizeof(GF_ImageItemProperties) + sizeof(GF_ISOTrackID) + sizeof(u32));
+    gf_isom_iff_create_image_item_from_track(isom_file, root_meta, track_num, media_track, item_name, item_id, image_props, item_extent_refs);
+
     return 0;
 }

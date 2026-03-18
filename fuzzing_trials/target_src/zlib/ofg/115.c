@@ -1,42 +1,47 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <zlib.h>
+#include <stdio.h>
+
+// Custom function to open a gzFile from memory
+gzFile open_gzfile_from_memory(const uint8_t *data, size_t size) {
+    // Create a temporary file to write the data
+    FILE *tempFile = tmpfile();
+    if (tempFile == NULL) {
+        return NULL;
+    }
+
+    // Write the data to the temporary file
+    fwrite(data, 1, size, tempFile);
+    rewind(tempFile);
+
+    // Open the temporary file as a gzFile
+    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
+    if (gzfile == NULL) {
+        fclose(tempFile);
+        return NULL;
+    }
+
+    return gzfile;
+}
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    z_stream stream;
-    
-    // Initialize the z_stream structure
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    
-    // Initialize the deflate process
-    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+    // Ensure the data size is reasonable
+    if (size == 0) {
         return 0;
     }
 
-    // Set the input data for the stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = (uInt)size;
-    
-    // Allocate output buffer
-    size_t outputBufferSize = size + 256; // Slightly larger than input
-    Bytef *outputBuffer = (Bytef *)malloc(outputBufferSize);
-    if (outputBuffer == NULL) {
-        deflateEnd(&stream);
+    // Open a gzFile from the input data
+    gzFile file = open_gzfile_from_memory(data, size);
+    if (file == NULL) {
         return 0;
     }
-    
-    // Set the output buffer for the stream
-    stream.next_out = outputBuffer;
-    stream.avail_out = (uInt)outputBufferSize;
-    
-    // Perform deflate operation
-    deflate(&stream, Z_FINISH);
-    
-    // Clean up
-    deflateEnd(&stream);
-    free(outputBuffer);
-    
+
+    // Call the function-under-test
+    off_t offset = gzoffset(file);
+
+    // Close the gzFile
+    gzclose(file);
+
     return 0;
 }

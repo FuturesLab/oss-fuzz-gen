@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_dx at av1_dx_iface.c:1796:20 in aomdx.h
-// aom_codec_dec_init_ver at aom_decoder.c:25:17 in aom_decoder.h
-// aom_codec_peek_stream_info at aom_decoder.c:57:17 in aom_decoder.h
-// aom_codec_decode at aom_decoder.c:94:17 in aom_decoder.h
-// aom_codec_get_stream_info at aom_decoder.c:75:17 in aom_decoder.h
-// aom_codec_get_preview_frame at aom_encoder.c:264:20 in aom_encoder.h
-// aom_codec_get_frame at aom_decoder.c:109:14 in aom_decoder.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_set_option at aom_codec.c:119:17 in aom_codec.h
+// aom_codec_error at aom_codec.c:56:13 in aom_codec.h
+// aom_codec_error_detail at aom_codec.c:61:13 in aom_codec.h
+// aom_codec_encode at aom_encoder.c:168:17 in aom_encoder.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,73 +16,73 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include "aom.h"
+#include "aom_codec.h"
+#include "aom_encoder.h"
+#include "aom_image.h"
+#include "aom_integer.h"
 #include "aom_frame_buffer.h"
 #include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
-#include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
 #include "aomcx.h"
+#include "aom_decoder.h"
+#include "aomdx.h"
+
+static void initialize_codec_context(aom_codec_ctx_t &ctx) {
+    memset(&ctx, 0, sizeof(aom_codec_ctx_t));
+    ctx.iface = aom_codec_av1_cx();
+    ctx.err = AOM_CODEC_OK;
+}
+
+static int set_codec_option(aom_codec_ctx_t &ctx, const char *name, const char *value) {
+    return aom_codec_set_option(&ctx, name, value);
+}
+
+static const char* get_codec_error(aom_codec_ctx_t &ctx) {
+    return aom_codec_error(&ctx);
+}
+
+static const char* get_codec_error_detail(aom_codec_ctx_t &ctx) {
+    return aom_codec_error_detail(&ctx);
+}
+
+static int encode_frame(aom_codec_ctx_t &ctx, aom_image_t *img, aom_codec_pts_t pts, unsigned long duration, aom_enc_frame_flags_t flags) {
+    return aom_codec_encode(&ctx, img, pts, duration, flags);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_flags_t flags = 0;
-    int ver = AOM_DECODER_ABI_VERSION;
+    initialize_codec_context(codec_ctx);
 
-    // Initialize the decoder
-    aom_codec_err_t res = aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed, exit
-    }
+    // Fuzz the CQ level setting
+    int cq_level = Data[0] % 64; // CQ level is typically between 0-63
+    aom_codec_control(&codec_ctx, AOME_SET_CQ_LEVEL, cq_level);
 
-    // Use aom_codec_peek_stream_info
-    aom_codec_stream_info_t si = {0};
-    si.is_annexb = 0; // Initialize required field
-    res = aom_codec_peek_stream_info(iface, Data, Size, &si);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0; // Stream info parsing failed, exit
-    }
+    // Fuzz setting codec options
+    const char *option_name = "cpu-used";
+    char option_value[10];
+    snprintf(option_value, sizeof(option_value), "%d", Data[0] % 9);
+    set_codec_option(codec_ctx, option_name, option_value);
 
-    // Decode the data
-    res = aom_codec_decode(&codec_ctx, Data, Size, nullptr);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0; // Decoding failed, exit
-    }
+    // Fuzz encoding a frame
+    aom_image_t img;
+    memset(&img, 0, sizeof(aom_image_t));
+    img.fmt = AOM_IMG_FMT_I420;
+    img.w = 640;
+    img.h = 480;
+    img.planes[0] = const_cast<uint8_t*>(Data);
+    img.stride[0] = 640;
+    encode_frame(codec_ctx, &img, 0, 1, 0);
 
-    // Get stream info
-    res = aom_codec_get_stream_info(&codec_ctx, &si);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0; // Getting stream info failed, exit
-    }
+    // Retrieve errors
+    const char *error_msg = get_codec_error(codec_ctx);
+    const char *error_detail = get_codec_error_detail(codec_ctx);
 
-    // Get preview frame
-    const aom_image_t *preview_frame = aom_codec_get_preview_frame(&codec_ctx);
-    if (preview_frame == nullptr) {
-        aom_codec_destroy(&codec_ctx);
-        return 0; // No preview frame, exit
-    }
-
-    // Get decoded frames
-    aom_codec_iter_t iter = nullptr;
-    aom_image_t *img;
-    while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
-        // Process the images if needed
-    }
-
-    // Clean up
+    // Cleanup
     aom_codec_destroy(&codec_ctx);
 
     return 0;

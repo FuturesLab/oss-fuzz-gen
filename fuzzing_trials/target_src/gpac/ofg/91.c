@@ -3,30 +3,26 @@
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    GF_ISOFile *movie = gf_isom_open("/dev/null", GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) {
-        return 0; // Early return if the movie cannot be opened
-    }
+    GF_ISOFile *movie;
+    u64 ctime, mtime;
 
-    // Ensure that the input data is large enough to extract meaningful values
-    if (size < sizeof(u32) * 4) {
-        gf_isom_close(movie);
+    // Ensure the data size is sufficient for u64 values
+    if (size < 2 * sizeof(u64)) {
         return 0;
     }
 
-    // Extract values from the input data
-    u32 trackNumber = *((u32 *)data);
-    u32 trackRefGroup = *((u32 *)(data + sizeof(u32)));
-    Bool is_switch_group = (Bool)(data[2 * sizeof(u32)] % 2); // Randomly choose between GF_TRUE or GF_FALSE
-    u32 switchGroupID = *((u32 *)(data + 3 * sizeof(u32)));
-    u32 criteriaListCount = 1;
+    // Initialize the GF_ISOFile structure
+    movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
+        return 0;
+    }
 
-    // Ensure the criteriaList is not NULL and has at least one element
-    u32 criteriaList[1] = {0};
+    // Extract the ctime and mtime values from the input data
+    ctime = *((u64 *)data);
+    mtime = *((u64 *)(data + sizeof(u64)));
 
     // Call the function-under-test
-    gf_isom_set_track_switch_parameter(movie, trackNumber, trackRefGroup, is_switch_group, &switchGroupID, criteriaList, criteriaListCount);
+    gf_isom_set_creation_time(movie, ctime, mtime);
 
     // Clean up
     gf_isom_close(movie);

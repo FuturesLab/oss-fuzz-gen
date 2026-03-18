@@ -1,31 +1,26 @@
 #include <cstdint>
 #include <cstdlib>
 
+// Include the correct path for the turbojpeg.h
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
+    // Declare and initialize variables for the function parameters
+    int width = 1;  // Minimum width
+    int height = 1; // Minimum height
+    int subsamp = TJSAMP_444; // Assuming 4:4:4 subsampling
+    int align = 1;  // Minimum alignment
+    int plane = 0;  // Default plane
 
-    // Initialize TurboJPEG decompressor
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0;
-    }
+    // Call the function-under-test
+    size_t result = tj3YUVPlaneSize(width, height, subsamp, align, plane);
 
-    // Prepare variables to hold the image dimensions and subsampling
-    int width = 0;
-    int height = 0;
-    int jpegSubsamp = 0;
-
-    // Call the function under test
-    int result = tjDecompressHeader2(handle, (unsigned char *)data, (unsigned long)size, &width, &height, &jpegSubsamp);
-
-    // Clean up TurboJPEG handle
-    tjDestroy(handle);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }

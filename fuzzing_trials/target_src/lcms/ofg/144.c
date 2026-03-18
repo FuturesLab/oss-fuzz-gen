@@ -1,46 +1,27 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <lcms2.h>
+#include <lcms2.h>  // Assuming the Little CMS library is used
 
 int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
-    cmsPipeline *pipeline = NULL;
-    cmsStage *stage = NULL;
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    // Initialize parameters for cmsGDBCheckPoint
+    cmsHPROFILE handle = cmsOpenProfileFromMem(data, size);  // Create a handle from the input data
+    cmsCIELab cielab;
 
-    if (size < sizeof(cmsUInt32Number) * 2) {
+    // Ensure the handle is not NULL
+    if (handle == NULL) {
         return 0;
     }
 
-    cmsUInt32Number inputChannels = *(const cmsUInt32Number *)data;
-    cmsUInt32Number outputChannels = *(const cmsUInt32Number *)(data + sizeof(cmsUInt32Number));
+    // Initialize cmsCIELab with non-NULL values
+    cielab.L = 50.0;  // Example value
+    cielab.a = 0.0;   // Example value
+    cielab.b = 0.0;   // Example value
 
-    pipeline = cmsPipelineAlloc(context, inputChannels, outputChannels);
-    if (pipeline == NULL) {
-        cmsDeleteContext(context);
-        return 0;
-    }
+    // Call the function under test
+    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
 
-    stage = cmsStageAllocIdentity(context, inputChannels);
-    if (stage == NULL) {
-        cmsPipelineFree(pipeline);
-        cmsDeleteContext(context);
-        return 0;
-    }
-
-    if (!cmsPipelineInsertStage(pipeline, cmsAT_BEGIN, stage)) {
-        cmsStageFree(stage);
-        cmsPipelineFree(pipeline);
-        cmsDeleteContext(context);
-        return 0;
-    }
-
-    // Call the function-under-test
-    cmsUInt32Number result = cmsPipelineInputChannels(pipeline);
-
-    // Clean up
-    cmsPipelineFree(pipeline);
-    cmsDeleteContext(context);
+    // Close the profile handle
+    cmsCloseProfile(handle);
 
     return 0;
 }

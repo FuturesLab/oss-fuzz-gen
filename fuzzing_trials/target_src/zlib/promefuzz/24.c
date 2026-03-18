@@ -1,83 +1,82 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// deflateInit_ at deflate.c:380:13 in zlib.h
-// deflateEnd at deflate.c:1294:13 in zlib.h
-// deflateResetKeep at deflate.c:645:13 in zlib.h
-// deflateSetHeader at deflate.c:715:13 in zlib.h
-// deflateReset at deflate.c:705:13 in zlib.h
-// deflatePending at deflate.c:723:13 in zlib.h
-// deflateUsed at deflate.c:738:13 in zlib.h
-// deflateCopy at deflate.c:1318:13 in zlib.h
+// uncompress2_z at uncompr.c:29:13 in zlib.h
+// uncompress2 at uncompr.c:79:13 in zlib.h
+// uncompress at uncompr.c:93:13 in zlib.h
+// compressBound at compress.c:92:15 in zlib.h
+// compress at compress.c:78:13 in zlib.h
+// uncompress_z at uncompr.c:88:13 in zlib.h
+// inflateInit_ at inflate.c:214:13 in zlib.h
+// inflateSetDictionary at inflate.c:1187:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <zlib.h>
 
-static void initialize_stream(z_streamp strm) {
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
-    deflateInit(strm, Z_DEFAULT_COMPRESSION);
+#define MAX_BUFFER_SIZE 1024
+
+static void fuzz_uncompress2_z(const uint8_t *Data, size_t Size) {
+    Bytef dest[MAX_BUFFER_SIZE];
+    z_size_t destLen = MAX_BUFFER_SIZE;
+    z_size_t sourceLen = Size;
+
+    uncompress2_z(dest, &destLen, Data, &sourceLen);
 }
 
-static void cleanup_stream(z_streamp strm) {
-    deflateEnd(strm);
+static void fuzz_uncompress2(const uint8_t *Data, size_t Size) {
+    Bytef dest[MAX_BUFFER_SIZE];
+    uLongf destLen = MAX_BUFFER_SIZE;
+    uLong sourceLen = Size;
+
+    uncompress2(dest, &destLen, Data, &sourceLen);
 }
 
-static void fuzz_deflateResetKeep(z_streamp strm) {
-    deflateResetKeep(strm);
+static void fuzz_uncompress(const uint8_t *Data, size_t Size) {
+    Bytef dest[MAX_BUFFER_SIZE];
+    uLongf destLen = MAX_BUFFER_SIZE;
+
+    uncompress(dest, &destLen, Data, Size);
 }
 
-static void fuzz_deflateSetHeader(z_streamp strm) {
-    gz_header header;
-    memset(&header, 0, sizeof(header));
-    deflateSetHeader(strm, &header);
+static void fuzz_compress(const uint8_t *Data, size_t Size) {
+    Bytef dest[MAX_BUFFER_SIZE];
+    uLongf destLen = compressBound(Size);
+
+    compress(dest, &destLen, Data, Size);
 }
 
-static void fuzz_deflateReset(z_streamp strm) {
-    deflateReset(strm);
+static void fuzz_uncompress_z(const uint8_t *Data, size_t Size) {
+    Bytef dest[MAX_BUFFER_SIZE];
+    z_size_t destLen = MAX_BUFFER_SIZE;
+
+    uncompress_z(dest, &destLen, Data, Size);
 }
 
-static void fuzz_deflatePending(z_streamp strm) {
-    unsigned pending;
-    int bits;
-    deflatePending(strm, &pending, &bits);
-}
+static void fuzz_inflateSetDictionary(const uint8_t *Data, size_t Size) {
+    z_stream stream;
+    memset(&stream, 0, sizeof(stream));
+    inflateInit(&stream);
 
-static void fuzz_deflateUsed(z_streamp strm) {
-    int bits;
-    deflateUsed(strm, &bits);
-}
+    inflateSetDictionary(&stream, Data, Size);
 
-static void fuzz_deflateCopy(z_streamp source) {
-    z_stream dest;
-    initialize_stream(&dest);
-    deflateCopy(&dest, source);
-    cleanup_stream(&dest);
+    inflateEnd(&stream);
 }
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    z_stream strm;
-    initialize_stream(&strm);
+    fuzz_uncompress2_z(Data, Size);
+    fuzz_uncompress2(Data, Size);
+    fuzz_uncompress(Data, Size);
+    fuzz_compress(Data, Size);
+    fuzz_uncompress_z(Data, Size);
+    fuzz_inflateSetDictionary(Data, Size);
 
-    strm.next_in = (Bytef *)Data;
-    strm.avail_in = Size;
-
-    Bytef out_buffer[4096];
-    strm.next_out = out_buffer;
-    strm.avail_out = sizeof(out_buffer);
-
-    // Fuzz each function
-    fuzz_deflateResetKeep(&strm);
-    fuzz_deflateSetHeader(&strm);
-    fuzz_deflateReset(&strm);
-    fuzz_deflatePending(&strm);
-    fuzz_deflateUsed(&strm);
-    fuzz_deflateCopy(&strm);
-
-    cleanup_stream(&strm);
     return 0;
 }

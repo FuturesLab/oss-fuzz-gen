@@ -1,34 +1,40 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-
-// Include the necessary headers for GPAC library
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *the_file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!the_file) {
+    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
         return 0;
     }
-    
-    u32 trackNumber = 1; // Example track number
-    GF_AC3Config cfg; // Example AC3 configuration
-    memset(&cfg, 0, sizeof(GF_AC3Config)); // Initialize the config structure
 
-    // Use a part of the data as URLname and URNname
-    const char *URLname = (const char *)data;
-    const char *URNname = (const char *)(data + size / 2);
+    // Ensure there is at least one track in the movie
+    // Provide the additional arguments: track ID and time scale
+    gf_isom_new_track(movie, 1, GF_ISOM_MEDIA_VISUAL, 1000);
 
-    u32 outDescriptionIndex = 0;
+    // Use the first 4 bytes of data as the track number if available
+    u32 trackNumber = 1; // Default track number
+    if (size >= 4) {
+        trackNumber = *((u32 *)data);
+    }
+
+    // Use the next 8 bytes of data as the creation time if available
+    u64 ctime = 0; // Default creation time
+    if (size >= 12) {
+        ctime = *((u64 *)(data + 4));
+    }
+
+    // Use the next 8 bytes of data as the modification time if available
+    u64 mtime = 0; // Default modification time
+    if (size >= 20) {
+        mtime = *((u64 *)(data + 12));
+    }
 
     // Call the function-under-test
-    gf_isom_ac3_config_new(the_file, trackNumber, &cfg, URLname, URNname, &outDescriptionIndex);
+    gf_isom_set_track_creation_time(movie, trackNumber, ctime, mtime);
 
     // Clean up
-    gf_isom_close(the_file);
+    gf_isom_close(movie);
 
     return 0;
 }

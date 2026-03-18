@@ -1,44 +1,47 @@
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h> // Include for close() and remove()
+#include <stddef.h>
 #include <gpac/isomedia.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    GF_ISOFile *the_file = NULL;
-    u32 trackNumber = 1; // Example track number
-    u32 HintDescriptionIndex = 1; // Example hint description index
-    u32 TimeOffset = 0; // Example time offset
-
-    // Create a temporary file to simulate an ISO media file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
+    // Ensure the data is large enough to extract necessary parameters
+    if (size < 8) {
         return 0;
     }
 
-    // Write the fuzz data to the file
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Initialize movie
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
+        return 0;
+    }
 
-    // Open the ISO media file
-    the_file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (!the_file) {
-        remove(tmpl);
+    // Extract trackNumber from the input data
+    u32 trackNumber = *((u32 *)data);
+    data += 4;
+    size -= 4;
+
+    // Extract schemeURI and value from the input data
+    const char *schemeURI = (const char *)data;
+    size_t schemeURILen = strnlen(schemeURI, size);
+    if (schemeURILen == size) {
+        gf_isom_close(movie);
+        return 0;
+    }
+    data += schemeURILen + 1;
+    size -= schemeURILen + 1;
+
+    const char *value = (const char *)data;
+    size_t valueLen = strnlen(value, size);
+    if (valueLen == size) {
+        gf_isom_close(movie);
         return 0;
     }
 
     // Call the function-under-test
-    gf_isom_rtp_set_time_offset(the_file, trackNumber, HintDescriptionIndex, TimeOffset);
+    gf_isom_add_track_kind(movie, trackNumber, schemeURI, value);
 
     // Clean up
-    gf_isom_close(the_file);
-    remove(tmpl);
+    gf_isom_close(movie);
 
     return 0;
 }

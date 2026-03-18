@@ -1,78 +1,80 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// _cmsMallocZero at cmserr.c:272:17 in lcms2_plugin.h
-// cmsIT8LoadFromMem at cmscgats.c:2556:22 in lcms2.h
-// cmsIT8Free at cmscgats.c:1170:16 in lcms2.h
-// cmsMD5alloc at cmsmd5.c:154:21 in lcms2_plugin.h
-// _cmsMalloc at cmserr.c:265:17 in lcms2_plugin.h
-// _cmsCalloc at cmserr.c:279:17 in lcms2_plugin.h
-// cmsMLUalloc at cmsnamed.c:33:19 in lcms2.h
-// cmsMLUfree at cmsnamed.c:476:16 in lcms2.h
+// cmsIT8EnumProperties at cmscgats.c:2665:27 in lcms2.h
+// cmsIT8SetPropertyHex at cmscgats.c:1553:19 in lcms2.h
+// cmsIT8SaveToMem at cmscgats.c:2047:19 in lcms2.h
+// cmsIT8SaveToMem at cmscgats.c:2047:19 in lcms2.h
+// cmsIT8SetTable at cmscgats.c:1427:26 in lcms2.h
+// cmsIT8EnumPropertyMulti at cmscgats.c:2700:27 in lcms2.h
+// cmsIT8TableCount at cmscgats.c:2981:27 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "lcms2.h"
-#include "lcms2_plugin.h"
 
-static cmsContext CreateDummyContext() {
-    return NULL; // Simplification for fuzzing purposes
+// Dummy function to simulate IT8 handle creation
+static cmsHANDLE createDummyIT8Handle() {
+    // Allocate a more realistic size for the IT8 structure
+    cmsHANDLE handle = malloc(sizeof(struct { cmsUInt32Number nTable; cmsUInt32Number TablesCount; }));
+    if (handle) {
+        // Initialize the structure with some default values
+        ((cmsUInt32Number*)handle)[0] = 0; // nTable
+        ((cmsUInt32Number*)handle)[1] = 1; // TablesCount
+    }
+    return handle;
 }
 
-// Dummy implementation for cmsMD5free as it is not provided in the description
-static void cmsMD5free(cmsHANDLE handle) {
+static void freeDummyIT8Handle(cmsHANDLE handle) {
     free(handle);
 }
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *Data, size_t Size) {
-    cmsContext context = CreateDummyContext();
+    if (Size < 1) return 0;
 
-    // Fuzz _cmsMallocZero
-    if (Size > 0) {
-        void* memZero = _cmsMallocZero(context, (cmsUInt32Number)Size);
-        if (memZero) {
-            free(memZero);
+    cmsHANDLE hIT8 = createDummyIT8Handle();
+    if (!hIT8) return 0;
+
+    // Fuzz cmsIT8EnumProperties
+    char **propertyNames = NULL;
+    cmsUInt32Number propertyCount = cmsIT8EnumProperties(hIT8, &propertyNames);
+    if (propertyNames) {
+        for (cmsUInt32Number i = 0; i < propertyCount; i++) {
+            free(propertyNames[i]);
+        }
+        free(propertyNames);
+    }
+
+    // Fuzz cmsIT8SetPropertyHex
+    const char *cProp = "TestProperty";
+    cmsUInt32Number val = (cmsUInt32Number)Data[0];
+    cmsIT8SetPropertyHex(hIT8, cProp, val);
+
+    // Fuzz cmsIT8SaveToMem
+    cmsUInt32Number bytesNeeded = 0;
+    cmsIT8SaveToMem(hIT8, NULL, &bytesNeeded);
+    if (bytesNeeded > 0) {
+        void *memPtr = malloc(bytesNeeded);
+        if (memPtr) {
+            cmsIT8SaveToMem(hIT8, memPtr, &bytesNeeded);
+            free(memPtr);
         }
     }
 
-    // Fuzz cmsIT8LoadFromMem
-    if (Size > 0) { // Ensure Size is non-zero to avoid triggering assertion
-        cmsHANDLE it8Handle = cmsIT8LoadFromMem(context, Data, (cmsUInt32Number)Size);
-        if (it8Handle) {
-            cmsIT8Free(it8Handle);
-        }
+    // Fuzz cmsIT8SetTable
+    cmsUInt32Number tableIndex = (cmsUInt32Number)(Data[0] % 10);
+    cmsIT8SetTable(hIT8, tableIndex);
+
+    // Fuzz cmsIT8EnumPropertyMulti
+    const char **subpropertyNames = NULL;
+    cmsIT8EnumPropertyMulti(hIT8, cProp, &subpropertyNames);
+    if (subpropertyNames) {
+        free(subpropertyNames);
     }
 
-    // Fuzz cmsMD5alloc
-    cmsHANDLE md5Handle = cmsMD5alloc(context);
-    if (md5Handle) {
-        cmsMD5free(md5Handle);
-    }
+    // Fuzz cmsIT8TableCount
+    cmsIT8TableCount(hIT8);
 
-    // Fuzz _cmsMalloc
-    if (Size > 0) {
-        void* mem = _cmsMalloc(context, (cmsUInt32Number)Size);
-        if (mem) {
-            free(mem);
-        }
-    }
-
-    // Fuzz _cmsCalloc
-    if (Size > 0) {
-        void* callocMem = _cmsCalloc(context, (cmsUInt32Number)Size, 1);
-        if (callocMem) {
-            free(callocMem);
-        }
-    }
-
-    // Fuzz cmsMLUalloc
-    cmsMLU* mluHandle = cmsMLUalloc(context, (cmsUInt32Number)Size);
-    if (mluHandle) {
-        cmsMLUfree(mluHandle);
-    }
-
+    freeDummyIT8Handle(hIT8);
     return 0;
 }

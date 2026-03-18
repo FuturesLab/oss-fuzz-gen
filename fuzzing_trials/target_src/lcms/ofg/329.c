@@ -1,30 +1,39 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <wchar.h>
 #include <lcms2.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_329(const uint8_t *data, size_t size) {
-    // Define and initialize variables for the function parameters
-    cmsContext context = NULL; // Assuming default context
-    cmsInt32Number type = 1; // Example type, can be varied
-    cmsFloat64Number params[10]; // Example parameter array
-
-    // Ensure the size is enough to fill the params array
-    if (size < sizeof(params)) {
+    // Initialize variables
+    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
+    const char *language = "en";
+    const char *country = "US";
+    
+    // Ensure there is enough data to create a wide string
+    if (size < sizeof(wchar_t)) {
+        cmsMLUfree(mlu);
         return 0;
     }
 
-    // Fill the params array with data from the input
-    for (size_t i = 0; i < sizeof(params) / sizeof(params[0]); i++) {
-        params[i] = ((cmsFloat64Number)data[i]) / 255.0; // Normalize data to [0, 1]
+    // Create a wide string from input data
+    size_t wchar_count = size / sizeof(wchar_t);
+    wchar_t *wide_str = (wchar_t *)malloc((wchar_count + 1) * sizeof(wchar_t));
+    if (wide_str == NULL) {
+        cmsMLUfree(mlu);
+        return 0;
     }
-
-    // Call the function-under-test
-    cmsToneCurve *curve = cmsBuildParametricToneCurve(context, type, params);
-
-    // Clean up if the curve was successfully created
-    if (curve != NULL) {
-        cmsFreeToneCurve(curve);
+    for (size_t i = 0; i < wchar_count; i++) {
+        wide_str[i] = ((wchar_t *)data)[i];
     }
+    wide_str[wchar_count] = L'\0';
+
+    // Call the function under test
+    cmsMLUsetWide(mlu, language, country, wide_str);
+
+    // Clean up
+    free(wide_str);
+    cmsMLUfree(mlu);
 
     return 0;
 }

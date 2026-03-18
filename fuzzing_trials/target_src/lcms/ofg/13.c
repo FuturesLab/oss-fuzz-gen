@@ -1,31 +1,35 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsUInt32Number intent;
-    cmsUInt32Number flags;
-    cmsBool result;
+    cmsHTRANSFORM transform;
+    cmsHPROFILE hInProfile, hOutProfile;
+    cmsUInt32Number inputFormat, outputFormat;
+    cmsUInt32Number result;
 
-    // Check if the data size is sufficient to extract necessary parameters
-    if (size < sizeof(cmsUInt32Number) * 2) {
-        return 0;
-    }
+    // Initialize LCMS
+    cmsContext contextID = cmsCreateContext(NULL, NULL);
 
-    // Initialize the parameters
-    hProfile = cmsOpenProfileFromMem(data, size);
-    intent = *(const cmsUInt32Number *)(data);
-    flags = *(const cmsUInt32Number *)(data + sizeof(cmsUInt32Number));
+    // Create profiles for input and output
+    hInProfile = cmsCreate_sRGBProfile();
+    hOutProfile = cmsCreate_sRGBProfile();
 
-    // Ensure hProfile is valid
-    if (hProfile != NULL) {
-        // Call the function-under-test
-        result = cmsIsIntentSupported(hProfile, intent, flags);
+    // Set input and output format
+    inputFormat = TYPE_RGB_8;
+    outputFormat = TYPE_RGB_8;
 
-        // Close the profile after use
-        cmsCloseProfile(hProfile);
-    }
+    // Create a transform with the profiles
+    transform = cmsCreateTransform(hInProfile, inputFormat, hOutProfile, outputFormat, INTENT_PERCEPTUAL, 0);
+
+    // Call the function-under-test
+    result = cmsGetTransformOutputFormat(transform);
+
+    // Clean up
+    cmsDeleteTransform(transform);
+    cmsCloseProfile(hInProfile);
+    cmsCloseProfile(hOutProfile);
+    cmsDeleteContext(contextID);
 
     return 0;
 }

@@ -1,19 +1,11 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include for size_t
+#include <lcms2.h>   // Include for cmsUnregisterPlugins
 
-// Function under test
-int cmsGetEncodedCMMversion();
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_485(const uint8_t *data, size_t size) {
-    // Call the function under test
-    int version = cmsGetEncodedCMMversion();
-
-    // Use the returned version in some way to avoid compiler optimizations
-    // that might remove the call to the function under test
-    if (version == 0) {
-        return 0;
-    }
+    // Since cmsUnregisterPlugins does not take any input parameters,
+    // we can directly call it in the fuzzing harness.
+    cmsUnregisterPlugins();
 
     return 0;
 }

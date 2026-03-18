@@ -1,68 +1,73 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_segment_get_track_fragment_count at isom_read.c:895:5 in isomedia.h
-// gf_isom_get_timescale at isom_read.c:962:5 in isomedia.h
-// gf_isom_get_next_moof_number at movie_fragments.c:3482:5 in isomedia.h
-// gf_isom_get_mpeg4_subtype at isom_read.c:1671:5 in isomedia.h
-// gf_isom_set_next_moof_number at movie_fragments.c:3474:6 in isomedia.h
-// gf_isom_new_track at isom_write.c:863:5 in isomedia.h
+// gf_isom_lhvc_force_inband_config at avc_ext.c:2330:8 in isomedia.h
+// gf_isom_set_sample_flags at isom_write.c:8052:8 in isomedia.h
+// gf_isom_set_media_timescale at isom_write.c:5276:8 in isomedia.h
+// gf_isom_set_fragment_option at movie_fragments.c:476:8 in isomedia.h
+// gf_isom_set_fragment_original_duration at movie_fragments.c:3171:8 in isomedia.h
+// gf_isom_set_track_reference at isom_write.c:4967:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
 #include "isomedia.h"
 
-static GF_ISOFile* initialize_iso_file(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate an ISO file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return NULL;
-    fwrite(data, 1, size, file);
-    fclose(file);
+#define DUMMY_FILE "./dummy_file"
 
-    // Open the file using the gpac API
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return iso_file;
+static GF_ISOFile* initialize_iso_file() {
+    GF_ISOFile *file = gf_isom_open(DUMMY_FILE, GF_ISOM_OPEN_WRITE, NULL);
+    return file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_close(iso_file);
+static void cleanup_iso_file(GF_ISOFile *file) {
+    if (file) {
+        gf_isom_close(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_233(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3) return 0;
+    if (Size < sizeof(u32) * 17) return 0;
 
-    GF_ISOFile *iso_file = initialize_iso_file(Data, Size);
-    if (!iso_file) return 0;
+    GF_ISOFile *isom_file = initialize_iso_file();
+    if (!isom_file) return 0;
 
-    u32 moof_index = *((u32*)Data) % 10 + 1; // Randomize index between 1 and 10
-    u32 trackNumber = *((u32*)(Data + 4)) % 10 + 1; // Randomize track number between 1 and 10
-    u32 sampleDescriptionIndex = *((u32*)(Data + 8)) % 10 + 1; // Randomize sample description index between 1 and 10
+    // Prepare dummy file
+    FILE *dummy_fp = fopen(DUMMY_FILE, "wb");
+    if (!dummy_fp) {
+        cleanup_iso_file(isom_file);
+        return 0;
+    }
+    fwrite(Data, 1, Size, dummy_fp);
+    fclose(dummy_fp);
 
-    // Test gf_isom_segment_get_track_fragment_count
-    u32 fragment_count = gf_isom_segment_get_track_fragment_count(iso_file, moof_index);
+    u32 trackNumber = *(u32 *)(Data);
+    u32 sampleDescriptionIndex = *(u32 *)(Data + 4);
+    u32 sampleNumber = *(u32 *)(Data + 8);
+    u32 isLeading = *(u32 *)(Data + 12);
+    u32 dependsOn = *(u32 *)(Data + 16);
+    u32 dependedOn = *(u32 *)(Data + 20);
+    u32 redundant = *(u32 *)(Data + 24);
+    u32 new_timescale = *(u32 *)(Data + 28);
+    u32 new_tsinc = *(u32 *)(Data + 32);
+    u32 force_rescale_type = *(u32 *)(Data + 36);
+    u32 TrackID = *(u32 *)(Data + 40);
+    u32 Code = *(u32 *)(Data + 44);
+    u32 param = *(u32 *)(Data + 48);
+    u32 orig_dur = *(u32 *)(Data + 52);
+    u32 elapsed_dur = *(u32 *)(Data + 56);
+    u32 referenceType = *(u32 *)(Data + 60);
+    u32 ReferencedTrackID = *(u32 *)(Data + 64);
 
-    // Test gf_isom_get_timescale
-    u32 timescale = gf_isom_get_timescale(iso_file);
+    // Call the target functions
+    gf_isom_lhvc_force_inband_config(isom_file, trackNumber, sampleDescriptionIndex);
+    gf_isom_set_sample_flags(isom_file, trackNumber, sampleNumber, isLeading, dependsOn, dependedOn, redundant);
+    gf_isom_set_media_timescale(isom_file, trackNumber, new_timescale, new_tsinc, force_rescale_type);
+    gf_isom_set_fragment_option(isom_file, TrackID, Code, param);
+    gf_isom_set_fragment_original_duration(isom_file, TrackID, orig_dur, elapsed_dur);
+    gf_isom_set_track_reference(isom_file, trackNumber, referenceType, ReferencedTrackID);
 
-    // Test gf_isom_get_next_moof_number
-    u32 next_moof_number = gf_isom_get_next_moof_number(iso_file);
-
-    // Test gf_isom_get_mpeg4_subtype
-    u32 mpeg4_subtype = gf_isom_get_mpeg4_subtype(iso_file, trackNumber, sampleDescriptionIndex);
-
-    // Test gf_isom_set_next_moof_number
-    gf_isom_set_next_moof_number(iso_file, next_moof_number + 1);
-
-    // Test gf_isom_new_track
-    u32 new_track = gf_isom_new_track(iso_file, 0, 'vide', timescale);
-
-    cleanup_iso_file(iso_file);
+    cleanup_iso_file(isom_file);
     return 0;
 }

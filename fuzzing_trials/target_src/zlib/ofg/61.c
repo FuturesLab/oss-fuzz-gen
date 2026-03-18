@@ -1,43 +1,30 @@
 #include <stdint.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <zlib.h>
 
-// Remove the 'extern "C"' linkage specification for C++ 
-// because this is a C file and it is not needed.
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    gzFile file;
-    int error_code = 0;
-    const char *error_message;
+    z_stream stream;
+    int windowBits = 15; // Default windowBits for inflate
+    int ret;
 
-    // Open a temporary file to use with gzFile
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
-        return 0;
-    }
+    // Initialize the z_stream structure
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    stream.avail_in = (uInt)size;
+    stream.next_in = (Bytef *)data;
 
-    // Write the input data to the temporary file
-    fwrite(data, 1, size, temp_file);
-    rewind(temp_file);
-
-    // Open the temporary file with gzdopen
-    file = gzdopen(fileno(temp_file), "rb");
-    if (file == NULL) {
-        fclose(temp_file);
+    // Initialize the inflate state
+    ret = inflateInit2(&stream, windowBits);
+    if (ret != Z_OK) {
         return 0;
     }
 
     // Call the function-under-test
-    error_message = gzerror(file, &error_code);
-
-    // Print the error message and code for debugging purposes
-    if (error_message != NULL) {
-        printf("Error message: %s, Error code: %d\n", error_message, error_code);
-    }
+    int undermine_result = inflateUndermine(&stream, 1);
 
     // Clean up
-    gzclose(file);
-    fclose(temp_file);
+    inflateEnd(&stream);
 
     return 0;
 }

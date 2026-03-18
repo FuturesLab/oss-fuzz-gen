@@ -1,23 +1,30 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_464(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a profile
-    if (size < sizeof(cmsHPROFILE)) {
+    // Initialize variables
+    cmsHPROFILE hProfile;
+    cmsTagSignature sig1, sig2;
+
+    // Check if the size is sufficient to extract two cmsTagSignature values
+    if (size < 2 * sizeof(cmsTagSignature)) {
         return 0;
     }
 
-    // Create a memory block for the profile
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    // Create a profile for testing
+    hProfile = cmsCreate_sRGBProfile();
     if (hProfile == NULL) {
         return 0;
     }
 
-    // Call the function-under-test
-    cmsColorSpaceSignature pcs = cmsGetPCS(hProfile);
+    // Extract cmsTagSignature values from the input data
+    sig1 = *(cmsTagSignature*)data;
+    sig2 = *(cmsTagSignature*)(data + sizeof(cmsTagSignature));
 
-    // Clean up the profile
+    // Call the function-under-test
+    cmsBool result = cmsLinkTag(hProfile, sig1, sig2);
+
+    // Clean up
     cmsCloseProfile(hProfile);
 
     return 0;

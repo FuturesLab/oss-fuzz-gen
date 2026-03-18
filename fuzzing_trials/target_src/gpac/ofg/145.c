@@ -1,36 +1,25 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) {
+    // Ensure the input size is sufficient for our needs
+    if (size < sizeof(u32) + sizeof(u64)) {
         return 0;
     }
 
-    u32 trackNumber = 1; // Assuming there's at least one track
-    const char *xmlnamespace = "http://www.example.com/namespace";
-    const char *xml_schema_loc = "http://www.example.com/schema";
-    const char *mimes = "application/xml";
-    u32 outDescriptionIndex = 0;
+    // Initialize GF_ISOFile structure
+    // Provide a temporary directory for the third argument
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, "/tmp");
 
-    // Ensure data is large enough to be used as a string
-    char *data_as_string = NULL;
-    if (size > 0) {
-        data_as_string = (char *)malloc(size + 1);
-        if (data_as_string) {
-            memcpy(data_as_string, data, size);
-            data_as_string[size] = '\0'; // Null-terminate the string
-        }
-    }
+    // Extract trackNumber and next_dts from the input data
+    u32 trackNumber = *((u32 *)data);
+    u64 next_dts = *((u64 *)(data + sizeof(u32)));
 
-    gf_isom_new_xml_subtitle_description(movie, trackNumber, xmlnamespace, xml_schema_loc, mimes, &outDescriptionIndex);
+    // Call the function under test
+    gf_isom_patch_last_sample_duration(movie, trackNumber, next_dts);
 
-    if (data_as_string) {
-        free(data_as_string);
-    }
-
+    // Clean up
     gf_isom_close(movie);
 
     return 0;

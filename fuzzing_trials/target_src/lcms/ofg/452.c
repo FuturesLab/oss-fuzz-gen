@@ -1,28 +1,24 @@
 #include <stdint.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_452(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for our needs
-    if (size < sizeof(cmsColorSpaceSignature) + sizeof(cmsFloat64Number)) {
-        return 0;
+    // Initialize a memory context for LittleCMS
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Create a profile from the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMemTHR(context, data, size);
+
+    if (hProfile != NULL) {
+        // Call the function-under-test with the created profile
+        cmsBool result = cmsIsMatrixShaper(hProfile);
+
+        // Close the profile after use
+        cmsCloseProfile(hProfile);
     }
 
-    // Extract cmsColorSpaceSignature and cmsFloat64Number from the input data
-    cmsColorSpaceSignature colorSpaceSignature;
-    cmsFloat64Number inkLimit;
-
-    // Copy data into the variables
-    memcpy(&colorSpaceSignature, data, sizeof(cmsColorSpaceSignature));
-    memcpy(&inkLimit, data + sizeof(cmsColorSpaceSignature), sizeof(cmsFloat64Number));
-
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateInkLimitingDeviceLink(colorSpaceSignature, inkLimit);
-
-    // Clean up if a valid profile was created
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
+    // Free the memory context
+    cmsDeleteContext(context);
 
     return 0;
 }

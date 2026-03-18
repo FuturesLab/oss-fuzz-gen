@@ -1,44 +1,49 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <lcms2.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <lcms2_plugin.h>
+#include <lcms2.h>  // Include the main Little CMS library for necessary types and functions
+#include "/src/lcms/include/lcms2.h"  // Include the additional header as instructed
 
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient to extract all required parameters
-    if (size < sizeof(cmsUInt32Number) * 4) {
+    cmsHANDLE handle;
+    char **formats = NULL;
+    int result;
+
+    // Initialize handle with a non-NULL value
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Initialize a context
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    // Use the input data to populate the handle
+    if (size > 0) {
+        // Assuming the input data is a string, attempt to use it as IT8 data
+        char *inputData = (char *)malloc(size + 1);
+        if (inputData != NULL) {
+            memcpy(inputData, data, size);
+            inputData[size] = '\0';  // Null-terminate the string
 
-    // Create dummy profiles
-    cmsHPROFILE inputProfile = cmsCreate_sRGBProfile();
-    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
+            // Load the input data into the handle
+            if (!cmsIT8LoadFromMem(handle, inputData, size)) {
+                free(inputData);
+                cmsIT8Free(handle);
+                return 0;
+            }
 
-    // Extract cmsUInt32Number parameters from the data
-    cmsUInt32Number inputFormat = *(const cmsUInt32Number *)data;
-    cmsUInt32Number outputFormat = *(const cmsUInt32Number *)(data + sizeof(cmsUInt32Number));
-    cmsUInt32Number intent = *(const cmsUInt32Number *)(data + 2 * sizeof(cmsUInt32Number));
-    cmsUInt32Number flags = *(const cmsUInt32Number *)(data + 3 * sizeof(cmsUInt32Number));
+            free(inputData);
+        }
+    }
 
     // Call the function-under-test
-    cmsHTRANSFORM transform = cmsCreateTransformTHR(
-        context,
-        inputProfile,
-        inputFormat,
-        outputProfile,
-        outputFormat,
-        intent,
-        flags
-    );
+    result = cmsIT8EnumDataFormat(handle, &formats);
 
     // Clean up
-    if (transform != NULL) {
-        cmsDeleteTransform(transform);
+    if (formats != NULL) {
+        // Use the correct function to free the formats
+        cmsIT8Free(formats);
     }
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
-    cmsDeleteContext(context);
+    cmsIT8Free(handle);
 
     return 0;
 }

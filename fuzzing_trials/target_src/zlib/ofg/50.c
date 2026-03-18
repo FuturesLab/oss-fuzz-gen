@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
@@ -11,25 +11,31 @@ int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
     stream.avail_in = 0;
     stream.next_in = Z_NULL;
 
-    // Initialize the inflate state
+    // Initialize the stream for inflation
     if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
 
-    // Set the input data for the stream
+    // Allocate memory for output buffer
+    size_t output_buffer_size = size * 2 + 1; // Just an arbitrary size larger than input
+    uint8_t *output_buffer = (uint8_t *)malloc(output_buffer_size);
+    if (output_buffer == NULL) {
+        inflateEnd(&stream);
+        return 0;
+    }
+
+    // Prepare the stream with input data
     stream.next_in = (Bytef *)data;
     stream.avail_in = size;
-
-    // Allocate a buffer for the output
-    unsigned char outbuffer[4096];
-    stream.next_out = outbuffer;
-    stream.avail_out = sizeof(outbuffer);
+    stream.next_out = output_buffer;
+    stream.avail_out = output_buffer_size;
 
     // Call the function-under-test
-    int ret = inflate(&stream, Z_NO_FLUSH);
+    inflate(&stream, Z_NO_FLUSH);
 
     // Clean up
     inflateEnd(&stream);
+    free(output_buffer);
 
     return 0;
 }

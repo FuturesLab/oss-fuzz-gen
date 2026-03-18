@@ -1,37 +1,38 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
-#include <lcms2.h>
+#include <stdlib.h>
+#include <wchar.h>  // Include for wchar_t
+#include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to contain a valid file name and mode
-    if (size < 2) {
+    // Initialize a cmsHANDLE to a non-NULL value
+    cmsHANDLE originalDict = cmsDictAlloc(NULL);
+    if (originalDict == NULL) {
         return 0;
     }
 
-    // Create a temporary file to simulate a profile file
-    const char *tempFileName = "temp_profile.icc";
-    FILE *tempFile = fopen(tempFileName, "wb");
-    if (tempFile == NULL) {
-        return 0;
-    }
-    fwrite(data, 1, size, tempFile);
-    fclose(tempFile);
+    // Use the input data to add entries to the dictionary
+    size_t i = 0;
+    while (i + 4 <= size) { // Ensure there is enough data for key and value
+        // Extract two 16-bit values from the input data as keys and values
+        wchar_t key = (wchar_t)((data[i] << 8) | data[i + 1]);
+        wchar_t value = (wchar_t)((data[i + 2] << 8) | data[i + 3]);
+        wchar_t keyStr[2] = {key, L'\0'};
+        wchar_t valueStr[2] = {value, L'\0'};
 
-    // Define the mode string
-    const char *mode = "r"; // Open the file in read mode
+        // Add entry to the dictionary
+        cmsDictAddEntry(originalDict, keyStr, valueStr, NULL, NULL);
+
+        i += 4; // Move to the next set of key-value pairs
+    }
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsOpenProfileFromFile(tempFileName, mode);
+    cmsHANDLE duplicatedDict = cmsDictDup(originalDict);
 
     // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
+    if (duplicatedDict != NULL) {
+        cmsDictFree(duplicatedDict);
     }
-
-    // Remove the temporary file
-    remove(tempFileName);
+    cmsDictFree(originalDict);
 
     return 0;
 }

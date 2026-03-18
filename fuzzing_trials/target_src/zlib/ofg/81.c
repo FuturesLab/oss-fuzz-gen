@@ -1,29 +1,41 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <zlib.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Initialize the crc parameter with a non-zero value
-    unsigned long crc = 1;
+    // Declare and initialize the source and destination z_stream structures
+    z_stream source_stream;
+    z_stream dest_stream;
 
-    // Ensure size is not zero to prevent passing NULL to crc32
-    if (size > 0) {
-        // Call the function-under-test
-        uLong result = crc32(crc, data, (uInt)size);
+    // Initialize the source stream with some non-NULL values
+    source_stream.zalloc = Z_NULL;
+    source_stream.zfree = Z_NULL;
+    source_stream.opaque = Z_NULL;
+    source_stream.next_in = (Bytef *)data;
+    source_stream.avail_in = (uInt)size;
+    source_stream.next_out = Z_NULL;
+    source_stream.avail_out = 0;
 
-        // Use the result to prevent compiler optimizations from removing the call
-        if (result == 0) {
-            // Do nothing, just a dummy check
-        }
+    // Initialize the destination stream with some non-NULL values
+    dest_stream.zalloc = Z_NULL;
+    dest_stream.zfree = Z_NULL;
+    dest_stream.opaque = Z_NULL;
+    dest_stream.next_in = Z_NULL;
+    dest_stream.avail_in = 0;
+    dest_stream.next_out = Z_NULL;
+    dest_stream.avail_out = 0;
+
+    // Initialize the source stream for deflation
+    if (deflateInit(&source_stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+        return 0;
     }
+
+    // Call the function-under-test
+    deflateCopy(&dest_stream, &source_stream);
+
+    // Clean up the streams
+    deflateEnd(&source_stream);
+    deflateEnd(&dest_stream);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

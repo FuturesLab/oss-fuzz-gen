@@ -1,27 +1,31 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_420(const uint8_t *data, size_t size) {
-    if (size < 3 * sizeof(cmsUInt16Number)) {
-        return 0; // Not enough data to proceed
+    // Ensure we have enough data to fill our structures
+    if (size < sizeof(cmsCIEXYZ) * 4) {
+        return 0;
     }
 
-    cmsCIEXYZ xyz;
-    cmsUInt16Number encoded[3];
+    // Initialize cmsCIEXYZ structures
+    cmsCIEXYZ sourceIlluminant;
+    cmsCIEXYZ destIlluminant;
+    cmsCIEXYZ sourceWhitePoint;
+    cmsCIEXYZ destWhitePoint;
 
-    // Initialize cmsCIEXYZ structure with some default values
-    xyz.X = 0.0;
-    xyz.Y = 0.0;
-    xyz.Z = 0.0;
-
-    // Copy data into the encoded array
-    for (int i = 0; i < 3; i++) {
-        encoded[i] = ((cmsUInt16Number)data[i * 2] << 8) | (cmsUInt16Number)data[i * 2 + 1];
-    }
+    // Copy data into cmsCIEXYZ structures
+    memcpy(&sourceIlluminant, data, sizeof(cmsCIEXYZ));
+    memcpy(&destIlluminant, data + sizeof(cmsCIEXYZ), sizeof(cmsCIEXYZ));
+    memcpy(&sourceWhitePoint, data + 2 * sizeof(cmsCIEXYZ), sizeof(cmsCIEXYZ));
+    memcpy(&destWhitePoint, data + 3 * sizeof(cmsCIEXYZ), sizeof(cmsCIEXYZ));
 
     // Call the function-under-test
-    cmsXYZEncoded2Float(&xyz, encoded);
+    cmsBool result = cmsAdaptToIlluminant(&sourceIlluminant, &destIlluminant, &sourceWhitePoint, &destWhitePoint);
+
+    // Use the result to prevent compiler optimizations
+    (void)result;
 
     return 0;
 }

@@ -1,23 +1,34 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
+// Define the fuzzing function
 int LLVMFuzzerTestOneInput_212(const uint8_t *data, size_t size) {
-    cmsUInt16Number labEncoded[3];
-    cmsCIELab lab;
+    // Initialize variables
+    cmsHTRANSFORM handle;
+    cmsCIELab cielab;
 
-    // Ensure there is enough data to fill the cmsCIELab structure
+    // Ensure the size is sufficient for cmsCIELab structure
     if (size < sizeof(cmsCIELab)) {
         return 0;
     }
 
-    // Initialize the cmsCIELab structure with data from the input
-    lab.L = ((const float *)data)[0];
-    lab.a = ((const float *)data)[1];
-    lab.b = ((const float *)data)[2];
+    // Initialize the handle with a non-NULL value
+    handle = cmsCreateTransform(NULL, TYPE_Lab_DBL, NULL, TYPE_Lab_DBL, INTENT_PERCEPTUAL, 0);
+    if (handle == NULL) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    cmsFloat2LabEncodedV2(labEncoded, &lab);
+    // Populate the cmsCIELab structure with data from the input
+    cielab.L = ((double*)data)[0];
+    cielab.a = ((double*)data)[1];
+    cielab.b = ((double*)data)[2];
+
+    // Call the function under test
+    cmsBool result = cmsGDBAddPoint(handle, &cielab);
+
+    // Clean up
+    cmsDeleteTransform(handle);
 
     return 0;
 }

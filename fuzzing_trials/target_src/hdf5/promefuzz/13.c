@@ -1,78 +1,76 @@
 // This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
 // H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_filesize at H5F.c:1659:1 in H5Fpublic.h
-// H5Fget_vfd_handle at H5F.c:422:1 in H5Fpublic.h
-// H5Fget_intent at H5F.c:1540:1 in H5Fpublic.h
-// H5Fget_info2 at H5F.c:2055:1 in H5Fpublic.h
-// H5Fget_name at H5F.c:1999:1 in H5Fpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Fopen at H5F.c:812:1 in H5Fpublic.h
+// H5Fopen at H5F.c:812:1 in H5Fpublic.h
+// H5Fmount at H5F.c:1183:1 in H5Fpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Fopen at H5F.c:812:1 in H5Fpublic.h
+// H5Fget_obj_count at H5F.c:216:1 in H5Fpublic.h
+// H5Funmount at H5F.c:1301:1 in H5Fpublic.h
+// H5Funmount at H5F.c:1301:1 in H5Fpublic.h
 // H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <hdf5.h>
+#include <H5Fpublic.h>
+#include <H5Ppublic.h>
 
-#define DUMMY_FILE "./dummy_file"
-
-static hid_t create_dummy_file() {
-    hid_t file_id = H5Fcreate(DUMMY_FILE, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        fprintf(stderr, "Failed to create dummy HDF5 file.\n");
-        exit(EXIT_FAILURE);
+static void write_dummy_file() {
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fputs("dummy content", file);
+        fclose(file);
     }
-    return file_id;
 }
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(hid_t)) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Create a dummy file
-    hid_t file_id = create_dummy_file();
+    write_dummy_file();
 
-    // Prepare variables for API function calls
-    hsize_t file_size = 0;
-    void *file_handle = NULL;
-    unsigned intent = 0;
-    H5F_info2_t file_info;
-    char file_name[1024];
-    ssize_t name_len;
+    hid_t file_id, child_id, loc_id;
+    herr_t status;
+    ssize_t obj_count;
 
-    // Call H5Fget_filesize
-    if (H5Fget_filesize(file_id, &file_size) < 0) {
-        fprintf(stderr, "H5Fget_filesize failed.\n");
+    // Fuzz data for file access flags
+    unsigned flags = Data[0] % 2 == 0 ? H5F_ACC_TRUNC : H5F_ACC_EXCL;
+
+    // H5Fcreate and H5Fclose sequence
+    for (int i = 0; i < 7; ++i) {
+        file_id = H5Fcreate("./dummy_file", flags, H5P_DEFAULT, H5P_DEFAULT);
+        if (file_id >= 0) {
+            H5Fclose(file_id);
+        }
     }
 
-    // Call H5Fget_vfd_handle
-    if (H5Fget_vfd_handle(file_id, H5P_DEFAULT, &file_handle) < 0) {
-        fprintf(stderr, "H5Fget_vfd_handle failed.\n");
+    // H5Fopen and H5Fmount sequence
+    loc_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    if (loc_id >= 0) {
+        for (int i = 0; i < 5; ++i) {
+            child_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+            if (child_id >= 0) {
+                status = H5Fmount(loc_id, "/mount_point", child_id, H5P_DEFAULT);
+                H5Fclose(child_id);
+            }
+        }
+        H5Fclose(loc_id);
     }
 
-    // Call H5Fget_intent
-    if (H5Fget_intent(file_id, &intent) < 0) {
-        fprintf(stderr, "H5Fget_intent failed.\n");
-    }
-
-    // Call H5Fget_info2
-    if (H5Fget_info2(file_id, &file_info) < 0) {
-        fprintf(stderr, "H5Fget_info2 failed.\n");
-    }
-
-    // Call H5Fget_name
-    name_len = H5Fget_name(file_id, file_name, sizeof(file_name));
-    if (name_len < 0) {
-        fprintf(stderr, "H5Fget_name failed.\n");
-    }
-
-    // Close the file
-    if (H5Fclose(file_id) < 0) {
-        fprintf(stderr, "Failed to close the HDF5 file.\n");
+    // H5Fget_obj_count and H5Funmount sequence
+    loc_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    if (loc_id >= 0) {
+        obj_count = H5Fget_obj_count(loc_id, H5F_OBJ_ALL);
+        if (obj_count >= 0) {
+            H5Funmount(loc_id, "/mount_point");
+            H5Funmount(loc_id, "/mount_point");
+        }
+        H5Fclose(loc_id);
     }
 
     return 0;

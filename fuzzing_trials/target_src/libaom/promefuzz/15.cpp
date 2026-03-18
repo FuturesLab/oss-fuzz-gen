@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_CFL_INTRA at aomcx.h:2164:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_COLOR_RANGE at aomcx.h:2019:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE at aomcx.h:1980:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS at aomcx.h:2338:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_OVERLAY at aomcx.h:2170:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA at aomcx.h:2290:1 in aomcx.h
 // aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC at aomcx.h:2374:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO at aomcx.h:2353:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH at aomcx.h:2356:1 in aomcx.h
+// aom_codec_version_str at aom_codec.c:28:13 in aom_codec.h
+// aom_codec_version_extra_str at aom_codec.c:30:13 in aom_codec.h
+// aom_codec_version at aom_codec.c:26:5 in aom_codec.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,70 +22,51 @@
 #include <cstring>
 #include "aom.h"
 #include "aom_codec.h"
-#include "aom_decoder.h"
 #include "aom_encoder.h"
-#include "aom_external_partition.h"
-#include "aom_frame_buffer.h"
-#include "aom_image.h"
-#include "aom_integer.h"
 #include "aomcx.h"
+#include "aom_decoder.h"
 #include "aomdx.h"
 
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_CFL_INTRA(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    int enable_cfl_intra = Data[0] % 2; // Either 0 or 1
-    aom_codec_control_typechecked_AV1E_SET_ENABLE_CFL_INTRA(codec, 0, enable_cfl_intra);
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_COLOR_RANGE(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    int color_range = Data[0] % 2; // Either 0 or 1
-    aom_codec_control_typechecked_AV1E_SET_COLOR_RANGE(codec, 0, color_range);
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    int s_frame_mode = Data[0] % 2; // Either 0 or 1
-    aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE(codec, 0, s_frame_mode);
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS(aom_codec_ctx_t *codec) {
-    int num_operating_points;
-    aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS(codec, 0, &num_operating_points);
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_OVERLAY(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    int enable_overlay = Data[0] % 2; // Either 0 or 1
-    aom_codec_control_typechecked_AV1E_SET_ENABLE_OVERLAY(codec, 0, enable_overlay);
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    int enable_diagonal_intra = Data[0] % 2; // Either 0 or 1
-    aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA(codec, 0, enable_diagonal_intra);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    aom_codec_ctx_t codec;
-    memset(&codec, 0, sizeof(codec));
-
-    // Initialize codec context
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    if (!iface) return 0;
-
-    // Initialize the codec
-    if (aom_codec_enc_init(&codec, iface, nullptr, 0) != AOM_CODEC_OK) {
+    if (Size < sizeof(int)) {
         return 0;
     }
 
-    // Fuzz each function
-    fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_CFL_INTRA(&codec, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_COLOR_RANGE(&codec, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE(&codec, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS(&codec);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_OVERLAY(&codec, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA(&codec, Data, Size);
+    // Prepare environment
+    aom_codec_ctx_t codec;
+    memset(&codec, 0, sizeof(codec));
+    codec.iface = aom_codec_av1_cx();
+    codec.name = "av1";
+
+    // Use a portion of the input data as an integer parameter
+    int param = 0;
+    memcpy(&param, Data, sizeof(int));
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC
+    aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC(&codec, AV1E_SET_POSTENCODE_DROP_RTC, param);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO
+    aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO(&codec, AV1E_SET_RATE_DISTRIBUTION_INFO, reinterpret_cast<const char*>(Data));
+
+    // Fuzz aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH
+    int luma_strength;
+    aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH(&codec, AV1E_GET_LUMA_CDEF_STRENGTH, &luma_strength);
+
+    // Call aom_codec_version_str
+    const char *version_str = aom_codec_version_str();
+    if (version_str) {
+        printf("Version: %s\n", version_str);
+    }
+
+    // Call aom_codec_version_extra_str
+    const char *version_extra_str = aom_codec_version_extra_str();
+    if (version_extra_str) {
+        printf("Version Extra: %s\n", version_extra_str);
+    }
+
+    // Call aom_codec_version
+    int version = aom_codec_version();
+    printf("Version (int): %d\n", version);
 
     // Cleanup
     aom_codec_destroy(&codec);

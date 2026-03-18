@@ -1,36 +1,35 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_367(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a cmsStage object
-    if (size < sizeof(cmsStageSignature)) {
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
         return 0;
     }
 
-    // Create a cmsPipeline to hold the stage
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 0, 0);
-    if (pipeline == NULL) {
+    // Ensure the input data is null-terminated for string usage
+    char *filename = (char *)malloc(size + 1);
+    if (filename == NULL) {
+        cmsDeleteContext(context);
         return 0;
     }
+    memcpy(filename, data, size);
+    filename[size] = '\0';
 
-    // Create a cmsStage object using the lcms2 API
-    cmsStage *stage = cmsStageAllocIdentity(NULL, 3);
-    if (stage == NULL) {
-        cmsPipelineFree(pipeline);
-        return 0;
-    }
+    // Use a constant mode for simplicity
+    const char *mode = "r";
 
-    // Add the stage to the pipeline
-    cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
-
-    // Call the function under test
-    cmsStageSignature signature = cmsStageType(stage);
+    // Call the function-under-test
+    cmsHPROFILE profile = cmsOpenProfileFromFileTHR(context, filename, mode);
 
     // Clean up
-    cmsPipelineFree(pipeline);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
+    free(filename);
+    cmsDeleteContext(context);
 
     return 0;
 }

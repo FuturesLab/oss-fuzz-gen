@@ -1,40 +1,30 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <aom/aom_decoder.h>
-#include <aom/aomdx.h>
+
+extern "C" {
+    #include <aom/aom_codec.h>
+    #include <aom/aom_decoder.h>
+    #include <aom/aomdx.h>  // Include the header where aom_codec_av1_dx is declared
+}
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Call the function-under-test
+    // Initialize the codec interface
     aom_codec_iface_t *iface = aom_codec_av1_dx();
 
-    // Ensure that the returned interface is not NULL
-    if (iface == NULL) {
+    // Ensure the data size is non-zero for meaningful testing
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize a codec context
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
+    // Initialize stream info structure
+    aom_codec_stream_info_t stream_info;
+    stream_info.is_kf = 0;  // Initialize with a default value
 
-    // Initialize the codec with the interface
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0;
-    }
+    // Call the function-under-test
+    aom_codec_err_t result = aom_codec_peek_stream_info(iface, data, size, &stream_info);
 
-    // Decode the input data
-    res = aom_codec_decode(&codec, data, size, NULL);
-    if (res != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec);
-        return 0;
-    }
-
-    // Retrieve the decoded frame
-    aom_codec_iter_t iter = NULL;
-    aom_image_t *img = aom_codec_get_frame(&codec, &iter);
-
-    // Clean up
-    aom_codec_destroy(&codec);
+    // Optionally, handle the result or check for specific conditions
+    // For fuzzing purposes, we are primarily interested in finding crashes or unexpected behavior
 
     return 0;
 }

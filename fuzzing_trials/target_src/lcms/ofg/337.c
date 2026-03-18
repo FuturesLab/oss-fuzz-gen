@@ -1,24 +1,38 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_337(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient for cmsUInt16Number array
-    if (size < sizeof(cmsUInt16Number) * 3) {
-        return 0;
+    cmsContext context;
+    cmsHPROFILE profile;
+    cmsUInt32Number intent = 0;
+    cmsUInt32Number flags = 0;
+    void *buffer = NULL;
+    cmsUInt32Number bufferSize = 0;
+
+    // Initialize context and profile
+    context = cmsCreateContext(NULL, NULL);
+    profile = cmsOpenProfileFromMem(data, size);
+
+    if (profile != NULL) {
+        // Allocate a buffer for CSA
+        bufferSize = 1024; // Example size, adjust as needed
+        buffer = malloc(bufferSize);
+
+        if (buffer != NULL) {
+            // Call the function under test
+            cmsUInt32Number result = cmsGetPostScriptCSA(context, profile, intent, flags, buffer, bufferSize);
+
+            // Free the allocated buffer
+            free(buffer);
+        }
+
+        // Close the profile
+        cmsCloseProfile(profile);
     }
 
-    // Allocate and initialize cmsCIELab structure
-    cmsCIELab lab;
-    lab.L = 0.0;
-    lab.a = 0.0;
-    lab.b = 0.0;
-
-    // Cast the input data to cmsUInt16Number array
-    const cmsUInt16Number *encodedLab = (const cmsUInt16Number *)data;
-
-    // Call the function-under-test
-    cmsLabEncoded2Float(&lab, encodedLab);
+    // Delete the context
+    cmsDeleteContext(context);
 
     return 0;
 }

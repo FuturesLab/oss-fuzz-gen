@@ -2,31 +2,40 @@
 #include <stdlib.h>
 #include <gpac/isomedia.h>
 
-// Define u32 if not defined in the included headers
-typedef uint32_t u32;
+// Define a macro for the GF_EXPORT attribute if it's not already defined
+#ifndef GF_EXPORT
+#define GF_EXPORT
+#endif
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    GF_ISOFile *the_file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!the_file) {
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
         return 0;
     }
 
-    // Ensure the size is sufficient for extracting u32 values
-    if (size < 12) {
-        gf_isom_close(the_file);
+    // Ensure we have enough data for the trackNumber and StreamDescriptionIndex
+    if (size < sizeof(uint32_t) * 2) {
+        gf_isom_close(movie);
         return 0;
     }
 
-    // Extract u32 values from the input data
-    u32 trackNumber = *((u32 *)data);
-    u32 HintDescriptionIndex = *((u32 *)(data + 4));
-    u32 SequenceNumberOffset = *((u32 *)(data + 8));
+    // Extract trackNumber and StreamDescriptionIndex from the data
+    uint32_t trackNumber = *((uint32_t *)data);
+    uint32_t StreamDescriptionIndex = *((uint32_t *)(data + sizeof(uint32_t)));
+
+    // Create a sample
+    GF_ISOSample sample;
+    sample.data = (uint8_t *)(data + sizeof(uint32_t) * 2);
+    sample.dataLength = size - sizeof(uint32_t) * 2;
+    sample.DTS = 0;
+    sample.CTS_Offset = 0;
+    sample.IsRAP = 1; // Random Access Point
 
     // Call the function-under-test
-    gf_isom_rtp_set_time_sequence_offset(the_file, trackNumber, HintDescriptionIndex, SequenceNumberOffset);
+    gf_isom_add_sample(movie, trackNumber, StreamDescriptionIndex, &sample);
 
     // Clean up
-    gf_isom_close(the_file);
+    gf_isom_close(movie);
 
     return 0;
 }

@@ -1,32 +1,24 @@
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <cstdint>  // Include this header for uint8_t
 
+// Assuming the function is part of a C library, we wrap it in extern "C"
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    // Alternatively, you can use one of the other paths if needed:
-    // #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    // #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    size_t tj3YUVPlaneSize(int, int, int, int, int);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0;
-    }
+    // Declare and initialize parameters for tj3YUVPlaneSize
+    int componentID = 1;  // Typically a value from 0 to 2 for Y, U, V components
+    int width = 640;      // Example width, can be varied
+    int stride = 640;     // Example stride, typically equal to or greater than width
+    int height = 480;     // Example height, can be varied
+    int align = 1;        // Example alignment, typically a power of 2
 
-    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
-    unsigned long jpegSize = static_cast<unsigned long>(size);
+    // Call the function-under-test with initialized parameters
+    size_t planeSize = tj3YUVPlaneSize(componentID, width, stride, height, align);
 
-    int width = 0;
-    int height = 0;
-    int jpegSubsamp = 0;
-
-    // Call the function-under-test
-    int result = tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp);
-
-    // Clean up the TurboJPEG decompression handle
-    tjDestroy(handle);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)planeSize;
 
     return 0;
 }

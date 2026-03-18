@@ -3,27 +3,23 @@
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_128(const uint8_t *data, size_t size) {
-    GF_ISOFile *movie = NULL;
-    u32 trackNumber;
+    // Initialize the necessary variables
+    GF_ISOFile *file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_READ, NULL);
+    Bool root_meta = GF_TRUE; // or GF_FALSE, try both
+    u32 track_num = 1; // Assuming the file has at least one track
+    u32 from_id = 1; // Starting ID for the item reference
+    u32 type = 0; // Type of the item reference, can try different values
 
-    // Initialize the movie with a non-NULL value
-    movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) {
-        return 0; // Exit if the movie could not be opened
+    // Ensure the file is opened successfully
+    if (!file) {
+        return 0;
     }
-
-    // Ensure trackNumber is within a valid range
-    if (size < sizeof(u32)) {
-        gf_isom_close(movie);
-        return 0; // Exit if not enough data to set trackNumber
-    }
-    trackNumber = *((u32 *)data);
 
     // Call the function-under-test
-    gf_isom_remove_edits(movie, trackNumber);
+    gf_isom_meta_get_item_ref_count(file, root_meta, track_num, from_id, type);
 
-    // Clean up
-    gf_isom_close(movie);
+    // Close the file after the test
+    gf_isom_close(file);
 
     return 0;
 }

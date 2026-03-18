@@ -4,39 +4,42 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
+    // Declare and initialize variables
     cmsHANDLE handle;
     const char *propertyName;
     cmsFloat64Number value;
 
-    // Ensure size is sufficient to extract a double and a property name
+    // Ensure size is large enough to extract a double value and a property name
     if (size < sizeof(cmsFloat64Number) + 1) {
         return 0;
     }
 
-    // Create a dummy handle for testing purposes
+    // Initialize handle
     handle = cmsIT8Alloc(NULL);
     if (handle == NULL) {
         return 0;
     }
 
-    // Extract a double value from the data
+    // Extract a double value from the input data
     memcpy(&value, data, sizeof(cmsFloat64Number));
 
-    // Extract a property name from the data
+    // Extract a property name from the input data
     propertyName = (const char *)(data + sizeof(cmsFloat64Number));
 
     // Ensure the property name is null-terminated
-    size_t propertyNameLength = strnlen(propertyName, size - sizeof(cmsFloat64Number));
-    if (propertyNameLength == size - sizeof(cmsFloat64Number)) {
+    char *propertyNameCopy = (char *)malloc(size - sizeof(cmsFloat64Number) + 1);
+    if (propertyNameCopy == NULL) {
         cmsIT8Free(handle);
         return 0;
     }
+    memcpy(propertyNameCopy, propertyName, size - sizeof(cmsFloat64Number));
+    propertyNameCopy[size - sizeof(cmsFloat64Number)] = '\0';
 
     // Call the function-under-test
-    cmsIT8SetPropertyDbl(handle, propertyName, value);
+    cmsBool result = cmsIT8SetPropertyDbl(handle, propertyNameCopy, value);
 
-    // Free the allocated handle
+    // Clean up
+    free(propertyNameCopy);
     cmsIT8Free(handle);
 
     return 0;

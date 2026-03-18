@@ -1,11 +1,18 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_ADAPTIVE_SHARPNESS at aomcx.h:2387:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING at aomcx.h:1971:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_CDEF at aomcx.h:2037:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_SKIP_POSTPROC_FILTERING at aomcx.h:2341:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_FP_MT at aomcx.h:2329:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_DISABLE_TRELLIS_QUANT at aomcx.h:2049:1 in aomcx.h
-#include <iostream>
+// aom_codec_av1_dx at av1_dx_iface.c:1796:20 in aomdx.h
+// aom_codec_dec_init_ver at aom_decoder.c:25:17 in aom_decoder.h
+// aom_codec_get_frame at aom_decoder.c:109:14 in aom_decoder.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_img_num_metadata at aom_image.c:429:8 in aom_image.h
+// aom_img_set_rect at aom_image.c:234:5 in aom_image.h
+// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_codec_get_preview_frame at aom_encoder.c:264:20 in aom_encoder.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_img_alloc_with_border at aom_image.c:225:14 in aom_image.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_img_set_rect at aom_image.c:234:5 in aom_image.h
+// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <sstream>
 #include <string>
 #include <vector>
@@ -16,53 +23,86 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
+#include <cstdlib>
 #include "aom_integer.h"
-#include "aom_codec.h"
 #include "aom_image.h"
+#include "aom_codec.h"
+#include "aom_frame_buffer.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
 #include "aom.h"
+#include "aom_decoder.h"
 #include "aomcx.h"
-
-static aom_codec_ctx_t *initialize_codec_context() {
-    aom_codec_ctx_t *ctx = new aom_codec_ctx_t();
-    memset(ctx, 0, sizeof(aom_codec_ctx_t));
-    return ctx;
-}
-
-static void cleanup_codec_context(aom_codec_ctx_t *ctx) {
-    if (ctx) {
-        delete ctx;
-    }
-}
+#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < 6) return 0; // Ensure there's enough data
+    if (Size < sizeof(aom_codec_ctx_t)) {
+        return 0;
+    }
 
-    aom_codec_ctx_t *codec_ctx = initialize_codec_context();
-    if (!codec_ctx) return 0;
+    aom_codec_ctx_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
 
-    // Extract control values from input data
-    int enable_adaptive_sharpness = Data[0] % 2;
-    int enable_keyframe_filtering = Data[1] % 2;
-    int enable_cdef = Data[2] % 2;
-    int skip_postproc_filtering = Data[3] % 2;
-    int fp_mt = Data[4] % 2;
-    int disable_trellis_quant = Data[5] % 2;
+    // Initialize the codec context using libaom functions
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    if (aom_codec_dec_init(&ctx, iface, nullptr, 0) != AOM_CODEC_OK) {
+        return 0;
+    }
 
-    // Invoke target API functions with extracted values
-    aom_codec_control_typechecked_AV1E_SET_ENABLE_ADAPTIVE_SHARPNESS(codec_ctx, 0, enable_adaptive_sharpness);
-    aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING(codec_ctx, 0, enable_keyframe_filtering);
-    aom_codec_control_typechecked_AV1E_SET_ENABLE_CDEF(codec_ctx, 0, enable_cdef);
-    aom_codec_control_typechecked_AV1E_SET_SKIP_POSTPROC_FILTERING(codec_ctx, 0, skip_postproc_filtering);
-    aom_codec_control_typechecked_AV1E_SET_FP_MT(codec_ctx, 0, fp_mt);
-    aom_codec_control_typechecked_AV1E_SET_DISABLE_TRELLIS_QUANT(codec_ctx, 0, disable_trellis_quant);
+    aom_codec_iter_t iter = NULL;
 
-    cleanup_codec_context(codec_ctx);
+    // Fuzz aom_codec_get_frame
+    aom_image_t *frame = nullptr;
+    try {
+        frame = aom_codec_get_frame(&ctx, &iter);
+    } catch (...) {
+        aom_codec_destroy(&ctx);
+        return 0;
+    }
+    if (frame != NULL) {
+        // Fuzz aom_img_num_metadata
+        size_t metadata_count = aom_img_num_metadata(frame);
+
+        // Fuzz aom_img_set_rect
+        unsigned int x = 0, y = 0, w = frame->w, h = frame->h, border = 0;
+        int rect_result = aom_img_set_rect(frame, x, y, w, h, border);
+
+        // Free the frame
+        aom_img_free(frame);
+    }
+
+    // Fuzz aom_codec_get_preview_frame
+    const aom_image_t *preview_frame = nullptr;
+    try {
+        preview_frame = aom_codec_get_preview_frame(&ctx);
+    } catch (...) {
+        aom_codec_destroy(&ctx);
+        return 0;
+    }
+    if (preview_frame != NULL) {
+        // Do something with preview_frame if needed
+    }
+
+    // Fuzz aom_img_alloc_with_border
+    aom_image_t *image = nullptr;
+    aom_img_fmt_t fmt = AOM_IMG_FMT_I420;
+    unsigned int d_w = 128, d_h = 128, align = 1, size_align = 1, border = 1;
+    try {
+        image = aom_img_alloc_with_border(image, fmt, d_w, d_h, align, size_align, border);
+    } catch (...) {
+        aom_codec_destroy(&ctx);
+        return 0;
+    }
+    if (image != nullptr) {
+        // Fuzz aom_img_set_rect on allocated image
+        unsigned int rect_x = 0, rect_y = 0, rect_w = image->w, rect_h = image->h;
+        aom_img_set_rect(image, rect_x, rect_y, rect_w, rect_h, border);
+
+        // Free the allocated image
+        aom_img_free(image);
+    }
+
+    aom_codec_destroy(&ctx);
     return 0;
 }

@@ -1,42 +1,46 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <fcntl.h>
+#include <string.h> // Include string.h for memcpy
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = NULL;
-    GF_Err err;
-
-    // Ensure the data size is non-zero to avoid unnecessary processing
-    if (size == 0) {
+    // Initialize the GF_ISOFile and GF_ISOSample structures
+    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
         return 0;
     }
 
-    // Create a temporary file to hold the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the size is large enough to extract a track number
+    if (size < sizeof(uint32_t)) {
+        gf_isom_close(movie);
         return 0;
     }
-    write(fd, data, size);
-    close(fd);
 
-    // Open the ISO file using the temporary file
-    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (!file) {
-        goto cleanup;
+    // Extract a track number from the data
+    u32 trackNumber = *((u32*)data);
+    data += sizeof(u32);
+    size -= sizeof(u32);
+
+    // Create a sample with some dummy data
+    GF_ISOSample *sample = gf_isom_sample_new();
+    if (!sample) {
+        gf_isom_close(movie);
+        return 0;
     }
 
-    // Call the function-under-test
-    gf_isom_guess_specification(file);
-
-cleanup:
-    if (file) {
-        gf_isom_close(file);
+    // Assign some data to the sample
+    sample->dataLength = size;
+    sample->data = (unsigned char *)malloc(size);
+    if (sample->data) {
+        memcpy(sample->data, data, size);
     }
-    remove(tmpl);
+
+    // Fuzz the function under test
+    gf_isom_add_sample_shadow(movie, trackNumber, sample);
+
+    // Clean up
+    gf_isom_sample_del(&sample);
+    gf_isom_close(movie);
 
     return 0;
 }

@@ -1,34 +1,44 @@
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 
 extern "C" {
-    // Include the necessary header for tj3YUVPlaneHeight if available
-    // #include "turbojpeg.h" // Example: Uncomment and adjust if the header is available
-
-    // Declare the function signature if not included from a header
-    int tj3YUVPlaneHeight(int componentID, int width, int align);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_150(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    int componentID = 0; // Example value, can be varied as needed
-    int width = 1;       // Example value, must be > 0
-    int align = 1;       // Example value, must be > 0
-
-    // Ensure that the input data is large enough to extract meaningful values
-    if (size >= 3) {
-        // Extract values from the input data to use as parameters
-        componentID = data[0] % 3; // Assuming 3 components (e.g., Y, U, V)
-        width = data[1] + 1;       // Ensure width is > 0
-        align = data[2] + 1;       // Ensure align is > 0
+    // Initialize variables
+    tjhandle handle = tjInitCompress();
+    if (handle == nullptr) {
+        return 0;
     }
 
-    // Call the function-under-test with the initialized parameters
-    int result = tj3YUVPlaneHeight(componentID, width, align);
+    // Ensure the size is sufficient for at least one pixel
+    if (size < sizeof(uint16_t)) {
+        tjDestroy(handle);
+        return 0;
+    }
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    volatile int prevent_optimization = result;
-    (void)prevent_optimization;
+    // Set up input image parameters
+    int width = 1;  // Minimal width
+    int height = 1; // Minimal height
+    int pitch = width * sizeof(uint16_t);
+    int pixelFormat = TJPF_RGB;
 
-    return 0;
+    // Allocate memory for the compressed image
+    unsigned char *jpegBuf = nullptr;
+    size_t jpegSize = 0;
+
+    // Call the function-under-test
+    int result = tj3Compress16(handle, (const uint16_t *)data, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
+
+    // Free allocated resources
+    if (jpegBuf != nullptr) {
+        tjFree(jpegBuf);
+    }
+    tjDestroy(handle);
+
+    return result;
 }

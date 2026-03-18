@@ -1,36 +1,29 @@
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
+    // Initialize variables for the function parameters
     hid_t file_id;
+    double hit_rate;
+    herr_t status;
 
-    // Ensure that the data size is sufficient to create a unique file name
-    if (size < 1) {
+    // Ensure that the size is sufficient to extract a valid hid_t
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Create a unique file name using the input data
-    char filename[256];
-    snprintf(filename, sizeof(filename), "fuzz_test_%d.h5", data[0]);
-
-    // Create a new HDF5 file using the unique file name
-    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
-    }
-
-    // Start metadata cache logging
-    if (H5Fstart_mdc_logging(file_id) < 0) {
-        H5Fclose(file_id);
-        return 0;
-    }
+    // Extract the hid_t from the input data
+    file_id = *((hid_t *)data);
 
     // Call the function-under-test
-    H5Fstop_mdc_logging(file_id);
+    status = H5Fget_mdc_hit_rate(file_id, &hit_rate);
 
-    // Close the file
-    H5Fclose(file_id);
+    // Optional: Use the status and hit_rate in some way
+    // (e.g., print them, use them in a conditional, etc.)
+    // This is not necessary for fuzzing, but can be useful for debugging
+    (void)status;
+    (void)hit_rate;
 
     return 0;
 }

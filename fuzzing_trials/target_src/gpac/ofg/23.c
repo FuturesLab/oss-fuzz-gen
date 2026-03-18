@@ -1,41 +1,30 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h> // Include this header for close() and unlink()
+#include <string.h>
 #include <gpac/isomedia.h>
+#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    GF_ISOFile *the_file = NULL;
-    u32 trackNumber = 1;
-    u32 SampleNum = 1;
-    FILE *trace = NULL;
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
+        return 0;
+    }
+
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-
-    // Create a temporary file to use as trace
-    fd = mkstemp(tmpl);
+    int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0;
-    }
-    trace = fdopen(fd, "w+");
-    if (!trace) {
-        close(fd);
+        gf_isom_close(movie);
         return 0;
     }
 
-    // Initialize GF_ISOFile
-    the_file = gf_isom_open(tmpl, GF_ISOM_OPEN_WRITE, NULL);
-    if (!the_file) {
-        fclose(trace);
-        return 0;
+    if (size > 0) {
+        write(fd, data, size);
     }
+    close(fd);
 
-    // Fuzz the function
-    gf_isom_dump_hint_sample(the_file, trackNumber, SampleNum, trace);
+    gf_isom_set_final_name(movie, tmpl);
 
-    // Clean up
-    gf_isom_close(the_file);
-    fclose(trace);
+    gf_isom_close(movie);
     unlink(tmpl);
 
     return 0;

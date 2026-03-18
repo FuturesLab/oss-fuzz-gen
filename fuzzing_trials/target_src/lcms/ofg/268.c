@@ -1,32 +1,27 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_268(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read from
-    if (size < sizeof(cmsViewingConditions)) {
+    // Ensure the input size is sufficient for our needs
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Initialize a cmsContext
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return 0;
-    }
+    // Initialize the parameters for the function
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    cmsUInt32Number version;
 
-    // Create a cmsViewingConditions structure and populate it with data
-    cmsViewingConditions viewingConditions;
-    memcpy(&viewingConditions, data, sizeof(cmsViewingConditions));
+    // Extract cmsUInt32Number from the input data
+    version = *(const cmsUInt32Number *)data;
 
     // Call the function-under-test
-    cmsHANDLE handle = cmsCIECAM02Init(context, &viewingConditions);
+    if (hProfile != NULL) {
+        cmsSetEncodedICCversion(hProfile, version);
 
-    // Clean up
-    if (handle != NULL) {
-        cmsCIECAM02Done(handle);
+        // Clean up
+        cmsCloseProfile(hProfile);
     }
-    cmsDeleteContext(context);
 
     return 0;
 }

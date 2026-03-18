@@ -8,32 +8,31 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Initialize variables for tjCompress2
+    // Initialize TurboJPEG compressor
     tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
         return 0;
     }
 
-    const unsigned char *srcBuf = data;
-    int width = 100; // Example width
-    int pitch = 0; // Setting pitch to 0 means it will be calculated as width * pixelSize
-    int height = 100; // Example height
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    int jpegSubsamp = TJSAMP_444; // Example subsampling
-    int jpegQual = 75; // Example quality
-    int flags = 0; // Example flags
+    // Define parameters for tjCompress2
+    const unsigned char *srcBuf = data;  // Source buffer is the input data
+    int width = 100;                     // Arbitrary width
+    int height = 100;                    // Arbitrary height
+    int pixelFormat = TJPF_RGB;          // Pixel format
+    int pitch = 0;                       // Pitch (0 means use width)
+    unsigned char *jpegBuf = nullptr;    // Destination buffer (will be allocated by TurboJPEG)
+    unsigned long jpegSize = 0;          // Size of the compressed JPEG image
+    int jpegSubsamp = TJSAMP_444;        // Subsampling option
+    int jpegQual = 75;                   // JPEG quality
+    int flags = 0;                       // Compression flags
 
     // Call the function-under-test
-    int result = tjCompress2(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
+    tjCompress2(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
 
-    // Free the JPEG buffer if it was allocated
+    // Clean up
     if (jpegBuf != nullptr) {
         tjFree(jpegBuf);
     }
-
-    // Destroy the TurboJPEG compressor handle
     tjDestroy(handle);
 
     return 0;

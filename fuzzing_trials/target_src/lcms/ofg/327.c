@@ -1,27 +1,27 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_327(const uint8_t *data, size_t size) {
-    cmsHPROFILE profile;
-    cmsUInt32Number version;
-
-    // Check if the size is sufficient to create a profile
-    if (size < sizeof(cmsHPROFILE)) {
+    // Check if the size is sufficient to extract parameters
+    if (size < sizeof(cmsUInt32Number) + sizeof(cmsBool)) {
         return 0;
     }
 
-    // Create a profile from the input data
-    profile = cmsOpenProfileFromMem(data, size);
-    if (profile == NULL) {
+    // Initialize variables
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
         return 0;
     }
+
+    cmsUInt32Number format = *(const cmsUInt32Number *)(data);
+    cmsBool isInput = *(const cmsBool *)(data + sizeof(cmsUInt32Number));
 
     // Call the function-under-test
-    version = cmsGetEncodedICCversion(profile);
+    cmsUInt32Number result = cmsFormatterForPCSOfProfile(hProfile, format, isInput);
 
-    // Close the profile
-    cmsCloseProfile(profile);
+    // Close the profile if it was successfully opened
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

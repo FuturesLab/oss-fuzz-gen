@@ -1,33 +1,38 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
+// Fuzzing function
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    cmsNAMEDCOLORLIST *originalList = NULL;
-    cmsNAMEDCOLORLIST *duplicatedList = NULL;
-
-    // Create a named color list with some dummy values
-    originalList = cmsAllocNamedColorList(NULL, 1, 1, "Prefix", "Suffix");
-    if (originalList == NULL) {
-        return 0;
+    // Ensure that the input data is not empty and has enough bytes for at least one cmsUInt16Number
+    if (size < sizeof(cmsUInt16Number)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Add a named color to the list
-    cmsCIEXYZ PCS = {0.5, 0.5, 0.5};
-    cmsUInt16Number DeviceColorant[4] = {0x8000, 0x8000, 0x8000, 0x8000};
+    // Calculate the number of cmsUInt16Number elements we can safely extract from the input data
+    size_t numCodes = size / sizeof(cmsUInt16Number);
 
-    cmsAppendNamedColor(originalList, "TestColor", &PCS, DeviceColorant);
-
-    // Call the function under test
-    duplicatedList = cmsDupNamedColorList(originalList);
-
-    // Clean up
-    if (duplicatedList != NULL) {
-        cmsFreeNamedColorList(duplicatedList);
+    // Limit the number of codes to cmsMAXCHANNELS as per the function's requirement
+    if (numCodes > cmsMAXCHANNELS) {
+        numCodes = cmsMAXCHANNELS;
     }
-    if (originalList != NULL) {
-        cmsFreeNamedColorList(originalList);
+
+    // Allocate memory for the alarm codes
+    cmsUInt16Number *alarmCodes = (cmsUInt16Number *)malloc(numCodes * sizeof(cmsUInt16Number));
+    if (alarmCodes == NULL) {
+        return 0; // Memory allocation failed
     }
+
+    // Safely copy the data into alarmCodes, ensuring no buffer overflow occurs
+    memcpy(alarmCodes, data, numCodes * sizeof(cmsUInt16Number));
+
+    // Call the function under test with the correct number of codes
+    cmsGetAlarmCodes(alarmCodes);
+
+    // Free the allocated memory
+    free(alarmCodes);
 
     return 0;
 }

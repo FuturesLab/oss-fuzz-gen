@@ -1,32 +1,25 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <zlib.h>
+#include <zlib.h> // Include the zlib header for the zError function
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the test
-    if (size < 1) {
-        return 0;
+    // Initialize an integer variable to pass to zError
+    int errorCode = 0;
+
+    // Ensure that size is not zero to avoid accessing data[0] when data is empty
+    if (size > 0) {
+        // Use the first byte of data to set the errorCode
+        errorCode = (int)data[0];
     }
 
-    z_stream stream;
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
+    // Call the zError function with the errorCode
+    const char *errorString = zError(errorCode);
 
-    // Use the first byte of data to determine the version string length
-    int version_length = data[0] % 5 + 1; // version_length between 1 and 5
-    const char *version = "1.2.3"; // A valid version string for zlib
-
-    // Ensure the version string length does not exceed the actual version string
-    if (version_length > 5) {
-        version_length = 5;
+    // To avoid unused variable warning, you can print the errorString
+    // or handle it in some way. Here, we'll just ensure it's not null.
+    if (errorString != NULL) {
+        // Do something with errorString if needed
     }
-
-    // Call the function-under-test
-    int result = inflateInit_(&stream, version, version_length);
-
-    // Clean up the stream
-    inflateEnd(&stream);
 
     return 0;
 }

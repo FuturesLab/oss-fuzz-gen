@@ -1,26 +1,24 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    hid_t dataset_id = H5I_INVALID_HID;
-    hid_t mem_type_id = H5T_NATIVE_INT;  // Assuming integer data type
-    hid_t mem_space_id = H5S_ALL;        // Entire dataset
-    hid_t file_space_id = H5S_ALL;       // Entire dataset
-    hid_t plist_id = H5P_DEFAULT;        // Default property list
-    int buffer[10];                      // Buffer to hold data
-
-    // Ensure data is not NULL and size is sufficient
-    if (data == NULL || size < sizeof(int) * 10) {
-        return 0;
+    // Initialize variables for the function parameters
+    hid_t loc_id = H5Fopen("test_file.h5", H5F_ACC_RDONLY, H5P_DEFAULT); // Open a test HDF5 file
+    if (loc_id < 0) {
+        return 0; // If opening fails, return immediately
     }
 
-    // Simulate dataset_id assignment (in real scenarios, it should be a valid dataset)
-    dataset_id = *((hid_t *)data);
+    const char *obj_name = "test_object";
+    const char *attr_name = "test_attribute";
+    hid_t lapl_id = H5P_DEFAULT; // Use the default link access property list
 
     // Call the function-under-test
-    herr_t status = H5Dread(dataset_id, mem_type_id, mem_space_id, file_space_id, plist_id, buffer);
+    herr_t result = H5Adelete_by_name(loc_id, obj_name, attr_name, lapl_id);
 
-    // Handle status if needed (for fuzzing, we just return 0)
+    // Close the file after operation
+    H5Fclose(loc_id);
+
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

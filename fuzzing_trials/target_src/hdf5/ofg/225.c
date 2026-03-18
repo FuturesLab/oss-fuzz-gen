@@ -2,20 +2,24 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_225(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract an hid_t value
+    // Declare and initialize variables
+    hid_t attribute_id;
+    hid_t datatype_id;
+
+    // Ensure size is sufficient for a valid hid_t input
     if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Extract an hid_t value from the input data
-    hid_t attribute_id = *((const hid_t *)data);
+    // Copy data to hid_t variable
+    attribute_id = *(const hid_t *)data;
 
-    // Call the function under test
-    hid_t type_id = H5Aget_type(attribute_id);
+    // Call the function-under-test
+    datatype_id = H5Aget_type(attribute_id);
 
-    // Perform cleanup if necessary
-    if (type_id >= 0) {
-        H5Tclose(type_id);
+    // Close the datatype if it is valid
+    if (datatype_id >= 0) {
+        H5Tclose(datatype_id);
     }
 
     return 0;

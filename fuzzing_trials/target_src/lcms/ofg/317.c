@@ -1,31 +1,26 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
+// Define a mock function for cmsPipeline to create a non-NULL cmsPipeline object
+cmsPipeline* createMockPipeline() {
+    cmsPipeline* pipeline = cmsPipelineAlloc(NULL, 3, 3);
+    if (pipeline != NULL) {
+        // Add some dummy stages to the pipeline to ensure it is not empty
+        cmsStage* stage = cmsStageAllocIdentity(NULL, 3);
+        if (stage != NULL) {
+            cmsPipelineInsertStage(pipeline, cmsAT_BEGIN, stage);
+        }
+    }
+    return pipeline;
+}
+
 int LLVMFuzzerTestOneInput_317(const uint8_t *data, size_t size) {
-    cmsHPROFILE profile;
-    cmsUInt32Number intent;
-    cmsBool lIsInput;
+    // Create a non-NULL cmsPipeline object
+    cmsPipeline* pipeline = createMockPipeline();
 
-    // Ensure the size is sufficient to extract data
-    if (size < sizeof(cmsUInt32Number) + sizeof(cmsBool)) {
-        return 0;
-    }
-
-    // Create a dummy profile for testing
-    profile = cmsCreate_sRGBProfile();
-    if (profile == NULL) {
-        return 0;
-    }
-
-    // Extract intent and lIsInput from data
-    intent = *(cmsUInt32Number*)data;
-    lIsInput = *(cmsBool*)(data + sizeof(cmsUInt32Number));
-
-    // Call the function-under-test
-    cmsUInt32Number result = cmsFormatterForPCSOfProfile(profile, intent, lIsInput);
-
-    // Clean up
-    cmsCloseProfile(profile);
+    // Call the function-under-test with the non-NULL cmsPipeline object
+    cmsPipelineFree(pipeline);
 
     return 0;
 }

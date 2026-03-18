@@ -1,62 +1,38 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_206(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating a valid string
-    if (size < 1) {
+    hid_t loc_id = H5P_DEFAULT; // Using default property list for location
+    const char *attr_name = "fuzz_attribute"; // Attribute name
+    hid_t type_id = H5T_NATIVE_INT; // Using native integer type
+    hid_t space_id = H5S_SCALAR; // Using scalar dataspace
+    hid_t acpl_id = H5P_DEFAULT; // Using default attribute creation property list
+
+    // Ensure that the data is not NULL and has a valid size
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Create a valid HDF5 file in memory
-    hid_t file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
+    // Create a copy of the data to use as attribute name if needed
+    char *dynamic_attr_name = (char *)malloc(size + 1);
+    if (dynamic_attr_name != NULL) {
+        memcpy(dynamic_attr_name, data, size);
+        dynamic_attr_name[size] = '\0'; // Null-terminate the string
+        attr_name = dynamic_attr_name;
     }
 
-    // Create a dataset in the file
-    hid_t dataspace_id = H5Screate(H5S_SCALAR);
-    if (dataspace_id < 0) {
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    hid_t dataset_id = H5Dcreate(file_id, "dataset", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dataset_id < 0) {
-        H5Sclose(dataspace_id);
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Create an attribute for the dataset
-    hid_t attr_id = H5Acreate(dataset_id, "attribute", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
-    if (attr_id < 0) {
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Close the attribute
-    H5Aclose(attr_id);
-
-    // Use the data as a name for H5Aopen_name
-    char name[256];
-    size_t name_length = size < 255 ? size : 255;
-    memcpy(name, data, name_length);
-    name[name_length] = '\0';
-
-    // Call the function under test
-    hid_t result = H5Aopen_name(dataset_id, name);
+    // Call the function-under-test
+    hid_t attr_id = H5Acreate1(loc_id, attr_name, type_id, space_id, acpl_id);
 
     // Clean up
-    if (result >= 0) {
-        H5Aclose(result);
+    if (attr_id >= 0) {
+        H5Aclose(attr_id);
     }
-    H5Dclose(dataset_id);
-    H5Sclose(dataspace_id);
-    H5Fclose(file_id);
+    if (dynamic_attr_name != NULL) {
+        free(dynamic_attr_name);
+    }
 
     return 0;
 }

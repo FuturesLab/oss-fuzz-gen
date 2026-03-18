@@ -1,7 +1,5 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstddef>
+#include <cstdint>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
@@ -10,31 +8,30 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    tjhandle handle = NULL;
-    unsigned char *iccProfile = NULL;
-    size_t iccProfileSize = 0;
-
     // Initialize the TurboJPEG decompressor
-    handle = tjInitDecompress();
-    if (handle == NULL) {
-        fprintf(stderr, "Failed to initialize TurboJPEG decompressor\n");
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
         return 0;
     }
 
-    // Call the function under test
-    int result = tj3GetICCProfile(handle, &iccProfile, &iccProfileSize);
+    // Define and initialize the parameters for tjDecompress
+    unsigned char *jpegBuf = const_cast<unsigned char *>(data); // Cast data to unsigned char*
+    unsigned long jpegSize = static_cast<unsigned long>(size);  // Size of the JPEG data
 
-    // Check the result and process the ICC profile if successful
-    if (result == 0 && iccProfile != NULL && iccProfileSize > 0) {
-        // Process the ICC profile data
-        // For fuzzing purposes, we can just print the size
-        printf("ICC Profile Size: %zu\n", iccProfileSize);
+    // Allocate buffer for the decompressed image
+    int width = 800;  // Arbitrary width
+    int height = 600; // Arbitrary height
+    int pixelFormat = TJPF_RGB; // Pixel format for the decompressed image
+    int pitch = 0; // Use default pitch
 
-        // Free the ICC profile data if it was allocated
-        tjFree(iccProfile);
-    }
+    // Calculate the buffer size needed for the decompressed image
+    unsigned char *dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
 
-    // Clean up and destroy the TurboJPEG handle
+    // Call the function-under-test
+    int result = tjDecompress(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, pixelFormat, 0);
+
+    // Clean up
+    delete[] dstBuf;
     tjDestroy(handle);
 
     return 0;
