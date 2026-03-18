@@ -1,32 +1,30 @@
 #include <stddef.h>
-#include <sys/select.h>
+#include <stdlib.h>
+#include <string.h>
 #include <ares.h>
 
 int LLVMFuzzerTestOneInput_24(const unsigned char *data, size_t size) {
-  /* Initialize the ares library */
-  ares_library_init(ARES_LIB_INIT_ALL);
+  ares_channel channel = NULL;
+  struct ares_options options;
+  int optmask = ARES_OPT_FLAGS;
 
-  /* Create a channel */
-  ares_channel channel;
-  int status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    return 0;
+  /* Initialize options with some default values */
+  options.flags = ARES_FLAG_USEVC;
+  options.timeout = 5000;
+  options.tries = 3;
+  options.ndots = 1;
+  options.udp_port = 53;
+  options.tcp_port = 53;
+  options.socket_send_buffer_size = 4096;
+  options.socket_receive_buffer_size = 4096;
+
+  /* Call the function under test */
+  ares_init_options(&channel, &options, optmask);
+
+  /* Cleanup */
+  if (channel) {
+    ares_destroy(channel);
   }
-
-  /* Initialize fd_set structures */
-  fd_set read_fds;
-  fd_set write_fds;
-
-  /* Clear the fd_set structures */
-  FD_ZERO(&read_fds);
-  FD_ZERO(&write_fds);
-
-  /* Call the function-under-test */
-  ares_fds(channel, &read_fds, &write_fds);
-
-  /* Clean up */
-  ares_destroy(channel);
-  ares_library_cleanup();
 
   return 0;
 }

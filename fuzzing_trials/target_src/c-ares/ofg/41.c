@@ -1,36 +1,39 @@
 #include <stddef.h>
-#include <sys/time.h>
+#include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h>
 #include <ares.h>
 
-int LLVMFuzzerTestOneInput_41(const unsigned char *data, size_t size) {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
   ares_channel channel;
-  struct timeval maxtv;
-  struct timeval tvbuf;
-  struct timeval *result;
-
-  /* Initialize the ares library */
-  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
+  int status = ares_init(&channel);
+  if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  /* Initialize ares channel */
-  if (ares_init(&channel) != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
+  /* Create a dummy ares_addr_node */
+  struct ares_addr_node server;
+  server.next = NULL;
+  server.family = AF_INET; /* IPv4 */
+  if (size >= 4) {
+    memcpy(&server.addr.addr4, data, 4); /* Use the first 4 bytes of data for the IP */
+  } else {
+    server.addr.addr4.s_addr = htonl(INADDR_LOOPBACK); /* Default to 127.0.0.1 if not enough data */
   }
 
-  /* Set some values for maxtv and tvbuf */
-  maxtv.tv_sec = 5;
-  maxtv.tv_usec = 0;
-  tvbuf.tv_sec = 0;
-  tvbuf.tv_usec = 0;
+  // Call the function-under-test
+  ares_set_servers(&channel, &server);
 
-  /* Call the function under test */
-  result = ares_timeout(channel, &maxtv, &tvbuf);
-
-  /* Clean up */
+  // Clean up
   ares_destroy(channel);
-  ares_library_cleanup();
 
   return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

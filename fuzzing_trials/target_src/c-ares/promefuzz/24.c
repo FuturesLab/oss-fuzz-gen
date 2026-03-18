@@ -1,60 +1,78 @@
 // This fuzz driver is generated for library cares, aiming to fuzz the following functions:
-// ares_dns_record_create at ares_dns_record.c:52:15 in ares_dns_record.h
+// ares_library_init at ares_library_init.c:108:5 in ares.h
 // ares_init at ares_init.c:67:5 in ares.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_send_dnsrec at ares_send.c:227:15 in ares.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
+// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
+// ares_set_servers_ports at ares_update_servers.c:1245:5 in ares.h
+// ares_gethostbyname at ares_gethostbyname.c:99:6 in ares.h
+// ares_set_servers_ports at ares_update_servers.c:1245:5 in ares.h
+// ares_cancel at ares_cancel.c:34:6 in ares.h
 // ares_destroy at ares_destroy.c:32:6 in ares.h
+// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
 #include <ares.h>
-#include <ares_dns_record.h>
 
-static void dummy_callback_dnsrec(void *arg, int status, int timeouts, ares_dns_record_t *dnsrec) {
-    // Dummy callback function for ares_send_dnsrec
+static void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
+    // Dummy callback function for ares_gethostbyname
 }
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(unsigned short) * 4) {
-        return 0; // Not enough data to proceed
-    }
+    ares_channel_t *channel;
+    int status;
+    struct ares_addr_port_node server;
+    char hostname[256] = "example.com"; // Default hostname
 
-    // Initialize variables for ares_dns_record_create
-    ares_dns_record_t *dnsrec = NULL;
-    unsigned short id = *((unsigned short *)Data);
-    unsigned short flags = *((unsigned short *)(Data + 2));
-    ares_dns_opcode_t opcode = *((ares_dns_opcode_t *)(Data + 4));
-    ares_dns_rcode_t rcode = *((ares_dns_rcode_t *)(Data + 6));
-
-    // Create DNS record
-    ares_status_t status = ares_dns_record_create(&dnsrec, id, flags, opcode, rcode);
+    // Initialize ares library
+    status = ares_library_init(ARES_LIB_INIT_ALL);
     if (status != ARES_SUCCESS) {
-        return 0; // Failed to create DNS record
+        return 0;
     }
 
-    // Initialize ares_channel for ares_send_dnsrec
-    ares_channel channel;
-    if (ares_init(&channel) != ARES_SUCCESS) {
-        ares_dns_record_destroy(dnsrec);
-        return 0; // Failed to initialize channel
+    // Create a new channel
+    status = ares_init(&channel);
+    if (status != ARES_SUCCESS) {
+        ares_library_cleanup();
+        return 0;
     }
 
-    // Prepare query ID output
-    unsigned short qid;
+    // Prepare server address and port
+    memset(&server, 0, sizeof(server));
+    if (Size >= sizeof(struct ares_addr_port_node)) {
+        memcpy(&server, Data, sizeof(struct ares_addr_port_node));
+    } else {
+        server.family = AF_INET;
+        server.addr.addr4.s_addr = htonl(INADDR_LOOPBACK);
+        server.udp_port = htons(53);
+        server.tcp_port = htons(53);
+    }
 
-    // Send DNS record
-    ares_send_dnsrec(channel, dnsrec, dummy_callback_dnsrec, NULL, &qid);
+    // Validate family field to prevent invalid access
+    if (server.family != AF_INET && server.family != AF_INET6) {
+        server.family = AF_INET;
+    }
+
+    // Set servers and ports
+    status = ares_set_servers_ports(channel, &server);
+
+    // Perform a DNS lookup
+    if (Size > 0 && Size < sizeof(hostname)) {
+        memcpy(hostname, Data, Size);
+        hostname[Size] = '\0'; // Null-terminate the hostname
+    }
+    ares_gethostbyname(channel, hostname, AF_INET, dummy_callback, NULL);
+
+    // Set servers and ports again
+    status = ares_set_servers_ports(channel, &server);
+
+    // Cancel all ongoing requests
+    ares_cancel(channel);
 
     // Cleanup
-    ares_dns_record_destroy(dnsrec);
     ares_destroy(channel);
+    ares_library_cleanup();
 
     return 0;
 }

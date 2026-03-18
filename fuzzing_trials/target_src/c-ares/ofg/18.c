@@ -1,49 +1,32 @@
-#include <ares.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <netdb.h>
-
-// Callback function for ares_gethostbyname
-static void host_callback(void *arg, int status, int timeouts, struct hostent *host) {
-  // For the purpose of fuzzing, we don't need to do anything here.
-}
+#include "ares.h"
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-  ares_channel channel;
-  int status = ares_library_init(ARES_LIB_INIT_ALL);
-  if (status != ARES_SUCCESS) {
+  if (size < 2) {
     return 0;
   }
 
-  status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
+  /* Split the input data into two parts: encoded and abuf */
+  size_t encoded_size = size / 2;
+  size_t abuf_size = size - encoded_size;
+
+  const unsigned char *encoded = data;
+  const unsigned char *abuf = data + encoded_size;
+
+  /* Allocate memory for the output string and enclen */
+  unsigned char *s = NULL;
+  long enclen = 0;
+
+  /* Call the function-under-test */
+  ares_expand_string(encoded, abuf, (int)abuf_size, &s, &enclen);
+
+  /* Free the allocated memory for the output string if it was allocated */
+  if (s != NULL) {
+    free(s);
   }
-
-  // Ensure the data is null-terminated for use as a string
-  char *name = (char *)malloc(size + 1);
-  if (!name) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
-  }
-  memcpy(name, data, size);
-  name[size] = '\0';
-
-  int family = AF_INET;  // Use AF_INET as a default family
-
-  // Call the function-under-test
-  ares_gethostbyname(channel, name, family, host_callback, NULL);
-
-  // Clean up
-  free(name);
-  ares_destroy(channel);
-  ares_library_cleanup();
 
   return 0;
 }

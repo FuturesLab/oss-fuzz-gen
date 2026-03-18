@@ -1,36 +1,35 @@
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/select.h>
 #include <ares.h>
 
-int LLVMFuzzerTestOneInput_23(const unsigned char *data, size_t size) {
-  /* Initialize the ares library */
-  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
+int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
+  /* Ensure that the size is sufficient to extract meaningful data for options */
+  if (size < sizeof(struct ares_options)) {
     return 0;
   }
 
-  ares_channel channel;
-  int status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
+  /* Allocate memory for the options and copy data into it */
+  struct ares_options options;
+  memcpy(&options, data, sizeof(struct ares_options));
+
+  /* Extract optmask from the remaining data, if available */
+  int optmask = 0;
+  if (size >= sizeof(struct ares_options) + sizeof(int)) {
+    memcpy(&optmask, data + sizeof(struct ares_options), sizeof(int));
   }
 
-  /* Create and initialize fd_set structures */
-  fd_set read_fds;
-  fd_set write_fds;
-  FD_ZERO(&read_fds);
-  FD_ZERO(&write_fds);
+  /* Initialize channel pointer */
+  ares_channel channelptr = NULL;
 
-  /* Call the function under test */
-  ares_fds(channel, &read_fds, &write_fds);
+  /* Call the function-under-test */
+  int result = ares_init_options(&channelptr, &options, optmask);
 
-  /* Clean up the ares channel */
-  ares_destroy(channel);
-
-  /* Clean up the ares library */
-  ares_library_cleanup();
+  /* Clean up if the channel was successfully initialized */
+  if (result == ARES_SUCCESS && channelptr != NULL) {
+    ares_destroy(channelptr);
+  }
 
   return 0;
 }

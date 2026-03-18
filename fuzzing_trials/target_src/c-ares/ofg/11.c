@@ -1,27 +1,30 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
-#include "ares.h"
+#include <string.h>
+#include <ares.h>
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-  // Allocate memory for the data pointer
-  void *dataptr = malloc(size);
-  
-  // Check if memory allocation was successful
-  if (dataptr == NULL) {
+  /* Ensure that the size is sufficient to extract an integer value for 'code' */
+  if (size < sizeof(int)) {
     return 0;
   }
 
-  // Copy the data into the allocated memory
-  memcpy(dataptr, data, size);
+  /* Extract an integer value for 'code' from the input data */
+  int code;
+  memcpy(&code, data, sizeof(int));
 
-  // Call the function under test
-  ares_free_data(dataptr);
+  /* Call the function-under-test */
+  const char *error_message = ares_strerror(code);
 
-  // Free the allocated memory
-  free(dataptr);
+  /* Since ares_strerror returns a string literal, no need to free the memory */
+  /* Just use the error_message in some way to ensure it's accessed */
+  if (error_message) {
+    /* For fuzzing purposes, we can simply check the length of the message */
+    size_t length = 0;
+    while (error_message[length] != '\0') {
+      length++;
+    }
+  }
 
-  // Return 0 to indicate successful execution
   return 0;
 }

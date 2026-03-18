@@ -1,32 +1,23 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-#include <ares.h>
+#include <stdlib.h>
+#include "ares.h" // Include the correct header for ares_library_init
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-  if (size < sizeof(struct ares_addr)) {
-    return 0; /* Not enough data to form a valid ares_addr structure */
+int LLVMFuzzerTestOneInput_25(const uint8_t* data, size_t size) {
+  if (size < sizeof(int)) {
+    return 0;
   }
 
-  struct ares_addr addr;
-  memcpy(&addr, data, sizeof(struct ares_addr));
+  /* Extract an integer from the input data */
+  int flags;
+  memcpy(&flags, data, sizeof(int));
 
-  // Call the function-under-test
-  char *result = ares_dns_addr_to_ptr(&addr);
+  /* Call the function-under-test */
+  int result = ares_library_init(flags);
 
-  // Free the result if it's not NULL
-  if (result != NULL) {
-    free(result);
-  }
+  /* The result is not used further in this fuzzing harness */
+  (void)result;
 
   return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

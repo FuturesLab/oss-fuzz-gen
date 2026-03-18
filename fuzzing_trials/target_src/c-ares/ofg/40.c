@@ -1,37 +1,36 @@
 #include <stddef.h>
-#include <stdint.h>
-#include <sys/time.h>
+#include <stdlib.h>
+#include <string.h>
 #include <ares.h>
+#include <arpa/inet.h>  // Include for struct in_addr and struct in6_addr
+#include <sys/socket.h> // Include for AF_INET and AF_INET6
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-  /* Initialize ares library */
-  ares_library_init(ARES_LIB_INIT_ALL);
-
-  /* Create a channel */
   ares_channel channel;
   int status = ares_init(&channel);
   if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  /* Prepare timeval structures */
-  struct timeval maxtv;
-  struct timeval tvbuf;
+  struct ares_addr_node server_node;
+  memset(&server_node, 0, sizeof(server_node));
 
-  /* Initialize timeval structures with non-NULL values */
-  maxtv.tv_sec = 1;
-  maxtv.tv_usec = 0;
-  tvbuf.tv_sec = 0;
-  tvbuf.tv_usec = 0;
+  if (size >= sizeof(struct in_addr)) {
+    server_node.family = AF_INET;
+    memcpy(&server_node.addr.addr4, data, sizeof(struct in_addr));
+  } else if (size >= sizeof(struct in6_addr)) {
+    server_node.family = AF_INET6;
+    memcpy(&server_node.addr.addr6, data, sizeof(struct in6_addr));
+  } else {
+    ares_destroy(channel);
+    return 0;
+  }
+
+  server_node.next = NULL;
 
   /* Call the function-under-test */
-  struct timeval *result = ares_timeout(channel, &maxtv, &tvbuf);
+  ares_set_servers(&channel, &server_node);
 
-  /* Clean up the channel */
   ares_destroy(channel);
-
-  /* Clean up ares library */
-  ares_library_cleanup();
-
   return 0;
 }

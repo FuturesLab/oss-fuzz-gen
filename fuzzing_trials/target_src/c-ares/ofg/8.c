@@ -1,37 +1,48 @@
+#include <ares.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <ares.h>
+#include <netdb.h>  // Include this for the definition of struct hostent
+#include <sys/socket.h>  // Include this for AF_INET and AF_INET6
+
+/* Callback function for ares_gethostbyname */
+static void host_callback(void *arg, int status, int timeouts, struct hostent *host) {
+  /* Handle the callback results here */
+  (void)arg;
+  (void)status;
+  (void)timeouts;
+  (void)host;
+}
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
+  /* Initialize c-ares library */
+  ares_library_init(ARES_LIB_INIT_ALL);
+
   ares_channel channel;
-  struct ares_addr_port_node *servers = NULL;
-  int status;
-
-  /* Initialize the ares library */
-  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
+  int status = ares_init(&channel);
+  if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  /* Initialize ares channel with default options */
-  struct ares_options options;
-  memset(&options, 0, sizeof(options));
-  int optmask = 0;
-
-  if (ares_init_options(&channel, &options, optmask) != ARES_SUCCESS) {
-    ares_library_cleanup();
+  /* Ensure the data is null-terminated for use as a string */
+  char *name = (char *)malloc(size + 1);
+  if (name == NULL) {
+    ares_destroy(channel);
     return 0;
   }
+  memcpy(name, data, size);
+  name[size] = '\0';
+
+  /* Define the family (AF_INET or AF_INET6) */
+  int family = AF_INET;  /* or AF_INET6 */
 
   /* Call the function-under-test */
-  status = ares_get_servers_ports(&channel, &servers);
+  ares_gethostbyname(channel, name, family, host_callback, NULL);
 
   /* Clean up */
-  if (servers) {
-    ares_free_data(servers);
-  }
   ares_destroy(channel);
+  free(name);
   ares_library_cleanup();
 
   return 0;
