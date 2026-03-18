@@ -1,37 +1,37 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <gpac/isomedia.h>
 
-// Ensure compatibility with C++
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract parameters
-    if (size < sizeof(uint32_t) + sizeof(int32_t)) {
+    GF_ISOFile *file = NULL;
+    Bool root_meta = GF_FALSE;
+    u32 track_num = 0;
+
+    // Use a minimum size check that makes sense for the operation
+    if (size < 4) {
         return 0;
     }
 
-    // Initialize the_file as a non-NULL pointer
-    GF_ISOFile *the_file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!the_file) {
+    // Instead of opening from buffer, let's assume creating a new empty ISOFile for testing
+    file = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (!file) {
         return 0;
     }
 
-    // Extract trackNumber and timeOffset from the data
-    uint32_t trackNumber = *((uint32_t*)data);
-    int32_t timeOffset = *((int32_t*)(data + sizeof(uint32_t)));
+    // Set root_meta and track_num based on available data
+    if (size > 4) {
+        root_meta = (Bool)(data[4] % 2);
+    }
+    if (size > 5) {
+        track_num = (u32)data[5];
+    }
 
     // Call the function-under-test
-    gf_isom_rtp_packet_set_offset(the_file, trackNumber, timeOffset);
+    gf_isom_get_meta_item_count(file, root_meta, track_num);
 
-    // Close the file to clean up
-    gf_isom_close(the_file);
+    // Clean up
+    gf_isom_close(file);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

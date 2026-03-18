@@ -1,94 +1,82 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_icc_profile at isom_read.c:4019:8 in isomedia.h
-// gf_isom_extract_meta_item_get_cenc_info at meta.c:506:8 in isomedia.h
-// gf_isom_piff_allocate_storage at drm_sample.c:1155:8 in isomedia.h
-// gf_isom_cenc_get_default_info at drm_sample.c:1834:8 in isomedia.h
-// gf_isom_fragment_set_cenc_sai at movie_fragments.c:3005:8 in isomedia.h
-// gf_isom_get_sample_cenc_info at isom_read.c:5790:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_get_sample_info at isom_read.c:2133:15 in isomedia.h
+// gf_isom_sample_del at isom_read.c:109:6 in isomedia.h
+// gf_isom_sample_new at isom_read.c:100:15 in isomedia.h
+// gf_isom_add_sample_reference at isom_write.c:1269:8 in isomedia.h
+// gf_isom_sample_del at isom_read.c:109:6 in isomedia.h
+// gf_isom_get_sample at isom_read.c:1984:15 in isomedia.h
+// gf_isom_sample_del at isom_read.c:109:6 in isomedia.h
+// gf_isom_get_sample_ex at isom_read.c:1937:15 in isomedia.h
+// gf_isom_sample_del at isom_read.c:109:6 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Create a dummy ISO file structure for testing purposes
-    return NULL; // Return NULL as we cannot instantiate an incomplete type
-}
-
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    // No cleanup needed as we are returning NULL
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_125(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    u32 trackNumber = 1;
-    u32 sampleDescriptionIndex = 1;
-    Bool icc_restricted = GF_FALSE;
-    const u8 *icc = NULL;
-    u32 icc_size = 0;
+    // Prepare dummy file
+    write_dummy_file(Data, Size);
 
-    GF_Err res = gf_isom_get_icc_profile(iso_file, trackNumber, sampleDescriptionIndex, &icc_restricted, &icc, &icc_size);
-    if (res != GF_OK) {
-        // Handle errors if needed
+    // Initialize variables
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    if (!isom_file) return 0;
+
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleNumber = *(u32 *)(Data + sizeof(u32));
+    u32 sampleDescriptionIndex = 0;
+    u64 dataOffset = 0;
+
+    // Fuzz gf_isom_get_sample_info
+    GF_ISOSample *sample_info = gf_isom_get_sample_info(isom_file, trackNumber, sampleNumber, &sampleDescriptionIndex, &dataOffset);
+    if (sample_info) {
+        gf_isom_sample_del(&sample_info);
     }
 
-    u32 item_id = 1;
-    Bool is_protected = GF_FALSE;
-    u32 skip_byte_block = 0;
-    u32 crypt_byte_block = 0;
-    const u8 *key_info = NULL;
-    u32 key_info_size = 0;
-    u32 aux_info_type_parameter = 0;
-    u8 *sai_out_data = NULL;
-    u32 sai_out_size = 0;
-    u32 sai_out_alloc_size = 0;
+    // Fuzz gf_isom_sample_new
+    GF_ISOSample *new_sample = gf_isom_sample_new();
+    if (new_sample) {
+        // Fuzz gf_isom_add_sample_reference
+        gf_isom_add_sample_reference(isom_file, trackNumber, sampleDescriptionIndex, new_sample, dataOffset);
 
-    res = gf_isom_extract_meta_item_get_cenc_info(iso_file, GF_TRUE, trackNumber, item_id, &is_protected, &skip_byte_block, &crypt_byte_block, &key_info, &key_info_size, &aux_info_type_parameter, &sai_out_data, &sai_out_size, &sai_out_alloc_size);
-    if (res != GF_OK) {
-        // Handle errors if needed
+        // Fuzz gf_isom_sample_del
+        gf_isom_sample_del(&new_sample);
     }
 
-    u8 IV_size = 16;
-    bin128 KID;
-    memset(KID, 0, sizeof(bin128));
-
-    res = gf_isom_piff_allocate_storage(iso_file, trackNumber, 0, IV_size, KID);
-    if (res != GF_OK) {
-        // Handle errors if needed
+    // Fuzz gf_isom_get_sample
+    GF_ISOSample *sample = gf_isom_get_sample(isom_file, trackNumber, sampleNumber, &sampleDescriptionIndex);
+    if (sample) {
+        gf_isom_sample_del(&sample);
     }
 
-    u32 container_type = 0;
-    Bool default_IsEncrypted = GF_FALSE;
-
-    res = gf_isom_cenc_get_default_info(iso_file, trackNumber, sampleDescriptionIndex, &container_type, &default_IsEncrypted, &crypt_byte_block, &skip_byte_block, &key_info, &key_info_size);
-    if (res != GF_OK) {
-        // Handle errors if needed
+    // Fuzz gf_isom_get_sample_ex
+    GF_ISOSample static_sample;
+    memset(&static_sample, 0, sizeof(GF_ISOSample));
+    GF_ISOSample *sample_ex = gf_isom_get_sample_ex(isom_file, trackNumber, sampleNumber, &sampleDescriptionIndex, &static_sample, &dataOffset);
+    if (sample_ex && sample_ex != &static_sample) {
+        gf_isom_sample_del(&sample_ex);
     }
 
-    GF_ISOTrackID trackID = 1;
-    u8 *sai_b = NULL;
-    u32 sai_b_size = 0;
-    Bool use_subsample = GF_FALSE;
-    Bool use_saio_32bit = GF_FALSE;
-    Bool use_multikey = GF_FALSE;
+    // Close the ISO file
+    gf_isom_close(isom_file);
 
-    res = gf_isom_fragment_set_cenc_sai(iso_file, trackID, sai_b, sai_b_size, use_subsample, use_saio_32bit, use_multikey);
-    if (res != GF_OK) {
-        // Handle errors if needed
-    }
-
-    u32 sampleNumber = 1;
-    Bool IsEncrypted = GF_FALSE;
-
-    res = gf_isom_get_sample_cenc_info(iso_file, trackNumber, sampleNumber, &IsEncrypted, &crypt_byte_block, &skip_byte_block, &key_info, &key_info_size);
-    if (res != GF_OK) {
-        // Handle errors if needed
-    }
-
-    cleanup_iso_file(iso_file);
     return 0;
 }

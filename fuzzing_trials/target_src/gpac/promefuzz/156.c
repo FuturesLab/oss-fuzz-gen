@@ -1,63 +1,61 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_reset_seq_num at isom_read.c:4997:6 in isomedia.h
-// gf_isom_flush_fragments at movie_fragments.c:1468:8 in isomedia.h
-// gf_isom_delete at isom_read.c:2899:6 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_reset_fragment_info at isom_read.c:4976:6 in isomedia.h
-// gf_isom_is_smooth_streaming_moov at isom_read.c:5848:6 in isomedia.h
-// gf_isom_set_progress_callback at isom_write.c:8548:6 in isomedia.h
-// gf_isom_delete at isom_read.c:2899:6 in isomedia.h
+// gf_isom_remove_cenc_seig_sample_group at drm_sample.c:1037:8 in isomedia.h
+// gf_isom_remove_chapter at isom_write.c:3300:8 in isomedia.h
+// gf_isom_get_text_description at tx3g.c:49:8 in isomedia.h
+// gf_isom_set_mpegh_compatible_profiles at isom_write.c:9336:8 in isomedia.h
+// gf_isom_remove_stream_description at isom_write.c:909:8 in isomedia.h
+// gf_isom_get_adobe_protection_info at drm_sample.c:1921:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
 #include "isomedia.h"
 
-static void dummy_progress_callback(void *udta, u64 nb_done, u64 nb_total) {
-    // Dummy progress callback function
+#define DUMMY_FILE_PATH "./dummy_file"
+
+static GF_ISOFile* create_dummy_isofile() {
+    // In a real scenario, we would initialize this with valid data
+    return NULL;
+}
+
+static void cleanup_isofile(GF_ISOFile *isom_file) {
+    // Cleanup logic if needed
 }
 
 int LLVMFuzzerTestOneInput_156(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(void *)) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    if (!isom_file) return 0;
+    GF_ISOFile *isom_file = create_dummy_isofile();
 
-    // Write dummy data to a file if needed
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    // Extract track number and indices from input data
+    u32 trackNumber = *((u32 *)Data);
+    u32 index = *((u32 *)(Data + sizeof(u32)));
+    u32 sampleDescriptionIndex = *((u32 *)(Data + 2 * sizeof(u32)));
+
+    // Fuzz gf_isom_remove_cenc_seig_sample_group
+    gf_isom_remove_cenc_seig_sample_group(isom_file, trackNumber);
+
+    // Fuzz gf_isom_remove_chapter
+    gf_isom_remove_chapter(isom_file, trackNumber, index);
+
+    // Fuzz gf_isom_get_text_description
+    GF_TextSampleDescriptor *out_desc = NULL;
+    gf_isom_get_text_description(isom_file, trackNumber, sampleDescriptionIndex, &out_desc);
+    if (out_desc) {
+        free(out_desc);
     }
 
-    // Invoke gf_isom_reset_seq_num
-    gf_isom_reset_seq_num(isom_file);
+    // Fuzz gf_isom_set_mpegh_compatible_profiles
+    gf_isom_set_mpegh_compatible_profiles(isom_file, trackNumber, sampleDescriptionIndex, NULL, 0);
 
-    // Invoke gf_isom_flush_fragments
-    Bool last_segment = (Bool)(Data[0] % 2);
-    gf_isom_flush_fragments(isom_file, last_segment);
+    // Fuzz gf_isom_remove_stream_description
+    gf_isom_remove_stream_description(isom_file, trackNumber, sampleDescriptionIndex);
 
-    // Invoke gf_isom_delete
-    gf_isom_delete(isom_file);
+    // Fuzz gf_isom_get_adobe_protection_info
+    u32 outOriginalFormat, outSchemeType, outSchemeVersion;
+    const char *outMetadata;
+    gf_isom_get_adobe_protection_info(isom_file, trackNumber, sampleDescriptionIndex, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outMetadata);
 
-    // Re-open the file for further operations
-    isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    if (!isom_file) return 0;
-
-    // Invoke gf_isom_reset_fragment_info
-    Bool keep_sample_count = (Bool)(Data[1] % 2);
-    gf_isom_reset_fragment_info(isom_file, keep_sample_count);
-
-    // Invoke gf_isom_is_smooth_streaming_moov
-    Bool is_smooth = gf_isom_is_smooth_streaming_moov(isom_file);
-
-    // Invoke gf_isom_set_progress_callback
-    gf_isom_set_progress_callback(isom_file, dummy_progress_callback, NULL);
-
-    // Clean up
-    gf_isom_delete(isom_file);
-
+    cleanup_isofile(isom_file);
     return 0;
 }

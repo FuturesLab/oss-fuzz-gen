@@ -1,60 +1,91 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_unused_box_bytes at isom_read.c:4195:5 in isomedia.h
-// gf_isom_get_duration at isom_read.c:971:5 in isomedia.h
-// gf_isom_get_original_duration at isom_read.c:986:5 in isomedia.h
-// gf_isom_get_smooth_next_tfdt at isom_read.c:5835:5 in isomedia.h
-// gf_isom_estimate_size at isom_write.c:5783:5 in isomedia.h
-// gf_isom_get_first_mdat_start at isom_read.c:4163:5 in isomedia.h
+// gf_isom_new_webvtt_description at sample_descs.c:1637:8 in isomedia.h
+// gf_isom_set_generic_protection at drm_sample.c:626:8 in isomedia.h
+// gf_isom_remove_track_kind at isom_write.c:3185:8 in isomedia.h
+// gf_isom_new_generic_sample_description at isom_write.c:4701:8 in isomedia.h
+// gf_isom_get_xml_metadata_description at sample_descs.c:1166:8 in isomedia.h
+// gf_isom_subtitle_set_mime at sample_descs.c:1294:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "isomedia.h"
 
-// Dummy implementation to simulate GF_ISOFile creation
+// Dummy structure definition for GF_ISOFile to allow compilation
+struct __tag_isom {
+    GF_ISOOpenMode openMode;
+    // Add minimal necessary fields if needed for the functions
+    char *fileName;
+    void *movieFileMap;  // Placeholder for GF_DataMap
+    void *moov;          // Placeholder for GF_MovieBox
+    void *mdat;          // Placeholder for GF_MediaDataBox
+    void *brand;         // Placeholder for GF_FileTypeBox
+    void *otyp;          // Placeholder for GF_Box
+    void *pdin;          // Placeholder for GF_ProgressiveDownloadBox
+    void *meta;          // Placeholder for GF_MetaBox
+    void *TopBoxes;      // Placeholder for GF_List
+    u64 current_top_box_start;
+    Bool keep_utc;
+};
+
 static GF_ISOFile* create_dummy_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Instead, we assume there is a function to create a GF_ISOFile, like a library function.
-    // For the purpose of this fuzz driver, we will return NULL to simulate invalid input.
-    return NULL;
+    GF_ISOFile *iso_file = malloc(sizeof(struct __tag_isom));
+    if (iso_file) {
+        memset(iso_file, 0, sizeof(struct __tag_isom));
+        iso_file->openMode = GF_ISOM_OPEN_WRITE; // Set a valid open mode
+    }
+    return iso_file;
 }
 
-static void destroy_dummy_iso_file(GF_ISOFile *file) {
-    // Since we are returning NULL in create_dummy_iso_file, there is nothing to destroy.
-    // If there was a real allocation or initialization, it would be cleaned up here.
+static void cleanup_iso_file(GF_ISOFile *iso_file) {
+    if (iso_file) {
+        free(iso_file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_127(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < sizeof(u32)) return 0;
 
     GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    // Fuzz gf_isom_get_unused_box_bytes
-    u64 unused_bytes = gf_isom_get_unused_box_bytes(iso_file);
-    (void)unused_bytes;
+    u32 trackNumber = *(u32*)Data;
+    const char *URLname = NULL;
+    const char *URNname = NULL;
+    u32 outDescriptionIndex = 0;
+    const char *config = "dummy_config";
 
-    // Fuzz gf_isom_get_duration
-    u64 duration = gf_isom_get_duration(iso_file);
-    (void)duration;
+    // Fuzz gf_isom_new_webvtt_description
+    gf_isom_new_webvtt_description(iso_file, trackNumber, URLname, URNname, &outDescriptionIndex, config);
 
-    // Fuzz gf_isom_get_original_duration
-    u64 original_duration = gf_isom_get_original_duration(iso_file);
-    (void)original_duration;
+    // Fuzz gf_isom_set_generic_protection
+    const u32 sampleDescriptionIndex = 0;
+    const u32 scheme_type = 0;
+    const u32 scheme_version = 1;
+    char *scheme_uri = NULL;
+    char *kms_URI = NULL;
+    gf_isom_set_generic_protection(iso_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, scheme_uri, kms_URI);
 
-    // Fuzz gf_isom_get_smooth_next_tfdt with a valid track number
-    u32 track_number = 1; // Example track number
-    u64 smooth_next_tfdt = gf_isom_get_smooth_next_tfdt(iso_file, track_number);
-    (void)smooth_next_tfdt;
+    // Fuzz gf_isom_remove_track_kind
+    const char *schemeURI = NULL;
+    const char *value = NULL;
+    gf_isom_remove_track_kind(iso_file, trackNumber, schemeURI, value);
 
-    // Fuzz gf_isom_estimate_size
-    u64 estimated_size = gf_isom_estimate_size(iso_file);
-    (void)estimated_size;
+    // Fuzz gf_isom_new_generic_sample_description
+    GF_GenericSampleDescription *udesc = NULL;
+    gf_isom_new_generic_sample_description(iso_file, trackNumber, URLname, URNname, udesc, &outDescriptionIndex);
 
-    // Fuzz gf_isom_get_first_mdat_start
-    u64 first_mdat_start = gf_isom_get_first_mdat_start(iso_file);
-    (void)first_mdat_start;
+    // Fuzz gf_isom_get_xml_metadata_description
+    const char *xmlnamespace = NULL;
+    const char *schema_loc = NULL;
+    const char *content_encoding = NULL;
+    gf_isom_get_xml_metadata_description(iso_file, trackNumber, sampleDescriptionIndex, &xmlnamespace, &schema_loc, &content_encoding);
 
-    destroy_dummy_iso_file(iso_file);
+    // Fuzz gf_isom_subtitle_set_mime
+    const char *full_mime = "text/vtt";
+    gf_isom_subtitle_set_mime(iso_file, trackNumber, sampleDescriptionIndex, full_mime);
+
+    cleanup_iso_file(iso_file);
     return 0;
 }

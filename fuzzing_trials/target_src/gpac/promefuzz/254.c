@@ -1,67 +1,76 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_subtitle_set_mime at sample_descs.c:1294:8 in isomedia.h
-// gf_isom_get_data_reference at isom_read.c:1723:8 in isomedia.h
-// gf_isom_new_stxt_description at sample_descs.c:1418:8 in isomedia.h
-// gf_isom_3gp_config_new at sample_descs.c:567:8 in isomedia.h
-// gf_isom_new_text_description at tx3g.c:197:8 in isomedia.h
-// gf_isom_ac4_config_new at sample_descs.c:775:8 in isomedia.h
+// gf_isom_new_mpeg4_description at isom_write.c:933:8 in isomedia.h
+// gf_isom_change_mpeg4_description at isom_write.c:1732:8 in isomedia.h
+// gf_isom_get_esd at isom_read.c:1386:9 in isomedia.h
+// gf_isom_get_pcm_config at sample_descs.c:1972:8 in isomedia.h
+// gf_isom_get_visual_info at isom_read.c:3821:8 in isomedia.h
+// gf_isom_add_track_to_root_od at isom_write.c:136:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_isofile() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Instead, we assume a function or mechanism exists to create it. Here, we simulate that.
-    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    return file;
+static GF_ISOFile *create_dummy_isofile() {
+    return NULL; // Return NULL as we cannot instantiate GF_ISOFile without its definition
 }
 
-static void cleanup_isofile(GF_ISOFile *file) {
-    if (file) {
-        gf_isom_close(file);
-    }
+static GF_ESD *create_dummy_esd() {
+    GF_ESD *esd = (GF_ESD *)malloc(sizeof(GF_ESD));
+    if (!esd) return NULL;
+    memset(esd, 0, sizeof(GF_ESD));
+    return esd;
+}
+
+static void cleanup(GF_ISOFile *isofile, GF_ESD *esd) {
+    if (isofile) free(isofile);
+    if (esd) free(esd);
 }
 
 int LLVMFuzzerTestOneInput_254(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *isom_file = create_dummy_isofile();
-    if (!isom_file) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    u32 trackNumber = 1;
-    u32 sampleDescriptionIndex = 1;
-    const char *full_mime = NULL;
-    if (Size > 0) {
-        full_mime = (const char *)Data;
+    GF_ISOFile *isofile = create_dummy_isofile();
+    GF_ESD *esd = create_dummy_esd();
+    if (!isofile || !esd) {
+        cleanup(isofile, esd);
+        return 0;
     }
 
-    // Fuzz gf_isom_subtitle_set_mime
-    gf_isom_subtitle_set_mime(isom_file, trackNumber, sampleDescriptionIndex, full_mime);
+    u32 trackNumber = *((u32 *)Data);
+    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
+    u32 dummyValue = *((u32 *)(Data + 2 * sizeof(u32)));
 
-    // Fuzz gf_isom_get_data_reference
-    const char *outURL = NULL;
-    const char *outURN = NULL;
-    gf_isom_get_data_reference(isom_file, trackNumber, sampleDescriptionIndex, &outURL, &outURN);
-
-    // Fuzz gf_isom_new_stxt_description
     u32 outDescriptionIndex;
-    gf_isom_new_stxt_description(isom_file, trackNumber, 0, full_mime, full_mime, full_mime, &outDescriptionIndex);
+    u32 flags;
+    u32 pcm_size;
+    u32 width, height;
 
-    // Fuzz gf_isom_3gp_config_new
-    GF_3GPConfig *config = NULL;
-    gf_isom_3gp_config_new(isom_file, trackNumber, config, full_mime, full_mime, &outDescriptionIndex);
+    // Fuzz gf_isom_new_mpeg4_description
+    gf_isom_new_mpeg4_description(isofile, trackNumber, esd, NULL, NULL, &outDescriptionIndex);
 
-    // Fuzz gf_isom_new_text_description
-    GF_TextSampleDescriptor *desc = NULL;
-    gf_isom_new_text_description(isom_file, trackNumber, desc, full_mime, full_mime, &outDescriptionIndex);
+    // Fuzz gf_isom_change_mpeg4_description
+    gf_isom_change_mpeg4_description(isofile, trackNumber, sampleDescriptionIndex, esd);
 
-    // Fuzz gf_isom_ac4_config_new
-    GF_AC4Config *cfg = NULL;
-    gf_isom_ac4_config_new(isom_file, trackNumber, cfg, full_mime, full_mime, &outDescriptionIndex);
+    // Fuzz gf_isom_get_esd
+    GF_ESD *retrieved_esd = gf_isom_get_esd(isofile, trackNumber, sampleDescriptionIndex);
+    if (retrieved_esd) free(retrieved_esd);
 
-    cleanup_isofile(isom_file);
+    // Fuzz gf_isom_get_pcm_config
+    gf_isom_get_pcm_config(isofile, trackNumber, sampleDescriptionIndex, &flags, &pcm_size);
+
+    // Fuzz gf_isom_get_visual_info
+    gf_isom_get_visual_info(isofile, trackNumber, sampleDescriptionIndex, &width, &height);
+
+    // Fuzz gf_isom_add_track_to_root_od
+    gf_isom_add_track_to_root_od(isofile, trackNumber);
+
+    cleanup(isofile, esd);
     return 0;
 }

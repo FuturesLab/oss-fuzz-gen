@@ -1,30 +1,31 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <gpac/isomedia.h>
-
-// Assuming GF_EXPORT is defined as an export macro, if not, define it as empty
-#ifndef GF_EXPORT
-#define GF_EXPORT
-#endif
-
-// Function prototype for the function-under-test
-GF_EXPORT GF_Err gf_isom_evte_config_new(GF_ISOFile *the_file, u32 trackNumber, u32 *outDescriptionIndex);
+#include <stdbool.h> // Include for Bool type
+#include <gpac/isomedia.h> // Include for GF_ISOFile and related functions
 
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Initialize the parameters for gf_isom_evte_config_new
-    GF_ISOFile *the_file = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL); // Create a new ISO file in memory
-    if (!the_file) {
-        return 0; // Exit if file creation fails
+    // Ensure size is sufficient for extracting parameters
+    if (size < sizeof(uint32_t) + 1) {
+        return 0;
     }
 
-    u32 trackNumber = 1; // Example track number
-    u32 outDescriptionIndex = 0;
+    // Initialize parameters
+    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_READ, NULL);
+    if (movie == NULL) {
+        return 0;
+    }
+
+    // Extract trackNumber from data
+    uint32_t trackNumber = *((uint32_t *)data);
+
+    // Extract CompactionOn from data
+    Bool CompactionOn = (Bool)(data[sizeof(uint32_t)] % 2);
 
     // Call the function-under-test
-    gf_isom_evte_config_new(the_file, trackNumber, &outDescriptionIndex);
+    gf_isom_use_compact_size(movie, trackNumber, CompactionOn);
 
     // Clean up
-    gf_isom_close(the_file);
+    gf_isom_close(movie);
 
     return 0;
 }

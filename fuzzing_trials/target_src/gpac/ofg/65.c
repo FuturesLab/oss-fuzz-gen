@@ -1,21 +1,37 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <gpac/isomedia.h>
+#include <gpac/constants.h>
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    GF_ISOFile *movie = gf_isom_open((const char*)data, GF_ISOM_OPEN_READ, NULL);
-    u32 trackNumber = 1; // Example track number, ensure it's valid for fuzzing
-    u32 StreamDescriptionIndex = 1; // Example index, ensure it's valid for fuzzing
-
-    // Check if movie was successfully opened
-    if (movie != NULL) {
-        // Call the function under test
-        gf_isom_remove_stream_description(movie, trackNumber, StreamDescriptionIndex);
-
-        // Close the movie file to release resources
-        gf_isom_close(movie);
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
+        return 0;
     }
+
+    GF_ISOTrackID trakID = 1; // Example track ID
+    u32 MediaType = GF_ISOM_MEDIA_VISUAL; // Example media type
+    u32 TimeScale = 1000; // Example time scale
+    u8 *tk_box = (u8 *)malloc(size);
+    if (!tk_box) {
+        gf_isom_close(movie);
+        return 0;
+    }
+
+    // Copy data to tk_box
+    for (size_t i = 0; i < size; i++) {
+        tk_box[i] = data[i];
+    }
+
+    u32 tk_box_size = (u32)size;
+    Bool udta_only = 0; // Example boolean value
+
+    // Call the function-under-test
+    gf_isom_new_track_from_template(movie, trakID, MediaType, TimeScale, tk_box, tk_box_size, udta_only);
+
+    // Clean up
+    free(tk_box);
+    gf_isom_close(movie);
 
     return 0;
 }

@@ -3,26 +3,22 @@
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient for our needs
-    if (size < sizeof(GF_ISOProfileLevelType) + sizeof(u8)) {
+    // Initialize a GF_ISOFile structure using an alternative valid function
+    GF_ISOFile *file = gf_isom_open(NULL, GF_ISOM_OPEN_READ, NULL);
+
+    // Ensure the file is not NULL
+    if (file == NULL) {
         return 0;
     }
 
-    // Initialize the movie structure
-    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_READ, NULL);
-    if (!movie) {
-        return 0;
-    }
-
-    // Extract GF_ISOProfileLevelType and u8 ProfileLevel from the data
-    GF_ISOProfileLevelType PL_Code = *(GF_ISOProfileLevelType *)data;
-    u8 ProfileLevel = *(u8 *)(data + sizeof(GF_ISOProfileLevelType));
+    // Define a Bool variable for the set_on parameter
+    Bool set_on = (size % 2 == 0) ? 1 : 0; // Arbitrarily set based on size
 
     // Call the function-under-test
-    gf_isom_set_pl_indication(movie, PL_Code, ProfileLevel);
+    gf_isom_force_64bit_chunk_offset(file, set_on);
 
-    // Clean up
-    gf_isom_close(movie);
+    // Close the file to free resources
+    gf_isom_close(file);
 
     return 0;
 }

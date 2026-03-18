@@ -1,88 +1,54 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_set_track_flags at isom_write.c:277:8 in isomedia.h
-// gf_isom_set_track_interleaving_group at isom_write.c:5868:8 in isomedia.h
-// gf_isom_set_fragment_original_duration at movie_fragments.c:3171:8 in isomedia.h
-// gf_isom_set_sample_flags at isom_write.c:8052:8 in isomedia.h
-// gf_isom_set_sample_padding at isom_read.c:2492:8 in isomedia.h
-// gf_isom_lhvc_force_inband_config at avc_ext.c:2330:8 in isomedia.h
+// gf_isom_text_reset_styles at tx3g.c:612:8 in isomedia.h
+// gf_isom_text_set_highlight_color at tx3g.c:321:8 in isomedia.h
+// gf_isom_text_reset at tx3g.c:636:8 in isomedia.h
+// gf_isom_text_add_text at tx3g.c:259:8 in isomedia.h
+// gf_isom_text_add_karaoke at tx3g.c:335:8 in isomedia.h
+// gf_isom_text_set_scroll_delay at tx3g.c:358:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
+// Assuming the size of GF_TextSample is known or obtained from the library
+#define TEXT_SAMPLE_SIZE 128  // Placeholder size, should be replaced with actual size
 
-static GF_ISOFile* initialize_iso_file() {
-    // We cannot directly allocate GF_ISOFile due to its incomplete type
-    // Assuming there is a function to create GF_ISOFile in the library
-    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_EDIT, NULL);
-    return isom_file;
+static GF_TextSample* create_text_sample() {
+    GF_TextSample *sample = (GF_TextSample *) malloc(TEXT_SAMPLE_SIZE);
+    if (!sample) return NULL;
+    memset(sample, 0, TEXT_SAMPLE_SIZE);
+    return sample;
 }
 
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
-    }
+static void destroy_text_sample(GF_TextSample *sample) {
+    if (!sample) return;
+    // Assuming isomedia provides a function to properly clean up a GF_TextSample
+    free(sample);
 }
 
 int LLVMFuzzerTestOneInput_58(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 13) {
-        return 0; // Not enough data to proceed
-    }
+    if (Size < 12) return 0; // Ensure enough data for u32 values and text
 
-    FILE *dummy_file = fopen(DUMMY_FILE_PATH, "wb");
-    if (!dummy_file) {
-        return 0; // Unable to create dummy file
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    GF_TextSample *sample = create_text_sample();
+    if (!sample) return 0;
 
-    GF_ISOFile *isom_file = initialize_iso_file();
-    if (!isom_file) {
-        return 0; // Unable to initialize ISO file structure
-    }
+    // Extract values from Data
+    u32 argb_color = *(u32 *)Data;
+    u32 scroll_delay = *(u32 *)(Data + 4);
+    u32 karaoke_start_time = *(u32 *)(Data + 8);
+    char *text_data = (char *)(Data + 12);
+    u32 text_len = Size > 12 ? Size - 12 : 0;
 
-    u32 trackNumber = *((u32 *)Data);
-    u32 flags = *((u32 *)(Data + sizeof(u32)));
-    GF_ISOMTrackFlagOp op = (GF_ISOMTrackFlagOp)*(Data + sizeof(u32) * 2);
+    // Invoke API functions
+    gf_isom_text_reset_styles(sample);
+    gf_isom_text_set_highlight_color(sample, argb_color);
+    gf_isom_text_reset(sample);
+    gf_isom_text_add_text(sample, text_data, text_len);
+    gf_isom_text_add_karaoke(sample, karaoke_start_time);
+    gf_isom_text_set_scroll_delay(sample, scroll_delay);
 
-    // Fuzz gf_isom_set_track_flags
-    gf_isom_set_track_flags(isom_file, trackNumber, flags, op);
-
-    // Fuzz gf_isom_set_track_interleaving_group
-    u32 GroupID = *((u32 *)(Data + sizeof(u32) * 3));
-    gf_isom_set_track_interleaving_group(isom_file, trackNumber, GroupID);
-
-    // Fuzz gf_isom_set_fragment_original_duration
-    GF_ISOTrackID TrackID = trackNumber;
-    u32 orig_dur = *((u32 *)(Data + sizeof(u32) * 4));
-    u32 elapsed_dur = *((u32 *)(Data + sizeof(u32) * 5));
-    gf_isom_set_fragment_original_duration(isom_file, TrackID, orig_dur, elapsed_dur);
-
-    // Fuzz gf_isom_set_sample_flags
-    u32 sampleNumber = *((u32 *)(Data + sizeof(u32) * 6));
-    u32 isLeading = *((u32 *)(Data + sizeof(u32) * 7));
-    u32 dependsOn = *((u32 *)(Data + sizeof(u32) * 8));
-    u32 dependedOn = *((u32 *)(Data + sizeof(u32) * 9));
-    u32 redundant = *((u32 *)(Data + sizeof(u32) * 10));
-    gf_isom_set_sample_flags(isom_file, trackNumber, sampleNumber, isLeading, dependsOn, dependedOn, redundant);
-
-    // Fuzz gf_isom_set_sample_padding
-    u32 padding_bytes = *((u32 *)(Data + sizeof(u32) * 11));
-    gf_isom_set_sample_padding(isom_file, trackNumber, padding_bytes);
-
-    // Fuzz gf_isom_lhvc_force_inband_config
-    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32) * 12));
-    gf_isom_lhvc_force_inband_config(isom_file, trackNumber, sampleDescriptionIndex);
-
-    cleanup_iso_file(isom_file);
+    // Clean up
+    destroy_text_sample(sample);
     return 0;
 }

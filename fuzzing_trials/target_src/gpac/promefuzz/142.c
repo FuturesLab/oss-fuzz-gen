@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_hint_direct_data at hint_track.c:441:8 in isomedia.h
-// gf_isom_flac_config_get at sample_descs.c:386:8 in isomedia.h
-// gf_isom_hint_sample_description_data at hint_track.c:539:8 in isomedia.h
-// gf_isom_cenc_get_sample_aux_info at drm_sample.c:1645:8 in isomedia.h
-// gf_isom_set_last_sample_duration_ex at isom_write.c:1431:8 in isomedia.h
-// gf_isom_hint_sample_data at hint_track.c:469:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_apple_set_tag at isom_write.c:6583:8 in isomedia.h
+// gf_isom_apple_enum_tag_ex at isom_read.c:4491:8 in isomedia.h
+// gf_isom_apple_get_tag at isom_read.c:4448:8 in isomedia.h
+// gf_isom_guess_specification at isom_read.c:4276:5 in isomedia.h
+// gf_isom_apple_set_tag_ex at isom_write.c:6298:8 in isomedia.h
+// gf_isom_apple_enum_tag at isom_read.c:4654:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -13,48 +15,66 @@
 #include "isomedia.h"
 
 static GF_ISOFile* create_dummy_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate or initialize it directly.
-    // We assume that there is a function to create or initialize a GF_ISOFile object.
-    // For the purpose of this example, we will return NULL.
-    return NULL;
+    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
+    // We would typically use a function from the library to create or open an ISO file.
+    // For the purpose of this fuzz driver, assume such a function exists as `gf_isom_open`.
+    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_EDIT, NULL);
+    return file;
 }
 
-static void free_dummy_iso_file(GF_ISOFile *iso_file) {
-    // Since we cannot create the GF_ISOFile, we do not need to free it either.
-    // If there was a creation function, there would likely be a corresponding destruction function.
+static void close_dummy_iso_file(GF_ISOFile *file) {
+    if (file) {
+        gf_isom_close(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_142(const uint8_t *Data, size_t Size) {
-    if (Size < 16) return 0; // Ensure enough data for operations
+    GF_ISOFile *isom_file = create_dummy_iso_file();
+    if (!isom_file) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    if (Size < sizeof(GF_ISOiTunesTag) + sizeof(u64) + sizeof(u32) * 2) {
+        close_dummy_iso_file(isom_file);
+        return 0;
+    }
 
-    u32 trackNumber = Data[0];
-    u8 data[14];
-    memcpy(data, Data + 1, 14);
-    u32 dataLength = 14;
-    u8 AtBegin = Data[15] % 2;
+    GF_ISOiTunesTag tag = *(GF_ISOiTunesTag *)Data;
+    const u8 *data = Data + sizeof(GF_ISOiTunesTag);
+    u32 data_len = (u32)(Size - sizeof(GF_ISOiTunesTag));
+    u64 int_val = *(u64 *)(Data + sizeof(GF_ISOiTunesTag));
+    u32 int_val2 = *(u32 *)(Data + sizeof(GF_ISOiTunesTag) + sizeof(u64));
 
-    gf_isom_hint_direct_data(iso_file, trackNumber, data, dataLength, AtBegin);
+    // Fuzz gf_isom_apple_set_tag
+    gf_isom_apple_set_tag(isom_file, tag, data, data_len, int_val, int_val2);
 
-    u8 *dsi = NULL;
-    u32 dsi_size = 0;
-    gf_isom_flac_config_get(iso_file, trackNumber, trackNumber, &dsi, &dsi_size);
-    if (dsi) free(dsi);
+    // Fuzz gf_isom_apple_enum_tag_ex
+    GF_ISOiTunesTag out_tag;
+    const u8 *out_data;
+    u32 out_data_len;
+    u64 out_int_val;
+    u32 out_int_val2;
+    u32 out_flags;
+    const char *out_mean;
+    const char *out_name;
+    u32 out_locale;
+    gf_isom_apple_enum_tag_ex(isom_file, 0, &out_tag, &out_data, &out_data_len, &out_int_val, &out_int_val2, &out_flags, &out_mean, &out_name, &out_locale);
 
-    gf_isom_hint_sample_description_data(iso_file, trackNumber, trackNumber, trackNumber, dataLength, 0, AtBegin);
+    // Fuzz gf_isom_apple_get_tag
+    const u8 *get_data;
+    u32 get_data_len;
+    gf_isom_apple_get_tag(isom_file, tag, &get_data, &get_data_len);
 
-    u32 container_type = 0;
-    u8 *out_buffer = NULL;
-    u32 outSize = 0;
-    gf_isom_cenc_get_sample_aux_info(iso_file, trackNumber, trackNumber, trackNumber, &container_type, &out_buffer, &outSize);
-    if (out_buffer) free(out_buffer);
+    // Fuzz gf_isom_guess_specification
+    gf_isom_guess_specification(isom_file);
 
-    gf_isom_set_last_sample_duration_ex(iso_file, trackNumber, 1, 1);
+    // Fuzz gf_isom_apple_set_tag_ex
+    const char *name = "name";
+    const char *mean = "mean";
+    u32 locale = 0;
+    gf_isom_apple_set_tag_ex(isom_file, tag, data, data_len, int_val, int_val2, name, mean, locale);
 
-    gf_isom_hint_sample_data(iso_file, trackNumber, trackNumber, trackNumber, dataLength, 0, NULL, AtBegin);
+    // Fuzz gf_isom_apple_enum_tag
+    gf_isom_apple_enum_tag(isom_file, 0, &out_tag, &out_data, &out_data_len, &out_int_val, &out_int_val2, &out_flags);
 
-    free_dummy_iso_file(iso_file);
+    close_dummy_iso_file(isom_file);
     return 0;
 }

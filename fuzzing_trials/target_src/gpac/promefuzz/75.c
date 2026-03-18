@@ -1,80 +1,64 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_get_sample_duration at isom_read.c:1990:5 in isomedia.h
+// gf_isom_has_time_offset at isom_read.c:1868:5 in isomedia.h
+// gf_isom_get_timescale at isom_read.c:962:5 in isomedia.h
+// gf_isom_get_track_switch_parameter at isom_read.c:4831:12 in isomedia.h
+// gf_isom_is_track_referenced at isom_read.c:1316:5 in isomedia.h
+// gf_isom_segment_get_fragment_count at isom_read.c:864:5 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_has_meta_xml at meta.c:52:5 in isomedia.h
-// gf_isom_is_external_track at isom_read.c:6656:6 in isomedia.h
-// gf_isom_get_edit_list_type at isom_read.c:2504:6 in isomedia.h
-// gf_isom_get_tile_info at isom_read.c:5878:6 in isomedia.h
-// gf_isom_get_tmcd_config at sample_descs.c:1953:8 in isomedia.h
-// gf_isom_is_video_handler_type at isom_read.c:5954:6 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
-
-static GF_ISOFile* create_dummy_iso_file() {
-    GF_ISOFile *iso_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, NULL);
-    return iso_file;
-}
-
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_close(iso_file);
-    }
+static GF_ISOFile* create_dummy_iso_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return NULL;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+    
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isom_file;
 }
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32)) return 0;
+    if (Size < 4) return 0;
 
-    // Write the input data to a dummy file
-    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
-    if (!file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    GF_ISOFile *isom_file = create_dummy_iso_file(Data, Size);
+    if (!isom_file) return 0;
 
-    // Create a dummy ISO file
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) {
-        remove(DUMMY_FILE_PATH);
-        return 0;
-    }
+    u32 trackNumber = Data[0];
+    u32 sampleNumber = Data[1];
+    u32 groupIndex = Data[2];
+    u32 referenceType = Data[3];
 
-    // Prepare variables for function calls
-    Bool root_meta = (Bool)(Data[0] % 2);
-    u32 track_num = *(u32 *)(Data + 1) % 100; // Limit track number to a reasonable range
-    u32 tkid, type, flags;
-    const char *location;
-    s64 mediaOffset;
-    u32 default_sample_group_index, id, independent, x, y, w, h;
-    u32 tmcd_flags, tmcd_fps_num, tmcd_fps_den, tmcd_fpt;
+    // Test gf_isom_get_sample_duration
+    u32 duration = gf_isom_get_sample_duration(isom_file, trackNumber, sampleNumber);
 
-    // Call gf_isom_has_meta_xml
-    u32 has_meta_xml = gf_isom_has_meta_xml(iso_file, root_meta, track_num);
+    // Test gf_isom_has_time_offset
+    u32 has_time_offset = gf_isom_has_time_offset(isom_file, trackNumber);
 
-    // Call gf_isom_is_external_track
-    Bool is_external = gf_isom_is_external_track(iso_file, track_num, &tkid, &type, &flags, &location);
+    // Test gf_isom_get_timescale
+    u32 timescale = gf_isom_get_timescale(isom_file);
 
-    // Call gf_isom_get_edit_list_type
-    Bool edit_list_type = gf_isom_get_edit_list_type(iso_file, track_num, &mediaOffset);
+    // Test gf_isom_get_track_switch_parameter
+    u32 switchGroupID;
+    u32 criteriaListSize;
+    const u32 *criteriaList = gf_isom_get_track_switch_parameter(isom_file, trackNumber, groupIndex, &switchGroupID, &criteriaListSize);
 
-    // Call gf_isom_get_tile_info
-    Bool tile_info = gf_isom_get_tile_info(iso_file, track_num, track_num, &default_sample_group_index, &id, &independent, &root_meta, &x, &y, &w, &h);
+    // Test gf_isom_is_track_referenced
+    u32 referencedTrack = gf_isom_is_track_referenced(isom_file, trackNumber, referenceType);
 
-    // Call gf_isom_get_tmcd_config
-    GF_Err tmcd_config_err = gf_isom_get_tmcd_config(iso_file, track_num, track_num, &tmcd_flags, &tmcd_fps_num, &tmcd_fps_den, &tmcd_fpt);
+    // Test gf_isom_segment_get_fragment_count
+    u32 fragmentCount = gf_isom_segment_get_fragment_count(isom_file);
 
-    // Call gf_isom_is_video_handler_type
-    Bool is_video_handler = gf_isom_is_video_handler_type(*(u32 *)Data);
-
-    // Cleanup
-    cleanup_iso_file(iso_file);
-    remove(DUMMY_FILE_PATH);
-
+    gf_isom_close(isom_file);
     return 0;
 }

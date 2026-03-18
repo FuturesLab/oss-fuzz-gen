@@ -1,52 +1,36 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <gpac/isomedia.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <gpac/setup.h>
+
+// Function prototype for the function-under-test
+// Correct the function prototype to match the declaration in gpac/isomedia.h
+GF_Err gf_isom_remove_meta_xml(GF_ISOFile *isom_file, Bool root_meta, u32 track_num);
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
-    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) {
+    // Ensure the input size is sufficient to extract necessary parameters
+    if (size < sizeof(Bool) + sizeof(u32)) {
         return 0;
     }
 
-    // Ensure we have enough data to initialize parameters
-    if (size < sizeof(GF_ISOTrackID) + sizeof(u32) * 2 + sizeof(u8) + sizeof(u16) + sizeof(Bool)) {
-        gf_isom_close(movie);
+    // Initialize the GF_ISOFile structure
+    // Provide a valid temporary directory path as the third argument
+    GF_ISOFile *file = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, "/tmp"); // Open a new GF_ISOFile
+    if (!file) {
         return 0;
     }
 
-    // Extract parameters from the input data
-    GF_ISOTrackID TrackID = *((GF_ISOTrackID *)data);
-    data += sizeof(GF_ISOTrackID);
-    size -= sizeof(GF_ISOTrackID);
+    // Extract the Bool root_meta from the input data
+    Bool root_meta = (Bool)data[0];
 
-    GF_ISOSample sample;
-    sample.data = (u8 *)data;
-    sample.dataLength = size;
+    // Extract the u32 track_num from the input data
+    u32 track_num = *(u32 *)(data + 1);
 
-    u32 DescIndex = *((u32 *)data);
-    data += sizeof(u32);
-    size -= sizeof(u32);
-
-    u32 Duration = *((u32 *)data);
-    data += sizeof(u32);
-    size -= sizeof(u32);
-
-    u8 PaddingBits = *data;
-    data += sizeof(u8);
-    size -= sizeof(u8);
-
-    u16 DegradationPriority = *((u16 *)data);
-    data += sizeof(u16);
-    size -= sizeof(u16);
-
-    Bool redundant_coding = *((Bool *)data);
-
-    // Call the function under test
-    gf_isom_fragment_add_sample(movie, TrackID, &sample, DescIndex, Duration, PaddingBits, DegradationPriority, redundant_coding);
+    // Call the function-under-test
+    gf_isom_remove_meta_xml(file, root_meta, track_num);
 
     // Clean up
-    gf_isom_close(movie);
+    gf_isom_close(file);
 
     return 0;
 }

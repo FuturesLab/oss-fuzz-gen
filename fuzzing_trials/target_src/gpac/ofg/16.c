@@ -1,26 +1,30 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *movie;
-    u32 trackNumber = 1; // Assuming track number 1 for testing
-    u32 data_size = (u32)size;
-
-    // Create a new ISO file for testing
-    // Provide a temporary directory path for the third argument
-    movie = gf_isom_open(NULL, GF_ISOM_WRITE_EDIT, "/tmp");
-
-    // Ensure the movie is not NULL
-    if (movie == NULL) {
+    // Ensure the size is sufficient to extract parameters
+    if (size < sizeof(uint32_t) * 4) {
         return 0;
     }
 
-    // Append sample data
-    gf_isom_append_sample_data(movie, trackNumber, (u8 *)data, data_size);
+    // Initialize parameters for gf_isom_set_visual_info
+    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
+        return 0;
+    }
 
-    // Close the ISO file
+    // Extract parameters from the input data
+    uint32_t trackNumber = *((uint32_t *)data);
+    uint32_t StreamDescriptionIndex = *((uint32_t *)(data + sizeof(uint32_t)));
+    uint32_t Width = *((uint32_t *)(data + 2 * sizeof(uint32_t)));
+    uint32_t Height = *((uint32_t *)(data + 3 * sizeof(uint32_t)));
+
+    // Call the function-under-test
+    gf_isom_set_visual_info(movie, trackNumber, StreamDescriptionIndex, Width, Height);
+
+    // Clean up
     gf_isom_close(movie);
 
     return 0;

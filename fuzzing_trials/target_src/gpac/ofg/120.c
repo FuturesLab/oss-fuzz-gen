@@ -1,39 +1,28 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <gpac/isomedia.h>
 
-// The function-under-test
-GF_Err gf_isom_check_data_reference(GF_ISOFile *isom_file, u32 trackNumber, u32 sampleDescriptionIndex);
-
 int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
-    // We can't use sizeof(GF_ISOFile) because it's an incomplete type.
-    // Instead, let's assume a minimum size for fuzzing purposes.
-    const size_t min_size = sizeof(u32) * 2;
-
-    if (size < min_size) {
+    // Ensure the input size is sufficient for our needs
+    if (size < sizeof(GF_ISOStorageMode)) {
         return 0;
     }
 
-    // Initialize the parameters for the function-under-test
-    // Instead of allocating memory for GF_ISOFile, we assume a mock setup
-    GF_ISOFile *the_file = NULL; // Placeholder for a real object, if available
+    // Create a new GF_ISOFile using the library's function
+    // Provide a temporary file name and a temporary directory
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, "/tmp");
+    if (movie == NULL) {
+        return 0;
+    }
 
-    // If there's a library function to create or initialize GF_ISOFile, it should be used here
-    // For example: the_file = gf_isom_open_file(...); (this is hypothetical)
-
-    u32 trackNumber;
-    u32 StreamDescriptionIndex;
-
-    // Copy data into the parameters
-    memcpy(&trackNumber, data, sizeof(u32));
-    memcpy(&StreamDescriptionIndex, data + sizeof(u32), sizeof(u32));
+    // Extract GF_ISOStorageMode from the input data
+    GF_ISOStorageMode storageMode = *(GF_ISOStorageMode *)data;
 
     // Call the function-under-test
-    gf_isom_check_data_reference(the_file, trackNumber, StreamDescriptionIndex);
+    gf_isom_set_storage_mode(movie, storageMode);
 
-    // Free the allocated memory or close the file if it was opened
-    // For example: gf_isom_close_file(the_file); (this is hypothetical)
+    // Clean up
+    gf_isom_close(movie);
 
     return 0;
 }

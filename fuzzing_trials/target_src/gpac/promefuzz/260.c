@@ -1,101 +1,63 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_text_reset at tx3g.c:636:8 in isomedia.h
-// gf_isom_text_reset_styles at tx3g.c:612:8 in isomedia.h
-// gf_isom_text_sample_write_bs at tx3g.c:440:8 in isomedia.h
-// gf_isom_text_add_style at tx3g.c:290:8 in isomedia.h
-// gf_isom_text_set_forced at tx3g.c:423:8 in isomedia.h
-// gf_isom_text_set_wrap at tx3g.c:411:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_get_track_switch_parameter at isom_read.c:4831:12 in isomedia.h
+// gf_isom_get_generic_sample_description at isom_read.c:3714:30 in isomedia.h
+// gf_isom_get_media_subtype at isom_read.c:1644:5 in isomedia.h
+// gf_isom_get_track_original_id at isom_read.c:824:15 in isomedia.h
+// gf_isom_segment_get_fragment_count at isom_read.c:864:5 in isomedia.h
+// gf_isom_get_media_timescale at isom_read.c:1459:5 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "isomedia.h"
 
-// Forward declaration of unknown types to avoid compilation errors
-typedef struct GF_TextStyleBox GF_TextStyleBox;
-typedef struct GF_TextHighlightColorBox GF_TextHighlightColorBox;
-typedef struct GF_TextScrollDelayBox GF_TextScrollDelayBox;
-typedef struct GF_TextBoxBox GF_TextBoxBox;
-typedef struct GF_TextWrapBox GF_TextWrapBox;
-typedef struct GF_TextKaraokeBox GF_TextKaraokeBox;
-typedef struct _tag_array GF_List;
-
-// Define the structure of GF_TextSample since it is a forward declaration
-struct _3gpp_text_sample {
-    char *text;
-    u32 len;
-    GF_TextStyleBox *styles;
-    GF_TextHighlightColorBox *highlight_color;
-    GF_TextScrollDelayBox *scroll_delay;
-    GF_TextBoxBox *box;
-    GF_TextWrapBox *wrap;
-    Bool is_forced;
-    GF_List *others;
-    GF_TextKaraokeBox *cur_karaoke;
-};
-
-static GF_TextSample* create_dummy_text_sample() {
-    GF_TextSample *sample = (GF_TextSample *)malloc(sizeof(GF_TextSample));
-    if (!sample) return NULL;
-    sample->text = strdup("Sample text");
-    sample->len = sample->text ? strlen(sample->text) : 0;
-    sample->styles = NULL;
-    sample->highlight_color = NULL;
-    sample->scroll_delay = NULL;
-    sample->box = NULL;
-    sample->wrap = NULL;
-    sample->is_forced = 0;
-    sample->others = NULL;
-    sample->cur_karaoke = NULL;
-    return sample;
+static GF_ISOFile* create_dummy_iso_file() {
+    // Assuming GF_ISOFile is created through a specific function in gpac
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return iso_file;
 }
 
-static GF_StyleRecord* create_dummy_style_record() {
-    GF_StyleRecord *style = (GF_StyleRecord *)malloc(sizeof(GF_StyleRecord));
-    return style;
-}
-
-static GF_BitStream* create_dummy_bitstream() {
-    GF_BitStream *bs = gf_bs_new(NULL, 0, GF_BITSTREAM_WRITE);
-    return bs;
+static void destroy_dummy_iso_file(GF_ISOFile *iso_file) {
+    if (iso_file) {
+        gf_isom_close(iso_file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_260(const uint8_t *Data, size_t Size) {
-    GF_TextSample *sample = create_dummy_text_sample();
-    if (!sample) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    GF_StyleRecord *style = create_dummy_style_record();
-    GF_BitStream *bs = create_dummy_bitstream();
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    if (sample) {
-        gf_isom_text_reset(sample);
-        gf_isom_text_reset_styles(sample);
+    u32 trackNumber = *((u32 *)Data);
+    u32 group_index = *((u32 *)(Data + sizeof(u32)));
+    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32) * 2));
 
-        if (bs) {
-            gf_isom_text_sample_write_bs(sample, bs);
-        }
+    u32 switchGroupID = 0;
+    u32 criteriaListSize = 0;
 
-        if (style) {
-            gf_isom_text_add_style(sample, style);
-        }
-
-        gf_isom_text_set_forced(sample, Data[0] % 2);
-        gf_isom_text_set_wrap(sample, Data[0] % 2);
+    const u32 *criteriaList = gf_isom_get_track_switch_parameter(iso_file, trackNumber, group_index, &switchGroupID, &criteriaListSize);
+    if (criteriaList) {
+        // Process criteriaList if needed
     }
 
-    if (sample) {
-        free(sample->text);
-        free(sample);
+    GF_GenericSampleDescription *sampleDesc = gf_isom_get_generic_sample_description(iso_file, trackNumber, sampleDescriptionIndex);
+    if (sampleDesc) {
+        // Process sampleDesc if needed
+        free(sampleDesc);
     }
 
-    if (style) {
-        free(style);
-    }
+    u32 mediaSubtype = gf_isom_get_media_subtype(iso_file, trackNumber, sampleDescriptionIndex);
 
-    if (bs) {
-        gf_bs_del(bs);
-    }
+    GF_ISOTrackID originalTrackID = gf_isom_get_track_original_id(iso_file, trackNumber);
 
+    u32 fragmentCount = gf_isom_segment_get_fragment_count(iso_file);
+
+    u32 mediaTimescale = gf_isom_get_media_timescale(iso_file, trackNumber);
+
+    destroy_dummy_iso_file(iso_file);
     return 0;
 }

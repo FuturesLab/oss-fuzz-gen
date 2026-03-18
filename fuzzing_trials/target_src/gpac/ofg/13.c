@@ -1,43 +1,43 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdio.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = NULL;
-    GF_Err err;
+    // Create a temporary file to work with
+    FILE *tempFile = fopen("temp.mp4", "wb");
+    if (!tempFile) {
+        return 0;
+    }
+    fwrite(data, 1, size, tempFile);
+    fclose(tempFile);
 
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Open the temporary file with read and edit permissions
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_READ_EDIT, NULL);
+    if (!movie) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        remove(tmpl);
+    // Check if the track exists
+    u32 trackNumber = 1; // Assuming track number 1 for testing
+    if (gf_isom_get_track_by_id(movie, trackNumber) == 0) {
+        gf_isom_close(movie);
         return 0;
     }
-    close(fd);
 
-    // Open the temporary file as an ISO file
-    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (file == NULL) {
-        remove(tmpl);
-        return 0;
-    }
+    // Prepare the sample
+    GF_ISOSample sample;
+    sample.data = (u8 *)data;
+    sample.dataLength = size;
+    sample.DTS = 0;
+    sample.CTS_Offset = 0;
+    sample.IsRAP = 1; // Random Access Point
 
     // Call the function-under-test
-    err = gf_isom_guess_specification(file);
+    gf_isom_add_sample_shadow(movie, trackNumber, &sample);
 
     // Clean up
-    gf_isom_close(file);
-    remove(tmpl);
+    gf_isom_close(movie);
 
     return 0;
 }

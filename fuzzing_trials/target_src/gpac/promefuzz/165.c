@@ -1,59 +1,60 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_keep_utc_times at isom_read.c:5543:6 in isomedia.h
-// gf_isom_enable_traf_map_templates at isom_read.c:6026:6 in isomedia.h
-// gf_isom_get_mode at isom_read.c:53:4 in isomedia.h
-// gf_isom_get_pl_indication at isom_read.c:4079:4 in isomedia.h
-// gf_isom_reset_sample_count at isom_read.c:5005:6 in isomedia.h
-// gf_isom_delete at isom_read.c:2899:6 in isomedia.h
+// gf_isom_get_dims_description at sample_descs.c:931:8 in isomedia.h
+// gf_isom_remove_cenc_senc_box at drm_sample.c:996:8 in isomedia.h
+// gf_isom_get_pixel_aspect_ratio at isom_read.c:3946:8 in isomedia.h
+// gf_isom_get_audio_info at isom_read.c:3880:8 in isomedia.h
+// gf_isom_get_cenc_info at drm_sample.c:726:8 in isomedia.h
+// gf_isom_remove_stream_description at isom_write.c:909:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static GF_ISOFile* create_dummy_isofile() {
+    // Allocate memory for GF_ISOFile using a pointer to an incomplete type
+    // Since we don't know the size of GF_ISOFile, we allocate a dummy size
+    GF_ISOFile *isom_file = (GF_ISOFile *)malloc(100);
+    if (!isom_file) return NULL;
+    memset(isom_file, 0, 100);
+    return isom_file;
 }
 
 int LLVMFuzzerTestOneInput_165(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(GF_ISOProfileLevelType) + 1) {
-        return 0;
-    }
+    if (Size < sizeof(u32) * 3) return 0;
 
-    write_dummy_file(Data, Size);
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return 0;
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) {
-        return 0;
-    }
+    u32 trackNumber = *((u32 *)Data);
+    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
+    u32 dummy_value = *((u32 *)(Data + 2 * sizeof(u32)));
+    
+    GF_DIMSDescription dims_desc;
+    memset(&dims_desc, 0, sizeof(GF_DIMSDescription));
 
-    GF_ISOProfileLevelType PL_Code = *(GF_ISOProfileLevelType *)(Data + 1);
-    u8 mode, pl_indication;
-    Bool keep_utc = (Bool)(Data[0] % 2);
+    u32 hSpacing, vSpacing, SampleRate, Channels, bitsPerSample;
+    u32 outOriginalFormat, outSchemeType, outSchemeVersion;
 
-    // Test gf_isom_keep_utc_times
-    gf_isom_keep_utc_times(isom_file, keep_utc);
+    // Fuzz gf_isom_get_dims_description
+    gf_isom_get_dims_description(isom_file, trackNumber, sampleDescriptionIndex, &dims_desc);
 
-    // Test gf_isom_enable_traf_map_templates
-    gf_isom_enable_traf_map_templates(isom_file);
+    // Fuzz gf_isom_remove_cenc_senc_box
+    gf_isom_remove_cenc_senc_box(isom_file, trackNumber);
 
-    // Test gf_isom_get_mode
-    mode = gf_isom_get_mode(isom_file);
+    // Fuzz gf_isom_get_pixel_aspect_ratio
+    gf_isom_get_pixel_aspect_ratio(isom_file, trackNumber, sampleDescriptionIndex, &hSpacing, &vSpacing);
 
-    // Test gf_isom_get_pl_indication
-    pl_indication = gf_isom_get_pl_indication(isom_file, PL_Code);
+    // Fuzz gf_isom_get_audio_info
+    gf_isom_get_audio_info(isom_file, trackNumber, sampleDescriptionIndex, &SampleRate, &Channels, &bitsPerSample);
 
-    // Test gf_isom_reset_sample_count
-    gf_isom_reset_sample_count(isom_file);
+    // Fuzz gf_isom_get_cenc_info
+    gf_isom_get_cenc_info(isom_file, trackNumber, sampleDescriptionIndex, &outOriginalFormat, &outSchemeType, &outSchemeVersion);
 
-    // Test gf_isom_delete
-    gf_isom_delete(isom_file);
+    // Fuzz gf_isom_remove_stream_description
+    gf_isom_remove_stream_description(isom_file, trackNumber, sampleDescriptionIndex);
 
+    free(isom_file);
     return 0;
 }

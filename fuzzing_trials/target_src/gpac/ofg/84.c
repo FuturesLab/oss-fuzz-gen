@@ -1,35 +1,22 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <gpac/isomedia.h>
+#include <gpac/constants.h>
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    GF_ISOFile *the_file = NULL;
-    u32 trackNumber = 1; // Initialize with a non-zero track number
-
-    // Create a temporary file and write the input data to it
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    write(fd, data, size);
-    close(fd);
-
-    // Open the ISO file using the temporary file
-    the_file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (the_file == NULL) {
-        unlink(tmpl); // Clean up the temporary file
+    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
         return 0;
     }
 
-    // Call the function-under-test
-    gf_isom_purge_track_reference(the_file, trackNumber);
+    u32 trackNumber = (size > 0) ? data[0] : 1; // Ensure trackNumber is valid
+    u64 EditTime = (size > 1) ? data[1] : 0;
+    u64 EditDuration = (size > 2) ? data[2] : 0;
+    u64 MediaTime = (size > 3) ? data[3] : 0;
+    GF_ISOEditType EditMode = (size > 4) ? (GF_ISOEditType)data[4] : GF_ISOM_EDIT_NORMAL; // Corrected constant name
 
-    // Clean up
-    gf_isom_close(the_file);
-    unlink(tmpl); // Clean up the temporary file
+    gf_isom_set_edit(movie, trackNumber, EditTime, EditDuration, MediaTime, EditMode);
 
+    gf_isom_close(movie);
     return 0;
 }

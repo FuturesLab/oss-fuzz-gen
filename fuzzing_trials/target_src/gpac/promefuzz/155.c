@@ -1,74 +1,80 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_data_reference at isom_read.c:1723:8 in isomedia.h
-// gf_isom_get_ismacryp_info at drm_sample.c:257:8 in isomedia.h
-// gf_isom_sdp_get at hint_track.c:909:8 in isomedia.h
-// gf_isom_get_meta_item_info at meta.c:131:8 in isomedia.h
-// gf_isom_get_track_kind at isom_read.c:1157:8 in isomedia.h
-// gf_isom_set_adobe_protection at drm_sample.c:1846:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_meta_get_next_item_id at meta.c:1399:8 in isomedia.h
+// gf_isom_modify_alternate_brand at isom_write.c:3571:8 in isomedia.h
+// gf_isom_apply_box_patch at isom_write.c:8665:8 in isomedia.h
+// gf_isom_set_track_priority_in_group at isom_write.c:5884:8 in isomedia.h
+// gf_isom_update_aperture_info at isom_write.c:2179:8 in isomedia.h
+// gf_isom_meta_add_item_ref at meta.c:2005:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static GF_ISOFile* create_dummy_iso_file() {
+    // Create a dummy ISO file structure for testing
+    GF_ISOFile *iso_file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    return iso_file;
+}
+
+static void destroy_dummy_iso_file(GF_ISOFile *iso_file) {
+    // Free the dummy ISO file structure
+    if (iso_file) {
+        gf_isom_close(iso_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_155(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Prepare a dummy ISO file
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    // Prepare a dummy file for the functions that require file input
-    write_dummy_file(Data, Size);
+    // Prepare variables for function calls
+    u32 item_id = 0;
+    u32 track_num = 0;
+    u32 brand = 0;
+    u32 track_id = 0;
+    u32 from_id = 0;
+    u32 to_id = 0;
+    u32 type = 0;
+    u64 ref_index = 0;
+    Bool root_meta = GF_TRUE;
+    Bool add_it = GF_TRUE;
+    Bool for_fragments = GF_TRUE;
+    Bool remove = GF_TRUE;
+    u32 inverse_priority = 0;
+    char *box_patch_filename = "./dummy_file";
 
-    // Initialize variables for function calls
-    GF_ISOFile *isom_file = NULL;  // Assume a function exists to create or parse this
-    u32 trackNumber = Data[0] % 256;
-    u32 sampleDescriptionIndex = (Size > 1) ? Data[1] % 256 : 1;
-    const char *outURL = NULL;
-    const char *outURN = NULL;
-    u32 outOriginalFormat, outSchemeType, outSchemeVersion;
-    const char *outSchemeURI = NULL;
-    const char *outKMS_URI = NULL;
-    Bool outSelectiveEncryption;
-    u32 outIVLength, outKeyIndicationLength;
-    const char *sdp = NULL;
-    u32 length;
-    u32 itemID, type, protection_scheme, protection_scheme_version;
-    Bool is_self_reference;
-    const char *item_name = NULL;
-    const char *item_mime_type = NULL;
-    const char *item_encoding = NULL;
-    const char *item_url = NULL;
-    const char *item_urn = NULL;
-    char *scheme = NULL;
-    char *value = NULL;
-    u32 scheme_type = 'iAEC';  // Example scheme type
-    u32 scheme_version = 1;
-    Bool is_selective_enc = 0;
-    char *metadata = NULL;
-    u32 len = 0;
+    // Write data to a dummy file if needed
+    FILE *file = fopen(box_patch_filename, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 
-    // Call target API functions with initialized variables
-    gf_isom_get_data_reference(isom_file, trackNumber, sampleDescriptionIndex, &outURL, &outURN);
-    gf_isom_get_ismacryp_info(isom_file, trackNumber, sampleDescriptionIndex, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outSchemeURI, &outKMS_URI, &outSelectiveEncryption, &outIVLength, &outKeyIndicationLength);
-    gf_isom_sdp_get(isom_file, &sdp, &length);
-    gf_isom_get_meta_item_info(isom_file, 0, trackNumber, sampleDescriptionIndex, &itemID, &type, &protection_scheme, &protection_scheme_version, &is_self_reference, &item_name, &item_mime_type, &item_encoding, &item_url, &item_urn);
-    gf_isom_get_track_kind(isom_file, trackNumber, sampleDescriptionIndex, &scheme, &value);
-    gf_isom_set_adobe_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, is_selective_enc, metadata, len);
+    // Fuzz gf_isom_meta_get_next_item_id
+    gf_isom_meta_get_next_item_id(iso_file, root_meta, track_num, &item_id);
 
-    // Free allocated memory if any
-    if (scheme) free(scheme);
-    if (value) free(value);
+    // Fuzz gf_isom_modify_alternate_brand
+    gf_isom_modify_alternate_brand(iso_file, brand, add_it);
+
+    // Fuzz gf_isom_apply_box_patch
+    gf_isom_apply_box_patch(iso_file, track_id, box_patch_filename, for_fragments);
+
+    // Fuzz gf_isom_set_track_priority_in_group
+    gf_isom_set_track_priority_in_group(iso_file, track_id, inverse_priority);
+
+    // Fuzz gf_isom_update_aperture_info
+    gf_isom_update_aperture_info(iso_file, track_id, remove);
+
+    // Fuzz gf_isom_meta_add_item_ref
+    gf_isom_meta_add_item_ref(iso_file, root_meta, track_num, from_id, to_id, type, &ref_index);
+
+    // Clean up
+    destroy_dummy_iso_file(iso_file);
 
     return 0;
 }

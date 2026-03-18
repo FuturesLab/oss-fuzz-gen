@@ -1,81 +1,72 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_set_generic_protection at drm_sample.c:626:8 in isomedia.h
-// gf_isom_get_data_reference at isom_read.c:1723:8 in isomedia.h
-// gf_isom_get_ismacryp_info at drm_sample.c:257:8 in isomedia.h
-// gf_isom_av1_config_new at avc_ext.c:2007:8 in isomedia.h
-// gf_isom_set_media_language at isom_write.c:297:8 in isomedia.h
-// gf_isom_change_ismacryp_protection at drm_sample.c:386:8 in isomedia.h
+// gf_isom_get_reference_ID at isom_read.c:1270:8 in isomedia.h
+// gf_isom_set_track_interleaving_group at isom_write.c:5868:8 in isomedia.h
+// gf_isom_clone_track at isom_write.c:4340:8 in isomedia.h
+// gf_isom_get_visual_info at isom_read.c:3821:8 in isomedia.h
+// gf_isom_rtp_set_timescale at hint_track.c:226:8 in isomedia.h
+// gf_isom_get_sample_to_group_info at isom_read.c:5214:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include "isomedia.h"
 
 static GF_ISOFile* create_dummy_iso_file() {
-    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    // Assuming GF_ISOFile is properly allocated and initialized through some API
+    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return file;
 }
 
-static void destroy_dummy_iso_file(GF_ISOFile *file) {
+static void cleanup_iso_file(GF_ISOFile *file) {
     if (file) {
         gf_isom_close(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_249(const uint8_t *Data, size_t Size) {
+    if (Size < 16) return 0; // Ensure there's enough data for basic parameters
+
     GF_ISOFile *isom_file = create_dummy_iso_file();
     if (!isom_file) return 0;
 
-    u32 trackNumber = Size > 0 ? Data[0] : 0;
-    u32 sampleDescriptionIndex = Size > 1 ? Data[1] : 0;
-    u32 scheme_type = Size > 2 ? Data[2] : 0;
-    u32 scheme_version = Size > 3 ? Data[3] : 0;
+    u32 trackNumber = *(u32 *)Data;
+    u32 referenceType = *(u32 *)(Data + 4);
+    u32 referenceIndex = *(u32 *)(Data + 8);
+    GF_ISOTrackID refTrackID;
+    gf_isom_get_reference_ID(isom_file, trackNumber, referenceType, referenceIndex, &refTrackID);
 
-    char *scheme_uri = NULL;
-    char *kms_URI = NULL;
-    if (Size > 4) {
-        scheme_uri = (char *)malloc(Size - 4);
-        if (scheme_uri) {
-            memcpy(scheme_uri, Data + 4, Size - 4);
-        }
+    u32 GroupID = *(u32 *)(Data + 12);
+    gf_isom_set_track_interleaving_group(isom_file, trackNumber, GroupID);
+
+    GF_ISOFile *dest_file = create_dummy_iso_file();
+    if (!dest_file) {
+        cleanup_iso_file(isom_file);
+        return 0;
     }
+    u32 orig_track = *(u32 *)(Data + 4);
+    GF_ISOTrackCloneFlags flags = *(GF_ISOTrackCloneFlags *)(Data + 8);
+    u32 dest_track;
+    gf_isom_clone_track(isom_file, orig_track, dest_file, flags, &dest_track);
 
-    GF_Err err = gf_isom_set_generic_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, scheme_uri, kms_URI);
+    u32 sampleDescriptionIndex = *(u32 *)(Data + 4);
+    u32 Width, Height;
+    gf_isom_get_visual_info(isom_file, trackNumber, sampleDescriptionIndex, &Width, &Height);
 
-    const char *outURL = NULL;
-    const char *outURN = NULL;
-    err = gf_isom_get_data_reference(isom_file, trackNumber, sampleDescriptionIndex, &outURL, &outURN);
+    u32 HintDescriptionIndex = *(u32 *)(Data + 4);
+    u32 TimeScale = *(u32 *)(Data + 8);
+    gf_isom_rtp_set_timescale(isom_file, trackNumber, HintDescriptionIndex, TimeScale);
 
-    u32 outOriginalFormat = 0;
-    u32 outSchemeType = 0;
-    u32 outSchemeVersion = 0;
-    const char *outSchemeURI = NULL;
-    const char *outKMS_URI = NULL;
-    Bool outSelectiveEncryption = 0;
-    u32 outIVLength = 0;
-    u32 outKeyIndicationLength = 0;
-    err = gf_isom_get_ismacryp_info(isom_file, trackNumber, sampleDescriptionIndex, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outSchemeURI, &outKMS_URI, &outSelectiveEncryption, &outIVLength, &outKeyIndicationLength);
+    u32 sample_number = *(u32 *)(Data + 4);
+    u32 grouping_type = *(u32 *)(Data + 8);
+    u32 grouping_type_parameter = *(u32 *)(Data + 12);
+    u32 sampleGroupDescIndex;
+    gf_isom_get_sample_to_group_info(isom_file, trackNumber, sample_number, grouping_type, grouping_type_parameter, &sampleGroupDescIndex);
 
-    GF_AV1Config *cfg = NULL;
-    u32 outDescriptionIndex = 0;
-    err = gf_isom_av1_config_new(isom_file, trackNumber, cfg, outURL, outURN, &outDescriptionIndex);
-
-    char *code = (Size > 5) ? (char *)malloc(Size - 5) : NULL;
-    if (code) {
-        memcpy(code, Data + 5, Size - 5);
-    }
-    err = gf_isom_set_media_language(isom_file, trackNumber, code);
-
-    err = gf_isom_change_ismacryp_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_uri, kms_URI);
-
-    if (scheme_uri) free(scheme_uri);
-    if (code) free(code);
-    destroy_dummy_iso_file(isom_file);
+    cleanup_iso_file(isom_file);
+    cleanup_iso_file(dest_file);
 
     return 0;
 }

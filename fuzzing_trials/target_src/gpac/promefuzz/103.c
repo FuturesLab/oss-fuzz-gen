@@ -1,69 +1,66 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_stxt_get_description at sample_descs.c:1385:8 in isomedia.h
-// gf_isom_set_media_language at isom_write.c:297:8 in isomedia.h
-// gf_isom_get_media_language at isom_read.c:1100:8 in isomedia.h
-// gf_isom_sdp_add_track_line at hint_track.c:740:8 in isomedia.h
-// gf_isom_add_track_kind at isom_write.c:3126:8 in isomedia.h
-// gf_isom_sdp_track_get at hint_track.c:937:8 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_remove_track_from_root_od at isom_write.c:179:8 in isomedia.h
+// gf_isom_remove_track_reference at isom_write.c:5051:8 in isomedia.h
+// gf_isom_set_track_interleaving_group at isom_write.c:5868:8 in isomedia.h
+// gf_isom_set_alternate_group_id at isom_write.c:6862:8 in isomedia.h
+// gf_isom_hint_max_chunk_size at isom_write.c:5898:8 in isomedia.h
+// gf_isom_set_media_type at isom_write.c:6188:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
+static GF_ISOFile* initialize_iso_file(const char *filename) {
+    // Open the file in read/write mode, assuming a function for this exists.
+    GF_ISOFile *isom_file = gf_isom_open(filename, GF_ISOM_OPEN_EDIT, NULL);
+    return isom_file;
+}
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static void cleanup_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(u32) * 5) return 0;
 
-    // Step 1: Prepare the environment
-    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) {
-        write_dummy_file(Data, Size);
-        isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, NULL);
-        if (!isom_file) return 0;
-    }
+    // Create a dummy file to simulate the ISO file
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (!dummy_file) return 0;
+    fwrite(Data, 1, Size, dummy_file);
+    fclose(dummy_file);
 
-    // Step 2: Initialize variables
-    u32 trackNumber = Data[0] % 5 + 1; // Random track number for fuzzing
-    u32 sampleDescriptionIndex = Data[0] % 5 + 1; // Random sample description index for fuzzing
-    const char *mime = NULL;
-    const char *encoding = NULL;
-    const char *config = NULL;
-    char *lang = NULL;
-    const char *sdp = NULL;
-    u32 length = 0;
-    char language_code[4] = "eng";
-    const char *schemeURI = "urn:example:kind";
-    const char *value = "example_value";
+    GF_ISOFile *isom_file = initialize_iso_file("./dummy_file");
+    if (!isom_file) return 0;
 
-    // Step 3: Invoke target functions with diverse inputs
-    gf_isom_stxt_get_description(isom_file, trackNumber, sampleDescriptionIndex, &mime, &encoding, &config);
-    gf_isom_set_media_language(isom_file, trackNumber, language_code);
-    gf_isom_get_media_language(isom_file, trackNumber, &lang);
-    gf_isom_sdp_add_track_line(isom_file, trackNumber, "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=No Name\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio 49170 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n");
-    gf_isom_add_track_kind(isom_file, trackNumber, schemeURI, value);
-    gf_isom_sdp_track_get(isom_file, trackNumber, &sdp, &length);
+    u32 trackNumber = *(u32 *)Data;
+    u32 ref_type = *((u32 *)Data + 1);
+    u32 group_id = *((u32 *)Data + 2);
+    u32 max_chunk_size = *((u32 *)Data + 3);
+    u32 new_media_type = *((u32 *)Data + 4);
 
-    // Step 4: Cleanup
-    if (lang) free(lang);
-    gf_isom_close(isom_file);
+    // Fuzz gf_isom_remove_track_from_root_od
+    gf_isom_remove_track_from_root_od(isom_file, trackNumber);
 
+    // Fuzz gf_isom_remove_track_reference
+    gf_isom_remove_track_reference(isom_file, trackNumber, ref_type);
+
+    // Fuzz gf_isom_set_track_interleaving_group
+    gf_isom_set_track_interleaving_group(isom_file, trackNumber, group_id);
+
+    // Fuzz gf_isom_set_alternate_group_id
+    gf_isom_set_alternate_group_id(isom_file, trackNumber, group_id);
+
+    // Fuzz gf_isom_hint_max_chunk_size
+    gf_isom_hint_max_chunk_size(isom_file, trackNumber, max_chunk_size);
+
+    // Fuzz gf_isom_set_media_type
+    gf_isom_set_media_type(isom_file, trackNumber, new_media_type);
+
+    cleanup_iso_file(isom_file);
     return 0;
 }

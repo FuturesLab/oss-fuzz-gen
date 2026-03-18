@@ -1,43 +1,61 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_needs_layer_reconstruction at isom_read.c:5516:6 in isomedia.h
-// gf_isom_is_single_av at isom_read.c:4218:6 in isomedia.h
-// gf_isom_is_inplace_rewrite at isom_write.c:9035:6 in isomedia.h
-// gf_isom_has_keep_utc_times at isom_read.c:5550:6 in isomedia.h
-// gf_isom_disable_odf_conversion at isom_read.c:652:6 in isomedia.h
-// gf_isom_disable_odf_conversion at isom_read.c:652:6 in isomedia.h
-// gf_isom_moov_first at isom_read.c:4964:6 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_ismacryp_new_sample at drm_sample.c:31:16 in isomedia.h
+// gf_isom_ismacryp_delete_sample at drm_sample.c:39:6 in isomedia.h
+// gf_isom_ismacryp_sample_from_data at drm_sample.c:48:16 in isomedia.h
+// gf_isom_ismacryp_delete_sample at drm_sample.c:39:6 in isomedia.h
+// gf_isom_get_ismacryp_sample at drm_sample.c:159:16 in isomedia.h
+// gf_isom_ismacryp_delete_sample at drm_sample.c:39:6 in isomedia.h
+// gf_isom_set_ismacryp_protection at drm_sample.c:559:8 in isomedia.h
+// gf_isom_is_ismacryp_media at drm_sample.c:218:6 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "isomedia.h"
 
+static GF_ISOFile* create_dummy_iso_file() {
+    return NULL; // Return NULL as we cannot define the complete structure
+}
+
+static GF_ISOSample* create_dummy_iso_sample() {
+    return NULL; // Return NULL as we cannot define the complete structure
+}
+
 int LLVMFuzzerTestOneInput_232(const uint8_t *Data, size_t Size) {
-    // Create a dummy file to simulate an ISO file input
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) return 0;
+    if (Size < 1) return 0;
 
-    // Write the input data to the dummy file
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    // Fuzz gf_isom_ismacryp_new_sample
+    GF_ISMASample *new_sample = gf_isom_ismacryp_new_sample();
+    if (new_sample) {
+        gf_isom_ismacryp_delete_sample(new_sample);
+    }
 
-    // Open the dummy file as a GF_ISOFile
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) return 0;
+    // Fuzz gf_isom_ismacryp_sample_from_data
+    GF_ISMASample *sample_from_data = gf_isom_ismacryp_sample_from_data((u8 *)Data, (u32)Size, GF_FALSE, 0, 0);
+    if (sample_from_data) {
+        gf_isom_ismacryp_delete_sample(sample_from_data);
+    }
 
-    // Invoke the target functions
-    gf_isom_needs_layer_reconstruction(isom_file);
-    gf_isom_is_single_av(isom_file);
-    gf_isom_is_inplace_rewrite(isom_file);
-    gf_isom_has_keep_utc_times(isom_file);
-    gf_isom_disable_odf_conversion(isom_file, GF_TRUE);
-    gf_isom_disable_odf_conversion(isom_file, GF_FALSE);
-    gf_isom_moov_first(isom_file);
+    // Fuzz gf_isom_get_ismacryp_sample
+    GF_ISOFile *dummy_iso_file = create_dummy_iso_file();
+    GF_ISOSample *dummy_iso_sample = create_dummy_iso_sample();
+    if (dummy_iso_file && dummy_iso_sample) {
+        GF_ISMASample *ismacryp_sample = gf_isom_get_ismacryp_sample(dummy_iso_file, 1, dummy_iso_sample, 1);
+        if (ismacryp_sample) {
+            gf_isom_ismacryp_delete_sample(ismacryp_sample);
+        }
+    }
 
-    // Close the ISO file and clean up
-    gf_isom_close(isom_file);
+    // Fuzz gf_isom_set_ismacryp_protection
+    if (Size > 8) {
+        gf_isom_set_ismacryp_protection(dummy_iso_file, 1, 1, *(u32 *)Data, *(u32 *)(Data + 4), "./dummy_scheme_uri", "./dummy_kms_uri", GF_FALSE, 0, 0);
+    }
+
+    // Fuzz gf_isom_is_ismacryp_media
+    if (dummy_iso_file) {
+        gf_isom_is_ismacryp_media(dummy_iso_file, 1, 1);
+    }
 
     return 0;
 }

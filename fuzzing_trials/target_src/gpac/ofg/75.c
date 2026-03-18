@@ -1,34 +1,27 @@
+#include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <gpac/isomedia.h>
-#include <gpac/constants.h>
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    GF_ISOFile *file;
-    u32 track;
-    Bool use_negative_offsets;
-
-    // Initialize the GF_ISOFile structure
-    file = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
-    if (!file) {
+    // Ensure the size is sufficient to extract an interleave time value
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Ensure size is sufficient to extract track and use_negative_offsets
-    if (size < sizeof(u32) + sizeof(Bool)) {
-        gf_isom_close(file);
+    // Initialize a GF_ISOFile structure
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
         return 0;
     }
 
-    // Extract track and use_negative_offsets from the data
-    track = *((u32 *)data);
-    use_negative_offsets = *((Bool *)(data + sizeof(u32)));
+    // Extract the interleave time from the input data
+    uint32_t InterleaveTime = *((uint32_t *)data);
 
     // Call the function-under-test
-    gf_isom_set_composition_offset_mode(file, track, use_negative_offsets);
+    gf_isom_set_interleave_time(movie, InterleaveTime);
 
     // Clean up
-    gf_isom_close(file);
+    gf_isom_close(movie);
 
     return 0;
 }

@@ -1,26 +1,28 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_153(const uint8_t *data, size_t size) {
-    GF_ISOFile *the_file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    GF_ISOFile *orig_file = gf_isom_open("dummy_orig.mp4", GF_ISOM_OPEN_WRITE, NULL);
-
-    if (the_file == NULL || orig_file == NULL) {
+    if (size < sizeof(u32) * 2 + sizeof(GF_ISOMTrackFlagOp)) {
         return 0;
     }
 
-    u32 trackNumber = 1;
-    u32 orig_track = 1;
-    u32 orig_desc_index = 1;
-    const char *URLname = "http://example.com";
-    const char *URNname = "urn:example";
-    u32 outDescriptionIndex = 0;
+    // Create a new movie using the library's function
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
+        return 0;
+    }
 
-    gf_isom_clone_sample_description(the_file, trackNumber, orig_file, orig_track, orig_desc_index, URLname, URNname, &outDescriptionIndex);
+    // Extract trackNumber, flags, and op from the data
+    u32 trackNumber = *((u32 *)data);
+    u32 flags = *((u32 *)(data + sizeof(u32)));
+    GF_ISOMTrackFlagOp op = *((GF_ISOMTrackFlagOp *)(data + sizeof(u32) * 2));
 
-    gf_isom_close(the_file);
-    gf_isom_close(orig_file);
+    // Call the function-under-test
+    gf_isom_set_track_flags(movie, trackNumber, flags, op);
+
+    // Close the movie to clean up
+    gf_isom_close(movie);
 
     return 0;
 }

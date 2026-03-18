@@ -1,78 +1,96 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_set_clean_aperture at isom_write.c:2132:8 in isomedia.h
-// gf_isom_get_track_layout_info at isom_read.c:4116:8 in isomedia.h
-// gf_isom_set_visual_info at isom_write.c:1769:8 in isomedia.h
-// gf_isom_set_track_matrix at isom_write.c:5254:8 in isomedia.h
-// gf_isom_set_track_layout_info at isom_write.c:5263:8 in isomedia.h
-// gf_isom_check_data_reference at isom_read.c:1705:8 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_get_raw_user_data at isom_write.c:4070:8 in isomedia.h
+// gf_isom_fragment_append_data at movie_fragments.c:3127:8 in isomedia.h
+// gf_isom_get_trex_template at isom_write.c:4274:8 in isomedia.h
+// gf_isom_add_uuid at isom_write.c:6258:8 in isomedia.h
+// gf_isom_set_track_stsd_templates at isom_write.c:835:8 in isomedia.h
+// gf_isom_update_sample_description_from_template at isom_write.c:8597:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
+static GF_ISOFile* create_dummy_iso_file() {
+    // GF_ISOFile is an incomplete type, so we cannot allocate it directly.
+    // Assume we have a function to create or mock a GF_ISOFile.
+    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+}
+
+static void free_iso_file(GF_ISOFile *file) {
     if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+        gf_isom_close(file);
     }
 }
 
-int LLVMFuzzerTestOneInput_150(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 10 + sizeof(s32) * 3 + sizeof(s16)) {
-        return 0;
+static void fuzz_gf_isom_get_raw_user_data(GF_ISOFile *file) {
+    u8 *output = NULL;
+    u32 output_size = 0;
+    GF_Err err = gf_isom_get_raw_user_data(file, &output, &output_size);
+    if (err == GF_OK && output) {
+        free(output);
     }
+}
 
-    write_dummy_file(Data, Size);
+static void fuzz_gf_isom_fragment_append_data(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
+    if (Size < 4) return; // Ensure there's enough data for TrackID and PaddingBits
+    GF_ISOTrackID TrackID = *(GF_ISOTrackID *)Data;
+    u8 PaddingBits = Data[Size - 1];
+    gf_isom_fragment_append_data(file, TrackID, (u8 *)Data, (u32)Size, PaddingBits);
+}
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) {
-        return 0;
+static void fuzz_gf_isom_get_trex_template(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
+    if (Size < 4) return; // Ensure there's enough data for trackNumber
+    u32 trackNumber = *(u32 *)Data;
+    u8 *output = NULL;
+    u32 output_size = 0;
+    GF_Err err = gf_isom_get_trex_template(file, trackNumber, &output, &output_size);
+    if (err == GF_OK && output) {
+        free(output);
     }
+}
 
-    u32 trackNumber = *(u32 *)(Data);
+static void fuzz_gf_isom_add_uuid(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
+    if (Size < 16) return; // Ensure there's enough data for UUID
+    u32 trackNumber = *(u32 *)Data;
+    bin128 UUID;
+    memcpy(UUID, Data + 4, 16);
+    const u8 *data = (Size > 20) ? Data + 20 : NULL;
+    u32 size = (Size > 20) ? (u32)(Size - 20) : 0;
+    gf_isom_add_uuid(file, trackNumber, UUID, data, size);
+}
+
+static void fuzz_gf_isom_set_track_stsd_templates(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
+    if (Size < 4) return; // Ensure there's enough data for trackNumber
+    u32 trackNumber = *(u32 *)Data;
+    u8 *stsd_data = (u8 *)(Data + 4);
+    u32 stsd_data_size = (u32)(Size - 4);
+    gf_isom_set_track_stsd_templates(file, trackNumber, stsd_data, stsd_data_size);
+}
+
+static void fuzz_gf_isom_update_sample_description_from_template(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
+    if (Size < 8) return; // Ensure there's enough data for trackNumber and sampleDescriptionIndex
+    u32 trackNumber = *(u32 *)Data;
     u32 sampleDescriptionIndex = *(u32 *)(Data + 4);
-    u32 cleanApertureWidthN = *(u32 *)(Data + 8);
-    u32 cleanApertureWidthD = *(u32 *)(Data + 12);
-    u32 cleanApertureHeightN = *(u32 *)(Data + 16);
-    u32 cleanApertureHeightD = *(u32 *)(Data + 20);
-    s32 horizOffN = *(s32 *)(Data + 24);
-    u32 horizOffD = *(u32 *)(Data + 28);
-    s32 vertOffN = *(s32 *)(Data + 32);
-    u32 vertOffD = *(u32 *)(Data + 36);
+    u8 *data = (u8 *)(Data + 8);
+    u32 size = (u32)(Size - 8);
+    gf_isom_update_sample_description_from_template(file, trackNumber, sampleDescriptionIndex, data, size);
+}
 
-    gf_isom_set_clean_aperture(isom_file, trackNumber, sampleDescriptionIndex, cleanApertureWidthN, cleanApertureWidthD, cleanApertureHeightN, cleanApertureHeightD, horizOffN, horizOffD, vertOffN, vertOffD);
+int LLVMFuzzerTestOneInput_150(const uint8_t *Data, size_t Size) {
+    GF_ISOFile *file = create_dummy_iso_file();
+    if (!file) return 0;
 
-    u32 width, height;
-    s32 translation_x, translation_y;
-    s16 layer;
-    gf_isom_get_track_layout_info(isom_file, trackNumber, &width, &height, &translation_x, &translation_y, &layer);
+    fuzz_gf_isom_get_raw_user_data(file);
+    fuzz_gf_isom_fragment_append_data(file, Data, Size);
+    fuzz_gf_isom_get_trex_template(file, Data, Size);
+    fuzz_gf_isom_add_uuid(file, Data, Size);
+    fuzz_gf_isom_set_track_stsd_templates(file, Data, Size);
+    fuzz_gf_isom_update_sample_description_from_template(file, Data, Size);
 
-    u32 Width = *(u32 *)(Data + 40);
-    u32 Height = *(u32 *)(Data + 44);
-    gf_isom_set_visual_info(isom_file, trackNumber, sampleDescriptionIndex, Width, Height);
-
-    s32 matrix[9];
-    for (int i = 0; i < 9; i++) {
-        matrix[i] = *(s32 *)(Data + 48 + i * 4);
-    }
-    gf_isom_set_track_matrix(isom_file, trackNumber, matrix);
-
-    s32 translation_x_fp = *(s32 *)(Data + 84);
-    s32 translation_y_fp = *(s32 *)(Data + 88);
-    s16 layer_fp = *(s16 *)(Data + 92);
-    gf_isom_set_track_layout_info(isom_file, trackNumber, width, height, translation_x_fp, translation_y_fp, layer_fp);
-
-    gf_isom_check_data_reference(isom_file, trackNumber, sampleDescriptionIndex);
-
-    gf_isom_close(isom_file);
-
+    free_iso_file(file);
     return 0;
 }

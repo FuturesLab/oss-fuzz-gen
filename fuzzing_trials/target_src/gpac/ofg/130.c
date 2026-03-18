@@ -1,27 +1,41 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_130(const uint8_t *data, size_t size) {
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (movie == NULL) {
+    // Create a temporary file to write the input data
+    FILE *temp_file = tmpfile();
+    if (!temp_file) {
         return 0;
     }
 
-    // Ensure the duration is within a reasonable range
-    u64 duration = 0;
-    if (size >= sizeof(u64)) {
-        duration = *((u64 *)data);
+    // Write data to the temporary file
+    if (fwrite(data, 1, size, temp_file) != size) {
+        fclose(temp_file);
+        return 0;
     }
 
-    // Ensure remove_mehd is a valid Bool value
-    Bool remove_mehd = (size > sizeof(u64)) ? (Bool)(data[sizeof(u64)] % 2) : GF_FALSE;
+    // Rewind the file pointer to the beginning of the file
+    rewind(temp_file);
 
-    // Call the function-under-test
-    gf_isom_set_movie_duration(movie, duration, remove_mehd);
+    // Open the ISO media file using the temporary file
+    GF_ISOFile *file = gf_isom_open(temp_file, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        fclose(temp_file);
+        return 0;
+    }
+
+    Bool root_meta = GF_TRUE;  // or GF_FALSE, try both variations
+    u32 track_num = 1;  // Start with track number 1, adjust if needed
+
+    // Call the function under test
+    gf_isom_get_meta_type(file, root_meta, track_num);
 
     // Clean up
-    gf_isom_close(movie);
+    gf_isom_close(file);
+    fclose(temp_file);
 
     return 0;
 }

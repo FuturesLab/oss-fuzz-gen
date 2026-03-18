@@ -1,59 +1,127 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_last_error at isom_read.c:46:8 in isomedia.h
-// gf_isom_release_segment at isom_read.c:3459:8 in isomedia.h
-// gf_isom_remove_root_od at isom_write.c:165:8 in isomedia.h
-// gf_isom_clone_pl_indications at isom_write.c:3891:8 in isomedia.h
-// gf_isom_set_removed_bytes at isom_read.c:3185:8 in isomedia.h
-// gf_isom_make_interleave_ex at isom_write.c:6032:8 in isomedia.h
+// gf_isom_set_sample_rap_group at isom_write.c:7715:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_set_image_sequence_alpha at isom_write.c:2334:8 in isomedia.h
+// gf_isom_tmcd_config_new at sample_descs.c:1784:8 in isomedia.h
+// gf_isom_vvc_set_inband_config at avc_ext.c:2427:8 in isomedia.h
+// gf_isom_set_image_sequence_coding_constraints at isom_write.c:2293:8 in isomedia.h
+// gf_isom_set_composition_offset_mode at isom_write.c:8001:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
 static GF_ISOFile* create_dummy_isofile() {
-    // Since GF_ISOFile is an opaque type, we cannot directly allocate or initialize it.
-    // Normally, we would have to use a library function to create and initialize a GF_ISOFile.
-    // However, for the purpose of this fuzzing test, we will assume a function exists to do this.
-    // For demonstration, we will return NULL, which is a valid input to the functions being tested.
-    return NULL;
+    // Assuming the library provides a method to create or open an ISO file.
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return isom_file;
 }
 
-static void destroy_dummy_isofile(GF_ISOFile *file) {
-    // Normally, we would use a library function to properly destroy a GF_ISOFile.
-    // Since we are returning NULL in create_dummy_isofile, there is nothing to free.
+static void cleanup_isofile(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_132(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(u32) * 3 + sizeof(Bool)) return 0;
 
     GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return 0;
 
-    // Fuzz gf_isom_last_error
-    gf_isom_last_error(isom_file);
+    u32 trackNumber = 0;
+    u32 sampleDescriptionIndex = 0;
+    Bool flag = GF_FALSE;
 
-    // Fuzz gf_isom_release_segment
-    Bool reset_tables = Data[0] % 2; // Randomly choose true or false
-    gf_isom_release_segment(isom_file, reset_tables);
+    if (Size >= sizeof(u32)) {
+        trackNumber = *((u32 *)Data);
+    }
+    if (Size >= 2 * sizeof(u32)) {
+        sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
+    }
+    if (Size >= 2 * sizeof(u32) + sizeof(Bool)) {
+        flag = *((Bool *)(Data + 2 * sizeof(u32)));
+    }
 
-    // Fuzz gf_isom_remove_root_od
-    gf_isom_remove_root_od(isom_file);
+    // Fuzzing gf_isom_set_image_sequence_alpha
+    gf_isom_set_image_sequence_alpha(isom_file, trackNumber, sampleDescriptionIndex, flag);
 
-    // Fuzz gf_isom_clone_pl_indications
-    GF_ISOFile *dest_file = create_dummy_isofile();
-    gf_isom_clone_pl_indications(isom_file, dest_file);
+    if (Size >= 4 * sizeof(u32) + sizeof(s32)) {
+        // Fuzzing gf_isom_tmcd_config_new
+        u32 fps_num = 0;
+        u32 fps_den = 0;
+        s32 frames_per_counter_tick = 0;
+        Bool is_drop = GF_FALSE;
+        Bool is_counter = GF_FALSE;
 
-    // Fuzz gf_isom_set_removed_bytes
-    u64 bytes_removed = (Size > 8) ? *(u64 *)(Data + 1) : 0;
-    gf_isom_set_removed_bytes(isom_file, bytes_removed);
+        if (Size >= 3 * sizeof(u32) + sizeof(s32)) {
+            fps_num = *((u32 *)(Data + 3 * sizeof(u32)));
+        }
+        if (Size >= 4 * sizeof(u32) + sizeof(s32)) {
+            fps_den = *((u32 *)(Data + 3 * sizeof(u32) + sizeof(s32)));
+        }
+        if (Size >= 4 * sizeof(u32) + sizeof(s32) + sizeof(Bool)) {
+            frames_per_counter_tick = *((s32 *)(Data + 4 * sizeof(u32)));
+        }
+        if (Size >= 4 * sizeof(u32) + sizeof(s32) + 2 * sizeof(Bool)) {
+            is_drop = *((Bool *)(Data + 4 * sizeof(u32) + sizeof(s32)));
+        }
+        if (Size >= 4 * sizeof(u32) + sizeof(s32) + 3 * sizeof(Bool)) {
+            is_counter = *((Bool *)(Data + 4 * sizeof(u32) + sizeof(s32) + sizeof(Bool)));
+        }
 
-    // Fuzz gf_isom_make_interleave_ex
-    GF_Fraction fTimeInSec;
-    fTimeInSec.num = (Size > 12) ? *(u32 *)(Data + 9) : 1;
-    fTimeInSec.den = (Size > 16) ? *(u32 *)(Data + 13) : 1;
-    gf_isom_make_interleave_ex(isom_file, &fTimeInSec);
+        u32 outDescriptionIndex;
+        gf_isom_tmcd_config_new(isom_file, trackNumber, fps_num, fps_den, frames_per_counter_tick, is_drop, is_counter, &outDescriptionIndex);
+    }
 
-    destroy_dummy_isofile(isom_file);
-    destroy_dummy_isofile(dest_file);
+    // Fuzzing gf_isom_vvc_set_inband_config
+    gf_isom_vvc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, flag);
+
+    if (Size >= 5 * sizeof(u32) + sizeof(s32) + 4 * sizeof(Bool)) {
+        // Fuzzing gf_isom_set_image_sequence_coding_constraints
+        Bool all_ref_pics_intra = GF_FALSE;
+        Bool intra_pred_used = GF_FALSE;
+        u32 max_ref_per_pic = 0;
+
+        if (Size >= 5 * sizeof(u32) + sizeof(s32) + 2 * sizeof(Bool)) {
+            all_ref_pics_intra = *((Bool *)(Data + 5 * sizeof(u32) + sizeof(s32) + 2 * sizeof(Bool)));
+        }
+        if (Size >= 5 * sizeof(u32) + sizeof(s32) + 3 * sizeof(Bool)) {
+            intra_pred_used = *((Bool *)(Data + 5 * sizeof(u32) + sizeof(s32) + 3 * sizeof(Bool)));
+        }
+        if (Size >= 5 * sizeof(u32) + sizeof(s32) + 4 * sizeof(Bool)) {
+            max_ref_per_pic = *((u32 *)(Data + 5 * sizeof(u32) + sizeof(s32) + 4 * sizeof(Bool)));
+        }
+
+        gf_isom_set_image_sequence_coding_constraints(isom_file, trackNumber, sampleDescriptionIndex, flag, all_ref_pics_intra, intra_pred_used, max_ref_per_pic);
+    }
+
+    // Fuzzing gf_isom_set_composition_offset_mode
+    gf_isom_set_composition_offset_mode(isom_file, trackNumber, flag);
+
+    if (Size >= 7 * sizeof(u32) + sizeof(s32) + 4 * sizeof(Bool)) {
+        // Fuzzing gf_isom_set_sample_rap_group
+        u32 sampleNumber = 0;
+        u32 num_leading_samples = 0;
+
+        if (Size >= 6 * sizeof(u32) + sizeof(s32) + 4 * sizeof(Bool)) {
+            sampleNumber = *((u32 *)(Data + 6 * sizeof(u32) + sizeof(s32) + 4 * sizeof(Bool)));
+        }
+        if (Size >= 7 * sizeof(u32) + sizeof(s32) + 4 * sizeof(Bool)) {
+            num_leading_samples = *((u32 *)(Data + 7 * sizeof(u32) + sizeof(s32) + 4 * sizeof(Bool)));
+        }
+
+        gf_isom_set_sample_rap_group(isom_file, trackNumber, sampleNumber, flag, num_leading_samples);
+    }
+
+    cleanup_isofile(isom_file);
     return 0;
 }

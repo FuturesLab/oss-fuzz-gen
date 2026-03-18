@@ -1,70 +1,61 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_meta_get_item_ref_id at meta.c:2226:5 in isomedia.h
-// gf_isom_get_meta_primary_item_id at meta.c:600:5 in isomedia.h
-// gf_isom_get_meta_item_by_id at meta.c:219:5 in isomedia.h
-// gf_isom_meta_item_has_ref at meta.c:2203:5 in isomedia.h
-// gf_isom_get_meta_item_flags at meta.c:207:5 in isomedia.h
-// gf_isom_get_meta_type at meta.c:43:5 in isomedia.h
+// gf_isom_is_track_enabled at isom_read.c:1054:4 in isomedia.h
+// gf_isom_add_user_data at isom_write.c:3803:8 in isomedia.h
+// gf_isom_has_sync_points at isom_read.c:2603:4 in isomedia.h
+// gf_isom_fragment_set_sample_aux_info at isom_write.c:9290:8 in isomedia.h
+// gf_isom_get_user_data_count at isom_read.c:2735:5 in isomedia.h
+// gf_isom_is_track_in_root_od at isom_read.c:1018:4 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Since we don't have the complete definition of GF_ISOFile, we can't allocate it directly.
-    // Instead, we allocate a dummy pointer assuming the library handles it internally.
-    GF_ISOFile* iso_file = NULL;
-    return iso_file;
-}
-
-static void cleanup_iso_file(GF_ISOFile* iso_file) {
-    // Assume the library provides a function to clean up or close the ISO file
-    // Here, we just simulate cleanup
-    if (iso_file) {
-        // Free or close operations if needed
+static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_126(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 5) return 0;
+    if (Size < sizeof(u32) * 2 + sizeof(bin128) + 1) {
+        return 0;
+    }
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    GF_ISOFile *isoFile = NULL; // Assume this is properly initialized elsewhere
+    u32 trackNumber = *(u32 *)(Data);
+    u32 userDataType = *(u32 *)(Data + sizeof(u32));
+    bin128 UUID;
+    memcpy(&UUID, Data + 2 * sizeof(u32), sizeof(bin128));
+    u8 *auxData = (u8 *)(Data + 2 * sizeof(u32) + sizeof(bin128));
+    u32 auxDataSize = Size - (2 * sizeof(u32) + sizeof(bin128));
 
-    u32 param1 = *(u32*)(Data);
-    u32 param2 = *(u32*)(Data + 4);
-    u32 param3 = *(u32*)(Data + 8);
-    u32 param4 = *(u32*)(Data + 12);
-    u32 param5 = *(u32*)(Data + 16);
+    // Prepare dummy file
+    prepare_dummy_file(Data, Size);
 
-    Bool root_meta = (Bool)(param1 % 2);
-    u32 track_num = param2;
-    u32 item_id = param3;
-    u32 type = param4;
-    u32 ref_idx = param5 % 10 + 1; // Ensure it's 1-based
+    // Fuzz gf_isom_is_track_enabled
+    u8 isEnabled = gf_isom_is_track_enabled(isoFile, trackNumber);
 
-    // Test gf_isom_meta_get_item_ref_id
-    u32 ref_id = gf_isom_meta_get_item_ref_id(iso_file, root_meta, track_num, item_id, type, ref_idx);
+    // Fuzz gf_isom_add_user_data
+    GF_Err addUserDataErr = gf_isom_add_user_data(isoFile, trackNumber, userDataType, UUID, auxData, auxDataSize);
 
-    // Test gf_isom_get_meta_primary_item_id
-    u32 primary_id = gf_isom_get_meta_primary_item_id(iso_file, root_meta, track_num);
+    // Fuzz gf_isom_has_sync_points
+    u8 hasSyncPoints = gf_isom_has_sync_points(isoFile, trackNumber);
 
-    // Test gf_isom_get_meta_item_by_id
-    u32 item_index = gf_isom_get_meta_item_by_id(iso_file, root_meta, track_num, item_id);
+    // Fuzz gf_isom_fragment_set_sample_aux_info
+    GF_Err setSampleAuxInfoErr = gf_isom_fragment_set_sample_aux_info(isoFile, trackNumber, trackNumber, userDataType, userDataType, auxData, auxDataSize);
 
-    // Test gf_isom_meta_item_has_ref
-    u32 ref_count = gf_isom_meta_item_has_ref(iso_file, root_meta, track_num, item_id, type);
+    // Fuzz gf_isom_get_user_data_count
+    u32 userDataCount = gf_isom_get_user_data_count(isoFile, trackNumber, userDataType, UUID);
 
-    // Test gf_isom_get_meta_item_flags
-    u32 item_flags = gf_isom_get_meta_item_flags(iso_file, root_meta, track_num, ref_idx);
+    // Fuzz gf_isom_is_track_in_root_od
+    u8 isTrackInRootOD = gf_isom_is_track_in_root_od(isoFile, trackNumber);
 
-    // Test gf_isom_get_meta_type
-    u32 meta_type = gf_isom_get_meta_type(iso_file, root_meta, track_num);
-
-    // Cleanup
-    cleanup_iso_file(iso_file);
+    // Cleanup actions if necessary
+    // (e.g., freeing resources, closing files, etc.)
 
     return 0;
 }

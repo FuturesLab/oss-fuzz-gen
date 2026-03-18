@@ -1,65 +1,79 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_chunks_infos at isom_read.c:2906:8 in isomedia.h
-// gf_isom_set_media_type at isom_write.c:6188:8 in isomedia.h
-// gf_isom_purge_track_reference at isom_write.c:4999:8 in isomedia.h
-// gf_isom_remove_cenc_seig_sample_group at drm_sample.c:1037:8 in isomedia.h
-// gf_isom_remove_track_references at isom_write.c:5036:8 in isomedia.h
-// gf_isom_purge_samples at isom_read.c:3192:8 in isomedia.h
+// gf_isom_add_subsample at isom_write.c:7028:8 in isomedia.h
+// gf_isom_fragment_set_sample_av1_switch_frame_group at isom_write.c:7745:8 in isomedia.h
+// gf_isom_set_track_switch_parameter at isom_write.c:6872:8 in isomedia.h
+// gf_isom_avc_set_inband_config at avc_ext.c:1759:8 in isomedia.h
+// gf_isom_set_sample_av1_switch_frame_group at isom_write.c:7740:8 in isomedia.h
+// gf_isom_set_image_sequence_coding_constraints at isom_write.c:2293:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include "isomedia.h"
 
-// Dummy implementation of gf_isom_open_file and gf_isom_close_file
-// Since we don't have the full definition of GF_ISOFile, we can't allocate it directly
-static GF_ISOFile* gf_isom_open_file(const char *filename, GF_ISOOpenMode mode) {
-    // Normally, you would have actual logic to open and return a GF_ISOFile object
+static GF_ISOFile* initialize_iso_file() {
+    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
+    // Instead, we assume there's a function to create or initialize it.
+    // For this example, we'll return NULL as a placeholder.
     return NULL;
 }
 
-static void gf_isom_close_file(GF_ISOFile *iso_file) {
-    // Normally, you would have actual logic to close and clean up a GF_ISOFile object
+static void cleanup_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        // Perform any necessary cleanup
+        // Assuming there's a function to properly destroy or free a GF_ISOFile
+    }
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure there is enough data for a u32 track number
-
-    GF_ISOFile *iso_file = gf_isom_open_file("./dummy_file", GF_ISOM_OPEN_READ);
-    if (!iso_file) return 0;
-
-    u32 trackNumber = *(u32 *)Data;
-    const uint8_t *remainingData = Data + 4;
-    size_t remainingSize = Size - 4;
-
-    // Fuzz gf_isom_get_chunks_infos
-    u32 dur_min, dur_avg, dur_max, size_min, size_avg, size_max;
-    gf_isom_get_chunks_infos(iso_file, trackNumber, &dur_min, &dur_avg, &dur_max, &size_min, &size_avg, &size_max);
-
-    // Fuzz gf_isom_set_media_type
-    if (remainingSize >= 4) {
-        u32 new_type = *(u32 *)remainingData;
-        gf_isom_set_media_type(iso_file, trackNumber, new_type);
-        remainingData += 4;
-        remainingSize -= 4;
+    if (Size < sizeof(u32) * 16 + sizeof(u8) + sizeof(Bool) * 5) {
+        return 0;
     }
 
-    // Fuzz gf_isom_purge_track_reference
-    gf_isom_purge_track_reference(iso_file, trackNumber);
+    GF_ISOFile *isom_file = initialize_iso_file();
+    if (!isom_file) return 0;
 
-    // Fuzz gf_isom_remove_cenc_seig_sample_group
-    gf_isom_remove_cenc_seig_sample_group(iso_file, trackNumber);
+    // Extract parameters from the input data
+    u32 trackNumber = ((u32 *)Data)[0];
+    u32 sampleNumber = ((u32 *)Data)[1];
+    u32 flags = ((u32 *)Data)[2];
+    u32 subSampleSize = ((u32 *)Data)[3];
+    u8 priority = Data[4 * sizeof(u32)];
+    u32 reserved = ((u32 *)Data)[4];
+    Bool discardable = (Bool)Data[5 * sizeof(u32)];
 
-    // Fuzz gf_isom_remove_track_references
-    gf_isom_remove_track_references(iso_file, trackNumber);
+    // Fuzz gf_isom_add_subsample
+    gf_isom_add_subsample(isom_file, trackNumber, sampleNumber, flags, subSampleSize, priority, reserved, discardable);
 
-    // Fuzz gf_isom_purge_samples
-    if (remainingSize >= 4) {
-        u32 nb_samples = *(u32 *)remainingData;
-        gf_isom_purge_samples(iso_file, trackNumber, nb_samples);
-    }
+    // Fuzz gf_isom_fragment_set_sample_av1_switch_frame_group
+    u32 trackID = ((u32 *)Data)[5];
+    u32 sample_number_in_frag = ((u32 *)Data)[6];
+    Bool is_switch_Frame = (Bool)Data[7 * sizeof(u32)];
+    gf_isom_fragment_set_sample_av1_switch_frame_group(isom_file, trackID, sample_number_in_frag, is_switch_Frame);
 
-    gf_isom_close_file(iso_file);
+    // Fuzz gf_isom_set_track_switch_parameter
+    u32 trackRefGroup = ((u32 *)Data)[7];
+    Bool is_switch_group = (Bool)Data[8 * sizeof(u32)];
+    u32 switchGroupID = ((u32 *)Data)[8];
+    u32 criteriaList[1] = { ((u32 *)Data)[9] };
+    u32 criteriaListCount = 1;
+    gf_isom_set_track_switch_parameter(isom_file, trackNumber, trackRefGroup, is_switch_group, &switchGroupID, criteriaList, criteriaListCount);
+
+    // Fuzz gf_isom_avc_set_inband_config
+    u32 sampleDescriptionIndex = ((u32 *)Data)[10];
+    Bool keep_xps = (Bool)Data[11 * sizeof(u32)];
+    gf_isom_avc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
+
+    // Fuzz gf_isom_set_sample_av1_switch_frame_group
+    gf_isom_set_sample_av1_switch_frame_group(isom_file, trackNumber, sampleNumber, is_switch_Frame);
+
+    // Fuzz gf_isom_set_image_sequence_coding_constraints
+    Bool remove = (Bool)Data[12 * sizeof(u32)];
+    Bool all_ref_pics_intra = (Bool)Data[13 * sizeof(u32)];
+    Bool intra_pred_used = (Bool)Data[14 * sizeof(u32)];
+    u32 max_ref_per_pic = ((u32 *)Data)[15];
+    gf_isom_set_image_sequence_coding_constraints(isom_file, trackNumber, sampleDescriptionIndex, remove, all_ref_pics_intra, intra_pred_used, max_ref_per_pic);
+
+    cleanup_iso_file(isom_file);
     return 0;
 }

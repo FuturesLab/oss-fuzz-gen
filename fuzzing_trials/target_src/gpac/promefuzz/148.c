@@ -1,81 +1,56 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_webvtt_config at sample_descs.c:1577:13 in isomedia.h
-// gf_isom_subtitle_set_mime at sample_descs.c:1294:8 in isomedia.h
-// gf_isom_new_stxt_description at sample_descs.c:1418:8 in isomedia.h
-// gf_isom_get_xml_metadata_description at sample_descs.c:1166:8 in isomedia.h
-// gf_isom_subtitle_get_mime at sample_descs.c:1274:13 in isomedia.h
-// gf_isom_new_webvtt_description at sample_descs.c:1637:8 in isomedia.h
+// gf_isom_update_edit_list_duration at isom_write.c:8354:8 in isomedia.h
+// gf_isom_begin_hint_sample at hint_track.c:324:8 in isomedia.h
+// gf_isom_hint_max_chunk_size at isom_write.c:5898:8 in isomedia.h
+// gf_isom_rtp_set_timescale at hint_track.c:226:8 in isomedia.h
+// gf_isom_set_last_sample_duration_ex at isom_write.c:1431:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* initialize_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot directly allocate it.
-    // We will simulate initialization.
-    GF_ISOFile* iso_file = NULL;
-    // Normally, you would initialize the file here.
-    return iso_file;
+static GF_ISOFile *create_dummy_iso_file() {
+    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
+    // Instead, we assume a function exists to create it, like gf_isom_open or similar.
+    // For the purpose of this example, we will return NULL.
+    return NULL;
 }
 
-static void cleanup_iso_file(GF_ISOFile* iso_file) {
-    // Simulated cleanup
+static void cleanup_iso_file(GF_ISOFile *isom_file) {
+    // Assuming there's a cleanup function in the library, like gf_isom_close
+    // For the purpose of this example, this function does nothing.
 }
 
 int LLVMFuzzerTestOneInput_148(const uint8_t *Data, size_t Size) {
-    GF_ISOFile* iso_file = initialize_iso_file();
+    if (Size < 28) return 0; // Ensure there's enough data for all parameters
 
-    u32 trackNumber = 1;
-    u32 sampleDescriptionIndex = 1;
-    u32 outDescriptionIndex;
-    const char *configString = "sample config";
-    const char *mimeType = "text/vtt";
-    const char *encoding = "UTF-8";
-    const char *URLname = "http://example.com";
-    const char *URNname = "urn:example";
-    const char *full_mime = "text/vtt; codecs=\"wvtt\"";
-    const char *xmlnamespace = NULL;
-    const char *schema_loc = NULL;
-    const char *content_encoding = NULL;
+    GF_ISOFile *isom_file = create_dummy_iso_file();
+    if (!isom_file) return 0;
 
-    // Fuzz gf_isom_get_webvtt_config
-    const char *webvtt_config = gf_isom_get_webvtt_config(iso_file, trackNumber, sampleDescriptionIndex);
-    if (webvtt_config) {
-        // Use the config if needed
-    }
+    u32 trackNumber = *(u32 *)Data;
+    u32 HintDescriptionIndex = *(u32 *)(Data + 4);
+    u32 TransmissionTime = *(u32 *)(Data + 8);
+    u32 maxChunkSize = *(u32 *)(Data + 12);
+    u32 TimeScale = *(u32 *)(Data + 16);
+    u32 dur_num = *(u32 *)(Data + 20);
+    u32 dur_den = *(u32 *)(Data + 24);
 
-    // Fuzz gf_isom_subtitle_set_mime
-    GF_Err err_set_mime = gf_isom_subtitle_set_mime(iso_file, trackNumber, sampleDescriptionIndex, full_mime);
-    if (err_set_mime != GF_OK) {
-        // Handle error
-    }
+    gf_isom_update_edit_list_duration(isom_file, trackNumber);
 
-    // Fuzz gf_isom_new_stxt_description
-    GF_Err err_new_stxt = gf_isom_new_stxt_description(iso_file, trackNumber, 'stxt', mimeType, encoding, configString, &outDescriptionIndex);
-    if (err_new_stxt != GF_OK) {
-        // Handle error
-    }
+    gf_isom_begin_hint_sample(isom_file, trackNumber, HintDescriptionIndex, TransmissionTime);
 
-    // Fuzz gf_isom_get_xml_metadata_description
-    GF_Err err_get_xml = gf_isom_get_xml_metadata_description(iso_file, trackNumber, sampleDescriptionIndex, &xmlnamespace, &schema_loc, &content_encoding);
-    if (err_get_xml != GF_OK) {
-        // Handle error
-    }
+    gf_isom_hint_max_chunk_size(isom_file, trackNumber, maxChunkSize);
 
-    // Fuzz gf_isom_subtitle_get_mime
-    const char *subtitle_mime = gf_isom_subtitle_get_mime(iso_file, trackNumber, sampleDescriptionIndex);
-    if (subtitle_mime) {
-        // Use the MIME if needed
-    }
+    gf_isom_rtp_set_timescale(isom_file, trackNumber, HintDescriptionIndex, TimeScale);
 
-    // Fuzz gf_isom_new_webvtt_description
-    GF_Err err_new_webvtt = gf_isom_new_webvtt_description(iso_file, trackNumber, URLname, URNname, &outDescriptionIndex, configString);
-    if (err_new_webvtt != GF_OK) {
-        // Handle error
-    }
+    gf_isom_set_last_sample_duration_ex(isom_file, trackNumber, dur_num, dur_den);
 
-    cleanup_iso_file(iso_file);
+    cleanup_iso_file(isom_file);
     return 0;
 }

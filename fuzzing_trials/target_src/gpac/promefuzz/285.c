@@ -1,63 +1,66 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_set_qt_key at isom_write.c:6653:8 in isomedia.h
+// gf_isom_set_qt_key at isom_write.c:6653:8 in isomedia.h
+// gf_isom_freeze_order at isom_read.c:76:8 in isomedia.h
+// gf_isom_make_interleave at isom_write.c:6051:8 in isomedia.h
+// gf_isom_reset_alt_brands at isom_write.c:3682:8 in isomedia.h
+// gf_isom_enable_mfra at movie_fragments.c:3462:8 in isomedia.h
+// gf_isom_last_error at isom_read.c:46:8 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_get_fragmented_duration at isom_read.c:5409:5 in isomedia.h
-// gf_isom_get_duration at isom_read.c:971:5 in isomedia.h
-// gf_isom_get_track_duration_orig at isom_read.c:1092:5 in isomedia.h
-// gf_isom_get_track_duration at isom_read.c:1076:5 in isomedia.h
-// gf_isom_get_smooth_next_tfdt at isom_read.c:5835:5 in isomedia.h
-// gf_isom_get_original_duration at isom_read.c:986:5 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
-    // Create a dummy ISO file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-
-    // Open the ISO file using GPAC API (assuming such a function exists)
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return iso_file;
+static GF_ISOFile *create_dummy_iso_file() {
+    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        // Close the ISO file using GPAC API (assuming such a function exists)
-        gf_isom_close(iso_file);
-    }
+static GF_QT_UDTAKey *create_dummy_qt_key(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(GF_QT_UDTAKey)) return NULL;
+    GF_QT_UDTAKey *key = (GF_QT_UDTAKey *)malloc(sizeof(GF_QT_UDTAKey));
+    if (!key) return NULL;
+    // Initialize the key with data if possible
+    memcpy(key, Data, sizeof(GF_QT_UDTAKey));
+    return key;
 }
 
 int LLVMFuzzerTestOneInput_285(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) return 0;
-
-    GF_ISOFile *iso_file = initialize_iso_file(Data, Size);
+    GF_ISOFile *iso_file = create_dummy_iso_file();
     if (!iso_file) return 0;
 
-    // Fuzz gf_isom_get_fragmented_duration
-    u64 duration = gf_isom_get_fragmented_duration(iso_file);
-    
-    // Fuzz gf_isom_get_duration
-    duration = gf_isom_get_duration(iso_file);
-    
-    // Fuzz gf_isom_get_track_duration_orig
-    u32 trackNumber = *((u32*)Data) % 10; // Use a track number from input data
-    duration = gf_isom_get_track_duration_orig(iso_file, trackNumber);
-    
-    // Fuzz gf_isom_get_track_duration
-    duration = gf_isom_get_track_duration(iso_file, trackNumber);
-    
-    // Fuzz gf_isom_get_smooth_next_tfdt
-    duration = gf_isom_get_smooth_next_tfdt(iso_file, trackNumber);
-    
-    // Fuzz gf_isom_get_original_duration
-    duration = gf_isom_get_original_duration(iso_file);
+    GF_QT_UDTAKey *qt_key = create_dummy_qt_key(Data, Size);
 
-    cleanup_iso_file(iso_file);
+    // Fuzz gf_isom_set_qt_key
+    gf_isom_set_qt_key(iso_file, qt_key);
+    gf_isom_set_qt_key(iso_file, NULL);
+
+    // Fuzz gf_isom_freeze_order
+    gf_isom_freeze_order(iso_file);
+
+    // Fuzz gf_isom_make_interleave
+    if (Size >= sizeof(Double)) {
+        Double time_in_sec;
+        memcpy(&time_in_sec, Data, sizeof(Double));
+        gf_isom_make_interleave(iso_file, time_in_sec);
+    }
+
+    // Fuzz gf_isom_reset_alt_brands
+    gf_isom_reset_alt_brands(iso_file);
+
+    // Fuzz gf_isom_enable_mfra
+    gf_isom_enable_mfra(iso_file);
+
+    // Fuzz gf_isom_last_error
+    gf_isom_last_error(iso_file);
+
+    // Cleanup
+    free(qt_key);
+    gf_isom_close(iso_file);
+
     return 0;
 }

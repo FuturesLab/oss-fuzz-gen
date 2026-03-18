@@ -1,30 +1,39 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>  // Include for close() and write()
 #include <gpac/isomedia.h>
-#include <gpac/constants.h> // Include this to define u32
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Ensure that size is sufficient to extract u32 values
-    if (size < sizeof(u32) * 3) {
+    // Initialize variables
+    GF_ISOFile *file;
+    Bool root_meta = 1; // Non-zero value for true
+    u32 track_num = 1;  // Example track number
+    u32 item_num = 1;   // Example item number
+
+    // Create a temporary file to simulate an ISO media file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Exit if file creation fails
+    }
+
+    // Write the fuzz data to the temporary file
+    write(fd, data, size);
+    close(fd);
+
+    // Open the ISO media file
+    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (!file) {
+        remove(tmpl); // Clean up the temporary file
         return 0;
     }
 
-    // Initialize the GF_ISOFile structure
-    GF_ISOFile *the_file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!the_file) {
-        return 0;
-    }
-
-    // Extract u32 values from data
-    u32 trackNumber = *((u32 *)data);
-    u32 HintDescriptionIndex = *((u32 *)(data + sizeof(u32)));
-    u32 TransmissionTime = *((u32 *)(data + 2 * sizeof(u32)));
-
-    // Call the function under test
-    gf_isom_begin_hint_sample(the_file, trackNumber, HintDescriptionIndex, TransmissionTime);
+    // Call the function-under-test
+    gf_isom_get_meta_item_flags(file, root_meta, track_num, item_num);
 
     // Clean up
-    gf_isom_close(the_file);
+    gf_isom_close(file);
+    remove(tmpl);
 
     return 0;
 }

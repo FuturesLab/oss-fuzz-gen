@@ -1,26 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include for memset
-#include <gpac/isomedia.h> // Assuming this header contains the definition for GF_TextSample
-#include <gpac/constants.h> // Include any additional headers that might define related constants or functions
-#include <gpac/internal/isomedia_dev.h> // Include for the full definition of GF_TextSample
+#include <stdlib.h>
+#include <string.h>  // Include for memcpy and memset
+#include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Ensure we have enough data for start_char and end_char
-    if (size < 4) {
-        return 0;
+    // Declare and initialize variables
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    u32 trackNumber = 1;  // Assuming track number 1 for testing
+    u32 StreamDescriptionIndex = 1;  // Assuming stream description index 1 for testing
+    GF_DOVIDecoderConfigurationRecord dvcc;
+
+    // Ensure the dvcc structure is initialized and non-NULL
+    if (size >= sizeof(GF_DOVIDecoderConfigurationRecord)) {
+        memcpy(&dvcc, data, sizeof(GF_DOVIDecoderConfigurationRecord));
+    } else {
+        memset(&dvcc, 0, sizeof(GF_DOVIDecoderConfigurationRecord));
     }
 
-    // Initialize the parameters
-    GF_TextSample samp;
-    memset(&samp, 0, sizeof(GF_TextSample)); // Zero out the structure
-
-    // Extract start_char and end_char from the input data
-    u16 start_char = (u16)((data[0] << 8) | data[1]);
-    u16 end_char = (u16)((data[2] << 8) | data[3]);
-
     // Call the function-under-test
-    gf_isom_text_add_blink(&samp, start_char, end_char);
+    gf_isom_set_dolby_vision_profile(movie, trackNumber, StreamDescriptionIndex, &dvcc);
+
+    // Clean up
+    if (movie) {
+        gf_isom_close(movie);
+    }
 
     return 0;
 }

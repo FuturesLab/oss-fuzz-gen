@@ -1,32 +1,38 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <gpac/isomedia.h>
-#include <gpac/constants.h>  // Include the header that defines GF_ISOM_OPEN_READWRITE
-#include <gpac/internal/isomedia_dev.h>  // Additional header that might define GF_ISOM_OPEN_READWRITE
+#include <gpac/constants.h>
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);  // Use GF_ISOM_OPEN_WRITE if GF_ISOM_OPEN_READWRITE is not available
-    if (!movie) {
+    // Write the input data to a temporary file
+    char tmp_filename[] = "/tmp/fuzz_input.mp4";
+    FILE *tmp_file = fopen(tmp_filename, "wb");
+    if (!tmp_file) {
+        return 0;
+    }
+    fwrite(data, 1, size, tmp_file);
+    fclose(tmp_file);
+
+    // Open the temporary file as an ISO media file
+    GF_ISOFile *file = gf_isom_open(tmp_filename, GF_ISOM_OPEN_READ, NULL);
+    if (!file) {
         return 0;
     }
 
-    // Ensure size is sufficient for extracting values
-    if (size < sizeof(GF_ISOTrackID) + 2 * sizeof(u64)) {
-        gf_isom_close(movie);
-        return 0;
-    }
+    // Set root_meta to a non-null value
+    Bool root_meta = 1; // or use 0, as both are valid Bool values
 
-    // Extract parameters from data
-    GF_ISOTrackID reference_track_ID = *(GF_ISOTrackID *)data;
-    u64 ntp_in_track_timescale = *(u64 *)(data + sizeof(GF_ISOTrackID));
-    u64 traf_duration_in_track_timescale = *(u64 *)(data + sizeof(GF_ISOTrackID) + sizeof(u64));
+    // Set track_num to a non-zero value
+    u32 track_num = 1; // Could be any positive integer
 
     // Call the function-under-test
-    gf_isom_set_traf_mss_timeext(movie, reference_track_ID, ntp_in_track_timescale, traf_duration_in_track_timescale);
+    gf_isom_get_meta_primary_item_id(file, root_meta, track_num);
 
     // Clean up
-    gf_isom_close(movie);
+    gf_isom_close(file);
+
+    // Remove the temporary file
+    remove(tmp_filename);
 
     return 0;
 }
