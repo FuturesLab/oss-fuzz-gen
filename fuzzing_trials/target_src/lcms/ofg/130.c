@@ -1,41 +1,24 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
+#include <string.h>  // Include string.h for memcpy
 
-// Fuzzer entry point
 int LLVMFuzzerTestOneInput_130(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsHANDLE handle;
-    char *formatString;
-
-    // Ensure the data size is sufficient to create a string
-    if (size < 1) {
+    // Ensure there's enough data for cmsCIELab structure
+    if (size < sizeof(cmsCIELab)) {
         return 0;
     }
 
-    // Allocate memory for the format string and copy data into it
-    formatString = (char *)malloc(size + 1);
-    if (formatString == NULL) {
-        return 0;
-    }
-    memcpy(formatString, data, size);
-    formatString[size] = '\0'; // Null-terminate the string
+    // Initialize input and output structures
+    cmsCIEXYZ inputXYZ = {0.0, 0.0, 0.0};
+    cmsCIEXYZ outputXYZ = {0.0, 0.0, 0.0};
+    cmsCIELab inputLab;
 
-    // Create a dummy cmsHANDLE
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
-        free(formatString);
-        return 0;
-    }
+    // Copy data to inputLab, ensuring it does not exceed available size
+    memcpy(&inputLab, data, sizeof(cmsCIELab));
 
     // Call the function-under-test
-    cmsIT8DefineDblFormat(handle, formatString);
-
-    // Clean up
-    cmsIT8Free(handle);
-    free(formatString);
+    cmsLab2XYZ(&inputXYZ, &outputXYZ, &inputLab);
 
     return 0;
 }

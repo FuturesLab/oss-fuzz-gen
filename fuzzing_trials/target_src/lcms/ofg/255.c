@@ -1,31 +1,58 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_255(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHPROFILE hProfile;
-    cmsUInt32Number version;
-
-    // Check if the size is sufficient to extract a version number
-    if (size < sizeof(cmsUInt32Number)) {
+    if (size < 3) {
+        // Not enough data to proceed
         return 0;
     }
 
-    // Create a profile for testing
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsUInt32Number nProfiles = 2; // Number of profiles
+    cmsUInt32Number inputFormat = TYPE_RGB_8; // Example format
+    cmsUInt32Number outputFormat = TYPE_RGB_8; // Example format
+    cmsUInt32Number intent = INTENT_PERCEPTUAL; // Example intent
+    cmsUInt32Number flags = 0; // Example flags
+
+    // Allocate memory for profiles
+    cmsHPROFILE *profiles = (cmsHPROFILE *)malloc(nProfiles * sizeof(cmsHPROFILE));
+    if (profiles == NULL) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Extract a version number from the data
-    version = *(const cmsUInt32Number *)data;
+    // Initialize profiles with dummy profiles
+    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
+        profiles[i] = cmsCreate_sRGBProfile();
+        if (profiles[i] == NULL) {
+            // Clean up and exit if profile creation fails
+            for (cmsUInt32Number j = 0; j < i; j++) {
+                cmsCloseProfile(profiles[j]);
+            }
+            free(profiles);
+            cmsDeleteContext(context);
+            return 0;
+        }
+    }
 
-    // Call the function-under-test
-    cmsSetEncodedICCversion(hProfile, version);
+    // Call the function under test
+    cmsHTRANSFORM transform = cmsCreateMultiprofileTransformTHR(context, profiles, nProfiles, inputFormat, outputFormat, intent, flags);
 
-    // Close the profile after testing
-    cmsCloseProfile(hProfile);
+    // If a transform is created, use it to process the input data
+    if (transform != NULL) {
+        uint8_t input[3] = {data[0], data[1], data[2]};
+        uint8_t output[3];
+        cmsDoTransform(transform, input, output, 1);
+        cmsDeleteTransform(transform);
+    }
+
+    // Clean up
+    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
+        cmsCloseProfile(profiles[i]);
+    }
+    free(profiles);
+    cmsDeleteContext(context);
 
     return 0;
 }

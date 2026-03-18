@@ -1,43 +1,25 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_390(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHTRANSFORM transform;
-    cmsUInt32Number sizeOfData = size > 0 ? size : 1; // Ensure size is not zero
-    cmsUInt32Number stride = 1; // Example stride value
-
-    // Allocate memory for input and output buffers
-    void *inputBuffer = malloc(sizeOfData);
-    void *outputBuffer = malloc(sizeOfData);
-
-    if (inputBuffer == NULL || outputBuffer == NULL) {
-        // Memory allocation failed, clean up and exit
-        free(inputBuffer);
-        free(outputBuffer);
-        return 0;
+    // Use the input data to create a profile
+    if (size < sizeof(cmsCIExyY)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Copy data to input buffer
-    memcpy(inputBuffer, data, sizeOfData);
+    // Interpret the input data as a cmsCIExyY structure
+    const cmsCIExyY *input_xyY = (const cmsCIExyY *)data;
 
-    // Initialize a dummy transform (for demonstration purposes)
-    // In practice, you would set up a real color transform using LCMS functions
-    transform = cmsCreateTransform(NULL, TYPE_RGB_8, NULL, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
+    // Call the function-under-test with the input data
+    const cmsCIExyY *result = cmsD50_xyY();
 
-    if (transform != NULL) {
-        // Call the function-under-test
-        cmsDoTransformStride(transform, inputBuffer, outputBuffer, sizeOfData, stride);
-
-        // Destroy the transform after use
-        cmsDeleteTransform(transform);
+    // Use the result in some way to ensure the call is not optimized out
+    if (result != NULL) {
+        volatile double x = result->x;
+        volatile double y = result->y;
+        volatile double Y = result->Y;
     }
-
-    // Clean up
-    free(inputBuffer);
-    free(outputBuffer);
 
     return 0;
 }

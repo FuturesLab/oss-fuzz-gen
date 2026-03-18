@@ -1,32 +1,45 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_440(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsGetSupportedIntents
-    cmsUInt32Number intent = 0;
-    cmsUInt32Number supportedIntents;
-    char *description = (char *)malloc(256); // Allocate memory for description
-
-    if (description == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Ensure the input size is large enough to split into meaningful parts
+    if (size < 4) {
+        return 0;
     }
 
-    // Ensure the description is initialized
-    snprintf(description, 256, "Default Description");
+    // Initialize variables
+    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
+    const char *language = "en";
+    const char *country = "US";
+
+    // Split the input data into two parts for the ASCII string
+    size_t ascii_len = size / 2;
+    char *ascii_str1 = (char *)malloc(ascii_len + 1);
+    char *ascii_str2 = (char *)malloc(ascii_len + 1);
+
+    if (ascii_str1 == NULL || ascii_str2 == NULL) {
+        cmsMLUfree(mlu);
+        free(ascii_str1);
+        free(ascii_str2);
+        return 0;
+    }
+
+    memcpy(ascii_str1, data, ascii_len);
+    ascii_str1[ascii_len] = '\0';
+
+    memcpy(ascii_str2, data + ascii_len, ascii_len);
+    ascii_str2[ascii_len] = '\0';
 
     // Call the function-under-test
-    cmsUInt32Number result = cmsGetSupportedIntents(intent, &supportedIntents, &description);
+    cmsMLUsetASCII(mlu, language, country, ascii_str1);
+    cmsMLUsetASCII(mlu, language, country, ascii_str2);
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    if (result != 0) {
-        printf("Supported Intents: %u, Description: %s\n", supportedIntents, description);
-    }
-
-    // Free allocated memory
-    free(description);
+    // Clean up
+    cmsMLUfree(mlu);
+    free(ascii_str1);
+    free(ascii_str2);
 
     return 0;
 }

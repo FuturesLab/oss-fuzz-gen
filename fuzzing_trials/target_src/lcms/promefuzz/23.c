@@ -1,68 +1,65 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsReverseToneCurveEx at cmsgamma.c:1070:25 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsJoinToneCurve at cmsgamma.c:980:25 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsReverseToneCurve at cmsgamma.c:1137:25 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsDupToneCurve at cmsgamma.c:968:25 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsDupToneCurve at cmsgamma.c:968:25 in lcms2.h
-// cmsDupToneCurve at cmsgamma.c:968:25 in lcms2.h
-// cmsFreeToneCurveTriple at cmsgamma.c:954:16 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsBuildGamma at cmsgamma.c:909:25 in lcms2.h
+// cmsIT8Alloc at cmscgats.c:1454:22 in lcms2.h
+// cmsIT8Free at cmscgats.c:1170:16 in lcms2.h
+// cmsIT8SetDataRowCol at cmscgats.c:2838:19 in lcms2.h
+// cmsIT8GetPatchByName at cmscgats.c:2974:15 in lcms2.h
+// cmsIT8FindDataFormat at cmscgats.c:2805:15 in lcms2.h
+// cmsIT8SetSheetType at cmscgats.c:1513:19 in lcms2.h
+// cmsIT8SetPropertyStr at cmscgats.c:1533:19 in lcms2.h
+// cmsIT8SaveToFile at cmscgats.c:2007:19 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <lcms2.h>
 
-static cmsToneCurve* create_dummy_tone_curve(cmsUInt32Number nEntries) {
-    cmsToneCurve* curve = cmsBuildGamma(NULL, 1.0);
-    if (!curve) return NULL;
-    // Assume nEntries is valid and compatible with the curve
-    return curve;
+static cmsHANDLE createDummyIT8Handle() {
+    // Assuming we have a function to properly initialize an IT8 handle
+    return cmsIT8Alloc(NULL);
+}
+
+static void releaseDummyIT8Handle(cmsHANDLE hIT8) {
+    // Properly release the IT8 handle using library function
+    if (hIT8) {
+        cmsIT8Free(hIT8);
+    }
 }
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number)) return 0;
+    if (Size < 1) return 0;
 
-    cmsUInt32Number nEntries = *(cmsUInt32Number*)Data;
-    cmsToneCurve* curve1 = create_dummy_tone_curve(nEntries);
-    cmsToneCurve* curve2 = create_dummy_tone_curve(nEntries);
+    cmsHANDLE hIT8 = createDummyIT8Handle();
+    if (!hIT8) return 0;
 
-    if (!curve1 || !curve2) {
-        cmsFreeToneCurve(curve1);
-        cmsFreeToneCurve(curve2);
-        return 0;
+    // Prepare dummy strings from the input data
+    char dummyStr[256];
+    snprintf(dummyStr, sizeof(dummyStr), "%.*s", (int)Size, Data);
+
+    // Fuzz cmsIT8SetDataRowCol
+    cmsIT8SetDataRowCol(hIT8, Data[0] % 256, Data[0] % 256, dummyStr);
+
+    // Fuzz cmsIT8GetPatchByName
+    cmsIT8GetPatchByName(hIT8, dummyStr);
+
+    // Fuzz cmsIT8FindDataFormat
+    cmsIT8FindDataFormat(hIT8, dummyStr);
+
+    // Fuzz cmsIT8SetSheetType
+    cmsIT8SetSheetType(hIT8, dummyStr);
+
+    // Fuzz cmsIT8SetPropertyStr
+    cmsIT8SetPropertyStr(hIT8, dummyStr, dummyStr);
+
+    // Prepare a dummy file for cmsIT8SaveToFile
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fclose(file);
+        cmsIT8SaveToFile(hIT8, "./dummy_file");
     }
 
-    // Test cmsReverseToneCurveEx
-    cmsToneCurve* reversedCurveEx = cmsReverseToneCurveEx(nEntries, curve1);
-    if (reversedCurveEx) cmsFreeToneCurve(reversedCurveEx);
-
-    // Test cmsJoinToneCurve
-    cmsToneCurve* joinedCurve = cmsJoinToneCurve(NULL, curve1, curve2, nEntries);
-    if (joinedCurve) cmsFreeToneCurve(joinedCurve);
-
-    // Test cmsReverseToneCurve
-    cmsToneCurve* reversedCurve = cmsReverseToneCurve(curve1);
-    if (reversedCurve) cmsFreeToneCurve(reversedCurve);
-
-    // Test cmsDupToneCurve
-    cmsToneCurve* dupedCurve = cmsDupToneCurve(curve1);
-    if (dupedCurve) cmsFreeToneCurve(dupedCurve);
-
-    // Ensure we do not use after free
-    cmsToneCurve* triple[3] = {cmsDupToneCurve(curve1), cmsDupToneCurve(curve2), NULL};
-    cmsFreeToneCurveTriple(triple);
-
-    cmsFreeToneCurve(curve1);
-    cmsFreeToneCurve(curve2);
+    // Clean up
+    releaseDummyIT8Handle(hIT8);
 
     return 0;
 }

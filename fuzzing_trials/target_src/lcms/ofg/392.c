@@ -1,58 +1,54 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_392(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return 0; // Not enough data to proceed
+    // Ensure that the input size is sufficient for a null-terminated string
+    if (size < 1) {
+        return 0;
     }
 
-    cmsContext context;
-    cmsHPROFILE inputProfile, outputProfile, proofingProfile;
-    cmsUInt32Number inputFormat, outputFormat, proofIntent, flags, intent;
-    cmsHTRANSFORM transform;
+    // Create a cmsNAMEDCOLORLIST object
+    cmsNAMEDCOLORLIST *namedColorList = cmsAllocNamedColorList(NULL, 1, 32, "Prefix", "Suffix");
+    if (namedColorList == NULL) {
+        return 0;
+    }
 
-    // Initialize context and profiles
-    context = cmsCreateContext(NULL, NULL);
-    inputProfile = cmsCreate_sRGBProfile();
-    outputProfile = cmsCreate_sRGBProfile();
-    proofingProfile = cmsCreate_sRGBProfile();
+    // Add a named color to the list
+    char sampleColorName[32];
+    strncpy(sampleColorName, "SampleColor", sizeof(sampleColorName) - 1);
+    sampleColorName[sizeof(sampleColorName) - 1] = '\0'; // Ensure null-termination
+    cmsAppendNamedColor(namedColorList, sampleColorName, NULL, NULL);
 
-    // Initialize format, intents, and flags
-    inputFormat = TYPE_RGB_8;
-    outputFormat = TYPE_RGB_8;
-    proofIntent = INTENT_RELATIVE_COLORIMETRIC;
-    intent = INTENT_PERCEPTUAL;
-    flags = cmsFLAGS_SOFTPROOFING;
+    // Copy the input data into a null-terminated string
+    char *colorName = (char *)malloc(size + 1);
+    if (colorName == NULL) {
+        cmsFreeNamedColorList(namedColorList);
+        return 0;
+    }
+    memcpy(colorName, data, size);
+    colorName[size] = '\0'; // Null-terminate the string
 
     // Call the function under test
-    transform = cmsCreateProofingTransformTHR(
-        context,
-        inputProfile,
-        inputFormat,
-        outputProfile,
-        outputFormat,
-        proofingProfile,
-        proofIntent,
-        intent,
-        flags
-    );
+    cmsInt32Number index = cmsNamedColorIndex(namedColorList, colorName);
 
-    if (transform != NULL) {
-        // Use the transform to process the input data
-        uint8_t output[3]; // Buffer for transformed data
-        cmsDoTransform(transform, data, output, 1); // Transform 1 pixel
-
-        // Optionally, do something with the output to ensure it's used
-        // For fuzzing, just ensure the function is called
+    // Check if the index is valid to increase code coverage
+    if (index >= 0) {
+        // Do something with the valid index if needed
+        // For example, retrieve the color using the valid index
+        char retrievedColorName[32];
+        char retrievedPrefix[32];
+        char retrievedSuffix[32];
+        cmsUInt16Number pcs[3];
+        cmsUInt16Number colorant[3];
+        cmsNamedColorInfo(namedColorList, index, retrievedColorName, retrievedPrefix, retrievedSuffix, pcs, colorant);
     }
 
-    // Cleanup
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
-    cmsCloseProfile(proofingProfile);
-    cmsDeleteContext(context);
+    // Clean up
+    free(colorName);
+    cmsFreeNamedColorList(namedColorList);
 
     return 0;
 }

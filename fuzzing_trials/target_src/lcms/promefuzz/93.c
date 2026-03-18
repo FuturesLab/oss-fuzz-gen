@@ -1,94 +1,95 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// _cmsWriteUInt16Number at cmsplugin.c:268:20 in lcms2_plugin.h
-// _cmsWrite15Fixed16Number at cmsplugin.c:337:20 in lcms2_plugin.h
-// _cmsWriteUInt64Number at cmsplugin.c:324:20 in lcms2_plugin.h
-// _cmsWriteAlignment at cmsplugin.c:462:19 in lcms2_plugin.h
+// _cmsEncodeDateTimeNumber at cmsplugin.c:407:16 in lcms2_plugin.h
+// _cmsDecodeDateTimeNumber at cmsplugin.c:390:16 in lcms2_plugin.h
+// cmsCreate_sRGBProfile at cmsvirt.c:680:23 in lcms2.h
+// cmsGetHeaderCreationDateTime at cmsio0.c:1063:20 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsCreate_sRGBProfile at cmsvirt.c:680:23 in lcms2.h
+// cmsGetHeaderAttributes at cmsio0.c:1039:16 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// _cmsAdjustEndianess64 at cmsplugin.c:79:17 in lcms2_plugin.h
 // _cmsReadUInt64Number at cmsplugin.c:206:21 in lcms2_plugin.h
-// cmsCloseIOhandler at cmsio0.c:510:19 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <time.h>
 #include "lcms2.h"
 #include "lcms2_plugin.h"
 
-static cmsUInt32Number DummyReadHandler(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count) {
-    // Dummy read handler
-    return size * count;
+static void fuzz_cmsEncodeDecodeDateTimeNumber(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(struct tm)) return;
+
+    struct tm source_tm;
+    cmsDateTimeNumber dest_dt;
+
+    // Copy data into source_tm ensuring it doesn't exceed its size
+    memcpy(&source_tm, Data, sizeof(struct tm));
+
+    _cmsEncodeDateTimeNumber(&dest_dt, &source_tm);
+
+    struct tm decoded_tm;
+    _cmsDecodeDateTimeNumber(&dest_dt, &decoded_tm);
 }
 
-static cmsBool DummySeekHandler(struct _cms_io_handler* iohandler, cmsUInt32Number offset) {
-    // Dummy seek handler
-    return TRUE;
+static void fuzz_cmsGetHeaderCreationDateTime(const uint8_t *Data, size_t Size) {
+    // Ensure we have enough data to simulate a valid profile handle
+    if (Size < sizeof(cmsHPROFILE)) return;
+
+    // Create a dummy ICC profile for testing
+    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
+    if (!hProfile) return;
+
+    struct tm dest_tm;
+    cmsGetHeaderCreationDateTime(hProfile, &dest_tm);
+
+    // Close the profile to avoid memory leaks
+    cmsCloseProfile(hProfile);
 }
 
-static cmsBool DummyCloseHandler(struct _cms_io_handler* iohandler) {
-    // Dummy close handler
-    return TRUE;
+static void fuzz_cmsGetHeaderAttributes(const uint8_t *Data, size_t Size) {
+    // Ensure we have enough data to simulate a valid profile handle
+    if (Size < sizeof(cmsHPROFILE)) return;
+
+    // Create a dummy ICC profile for testing
+    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
+    if (!hProfile) return;
+
+    cmsUInt64Number flags;
+    cmsGetHeaderAttributes(hProfile, &flags);
+
+    // Close the profile to avoid memory leaks
+    cmsCloseProfile(hProfile);
 }
 
-static cmsUInt32Number DummyTellHandler(struct _cms_io_handler* iohandler) {
-    // Dummy tell handler
-    return iohandler->UsedSpace;
+static void fuzz_cmsAdjustEndianess64(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt64Number)) return;
+
+    cmsUInt64Number qword, result;
+
+    memcpy(&qword, Data, sizeof(cmsUInt64Number));
+
+    _cmsAdjustEndianess64(&result, &qword);
 }
 
-static cmsBool DummyWriteHandler(struct _cms_io_handler* iohandler, cmsUInt32Number size, const void* Buffer) {
-    // Dummy write handler
-    iohandler->UsedSpace += size;
-    return TRUE;
-}
+static void fuzz_cmsReadUInt64Number(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsIOHANDLER) + sizeof(cmsUInt64Number)) return;
 
-static cmsIOHANDLER* CreateDummyIOHandler() {
-    cmsIOHANDLER* handler = (cmsIOHANDLER*)malloc(sizeof(cmsIOHANDLER));
-    if (!handler) return NULL;
+    cmsIOHANDLER io;
+    cmsUInt64Number number;
 
-    handler->stream = NULL;
-    handler->ContextID = NULL;
-    handler->UsedSpace = 0;
-    handler->ReportedSize = 0;
-    memset(handler->PhysicalFile, 0, sizeof(handler->PhysicalFile));
+    memcpy(&io, Data, sizeof(cmsIOHANDLER));
 
-    handler->Read = DummyReadHandler;
-    handler->Seek = DummySeekHandler;
-    handler->Close = DummyCloseHandler;
-    handler->Tell = DummyTellHandler;
-    handler->Write = DummyWriteHandler;
-
-    return handler;
+    _cmsReadUInt64Number(&io, &number);
 }
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt64Number)) return 0;
+    fuzz_cmsEncodeDecodeDateTimeNumber(Data, Size);
+    fuzz_cmsGetHeaderCreationDateTime(Data, Size);
+    fuzz_cmsGetHeaderAttributes(Data, Size);
+    fuzz_cmsAdjustEndianess64(Data, Size);
+    fuzz_cmsReadUInt64Number(Data, Size);
 
-    cmsIOHANDLER* io = CreateDummyIOHandler();
-    if (!io) return 0;
-
-    cmsUInt16Number u16 = *((cmsUInt16Number*)Data);
-    cmsFloat64Number f64 = *((cmsFloat64Number*)Data);
-    cmsUInt64Number u64 = *((cmsUInt64Number*)Data);
-
-    // Test _cmsWriteUInt16Number
-    _cmsWriteUInt16Number(io, u16);
-
-    // Test _cmsWrite15Fixed16Number
-    _cmsWrite15Fixed16Number(io, f64);
-
-    // Test _cmsWriteUInt64Number
-    _cmsWriteUInt64Number(io, &u64);
-
-    // Test _cmsWriteAlignment
-    _cmsWriteAlignment(io);
-
-    // Test _cmsReadUInt64Number
-    _cmsReadUInt64Number(io, &u64);
-
-    // Test cmsCloseIOhandler
-    cmsCloseIOhandler(io);
-
-    free(io);
     return 0;
 }

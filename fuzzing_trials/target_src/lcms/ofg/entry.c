@@ -1,4 +1,4 @@
-// This is the entry of 487 fuzz drivers:
+// This is the entry of 501 fuzz drivers:
 // 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 2
 // 3, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 4
 // 3, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 6
@@ -28,7 +28,7 @@
 // , 439, 440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451, 452, 453, 454
 // , 455, 456, 457, 458, 459, 460, 461, 462, 463, 464, 465, 466, 467, 468, 469, 470
 // , 471, 472, 473, 474, 475, 476, 477, 478, 479, 480, 481, 482, 483, 484, 485, 486
-// , 487
+// , 487, 488, 489, 490, 491, 492, 493, 494, 495, 496, 497, 498, 499, 500, 501
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -526,6 +526,20 @@ int LLVMFuzzerTestOneInput_484(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_485(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_486(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_487(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_488(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_489(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_490(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_491(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_492(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_493(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_494(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_495(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_496(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_497(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_498(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_499(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_500(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_501(const uint8_t *Data, size_t Size);
 
 // Entry function
 int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
@@ -545,7 +559,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     }
 
     // Select driver
-    switch (driverIndex % 487) {
+    switch (driverIndex % 501) {
         case 0:
             return LLVMFuzzerTestOneInput_1(remainData, remainSize);
         case 1:
@@ -1520,6 +1534,34 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
             return LLVMFuzzerTestOneInput_486(remainData, remainSize);
         case 486:
             return LLVMFuzzerTestOneInput_487(remainData, remainSize);
+        case 487:
+            return LLVMFuzzerTestOneInput_488(remainData, remainSize);
+        case 488:
+            return LLVMFuzzerTestOneInput_489(remainData, remainSize);
+        case 489:
+            return LLVMFuzzerTestOneInput_490(remainData, remainSize);
+        case 490:
+            return LLVMFuzzerTestOneInput_491(remainData, remainSize);
+        case 491:
+            return LLVMFuzzerTestOneInput_492(remainData, remainSize);
+        case 492:
+            return LLVMFuzzerTestOneInput_493(remainData, remainSize);
+        case 493:
+            return LLVMFuzzerTestOneInput_494(remainData, remainSize);
+        case 494:
+            return LLVMFuzzerTestOneInput_495(remainData, remainSize);
+        case 495:
+            return LLVMFuzzerTestOneInput_496(remainData, remainSize);
+        case 496:
+            return LLVMFuzzerTestOneInput_497(remainData, remainSize);
+        case 497:
+            return LLVMFuzzerTestOneInput_498(remainData, remainSize);
+        case 498:
+            return LLVMFuzzerTestOneInput_499(remainData, remainSize);
+        case 499:
+            return LLVMFuzzerTestOneInput_500(remainData, remainSize);
+        case 500:
+            return LLVMFuzzerTestOneInput_501(remainData, remainSize);
         default:
             return 0;
     }

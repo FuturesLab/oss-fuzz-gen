@@ -1,26 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    if (size < 1) {
+    // Declare and initialize variables
+    cmsHPROFILE hProfile;
+    cmsUInt32Number intent;
+    cmsUInt32Number flags;
+
+    // Ensure size is sufficient to extract required parameters
+    if (size < sizeof(cmsUInt32Number) * 2) {
         return 0;
     }
 
-    // Initialize variables
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    // Extract parameters from input data
+    intent = *(const cmsUInt32Number *)data;
+    flags = *(const cmsUInt32Number *)(data + sizeof(cmsUInt32Number));
+
+    // Create a dummy profile for testing
+    hProfile = cmsCreate_sRGBProfile();
     if (hProfile == NULL) {
         return 0;
     }
-    
-    cmsInfoType infoType = cmsInfoDescription;
-    const char *languageCode = "en";
-    const char *countryCode = "US";
-    char buffer[256];
-    cmsUInt32Number bufferSize = sizeof(buffer);
 
-    // Call the function-under-test
-    cmsGetProfileInfoUTF8(hProfile, infoType, languageCode, countryCode, buffer, bufferSize);
+    // Call the function under test
+    cmsBool result = cmsIsIntentSupported(hProfile, intent, flags);
 
     // Clean up
     cmsCloseProfile(hProfile);

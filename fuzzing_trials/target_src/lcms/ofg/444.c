@@ -1,23 +1,27 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
-// Remove the extern "C" linkage specification for C++ and use a plain C function declaration
 int LLVMFuzzerTestOneInput_444(const uint8_t *data, size_t size) {
-    // Initialize a cmsContext
-    cmsContext context = NULL;
+    cmsHPROFILE hProfile;
+    cmsColorSpaceSignature colorSpace;
+
+    // Check if the input size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
+        return 0;
+    }
+
+    // Create a memory-based profile using the input data
+    hProfile = cmsOpenProfileFromMem((void*)data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreate_sRGBProfileTHR(context);
+    colorSpace = cmsGetColorSpace(hProfile);
 
-    // Check if the profile was created successfully
-    if (profile != NULL) {
-        // Do something with the profile if needed
-        // ...
-
-        // Release the profile
-        cmsCloseProfile(profile);
-    }
+    // Close the profile to free resources
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

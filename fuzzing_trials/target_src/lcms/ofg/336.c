@@ -1,30 +1,26 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_336(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsUInt64Number attributes;
+    // Define and initialize variables for the function-under-test
+    cmsContext context = NULL; // Using NULL as a placeholder context
+    cmsUInt32Number inputChannels = 3; // Example value for input channels
+    cmsUInt32Number outputChannels = 3; // Example value for output channels
 
-    // Check if the size is sufficient to extract cmsUInt64Number
-    if (size < sizeof(cmsUInt64Number)) {
-        return 0;
-    }
-
-    // Initialize the attributes from the input data
-    attributes = *((cmsUInt64Number*)data);
-
-    // Create a dummy profile for testing
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
     // Call the function-under-test
-    cmsSetHeaderAttributes(hProfile, attributes);
+    cmsPipeline *pipeline = cmsPipelineAlloc(context, inputChannels, outputChannels);
 
-    // Clean up the profile
-    cmsCloseProfile(hProfile);
+    // Check if the pipeline is successfully allocated
+    if (pipeline != NULL) {
+        // Free the allocated pipeline to avoid memory leaks
+        cmsPipelineFree(pipeline);
+    }
 
     return 0;
 }

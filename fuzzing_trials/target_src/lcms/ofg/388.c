@@ -3,18 +3,29 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_388(const uint8_t *data, size_t size) {
-    // Ensure that the data size is non-zero to avoid passing NULL pointers
-    if (size == 0) {
+    // Declare and initialize variables
+    cmsHPROFILE profile;
+    cmsColorSpaceSignature colorSpace;
+
+    // Check if the input size is sufficient to extract a cmsColorSpaceSignature
+    if (size < sizeof(cmsColorSpaceSignature)) {
         return 0;
     }
 
-    // Call the function-under-test with the provided data
-    cmsHPROFILE profile = cmsOpenProfileFromMem((const void *)data, (cmsUInt32Number)size);
-
-    // If the profile was successfully opened, close it
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
+    // Initialize the profile with a dummy profile
+    profile = cmsCreate_sRGBProfile();
+    if (profile == NULL) {
+        return 0;
     }
+
+    // Extract the cmsColorSpaceSignature from the input data
+    colorSpace = *(cmsColorSpaceSignature *)data;
+
+    // Call the function-under-test
+    cmsSetColorSpace(profile, colorSpace);
+
+    // Clean up the profile
+    cmsCloseProfile(profile);
 
     return 0;
 }

@@ -1,29 +1,24 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <lcms2.h>  // Include the Little CMS library header
+#include <stdlib.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_112(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile = NULL;
-    cmsIOHANDLER *ioHandler = NULL;
+    cmsNAMEDCOLORLIST *namedColorList;
 
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
+    // Initialize a memory context
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Create a named color list with some dummy values
+    namedColorList = cmsAllocNamedColorList(context, 1, 32, "Prefix", "Suffix");
+
+    // Check if the named color list was created successfully
+    if (namedColorList != NULL) {
+        // Call the function under test
+        cmsFreeNamedColorList(namedColorList);
     }
 
-    // Create a memory-based profile from the input data
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
-        return 0;  // Return if profile creation fails
-    }
-
-    // Call the function-under-test
-    ioHandler = cmsGetProfileIOhandler(hProfile);
-
-    // Clean up
-    if (hProfile != NULL) {
-        cmsCloseProfile(hProfile);
-    }
+    // Destroy the memory context
+    cmsDeleteContext(context);
 
     return 0;
 }

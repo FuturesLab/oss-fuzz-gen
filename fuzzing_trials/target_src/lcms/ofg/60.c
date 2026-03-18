@@ -1,30 +1,37 @@
 #include <stdint.h>
-#include "/src/lcms/include/lcms2.h"
-
-// Define a valid cmsHPROFILE for testing purposes
-cmsHPROFILE createTestProfile() {
-    // Create a test profile with a dummy ICC profile
-    cmsHPROFILE profile = cmsCreate_sRGBProfile();
-    return profile;
-}
+#include <stddef.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract a cmsColorSpaceSignature
-    if (size < sizeof(cmsColorSpaceSignature)) {
+    // Declare and initialize variables for the parameters
+    cmsContext context = (cmsContext)(uintptr_t)data;
+    cmsHPROFILE inputProfile = cmsCreate_sRGBProfile();
+    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
+    cmsUInt32Number inputFormat = TYPE_RGB_8;
+    cmsUInt32Number outputFormat = TYPE_RGB_8;
+    cmsUInt32Number intent = INTENT_PERCEPTUAL;
+    cmsUInt32Number flags = 0;
+
+    // Ensure inputProfile and outputProfile are not NULL
+    if (inputProfile == NULL || outputProfile == NULL) {
+        if (inputProfile != NULL) {
+            cmsCloseProfile(inputProfile);
+        }
+        if (outputProfile != NULL) {
+            cmsCloseProfile(outputProfile);
+        }
         return 0;
     }
 
-    // Create a test profile
-    cmsHPROFILE hProfile = createTestProfile();
-
-    // Extract a cmsColorSpaceSignature from the input data
-    cmsColorSpaceSignature colorSpaceSignature = *(const cmsColorSpaceSignature *)data;
-
     // Call the function-under-test
-    cmsSetPCS(hProfile, colorSpaceSignature);
+    cmsHTRANSFORM transform = cmsCreateTransformTHR(context, inputProfile, inputFormat, outputProfile, outputFormat, intent, flags);
 
-    // Close the profile to avoid memory leaks
-    cmsCloseProfile(hProfile);
+    // Clean up
+    if (transform != NULL) {
+        cmsDeleteTransform(transform);
+    }
+    cmsCloseProfile(inputProfile);
+    cmsCloseProfile(outputProfile);
 
     return 0;
 }

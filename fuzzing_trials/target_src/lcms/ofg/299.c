@@ -1,32 +1,33 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <lcms2.h> // Include the Little CMS library header
+#include <stdlib.h>
+#include <lcms2.h>
 
-// Define the LLVMFuzzerTestOneInput function
 int LLVMFuzzerTestOneInput_299(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHPROFILE hProfile;
-    cmsUInt32Number manufacturer;
+    // Initialize variables for the function parameters
+    cmsHPROFILE hProfile = NULL;
+    cmsIOHANDLER *ioHandler = NULL;
+    cmsContext contextID = NULL;
+    cmsUInt32Number result;
 
-    // Check if the input size is sufficient to extract a cmsUInt32Number
-    if (size < sizeof(cmsUInt32Number)) {
+    // Create a memory-based IO handler
+    ioHandler = cmsOpenIOhandlerFromMem(contextID, (void*)data, size, "r");
+    if (ioHandler == NULL) {
         return 0;
     }
 
-    // Create a profile using cmsCreate_sRGBProfile
+    // Create a dummy profile for testing
     hProfile = cmsCreate_sRGBProfile();
     if (hProfile == NULL) {
+        cmsCloseIOhandler(ioHandler);
         return 0;
     }
 
-    // Extract a cmsUInt32Number from the input data
-    manufacturer = *(const cmsUInt32Number *)data;
+    // Call the function under test
+    result = cmsSaveProfileToIOhandler(hProfile, ioHandler);
 
-    // Call the function-under-test
-    cmsSetHeaderManufacturer(hProfile, manufacturer);
-
-    // Close the profile to avoid memory leaks
+    // Clean up
     cmsCloseProfile(hProfile);
+    cmsCloseIOhandler(ioHandler);
 
     return 0;
 }

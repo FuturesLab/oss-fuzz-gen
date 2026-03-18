@@ -1,24 +1,32 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_302(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to populate the structures
-    if (size < sizeof(cmsCIEXYZ) * 2 + sizeof(cmsCIELab)) {
+    // Initialize the CMS context
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
         return 0;
     }
 
-    // Initialize the input and output structures
-    cmsCIEXYZ input1, whitePoint;
-    cmsCIELab output;
+    // Check if size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
+        cmsDeleteContext(context);
+        return 0;
+    }
 
-    // Copy data into the structures, ensuring no NULL values
-    memcpy(&input1, data, sizeof(cmsCIEXYZ));
-    memcpy(&whitePoint, data + sizeof(cmsCIEXYZ), sizeof(cmsCIEXYZ));
+    // Create a memory-based profile using the input data
+    cmsHPROFILE profile = cmsOpenProfileFromMem(data, size);
 
-    // Call the function-under-test
-    cmsXYZ2Lab(&input1, &output, &whitePoint);
+    // Check if the profile was created successfully
+    if (profile != NULL) {
+        // Do something with the profile if needed
+        // For example, we can release it immediately
+        cmsCloseProfile(profile);
+    }
+
+    // Free the CMS context
+    cmsDeleteContext(context);
 
     return 0;
 }

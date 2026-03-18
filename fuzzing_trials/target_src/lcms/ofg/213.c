@@ -3,29 +3,19 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_213(const uint8_t *data, size_t size) {
-    // Initialize the cmsHPROFILE variable
-    cmsHPROFILE hProfile;
+    // Initialize a cmsContext. This is a placeholder as the actual initialization
+    // of cmsContext may require specific setup depending on the library's usage.
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Create a profile for testing purposes
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
-        return 0; // Exit if profile creation fails
+    // Create a memory block to simulate input data for the IO handler
+    // Add the access mode argument as "r" for read mode
+    cmsIOHANDLER *handler = cmsOpenIOhandlerFromMem(context, (void *)data, size, "r");
+
+    // Clean up
+    if (handler != NULL) {
+        cmsCloseIOhandler(handler);
     }
-
-    // Initialize cmsUInt32Number variable
-    cmsUInt32Number flags = 0;
-
-    // Ensure size is sufficient to extract a cmsUInt32Number from data
-    if (size >= sizeof(cmsUInt32Number)) {
-        // Extract cmsUInt32Number from data
-        flags = *(const cmsUInt32Number *)data;
-    }
-
-    // Call the function-under-test
-    cmsSetHeaderFlags(hProfile, flags);
-
-    // Clean up by closing the profile
-    cmsCloseProfile(hProfile);
+    cmsDeleteContext(context);
 
     return 0;
 }

@@ -3,30 +3,17 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_472(const uint8_t *data, size_t size) {
-    // Initialize necessary variables for the function call
-    cmsHPROFILE inputProfile = NULL;
-    cmsHPROFILE outputProfile = NULL;
-    cmsUInt32Number inputFormat = TYPE_RGB_8;
-    cmsUInt32Number outputFormat = TYPE_RGB_8;
-    cmsUInt32Number intent = INTENT_PERCEPTUAL;
-    cmsUInt32Number flags = 0;
+    cmsToneCurve *toneCurve = NULL;
 
-    // Create input and output profiles using the data provided
-    if (size >= sizeof(cmsHPROFILE) * 2) {
-        inputProfile = cmsOpenProfileFromMem(data, size / 2);
-        outputProfile = cmsOpenProfileFromMem(data + size / 2, size / 2);
+    // Initialize the tone curve with some non-NULL value
+    if (size > 0) {
+        // Use the data to create a tone curve, ensuring it's non-NULL
+        toneCurve = cmsBuildGamma(NULL, data[0] / 255.0 + 1.0); // Normalize to [1.0, 2.0]
     }
 
-    // Ensure profiles are not NULL
-    if (inputProfile != NULL && outputProfile != NULL) {
-        // Call the function-under-test
-        cmsHTRANSFORM transform = cmsCreateTransform(inputProfile, inputFormat,
-                                                     outputProfile, outputFormat,
-                                                     intent, flags);
-        // Clean up
-        cmsDeleteTransform(transform);
-        cmsCloseProfile(inputProfile);
-        cmsCloseProfile(outputProfile);
+    // Call the function-under-test
+    if (toneCurve != NULL) {
+        cmsFreeToneCurve(toneCurve);
     }
 
     return 0;

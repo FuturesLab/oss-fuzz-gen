@@ -3,27 +3,22 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_335(const uint8_t *data, size_t size) {
-    // Initialize cmsHPROFILE
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
-    
-    // Ensure hProfile is valid
-    if (hProfile == NULL) {
+    cmsContext context = (cmsContext)data; // Cast data to cmsContext
+    cmsUInt32Number inputChannels = 3; // Example value for input channels
+    cmsUInt32Number outputChannels = 3; // Example value for output channels
+
+    // Ensure that the size is sufficient for the context
+    if (size < sizeof(cmsContext)) {
         return 0;
     }
 
-    // Initialize cmsUInt64Number
-    cmsUInt64Number attributes = 0;
+    // Call the function-under-test
+    cmsPipeline *pipeline = cmsPipelineAlloc(context, inputChannels, outputChannels);
 
-    // Use the data to set some attributes, ensuring size is sufficient
-    if (size >= sizeof(cmsUInt64Number)) {
-        attributes = *((cmsUInt64Number*)data);
+    // Clean up if allocation was successful
+    if (pipeline != NULL) {
+        cmsPipelineFree(pipeline);
     }
-
-    // Call the function under test
-    cmsSetHeaderAttributes(hProfile, attributes);
-
-    // Close the profile
-    cmsCloseProfile(hProfile);
 
     return 0;
 }

@@ -1,33 +1,48 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_140(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to form at least one cmsUInt16Number
-    if (size < sizeof(cmsUInt16Number)) {
+    // Ensure the size is large enough to extract meaningful strings
+    if (size < 4) {
         return 0;
     }
 
-    // Calculate the number of cmsUInt16Number elements we can create from the data
-    size_t num_elements = size / sizeof(cmsUInt16Number);
+    // Create a dummy cmsContext
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Allocate memory for the cmsUInt16Number array
-    cmsUInt16Number *alarmCodes = (cmsUInt16Number *)malloc(num_elements * sizeof(cmsUInt16Number));
-    if (alarmCodes == NULL) {
+    // Extract two strings from the input data
+    size_t len1 = data[0] % (size - 2) + 1;
+    size_t len2 = data[1] % (size - len1 - 1) + 1;
+
+    char *filename = (char *)malloc(len1 + 1);
+    char *mode = (char *)malloc(len2 + 1);
+
+    if (filename == NULL || mode == NULL) {
+        free(filename);
+        free(mode);
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Copy data into the cmsUInt16Number array
-    for (size_t i = 0; i < num_elements; i++) {
-        alarmCodes[i] = ((cmsUInt16Number *)data)[i];
+    memcpy(filename, data + 2, len1);
+    filename[len1] = '\0';
+
+    memcpy(mode, data + 2 + len1, len2);
+    mode[len2] = '\0';
+
+    // Call the function under test
+    cmsIOHANDLER *handler = cmsOpenIOhandlerFromFile(context, filename, mode);
+
+    // Clean up
+    if (handler != NULL) {
+        cmsCloseIOhandler(handler);
     }
-
-    // Call the function-under-test
-    cmsSetAlarmCodes(alarmCodes);
-
-    // Free the allocated memory
-    free(alarmCodes);
+    free(filename);
+    free(mode);
+    cmsDeleteContext(context);
 
     return 0;
 }

@@ -1,37 +1,33 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <lcms2.h>
+#include <stdio.h>
+#include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < sizeof(cmsUInt16Number) * 2 + 1) {
+    cmsHANDLE handle;
+    char filename[256];
+
+    // Initialize the handle with a non-NULL value
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Initialize the named color list
-    cmsNAMEDCOLORLIST* namedColorList = cmsAllocNamedColorList(NULL, 0, 1, "prefix", "suffix");
-    if (namedColorList == NULL) {
-        return 0;
+    // Ensure filename is a valid C-string and not NULL
+    if (size > 0 && size < sizeof(filename)) {
+        memcpy(filename, data, size);
+        filename[size] = '\0'; // Null-terminate to ensure it's a valid string
+    } else {
+        strncpy(filename, "default_filename.txt", sizeof(filename) - 1);
+        filename[sizeof(filename) - 1] = '\0';
     }
 
-    // Extract the color name from the data
-    char colorName[32];
-    size_t colorNameLength = size < 31 ? size : 31;
-    memcpy(colorName, data, colorNameLength);
-    colorName[colorNameLength] = '\0';
-
-    // Extract the PCS and device values from the data
-    cmsUInt16Number pcsValues[3];
-    cmsUInt16Number deviceValues[3];
-    memcpy(pcsValues, data + colorNameLength, sizeof(cmsUInt16Number) * 3);
-    memcpy(deviceValues, data + colorNameLength + sizeof(cmsUInt16Number) * 3, sizeof(cmsUInt16Number) * 3);
-
-    // Call the function under test
-    cmsBool result = cmsAppendNamedColor(namedColorList, colorName, pcsValues, deviceValues);
+    // Call the function-under-test
+    cmsBool result = cmsIT8SaveToFile(handle, filename);
 
     // Clean up
-    cmsFreeNamedColorList(namedColorList);
+    cmsIT8Free(handle);
 
     return 0;
 }

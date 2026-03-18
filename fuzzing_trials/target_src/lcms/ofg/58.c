@@ -3,28 +3,22 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsUInt32Number model;
-
-    // Ensure the input size is sufficient for extracting cmsUInt32Number
-    if (size < sizeof(cmsUInt32Number)) {
+    // Ensure that the input data is large enough to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Create a profile to use for fuzzing
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
-        return 0;
+    // Extract an integer from the input data
+    int input = 0;
+    for (size_t i = 0; i < sizeof(int); i++) {
+        input |= data[i] << (i * 8);
     }
-
-    // Extract a cmsUInt32Number from the input data
-    model = *(const cmsUInt32Number *)data;
 
     // Call the function under test
-    cmsSetHeaderModel(hProfile, model);
+    cmsColorSpaceSignature result = _cmsICCcolorSpace(input);
 
-    // Close the profile after use
-    cmsCloseProfile(hProfile);
+    // Use the result in some way to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }

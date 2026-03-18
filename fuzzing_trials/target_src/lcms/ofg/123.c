@@ -1,48 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-    // Initialize the parameters for cmsIT8SetPropertyStr
-    cmsHANDLE handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
-        return 0;
-    }
+    cmsHANDLE handle;
+    char *firstString, *secondString;
+    const char *result;
 
-    // Ensure we have enough data to create two strings
-    if (size < 2) {
+    // Ensure the data is large enough to be split into two non-null strings
+    if (size < 2) return 0;
+
+    // Initialize the handle
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) return 0;
+
+    // Allocate memory for the strings and ensure they are null-terminated
+    firstString = (char *)malloc(size / 2 + 1);
+    secondString = (char *)malloc(size / 2 + 1);
+
+    if (firstString == NULL || secondString == NULL) {
         cmsIT8Free(handle);
+        free(firstString);
+        free(secondString);
         return 0;
     }
 
-    // Split the data into two parts for the two string parameters
-    size_t half_size = size / 2;
-    char *propertyName = (char *)malloc(half_size + 1);
-    char *propertyValue = (char *)malloc(size - half_size + 1);
-
-    if (!propertyName || !propertyValue) {
-        free(propertyName);
-        free(propertyValue);
-        cmsIT8Free(handle);
-        return 0;
-    }
-
-    // Copy the data into the strings and null-terminate them
-    memcpy(propertyName, data, half_size);
-    propertyName[half_size] = '\0';
-
-    memcpy(propertyValue, data + half_size, size - half_size);
-    propertyValue[size - half_size] = '\0';
+    // Copy data into the strings
+    memcpy(firstString, data, size / 2);
+    firstString[size / 2] = '\0';
+    memcpy(secondString, data + size / 2, size / 2);
+    secondString[size / 2] = '\0';
 
     // Call the function-under-test
-    cmsBool result = cmsIT8SetPropertyStr(handle, propertyName, propertyValue);
+    result = cmsIT8GetData(handle, firstString, secondString);
 
     // Clean up
-    free(propertyName);
-    free(propertyValue);
     cmsIT8Free(handle);
+    free(firstString);
+    free(secondString);
 
     return 0;
 }

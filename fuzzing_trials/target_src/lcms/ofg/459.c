@@ -1,28 +1,23 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_459(const uint8_t *data, size_t size) {
-    // Initialize the CMS context
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    // Initialize cmsToneCurve pointers
+    cmsToneCurve *toneCurves[3];
 
-    // Check if the input data is sufficient to perform operations
-    if (size < sizeof(cmsCIEXYZ)) {
-        cmsDeleteContext(context);
-        return 0;
+    // Allocate memory for each cmsToneCurve using cmsBuildGamma as an example
+    for (int i = 0; i < 3; i++) {
+        toneCurves[i] = cmsBuildGamma(NULL, 2.2); // Example gamma value
+        if (toneCurves[i] == NULL) {
+            // If allocation fails, return early
+            return 0;
+        }
     }
 
-    // Use the input data to create a cmsCIEXYZ structure
-    cmsCIEXYZ* xyz = (cmsCIEXYZ*)data;
-
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateXYZProfileTHR(context);
-
-    // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-    cmsDeleteContext(context);
+    // Call the function under test
+    cmsFreeToneCurveTriple(toneCurves);
 
     return 0;
 }

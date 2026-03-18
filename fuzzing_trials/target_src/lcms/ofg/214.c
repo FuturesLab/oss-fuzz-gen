@@ -3,25 +3,17 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_214(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract cmsUInt32Number
-    if (size < sizeof(cmsUInt32Number)) {
-        return 0;
+    // Initialize a cmsContext variable
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Call the function-under-test
+    cmsIOHANDLER *handler = cmsOpenIOhandlerFromNULL(context);
+
+    // Clean up
+    if (handler != NULL) {
+        cmsCloseIOhandler(handler);
     }
-
-    // Create a dummy profile for testing
-    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
-        return 0;
-    }
-
-    // Extract cmsUInt32Number from the input data
-    cmsUInt32Number flags = *(const cmsUInt32Number *)data;
-
-    // Call the function under test
-    cmsSetHeaderFlags(hProfile, flags);
-
-    // Close the profile to avoid memory leaks
-    cmsCloseProfile(hProfile);
+    cmsDeleteContext(context);
 
     return 0;
 }

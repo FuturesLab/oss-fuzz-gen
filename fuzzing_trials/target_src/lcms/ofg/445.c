@@ -3,19 +3,25 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_445(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsContext)) {
-        return 0; // Not enough data to form a valid cmsContext
+    cmsHPROFILE hProfile;
+    cmsColorSpaceSignature colorSpace;
+
+    // Ensure the size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
+        return 0;
     }
 
-    cmsContext context = (cmsContext)data; // Cast data to cmsContext for testing
+    // Create a profile from the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreate_sRGBProfileTHR(context);
+    colorSpace = cmsGetColorSpace(hProfile);
 
-    // Clean up if necessary
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
+    // Close the profile to avoid memory leaks
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

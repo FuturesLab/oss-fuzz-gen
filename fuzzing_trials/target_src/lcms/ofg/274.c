@@ -3,33 +3,26 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_274(const uint8_t *data, size_t size) {
-    if (size < 64) {
-        // Ensure there is enough data for the colorant and PCS values
+    // Ensure there is enough data for at least one cmsColorSpaceSignature
+    if (size < sizeof(cmsColorSpaceSignature)) {
         return 0;
     }
 
-    cmsNAMEDCOLORLIST *namedColorList;
-    cmsContext contextID = cmsCreateContext(NULL, NULL);
-    
-    // Create a named color list with at least one color entry to ensure it's not NULL
-    // Fix: Remove the extra NULL argument and provide both Prefix and Suffix
-    namedColorList = cmsAllocNamedColorList(contextID, 1, 32, "Prefix", "Suffix");
+    // Extract cmsColorSpaceSignature from the input data
+    cmsColorSpaceSignature colorSpace = *(cmsColorSpaceSignature*)data;
 
-    if (namedColorList != NULL) {
-        // Add a dummy named color to the list
-        char name[32] = "ColorName";
-        char prefix[32] = "Prefix";
-        char suffix[32] = "Suffix";
-        cmsNamedColorInfo(namedColorList, 0, name, prefix, suffix, (cmsUInt16Number *)data, (cmsUInt16Number *)(data + 32));
+    // Initialize a cmsToneCurve array
+    cmsToneCurve *toneCurves[1];
+    toneCurves[0] = cmsBuildGamma(NULL, 2.2); // Using a standard gamma value
 
-        // Call the function-under-test
-        cmsUInt32Number colorCount = cmsNamedColorCount(namedColorList);
+    // Call the function-under-test
+    cmsHPROFILE profile = cmsCreateLinearizationDeviceLink(colorSpace, toneCurves);
 
-        // Clean up
-        cmsFreeNamedColorList(namedColorList);
+    // Clean up
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
-
-    cmsDeleteContext(contextID);
+    cmsFreeToneCurve(toneCurves[0]);
 
     return 0;
 }

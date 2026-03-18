@@ -3,30 +3,42 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Initialize a cmsNAMEDCOLORLIST object
-    cmsNAMEDCOLORLIST *originalList = cmsAllocNamedColorList(NULL, 1, 0, "Prefix", "Suffix");
-    if (originalList == NULL) {
+    // Initialize the cmsPipeline structure
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
+    if (pipeline == NULL) {
         return 0;
     }
 
-    // Add a named color to the list
-    const char *colorName = "TestColor";
-    cmsCIEXYZ pcs = {0.5, 0.5, 0.5};
-    cmsUInt16Number deviceColorant[4] = {32768, 32768, 32768, 32768}; // 0.5 in 16-bit
+    // Create a cmsStage
+    cmsToneCurve* toneCurves[3];
+    for (int i = 0; i < 3; i++) {
+        toneCurves[i] = cmsBuildTabulatedToneCurve16(NULL, 2, (const uint16_t[]){0, 65535});
+        if (toneCurves[i] == NULL) {
+            for (int j = 0; j < i; j++) {
+                cmsFreeToneCurve(toneCurves[j]);
+            }
+            cmsPipelineFree(pipeline);
+            return 0;
+        }
+    }
 
-    if (!cmsAppendNamedColor(originalList, colorName, &pcs, deviceColorant)) {
-        cmsFreeNamedColorList(originalList);
+    cmsStage *stage = cmsStageAllocToneCurves(NULL, 3, toneCurves);
+    if (stage == NULL) {
+        for (int i = 0; i < 3; i++) {
+            cmsFreeToneCurve(toneCurves[i]);
+        }
+        cmsPipelineFree(pipeline);
         return 0;
     }
 
-    // Call the function-under-test
-    cmsNAMEDCOLORLIST *duplicatedList = cmsDupNamedColorList(originalList);
+    // Insert the stage at the beginning of the pipeline
+    cmsBool result = cmsPipelineInsertStage(pipeline, cmsAT_BEGIN, stage);
 
     // Clean up
-    if (duplicatedList != NULL) {
-        cmsFreeNamedColorList(duplicatedList);
+    cmsPipelineFree(pipeline);
+    for (int i = 0; i < 3; i++) {
+        cmsFreeToneCurve(toneCurves[i]);
     }
-    cmsFreeNamedColorList(originalList);
-
+    
     return 0;
 }

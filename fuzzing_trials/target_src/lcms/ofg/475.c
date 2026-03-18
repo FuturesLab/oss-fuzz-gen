@@ -1,28 +1,28 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <time.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_475(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract cmsUInt32Number
-    if (size < sizeof(cmsUInt32Number)) {
+    cmsHPROFILE hProfile;
+    struct tm creationDateTime;
+
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize the context
-    cmsContext context = cmsCreateContext(NULL, NULL);
-
-    // Extract cmsUInt32Number from the input data
-    cmsUInt32Number number = *(const cmsUInt32Number *)data;
-
-    // Call the function-under-test
-    cmsSEQ *seq = cmsAllocProfileSequenceDescription(context, number);
-
-    // Clean up
-    if (seq != NULL) {
-        cmsFreeProfileSequenceDescription(seq);
+    // Create a profile from the input data
+    hProfile = cmsOpenProfileFromMem((void*)data, size);
+    if (hProfile == NULL) {
+        return 0;
     }
 
-    cmsDeleteContext(context);
+    // Call the function-under-test
+    cmsBool result = cmsGetHeaderCreationDateTime(hProfile, &creationDateTime);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

@@ -3,31 +3,36 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    cmsHTRANSFORM transform;
-    cmsNAMEDCOLORLIST *namedColorList;
+    // Initialize variables
+    cmsUInt32Number nPoints = 256; // Example value for the number of points
 
-    // Initialize the Little CMS library
-    cmsContext context = cmsCreateContext(NULL, NULL);
-
-    // Ensure that the data size is sufficient for creating a transform
-    if (size < sizeof(cmsCIEXYZ)) {
-        cmsDeleteContext(context);
+    // Ensure the data is large enough to create a cmsToneCurve
+    if (size < nPoints * sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Create a color transform using the data as part of the creation process
-    cmsHPROFILE inputProfile = cmsCreateXYZProfile();
-    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
-    transform = cmsCreateTransform(inputProfile, TYPE_XYZ_DBL, outputProfile, TYPE_RGB_DBL, INTENT_PERCEPTUAL, 0);
+    // Create a memory context for the tone curve
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
 
-    // Call the function under test
-    namedColorList = cmsGetNamedColorList(transform);
+    // Create a tone curve from the profile
+    cmsToneCurve *toneCurve = cmsReadTag(hProfile, cmsSigGrayTRCTag);
+    if (toneCurve == NULL) {
+        cmsCloseProfile(hProfile);
+        return 0;
+    }
+
+    // Fuzz the cmsReverseToneCurveEx function
+    cmsToneCurve *reversedToneCurve = cmsReverseToneCurveEx(nPoints, toneCurve);
 
     // Clean up
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
-    cmsDeleteContext(context);
+    if (reversedToneCurve != NULL) {
+        cmsFreeToneCurve(reversedToneCurve);
+    }
+    cmsFreeToneCurve(toneCurve);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

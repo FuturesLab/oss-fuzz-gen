@@ -3,32 +3,37 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_223(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to proceed
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsUInt32Number gridPoints[] = { 2, 2, 2 }; // Example grid points
+    cmsUInt32Number inputChannels = 3; // Example input channel count
+    cmsUInt32Number outputChannels = 3; // Example output channel count
+    cmsUInt16Number table[] = { 0, 65535, 32768, 16384, 49152, 8192, 4096, 2048 }; // Example table
+
+    // Ensure enough data for gridPoints and table
+    size_t requiredSize = sizeof(gridPoints) + sizeof(table);
+    if (size < requiredSize) {
+        return 0;
     }
 
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsUInt32Number nCurves = 2; // Number of tone curves to allocate
-    cmsToneCurve *toneCurves[2];
+    // Allocate memory for the table based on the input data
+    cmsUInt16Number *dynamicTable = (cmsUInt16Number *)malloc(sizeof(cmsUInt16Number) * (size / sizeof(cmsUInt16Number)));
+    if (dynamicTable == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
 
-    // Initialize tone curves with some default values
-    toneCurves[0] = cmsBuildGamma(context, (double)data[0] / 10.0 + 1.0);
-    toneCurves[1] = cmsBuildGamma(context, (double)data[1] / 10.0 + 1.0);
+    // Copy data into the dynamic table
+    for (size_t i = 0; i < size / sizeof(cmsUInt16Number); i++) {
+        dynamicTable[i] = ((cmsUInt16Number *)data)[i];
+    }
 
-    // Call the function-under-test
-    cmsStage *stage = cmsStageAllocToneCurves(context, nCurves, (const cmsToneCurve **)toneCurves);
+    cmsStage *stage = cmsStageAllocCLut16bitGranular(context, gridPoints, inputChannels, outputChannels, dynamicTable);
 
     // Clean up
     if (stage != NULL) {
         cmsStageFree(stage);
     }
-
-    for (cmsUInt32Number i = 0; i < nCurves; i++) {
-        if (toneCurves[i] != NULL) {
-            cmsFreeToneCurve(toneCurves[i]);
-        }
-    }
-
+    free(dynamicTable);
     cmsDeleteContext(context);
 
     return 0;

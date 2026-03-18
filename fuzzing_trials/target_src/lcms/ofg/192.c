@@ -1,28 +1,19 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include <stdlib.h>
+#include <lcms2_plugin.h>
 
-// Assuming cmsColorSpaceSignature is an enum or typedef'd integer type
-typedef int cmsColorSpaceSignature;
-
-// Function-under-test
-int _cmsLCMScolorSpace(cmsColorSpaceSignature signature);
-
-// LLVMFuzzerTestOneInput function
 int LLVMFuzzerTestOneInput_192(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract a cmsColorSpaceSignature
-    if (size < sizeof(cmsColorSpaceSignature)) {
-        return 0;
-    }
-
-    // Extract a cmsColorSpaceSignature from the input data
-    cmsColorSpaceSignature signature = *(const cmsColorSpaceSignature *)data;
+    // Create a linked list of cmsDICTentry to pass to cmsDictNextEntry
+    cmsDICTentry entry1, entry2;
+    entry1.Next = &entry2; // Point the first entry to the second
+    entry2.Next = NULL;    // End of the dictionary
 
     // Call the function-under-test
-    int result = _cmsLCMScolorSpace(signature);
+    const cmsDICTentry *result = cmsDictNextEntry(&entry1);
 
-    // Optionally print the result for debugging purposes
-    printf("Result: %d\n", result);
+    // Since cmsDictNextEntry is expected to return the next entry or NULL,
+    // we don't need to do anything with the result in this fuzzing harness.
 
     return 0;
 }

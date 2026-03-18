@@ -1,30 +1,37 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_321(const uint8_t *data, size_t size) {
-    cmsContext context;
-    cmsHPROFILE profile;
+    cmsHANDLE dictHandle;
+    cmsDICTentry *entryList;
+    cmsMLU *displayName, *displayValue;
 
-    // Initialize a context for the LCMS library
-    context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return 0; // Return early if context creation fails
+    // Initialize the dictionary handle
+    dictHandle = cmsDictAlloc(NULL);
+    if (dictHandle == NULL) {
+        return 0;
     }
 
-    // Ensure the size is non-zero for valid profile creation
-    if (size > 0) {
-        // Call the function-under-test with the provided data
-        profile = cmsOpenProfileFromMemTHR(context, (const void *)data, (cmsUInt32Number)size);
+    // Create display names and values
+    displayName = cmsMLUalloc(NULL, 1);
+    displayValue = cmsMLUalloc(NULL, 1);
+    cmsMLUsetWide(displayName, "en", "US", L"Display Name 1");
+    cmsMLUsetWide(displayValue, "en", "US", L"Display Value 1");
 
-        // If a valid profile is returned, close it
-        if (profile != NULL) {
-            cmsCloseProfile(profile);
-        }
-    }
+    // Add some entries to the dictionary to ensure it's not empty
+    cmsDictAddEntry(dictHandle, L"Key1", L"Value1", displayName, displayValue);
+    cmsDictAddEntry(dictHandle, L"Key2", L"Value2", displayName, displayValue);
+    cmsDictAddEntry(dictHandle, L"Key3", L"Value3", displayName, displayValue);
 
-    // Free the context
-    cmsDeleteContext(context);
+    // Call the function-under-test
+    entryList = (cmsDICTentry *)cmsDictGetEntryList(dictHandle);
+
+    // Cleanup
+    cmsMLUfree(displayName);
+    cmsMLUfree(displayValue);
+    cmsDictFree(dictHandle);
 
     return 0;
 }

@@ -1,30 +1,34 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_396(const uint8_t *data, size_t size) {
-    cmsPipeline *pipeline = NULL;
+    // Declare and initialize variables
+    cmsCIExyY whitePoint;
+    cmsToneCurve *toneCurve = NULL;
+    cmsHPROFILE profile = NULL;
 
-    // Create a dummy pipeline with at least one stage to avoid NULL
-    pipeline = cmsPipelineAlloc(NULL, 3, 3);  // 3 input channels, 3 output channels
-    if (pipeline == NULL) {
+    // Initialize whitePoint with some non-NULL values
+    whitePoint.x = 0.3127;
+    whitePoint.y = 0.3290;
+    whitePoint.Y = 1.0;
+
+    // Create a tone curve with a simple gamma value, ensuring it's non-NULL
+    toneCurve = cmsBuildGamma(NULL, 2.2);
+    if (toneCurve == NULL) {
         return 0;
     }
-
-    // Add a simple stage to the pipeline
-    cmsStage *stage = cmsStageAllocIdentity(NULL, 3);  // Identity stage with 3 channels
-    if (stage == NULL) {
-        cmsPipelineFree(pipeline);
-        return 0;
-    }
-    cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
 
     // Call the function-under-test
-    cmsUInt32Number outputChannels = cmsPipelineOutputChannels(pipeline);
+    profile = cmsCreateGrayProfile(&whitePoint, toneCurve);
 
     // Clean up
-    cmsPipelineFree(pipeline);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
+    if (toneCurve != NULL) {
+        cmsFreeToneCurve(toneCurve);
+    }
 
     return 0;
 }

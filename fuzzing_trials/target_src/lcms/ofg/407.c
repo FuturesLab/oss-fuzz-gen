@@ -3,39 +3,53 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_407(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsCIEXYZ dest;
-    cmsCIEXYZ source;
-    cmsCIEXYZ illuminant;
-    cmsCIEXYZ adaptedIlluminant;
+    // Initialize variables for the function-under-test
+    cmsContext context;
+    cmsHPROFILE inputProfile;
+    cmsHPROFILE outputProfile;
+    cmsHPROFILE proofingProfile;
+    cmsUInt32Number inputFormat;
+    cmsUInt32Number outputFormat;
+    cmsUInt32Number proofingIntent;
+    cmsUInt32Number transformIntent;
+    cmsUInt32Number flags;
 
-    // Ensure the data size is sufficient to populate the cmsCIEXYZ structures
-    if (size < sizeof(cmsCIEXYZ) * 4) {
-        return 0;
-    }
+    // Initialize the context
+    context = cmsCreateContext(NULL, NULL);
 
-    // Populate the cmsCIEXYZ structures with data
-    dest.X = *(const double*)(data);
-    dest.Y = *(const double*)(data + sizeof(double));
-    dest.Z = *(const double*)(data + 2 * sizeof(double));
+    // Create dummy profiles for input, output, and proofing
+    inputProfile = cmsCreate_sRGBProfile();
+    outputProfile = cmsCreate_sRGBProfile();
+    proofingProfile = cmsCreate_sRGBProfile();
 
-    source.X = *(const double*)(data + 3 * sizeof(double));
-    source.Y = *(const double*)(data + 4 * sizeof(double));
-    source.Z = *(const double*)(data + 5 * sizeof(double));
-
-    illuminant.X = *(const double*)(data + 6 * sizeof(double));
-    illuminant.Y = *(const double*)(data + 7 * sizeof(double));
-    illuminant.Z = *(const double*)(data + 8 * sizeof(double));
-
-    adaptedIlluminant.X = *(const double*)(data + 9 * sizeof(double));
-    adaptedIlluminant.Y = *(const double*)(data + 10 * sizeof(double));
-    adaptedIlluminant.Z = *(const double*)(data + 11 * sizeof(double));
+    // Set some non-zero values for formats and intents
+    inputFormat = TYPE_RGB_8;
+    outputFormat = TYPE_RGB_8;
+    proofingIntent = INTENT_RELATIVE_COLORIMETRIC;
+    transformIntent = INTENT_PERCEPTUAL;
+    flags = cmsFLAGS_SOFTPROOFING;
 
     // Call the function-under-test
-    cmsBool result = cmsAdaptToIlluminant(&dest, &source, &illuminant, &adaptedIlluminant);
+    cmsHTRANSFORM transform = cmsCreateProofingTransformTHR(
+        context,
+        inputProfile,
+        inputFormat,
+        outputProfile,
+        outputFormat,
+        proofingProfile,
+        proofingIntent,
+        transformIntent,
+        flags
+    );
 
-    // Use the result to avoid compiler optimizations
-    (void)result;
+    // Clean up
+    if (transform != NULL) {
+        cmsDeleteTransform(transform);
+    }
+    cmsCloseProfile(inputProfile);
+    cmsCloseProfile(outputProfile);
+    cmsCloseProfile(proofingProfile);
+    cmsDeleteContext(context);
 
     return 0;
 }

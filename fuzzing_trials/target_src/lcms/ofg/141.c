@@ -1,32 +1,47 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include "lcms2.h"
+#include <stdlib.h>  // Include this for malloc and free
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to form at least one cmsUInt16Number
-    if (size < sizeof(cmsUInt16Number)) {
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsIOHANDLER *iohandler = NULL;
+
+    // Ensure there is enough data to create two strings
+    if (size < 2) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Calculate the number of cmsUInt16Number elements we can form from the input data
-    size_t num_elements = size / sizeof(cmsUInt16Number);
+    // Split the input data into two parts for the file name and the mode
+    size_t mid = size / 2;
+    char *filename = (char *)malloc(mid + 1);
+    char *mode = (char *)malloc(size - mid + 1);
 
-    // Allocate memory for the cmsUInt16Number array
-    cmsUInt16Number *alarmCodes = (cmsUInt16Number *)malloc(num_elements * sizeof(cmsUInt16Number));
-    if (alarmCodes == NULL) {
-        return 0; // Exit if memory allocation fails
+    if (filename == NULL || mode == NULL) {
+        free(filename);
+        free(mode);
+        cmsDeleteContext(context);
+        return 0;
     }
 
-    // Copy the input data into the cmsUInt16Number array
-    memcpy(alarmCodes, data, num_elements * sizeof(cmsUInt16Number));
+    memcpy(filename, data, mid);
+    filename[mid] = '\0';
 
-    // Call the function-under-test
-    cmsSetAlarmCodes(alarmCodes);
+    memcpy(mode, data + mid, size - mid);
+    mode[size - mid] = '\0';
 
-    // Free the allocated memory
-    free(alarmCodes);
+    // Call the function under test
+    iohandler = cmsOpenIOhandlerFromFile(context, filename, mode);
+
+    // Clean up
+    if (iohandler != NULL) {
+        cmsCloseIOhandler(iohandler);
+    }
+    free(filename);
+    free(mode);
+    cmsDeleteContext(context);
 
     return 0;
 }

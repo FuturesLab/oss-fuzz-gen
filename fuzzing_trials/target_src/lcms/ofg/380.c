@@ -1,26 +1,31 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_380(const uint8_t *data, size_t size) {
+    cmsCIELab lab1;
+    cmsCIELab lab2;
+
+    if (size < 6 * sizeof(cmsFloat64Number)) {
+        return 0;
+    }
+
+    // Initialize lab1
+    lab1.L = *(cmsFloat64Number *)(data);
+    lab1.a = *(cmsFloat64Number *)(data + sizeof(cmsFloat64Number));
+    lab1.b = *(cmsFloat64Number *)(data + 2 * sizeof(cmsFloat64Number));
+
+    // Initialize lab2
+    lab2.L = *(cmsFloat64Number *)(data + 3 * sizeof(cmsFloat64Number));
+    lab2.a = *(cmsFloat64Number *)(data + 4 * sizeof(cmsFloat64Number));
+    lab2.b = *(cmsFloat64Number *)(data + 5 * sizeof(cmsFloat64Number));
+
     // Call the function-under-test
-    const cmsCIExyY *d50_xyY = cmsD50_xyY();
+    cmsFloat64Number deltaE = cmsBFDdeltaE(&lab1, &lab2);
 
-    // Use the returned value in some way to prevent compiler optimizations from removing the call
-    if (d50_xyY != NULL) {
-        volatile double x = d50_xyY->x;
-        volatile double y = d50_xyY->y;
-        volatile double Y = d50_xyY->Y;
-    }
-
-    // Example of using the input data to maximize fuzzing result
-    if (size >= sizeof(cmsCIExyY)) {
-        cmsCIExyY input_xyY;
-        memcpy(&input_xyY, data, sizeof(cmsCIExyY));
-
-        // Use the input data with a hypothetical function
-        // Example: cmsSomeFunctionUsingCIExyY(&input_xyY);
-    }
+    // Use deltaE in some way to prevent compiler optimizations from removing the call
+    volatile cmsFloat64Number result = deltaE;
+    (void)result;
 
     return 0;
 }

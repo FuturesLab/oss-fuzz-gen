@@ -1,25 +1,30 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <lcms2.h>  // Include the Little CMS library header
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_218(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsFloat32Number)) {
-        return 0;  // Not enough data to create a tone curve
+    // Initialize variables
+    cmsContext context = NULL;
+    cmsHPROFILE profile = NULL;
+
+    // Check if the input size is sufficient for our needs
+    if (size < sizeof(cmsContext)) {
+        return 0;
     }
 
-    // Create a tone curve using the provided data
-    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurveFloat(NULL, size / sizeof(cmsFloat32Number), (cmsFloat32Number *)data);
-    
-    if (toneCurve == NULL) {
-        return 0;  // Failed to create a tone curve
-    }
+    // Create a context from the input data
+    // For the purpose of this example, we assume the context is an integer
+    // and we use the first bytes of data to set it.
+    context = (cmsContext)(*((int*)data));
 
     // Call the function-under-test
-    cmsUInt32Number entries = cmsGetToneCurveEstimatedTableEntries(toneCurve);
+    profile = cmsCreate_OkLabProfile(context);
 
     // Clean up
-    cmsFreeToneCurve(toneCurve);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
 
     return 0;
 }

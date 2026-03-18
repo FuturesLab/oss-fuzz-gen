@@ -1,19 +1,21 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_101(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsStageAllocIdentity
-    cmsContext context = (cmsContext)0x1; // Use a non-null context
-    cmsUInt32Number nChannels = 3; // Choose a reasonable number of channels
+    // Initialize a cmsContext variable
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Ensure the context is not NULL
+    if (context == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    cmsStage *stage = cmsStageAllocIdentity(context, nChannels);
+    cmsUnregisterPluginsTHR(context);
 
-    // Clean up if necessary
-    if (stage != NULL) {
-        cmsStageFree(stage);
-    }
+    // Clean up the context
+    cmsDeleteContext(context);
 
     return 0;
 }

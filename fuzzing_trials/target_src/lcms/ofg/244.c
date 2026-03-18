@@ -3,41 +3,38 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_244(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsHPROFILE *profiles = NULL;
-    cmsUInt32Number nProfiles = 2; // Assuming at least 2 profiles for transformation
-    cmsUInt32Number inputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number outputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number intent = INTENT_PERCEPTUAL; // Example intent
-    cmsUInt32Number flags = 0; // No flags
+    // Initialize a cmsStage object with non-NULL values
+    cmsToneCurve *curves[3];
+    for (int i = 0; i < 3; i++) {
+        curves[i] = cmsBuildGamma(NULL, 2.2);
+        if (curves[i] == NULL) {
+            for (int j = 0; j < i; j++) {
+                cmsFreeToneCurve(curves[j]);
+            }
+            return 0;
+        }
+    }
 
-    // Allocate memory for profiles
-    profiles = (cmsHPROFILE *)malloc(nProfiles * sizeof(cmsHPROFILE));
-    if (profiles == NULL) {
-        cmsDeleteContext(context);
+    cmsStage *stage = cmsStageAllocToneCurves(NULL, 3, curves);
+    if (stage == NULL) {
+        for (int i = 0; i < 3; i++) {
+            cmsFreeToneCurve(curves[i]);
+        }
         return 0;
     }
 
-    // Create sample profiles
-    profiles[0] = cmsCreate_sRGBProfile();
-    profiles[1] = cmsCreate_sRGBProfile();
-
     // Call the function-under-test
-    cmsHTRANSFORM transform = cmsCreateMultiprofileTransformTHR(
-        context, profiles, nProfiles, inputFormat, outputFormat, intent, flags);
+    cmsStage *dupStage = cmsStageDup(stage);
 
     // Clean up
-    if (transform != NULL) {
-        cmsDeleteTransform(transform);
+    if (dupStage != NULL) {
+        cmsStageFree(dupStage);
     }
-    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
-        if (profiles[i] != NULL) {
-            cmsCloseProfile(profiles[i]);
-        }
+    cmsStageFree(stage);
+
+    for (int i = 0; i < 3; i++) {
+        cmsFreeToneCurve(curves[i]);
     }
-    free(profiles);
-    cmsDeleteContext(context);
 
     return 0;
 }

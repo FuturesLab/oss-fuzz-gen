@@ -1,44 +1,30 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <lcms2.h>
 
-// Function prototype for the function-under-test
-int cmsstrcasecmp(const char *s1, const char *s2);
-
-// Fuzzing harness for cmsstrcasecmp
 int LLVMFuzzerTestOneInput_362(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create two non-empty strings
-    if (size < 2) {
+    // Define and initialize variables
+    cmsContext context = (cmsContext)0x1; // Non-null context
+    cmsUInt32Number nGridPoints = 2; // Minimum grid points
+    cmsUInt32Number inputChannels = 3; // Example input channels
+    cmsUInt32Number outputChannels = 3; // Example output channels
+
+    // Ensure the data size is sufficient for the float array
+    if (size < inputChannels * outputChannels * nGridPoints * sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Split the input data into two parts for the two strings
-    size_t mid = size / 2;
-
-    // Allocate memory for the two strings, ensuring null-termination
-    char *s1 = (char *)malloc(mid + 1);
-    char *s2 = (char *)malloc(size - mid + 1);
-
-    if (s1 == NULL || s2 == NULL) {
-        free(s1);
-        free(s2);
-        return 0;
-    }
-
-    // Copy data into the strings and null-terminate them
-    memcpy(s1, data, mid);
-    s1[mid] = '\0';
-
-    memcpy(s2, data + mid, size - mid);
-    s2[size - mid] = '\0';
+    // Cast the input data to a float array
+    const cmsFloat32Number* floatArray = (const cmsFloat32Number*)data;
 
     // Call the function-under-test
-    int result = cmsstrcasecmp(s1, s2);
+    cmsStage* stage = cmsStageAllocCLutFloat(context, nGridPoints, inputChannels, outputChannels, floatArray);
 
-    // Free the allocated memory
-    free(s1);
-    free(s2);
+    // Clean up
+    if (stage != NULL) {
+        cmsStageFree(stage);
+    }
 
     return 0;
 }

@@ -1,39 +1,40 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
-typedef cmsBool (*cmsSAMPLER16)(const cmsUInt16Number In[], cmsUInt16Number Out[], void * Cargo);
-
-cmsBool SampleFunction(const cmsUInt16Number In[], cmsUInt16Number Out[], void * Cargo) {
-    // Simple example of a sampler function that just copies input to output
-    for (int i = 0; i < 3; i++) {
-        Out[i] = In[i];
-    }
-    return TRUE;
-}
-
 int LLVMFuzzerTestOneInput_89(const uint8_t *data, size_t size) {
-    cmsUInt32Number n = 3; // Example value for number of channels
+    // Initialize variables
+    cmsMLU *mlu = NULL;
+    cmsMLU *duplicatedMlu = NULL;
+    cmsContext contextID = NULL;
+    const char *languageCode = "en";
+    const char *countryCode = "US";
+    const char *text = "Sample text";
 
-    // Ensure there's enough data to create an array of cmsUInt32Number
-    if (size < n * sizeof(cmsUInt32Number)) {
+    // Create a cmsMLU object
+    mlu = cmsMLUalloc(contextID, 1);
+
+    // Check if mlu was successfully allocated
+    if (mlu == NULL) {
         return 0;
     }
 
-    const cmsUInt32Number *SamplePoints = (const cmsUInt32Number *)data;
-
-    // Prepare a dummy cargo pointer
-    void *Cargo = malloc(1);  // Allocate some memory for Cargo
-    if (Cargo == NULL) {
+    // Set a simple text entry to the cmsMLU object
+    if (!cmsMLUsetASCII(mlu, languageCode, countryCode, text)) {
+        cmsMLUfree(mlu);
         return 0;
     }
 
     // Call the function-under-test
-    cmsBool result = cmsSliceSpace16(n, SamplePoints, SampleFunction, Cargo);
+    duplicatedMlu = cmsMLUdup(mlu);
 
-    // Free the allocated memory for Cargo
-    free(Cargo);
+    // Free the original cmsMLU object
+    cmsMLUfree(mlu);
+
+    // Free the duplicated cmsMLU object if it was successfully created
+    if (duplicatedMlu != NULL) {
+        cmsMLUfree(duplicatedMlu);
+    }
 
     return 0;
 }

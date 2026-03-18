@@ -1,22 +1,21 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    cmsNAMEDCOLORLIST *namedColorList;
-
-    // Initialize a named color list with some arbitrary values
-    namedColorList = cmsAllocNamedColorList(NULL, 1, 32, "Prefix", "Suffix");
-    if (namedColorList == NULL) {
+    // Ensure the data size is sufficient to extract a cmsColorSpaceSignature
+    if (size < sizeof(cmsColorSpaceSignature)) {
         return 0;
     }
 
-    // Add a named color to the list to ensure it's not empty
-    cmsNamedColorInfo(namedColorList, 0, "ColorName", "ColorPrefix", "ColorSuffix", NULL, NULL);
+    // Extract a cmsColorSpaceSignature from the input data
+    cmsColorSpaceSignature colorSpaceSignature = *(cmsColorSpaceSignature*)data;
 
-    // Call the function under test
-    cmsFreeNamedColorList(namedColorList);
+    // Call the function-under-test
+    cmsInt32Number channels = cmsChannelsOfColorSpace(colorSpaceSignature);
+
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)channels; // In a real test, you might want to check the result or use it further
 
     return 0;
 }

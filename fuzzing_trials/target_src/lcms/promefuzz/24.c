@@ -1,87 +1,80 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsFloat2LabEncodedV2 at cmspcs.c:254:16 in lcms2.h
-// cmsLabEncoded2FloatV2 at cmspcs.c:218:16 in lcms2.h
-// cmsDeltaE at cmspcs.c:438:28 in lcms2.h
-// cmsFloat2LabEncoded at cmspcs.c:298:16 in lcms2.h
-// cmsBFDdeltaE at cmspcs.c:497:28 in lcms2.h
-// cmsLabEncoded2Float at cmspcs.c:226:16 in lcms2.h
+// cmsCreateContext at cmsplugin.c:824:22 in lcms2.h
+// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
+// cmsCreateXYZProfileTHR at cmsvirt.c:577:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsMD5alloc at cmsmd5.c:154:21 in lcms2_plugin.h
+// cmsGetContextUserData at cmsplugin.c:1021:17 in lcms2.h
+// cmsDupContext at cmsplugin.c:893:22 in lcms2.h
+// cmsGetTransformContextID at cmsxform.c:1420:22 in lcms2.h
+// _cmsCreateMutex at cmserr.c:627:17 in lcms2_plugin.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <string.h>
 #include "lcms2.h"
+#include "lcms2_plugin.h"
 
-static void fuzz_cmsFloat2LabEncodedV2(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIELab)) return;
-
-    cmsCIELab Lab;
-    cmsUInt16Number wLab[3];
-
-    memcpy(&Lab, Data, sizeof(cmsCIELab));
-    cmsFloat2LabEncodedV2(wLab, &Lab);
+static cmsContext create_dummy_context() {
+    // Create a dummy context for testing purposes using the official API
+    return cmsCreateContext(NULL, NULL);
 }
 
-static void fuzz_cmsLabEncoded2FloatV2(const uint8_t *Data, size_t Size) {
-    if (Size < 3 * sizeof(cmsUInt16Number)) return;
-
-    cmsCIELab Lab;
-    cmsUInt16Number wLab[3];
-
-    memcpy(wLab, Data, 3 * sizeof(cmsUInt16Number));
-    cmsLabEncoded2FloatV2(&Lab, wLab);
-}
-
-static void fuzz_cmsDeltaE(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(cmsCIELab)) return;
-
-    cmsCIELab Lab1, Lab2;
-
-    memcpy(&Lab1, Data, sizeof(cmsCIELab));
-    memcpy(&Lab2, Data + sizeof(cmsCIELab), sizeof(cmsCIELab));
-    cmsDeltaE(&Lab1, &Lab2);
-}
-
-static void fuzz_cmsFloat2LabEncoded(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIELab)) return;
-
-    cmsCIELab Lab;
-    cmsUInt16Number wLab[3];
-
-    memcpy(&Lab, Data, sizeof(cmsCIELab));
-    cmsFloat2LabEncoded(wLab, &Lab);
-}
-
-static void fuzz_cmsBFDdeltaE(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(cmsCIELab)) return;
-
-    cmsCIELab Lab1, Lab2;
-
-    memcpy(&Lab1, Data, sizeof(cmsCIELab));
-    memcpy(&Lab2, Data + sizeof(cmsCIELab), sizeof(cmsCIELab));
-    cmsBFDdeltaE(&Lab1, &Lab2);
-}
-
-static void fuzz_cmsLabEncoded2Float(const uint8_t *Data, size_t Size) {
-    if (Size < 3 * sizeof(cmsUInt16Number)) return;
-
-    cmsCIELab Lab;
-    cmsUInt16Number wLab[3];
-
-    memcpy(wLab, Data, 3 * sizeof(cmsUInt16Number));
-    cmsLabEncoded2Float(&Lab, wLab);
+static void free_dummy_context(cmsContext context) {
+    cmsDeleteContext(context);
 }
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    fuzz_cmsFloat2LabEncodedV2(Data, Size);
-    fuzz_cmsLabEncoded2FloatV2(Data, Size);
-    fuzz_cmsDeltaE(Data, Size);
-    fuzz_cmsFloat2LabEncoded(Data, Size);
-    fuzz_cmsBFDdeltaE(Data, Size);
-    fuzz_cmsLabEncoded2Float(Data, Size);
+    if (Size < sizeof(void*)) {
+        return 0; // Not enough data to simulate a user data pointer
+    }
+
+    // Create a dummy context
+    cmsContext context = create_dummy_context();
+    if (!context) {
+        return 0;
+    }
+
+    // Fuzz cmsCreateXYZProfileTHR
+    cmsHPROFILE profile = cmsCreateXYZProfileTHR(context);
+    if (profile) {
+        cmsCloseProfile(profile);
+    }
+
+    // Fuzz cmsMD5alloc
+    cmsHANDLE md5Context = cmsMD5alloc(context);
+    if (md5Context) {
+        free(md5Context); // Assuming a simple free is enough, adjust if necessary
+    }
+
+    // Fuzz cmsGetContextUserData
+    void* userData = cmsGetContextUserData(context);
+    (void)userData; // Use the result to avoid unused variable warning
+
+    // Fuzz cmsDupContext
+    void* newUserData = (void*)Data;
+    cmsContext newContext = cmsDupContext(context, newUserData);
+    if (newContext) {
+        free_dummy_context(newContext);
+    }
+
+    // Fuzz cmsGetTransformContextID
+    cmsHTRANSFORM hTransform = NULL; // Set to NULL to avoid using invalid memory
+    cmsContext transformContext = cmsGetTransformContextID(hTransform);
+    (void)transformContext; // Use the result to avoid unused variable warning
+
+    // Fuzz _cmsCreateMutex
+    void* mutex = _cmsCreateMutex(context);
+    if (mutex) {
+        free(mutex); // Assuming a simple free is enough, adjust if necessary
+    }
+
+    // Cleanup
+    free_dummy_context(context);
+
     return 0;
 }

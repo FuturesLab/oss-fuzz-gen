@@ -1,100 +1,70 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsLab2LCh at cmspcs.c:349:16 in lcms2.h
-// cmsCIECAM02Init at cmscam02.c:363:22 in lcms2.h
-// cmsCIECAM02Forward at cmscam02.c:440:16 in lcms2.h
-// cmsCIECAM02Done at cmscam02.c:432:16 in lcms2.h
-// cmsCIECAM02Init at cmscam02.c:363:22 in lcms2.h
-// cmsCIECAM02Done at cmscam02.c:432:16 in lcms2.h
-// cmsCIECAM02Init at cmscam02.c:363:22 in lcms2.h
-// cmsCIECAM02Reverse at cmscam02.c:466:16 in lcms2.h
-// cmsCIECAM02Done at cmscam02.c:432:16 in lcms2.h
-// cmsCIE2000DeltaE at cmspcs.c:589:28 in lcms2.h
+// cmsGetContextUserData at cmsplugin.c:1021:17 in lcms2.h
+// cmsCreate_sRGBProfileTHR at cmsvirt.c:653:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsDupContext at cmsplugin.c:893:22 in lcms2.h
+// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
+// cmsCreate_OkLabProfile at cmsvirt.c:690:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsCreateContext at cmsplugin.c:824:22 in lcms2.h
+// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
+// cmsGetProfileContextID at cmsio0.c:571:22 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <lcms2.h>
+#include "lcms2.h"
 
-static void fuzz_cmsLab2LCh(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIELab)) return;
-
-    cmsCIELab Lab;
-    cmsCIELCh LCh;
-    memcpy(&Lab, Data, sizeof(cmsCIELab));
-
-    cmsLab2LCh(&LCh, &Lab);
+static void fuzz_cmsGetProfileContextID(cmsHPROFILE hProfile) {
+    cmsContext contextID = cmsGetProfileContextID(hProfile);
+    // Handle contextID if necessary
 }
 
-static void fuzz_cmsCIECAM02Forward(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIEXYZ)) return;
-
-    // Initialize a dummy viewing condition for model creation
-    cmsViewingConditions VC;
-    cmsContext ContextID = NULL;
-    cmsHANDLE hModel = cmsCIECAM02Init(ContextID, &VC);
-    if (hModel == NULL) return;
-
-    cmsCIEXYZ XYZ;
-    cmsJCh JCh;
-    memcpy(&XYZ, Data, sizeof(cmsCIEXYZ));
-
-    cmsCIECAM02Forward(hModel, &XYZ, &JCh);
-
-    cmsCIECAM02Done(hModel);
-}
-
-static void fuzz_cmsCIECAM02Init(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsViewingConditions)) return;
-
-    cmsContext ContextID = NULL;
-    cmsViewingConditions VC;
-    memcpy(&VC, Data, sizeof(cmsViewingConditions));
-
-    cmsHANDLE hModel = cmsCIECAM02Init(ContextID, &VC);
-    if (hModel) {
-        cmsCIECAM02Done(hModel);
+static void fuzz_cmsGetContextUserData(cmsContext contextID) {
+    if (contextID) {
+        void* userData = cmsGetContextUserData(contextID);
+        // Handle userData if necessary
     }
 }
 
-static void fuzz_cmsCIECAM02Reverse(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsJCh)) return;
-
-    // Initialize a dummy viewing condition for model creation
-    cmsViewingConditions VC;
-    cmsContext ContextID = NULL;
-    cmsHANDLE hModel = cmsCIECAM02Init(ContextID, &VC);
-    if (hModel == NULL) return;
-
-    cmsJCh JCh;
-    cmsCIEXYZ XYZ;
-    memcpy(&JCh, Data, sizeof(cmsJCh));
-
-    cmsCIECAM02Reverse(hModel, &JCh, &XYZ);
-
-    cmsCIECAM02Done(hModel);
+static void fuzz_cmsCreate_sRGBProfileTHR(cmsContext contextID) {
+    cmsHPROFILE hProfile = cmsCreate_sRGBProfileTHR(contextID);
+    if (hProfile) {
+        fuzz_cmsGetProfileContextID(hProfile);
+        cmsCloseProfile(hProfile);
+    }
 }
 
-static void fuzz_cmsCIE2000DeltaE(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(cmsCIELab) + 3 * sizeof(cmsFloat64Number)) return;
+static void fuzz_cmsDupContext(cmsContext contextID) {
+    if (contextID) {
+        cmsContext newContext = cmsDupContext(contextID, NULL);
+        if (newContext) {
+            fuzz_cmsGetContextUserData(newContext);
+            cmsDeleteContext(newContext);
+        }
+    }
+}
 
-    cmsCIELab Lab1, Lab2;
-    cmsFloat64Number Kl, Kc, Kh;
-    memcpy(&Lab1, Data, sizeof(cmsCIELab));
-    memcpy(&Lab2, Data + sizeof(cmsCIELab), sizeof(cmsCIELab));
-    memcpy(&Kl, Data + 2 * sizeof(cmsCIELab), sizeof(cmsFloat64Number));
-    memcpy(&Kc, Data + 2 * sizeof(cmsCIELab) + sizeof(cmsFloat64Number), sizeof(cmsFloat64Number));
-    memcpy(&Kh, Data + 2 * sizeof(cmsCIELab) + 2 * sizeof(cmsFloat64Number), sizeof(cmsFloat64Number));
-
-    cmsFloat64Number deltaE = cmsCIE2000DeltaE(&Lab1, &Lab2, Kl, Kc, Kh);
+static void fuzz_cmsCreate_OkLabProfile(cmsContext contextID) {
+    cmsHPROFILE hProfile = cmsCreate_OkLabProfile(contextID);
+    if (hProfile) {
+        fuzz_cmsGetProfileContextID(hProfile);
+        cmsCloseProfile(hProfile);
+    }
 }
 
 int LLVMFuzzerTestOneInput_58(const uint8_t *Data, size_t Size) {
-    fuzz_cmsLab2LCh(Data, Size);
-    fuzz_cmsCIECAM02Forward(Data, Size);
-    fuzz_cmsCIECAM02Init(Data, Size);
-    fuzz_cmsCIECAM02Reverse(Data, Size);
-    fuzz_cmsCIE2000DeltaE(Data, Size);
+    if (Size < sizeof(cmsContext)) return 0;
 
+    cmsContext contextID = cmsCreateContext(NULL, NULL);
+    if (!contextID) return 0;
+
+    fuzz_cmsGetContextUserData(contextID);
+    fuzz_cmsCreate_sRGBProfileTHR(contextID);
+    fuzz_cmsDupContext(contextID);
+    fuzz_cmsCreate_OkLabProfile(contextID);
+
+    cmsDeleteContext(contextID);
     return 0;
 }

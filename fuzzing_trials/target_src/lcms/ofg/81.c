@@ -1,24 +1,32 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <lcms2.h>
+#include <stddef.h>
+#include <stdio.h>
+
+// Assuming cmsHANDLE is a pointer type and cmsUInt32Number is a 32-bit unsigned integer
+typedef void* cmsHANDLE;
+typedef uint32_t cmsUInt32Number;
+typedef int cmsBool;
+
+// Mock implementation of cmsGDBCompute_81 for demonstration purposes
+cmsBool cmsGDBCompute_81(cmsHANDLE handle, cmsUInt32Number number) {
+    // Simulate some computation
+    printf("Computing with handle: %p and number: %u\n", handle, number);
+    return 1; // Assume it returns a boolean value
+}
 
 int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for the function-under-test
-    cmsCIELab lab;
-    cmsUInt16Number encoded[3];
-
-    // Ensure the size is sufficient to fill the encoded array
-    if (size < sizeof(encoded)) {
-        return 0;
+    if (size < sizeof(cmsHANDLE) + sizeof(cmsUInt32Number)) {
+        return 0; // Not enough data to extract both parameters
     }
 
-    // Copy data into the encoded array
-    for (size_t i = 0; i < 3; i++) {
-        encoded[i] = (cmsUInt16Number)((data[i * 2] << 8) | data[i * 2 + 1]);
-    }
+    // Extract cmsHANDLE from the input data
+    cmsHANDLE handle = (cmsHANDLE)(uintptr_t)(data[0]);
+
+    // Extract cmsUInt32Number from the input data
+    cmsUInt32Number number = *(const cmsUInt32Number*)(data + sizeof(cmsHANDLE));
 
     // Call the function-under-test
-    cmsLabEncoded2FloatV2(&lab, encoded);
+    cmsGDBCompute_81(handle, number);
 
     return 0;
 }

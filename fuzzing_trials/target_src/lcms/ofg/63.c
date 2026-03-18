@@ -1,33 +1,30 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract an integer
-    if (size < sizeof(cmsInt32Number)) {
+    cmsHPROFILE hProfile;
+    cmsUInt32Number model;
+
+    // Check if the size is sufficient to extract a cmsUInt32Number
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Create an array for the tone curve
-    uint16_t table[256];
-    for (int i = 0; i < 256; i++) {
-        table[i] = i * 256; // Simple linear tone curve
-    }
-
-    // Initialize the cmsToneCurve structure with a valid table
-    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurve16(NULL, 256, table);
-    if (toneCurve == NULL) {
+    // Create a profile for testing
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
         return 0;
     }
 
-    // Extract a cmsInt32Number from the data
-    cmsInt32Number index = *(const cmsInt32Number *)data;
+    // Extract cmsUInt32Number from the input data
+    model = *(const cmsUInt32Number *)data;
 
     // Call the function-under-test
-    const cmsCurveSegment *segment = cmsGetToneCurveSegment(index, toneCurve);
+    cmsSetHeaderModel(hProfile, model);
 
-    // Cleanup
-    cmsFreeToneCurve(toneCurve);
+    // Close the profile to avoid memory leaks
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

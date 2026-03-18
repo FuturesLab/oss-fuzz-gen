@@ -1,27 +1,24 @@
 #include <stdint.h>
-#include <stdbool.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract necessary parameters
-    if (size < sizeof(cmsUInt32Number) + sizeof(cmsBool)) {
+    // Ensure there is enough data to read a cmsFloat64Number
+    if (size < sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Initialize parameters for cmsFormatterForColorspaceOfProfile
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
-        return 0;
-    }
-    
-    cmsUInt32Number dwFlags = *(const cmsUInt32Number *)(data);
-    cmsBool lIsInput = *(const cmsBool *)(data + sizeof(cmsUInt32Number));
+    // Interpret the first bytes of data as a cmsFloat64Number
+    cmsFloat64Number adaptationState;
+    memcpy(&adaptationState, data, sizeof(cmsFloat64Number));
 
     // Call the function-under-test
-    cmsUInt32Number result = cmsFormatterForColorspaceOfProfile(hProfile, dwFlags, lIsInput);
+    cmsFloat64Number result = cmsSetAdaptationState(adaptationState);
 
-    // Clean up
-    cmsCloseProfile(hProfile);
+    // Use the result in some way to avoid any compiler optimizations
+    volatile cmsFloat64Number use_result = result;
+    (void)use_result;
 
     return 0;
 }

@@ -3,25 +3,27 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsContext context;
+    // Initialize necessary variables
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
+    cmsStageLoc loc = cmsAT_BEGIN;
+    cmsStage *stage = cmsStageAllocIdentity(NULL, 3);
 
-    // Ensure that the input size is sufficient for creating a profile
-    if (size < sizeof(cmsHPROFILE)) {
+    // Ensure the pipeline and stage are not NULL
+    if (pipeline == NULL || stage == NULL) {
         return 0;
     }
 
-    // Create a profile from the input data
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
-        return 0;
+    // Link the stage to the pipeline
+    cmsPipelineInsertStage(pipeline, loc, stage);
+
+    // Call the function under test
+    cmsPipelineUnlinkStage(pipeline, loc, &stage);
+
+    // Free the resources
+    cmsPipelineFree(pipeline);
+    if (stage != NULL) {
+        cmsStageFree(stage);
     }
-
-    // Call the function-under-test
-    context = cmsGetProfileContextID(hProfile);
-
-    // Close the profile
-    cmsCloseProfile(hProfile);
 
     return 0;
 }

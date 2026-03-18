@@ -3,22 +3,35 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_447(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a profile
-    if (size < sizeof(cmsHPROFILE)) {
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsPSResourceType resourceType = cmsPS_RESOURCE_CSA;
+    cmsHPROFILE profile = cmsOpenProfileFromMem(data, size);
+    cmsUInt32Number intent = INTENT_PERCEPTUAL;
+    cmsUInt32Number flags = 0;
+    
+    // Allocate a buffer for IOHANDLER
+    void *buffer = malloc(size);
+    if (buffer == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
+    
+    cmsIOHANDLER *ioHandler = cmsOpenIOhandlerFromMem(context, buffer, size, "w");
+    
+    if (profile == NULL || ioHandler == NULL) {
+        if (ioHandler != NULL) cmsCloseIOhandler(ioHandler);
+        cmsDeleteContext(context);
+        free(buffer);
         return 0;
     }
 
-    // Create a memory block to simulate a profile
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
-    
-    // Check if profile creation was successful
-    if (hProfile != NULL) {
-        // Call the function-under-test
-        cmsBool result = cmsCloseProfile(hProfile);
+    cmsUInt32Number result = cmsGetPostScriptColorResource(context, resourceType, profile, intent, flags, ioHandler);
 
-        // Optionally, you can use the result for further checks
-        (void)result; // Suppress unused variable warning
-    }
+    // Clean up
+    cmsCloseIOhandler(ioHandler);
+    cmsCloseProfile(profile);
+    cmsDeleteContext(context);
+    free(buffer);
 
     return 0;
 }

@@ -3,21 +3,27 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_437(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile = NULL;
-    cmsBool result;
+    cmsHPROFILE profiles[2];
+    cmsUInt32Number nProfiles = 2;
+    cmsUInt32Number inputFormat = TYPE_RGB_8;
+    cmsUInt32Number outputFormat = TYPE_RGB_8;
+    cmsUInt32Number intent = INTENT_PERCEPTUAL;
+    cmsUInt32Number flags = 0;
 
-    // Check if the data size is sufficient to create a profile
-    if (size > 0) {
-        // Create a profile from the data
-        hProfile = cmsOpenProfileFromMem(data, size);
-    }
+    // Initialize profiles with dummy profiles
+    profiles[0] = cmsCreate_sRGBProfile();
+    profiles[1] = cmsCreate_sRGBProfile();
 
-    // If the profile is successfully created, test the function
-    if (hProfile != NULL) {
-        result = cmsIsMatrixShaper(hProfile);
-        // Close the profile after use
-        cmsCloseProfile(hProfile);
+    // Call the function-under-test
+    cmsHTRANSFORM transform = cmsCreateMultiprofileTransform(
+        profiles, nProfiles, inputFormat, outputFormat, intent, flags);
+
+    // Clean up
+    if (transform != NULL) {
+        cmsDeleteTransform(transform);
     }
+    cmsCloseProfile(profiles[0]);
+    cmsCloseProfile(profiles[1]);
 
     return 0;
 }

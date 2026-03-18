@@ -1,81 +1,74 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsCMCdeltaE at cmspcs.c:548:28 in lcms2.h
-// cmsCIE94DeltaE at cmspcs.c:451:28 in lcms2.h
-// cmsGDBAddPoint at cmssm.c:358:19 in lcms2.h
-// cmsGDBCompute at cmssm.c:550:19 in lcms2.h
-// cmsGDBCheckPoint at cmssm.c:390:19 in lcms2.h
-// cmsDesaturateLab at cmsgmt.c:515:19 in lcms2.h
+// cmsCreateContext at cmsplugin.c:824:22 in lcms2.h
+// cmsDictAlloc at cmsnamed.c:1090:21 in lcms2.h
+// cmsCreate_sRGBProfileTHR at cmsvirt.c:653:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// _cmsMalloc at cmserr.c:265:17 in lcms2_plugin.h
+// cmsCreateProfilePlaceholder at cmsio0.c:526:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsCreateNULLProfileTHR at cmsvirt.c:960:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include "lcms2_plugin.h"
 #include "lcms2.h"
 
-static cmsCIELab GenerateRandomCIELab(const uint8_t **Data, size_t *Size) {
-    cmsCIELab lab;
-    if (*Size < sizeof(cmsFloat64Number) * 3) {
-        exit(0);
-    }
-    lab.L = *((cmsFloat64Number*)(*Data));
-    *Data += sizeof(cmsFloat64Number);
-    *Size -= sizeof(cmsFloat64Number);
-    lab.a = *((cmsFloat64Number*)(*Data));
-    *Data += sizeof(cmsFloat64Number);
-    *Size -= sizeof(cmsFloat64Number);
-    lab.b = *((cmsFloat64Number*)(*Data));
-    *Data += sizeof(cmsFloat64Number);
-    *Size -= sizeof(cmsFloat64Number);
-    return lab;
-}
-
-static cmsFloat64Number GenerateRandomFloat64(const uint8_t **Data, size_t *Size) {
-    if (*Size < sizeof(cmsFloat64Number)) {
-        exit(0);
-    }
-    cmsFloat64Number value = *((cmsFloat64Number*)(*Data));
-    *Data += sizeof(cmsFloat64Number);
-    *Size -= sizeof(cmsFloat64Number);
-    return value;
-}
-
-static cmsHANDLE CreateDummyGDB() {
-    // Dummy GBD handle creation
-    return NULL; // Placeholder, as actual GBD creation is not defined
-}
-
-static void CleanupDummyGDB(cmsHANDLE hGDB) {
-    // Placeholder for cleanup, as actual GBD cleanup is not defined
+static cmsContext createContext() {
+    // Create a simple context using cmsCreateContext
+    return cmsCreateContext(NULL, NULL);
 }
 
 int LLVMFuzzerTestOneInput_111(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIELab) * 2 + sizeof(cmsFloat64Number) * 6) {
-        return 0; // Not enough data for all operations
+    if (Size < sizeof(cmsUInt32Number)) {
+        return 0; // Not enough data to proceed
     }
 
-    const uint8_t *DataPtr = Data;
-
-    cmsCIELab Lab1 = GenerateRandomCIELab(&DataPtr, &Size);
-    cmsCIELab Lab2 = GenerateRandomCIELab(&DataPtr, &Size);
-
-    cmsFloat64Number l = GenerateRandomFloat64(&DataPtr, &Size);
-    cmsFloat64Number c = GenerateRandomFloat64(&DataPtr, &Size);
-
-    cmsCMCdeltaE(&Lab1, &Lab2, l, c);
-    cmsCIE94DeltaE(&Lab1, &Lab2);
-
-    cmsHANDLE hGDB = CreateDummyGDB();
-    if (hGDB != NULL) {
-        cmsGDBAddPoint(hGDB, &Lab1);
-        cmsGDBCompute(hGDB, (cmsUInt32Number)Size);
-        cmsGDBCheckPoint(hGDB, &Lab2);
-        CleanupDummyGDB(hGDB);
+    cmsContext context = createContext();
+    if (!context) {
+        return 0; // Failed to create context
     }
 
-    cmsFloat64Number amax = GenerateRandomFloat64(&DataPtr, &Size);
-    cmsFloat64Number amin = GenerateRandomFloat64(&DataPtr, &Size);
-    cmsFloat64Number bmax = GenerateRandomFloat64(&DataPtr, &Size);
-    cmsFloat64Number bmin = GenerateRandomFloat64(&DataPtr, &Size);
+    // Fuzz cmsDictAlloc
+    cmsHANDLE dictHandle = cmsDictAlloc(context);
+    if (dictHandle) {
+        // Normally, you would use the dictionary here
+    }
 
-    cmsDesaturateLab(&Lab1, amax, amin, bmax, bmin);
+    // Fuzz cmsCreate_sRGBProfileTHR
+    cmsHPROFILE sRGBProfile = cmsCreate_sRGBProfileTHR(context);
+    if (sRGBProfile) {
+        // Normally, you would use the profile here
+        cmsCloseProfile(sRGBProfile);
+    }
+
+    // Fuzz _cmsMalloc
+    cmsUInt32Number sizeToAllocate = *(cmsUInt32Number*)Data;
+    void* allocatedMemory = _cmsMalloc(context, sizeToAllocate);
+    if (allocatedMemory) {
+        // Use the allocated memory
+        free(allocatedMemory);
+    }
+
+    // Fuzz cmsCreateProfilePlaceholder
+    cmsHPROFILE placeholderProfile = cmsCreateProfilePlaceholder(context);
+    if (placeholderProfile) {
+        // Normally, you would use the profile here
+        cmsCloseProfile(placeholderProfile);
+    }
+
+    // Fuzz cmsCreateNULLProfileTHR
+    cmsHPROFILE nullProfile = cmsCreateNULLProfileTHR(context);
+    if (nullProfile) {
+        // Normally, you would use the profile here
+        cmsCloseProfile(nullProfile);
+    }
+
+    // Clean up context
+    cmsDeleteContext(context);
 
     return 0;
 }

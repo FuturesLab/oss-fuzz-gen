@@ -3,23 +3,22 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    const cmsCIEXYZ *d50_xyz = cmsD50_XYZ();
-
-    // Since cmsD50_XYZ() doesn't take any input parameters, 
-    // there's no need to use 'data' or 'size' in this case.
-    // The function returns a pointer to a cmsCIEXYZ structure.
-
-    // We can perform some basic operations to ensure the returned pointer is valid.
-    if (d50_xyz != NULL) {
-        // Access the X, Y, Z fields of the cmsCIEXYZ structure
-        volatile double x = d50_xyz->X;
-        volatile double y = d50_xyz->Y;
-        volatile double z = d50_xyz->Z;
-
-        // Use the volatile keyword to prevent the compiler from optimizing away these accesses.
-        // This ensures that the fields are actually read, which is useful for fuzzing purposes.
+    // Ensure the data size is sufficient for creating a profile
+    if (size < sizeof(cmsHPROFILE)) {
+        return 0;
     }
+
+    // Create a memory-based profile using the provided data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    cmsUInt32Number model = cmsGetHeaderModel(hProfile);
+
+    // Clean up and close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

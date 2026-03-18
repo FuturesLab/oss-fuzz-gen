@@ -7,19 +7,19 @@ int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
     cmsUInt32Number tagIndex;
     cmsTagSignature tagSignature;
 
-    // Ensure there is enough data to extract the cmsUInt32Number
+    // Ensure there is enough data to read a cmsUInt32Number for tagIndex
     if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Initialize the profile from the data
+    // Open a profile from memory using the input data
     hProfile = cmsOpenProfileFromMem(data, size);
     if (hProfile == NULL) {
         return 0;
     }
 
-    // Extract a cmsUInt32Number from the data
-    tagIndex = *(const cmsUInt32Number*)data;
+    // Extract the tag index from the input data
+    tagIndex = *((cmsUInt32Number*)data);
 
     // Call the function-under-test
     tagSignature = cmsGetTagSignature(hProfile, tagIndex);

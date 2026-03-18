@@ -1,84 +1,73 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsGetContextUserData at cmsplugin.c:1021:17 in lcms2.h
-// cmsGetProfileContextID at cmsio0.c:571:22 in lcms2.h
-// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
-// cmsCreate_OkLabProfile at cmsvirt.c:690:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsDupContext at cmsplugin.c:893:22 in lcms2.h
-// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
 // cmsCreateContext at cmsplugin.c:824:22 in lcms2.h
-// cmsCreate_sRGBProfileTHR at cmsvirt.c:653:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreate_sRGBProfileTHR at cmsvirt.c:653:23 in lcms2.h
+// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
+// cmsMD5alloc at cmsmd5.c:154:21 in lcms2_plugin.h
+// cmsGetContextUserData at cmsplugin.c:1021:17 in lcms2.h
+// cmsDupContext at cmsplugin.c:893:22 in lcms2.h
+// cmsGetTransformContextID at cmsxform.c:1420:22 in lcms2.h
+// _cmsCreateMutex at cmserr.c:627:17 in lcms2_plugin.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <lcms2.h>
+#include <string.h>
+#include "lcms2_plugin.h"
+#include "lcms2.h"
 
-static void fuzz_cmsCreate_sRGBProfileTHR(cmsContext ContextID) {
-    cmsHPROFILE hProfile = cmsCreate_sRGBProfileTHR(ContextID);
-    if (hProfile != NULL) {
-        cmsCloseProfile(hProfile);
-    }
+static cmsContext createDummyContext() {
+    // Create a dummy context for testing
+    return cmsCreateContext(NULL, NULL);
 }
 
-static void fuzz_cmsGetContextUserData(cmsContext ContextID) {
-    void* userData = cmsGetContextUserData(ContextID);
-    (void)userData; // Suppress unused variable warning
-}
-
-static void fuzz_cmsGetProfileContextID(cmsHPROFILE hProfile) {
-    cmsContext contextID = cmsGetProfileContextID(hProfile);
-    (void)contextID; // Suppress unused variable warning
-}
-
-static void fuzz_cmsDeleteContext(cmsContext ContextID) {
-    if (ContextID != NULL) {
-        cmsDeleteContext(ContextID);
-    }
-}
-
-static void fuzz_cmsCreate_OkLabProfile(cmsContext ContextID) {
-    cmsHPROFILE hProfile = cmsCreate_OkLabProfile(ContextID);
-    if (hProfile != NULL) {
-        cmsCloseProfile(hProfile);
-    }
-}
-
-static void fuzz_cmsDupContext(cmsContext ContextID) {
-    if (ContextID != NULL) {
-        cmsContext newContext = cmsDupContext(ContextID, NULL);
-        if (newContext != NULL) {
-            cmsDeleteContext(newContext);
-        }
+static void cleanupContext(cmsContext context) {
+    // Clean up the context
+    if (context != NULL) {
+        cmsDeleteContext(context);
     }
 }
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
     if (Size < sizeof(cmsContext)) {
-        return 0;
+        return 0; // Not enough data to proceed
     }
 
-    cmsContext ContextID = cmsCreateContext(NULL, NULL);
-    if (ContextID == NULL) {
-        return 0;
+    cmsContext context = createDummyContext();
+    if (!context) {
+        return 0; // Failed to create a dummy context
     }
 
-    fuzz_cmsCreate_sRGBProfileTHR(ContextID);
-    fuzz_cmsGetContextUserData(ContextID);
-    fuzz_cmsCreate_OkLabProfile(ContextID);
-    fuzz_cmsDupContext(ContextID);
-
-    cmsHPROFILE dummyProfile = cmsCreate_sRGBProfileTHR(ContextID);
-    if (dummyProfile != NULL) {
-        fuzz_cmsGetProfileContextID(dummyProfile);
-        cmsCloseProfile(dummyProfile);
+    // Fuzz cmsMD5alloc
+    cmsHANDLE md5Handle = cmsMD5alloc(context);
+    if (md5Handle) {
+        // Normally, additional operations would be performed here
+        free(md5Handle);
     }
 
-    fuzz_cmsDeleteContext(ContextID);
+    // Fuzz cmsGetContextUserData
+    void* userData = cmsGetContextUserData(context);
+    if (userData) {
+        // Normally, additional operations would be performed here
+    }
 
+    // Fuzz cmsDupContext
+    cmsContext newContext = cmsDupContext(context, userData);
+    if (newContext) {
+        cleanupContext(newContext);
+    }
+
+    // Fuzz cmsGetTransformContextID
+    cmsHTRANSFORM transform = NULL;
+    cmsContext transformContext = cmsGetTransformContextID(transform);
+    if (transformContext) {
+        // Normally, additional operations would be performed here
+    }
+
+    // Fuzz _cmsCreateMutex
+    void* mutex = _cmsCreateMutex(context);
+    if (mutex) {
+        // Normally, additional operations would be performed here
+        free(mutex);
+    }
+
+    cleanupContext(context);
     return 0;
 }

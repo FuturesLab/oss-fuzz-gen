@@ -3,41 +3,33 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Initialize a dummy color transform
     cmsHTRANSFORM transform = NULL;
-    cmsHPROFILE inputProfile = NULL;
-    cmsHPROFILE outputProfile = NULL;
-    cmsUInt32Number inputFormat = TYPE_RGB_8;
-    cmsUInt32Number outputFormat = TYPE_RGB_8;
-    cmsUInt32Number intent = INTENT_PERCEPTUAL;
-    cmsUInt32Number flags = 0;
+    cmsHPROFILE inputProfile = cmsCreate_sRGBProfile();
+    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
+    
+    if (inputProfile == NULL || outputProfile == NULL) {
+        if (inputProfile != NULL) cmsCloseProfile(inputProfile);
+        if (outputProfile != NULL) cmsCloseProfile(outputProfile);
+        return 0;
+    }
+    
+    // Create a color transform using the profiles
+    transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
+    
+    // Clean up profiles
+    cmsCloseProfile(inputProfile);
+    cmsCloseProfile(outputProfile);
 
-    // Create dummy profiles if size is sufficient
-    if (size > 0) {
-        inputProfile = cmsCreate_sRGBProfile();
-        outputProfile = cmsCreate_sRGBProfile();
+    if (transform == NULL) {
+        return 0;
     }
+    
+    // Call the function-under-test
+    cmsUInt32Number outputFormat = cmsGetTransformOutputFormat(transform);
 
-    // Create a transform if profiles are valid
-    if (inputProfile != NULL && outputProfile != NULL) {
-        transform = cmsCreateTransform(inputProfile, inputFormat, outputProfile, outputFormat, intent, flags);
-    }
-
-    // Call the function under test
-    if (transform != NULL) {
-        cmsUInt32Number outputFormatResult = cmsGetTransformOutputFormat(transform);
-    }
-
-    // Cleanup
-    if (transform != NULL) {
-        cmsDeleteTransform(transform);
-    }
-    if (inputProfile != NULL) {
-        cmsCloseProfile(inputProfile);
-    }
-    if (outputProfile != NULL) {
-        cmsCloseProfile(outputProfile);
-    }
+    // Clean up transform
+    cmsDeleteTransform(transform);
 
     return 0;
 }

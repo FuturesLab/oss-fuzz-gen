@@ -1,88 +1,91 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsOpenProfileFromFile at cmsio0.c:1232:23 in lcms2.h
-// cmsIsMatrixShaper at cmsio1.c:806:20 in lcms2.h
-// cmsIsTag at cmsio0.c:709:19 in lcms2.h
-// cmsSaveProfileToFile at cmsio0.c:1503:20 in lcms2.h
-// cmsMD5computeID at cmsmd5.c:257:19 in lcms2.h
-// cmsGetTagCount at cmsio0.c:581:26 in lcms2.h
-// cmsGetEncodedCMMversion at cmserr.c:30:15 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// _cmsVEC3init at cmsmtrx.c:34:16 in lcms2_plugin.h
+// _cmsVEC3minus at cmsmtrx.c:42:16 in lcms2_plugin.h
+// _cmsVEC3dot at cmsmtrx.c:58:28 in lcms2_plugin.h
+// _cmsVEC3distance at cmsmtrx.c:72:28 in lcms2_plugin.h
+// _cmsVEC3cross at cmsmtrx.c:50:16 in lcms2_plugin.h
+// _cmsVEC3length at cmsmtrx.c:64:28 in lcms2_plugin.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "lcms2.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <math.h>
+#include "lcms2_plugin.h"
 
-static cmsHPROFILE create_profile_from_data(const uint8_t *Data, size_t Size) {
-    // Create a temporary file to store the profile data
-    const char *temp_filename = "./dummy_profile.icc";
-    FILE *file = fopen(temp_filename, "wb");
-    if (!file) {
-        return NULL;
-    }
+static void fuzz_cmsVEC3init(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsVEC3) + 3 * sizeof(cmsFloat64Number)) return;
 
-    // Write the provided data into the temporary file
-    if (fwrite(Data, 1, Size, file) != Size) {
-        fclose(file);
-        return NULL;
-    }
-    fclose(file);
+    cmsVEC3 vec;
+    cmsFloat64Number x, y, z;
+    memcpy(&x, Data, sizeof(cmsFloat64Number));
+    memcpy(&y, Data + sizeof(cmsFloat64Number), sizeof(cmsFloat64Number));
+    memcpy(&z, Data + 2 * sizeof(cmsFloat64Number), sizeof(cmsFloat64Number));
 
-    // Open the profile from the temporary file
-    cmsHPROFILE hProfile = cmsOpenProfileFromFile(temp_filename, "r");
-    remove(temp_filename); // Clean up the temporary file
-    return hProfile;
+    _cmsVEC3init(&vec, x, y, z);
 }
 
-static void fuzz_cmsIsMatrixShaper(cmsHPROFILE hProfile) {
-    if (hProfile) {
-        cmsIsMatrixShaper(hProfile);
-    }
+static void fuzz_cmsVEC3minus(const uint8_t *Data, size_t Size) {
+    if (Size < 3 * sizeof(cmsVEC3)) return;
+
+    cmsVEC3 a, b, result;
+    memcpy(&a, Data, sizeof(cmsVEC3));
+    memcpy(&b, Data + sizeof(cmsVEC3), sizeof(cmsVEC3));
+
+    _cmsVEC3minus(&result, &a, &b);
 }
 
-static void fuzz_cmsIsTag(cmsHPROFILE hProfile) {
-    if (hProfile) {
-        cmsTagSignature sig = (cmsTagSignature)(rand() % 256); // Random tag signature
-        cmsIsTag(hProfile, sig);
-    }
+static void fuzz_cmsVEC3dot(const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(cmsVEC3)) return;
+
+    cmsVEC3 u, v;
+    memcpy(&u, Data, sizeof(cmsVEC3));
+    memcpy(&v, Data + sizeof(cmsVEC3), sizeof(cmsVEC3));
+
+    cmsFloat64Number dot = _cmsVEC3dot(&u, &v);
+    (void)dot; // Suppress unused variable warning
 }
 
-static void fuzz_cmsSaveProfileToFile(cmsHPROFILE hProfile) {
-    if (hProfile) {
-        cmsSaveProfileToFile(hProfile, "./dummy_file");
-    }
+static void fuzz_cmsVEC3distance(const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(cmsVEC3)) return;
+
+    cmsVEC3 a, b;
+    memcpy(&a, Data, sizeof(cmsVEC3));
+    memcpy(&b, Data + sizeof(cmsVEC3), sizeof(cmsVEC3));
+
+    cmsFloat64Number distance = _cmsVEC3distance(&a, &b);
+    (void)distance; // Suppress unused variable warning
 }
 
-static void fuzz_cmsMD5computeID(cmsHPROFILE hProfile) {
-    if (hProfile) {
-        cmsMD5computeID(hProfile);
-    }
+static void fuzz_cmsVEC3cross(const uint8_t *Data, size_t Size) {
+    if (Size < 3 * sizeof(cmsVEC3)) return;
+
+    cmsVEC3 u, v, result;
+    memcpy(&u, Data, sizeof(cmsVEC3));
+    memcpy(&v, Data + sizeof(cmsVEC3), sizeof(cmsVEC3));
+
+    _cmsVEC3cross(&result, &u, &v);
 }
 
-static void fuzz_cmsGetTagCount(cmsHPROFILE hProfile) {
-    if (hProfile) {
-        cmsGetTagCount(hProfile);
-    }
-}
+static void fuzz_cmsVEC3length(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsVEC3)) return;
 
-static void fuzz_cmsGetEncodedCMMversion() {
-    cmsGetEncodedCMMversion();
+    cmsVEC3 a;
+    memcpy(&a, Data, sizeof(cmsVEC3));
+
+    cmsFloat64Number length = _cmsVEC3length(&a);
+    (void)length; // Suppress unused variable warning
 }
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *Data, size_t Size) {
-    cmsHPROFILE hProfile = create_profile_from_data(Data, Size);
-
-    fuzz_cmsIsMatrixShaper(hProfile);
-    fuzz_cmsIsTag(hProfile);
-    fuzz_cmsSaveProfileToFile(hProfile);
-    fuzz_cmsMD5computeID(hProfile);
-    fuzz_cmsGetTagCount(hProfile);
-    fuzz_cmsGetEncodedCMMversion();
-
-    if (hProfile) {
-        cmsCloseProfile(hProfile);
-    }
+    fuzz_cmsVEC3init(Data, Size);
+    fuzz_cmsVEC3minus(Data, Size);
+    fuzz_cmsVEC3dot(Data, Size);
+    fuzz_cmsVEC3distance(Data, Size);
+    fuzz_cmsVEC3cross(Data, Size);
+    fuzz_cmsVEC3length(Data, Size);
 
     return 0;
 }

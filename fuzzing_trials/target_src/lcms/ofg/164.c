@@ -1,55 +1,45 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
 #include <string.h>
-#include <stdlib.h>
-#include <lcms2_plugin.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    const char *propertyName;
-    const char *propertyValue;
+    // Initialize variables for cmsAppendNamedColor
+    cmsNAMEDCOLORLIST *namedColorList;
+    const char *colorName;
+    cmsUInt16Number pcs[3];
+    cmsUInt16Number device[3];
 
-    // Ensure size is sufficient to split into two non-empty strings
-    if (size < 2) {
+    // Ensure data is large enough to extract necessary information
+    // We need at least 6 bytes for pcs and device values, plus some bytes for a color name
+    if (size < 6 + 1) { // 1 byte for at least a single character color name
         return 0;
     }
 
-    // Initialize handle
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Initialize namedColorList
+    namedColorList = cmsAllocNamedColorList(NULL, 1, 3, "Prefix", "Suffix");
+    if (namedColorList == NULL) {
         return 0;
     }
 
-    // Split the data into two strings
-    size_t mid = size / 2;
+    // Extract colorName from data
+    colorName = (const char *)(data);
 
-    // Allocate memory for propertyName and propertyValue
-    propertyName = (const char *)malloc(mid + 1);
-    propertyValue = (const char *)malloc(size - mid + 1);
+    // Extract pcs values from data
+    pcs[0] = (cmsUInt16Number)data[size - 6];
+    pcs[1] = (cmsUInt16Number)data[size - 5];
+    pcs[2] = (cmsUInt16Number)data[size - 4];
 
-    if (propertyName == NULL || propertyValue == NULL) {
-        cmsIT8Free(handle);
-        free((void *)propertyName);
-        free((void *)propertyValue);
-        return 0;
-    }
-
-    // Copy data into propertyName and propertyValue
-    memcpy((void *)propertyName, data, mid);
-    memcpy((void *)propertyValue, data + mid, size - mid);
-
-    // Null-terminate the strings
-    ((char *)propertyName)[mid] = '\0';
-    ((char *)propertyValue)[size - mid] = '\0';
+    // Extract device values from data
+    device[0] = (cmsUInt16Number)data[size - 3];
+    device[1] = (cmsUInt16Number)data[size - 2];
+    device[2] = (cmsUInt16Number)data[size - 1];
 
     // Call the function-under-test
-    cmsIT8SetPropertyUncooked(handle, propertyName, propertyValue);
+    cmsBool result = cmsAppendNamedColor(namedColorList, colorName, pcs, device);
 
     // Clean up
-    cmsIT8Free(handle);
-    free((void *)propertyName);
-    free((void *)propertyValue);
+    cmsFreeNamedColorList(namedColorList);
 
     return 0;
 }

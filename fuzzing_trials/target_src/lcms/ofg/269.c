@@ -3,33 +3,27 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_269(const uint8_t *data, size_t size) {
-    // Initialize cmsContext
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
+    // Initialize the variables
+    cmsPipeline *pipeline;
+    cmsUInt32Number stageCount;
+    void *dummyPointer = (void *)1; // Use a non-NULL dummy pointer
+
+    // Create a dummy pipeline for testing
+    cmsContext contextID = cmsCreateContext(NULL, NULL);
+    pipeline = cmsPipelineAlloc(contextID, 3, 3);
+    if (pipeline == NULL) {
         return 0;
     }
 
-    // Initialize cmsViewingConditions
-    cmsViewingConditions viewingConditions;
-    cmsCIEXYZ whitePoint = {0.95047, 1.00000, 1.08883}; // D65 standard illuminant
-    cmsFloat64Number Yb = 20.0; // Luminance of background
-    cmsFloat64Number La = 318.31; // Adapting field luminance
-    cmsFloat64Number surround = 2.0; // Surround condition
-
-    viewingConditions.whitePoint = whitePoint;
-    viewingConditions.Yb = Yb;
-    viewingConditions.La = La;
-    viewingConditions.surround = surround;
-    viewingConditions.D_value = 1.0; // Degree of adaptation
+    // Ensure stageCount is a valid number
+    stageCount = (size > 0) ? data[0] : 1; // Use the first byte of data for stageCount
 
     // Call the function-under-test
-    cmsHANDLE handle = cmsCIECAM02Init(context, &viewingConditions);
+    cmsBool result = cmsPipelineCheckAndRetreiveStages(pipeline, stageCount, dummyPointer);
 
     // Clean up
-    if (handle != NULL) {
-        cmsCIECAM02Done(handle);
-    }
-    cmsDeleteContext(context);
+    cmsPipelineFree(pipeline);
+    cmsDeleteContext(contextID);
 
     return 0;
 }

@@ -1,34 +1,31 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <lcms2.h>
+#include <string.h>
+#include <lcms2_plugin.h>
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHPROFILE handle;
-    cmsCIELab cielab;
-
-    // Ensure the data size is sufficient to populate cmsCIELab
-    if (size < sizeof(cmsCIELab)) {
-        return 0;
-    }
-
-    // Initialize cmsCIELab with data
-    const float *floatData = (const float *)data;
-    cielab.L = floatData[0];
-    cielab.a = floatData[1];
-    cielab.b = floatData[2];
-
-    // Initialize the handle, assuming a valid handle is required
-    handle = cmsOpenProfileFromMem(data, size);
+    // Initialize cmsHANDLE
+    cmsHANDLE handle = cmsIT8Alloc(NULL);
     if (handle == NULL) {
         return 0;
     }
 
+    // Ensure the data is null-terminated and non-empty
+    char *format = (char *)malloc(size + 1);
+    if (format == NULL) {
+        cmsIT8Free(handle);
+        return 0;
+    }
+
+    memcpy(format, data, size);
+    format[size] = '\0'; // Null-terminate the string
+
     // Call the function-under-test
-    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
+    cmsIT8DefineDblFormat(handle, format);
 
     // Clean up
-    cmsCloseProfile(handle);
+    free(format);
+    cmsIT8Free(handle);
 
     return 0;
 }

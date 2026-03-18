@@ -1,27 +1,23 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>  // Include this for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_161(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile = NULL;
-    cmsUInt32Number renderingIntent;
-
-    // Check if the size is sufficient for creating a profile
-    if (size < sizeof(cmsHPROFILE)) {
+    // Check if the input size is sufficient to fill cmsCIELCh structure
+    if (size < sizeof(cmsCIELCh)) {
         return 0;
     }
 
-    // Create a profile from the input data
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
-        return 0;
-    }
+    // Initialize cmsCIELCh structure from input data
+    cmsCIELCh lch;
+    memcpy(&lch, data, sizeof(cmsCIELCh));
 
-    // Call the function-under-test
-    renderingIntent = cmsGetHeaderRenderingIntent(hProfile);
+    // Initialize cmsCIELab structure to store the result
+    cmsCIELab lab;
 
-    // Close the profile
-    cmsCloseProfile(hProfile);
+    // Call the function under test
+    cmsLCh2Lab(&lab, &lch);
 
     return 0;
 }

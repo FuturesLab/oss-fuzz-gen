@@ -1,47 +1,35 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdlib.h>  // Include for malloc and free
+#include <string.h>  // Include for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_163(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    char *propertyName;
-    char *propertyValue;
-    cmsBool result;
-
-    // Ensure the input size is sufficient for splitting into at least two non-empty strings
-    if (size < 2) return 0;
-
-    // Allocate memory for propertyName and propertyValue
-    propertyName = (char *)malloc(size / 2 + 1);
-    propertyValue = (char *)malloc(size / 2 + 1);
-
-    if (propertyName == NULL || propertyValue == NULL) {
-        free(propertyName);
-        free(propertyValue);
+    // Ensure the data is null-terminated and non-empty
+    if (size == 0) {
         return 0;
     }
 
-    // Split the input data into two strings for propertyName and propertyValue
-    memcpy(propertyName, data, size / 2);
-    propertyName[size / 2] = '\0';
-    memcpy(propertyValue, data + size / 2, size / 2);
-    propertyValue[size / 2] = '\0';
-
-    // Create a dummy handle for testing
-    handle = cmsIT8Alloc(NULL);
-
-    if (handle != NULL) {
-        // Call the function-under-test
-        result = cmsIT8SetPropertyUncooked(handle, propertyName, propertyValue);
-
-        // Free the handle after use
-        cmsIT8Free(handle);
+    // Allocate memory for the file path and ensure it's null-terminated
+    char *filePath = (char *)malloc(size + 1);
+    if (filePath == NULL) {
+        return 0;
     }
 
-    // Free allocated memory
-    free(propertyName);
-    free(propertyValue);
+    // Copy data to filePath and null-terminate it
+    memcpy(filePath, data, size);
+    filePath[size] = '\0';
+
+    // Call the function-under-test
+    cmsHPROFILE profile = cmsCreateDeviceLinkFromCubeFile(filePath);
+
+    // Clean up
+    free(filePath);
+
+    // If a profile was created, close it
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
 
     return 0;
 }

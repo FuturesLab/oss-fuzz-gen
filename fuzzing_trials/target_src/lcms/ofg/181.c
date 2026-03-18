@@ -3,25 +3,22 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_181(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsFloat64Number result;
-
-    // Ensure the data is large enough to be a valid profile
-    if (size < 128) {
+    // Ensure that size is sufficient to create a cmsToneCurve
+    if (size < sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Create a memory-based profile from the input data
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
+    // Allocate memory for tone curve
+    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurve16(NULL, size / sizeof(cmsFloat32Number), (const cmsUInt16Number *)data);
+    if (toneCurve == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    result = cmsDetectTAC(hProfile);
+    cmsBool result = cmsIsToneCurveMultisegment(toneCurve);
 
-    // Close the profile
-    cmsCloseProfile(hProfile);
+    // Clean up
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }

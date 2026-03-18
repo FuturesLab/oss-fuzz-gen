@@ -1,35 +1,30 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_228(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsFloat32Number Input[3] = {0.0f, 0.0f, 0.0f};
-    cmsFloat32Number Target[3] = {0.0f, 0.0f, 0.0f};
-    cmsFloat32Number Result[3] = {0.0f, 0.0f, 0.0f};
+    // Initialize variables for the function parameters
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsColorSpaceSignature colorSpace;
+    cmsFloat64Number limit;
 
-    // Ensure there is enough data to populate Input and Target arrays
-    if (size < 6 * sizeof(cmsFloat32Number)) {
+    // Ensure size is large enough to extract necessary data
+    if (size < sizeof(cmsColorSpaceSignature) + sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Populate Input and Target arrays from the data
-    for (int i = 0; i < 3; i++) {
-        Input[i] = ((cmsFloat32Number *)data)[i];
-        Target[i] = ((cmsFloat32Number *)data)[i + 3];
-    }
-
-    // Create a dummy cmsPipeline object
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
-    if (pipeline == NULL) {
-        return 0;
-    }
+    // Extract colorSpace and limit from the input data
+    colorSpace = *(cmsColorSpaceSignature*)data;
+    limit = *(cmsFloat64Number*)(data + sizeof(cmsColorSpaceSignature));
 
     // Call the function-under-test
-    cmsBool result = cmsPipelineEvalReverseFloat(Input, Target, Result, pipeline);
+    cmsHPROFILE profile = cmsCreateInkLimitingDeviceLinkTHR(context, colorSpace, limit);
 
     // Clean up
-    cmsPipelineFree(pipeline);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
+    cmsDeleteContext(context);
 
     return 0;
 }

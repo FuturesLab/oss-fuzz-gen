@@ -1,75 +1,60 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsBuildTabulatedToneCurve16 at cmsgamma.c:783:25 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsIsToneCurveDescending at cmsgamma.c:1393:20 in lcms2.h
-// cmsIsToneCurveMultisegment at cmsgamma.c:1402:20 in lcms2.h
-// cmsGetToneCurveParametricType at cmsgamma.c:1409:27 in lcms2.h
-// cmsIsToneCurveMonotonic at cmsgamma.c:1347:20 in lcms2.h
-// cmsGetToneCurveSegment at cmsgamma.c:1507:34 in lcms2.h
-// cmsIsToneCurveLinear at cmsgamma.c:1329:19 in lcms2.h
+// cmsOpenProfileFromMem at cmsio0.c:1296:23 in lcms2.h
+// cmsSetHeaderProfileID at cmsio0.c:1057:16 in lcms2.h
+// cmsGetHeaderProfileID at cmsio0.c:1051:16 in lcms2.h
+// cmsGetTagCount at cmsio0.c:581:26 in lcms2.h
+// cmsGetTagSignature at cmsio0.c:590:27 in lcms2.h
+// cmsReadRawTag at cmsio0.c:1913:27 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "lcms2.h"
+#include <stdio.h>
+#include <lcms2.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-static cmsToneCurve* CreateToneCurveFromData(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number) * 2) {
-        return NULL;
-    }
+#define DUMMY_FILE "./dummy_file"
 
-    cmsUInt32Number nEntries = *(cmsUInt32Number*)Data;
-    Data += sizeof(cmsUInt32Number);
-    Size -= sizeof(cmsUInt32Number);
-
-    if (Size < nEntries * sizeof(cmsUInt16Number)) {
-        return NULL;
-    }
-
-    cmsUInt16Number* Table16 = (cmsUInt16Number*)malloc(nEntries * sizeof(cmsUInt16Number));
-    if (!Table16) {
-        return NULL;
-    }
-    
-    memcpy(Table16, Data, nEntries * sizeof(cmsUInt16Number));
-
-    cmsToneCurve* curve = cmsBuildTabulatedToneCurve16(NULL, nEntries, Table16);
-    free(Table16);
-
-    return curve;
-}
-
-static void FreeToneCurve(cmsToneCurve* curve) {
-    if (curve) {
-        cmsFreeToneCurve(curve);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *Data, size_t Size) {
-    cmsToneCurve* curve = CreateToneCurveFromData(Data, Size);
-    if (!curve) {
-        return 0;
+    if (Size < 16) return 0; // Not enough data for a Profile ID
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(Data, (cmsUInt32Number)Size);
+    if (!hProfile) return 0;
+
+    cmsUInt8Number ProfileID[16];
+    memcpy(ProfileID, Data, 16);
+
+    cmsSetHeaderProfileID(hProfile, ProfileID);
+
+    cmsUInt8Number RetrievedProfileID[16];
+    cmsGetHeaderProfileID(hProfile, RetrievedProfileID);
+
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    for (cmsUInt32Number i = 0; i < (cmsUInt32Number)tagCount; i++) {
+        cmsTagSignature sig = cmsGetTagSignature(hProfile, i);
+        if (sig) {
+            cmsUInt32Number bufferSize = 1024; // Arbitrary buffer size
+            void *buffer = malloc(bufferSize);
+            if (buffer) {
+                cmsUInt32Number bytesRead = cmsReadRawTag(hProfile, sig, buffer, bufferSize);
+                (void)bytesRead; // Suppress unused variable warning
+                free(buffer);
+            }
+        }
     }
 
-    // Test cmsIsToneCurveDescending
-    cmsBool isDescending = cmsIsToneCurveDescending(curve);
+    cmsCloseProfile(hProfile);
 
-    // Test cmsIsToneCurveMultisegment
-    cmsBool isMultisegment = cmsIsToneCurveMultisegment(curve);
-
-    // Test cmsGetToneCurveParametricType
-    cmsInt32Number parametricType = cmsGetToneCurveParametricType(curve);
-
-    // Test cmsIsToneCurveMonotonic
-    cmsBool isMonotonic = cmsIsToneCurveMonotonic(curve);
-
-    // Test cmsGetToneCurveSegment
-    cmsInt32Number segmentIndex = 0; // Always test the first segment
-    const cmsCurveSegment* segment = cmsGetToneCurveSegment(segmentIndex, curve);
-
-    // Test cmsIsToneCurveLinear
-    cmsBool isLinear = cmsIsToneCurveLinear(curve);
-
-    FreeToneCurve(curve);
     return 0;
 }

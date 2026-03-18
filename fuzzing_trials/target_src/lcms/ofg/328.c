@@ -1,23 +1,21 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_328(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile = NULL;
-    cmsUInt32Number version;
+    cmsHPROFILE hProfile;
+    cmsUInt32Number dwFlags;
+    cmsBool bInput;
 
-    // Create a profile from the input data if possible
-    if (size > 0) {
-        hProfile = cmsOpenProfileFromMem(data, size);
-    }
+    // Initialize variables with non-null values
+    hProfile = cmsOpenProfileFromMem(data, size);
+    dwFlags = size > 0 ? data[0] : 0;  // Use first byte of data as flags if available
+    bInput = (size > 1) ? (data[1] % 2 == 0) : 1;  // Use second byte of data to determine boolean value
 
-    // If profile creation is successful, call the function
     if (hProfile != NULL) {
-        version = cmsGetEncodedICCversion(hProfile);
-        // Use the version in some way to avoid compiler optimizations
-        (void)version;
+        // Call the function-under-test
+        cmsUInt32Number result = cmsFormatterForPCSOfProfile(hProfile, dwFlags, bInput);
 
-        // Close the profile after use
+        // Close the profile to avoid memory leaks
         cmsCloseProfile(hProfile);
     }
 

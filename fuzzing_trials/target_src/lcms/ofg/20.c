@@ -1,24 +1,32 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <lcms2.h> // Include the Little CMS library header for cmsXYZ2xyY function
+#include <string.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for the cmsCIEXYZ structure
-    if (size < sizeof(cmsCIEXYZ)) {
+    cmsHANDLE handle;
+    char propertyName[256];
+
+    // Initialize the handle with a valid cmsHANDLE object
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Create and initialize the cmsCIEXYZ structure from the input data
-    cmsCIEXYZ xyz;
-    xyz.X = ((double*)data)[0];
-    xyz.Y = ((double*)data)[1];
-    xyz.Z = ((double*)data)[2];
-
-    // Create the cmsCIExyY structure to store the result
-    cmsCIExyY xyY;
+    // Ensure the propertyName is null-terminated and non-empty
+    if (size > 0) {
+        size_t copySize = size < sizeof(propertyName) - 1 ? size : sizeof(propertyName) - 1;
+        memcpy(propertyName, data, copySize);
+        propertyName[copySize] = '\0';
+    } else {
+        strcpy(propertyName, "DefaultPropertyName");
+    }
 
     // Call the function-under-test
-    cmsXYZ2xyY(&xyY, &xyz);
+    cmsFloat64Number result = cmsIT8GetPropertyDbl(handle, propertyName);
+
+    // Free the allocated handle
+    cmsIT8Free(handle);
 
     return 0;
 }

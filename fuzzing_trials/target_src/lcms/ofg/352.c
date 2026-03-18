@@ -1,30 +1,31 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_352(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsUInt32Number nGridPoints = 2; // A small number for simplicity
-    cmsUInt32Number inputChannels = 3; // Typical for RGB
-    cmsUInt32Number outputChannels = 3; // Typical for RGB
+    cmsHANDLE handle;
+    cmsUInt32Number tableIndex;
 
-    // Ensure the size is sufficient for the LUT data
-    if (size < nGridPoints * inputChannels * outputChannels * sizeof(cmsFloat32Number)) {
-        cmsDeleteContext(context);
+    // Ensure the data size is sufficient for our needs
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Cast the input data to cmsFloat32Number array
-    const cmsFloat32Number *lutTable = (const cmsFloat32Number *)data;
+    // Initialize handle using cmsIT8Alloc, assuming a valid context
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
+        return 0;
+    }
+
+    // Extract tableIndex from the input data
+    tableIndex = *(cmsUInt32Number *)data;
 
     // Call the function under test
-    cmsStage *stage = cmsStageAllocCLutFloat(context, nGridPoints, inputChannels, outputChannels, lutTable);
+    cmsInt32Number result = cmsIT8SetTable(handle, tableIndex);
 
     // Clean up
-    if (stage != NULL) {
-        cmsStageFree(stage);
-    }
-    cmsDeleteContext(context);
+    cmsIT8Free(handle);
 
     return 0;
 }

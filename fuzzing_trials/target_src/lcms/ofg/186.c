@@ -4,32 +4,27 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_186(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsCIELab) * 2 + sizeof(cmsFloat64Number) * 3) {
+    cmsHANDLE handle;
+    const char *varName = "SampleVar";
+    const char *subscript = "SampleSub";
+    cmsFloat64Number value = 123.456;
+
+    // Initialize a dummy handle for testing purposes
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Initialize the cmsCIELab structures
-    cmsCIELab Lab1, Lab2;
-    cmsFloat64Number kL, kC, kH;
+    // Ensure the data is not NULL, and use it to modify the value
+    if (size >= sizeof(cmsFloat64Number)) {
+        memcpy(&value, data, sizeof(cmsFloat64Number));
+    }
 
-    // Copy data into the cmsCIELab structures and cmsFloat64Number variables
-    size_t offset = 0;
-    memcpy(&Lab1, data + offset, sizeof(cmsCIELab));
-    offset += sizeof(cmsCIELab);
-    memcpy(&Lab2, data + offset, sizeof(cmsCIELab));
-    offset += sizeof(cmsCIELab);
-    memcpy(&kL, data + offset, sizeof(cmsFloat64Number));
-    offset += sizeof(cmsFloat64Number);
-    memcpy(&kC, data + offset, sizeof(cmsFloat64Number));
-    offset += sizeof(cmsFloat64Number);
-    memcpy(&kH, data + offset, sizeof(cmsFloat64Number));
+    // Call the function-under-test
+    cmsBool result = cmsIT8SetDataDbl(handle, varName, subscript, value);
 
-    // Call the function under test
-    cmsFloat64Number deltaE = cmsCIE2000DeltaE(&Lab1, &Lab2, kL, kC, kH);
-
-    // Use deltaE to avoid compiler optimizations
-    volatile cmsFloat64Number avoid_optimization = deltaE;
-    (void)avoid_optimization;
+    // Clean up
+    cmsIT8Free(handle);
 
     return 0;
 }

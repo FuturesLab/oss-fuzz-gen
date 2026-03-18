@@ -1,40 +1,53 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_454(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    void *memoryBuffer;
-    cmsUInt32Number bufferSize;
-    cmsBool result;
+    // Initialize variables for the function parameters
+    cmsCIExyY whitePoint;
+    cmsCIExyYTRIPLE primaries;
+    cmsToneCurve *toneCurves[3];
 
-    // Initialize the handle with a non-NULL value
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Ensure data is large enough to initialize the parameters
+    if (size < sizeof(cmsCIExyY) + sizeof(cmsCIExyYTRIPLE) + 3 * sizeof(double)) {
         return 0;
     }
 
-    // Allocate memory for the buffer, ensuring it's not NULL
-    memoryBuffer = malloc(size);
-    if (memoryBuffer == NULL) {
-        cmsIT8Free(handle);
-        return 0;
+    // Initialize whitePoint from data
+    whitePoint.x = ((double *)data)[0];
+    whitePoint.y = ((double *)data)[1];
+    whitePoint.Y = ((double *)data)[2];
+    data += sizeof(cmsCIExyY);
+
+    // Initialize primaries from data
+    primaries.Red.x = ((double *)data)[0];
+    primaries.Red.y = ((double *)data)[1];
+    primaries.Red.Y = ((double *)data)[2];
+    primaries.Green.x = ((double *)data)[3];
+    primaries.Green.y = ((double *)data)[4];
+    primaries.Green.Y = ((double *)data)[5];
+    primaries.Blue.x = ((double *)data)[6];
+    primaries.Blue.y = ((double *)data)[7];
+    primaries.Blue.Y = ((double *)data)[8];
+    data += sizeof(cmsCIExyYTRIPLE);
+
+    // Initialize toneCurves with valid pointers
+    for (int i = 0; i < 3; i++) {
+        toneCurves[i] = cmsBuildGamma(NULL, 2.2);  // Example gamma value
     }
-
-    // Copy data into the allocated memory buffer
-    memcpy(memoryBuffer, data, size);
-
-    // Initialize bufferSize with a non-NULL value
-    bufferSize = (cmsUInt32Number)size;
 
     // Call the function-under-test
-    result = cmsIT8SaveToMem(handle, memoryBuffer, &bufferSize);
+    cmsHPROFILE profile = cmsCreateRGBProfile(&whitePoint, &primaries, toneCurves);
 
     // Clean up
-    free(memoryBuffer);
-    cmsIT8Free(handle);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
+    for (int i = 0; i < 3; i++) {
+        if (toneCurves[i] != NULL) {
+            cmsFreeToneCurve(toneCurves[i]);
+        }
+    }
 
     return 0;
 }

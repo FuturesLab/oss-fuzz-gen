@@ -1,24 +1,26 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
+// Fuzzing harness for cmsIT8SetDataDbl
 int LLVMFuzzerTestOneInput_185(const uint8_t *data, size_t size) {
-    // Initialize a cmsToneCurve object with some default values
-    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2);
-    
-    // Check if toneCurve is successfully created
-    if (toneCurve == NULL) {
+    // Initialize variables
+    cmsHANDLE handle = cmsIT8Alloc(NULL);
+    const char *varName = "SampleVariable";
+    const char *subVarName = "SampleSubVariable";
+    cmsFloat64Number value = 1.23;
+
+    // Ensure the handle is not NULL
+    if (handle == NULL) {
         return 0;
     }
 
-    // Fuzz the function cmsGetToneCurveEstimatedTable
-    const cmsUInt16Number *estimatedTable = cmsGetToneCurveEstimatedTable(toneCurve);
+    // Call the function-under-test
+    cmsBool result = cmsIT8SetDataDbl(handle, varName, subVarName, value);
 
-    // Perform any necessary operations with estimatedTable
-    // For fuzzing purposes, we can ignore the return value
-
-    // Free the allocated resources
-    cmsFreeToneCurve(toneCurve);
+    // Clean up
+    cmsIT8Free(handle);
 
     return 0;
 }

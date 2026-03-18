@@ -1,70 +1,102 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsIT8EnumPropertyMulti at cmscgats.c:2700:27 in lcms2.h
-// cmsIT8SetPropertyHex at cmscgats.c:1553:19 in lcms2.h
-// cmsIT8EnumProperties at cmscgats.c:2665:27 in lcms2.h
-// cmsIT8SaveToMem at cmscgats.c:2047:19 in lcms2.h
-// cmsIT8SaveToMem at cmscgats.c:2047:19 in lcms2.h
-// cmsIT8SetTable at cmscgats.c:1427:26 in lcms2.h
-// cmsIT8TableCount at cmscgats.c:2981:27 in lcms2.h
+// cmsOpenProfileFromMem at cmsio0.c:1296:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsGetPostScriptColorResource at cmsps2.c:1525:27 in lcms2.h
+// cmsSaveProfileToIOhandler at cmsio0.c:1447:27 in lcms2.h
+// cmsIsCLUT at cmsio1.c:830:20 in lcms2.h
+// cmsGetEncodedICCversion at cmsio0.c:1106:27 in lcms2.h
+// cmsGetHeaderFlags at cmsio0.c:997:27 in lcms2.h
+// cmsGetHeaderModel at cmsio0.c:1027:27 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include "lcms2.h"
+#include <lcms2.h>
 
-static cmsHANDLE create_dummy_it8_handle() {
-    // This function would ideally create and return a valid cmsHANDLE to an IT8 object.
-    // For simplicity, we are returning NULL here. Replace this with actual initialization.
-    return NULL;
+#define DUMMY_FILE "./dummy_file"
+
+typedef struct {
+    void* stream;
+    cmsContext ContextID;
+    cmsUInt32Number UsedSpace;
+    cmsUInt32Number ReportedSize;
+    char PhysicalFile[cmsMAX_PATH];
+    cmsUInt32Number (* Read)(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count);
+    cmsBool (* Seek)(struct _cms_io_handler* iohandler, cmsUInt32Number offset);
+    cmsBool (* Close)(struct _cms_io_handler* iohandler);
+    cmsUInt32Number (* Tell)(struct _cms_io_handler* iohandler);
+    cmsBool (* Write)(struct _cms_io_handler* iohandler, cmsUInt32Number size, const void* Buffer);
+} DummyIOHANDLER;
+
+static DummyIOHANDLER* CreateDummyIOHandler() {
+    DummyIOHANDLER* io = (DummyIOHANDLER*)malloc(sizeof(DummyIOHANDLER));
+    if (!io) return NULL;
+
+    io->stream = fopen(DUMMY_FILE, "wb+");
+    if (!io->stream) {
+        free(io);
+        return NULL;
+    }
+
+    io->ContextID = NULL;
+    io->UsedSpace = 0;
+    io->ReportedSize = 0;
+    snprintf(io->PhysicalFile, sizeof(io->PhysicalFile), "%s", DUMMY_FILE);
+
+    io->Read = NULL;
+    io->Seek = NULL;
+    io->Close = NULL;
+    io->Tell = NULL;
+    io->Write = NULL;
+
+    return io;
 }
 
-static void cleanup_it8_handle(cmsHANDLE hIT8) {
-    // This function would release any resources associated with the IT8 handle.
-    // For simplicity, we are doing nothing here. Replace this with actual cleanup logic.
+static void DestroyDummyIOHandler(DummyIOHANDLER* io) {
+    if (io) {
+        if (io->stream) fclose((FILE*)io->stream);
+        free(io);
+    }
 }
 
 int LLVMFuzzerTestOneInput_157(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's at least some data
+    if (Size < sizeof(cmsUInt32Number) * 3) return 0;
 
-    cmsHANDLE hIT8 = create_dummy_it8_handle();
-    if (!hIT8) return 0;
+    cmsContext context = NULL;
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(Data, Size);
+    if (!hProfile) return 0;
 
-    const char *cProp = (const char *)Data;
-    cmsUInt32Number Val = Data[0]; // Using the first byte as a simple value example
+    cmsUInt32Number Intent = *(cmsUInt32Number*)(Data + 1);
+    cmsUInt32Number dwFlags = *(cmsUInt32Number*)(Data + 2);
 
-    // Fuzz cmsIT8EnumPropertyMulti
-    const char **SubpropertyNames = NULL;
-    cmsIT8EnumPropertyMulti(hIT8, cProp, &SubpropertyNames);
-    free(SubpropertyNames);
-
-    // Fuzz cmsIT8SetPropertyHex
-    cmsIT8SetPropertyHex(hIT8, cProp, Val);
-
-    // Fuzz cmsIT8EnumProperties
-    char **PropertyNames = NULL;
-    cmsIT8EnumProperties(hIT8, &PropertyNames);
-    free(PropertyNames);
-
-    // Fuzz cmsIT8SaveToMem
-    cmsUInt32Number BytesNeeded = 0;
-    cmsIT8SaveToMem(hIT8, NULL, &BytesNeeded);
-    void *MemPtr = malloc(BytesNeeded);
-    if (MemPtr) {
-        cmsIT8SaveToMem(hIT8, MemPtr, &BytesNeeded);
-        free(MemPtr);
+    DummyIOHANDLER* io = CreateDummyIOHandler();
+    if (!io) {
+        cmsCloseProfile(hProfile);
+        return 0;
     }
 
-    // Fuzz cmsIT8SetTable
-    cmsUInt32Number nTable = Data[0] % 10; // Using a simple modulo for index
-    cmsIT8SetTable(hIT8, nTable);
+    cmsPSResourceType Type = (cmsPSResourceType)(Data[0] % 2); // Simplified for fuzzing
 
-    // Fuzz cmsIT8TableCount
-    cmsIT8TableCount(hIT8);
+    // Fuzzing cmsGetPostScriptColorResource
+    cmsGetPostScriptColorResource(context, Type, hProfile, Intent, dwFlags, (cmsIOHANDLER*)io);
 
-    cleanup_it8_handle(hIT8);
+    // Fuzzing cmsSaveProfileToIOhandler
+    cmsSaveProfileToIOhandler(hProfile, (cmsIOHANDLER*)io);
+
+    // Fuzzing cmsIsCLUT
+    cmsIsCLUT(hProfile, Intent, dwFlags);
+
+    // Fuzzing cmsGetEncodedICCversion
+    cmsGetEncodedICCversion(hProfile);
+
+    // Fuzzing cmsGetHeaderFlags
+    cmsGetHeaderFlags(hProfile);
+
+    // Fuzzing cmsGetHeaderModel
+    cmsGetHeaderModel(hProfile);
+
+    DestroyDummyIOHandler(io);
+    cmsCloseProfile(hProfile);
     return 0;
 }

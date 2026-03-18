@@ -1,29 +1,32 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
-// Fuzzer entry point
 int LLVMFuzzerTestOneInput_397(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to create a cmsPipeline
-    if (size < sizeof(cmsUInt32Number) * 2) {
+    // Ensure there is enough data to initialize cmsCIExyY
+    if (size < 3) { // We need at least 3 bytes for cmsCIExyY initialization
         return 0;
     }
 
-    // Initialize variables
-    cmsUInt32Number inputChannels = *(const cmsUInt32Number *)data;
-    cmsUInt32Number outputChannels = *(const cmsUInt32Number *)(data + sizeof(cmsUInt32Number));
+    // Initialize cmsCIExyY
+    cmsCIExyY whitePoint;
+    whitePoint.x = (double)data[0] / 255.0; // Normalize to [0, 1]
+    whitePoint.y = (double)data[1] / 255.0; // Normalize to [0, 1]
+    whitePoint.Y = (double)data[2] / 255.0; // Normalize to [0, 1]
 
-    // Create a cmsPipeline object
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, inputChannels, outputChannels);
-    if (pipeline == NULL) {
-        return 0;
-    }
+    // Initialize cmsToneCurve
+    cmsToneCurve *grayToneCurve = cmsBuildGamma(NULL, 2.2); // Using a gamma value as an example
 
-    // Call the function-under-test
-    cmsUInt32Number result = cmsPipelineOutputChannels(pipeline);
+    // Call the function under test
+    cmsHPROFILE profile = cmsCreateGrayProfile(&whitePoint, grayToneCurve);
 
     // Clean up
-    cmsPipelineFree(pipeline);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
+    if (grayToneCurve != NULL) {
+        cmsFreeToneCurve(grayToneCurve);
+    }
 
     return 0;
 }

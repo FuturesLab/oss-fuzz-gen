@@ -3,27 +3,23 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_219(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    cmsContext context = (cmsContext)0x1; // Non-NULL context
-    cmsColorSpaceSignature colorSpace;
-    cmsFloat64Number limit;
+    // Declare and initialize variables
+    cmsUInt16Number encodedLab[3]; // Array to hold the encoded Lab values
+    cmsCIELab inputLab;
 
-    // Ensure size is sufficient to extract parameters
-    if (size < sizeof(cmsColorSpaceSignature) + sizeof(cmsFloat64Number)) {
+    // Ensure size is sufficient for initializing cmsCIELab structure
+    if (size < sizeof(cmsCIELab)) {
         return 0;
     }
 
-    // Extract parameters from data
-    colorSpace = *(cmsColorSpaceSignature *)data;
-    limit = *(cmsFloat64Number *)(data + sizeof(cmsColorSpaceSignature));
+    // Initialize cmsCIELab structure from data
+    const float *floatData = (const float *)data;
+    inputLab.L = floatData[0];
+    inputLab.a = floatData[1];
+    inputLab.b = floatData[2];
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateInkLimitingDeviceLinkTHR(context, colorSpace, limit);
-
-    // Clean up if necessary
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
+    cmsFloat2LabEncodedV2(encodedLab, &inputLab);
 
     return 0;
 }

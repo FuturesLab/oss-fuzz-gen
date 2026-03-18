@@ -1,41 +1,32 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsHPROFILE profile = NULL;
-    char *filename = NULL;
-
-    // Ensure size is large enough to create a valid string
-    if (size < 1) {
-        cmsDeleteContext(context);
+    // Ensure the input size is sufficient for null-terminated strings
+    if (size < 3) {
         return 0;
     }
 
-    // Allocate memory for the filename and ensure it's null-terminated
-    filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        cmsDeleteContext(context);
-        return 0;
-    }
+    // Allocate memory for the file name and mode strings
+    char filename[2];
+    char mode[2];
 
-    memcpy(filename, data, size);
-    filename[size] = '\0';
+    // Copy the first byte to filename and ensure null-termination
+    filename[0] = (char)data[0];
+    filename[1] = '\0';
+
+    // Copy the second byte to mode and ensure null-termination
+    mode[0] = (char)data[1];
+    mode[1] = '\0';
 
     // Call the function-under-test
-    profile = cmsCreateDeviceLinkFromCubeFileTHR(context, filename);
+    cmsHPROFILE profile = cmsOpenProfileFromFile(filename, mode);
 
-    // Clean up
+    // If a valid profile was returned, close it
     if (profile != NULL) {
         cmsCloseProfile(profile);
     }
-
-    free(filename);
-    cmsDeleteContext(context);
 
     return 0;
 }

@@ -1,31 +1,24 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    if (size < 24) {
-        return 0; // Ensure there's enough data for the CLUT table
+    // Ensure there is enough data for cmsCIELab and cmsUInt16Number
+    if (size < sizeof(cmsCIELab) + sizeof(cmsUInt16Number) * 3) {
+        return 0;
     }
-    
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsUInt32Number gridPoints[] = { 2, 2, 2 }; // Example grid points
-    cmsUInt32Number inputChannels = 3; // Example number of input channels
-    cmsUInt32Number outputChannels = 3; // Example number of output channels
-    cmsFloat32Number clutTable[8 * 3]; // Adjusted size for CLUT table
 
-    // Fill the CLUT table with data from the input
-    for (size_t i = 0; i < 8 * 3; i++) {
-        clutTable[i] = data[i % size] / 255.0f; // Normalize to 0.0f - 1.0f
-    }
+    // Initialize cmsCIELab structure
+    cmsCIELab lab;
+    lab.L = 0.0;
+    lab.a = 0.0;
+    lab.b = 0.0;
+
+    // Initialize cmsUInt16Number array
+    const cmsUInt16Number *encodedData = (const cmsUInt16Number *)(data);
 
     // Call the function-under-test
-    cmsStage *stage = cmsStageAllocCLutFloatGranular(context, gridPoints, inputChannels, outputChannels, clutTable);
-
-    // Clean up
-    if (stage != NULL) {
-        cmsStageFree(stage);
-    }
-    cmsDeleteContext(context);
+    cmsLabEncoded2FloatV2(&lab, encodedData);
 
     return 0;
 }

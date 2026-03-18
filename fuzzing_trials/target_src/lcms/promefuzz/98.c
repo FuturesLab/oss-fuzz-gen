@@ -1,50 +1,73 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsBuildTabulatedToneCurve16 at cmsgamma.c:783:25 in lcms2.h
-// cmsIsToneCurveDescending at cmsgamma.c:1393:20 in lcms2.h
-// cmsIsToneCurveMultisegment at cmsgamma.c:1402:20 in lcms2.h
-// cmsGetToneCurveParametricType at cmsgamma.c:1409:27 in lcms2.h
-// cmsIsToneCurveMonotonic at cmsgamma.c:1347:20 in lcms2.h
-// cmsIsToneCurveLinear at cmsgamma.c:1329:19 in lcms2.h
-// cmsGetToneCurveParametricType at cmsgamma.c:1409:27 in lcms2.h
-// cmsGetToneCurveSegment at cmsgamma.c:1507:34 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
+// cmsOpenProfileFromFile at cmsio0.c:1232:23 in lcms2.h
+// cmsOpenProfileFromFile at cmsio0.c:1232:23 in lcms2.h
+// cmsSetProfileVersion at cmsio0.c:1139:17 in lcms2.h
+// cmsGetProfileVersion at cmsio0.c:1148:28 in lcms2.h
+// cmsSetDeviceClass at cmsio0.c:1100:16 in lcms2.h
+// cmsGetDeviceClass at cmsio0.c:1094:36 in lcms2.h
+// cmsDetectRGBProfileGamma at cmsgmt.c:605:28 in lcms2.h
+// cmsDetectTAC at cmsgmt.c:462:28 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <lcms2.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include "lcms2.h"
 
-static cmsToneCurve* createToneCurveFromData(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number)) return NULL;
-
-    cmsUInt32Number nEntries = *(cmsUInt32Number*)Data;
-    if (nEntries == 0 || nEntries > (Size - sizeof(cmsUInt32Number)) / sizeof(cmsUInt16Number)) return NULL;
-
-    cmsUInt16Number* table = (cmsUInt16Number*)malloc(nEntries * sizeof(cmsUInt16Number));
-    if (!table) return NULL;
-
-    memcpy(table, Data + sizeof(cmsUInt32Number), nEntries * sizeof(cmsUInt16Number));
-
-    cmsToneCurve* curve = cmsBuildTabulatedToneCurve16(NULL, nEntries, table);
-    free(table);
-    return curve;
+static cmsHPROFILE createDummyProfile() {
+    // Create a dummy ICC profile for testing
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file) {
+            // Write some dummy content to simulate an ICC profile
+            const char dummyContent[128] = {0};
+            fwrite(dummyContent, 1, sizeof(dummyContent), file);
+            fclose(file);
+            hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+        }
+    }
+    return hProfile;
 }
 
 int LLVMFuzzerTestOneInput_98(const uint8_t *Data, size_t Size) {
-    cmsToneCurve* toneCurve = createToneCurveFromData(Data, Size);
-    if (!toneCurve) return 0;
-
-    cmsBool isDescending = cmsIsToneCurveDescending(toneCurve);
-    cmsBool isMultisegment = cmsIsToneCurveMultisegment(toneCurve);
-    cmsInt32Number parametricType = cmsGetToneCurveParametricType(toneCurve);
-    cmsBool isMonotonic = cmsIsToneCurveMonotonic(toneCurve);
-    cmsBool isLinear = cmsIsToneCurveLinear(toneCurve);
-
-    cmsInt32Number nSegments = cmsGetToneCurveParametricType(toneCurve) == 0 ? 0 : 1;
-    for (cmsInt32Number i = 0; i < nSegments; i++) {
-        const cmsCurveSegment* segment = cmsGetToneCurveSegment(i, toneCurve);
+    if (Size < sizeof(cmsFloat64Number) + sizeof(cmsProfileClassSignature)) {
+        return 0;
     }
 
-    cmsFreeToneCurve(toneCurve);
+    cmsHPROFILE hProfile = createDummyProfile();
+    if (!hProfile) {
+        return 0;
+    }
+
+    cmsFloat64Number version = *(cmsFloat64Number *)Data;
+    cmsProfileClassSignature sig = *(cmsProfileClassSignature *)(Data + sizeof(cmsFloat64Number));
+    cmsFloat64Number threshold = *(cmsFloat64Number *)(Data + sizeof(cmsFloat64Number) + sizeof(cmsProfileClassSignature));
+
+    // Test cmsSetProfileVersion
+    cmsSetProfileVersion(hProfile, version);
+
+    // Test cmsGetProfileVersion
+    cmsFloat64Number retrievedVersion = cmsGetProfileVersion(hProfile);
+
+    // Test cmsSetDeviceClass
+    cmsSetDeviceClass(hProfile, sig);
+
+    // Test cmsGetDeviceClass
+    cmsProfileClassSignature retrievedSig = cmsGetDeviceClass(hProfile);
+
+    // Test cmsDetectRGBProfileGamma
+    cmsFloat64Number gamma = cmsDetectRGBProfileGamma(hProfile, threshold);
+
+    // Test cmsDetectTAC
+    cmsFloat64Number tac = cmsDetectTAC(hProfile);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
+
     return 0;
 }

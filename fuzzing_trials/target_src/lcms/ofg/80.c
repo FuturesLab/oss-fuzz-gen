@@ -1,24 +1,23 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables
-    cmsCIELab lab;
-    cmsUInt16Number encoded[3];
-
-    // Ensure size is sufficient for cmsUInt16Number array
-    if (size < sizeof(encoded)) {
-        return 0;
+    if (size < sizeof(cmsUInt16Number)) {
+        return 0; // Not enough data to extract a cmsUInt16Number
     }
 
-    // Copy data into encoded array, ensuring no overflow
-    for (size_t i = 0; i < 3; i++) {
-        encoded[i] = (cmsUInt16Number)((data[i * 2] << 8) | data[i * 2 + 1]);
-    }
+    // Initialize a cmsToneCurve object
+    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Using a gamma of 2.2 as an example
 
-    // Call the function under test
-    cmsLabEncoded2FloatV2(&lab, encoded);
+    // Extract a cmsUInt16Number from the input data
+    cmsUInt16Number inputNumber = *(const cmsUInt16Number *)data;
+
+    // Call the function-under-test
+    cmsUInt16Number result = cmsEvalToneCurve16(toneCurve, inputNumber);
+
+    // Clean up
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }
