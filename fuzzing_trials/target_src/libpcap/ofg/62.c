@@ -1,29 +1,46 @@
-#include <stdint.h>
 #include <pcap.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-extern int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
+int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
+    // Initialize variables
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_direction_t direction;
+    pcap_t *handle;
+    struct bpf_program fp;
+    char filter_exp[] = "tcp"; // Example filter expression
+    int result;
 
-    // Initialize pcap_handle with a non-NULL value
-    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (pcap_handle == NULL) {
-        return 0; // If pcap_open_dead fails, exit early
+    // Open a dummy pcap handle
+    handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (handle == NULL) {
+        return 0; // Failed to open a pcap handle
     }
 
-    // Use the data to determine the direction, ensuring it's a valid pcap_direction_t
-    if (size > 0) {
-        direction = (pcap_direction_t)(data[0] % 3); // 0, 1, or 2
-    } else {
-        direction = PCAP_D_INOUT; // Default direction if no data
+    // Ensure the data is null-terminated for safety
+    char *data_copy = (char *)malloc(size + 1);
+    if (data_copy == NULL) {
+        pcap_close(handle);
+        return 0;
+    }
+    memcpy(data_copy, data, size);
+    data_copy[size] = '\0';
+
+    // Compile the filter expression
+    if (pcap_compile(handle, &fp, data_copy, 0, PCAP_NETMASK_UNKNOWN) == -1) {
+        free(data_copy);
+        pcap_close(handle);
+        return 0; // Failed to compile the filter
     }
 
     // Call the function-under-test
-    int result = pcap_setdirection(pcap_handle, direction);
+    result = pcap_setfilter(handle, &fp);
 
-    // Cleanup
-    pcap_close(pcap_handle);
+    // Clean up
+    pcap_freecode(&fp);
+    pcap_close(handle);
+    free(data_copy);
 
     return 0;
 }

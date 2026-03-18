@@ -3,25 +3,41 @@
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    pcap_t *pcap_handle = NULL;
-    int *tstamp_types = NULL;
-    char errbuf[PCAP_ERRBUF_SIZE];
+    // Declare and initialize a pcap_if_t pointer
+    pcap_if_t *alldevs = NULL;
+    pcap_if_t *dev = NULL;
 
-    // Create a dummy pcap_t handle using pcap_open_dead
-    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (pcap_handle == NULL) {
+    // Allocate memory for a single pcap_if_t structure
+    dev = (pcap_if_t *)malloc(sizeof(pcap_if_t));
+    if (dev == NULL) {
         return 0;
     }
 
-    // Call the function-under-test
-    int result = pcap_list_tstamp_types(pcap_handle, &tstamp_types);
-
-    // Clean up
-    if (tstamp_types != NULL) {
-        pcap_free_tstamp_types(tstamp_types);
+    // Ensure that the name and description are not NULL
+    dev->name = (char *)malloc(10);
+    dev->description = (char *)malloc(20);
+    if (dev->name == NULL || dev->description == NULL) {
+        free(dev);
+        return 0;
     }
-    pcap_close(pcap_handle);
+
+    // Assign some non-NULL values to the name and description
+    snprintf(dev->name, 10, "eth0");
+    snprintf(dev->description, 20, "Ethernet Interface");
+
+    // Set the next pointer to NULL to indicate the end of the list
+    dev->next = NULL;
+
+    // Point alldevs to the allocated device
+    alldevs = dev;
+
+    // Call the function under test
+    pcap_freealldevs(alldevs);
+
+    // Free allocated memory
+    free(dev->name);
+    free(dev->description);
+    free(dev);
 
     return 0;
 }

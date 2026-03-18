@@ -1,71 +1,84 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_dead at pcap.c:4620:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_open_live at pcap.c:2813:1 in pcap.h
 // pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_setnonblock at pcap.c:3664:1 in pcap.h
+// pcap_fileno at pcap.c:3587:1 in pcap.h
+// pcap_compile at gencode.c:1186:1 in pcap.h
 // pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_dispatch at pcap.c:2957:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_stats at pcap.c:3913:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_setfilter at pcap.c:3872:1 in pcap.h
 // pcap_geterr at pcap.c:3614:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
 // pcap_freecode at gencode.c:1371:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Dummy handler to satisfy pcap_dispatch
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(struct bpf_program)) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
+    // Prepare error buffer
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
+
+    // Convert status to string
+    int status = Data[0];
+    const char *status_str = pcap_statustostr(status);
+
+    // Open live capture
+    pcap_t *handle = pcap_open_live(NULL, 65535, 1, 1000, errbuf);
     if (!handle) {
+        const char *err = pcap_geterr(handle);
+        (void)err; // Suppress unused variable warning
         return 0;
     }
 
+    // Get file descriptor
+    int fd = pcap_fileno(handle);
+    (void)fd; // Suppress unused variable warning
+
+    // Compile a BPF filter
     struct bpf_program fp;
-    memset(&fp, 0, sizeof(fp));
+    if (Size > 1) {
+        char filter_exp[Size];
+        memcpy(filter_exp, Data + 1, Size - 1);
+        filter_exp[Size - 1] = '\0'; // Null-terminate the filter expression
 
-    // Get error message
-    char *error = pcap_geterr(handle);
+        if (pcap_compile(handle, &fp, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == -1) {
+            const char *err = pcap_geterr(handle);
+            (void)err; // Suppress unused variable warning
+            pcap_close(handle);
+            return 0;
+        }
 
-    // Set non-blocking mode
-    int nonblock = 1;
-    int result = pcap_setnonblock(handle, nonblock, errbuf);
-    if (result == PCAP_ERROR) {
-        error = pcap_geterr(handle);
+        // Set the compiled filter
+        if (pcap_setfilter(handle, &fp) == -1) {
+            const char *err = pcap_geterr(handle);
+            (void)err; // Suppress unused variable warning
+            pcap_close(handle);
+            return 0;
+        }
+
+        // Free the compiled filter
+        pcap_freecode(&fp);
     }
-
-    // Dispatch packets
-    result = pcap_dispatch(handle, -1, dummy_packet_handler, NULL);
-    if (result == PCAP_ERROR) {
-        error = pcap_geterr(handle);
-    }
-
-    // Get statistics
-    struct pcap_stat stats;
-    result = pcap_stats(handle, &stats);
-    if (result == PCAP_ERROR) {
-        error = pcap_geterr(handle);
-    }
-
-    // Get error message again
-    error = pcap_geterr(handle);
 
     // Close the pcap handle
     pcap_close(handle);
-
-    // Free BPF program
-    pcap_freecode(&fp);
 
     return 0;
 }

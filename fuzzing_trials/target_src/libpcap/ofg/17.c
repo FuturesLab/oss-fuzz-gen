@@ -1,41 +1,40 @@
 #include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 
+// Define a simple callback function outside of LLVMFuzzerTestOneInput
 void packet_handler_17(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Example packet handler function
-    printf("Packet captured with length: %d\n", h->len);
+    // Do nothing, just a placeholder for the callback
 }
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
+    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    u_char *user_data = (u_char *)"fuzzing";
+    u_char *user_data;
+    int cnt = 10; // Number of packets to process, arbitrary non-negative value
 
-    // Create a pcap_t object using pcap_open_dead
-    handle = pcap_open_dead(DLT_RAW, 65535);
-    if (handle == NULL) {
+    // Initialize pcap_handle with a live capture or a saved file
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and max snaplen
+    if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Create a pcap_pkthdr for the data
-    struct pcap_pkthdr header;
-    header.caplen = size;
-    header.len = size;
-
-    // Use pcap_inject to simulate packet capture
-    if (pcap_inject(handle, data, size) == -1) {
-        pcap_close(handle);
+    // Allocate memory for user_data and copy data into it
+    user_data = (u_char *)malloc(size);
+    if (user_data == NULL) {
+        pcap_close(pcap_handle);
         return 0;
     }
+    memcpy(user_data, data, size);
 
     // Call the function-under-test
-    pcap_dispatch(handle, 1, packet_handler_17, user_data);
+    int result = pcap_dispatch(pcap_handle, cnt, packet_handler_17, user_data);
 
     // Clean up
-    pcap_close(handle);
+    free(user_data);
+    pcap_close(pcap_handle);
 
-    return 0;
+    // Return result to ensure the function's return value is used
+    return result;
 }

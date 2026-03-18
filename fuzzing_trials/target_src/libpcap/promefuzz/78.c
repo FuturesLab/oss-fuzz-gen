@@ -1,8 +1,9 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_dead at pcap.c:4620:1 in pcap.h
-// pcap_compile at gencode.c:1186:1 in pcap.h
-// pcap_setfilter at pcap.c:3872:1 in pcap.h
-// pcap_freecode at gencode.c:1371:1 in pcap.h
+// pcap_open_live at pcap.c:2813:1 in pcap.h
+// pcap_set_rfmon at pcap.c:2617:1 in pcap.h
+// pcap_set_timeout at pcap.c:2626:1 in pcap.h
+// pcap_setnonblock at pcap.c:3664:1 in pcap.h
+// pcap_set_snaplen at pcap.c:2599:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
@@ -10,55 +11,53 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
-#include <bpf.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
-static void write_dummy_file(const char *filename, const uint8_t *data, size_t size) {
-    FILE *file = fopen(filename, "wb");
-    if (file) {
-        fwrite(data, 1, size, file);
-        fclose(file);
+#define DUMMY_FILE "./dummy_file"
+#define ERRBUF_SIZE 256
+
+static pcap_t *create_dummy_pcap_handle(char *errbuf) {
+    // Attempt to open a live capture handle on a dummy device
+    pcap_t *handle = pcap_open_live("any", 65535, 1, 1000, errbuf);
+    if (!handle) {
+        fprintf(stderr, "Error opening pcap handle: %s\n", errbuf);
     }
+    return handle;
 }
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0;
+
+    char errbuf[ERRBUF_SIZE];
+    pcap_t *handle = create_dummy_pcap_handle(errbuf);
+    if (!handle) return 0;
+
+    // Fuzz pcap_set_rfmon
+    int rfmon_mode = Data[0] % 2; // 0 or 1
+    pcap_set_rfmon(handle, rfmon_mode);
+
+    // Fuzz pcap_set_timeout
+    if (Size > 1) {
+        int timeout = (int)Data[1];
+        pcap_set_timeout(handle, timeout);
     }
 
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap = pcap_open_dead(DLT_EN10MB, 65535);
-    if (!pcap) {
-        return 0;
+    // Fuzz pcap_setnonblock
+    if (Size > 2) {
+        int nonblock = Data[2] % 2; // 0 or 1
+        pcap_setnonblock(handle, nonblock, errbuf);
     }
 
-    struct bpf_program bpf_prog;
-    char filter_exp[256];
-    snprintf(filter_exp, sizeof(filter_exp), "tcp port %d", Data[0]);
-
-    int optimize = 1;
-    bpf_u_int32 netmask = 0xffffff00;
-
-    if (pcap_compile(pcap, &bpf_prog, filter_exp, optimize, netmask) == 0) {
-        int setfilter_result = pcap_setfilter(pcap, &bpf_prog);
-
-        if (setfilter_result == 0) {
-            bpf_dump(&bpf_prog, Data[0] % 3);
-
-            if (bpf_prog.bf_insns) {
-                bpf_validate(bpf_prog.bf_insns, bpf_prog.bf_len);
-                bpf_image(bpf_prog.bf_insns, bpf_prog.bf_len);
-            }
-        }
-        // Free the compiled BPF program to prevent memory leaks
-        pcap_freecode(&bpf_prog);
+    // Fuzz pcap_set_snaplen
+    if (Size > 3) {
+        int snaplen = (int)Data[3];
+        pcap_set_snaplen(handle, snaplen);
     }
 
-    pcap_close(pcap);
-
-    write_dummy_file("./dummy_file", Data, Size);
-
+    // Cleanup
+    pcap_close(handle);
     return 0;
 }

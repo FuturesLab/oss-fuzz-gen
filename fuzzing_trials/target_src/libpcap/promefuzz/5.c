@@ -1,108 +1,91 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_live at pcap.c:2813:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_open_dead at pcap.c:4620:1 in pcap.h
 // pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_lookupnet at pcap.c:1547:1 in pcap.h
-// pcap_compile at gencode.c:1186:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_setfilter at pcap.c:3872:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_breakloop at pcap.c:2996:1 in pcap.h
+// bpf_validate at bpf_filter.c:541:1 in bpf.h
 // pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_freecode at gencode.c:1371:1 in pcap.h
+// bpf_dump at bpf_dump.c:30:1 in bpf.h
+// pcap_next_ex at pcap.c:568:1 in pcap.h
+// pcap_geterr at pcap.c:3614:1 in pcap.h
+// pcap_offline_filter at pcap.c:4359:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <pcap.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pcap.h>
+#include <bpf.h>
 
-static pcap_t *initialize_pcap() {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_live("dummy", BUFSIZ, 1, 1000, errbuf);
-    if (!handle) {
-        fprintf(stderr, "pcap_open_live() failed: %s\n", errbuf);
+static void write_dummy_file(const uint8_t *data, size_t size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(data, 1, size, file);
+        fclose(file);
     }
-    return handle;
 }
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    pcap_t *handle = initialize_pcap();
-    if (!handle) return 0;
-
-    char errbuf[PCAP_ERRBUF_SIZE];
-    bpf_u_int32 net, mask;
-    struct bpf_program fp;
-    memset(&fp, 0, sizeof(fp));
-
-    // pcap_statustostr
-    const char *status_str = pcap_statustostr(Data[0]);
-    if (status_str) {
-        printf("Status: %s\n", status_str);
+    if (Size < sizeof(struct bpf_insn)) {
+        return 0;
     }
 
-    // pcap_geterr
-    char *error_str = pcap_geterr(handle);
-    if (error_str) {
-        printf("Error: %s\n", error_str);
+    // Prepare a dummy pcap_t handle
+    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!pcap_handle) {
+        return 0;
     }
 
-    // pcap_statustostr again
-    status_str = pcap_statustostr(Data[0]);
-    if (status_str) {
-        printf("Status: %s\n", status_str);
+    // Invoke pcap_geterr to get error message
+    char *err_msg = pcap_geterr(pcap_handle);
+    if (err_msg) {
+        printf("Error: %s\n", err_msg);
     }
 
-    // pcap_geterr again
-    error_str = pcap_geterr(handle);
-    if (error_str) {
-        printf("Error: %s\n", error_str);
+    // Prepare BPF instructions and validate them
+    struct bpf_insn *bpf_insns = (struct bpf_insn *)Data;
+    int insn_count = Size / sizeof(struct bpf_insn);
+    int is_valid = bpf_validate(bpf_insns, insn_count);
+    if (!is_valid) {
+        pcap_close(pcap_handle);
+        return 0;
     }
 
-    // pcap_lookupnet
-    if (pcap_lookupnet("dummy", &net, &mask, errbuf) == -1) {
-        fprintf(stderr, "pcap_lookupnet() failed: %s\n", errbuf);
+    // Prepare a BPF program
+    struct bpf_program bpf_prog;
+    bpf_prog.bf_len = insn_count;
+    bpf_prog.bf_insns = bpf_insns;
+
+    // Dump the BPF program
+    bpf_dump(&bpf_prog, 2);
+
+    // Prepare a dummy pcap_pkthdr and packet data
+    struct pcap_pkthdr pkthdr;
+    pkthdr.caplen = Size;
+    pkthdr.len = Size;
+    const u_char *packet_data = Data;
+
+    // Write dummy file for pcap_next_ex usage
+    write_dummy_file(Data, Size);
+
+    // Invoke pcap_next_ex
+    struct pcap_pkthdr *header;
+    const u_char *pkt_data;
+    int res = pcap_next_ex(pcap_handle, &header, &pkt_data);
+    if (res == PCAP_ERROR) {
+        err_msg = pcap_geterr(pcap_handle);
+        if (err_msg) {
+            printf("Error: %s\n", err_msg);
+        }
     }
 
-    // pcap_compile
-    if (pcap_compile(handle, &fp, (const char *)Data, 0, net) == -1) {
-        fprintf(stderr, "pcap_compile() failed: %s\n", pcap_geterr(handle));
-    }
+    // Invoke pcap_offline_filter
+    int match = pcap_offline_filter(&bpf_prog, &pkthdr, packet_data);
+    printf("Filter match: %d\n", match);
 
-    // pcap_geterr
-    error_str = pcap_geterr(handle);
-    if (error_str) {
-        printf("Error: %s\n", error_str);
-    }
-
-    // pcap_setfilter
-    if (pcap_setfilter(handle, &fp) == -1) {
-        fprintf(stderr, "pcap_setfilter() failed: %s\n", pcap_geterr(handle));
-    }
-
-    // pcap_geterr
-    error_str = pcap_geterr(handle);
-    if (error_str) {
-        printf("Error: %s\n", error_str);
-    }
-
-    // pcap_breakloop
-    pcap_breakloop(handle);
-
-    // pcap_close
-    pcap_close(handle);
-
-    // pcap_freecode
-    pcap_freecode(&fp);
-
+    // Clean up
+    pcap_close(pcap_handle);
     return 0;
 }

@@ -1,34 +1,31 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <pcap.h>
-#include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
+#include <pcap/pcap.h>
 
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    // Ensure that the data is large enough to contain a null-terminated string
-    if (size < 2) {
+    pcap_t *pcap_handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    // Open a dead pcap handle for testing
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Allocate memory for the file name and error buffer
-    char filename[256];
-    char errbuf[PCAP_ERRBUF_SIZE];
+    // Ensure that the data size is at least the size of an integer
+    if (size < sizeof(int)) {
+        pcap_close(pcap_handle);
+        return 0;
+    }
 
-    // Copy the data into the filename buffer and ensure it's null-terminated
-    size_t filename_size = size < sizeof(filename) ? size : sizeof(filename) - 1;
-    memcpy(filename, data, filename_size);
-    filename[filename_size] = '\0';
-
-    // Use a fixed precision value for testing
-    u_int precision = 0; // Could be any valid precision value
+    // Use the first bytes of data as the integer parameter
+    int immediate_mode = *((int*)data);
 
     // Call the function under test
-    pcap_t *pcap = pcap_open_offline_with_tstamp_precision(filename, precision, errbuf);
+    pcap_set_immediate_mode(pcap_handle, immediate_mode);
 
-    // If the function returns a non-NULL pointer, close the pcap
-    if (pcap != NULL) {
-        pcap_close(pcap);
-    }
+    // Clean up
+    pcap_close(pcap_handle);
 
     return 0;
 }

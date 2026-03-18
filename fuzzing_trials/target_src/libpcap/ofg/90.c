@@ -1,35 +1,21 @@
-#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <pcap.h>
 
-// Remove the extern "C" as it is not valid in C code
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
-    struct pcap_stat stats;
-    char errbuf[PCAP_ERRBUF_SIZE];
+    // Initialize variables
+    pcap_t *p = (pcap_t *)data;  // Casting data to pcap_t* for fuzzing
+    char errbuf[PCAP_ERRBUF_SIZE]; // Buffer to store error messages
 
-    // Ensure the errbuf is initialized
-    memset(errbuf, 0, PCAP_ERRBUF_SIZE);
-
-    // Create a fake pcap_t object using pcap_open_dead
-    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
-    if (pcap_handle == NULL) {
-        return 0;
+    // Ensure the errbuf is not NULL by initializing it with some data
+    for (size_t i = 0; i < sizeof(errbuf) - 1 && i < size; ++i) {
+        errbuf[i] = data[i];
     }
+    errbuf[sizeof(errbuf) - 1] = '\0'; // Null-terminate the buffer
 
-    // Use the input data and size to simulate a real scenario
-    // For example, we could process the data as a packet
-    // Here, we just ensure the function under test is called
-    if (size > 0) {
-        // Simulate processing of the input data
-        // This is a placeholder for actual operations
-        // that would be done on the data
-        int result = pcap_stats(pcap_handle, &stats);
-    }
+    // Call the function-under-test
+    int result = pcap_getnonblock(p, errbuf);
 
-    // Cleanup
-    pcap_close(pcap_handle);
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

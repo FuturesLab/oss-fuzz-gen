@@ -1,68 +1,134 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
+// pcap_close at pcap.c:4247:1 in pcap.h
 // pcap_findalldevs at pcap.c:672:1 in pcap.h
 // pcap_freealldevs at pcap.c:1414:1 in pcap.h
 // pcap_create at pcap.c:2306:1 in pcap.h
-// pcap_set_snaplen at pcap.c:2599:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_set_promisc at pcap.c:2608:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_set_rfmon at pcap.c:2617:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_setnonblock at pcap.c:3664:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_getnonblock at pcap.c:3620:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_activate at pcap.c:2759:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_getnonblock at pcap.c:3620:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_setnonblock at pcap.c:3664:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_getnonblock at pcap.c:3620:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_setnonblock at pcap.c:3664:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_getnonblock at pcap.c:3620:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_loop at pcap.c:2963:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_geterr at pcap.c:3614:1 in pcap.h
+// pcap_setnonblock at pcap.c:3664:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_setnonblock at pcap.c:3664:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
+#include <pcap.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pcap.h>
+
+static void packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+    // Dummy packet handler for pcap_loop
+}
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
-
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *alldevs;
-    pcap_t *handle;
-    int result;
+    pcap_if_t *alldevs = NULL;
+    pcap_t *handle = NULL;
+    int nonblock = 0;
 
     // Step 1: Find all devices
-    result = pcap_findalldevs(&alldevs, errbuf);
-    if (result == -1) {
-        fprintf(stderr, "pcap_findalldevs failed: %s\n", errbuf);
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
         return 0;
     }
 
     // Step 2: Free all devices
     pcap_freealldevs(alldevs);
 
-    // Step 3: Create a handle
-    char *device = (Size > 1 && Data[0] % 2 == 0) ? NULL : "any";
-    handle = pcap_create(device, errbuf);
+    // Step 3: Create a pcap handle
+    handle = pcap_create("any", errbuf);
     if (handle == NULL) {
-        fprintf(stderr, "pcap_create failed: %s\n", errbuf);
         return 0;
     }
 
-    // Step 4: Set snapshot length
-    result = pcap_set_snaplen(handle, Data[0]);
-    if (result != 0) {
-        printf("pcap_set_snaplen failed: %s\n", pcap_statustostr(result));
+    // Step 4: Set non-blocking mode
+    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
+        pcap_close(handle);
+        return 0;
     }
 
-    // Step 5: Set promiscuous mode
-    result = pcap_set_promisc(handle, Data[0] % 2);
-    printf("pcap_set_promisc result: %s\n", pcap_statustostr(result));
+    // Step 5: Get non-blocking mode
+    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR_NOT_ACTIVATED) {
+        pcap_close(handle);
+        return 0;
+    }
 
-    // Step 6: Set monitor mode
-    result = pcap_set_rfmon(handle, Data[0] % 2);
-    printf("pcap_set_rfmon result: %s\n", pcap_statustostr(result));
+    // Step 6: Activate the handle
+    if (pcap_activate(handle) != 0) {
+        pcap_close(handle);
+        return 0;
+    }
 
-    // Cleanup: Close the pcap handle
+    // Step 7: Get non-blocking mode
+    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR) {
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Step 8: Set non-blocking mode
+    if (pcap_setnonblock(handle, 0, errbuf) != 0) {
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Step 9: Get non-blocking mode
+    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR) {
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Step 10: Set non-blocking mode
+    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Step 11: Get non-blocking mode
+    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR) {
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Step 12: Run pcap_loop
+    if (pcap_loop(handle, 1, packet_handler, NULL) == PCAP_ERROR) {
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Step 13: Get error message
+    char *error_msg = pcap_geterr(handle);
+
+    // Step 14: Set non-blocking mode
+    if (pcap_setnonblock(handle, 0, errbuf) != 0) {
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Step 15: Set non-blocking mode again
+    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Cleanup
     pcap_close(handle);
-
     return 0;
 }

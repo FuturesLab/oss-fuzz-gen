@@ -3,25 +3,28 @@
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Check if size is sufficient to access data[0]
-    if (size == 0) {
-        return 0;
-    }
+    pcap_t *pcap_handle;
+    pcap_direction_t direction;
+    char errbuf[PCAP_ERRBUF_SIZE];
 
-    // Initialize pcap_t structure
-    pcap_t *pcap_handle = pcap_open_dead(DLT_RAW, 65535);
+    // Initialize pcap handle (non-NULL value)
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
     if (pcap_handle == NULL) {
-        return 0;
+        return 0; // Exit if pcap_open_dead fails
     }
 
-    // Initialize pcap_direction_t
-    pcap_direction_t directions[] = {PCAP_D_INOUT, PCAP_D_IN, PCAP_D_OUT};
-    pcap_direction_t direction = directions[data[0] % 3]; // Choose a direction based on input data
+    // Ensure the data size is sufficient to extract a direction
+    if (size > 0) {
+        // Use the first byte of data to determine the direction
+        direction = (pcap_direction_t)(data[0] % 3);
+    } else {
+        direction = PCAP_D_INOUT; // Default direction
+    }
 
     // Call the function-under-test
     int result = pcap_setdirection(pcap_handle, direction);
 
-    // Cleanup
+    // Clean up
     pcap_close(pcap_handle);
 
     return 0;

@@ -3,22 +3,21 @@
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    int datalink_type;
-
-    // Ensure the input size is sufficient to extract an integer
+    // Ensure the input size is sufficient for an integer
     if (size < sizeof(int)) {
         return 0;
     }
 
-    // Copy the first few bytes of data to an integer
-    datalink_type = *(const int*)data;
+    // Extract an integer from the input data
+    int datalink_val = *(const int *)data;
 
     // Call the function-under-test
-    const char *result = pcap_datalink_val_to_name(datalink_type);
+    const char *name = pcap_datalink_val_to_name(datalink_val);
 
-    // Optionally, you can perform additional checks or operations on the result
-    if (result != NULL) {
-        // Do something with the result, if needed
+    // Use the result to prevent optimization out
+    if (name != NULL) {
+        // Do something with the name, e.g., print it
+        // printf("%s\n", name); // Uncomment if needed for debugging
     }
 
     return 0;

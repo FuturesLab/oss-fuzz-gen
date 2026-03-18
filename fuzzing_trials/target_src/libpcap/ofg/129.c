@@ -1,22 +1,23 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <pcap/pcap.h>
+#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size) {
+    // Ensure the size is sufficient for an integer
     if (size < sizeof(int)) {
-        return 0; // Not enough data to form an int
+        return 0;
     }
 
-    // Interpret the first 4 bytes of data as an int
+    // Extract an integer from the input data
     int tstamp_type = *(const int *)data;
 
     // Call the function-under-test
     const char *result = pcap_tstamp_type_val_to_name(tstamp_type);
 
-    // Do something with the result to avoid compiler optimizations
+    // Use the result in some way (e.g., check if it's not NULL)
     if (result != NULL) {
-        volatile char c = result[0];
-        (void)c;
+        // Do something with the result, like print it (commented out for fuzzing)
+        // printf("Timestamp type name: %s\n", result);
     }
 
     return 0;

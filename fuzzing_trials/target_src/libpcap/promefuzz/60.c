@@ -1,101 +1,85 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_create at pcap.c:2306:1 in pcap.h
+// pcap_open_dead at pcap.c:4620:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_ether_aton at nametoaddr.c:1157:1 in namedb.h
-// pcap_nametonetaddr at nametoaddr.c:220:1 in namedb.h
-// pcap_lookupnet at pcap.c:1547:1 in pcap.h
-// pcap_open_live at pcap.c:2813:1 in pcap.h
+// pcap_compile at gencode.c:1186:1 in pcap.h
+// bpf_validate at bpf_filter.c:541:1 in bpf.h
+// pcap_offline_filter at pcap.c:4359:1 in pcap.h
+// bpf_filter at bpf_filter.c:534:1 in bpf.h
+// pcap_compile_nopcap at gencode.c:1351:1 in pcap.h
+// pcap_freecode at gencode.c:1371:1 in pcap.h
+// pcap_freecode at gencode.c:1371:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_ether_hostton at nametoaddr.c:1214:1 in namedb.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <pcap.h>
-#include <namedb.h>
-#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+#include <pcap.h>
+#include <bpf.h>
 
-#define ERRBUF_SIZE PCAP_ERRBUF_SIZE
-
-static void fuzz_pcap_create(const uint8_t *Data, size_t Size) {
-    char errbuf[ERRBUF_SIZE];
-    char device[Size + 1];
-    memcpy(device, Data, Size);
-    device[Size] = '\0'; // Ensure null-terminated string
-
-    pcap_t *handle = pcap_create(device, errbuf);
-    if (handle != NULL) {
-        pcap_close(handle);
-    }
-}
-
-static void fuzz_pcap_ether_aton(const uint8_t *Data, size_t Size) {
-    char mac_str[Size + 1];
-    memcpy(mac_str, Data, Size);
-    mac_str[Size] = '\0'; // Ensure null-terminated string
-
-    u_char *mac_addr = pcap_ether_aton(mac_str);
-    if (mac_addr != NULL) {
-        free(mac_addr);
-    }
-}
-
-static void fuzz_pcap_nametonetaddr(const uint8_t *Data, size_t Size) {
-    char name[Size + 1];
-    memcpy(name, Data, Size);
-    name[Size] = '\0'; // Ensure null-terminated string
-
-    (void)pcap_nametonetaddr(name);
-}
-
-static void fuzz_pcap_lookupnet(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return; // Ensure there's at least one byte for device name
-
-    char device[Size + 1];
-    memcpy(device, Data, Size);
-    device[Size] = '\0'; // Ensure null-terminated string
-
-    bpf_u_int32 net, mask;
-    char errbuf[ERRBUF_SIZE];
-
-    (void)pcap_lookupnet(device, &net, &mask, errbuf);
-}
-
-static void fuzz_pcap_open_live(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return; // Ensure there's at least one byte for device name
-
-    char device[Size + 1];
-    memcpy(device, Data, Size);
-    device[Size] = '\0'; // Ensure null-terminated string
-
-    char errbuf[ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_live(device, 65535, 1, 1000, errbuf);
-    if (handle != NULL) {
-        pcap_close(handle);
-    }
-}
-
-static void fuzz_pcap_ether_hostton(const uint8_t *Data, size_t Size) {
-    char hostname[Size + 1];
-    memcpy(hostname, Data, Size);
-    hostname[Size] = '\0'; // Ensure null-terminated string
-
-    u_char *eth_addr = pcap_ether_hostton(hostname);
-    if (eth_addr != NULL) {
-        free(eth_addr);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *Data, size_t Size) {
-    fuzz_pcap_create(Data, Size);
-    fuzz_pcap_ether_aton(Data, Size);
-    fuzz_pcap_nametonetaddr(Data, Size);
-    fuzz_pcap_lookupnet(Data, Size);
-    fuzz_pcap_open_live(Data, Size);
-    fuzz_pcap_ether_hostton(Data, Size);
+    if (Size < 1) return 0;
+
+    // Prepare pcap_t using pcap_open_dead
+    pcap_t *pcap = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!pcap) return 0;
+
+    // Prepare bpf_program
+    struct bpf_program bpf;
+    memset(&bpf, 0, sizeof(bpf));
+
+    // Null-terminate Data for filter string
+    char *filter_exp = (char *)malloc(Size + 1);
+    if (!filter_exp) {
+        pcap_close(pcap);
+        return 0;
+    }
+    memcpy(filter_exp, Data, Size);
+    filter_exp[Size] = '\0';
+
+    // Compile filter
+    int compile_result = pcap_compile(pcap, &bpf, filter_exp, 0, PCAP_NETMASK_UNKNOWN);
+
+    // Validate BPF program
+    int valid = bpf_validate(bpf.bf_insns, bpf.bf_len);
+
+    // Prepare packet header and data
+    struct pcap_pkthdr header;
+    header.caplen = Size;
+    header.len = Size;
+    header.ts.tv_sec = 0;
+    header.ts.tv_usec = 0;
+
+    // Use pcap_offline_filter
+    int match = pcap_offline_filter(&bpf, &header, Data);
+
+    // Use bpf_filter
+    u_int result = bpf_filter(bpf.bf_insns, Data, header.len, header.caplen);
+
+    // Use pcap_compile_nopcap
+    struct bpf_program bpf_nopcap;
+    int compile_nopcap_result = pcap_compile_nopcap(65535, DLT_EN10MB, &bpf_nopcap, filter_exp, 0, PCAP_NETMASK_UNKNOWN);
+
+    // Cleanup
+    if (compile_result == 0) {
+        pcap_freecode(&bpf);
+    }
+    if (compile_nopcap_result == 0) {
+        pcap_freecode(&bpf_nopcap);
+    }
+    free(filter_exp);
+    pcap_close(pcap);
+
     return 0;
 }

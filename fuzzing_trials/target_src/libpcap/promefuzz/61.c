@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_create at pcap.c:2306:1 in pcap.h
-// pcap_set_protocol_linux at pcap-linux.c:6233:1 in pcap.h
-// pcap_set_rfmon at pcap.c:2617:1 in pcap.h
-// pcap_set_snaplen at pcap.c:2599:1 in pcap.h
-// pcap_set_buffer_size at pcap.c:2689:1 in pcap.h
-// pcap_set_immediate_mode at pcap.c:2680:1 in pcap.h
-// pcap_activate at pcap.c:2759:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_open_dead at pcap.c:4620:1 in pcap.h
+// pcap_list_datalinks at pcap.c:3018:1 in pcap.h
+// pcap_free_datalinks at pcap.c:3062:1 in pcap.h
+// pcap_set_datalink at pcap.c:3068:1 in pcap.h
+// pcap_compile_nopcap at gencode.c:1351:1 in pcap.h
+// pcap_setfilter at pcap.c:3872:1 in pcap.h
+// pcap_freecode at gencode.c:1371:1 in pcap.h
+// pcap_init at pcap.c:223:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
@@ -14,66 +14,63 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 
-#define DUMMY_FILE_PATH "./dummy_file"
+static pcap_t *initialize_pcap() {
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!handle) {
+        fprintf(stderr, "Failed to open dead pcap: %s\n", errbuf);
+    }
+    return handle;
+}
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
-    if (file != NULL) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static void test_pcap_list_datalinks(pcap_t *handle) {
+    int *dlt_buf;
+    int num_dlt = pcap_list_datalinks(handle, &dlt_buf);
+    if (num_dlt >= 0) {
+        pcap_free_datalinks(dlt_buf);
     }
 }
 
-int LLVMFuzzerTestOneInput_61(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) * 5) {
-        return 0; // Not enough data to proceed
-    }
+static void test_pcap_set_datalink(pcap_t *handle) {
+    int dlt = DLT_EN10MB; // Example DLT
+    pcap_set_datalink(handle, dlt);
+}
 
-    // Initialize pcap_t handle
+static void test_pcap_setfilter(pcap_t *handle) {
+    struct bpf_program fp;
+    const char filter_exp[] = "tcp";
+    bpf_u_int32 net = 0;
+    if (pcap_compile_nopcap(65535, DLT_EN10MB, &fp, filter_exp, 0, net) == 0) {
+        pcap_setfilter(handle, &fp);
+        pcap_freecode(&fp);
+    }
+}
+
+static void test_pcap_init() {
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_create(DUMMY_FILE_PATH, errbuf);
-    if (handle == NULL) {
-        return 0; // Failed to create handle
-    }
+    pcap_init(PCAP_CHAR_ENC_LOCAL, errbuf);
+}
 
-    // Extract integers from the input data
-    int protocol = *(int *)(Data);
-    int rfmon = *(int *)(Data + sizeof(int));
-    int snaplen = *(int *)(Data + 2 * sizeof(int));
-    int buffer_size = *(int *)(Data + 3 * sizeof(int));
-    int immediate_mode = *(int *)(Data + 4 * sizeof(int));
+int LLVMFuzzerTestOneInput_61(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
 
-    // Fuzz pcap_set_protocol_linux
-    pcap_set_protocol_linux(handle, protocol);
+    // Initialize pcap
+    pcap_t *handle = initialize_pcap();
+    if (!handle) return 0;
 
-    // Fuzz pcap_set_rfmon
-    pcap_set_rfmon(handle, rfmon);
+    // Test pcap functions
+    test_pcap_list_datalinks(handle);
+    test_pcap_set_datalink(handle);
+    test_pcap_setfilter(handle);
+    test_pcap_init();
 
-    // Fuzz pcap_set_snaplen
-    pcap_set_snaplen(handle, snaplen);
-
-    // Fuzz pcap_set_buffer_size
-    pcap_set_buffer_size(handle, buffer_size);
-
-    // Fuzz pcap_set_immediate_mode
-    pcap_set_immediate_mode(handle, immediate_mode);
-
-    // Attempt to activate the handle
-    int activate_result = pcap_activate(handle);
-
-    // Clean up
-    if (activate_result < 0) {
-        // Activation failed, handle needs to be closed
-        pcap_close(handle);
-    } else {
-        // Handle was successfully activated, proceed with other operations if needed
-        // Since this is a fuzz test, we close the handle after activation attempt
-        pcap_close(handle);
-    }
+    // Cleanup
+    pcap_close(handle);
 
     return 0;
 }

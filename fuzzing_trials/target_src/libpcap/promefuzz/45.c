@@ -1,94 +1,78 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_dead at pcap.c:4620:1 in pcap.h
+// pcap_create at pcap.c:2306:1 in pcap.h
 // pcap_activate at pcap.c:2759:1 in pcap.h
+// pcap_geterr at pcap.c:3614:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_major_version at pcap.c:3536:1 in pcap.h
-// pcap_snapshot at pcap.c:3520:1 in pcap.h
-// pcap_minor_version at pcap.c:3544:1 in pcap.h
-// pcap_datalink_ext at pcap.c:3010:1 in pcap.h
-// pcap_bufsize at pcap.c:3552:1 in pcap.h
-// pcap_is_swapped at pcap.c:3528:1 in pcap.h
+// pcap_getnonblock at pcap.c:3620:1 in pcap.h
+// pcap_perror at pcap.c:3608:1 in pcap.h
+// pcap_geterr at pcap.c:3614:1 in pcap.h
+// pcap_strerror at pcap.c:3786:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_lib_version at pcap-linux.c:6255:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-static pcap_t* initialize_pcap_handle() {
+static pcap_t *initialize_pcap_handle() {
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535); // Create a dummy handle
-    if (!handle) {
-        fprintf(stderr, "Failed to open dead pcap handle\n");
+    pcap_t *handle = pcap_create("lo", errbuf); // Using loopback interface for example
+    if (handle == NULL) {
+        fprintf(stderr, "pcap_create failed: %s\n", errbuf);
+        return NULL;
+    }
+    if (pcap_activate(handle) != 0) {
+        fprintf(stderr, "pcap_activate failed: %s\n", pcap_geterr(handle));
+        pcap_close(handle);
         return NULL;
     }
     return handle;
 }
 
-static void activate_pcap_handle(pcap_t *handle) {
-    // Use pcap_activate to simulate activation
-    if (handle) {
-        pcap_activate(handle);
-    }
-}
-
-static void cleanup_pcap_handle(pcap_t *handle) {
-    if (handle) {
-        pcap_close(handle);
-    }
-}
-
 int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
-
+    char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *handle = initialize_pcap_handle();
-    if (!handle) {
+    if (handle == NULL) {
         return 0;
     }
 
-    // Randomly decide to activate the handle or not
-    if (Data[0] % 2 == 0) {
-        activate_pcap_handle(handle);
+    // Fuzz pcap_getnonblock
+    int nonblock = pcap_getnonblock(handle, errbuf);
+    if (nonblock == PCAP_ERROR_NOT_ACTIVATED || nonblock == PCAP_ERROR) {
+        fprintf(stderr, "pcap_getnonblock error: %s\n", errbuf);
     }
 
-    // Test pcap_major_version
-    int major_version = pcap_major_version(handle);
-    if (major_version == PCAP_ERROR_NOT_ACTIVATED) {
-        // Handle error case
+    // Fuzz pcap_perror
+    pcap_perror(handle, "pcap_perror test");
+
+    // Fuzz pcap_geterr
+    char *error = pcap_geterr(handle);
+    if (error != NULL) {
+        fprintf(stderr, "pcap_geterr: %s\n", error);
     }
 
-    // Test pcap_snapshot
-    int snapshot = pcap_snapshot(handle);
-    if (snapshot == PCAP_ERROR_NOT_ACTIVATED) {
-        // Handle error case
+    // Fuzz pcap_strerror with some error codes
+    for (int i = -10; i < 10; ++i) {
+        const char *error_str = pcap_strerror(i);
+        fprintf(stderr, "pcap_strerror(%d): %s\n", i, error_str);
     }
 
-    // Test pcap_minor_version
-    int minor_version = pcap_minor_version(handle);
-    if (minor_version == PCAP_ERROR_NOT_ACTIVATED) {
-        // Handle error case
+    // Fuzz pcap_statustostr with some status codes
+    for (int i = -10; i < 10; ++i) {
+        const char *status_str = pcap_statustostr(i);
+        fprintf(stderr, "pcap_statustostr(%d): %s\n", i, status_str);
     }
 
-    // Test pcap_datalink_ext
-    int datalink_ext = pcap_datalink_ext(handle);
-    if (datalink_ext == PCAP_ERROR_NOT_ACTIVATED) {
-        // Handle error case
-    }
+    // Fuzz pcap_lib_version
+    const char *version = pcap_lib_version();
+    fprintf(stderr, "pcap_lib_version: %s\n", version);
 
-    // Test pcap_bufsize
-    int bufsize = pcap_bufsize(handle);
-    if (bufsize == PCAP_ERROR_NOT_ACTIVATED) {
-        // Handle error case
-    }
-
-    // Test pcap_is_swapped
-    int is_swapped = pcap_is_swapped(handle);
-    if (is_swapped == PCAP_ERROR_NOT_ACTIVATED) {
-        // Handle error case
-    }
-
-    cleanup_pcap_handle(handle);
+    pcap_close(handle);
     return 0;
 }

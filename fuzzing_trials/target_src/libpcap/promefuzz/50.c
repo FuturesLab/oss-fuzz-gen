@@ -1,68 +1,92 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_live at pcap.c:2813:1 in pcap.h
-// pcap_compile at gencode.c:1186:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_get_selectable_fd at pcap.c:3595:1 in pcap.h
-// pcap_fileno at pcap.c:3587:1 in pcap.h
+// bpf_validate at bpf_filter.c:541:1 in bpf.h
+// pcap_offline_filter at pcap.c:4359:1 in pcap.h
+// bpf_dump at bpf_dump.c:30:1 in bpf.h
+// bpf_dump at bpf_dump.c:30:1 in bpf.h
+// bpf_dump at bpf_dump.c:30:1 in bpf.h
+// bpf_dump at bpf_dump.c:30:1 in bpf.h
+// bpf_image at bpf_image.c:130:1 in bpf.h
+// pcap_open_dead at pcap.c:4620:1 in pcap.h
 // pcap_setfilter at pcap.c:3872:1 in pcap.h
-// pcap_inject at pcap.c:4225:1 in pcap.h
-// pcap_stats at pcap.c:3913:1 in pcap.h
-// pcap_datalink at pcap.c:3002:1 in pcap.h
-// pcap_freecode at gencode.c:1371:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_freecode at gencode.c:1371:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
+#include <bpf.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static pcap_t *initialize_pcap_handle() {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_live("any", BUFSIZ, 1, 1000, errbuf);
-    if (handle == NULL) {
-        fprintf(stderr, "Could not open device: %s\n", errbuf);
-        return NULL;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    return handle;
-}
-
-static struct bpf_program compile_filter(pcap_t *handle, const char *filter_exp) {
-    struct bpf_program fp;
-    if (pcap_compile(handle, &fp, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == -1) {
-        fprintf(stderr, "Could not parse filter %s: %s\n", filter_exp, pcap_geterr(handle));
-    }
-    return fp;
 }
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(struct bpf_insn)) {
+        return 0;
+    }
 
-    pcap_t *handle = initialize_pcap_handle();
-    if (!handle) return 0;
+    // Allocate memory for BPF instructions to avoid use-after-free
+    struct bpf_insn *bpf_insns = malloc(Size);
+    if (!bpf_insns) {
+        return 0;
+    }
+    memcpy(bpf_insns, Data, Size);
 
-    int selectable_fd = pcap_get_selectable_fd(handle);
-    int fileno = pcap_fileno(handle);
+    // Prepare a BPF program
+    struct bpf_program bpf_prog;
+    bpf_prog.bf_len = Size / sizeof(struct bpf_insn);
+    bpf_prog.bf_insns = bpf_insns;
 
-    struct bpf_program filter = compile_filter(handle, "tcp");
-    pcap_setfilter(handle, &filter);
+    // Validate the BPF program
+    if (!bpf_validate(bpf_prog.bf_insns, bpf_prog.bf_len)) {
+        free(bpf_insns);
+        return 0;
+    }
 
-    const char *packet_data = (const char *)Data;
-    size_t packet_size = Size < 65535 ? Size : 65535;
-    pcap_inject(handle, packet_data, packet_size);
+    // Create a dummy packet header and data
+    struct pcap_pkthdr pkt_header;
+    pkt_header.caplen = Size;
+    pkt_header.len = Size;
+    const u_char *pkt_data = Data;
 
-    struct pcap_stat stats;
-    pcap_stats(handle, &stats);
+    // Test pcap_offline_filter
+    int filter_result = pcap_offline_filter(&bpf_prog, &pkt_header, pkt_data);
 
-    int link_type = pcap_datalink(handle);
+    // Test bpf_dump with different options
+    bpf_dump(&bpf_prog, 0);
+    bpf_dump(&bpf_prog, 1);
+    bpf_dump(&bpf_prog, 2);
+    bpf_dump(&bpf_prog, 3);
 
-    // Clean up
-    pcap_freecode(&filter);
-    pcap_close(handle);
+    // Test bpf_image
+    char *image = bpf_image(bpf_prog.bf_insns, bpf_prog.bf_len);
+    // No need to free image as bpf_image uses a static buffer
+
+    // Create a dummy pcap_t
+    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (pcap_handle) {
+        // Test pcap_setfilter
+        int setfilter_result = pcap_setfilter(pcap_handle, &bpf_prog);
+
+        // Clean up pcap handle
+        pcap_close(pcap_handle);
+    }
+
+    // Free BPF program
+    pcap_freecode(&bpf_prog);
+
+    // Do not free bpf_insns here as pcap_freecode already frees it
+    // free(bpf_insns); // Removed to avoid double-free
 
     return 0;
 }

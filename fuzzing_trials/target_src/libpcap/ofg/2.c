@@ -1,24 +1,23 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>  // Include this for malloc and free
 #include <pcap.h>
 #include <string.h>
-#include <stdlib.h>  // Include this for the malloc and free functions
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Ensure that the input data is null-terminated to safely use it as a string
-    char *inputStr = (char *)malloc(size + 1);
-    if (inputStr == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Ensure the data is null-terminated to be used as a C string
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Return if memory allocation fails
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    memcpy(inputStr, data, size);
-    inputStr[size] = '\0'; // Null-terminate the string
-
-    // Call the function-under-test
-    int result = pcap_tstamp_type_name_to_val(inputStr);
+    // Call the function under test
+    int result = pcap_tstamp_type_name_to_val(null_terminated_data);
 
     // Free the allocated memory
-    free(inputStr);
+    free(null_terminated_data);
 
     return 0;
 }

@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
+// pcap_strerror at pcap.c:3786:1 in pcap.h
+// pcap_open_offline at savefile.c:388:1 in pcap.h
+// pcap_datalink_name_to_val at pcap.c:3417:1 in pcap.h
 // pcap_open_dead at pcap.c:4620:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_list_datalinks at pcap.c:3018:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_datalink_val_to_name at pcap.c:3429:1 in pcap.h
-// pcap_free_datalinks at pcap.c:3062:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_compile at gencode.c:1186:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
@@ -15,51 +15,67 @@
 #include <pcap.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
-static pcap_t *initialize_pcap() {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
-        fprintf(stderr, "Failed to open pcap handle: %s\n", errbuf);
+#define DUMMY_FILE "./dummy_file"
+#define ERRBUF_SIZE PCAP_ERRBUF_SIZE
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    return handle;
 }
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
-        return 0;
+    if (Size == 0) return 0;
+
+    // Step 1: Prepare environment
+    char errbuf[ERRBUF_SIZE];
+    int error_code = Data[0]; // Use the first byte as an error code for pcap_strerror
+    const char *error_message = pcap_strerror(error_code);
+
+    // Step 2: Invoke pcap_open_offline
+    write_dummy_file(Data, Size);
+    pcap_t *pcap_offline = pcap_open_offline(DUMMY_FILE, errbuf);
+    if (!pcap_offline) {
+        return 0; // If failed, return early
     }
 
-    pcap_t *pcap_handle = initialize_pcap();
-    if (!pcap_handle) {
-        return 0;
+    // Step 3: Invoke pcap_datalink_name_to_val
+    int dlt_val = pcap_datalink_name_to_val((const char *)Data);
+
+    // Step 4: Invoke pcap_open_dead
+    int linktype = dlt_val != -1 ? dlt_val : DLT_EN10MB;
+    int snapshot_length = 65535;
+    pcap_t *pcap_dead = pcap_open_dead(linktype, snapshot_length);
+    if (!pcap_dead) {
+        pcap_close(pcap_offline);
+        return 0; // If failed, return early
     }
 
-    // pcap_geterr
-    char *err_msg = pcap_geterr(pcap_handle);
+    // Step 5: Invoke pcap_compile
+    struct bpf_program fp;
+    int optimize = 1;
+    bpf_u_int32 netmask = 0xFFFFFF00; // Default netmask
 
-    // pcap_list_datalinks
-    int *dlt_buf = NULL;
-    int dlt_count = pcap_list_datalinks(pcap_handle, &dlt_buf);
-    
-    // pcap_statustostr
-    int status_code = *((int *)Data);
-    const char *status_msg = pcap_statustostr(status_code);
+    // Ensure Data is null-terminated before passing to pcap_compile
+    char *filter_exp = malloc(Size + 1);
+    if (filter_exp) {
+        memcpy(filter_exp, Data, Size);
+        filter_exp[Size] = '\0';
 
-    // pcap_geterr again
-    err_msg = pcap_geterr(pcap_handle);
+        // Compile the filter expression
+        pcap_compile(pcap_dead, &fp, filter_exp, optimize, netmask);
 
-    // pcap_datalink_val_to_name
-    const char *dlt_name = NULL;
-    if (dlt_count > 0) {
-        dlt_name = pcap_datalink_val_to_name(dlt_buf[0]);
+        // Clean up
+        free(filter_exp);
     }
 
-    // Cleanup
-    if (dlt_buf) {
-        pcap_free_datalinks(dlt_buf);
-    }
-    pcap_close(pcap_handle);
+    // Step 6: Cleanup
+    pcap_close(pcap_dead);
+    pcap_close(pcap_offline);
 
     return 0;
 }

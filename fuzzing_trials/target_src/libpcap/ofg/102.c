@@ -1,29 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <pcap.h>
+#include <stdlib.h>
+#include <pcap/pcap.h>
 
 int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract an integer for precision
+    // Ensure the size is sufficient for at least one integer
     if (size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize a pcap_t object
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap_handle = pcap_open_dead(DLT_RAW, 65535); // Open a dummy pcap handle
-
-    if (pcap_handle == NULL) {
+    // Allocate memory for an integer array
+    int *tstamp_types = (int *)malloc(sizeof(int) * (size / sizeof(int)));
+    if (tstamp_types == NULL) {
         return 0;
     }
 
-    // Extract an int from the data for the precision parameter
-    int precision = *(const int *)data;
+    // Copy the data into the integer array
+    for (size_t i = 0; i < size / sizeof(int); ++i) {
+        tstamp_types[i] = ((int *)data)[i];
+    }
 
     // Call the function-under-test
-    int result = pcap_set_tstamp_precision(pcap_handle, precision);
+    pcap_free_tstamp_types(tstamp_types);
 
-    // Clean up
-    pcap_close(pcap_handle);
+    // Free the allocated memory
+    free(tstamp_types);
 
     return 0;
 }

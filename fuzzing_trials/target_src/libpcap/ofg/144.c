@@ -1,31 +1,37 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
     pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    // Ensure the data is not empty and has a reasonable size for pcap_open_offline
-    if (size == 0 || size > PCAP_ERRBUF_SIZE) {
+    // Ensure the data is not empty and is large enough to be a valid pcap file
+    if (size < sizeof(struct pcap_file_header)) {
         return 0;
     }
 
     // Create a temporary file to store the input data
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
+    char tmp_filename[] = "/tmp/fuzz_pcap_XXXXXX";
+    int fd = mkstemp(tmp_filename);
+    if (fd == -1) {
         return 0;
     }
 
     // Write the input data to the temporary file
-    fwrite(data, 1, size, temp_file);
-    rewind(temp_file);
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmp_filename);
+        return 0;
+    }
+    close(fd);
 
-    // Open the temporary file with pcap_open_offline
-    pcap_handle = pcap_fopen_offline(temp_file, errbuf);
+    // Open the pcap file
+    pcap_handle = pcap_open_offline(tmp_filename, errbuf);
     if (pcap_handle == NULL) {
-        fclose(temp_file);
+        unlink(tmp_filename);
         return 0;
     }
 
@@ -34,7 +40,7 @@ int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
 
     // Clean up
     pcap_close(pcap_handle);
-    fclose(temp_file);
+    unlink(tmp_filename);
 
     return 0;
 }

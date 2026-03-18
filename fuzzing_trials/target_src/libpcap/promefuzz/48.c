@@ -1,97 +1,73 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_live at pcap.c:2813:1 in pcap.h
+// pcap_open_dead at pcap.c:4620:1 in pcap.h
+// pcap_getnonblock at pcap.c:3620:1 in pcap.h
+// pcap_strerror at pcap.c:3786:1 in pcap.h
+// pcap_geterr at pcap.c:3614:1 in pcap.h
+// pcap_perror at pcap.c:3608:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_lib_version at pcap-linux.c:6255:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_get_selectable_fd at pcap.c:3595:1 in pcap.h
-// pcap_fileno at pcap.c:3587:1 in pcap.h
-// pcap_compile at gencode.c:1186:1 in pcap.h
-// pcap_setfilter at pcap.c:3872:1 in pcap.h
-// pcap_freecode at gencode.c:1371:1 in pcap.h
-// pcap_inject at pcap.c:4225:1 in pcap.h
-// pcap_stats at pcap.c:3913:1 in pcap.h
-// pcap_datalink at pcap.c:3002:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
-#include <limits.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-static pcap_t* initialize_pcap_handle() {
+static pcap_t* create_dummy_pcap() {
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_live("any", BUFSIZ, 1, 1000, errbuf);
+    pcap_t* handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!handle) {
+        fprintf(stderr, "Failed to create dummy pcap handle: %s\n", errbuf);
+    }
     return handle;
 }
 
-static void cleanup_pcap_handle(pcap_t *handle) {
-    if (handle) {
-        pcap_close(handle);
-    }
-}
-
-static void fuzz_pcap_get_selectable_fd(pcap_t *handle) {
-    int fd = pcap_get_selectable_fd(handle);
-    if (fd != -1) {
-        // Perform a simple non-blocking select on the fd
-        fd_set readfds;
-        struct timeval timeout = { .tv_sec = 0, .tv_usec = 0 };
-        FD_ZERO(&readfds);
-        FD_SET(fd, &readfds);
-        select(fd + 1, &readfds, NULL, NULL, &timeout);
-    }
-}
-
-static void fuzz_pcap_fileno(pcap_t *handle) {
-    int fd = pcap_fileno(handle);
-    if (fd != -1) {
-        // Perform a simple non-blocking select on the fd
-        fd_set readfds;
-        struct timeval timeout = { .tv_sec = 0, .tv_usec = 0 };
-        FD_ZERO(&readfds);
-        FD_SET(fd, &readfds);
-        select(fd + 1, &readfds, NULL, NULL, &timeout);
-    }
-}
-
-static void fuzz_pcap_setfilter(pcap_t *handle) {
-    struct bpf_program fp;
-    const char filter_exp[] = "tcp";
-    if (pcap_compile(handle, &fp, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == 0) {
-        pcap_setfilter(handle, &fp);
-        pcap_freecode(&fp);
-    }
-}
-
-static void fuzz_pcap_inject(pcap_t *handle, const uint8_t *data, size_t size) {
-    if (size > 0 && size <= INT_MAX) {
-        pcap_inject(handle, data, size);
-    }
-}
-
-static void fuzz_pcap_stats(pcap_t *handle) {
-    struct pcap_stat stats;
-    pcap_stats(handle, &stats);
-}
-
-static void fuzz_pcap_datalink(pcap_t *handle) {
-    pcap_datalink(handle);
-}
-
 int LLVMFuzzerTestOneInput_48(const uint8_t *Data, size_t Size) {
-    pcap_t *handle = initialize_pcap_handle();
-    if (!handle) {
-        return 0;
+    if (Size < 1) return 0; // Not enough data to proceed
+
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle = create_dummy_pcap();
+    if (!handle) return 0;
+
+    // Fuzz pcap_getnonblock
+    int nonblock_state = pcap_getnonblock(handle, errbuf);
+    if (nonblock_state == PCAP_ERROR_NOT_ACTIVATED || nonblock_state == PCAP_ERROR) {
+        fprintf(stderr, "pcap_getnonblock error: %s\n", errbuf);
     }
 
-    fuzz_pcap_get_selectable_fd(handle);
-    fuzz_pcap_fileno(handle);
-    fuzz_pcap_setfilter(handle);
-    fuzz_pcap_inject(handle, Data, Size);
-    fuzz_pcap_stats(handle);
-    fuzz_pcap_datalink(handle);
+    // Fuzz pcap_strerror
+    const char *strerror_msg = pcap_strerror(Data[0]);
+    if (strerror_msg) {
+        printf("pcap_strerror: %s\n", strerror_msg);
+    }
 
-    cleanup_pcap_handle(handle);
+    // Fuzz pcap_geterr
+    char *geterr_msg = pcap_geterr(handle);
+    if (geterr_msg) {
+        printf("pcap_geterr: %s\n", geterr_msg);
+    }
+
+    // Fuzz pcap_perror
+    pcap_perror(handle, "Fuzz pcap_perror");
+
+    // Fuzz pcap_statustostr
+    const char *statustostr_msg = pcap_statustostr(Data[0]);
+    if (statustostr_msg) {
+        printf("pcap_statustostr: %s\n", statustostr_msg);
+    }
+
+    // Fuzz pcap_lib_version
+    const char *lib_version = pcap_lib_version();
+    if (lib_version) {
+        printf("pcap_lib_version: %s\n", lib_version);
+    }
+
+    pcap_close(handle);
     return 0;
 }

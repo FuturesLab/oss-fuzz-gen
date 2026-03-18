@@ -1,91 +1,74 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_dead at pcap.c:4620:1 in pcap.h
-// pcap_dump_open at sf-pcap.c:895:1 in pcap.h
-// pcap_dump_file at sf-pcap.c:1194:1 in pcap.h
-// pcap_dump_flush at sf-pcap.c:1245:1 in pcap.h
-// pcap_dump_close at sf-pcap.c:1255:1 in pcap.h
-// pcap_dump_fopen at sf-pcap.c:981:1 in pcap.h
-// pcap_dump_flush at sf-pcap.c:1245:1 in pcap.h
-// pcap_dump_close at sf-pcap.c:1255:1 in pcap.h
-// pcap_next_etherent at etherent.c:73:1 in namedb.h
+// pcap_open_live at pcap.c:2813:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_lookupnet at pcap.c:1547:1 in pcap.h
+// pcap_create at pcap.c:2306:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_findalldevs at pcap.c:672:1 in pcap.h
+// pcap_freealldevs at pcap.c:1414:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
-#include <namedb.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 
-static pcap_t *initialize_pcap() {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap = pcap_open_dead(DLT_EN10MB, 65535);
-    if (!pcap) {
-        fprintf(stderr, "Failed to open pcap: %s\n", errbuf);
+#define ERRBUF_SIZE PCAP_ERRBUF_SIZE
+
+static void fuzz_pcap_open_live(const char *device, int snaplen, int promisc, int timeout, char *errbuf) {
+    pcap_t *handle = pcap_open_live(device, snaplen, promisc, timeout, errbuf);
+    if (handle) {
+        pcap_close(handle);
     }
-    return pcap;
 }
 
-static void write_dummy_file(const char *filename, const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(filename, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static void fuzz_pcap_lookupnet(const char *device, char *errbuf) {
+    bpf_u_int32 net, mask;
+    pcap_lookupnet(device, &net, &mask, errbuf);
+}
+
+static void fuzz_pcap_create(const char *device, char *errbuf) {
+    pcap_t *handle = pcap_create(device, errbuf);
+    if (handle) {
+        pcap_close(handle);
+    }
+}
+
+static void fuzz_pcap_findalldevs(char *errbuf) {
+    pcap_if_t *alldevs;
+    if (pcap_findalldevs(&alldevs, errbuf) == 0) {
+        pcap_freealldevs(alldevs);
     }
 }
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    char errbuf[ERRBUF_SIZE];
+    errbuf[0] = '\0';
 
-    pcap_t *pcap = initialize_pcap();
-    if (!pcap) return 0;
-
-    // Prepare for pcap_dump_open
-    const char *filename = "./dummy_file";
-    write_dummy_file(filename, Data, Size);
-
-    // Test pcap_dump_open
-    pcap_dumper_t *dumper = pcap_dump_open(pcap, filename);
-    if (dumper) {
-        // Test pcap_dump_file
-        FILE *file = pcap_dump_file(dumper);
-        if (file) {
-            // Test pcap_dump_flush
-            pcap_dump_flush(dumper);
-        }
-
-        // Test pcap_dump_close
-        pcap_dump_close(dumper);
+    // Ensure the input data is a null-terminated string for device names
+    char *device = (char *)malloc(Size + 1);
+    if (!device) {
+        return 0;
     }
+    memcpy(device, Data, Size);
+    device[Size] = '\0';
 
-    // Test pcap_dump_fopen
-    FILE *fp = fopen(filename, "wb");
-    if (fp) {
-        pcap_dumper_t *dumper_fopen = pcap_dump_fopen(pcap, fp);
-        if (dumper_fopen) {
-            // Test pcap_dump_flush
-            pcap_dump_flush(dumper_fopen);
+    // Fuzz pcap_open_live
+    fuzz_pcap_open_live(device, 65535, 1, 1000, errbuf);
 
-            // Test pcap_dump_close
-            pcap_dump_close(dumper_fopen);
-        } else {
-            fclose(fp); // Close the file only if pcap_dump_fopen fails
-        }
-    }
+    // Fuzz pcap_lookupnet
+    fuzz_pcap_lookupnet(device, errbuf);
 
-    // Test pcap_next_etherent
-    FILE *ether_file = fopen(filename, "rb");
-    if (ether_file) {
-        struct pcap_etherent *etherent;
-        while ((etherent = pcap_next_etherent(ether_file)) != NULL) {
-            // Process etherent if needed
-        }
-        fclose(ether_file);
-    }
+    // Fuzz pcap_create
+    fuzz_pcap_create(device, errbuf);
 
-    pcap_close(pcap);
+    // Fuzz pcap_findalldevs
+    fuzz_pcap_findalldevs(errbuf);
+
+    free(device);
     return 0;
 }

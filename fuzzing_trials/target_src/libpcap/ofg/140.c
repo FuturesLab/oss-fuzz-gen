@@ -1,27 +1,27 @@
 #include <pcap.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h> // Include for memcpy
 
 int LLVMFuzzerTestOneInput_140(const uint8_t *data, size_t size) {
-    // Initialize a pcap_t structure
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
+    // Create a pcap_t handle using pcap_open_dead, which provides a valid pcap_t object
+    pcap_t *pcap = pcap_open_dead(DLT_RAW, 65535);
+    if (pcap == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    const struct timeval *timeout = pcap_get_required_select_timeout(handle);
+    const struct timeval *timeout = pcap_get_required_select_timeout(pcap);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
+    // Use the result to avoid compiler optimizations
     if (timeout != NULL) {
-        printf("Timeout: %ld.%06ld\n", (long)timeout->tv_sec, (long)timeout->tv_usec);
+        printf("Timeout: %ld seconds, %ld microseconds\n", timeout->tv_sec, timeout->tv_usec);
     }
 
     // Clean up
-    pcap_close(handle);
+    pcap_close(pcap);
 
     return 0;
 }

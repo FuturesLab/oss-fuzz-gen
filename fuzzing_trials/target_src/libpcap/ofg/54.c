@@ -3,31 +3,38 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Define a callback function
+void dummy_callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+    // Dummy callback function does nothing
+}
+
 int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to contain at least some data
-    if (size < sizeof(struct pcap_pkthdr)) {
+    pcap_t *handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    u_char *user_data;
+
+    // Initialize pcap_t handle with a dummy pcap_open_dead
+    handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Create a pcap_t handle using pcap_open_dead, which is suitable for testing
-    pcap_t *pcap_handle = pcap_open_dead(DLT_RAW, 65535);
-    if (pcap_handle == NULL) {
+    // Allocate user_data and copy fuzzing data into it
+    user_data = (u_char *)malloc(size);
+    if (user_data == NULL) {
+        pcap_close(handle);
         return 0;
     }
-
-    // Create a dummy pcap_pkthdr structure
-    struct pcap_pkthdr header;
-    memset(&header, 0, sizeof(header));
+    memcpy(user_data, data, size);
 
     // Call the function-under-test
-    // Here, we use pcap_inject or pcap_sendpacket as an example of a function that uses pcap_t
-    // Note: This is just an example; you should replace it with the actual function you want to test
-    if (pcap_inject(pcap_handle, data, size) == -1) {
+    if (pcap_loop(handle, 1, dummy_callback, user_data) == -1) {
         // Handle error if needed
     }
 
-    // Close the pcap handle
-    pcap_close(pcap_handle);
+    // Clean up
+    free(user_data);
+    pcap_close(handle);
 
     return 0;
 }

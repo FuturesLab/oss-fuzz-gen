@@ -4,21 +4,26 @@
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_153(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient for a null-terminated string
-    if (size < 1) return 0;
+    // Ensure size is sufficient to extract parameters
+    if (size < 5) return 0;
 
-    // Allocate memory for the device name and ensure it's null-terminated
-    char device[size + 1];
-    memcpy(device, data, size);
-    device[size] = '\0';
-
-    // Initialize variables for network and mask
-    bpf_u_int32 net = 0;
-    bpf_u_int32 mask = 0;
+    // Extract parameters from data
+    const char *device = "eth0"; // Use a default non-NULL device name
+    int snaplen = (int)data[0];  // Use the first byte for snaplen
+    int promisc = (int)data[1];  // Use the second byte for promisc
+    int to_ms = (int)data[2];    // Use the third byte for to_ms
     char errbuf[PCAP_ERRBUF_SIZE];
+    
+    // Ensure errbuf is not NULL
+    memset(errbuf, 0, sizeof(errbuf));
 
     // Call the function-under-test
-    pcap_lookupnet(device, &net, &mask, errbuf);
+    pcap_t *handle = pcap_open_live(device, snaplen, promisc, to_ms, errbuf);
+
+    // Clean up if handle is not NULL
+    if (handle != NULL) {
+        pcap_close(handle);
+    }
 
     return 0;
 }

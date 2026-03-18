@@ -1,39 +1,34 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <pcap.h>
+#include <pcap/pcap.h>
 
-// Function to feed the data into pcap_inject for fuzzing
-void process_pcap_data(pcap_t *handle, const uint8_t *data, size_t size) {
-    // Inject the data into the pcap handle
-    // This is a placeholder for any function that can process the data
-    pcap_inject(handle, data, size);
+// Define a mock pcap_t structure for fuzzing purposes
+typedef struct {
+    int snapshot_length;
+} mock_pcap_t;
+
+// Mock function to initialize a pcap_t structure
+mock_pcap_t* initialize_pcap() {
+    mock_pcap_t* pcap = (mock_pcap_t*)malloc(sizeof(mock_pcap_t));
+    if (pcap != NULL) {
+        // Set a non-zero snapshot length to avoid NULL-like behavior
+        pcap->snapshot_length = 64;
+    }
+    return pcap;
 }
 
 int LLVMFuzzerTestOneInput_83(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
-
-    // Create a pcap_t handle using pcap_open_dead
-    // DLT_RAW is a link-layer type, and 65535 is the maximum snapshot length
-    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
-
-    if (pcap_handle == NULL) {
+    // Initialize pcap_t structure
+    mock_pcap_t* pcap = initialize_pcap();
+    if (pcap == NULL) {
         return 0;
     }
 
-    // Process the data using the pcap handle
-    process_pcap_data(pcap_handle, data, size);
-
     // Call the function-under-test
-    int snapshot_length = pcap_snapshot(pcap_handle);
+    int snapshot_length = pcap_snapshot((pcap_t*)pcap);
 
-    // Use the snapshot_length in some way to avoid compiler optimizations
-    if (snapshot_length < 0) {
-        // Handle error if snapshot length is invalid
-    }
-
-    // Close the pcap handle
-    pcap_close(pcap_handle);
+    // Clean up
+    free(pcap);
 
     return 0;
 }

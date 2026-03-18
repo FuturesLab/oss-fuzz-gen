@@ -1,70 +1,101 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_create at pcap.c:2306:1 in pcap.h
-// pcap_set_tstamp_type at pcap.c:2635:1 in pcap.h
 // pcap_set_tstamp_precision at pcap.c:2704:1 in pcap.h
-// pcap_can_set_rfmon at pcap.c:466:1 in pcap.h
-// pcap_activate at pcap.c:2759:1 in pcap.h
-// pcap_set_datalink at pcap.c:3068:1 in pcap.h
-// pcap_setdirection at pcap.c:3884:1 in pcap.h
+// pcap_fopen_offline at savefile.c:600:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_open_offline_with_tstamp_precision at savefile.c:335:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_open_dead_with_tstamp_precision at pcap.c:4558:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_get_tstamp_precision at pcap.c:2753:1 in pcap.h
+// pcap_fopen_offline_with_tstamp_precision at savefile.c:467:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_open_dead_with_tstamp_precision at pcap.c:4558:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-static void cleanup(pcap_t *handle) {
-    if (handle) {
-        pcap_close(handle);
+static void write_dummy_file() {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return;
+    const char dummy_data[] = "dummy data for pcap file";
+    fwrite(dummy_data, sizeof(dummy_data) - 1, 1, file);
+    fclose(file);
+}
+
+static void fuzz_pcap_set_tstamp_precision(pcap_t *pcap, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int precision = *(int *)Data;
+    pcap_set_tstamp_precision(pcap, precision);
+}
+
+static void fuzz_pcap_fopen_offline(const uint8_t *Data, size_t Size) {
+    char errbuf[PCAP_ERRBUF_SIZE];
+    FILE *file = fopen("./dummy_file", "rb");
+    if (!file) return;
+    pcap_t *pcap = pcap_fopen_offline(file, errbuf);
+    if (pcap) {
+        pcap_close(pcap);
+    }
+}
+
+static void fuzz_pcap_open_offline_with_tstamp_precision(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(u_int)) return;
+    u_int precision = *(u_int *)Data;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *pcap = pcap_open_offline_with_tstamp_precision("./dummy_file", precision, errbuf);
+    if (pcap) {
+        pcap_close(pcap);
+    }
+}
+
+static void fuzz_pcap_open_dead_with_tstamp_precision(const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(int) + sizeof(u_int)) return;
+    int linktype = *(int *)Data;
+    int snaplen = *(int *)(Data + sizeof(int));
+    u_int precision = *(u_int *)(Data + 2 * sizeof(int));
+    pcap_t *pcap = pcap_open_dead_with_tstamp_precision(linktype, snaplen, precision);
+    if (pcap) {
+        pcap_close(pcap);
+    }
+}
+
+static void fuzz_pcap_get_tstamp_precision(pcap_t *pcap) {
+    pcap_get_tstamp_precision(pcap);
+}
+
+static void fuzz_pcap_fopen_offline_with_tstamp_precision(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(u_int)) return;
+    u_int precision = *(u_int *)Data;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    FILE *file = fopen("./dummy_file", "rb");
+    if (!file) return;
+    pcap_t *pcap = pcap_fopen_offline_with_tstamp_precision(file, precision, errbuf);
+    if (pcap) {
+        pcap_close(pcap);
     }
 }
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) * 3) {
-        return 0;
-    }
+    write_dummy_file();
 
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_create("dummy_device", errbuf);
-    if (!handle) {
-        return 0;
-    }
+    pcap_t *pcap = pcap_open_dead_with_tstamp_precision(DLT_EN10MB, 65535, PCAP_TSTAMP_PRECISION_MICRO);
+    if (!pcap) return 0;
 
-    int tstamp_type = *((int *)Data);
-    int tstamp_precision = *((int *)(Data + sizeof(int)));
-    int datalink_type = *((int *)(Data + 2 * sizeof(int)));
-    Data += 3 * sizeof(int);
-    Size -= 3 * sizeof(int);
+    fuzz_pcap_set_tstamp_precision(pcap, Data, Size);
+    fuzz_pcap_fopen_offline(Data, Size);
+    fuzz_pcap_open_offline_with_tstamp_precision(Data, Size);
+    fuzz_pcap_open_dead_with_tstamp_precision(Data, Size);
+    fuzz_pcap_get_tstamp_precision(pcap);
+    fuzz_pcap_fopen_offline_with_tstamp_precision(Data, Size);
 
-    // Set timestamp type
-    pcap_set_tstamp_type(handle, tstamp_type);
-
-    // Set timestamp precision
-    pcap_set_tstamp_precision(handle, tstamp_precision);
-
-    // Check if RF monitor can be set
-    pcap_can_set_rfmon(handle);
-
-    // Activate the pcap handle
-    if (pcap_activate(handle) != 0) {
-        cleanup(handle);
-        return 0;
-    }
-
-    // Set datalink type
-    pcap_set_datalink(handle, datalink_type);
-
-    // Set packet capture direction
-    if (Size >= sizeof(pcap_direction_t)) {
-        pcap_direction_t direction = *((pcap_direction_t *)Data);
-        pcap_setdirection(handle, direction);
-    }
-
-    cleanup(handle);
+    pcap_close(pcap);
     return 0;
 }

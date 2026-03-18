@@ -1,31 +1,48 @@
+#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <pcap.h>
+#include <string.h>
+
+// Define a buffer size for error messages
+#define ERRBUF_SIZE 256
 
 int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
-    struct bpf_program prog;
+    // Declare and initialize variables
+    FILE *file = NULL;
+    u_int precision;
+    char errbuf[ERRBUF_SIZE];
+    pcap_t *pcap_handle = NULL;
 
-    // Initialize the bpf_program structure with non-NULL values
-    prog.bf_len = size > 0 ? size : 1;  // Ensure bf_len is at least 1
-    prog.bf_insns = (struct bpf_insn *)malloc(prog.bf_len * sizeof(struct bpf_insn));
-
-    if (prog.bf_insns == NULL) {
-        return 0;  // Exit if memory allocation fails
+    // Ensure the data size is sufficient for testing
+    if (size < 4) {
+        return 0;
     }
 
-    // Fill the bf_insns with data from the input
-    for (unsigned int i = 0; i < prog.bf_len; i++) {
-        prog.bf_insns[i].code = data[i % size];
-        prog.bf_insns[i].jt = 0;
-        prog.bf_insns[i].jf = 0;
-        prog.bf_insns[i].k = 0;
+    // Create a temporary file to hold the input data
+    file = tmpfile();
+    if (file == NULL) {
+        return 0;
     }
+
+    // Write the data to the temporary file
+    fwrite(data, 1, size, file);
+    rewind(file);
+
+    // Set a non-zero precision value for testing
+    precision = 1; // Assume 1 is a valid precision value
+
+    // Initialize the error buffer with a non-NULL value
+    memset(errbuf, 'A', ERRBUF_SIZE - 1);
+    errbuf[ERRBUF_SIZE - 1] = '\0';
 
     // Call the function-under-test
-    pcap_freecode(&prog);
+    pcap_handle = pcap_fopen_offline_with_tstamp_precision(file, precision, errbuf);
 
-    // Free allocated memory
-    free(prog.bf_insns);
+    // Clean up
+    if (pcap_handle != NULL) {
+        pcap_close(pcap_handle);
+    }
+    fclose(file);
 
     return 0;
 }

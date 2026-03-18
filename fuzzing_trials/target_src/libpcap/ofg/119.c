@@ -1,8 +1,6 @@
 #include <pcap.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
@@ -12,19 +10,21 @@ int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
     char errbuf[PCAP_ERRBUF_SIZE];
     char filename[256];
 
-    // Ensure size is sufficient for a filename
+    // Ensure data is large enough to extract a filename
     if (size < 1) {
         return 0;
     }
 
-    // Create a temporary file name using the input data
-    snprintf(filename, sizeof(filename), "/tmp/fuzz_pcap_%.*s", (int)size, data);
-
-    // Open a pcap handle for live capture (using a dummy device)
+    // Create a dummy pcap_t handle using pcap_open_dead
     pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
     if (pcap_handle == NULL) {
         return 0;
     }
+
+    // Extract a filename from the input data
+    size_t filename_len = size < 255 ? size : 255;
+    memcpy(filename, data, filename_len);
+    filename[filename_len] = '\0';  // Null-terminate the filename
 
     // Call the function-under-test
     dumper = pcap_dump_open(pcap_handle, filename);
@@ -34,9 +34,6 @@ int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
         pcap_dump_close(dumper);
     }
     pcap_close(pcap_handle);
-
-    // Remove the temporary file
-    remove(filename);
 
     return 0;
 }

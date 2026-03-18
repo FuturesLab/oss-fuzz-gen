@@ -1,36 +1,27 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <pcap/pcap.h>
+#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Simulate a pcap file header from the input data
-    pcap_t *pcap;
+    pcap_t *handle;
+    int *dlt_list = NULL;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    // Open a fake pcap handle using a memory buffer
-    pcap = pcap_open_dead(DLT_EN10MB, 65535);
-    if (pcap == NULL) {
+    // Create a fake pcap handle using pcap_open_dead
+    handle = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and max snaplen
+
+    if (handle == NULL) {
         return 0;
     }
 
-    pcap_dumper_t *dumper = pcap_dump_open(pcap, "/dev/null");
-    if (dumper == NULL) {
-        pcap_close(pcap);
-        return 0;
-    }
+    // Call the function-under-test
+    int result = pcap_list_datalinks(handle, &dlt_list);
 
-    // Use the pcap_dump function to utilize the input data
-    if (size >= sizeof(struct pcap_pkthdr)) {
-        struct pcap_pkthdr header;
-        header.caplen = size - sizeof(struct pcap_pkthdr);
-        header.len = header.caplen;
-        header.ts.tv_sec = 0;
-        header.ts.tv_usec = 0;
-        pcap_dump((u_char *)dumper, &header, data + sizeof(struct pcap_pkthdr));
+    // Clean up
+    if (dlt_list != NULL) {
+        pcap_free_datalinks(dlt_list);
     }
-
-    pcap_dump_close(dumper);
-    pcap_close(pcap);
+    pcap_close(handle);
 
     return 0;
 }

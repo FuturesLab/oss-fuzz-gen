@@ -4,20 +4,35 @@
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
+    pcap_t *handle;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    // Create a pcap_t handle with a valid snapshot length and link-layer type
-    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and standard snapshot length
-    if (pcap_handle == NULL) {
+    // Ensure the data is large enough to be a valid device name
+    if (size < 1 || size >= PCAP_ERRBUF_SIZE) {
         return 0;
     }
 
+    // Copy the data into a null-terminated string for the device name
+    char device[PCAP_ERRBUF_SIZE];
+    memcpy(device, data, size);
+    device[size] = '\0';
+
+    // Create a pcap handle with the provided device name
+    handle = pcap_create(device, errbuf);
+    if (handle == NULL) {
+        return 0;
+    }
+
+    // Set some options on the handle to ensure it's in a valid state
+    pcap_set_snaplen(handle, 65535);
+    pcap_set_promisc(handle, 1);
+    pcap_set_timeout(handle, 1000);
+
     // Call the function-under-test
-    int result = pcap_activate(pcap_handle);
+    pcap_activate(handle);
 
     // Clean up
-    pcap_close(pcap_handle);
+    pcap_close(handle);
 
     return 0;
 }

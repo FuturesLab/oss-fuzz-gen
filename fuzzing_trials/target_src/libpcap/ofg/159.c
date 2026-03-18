@@ -1,19 +1,28 @@
+#include <pcap/pcap.h>
 #include <stdint.h>
-#include <pcap.h>
+#include <stddef.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    int linktype = 1; // Example linktype, Ethernet
-    int snaplen = 65535; // Maximum snapshot length
-    u_int tstamp_precision = PCAP_TSTAMP_PRECISION_MICRO; // Example timestamp precision
+    // Define and initialize parameters for pcap_compile_nopcap
+    int snaplen = 65535; // Standard maximum capture length
+    int dlt = DLT_EN10MB; // Ethernet link layer
+    struct bpf_program fp; // BPF program structure
+    char filter_exp[256]; // Filter expression buffer
+    int optimize = 1; // Enable optimization
+    bpf_u_int32 netmask = 0xFFFFFF00; // Default netmask for a class C network
+
+    // Ensure the filter expression is null-terminated and within buffer size
+    size_t filter_exp_len = (size < sizeof(filter_exp) - 1) ? size : sizeof(filter_exp) - 1;
+    memcpy(filter_exp, data, filter_exp_len);
+    filter_exp[filter_exp_len] = '\0';
 
     // Call the function-under-test
-    pcap_t *pcap_handle = pcap_open_dead_with_tstamp_precision(linktype, snaplen, tstamp_precision);
+    int result = pcap_compile_nopcap(snaplen, dlt, &fp, filter_exp, optimize, netmask);
 
-    // Check if the handle is not NULL
-    if (pcap_handle != NULL) {
-        // Close the pcap handle to avoid memory leaks
-        pcap_close(pcap_handle);
+    // Free the allocated memory for the BPF program
+    if (result == 0) {
+        pcap_freecode(&fp);
     }
 
     return 0;

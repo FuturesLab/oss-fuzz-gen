@@ -1,33 +1,51 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>  // Include for malloc and free
-
-// Assume the function is declared in an external library
-extern int pcap_parsesrcstr(const char *, int *, char *, char *, char *, char *);
+#include <stdlib.h>
+#include <stdio.h>
+#include <pcap.h>
+#include <pcap/bpf.h> // Include the header for pcap_file_header definition
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Define and initialize parameters
-    const char *source = (const char *)data;
-    int type = 0;
-    char errbuf[256];
-    char host[256];
-    char port[256];
-    char name[256];
+    pcap_t *pcap;
+    pcap_dumper_t *dumper;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    FILE *file;
 
-    // Ensure that the source string is null-terminated
-    char *null_terminated_source = (char *)malloc(size + 1);
-    if (null_terminated_source == NULL) {
-        return 0; // Exit if memory allocation fails
+    if (size < sizeof(struct pcap_file_header)) {
+        return 0; // Not enough data to form a valid pcap header
     }
-    memcpy(null_terminated_source, data, size);
-    null_terminated_source[size] = '\0';
+
+    // Create a temporary file to use with pcap_dump_open
+    FILE *tempFile = tmpfile();
+    if (tempFile == NULL) {
+        return 0;
+    }
+
+    // Write the input data to the temporary file
+    fwrite(data, 1, size, tempFile);
+    rewind(tempFile);
+
+    // Open the temporary file as a pcap_t
+    pcap = pcap_fopen_offline(tempFile, errbuf);
+    if (pcap == NULL) {
+        fclose(tempFile);
+        return 0;
+    }
+
+    // Open a dumper for the pcap
+    dumper = pcap_dump_open(pcap, "dummy_output.pcap");
+    if (dumper == NULL) {
+        pcap_close(pcap);
+        fclose(tempFile);
+        return 0;
+    }
 
     // Call the function-under-test
-    pcap_parsesrcstr(null_terminated_source, &type, errbuf, host, port, name);
+    file = pcap_dump_file(dumper);
 
-    // Free allocated memory
-    free(null_terminated_source);
+    // Clean up
+    pcap_dump_close(dumper);
+    pcap_close(pcap);
+    fclose(tempFile);
 
     return 0;
 }

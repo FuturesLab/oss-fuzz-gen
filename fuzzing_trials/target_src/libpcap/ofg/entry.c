@@ -1,4 +1,4 @@
-// This is the entry of 160 fuzz drivers:
+// This is the entry of 161 fuzz drivers:
 // 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 2
 // 3, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 4
 // 3, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 6
@@ -7,7 +7,7 @@
 // , 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118
 // , 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134
 // , 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150
-// , 151, 152, 153, 154, 155, 156, 157, 158, 159, 160
+// , 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -178,6 +178,7 @@ int LLVMFuzzerTestOneInput_157(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_158(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_159(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_160(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_161(const uint8_t *Data, size_t Size);
 
 // Entry function
 int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
@@ -197,7 +198,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     }
 
     // Select driver
-    switch (driverIndex % 160) {
+    switch (driverIndex % 161) {
         case 0:
             return LLVMFuzzerTestOneInput_1(remainData, remainSize);
         case 1:
@@ -518,6 +519,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
             return LLVMFuzzerTestOneInput_159(remainData, remainSize);
         case 159:
             return LLVMFuzzerTestOneInput_160(remainData, remainSize);
+        case 160:
+            return LLVMFuzzerTestOneInput_161(remainData, remainSize);
         default:
             return 0;
     }

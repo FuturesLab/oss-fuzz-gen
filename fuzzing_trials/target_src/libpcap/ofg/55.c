@@ -3,29 +3,40 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Define the packet handler function as a separate function
-void packet_handler_55(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Dummy handler does nothing
+// Dummy packet handler function
+void packet_handler_55(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
+    // This is a placeholder for the actual packet processing logic
+    (void)user;
+    (void)pkthdr;
+    (void)packet;
 }
 
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    // Initialize pcap_t
+    // Initialize variables
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_RAW, 65535);
+    pcap_t *handle = NULL;
+    u_char *user_data = NULL;
+    int packet_count = 10; // Arbitrary non-zero value
+
+    // Create a pcap_t instance from the input data
+    handle = pcap_open_offline_with_tstamp_precision((const char*)data, PCAP_TSTAMP_PRECISION_MICRO, errbuf);
     if (handle == NULL) {
         return 0;
     }
 
-    // Allocate a non-NULL user data
-    u_char user_data[1] = {0};
-
-    // Call the function-under-test and check the return value
-    int result = pcap_loop(handle, 1, packet_handler_55, user_data);
-    if (result == -1) {
-        // Handle error if needed
+    // Allocate user_data
+    user_data = (u_char *)malloc(size);
+    if (user_data == NULL) {
+        pcap_close(handle);
+        return 0;
     }
+    memcpy(user_data, data, size);
 
-    // Close the pcap handle
+    // Call the function-under-test
+    pcap_loop(handle, packet_count, packet_handler_55, user_data);
+
+    // Cleanup
+    free(user_data);
     pcap_close(handle);
 
     return 0;

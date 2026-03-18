@@ -1,27 +1,29 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <pcap.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to interpret as an integer
-    if (size < sizeof(int)) {
-        return 0;
-    }
+    // Initialize variables
+    pcap_if_t *alldevs = NULL;
+    char errbuf[PCAP_ERRBUF_SIZE];
 
-    // Cast the input data to an integer pointer
-    int *datalinks = (int *)malloc(sizeof(int));
-    if (datalinks == NULL) {
-        return 0;
-    }
-
-    // Initialize the integer with data from the input
-    *datalinks = *((int *)data);
+    // Ensure the errbuf is null-terminated
+    memset(errbuf, 0, sizeof(errbuf));
 
     // Call the function-under-test
-    pcap_free_datalinks(datalinks);
+    int result = pcap_findalldevs(&alldevs, errbuf);
 
-    // Free the allocated memory
-    free(datalinks);
+    // Check result and handle errors
+    if (result == PCAP_ERROR) {
+        // Handle error case, for example, log the error
+        // fprintf(stderr, "Error finding devices: %s\n", errbuf);
+    }
+
+    // Cleanup if necessary
+    if (alldevs != NULL) {
+        pcap_freealldevs(alldevs);
+    }
 
     return 0;
 }

@@ -1,52 +1,38 @@
-#include <pcap.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include this for mkstemp, close, and unlink functions
-#include <fcntl.h>  // Include this for write function
+#include <pcap.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle = NULL;
+    // Initialize pcap_t structure
     char errbuf[PCAP_ERRBUF_SIZE];
-    FILE *file = NULL;
+    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
 
-    // Ensure the data is not empty and has a reasonable size
-    if (size == 0 || size > 65535) {
-        return 0;
+    if (pcap_handle == NULL) {
+        return 0; // If pcap_open_dead fails, exit early
     }
 
-    // Create a temporary file to hold the pcap data
-    char tmp_filename[] = "/tmp/fuzz_pcap_XXXXXX";
-    int fd = mkstemp(tmp_filename);
-    if (fd == -1) {
+    // Create a temporary file to simulate pcap input
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
+        pcap_close(pcap_handle);
         return 0;
     }
 
     // Write the data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmp_filename);
-        return 0;
+    fwrite(data, 1, size, temp_file);
+    rewind(temp_file);
+
+    // Use pcap_fopen_offline to read from the temporary file
+    pcap_t *offline_pcap_handle = pcap_fopen_offline(temp_file, errbuf);
+    if (offline_pcap_handle != NULL) {
+        // Perform any additional operations on offline_pcap_handle if necessary
+        pcap_close(offline_pcap_handle);
     }
-
-    // Close the file descriptor
-    close(fd);
-
-    // Open the temporary file with pcap
-    pcap_handle = pcap_open_offline(tmp_filename, errbuf);
-    if (pcap_handle == NULL) {
-        unlink(tmp_filename);
-        return 0;
-    }
-
-    // Call the function-under-test
-    file = pcap_file(pcap_handle);
 
     // Clean up
+    fclose(temp_file);
     pcap_close(pcap_handle);
-    unlink(tmp_filename);
 
     return 0;
 }

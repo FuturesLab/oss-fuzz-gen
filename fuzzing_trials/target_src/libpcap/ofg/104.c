@@ -1,27 +1,24 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <pcap/pcap.h>
+#include <stddef.h>
+#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create an integer
-    if (size < sizeof(int)) {
-        return 0;
-    }
+    int dlt_value = 0;
 
-    // Initialize an integer from the input data
-    int *tstamp_types = (int *)malloc(sizeof(int));
-    if (tstamp_types == NULL) {
-        return 0;
+    if (size >= sizeof(int)) {
+        // Use the first four bytes of data as an integer value for dlt_value
+        dlt_value = *(const int *)data;
     }
-
-    // Copy data into the integer
-    *tstamp_types = *(int *)data;
 
     // Call the function-under-test
-    pcap_free_tstamp_types(tstamp_types);
+    const char *description = pcap_datalink_val_to_description_or_dlt(dlt_value);
 
-    // Free the allocated memory
-    free(tstamp_types);
+    // Use the description in some way to prevent compiler optimizations from removing the call
+    if (description != NULL) {
+        // Print the description to a volatile variable to prevent optimization
+        volatile const char *volatile_description = description;
+        (void)volatile_description;
+    }
 
     return 0;
 }

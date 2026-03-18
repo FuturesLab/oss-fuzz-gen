@@ -1,54 +1,23 @@
 #include <stdint.h>
-#include <stdio.h>
-#include <pcap.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char filename[] = "/tmp/fuzz_pcap_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
-        return 0;
-    }
+    pcap_t *pcap;
 
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
-        return 0;
-    }
-
-    // Write the input data to the temporary file
-    if (fwrite(data, 1, size, file) != size) {
-        fclose(file);
-        remove(filename);
-        return 0;
-    }
-    fclose(file);
-
-    // Re-open the file for reading
-    file = fopen(filename, "rb");
-    if (file == NULL) {
-        remove(filename);
-        return 0;
-    }
-
-    // Prepare a non-NULL string for the second parameter
+    // Initialize pcap with some non-NULL value
     char errbuf[PCAP_ERRBUF_SIZE];
-    memset(errbuf, 'A', sizeof(errbuf) - 1);
-    errbuf[sizeof(errbuf) - 1] = '\0';
+    pcap = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and max snapshot length
 
-    // Call the function-under-test
-    pcap_t *pcap_handle = pcap_fopen_offline(file, errbuf);
+    if (pcap == NULL) {
+        return 0;
+    }
+
+    // Fuzz the function-under-test
+    int snapshot_length = pcap_snapshot(pcap);
 
     // Clean up
-    if (pcap_handle != NULL) {
-        pcap_close(pcap_handle);
-    }
-    fclose(file);
-    remove(filename);
+    pcap_close(pcap);
 
     return 0;
 }

@@ -2,22 +2,22 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pcap.h>
+#include <pcap/pcap.h>
 
 int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated
-    char *datalink_name = (char *)malloc(size + 1);
-    if (datalink_name == NULL) {
-        return 0; // If malloc fails, return immediately
+    // Ensure the input data is null-terminated to safely use it as a C string.
+    char *input_data = (char *)malloc(size + 1);
+    if (input_data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-    memcpy(datalink_name, data, size);
-    datalink_name[size] = '\0';
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
 
     // Call the function-under-test
-    int result = pcap_datalink_name_to_val(datalink_name);
+    int result = pcap_datalink_name_to_val(input_data);
 
-    // Clean up
-    free(datalink_name);
+    // Free the allocated memory
+    free(input_data);
 
     return 0;
 }

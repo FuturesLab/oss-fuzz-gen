@@ -3,7 +3,6 @@
 // pcap_findalldevs at pcap.c:672:1 in pcap.h
 // pcap_lookupnet at pcap.c:1547:1 in pcap.h
 // pcap_freealldevs at pcap.c:1414:1 in pcap.h
-// pcap_freealldevs at pcap.c:1414:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -13,7 +12,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
@@ -24,47 +23,32 @@ static void write_dummy_file(const uint8_t *Data, size_t Size) {
 }
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Prepare error buffer
     char errbuf[PCAP_ERRBUF_SIZE];
-    memset(errbuf, 0, sizeof(errbuf));
-
-    // Prepare variables for pcap_findalldevs_ex
-    pcap_if_t *alldevs_ex = NULL;
-    struct pcap_rmtauth auth;
-    auth.type = 0;
-    auth.username = NULL;
-    auth.password = NULL;
-
-    // Call pcap_findalldevs_ex (unsupported function)
-    pcap_findalldevs_ex((const char *)Data, &auth, &alldevs_ex, errbuf);
-
-    // Prepare variables for pcap_findalldevs
     pcap_if_t *alldevs = NULL;
+    
+    // Write data to a dummy file
+    write_dummy_file(Data, Size);
 
-    // Call pcap_findalldevs
-    if (pcap_findalldevs(&alldevs, errbuf) == 0 && alldevs != NULL) {
-        // Prepare variables for pcap_lookupnet
-        bpf_u_int32 net, mask;
+    // Attempt to use pcap_findalldevs_ex (unsupported)
+    struct pcap_rmtauth auth = {0, NULL, NULL};
+    pcap_findalldevs_ex("./dummy_file", &auth, &alldevs, errbuf);
 
-        // Attempt to call pcap_lookupnet with the first device name
-        pcap_if_t *first_dev = alldevs;
-        if (first_dev && first_dev->name) {
-            pcap_lookupnet(first_dev->name, &net, &mask, errbuf);
+    // Use pcap_findalldevs
+    if (pcap_findalldevs(&alldevs, errbuf) == 0) {
+        // Iterate over the devices
+        for (pcap_if_t *dev = alldevs; dev != NULL; dev = dev->next) {
+            bpf_u_int32 net, mask;
+            // Use pcap_lookupnet
+            if (pcap_lookupnet(dev->name, &net, &mask, errbuf) == 0) {
+                // Successfully retrieved net and mask
+            }
         }
+    }
 
-        // Free the list of devices
+    // Free the device list
+    if (alldevs != NULL) {
         pcap_freealldevs(alldevs);
     }
-
-    // Cleanup for alldevs_ex if it was populated
-    if (alldevs_ex != NULL) {
-        pcap_freealldevs(alldevs_ex);
-    }
-
-    // Write data to a dummy file to simulate file operations
-    write_dummy_file(Data, Size);
 
     return 0;
 }

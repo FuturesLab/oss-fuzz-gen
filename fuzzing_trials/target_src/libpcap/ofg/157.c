@@ -1,34 +1,26 @@
-#include <pcap.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <pcap.h>
 #include <string.h>
+#include <stdlib.h>
 
+// Ensure the function is called with a non-NULL string
 int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0;
+    // Allocate memory for the input string and ensure it is null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Initialize parameters for pcap_compile_nopcap
-    int snaplen = 65535;  // Typical maximum capture length
-    int linktype = DLT_EN10MB;  // Ethernet link type
-    struct bpf_program fp;
-    char *filter_exp = (char *)malloc(size + 1);
-    int optimize = 1;  // Enable optimizations
-    bpf_u_int32 netmask = PCAP_NETMASK_UNKNOWN;  // Unknown netmask
-
-    // Ensure the filter expression is null-terminated
-    memcpy(filter_exp, data, size);
-    filter_exp[size] = '\0';
+    // Copy data to input and null-terminate
+    memcpy(input, data, size);
+    input[size] = '\0';
 
     // Call the function-under-test
-    int result = pcap_compile_nopcap(snaplen, linktype, &fp, filter_exp, optimize, netmask);
+    int result = pcap_datalink_name_to_val(input);
 
-    // Clean up
-    if (result == 0) {
-        pcap_freecode(&fp);
-    }
-    free(filter_exp);
+    // Free the allocated memory
+    free(input);
 
     return 0;
 }

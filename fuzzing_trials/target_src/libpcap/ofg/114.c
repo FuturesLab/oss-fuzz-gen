@@ -1,27 +1,30 @@
-#include <stddef.h>
-#include <stdint.h>
 #include <pcap.h>
-#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 
-// Function to be used by the fuzzer
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
+    // Initialize variables
+    pcap_t *pcap_handle;
+    int *tstamp_types;
+
+    // Create a dummy pcap_t handle
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and max packet size
+
+    if (pcap_handle == NULL) {
+        fprintf(stderr, "Failed to create pcap handle\n");
         return 0;
     }
 
-    // Allocate memory for the device name and ensure it's null-terminated
-    char dev_name[256];
-    size_t copy_size = size < sizeof(dev_name) - 1 ? size : sizeof(dev_name) - 1;
-    memcpy(dev_name, data, copy_size);
-    dev_name[copy_size] = '\0';
-
     // Call the function-under-test
-    char errbuf[PCAP_ERRBUF_SIZE];
-    char *result = pcap_lookupdev(errbuf);
+    int result = pcap_list_tstamp_types(pcap_handle, &tstamp_types);
 
-    // Normally, you would check the result and handle errors, but for fuzzing,
-    // we are primarily interested in discovering memory corruption issues.
+    // Free any allocated resources
+    if (tstamp_types != NULL) {
+        pcap_free_tstamp_types(tstamp_types);
+    }
+    pcap_close(pcap_handle);
 
     return 0;
 }

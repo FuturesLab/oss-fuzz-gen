@@ -1,52 +1,36 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <pcap.h>
+#include <pcap/pcap.h>
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    pcap_t *pcap;
-    pcap_dumper_t *dumper;
-    FILE *file;
-
-    // Initialize a pcap_t handle for testing
+    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap = pcap_open_dead(DLT_RAW, 65535);  // Open a fake pcap handle
+    int protocol;
 
-    if (pcap == NULL) {
-        return 0;  // Return if pcap_open_dead fails
+    // Ensure size is sufficient to extract an integer for protocol
+    if (size < sizeof(int)) {
+        return 0;
     }
 
-    // Create a temporary file to use with the dumper
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
-        pcap_close(pcap);
-        return 0;  // Return if tmpfile fails
+    // Initialize pcap_t handle using pcap_create and pcap_activate
+    pcap_handle = pcap_create("lo", errbuf); // Using loopback interface for example
+    if (pcap_handle == NULL) {
+        return 0;
     }
 
-    // Initialize the dumper
-    dumper = pcap_dump_fopen(pcap, temp_file);
-
-    if (dumper == NULL) {
-        fclose(temp_file);
-        pcap_close(pcap);
-        return 0;  // Return if pcap_dump_fopen fails
+    if (pcap_activate(pcap_handle) != 0) {
+        pcap_close(pcap_handle);
+        return 0;
     }
 
-    // Feed the input data to the dumper if size is greater than the pcap header size
-    if (size > sizeof(struct pcap_pkthdr)) {
-        struct pcap_pkthdr header;
-        header.caplen = size - sizeof(struct pcap_pkthdr);
-        header.len = size - sizeof(struct pcap_pkthdr);
-        pcap_dump((u_char *)dumper, &header, data + sizeof(struct pcap_pkthdr));
-    }
+    // Extract the protocol from the data
+    protocol = *(const int *)data;
 
     // Call the function-under-test
-    file = pcap_dump_file(dumper);
+    pcap_set_protocol_linux(pcap_handle, protocol);
 
     // Clean up
-    pcap_dump_close(dumper);
-    fclose(temp_file);
-    pcap_close(pcap);
+    pcap_close(pcap_handle);
 
     return 0;
 }

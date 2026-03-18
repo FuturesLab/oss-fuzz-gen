@@ -1,31 +1,26 @@
 #include <stdint.h>
-#include <pcap.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    // Initialize a pcap_t structure
+    // Ensure size is sufficient to create a valid pcap buffer
+    if (size < 24) { // Minimum size for a valid pcap header
+        return 0;
+    }
+
+    // Open a fake pcap handle for offline capture using a memory buffer
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and max packet size
-
-    if (handle == NULL) {
+    pcap_t *pcap = pcap_open_offline_with_tstamp_precision((const char *)data, PCAP_TSTAMP_PRECISION_MICRO, errbuf);
+    if (pcap == NULL) {
         return 0;
     }
 
-    // Allocate a buffer and copy the input data
-    uint8_t *buffer = (uint8_t *)malloc(size);
-    if (buffer == NULL) {
-        pcap_close(handle);
-        return 0;
-    }
-    memcpy(buffer, data, size);
-
-    // Use the buffer to test the function
-    int bufsize = pcap_bufsize(handle);
-
+    // Call the function-under-test
+    int bufsize = pcap_bufsize(pcap);
+    
     // Clean up
-    free(buffer);
-    pcap_close(handle);
+    pcap_close(pcap);
 
     return 0;
 }

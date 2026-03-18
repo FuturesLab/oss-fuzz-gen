@@ -3,20 +3,21 @@
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *pcap;
 
-    // Initialize pcap_t using pcap_open_dead as a placeholder
-    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (pcap_handle == NULL) {
+    // Initialize a pcap_t structure with dummy data
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and max snapshot length
+
+    if (pcap == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    int selectable_fd = pcap_get_selectable_fd(pcap_handle);
+    int fd = pcap_get_selectable_fd(pcap);
 
     // Clean up
-    pcap_close(pcap_handle);
+    pcap_close(pcap);
 
     return 0;
 }

@@ -2,30 +2,42 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Ensure data is large enough to create valid strings
+    // Ensure the input size is sufficient for the function parameters
     if (size < 2) {
         return 0;
     }
 
-    // Allocate memory for the device and error buffer strings
-    char device[256];
-    char errbuf[PCAP_ERRBUF_SIZE];
+    // Split the input data into two parts for the two string parameters
+    size_t first_len = size / 2;
+    size_t second_len = size - first_len;
 
-    // Copy data into device and errbuf ensuring null-termination
-    size_t device_len = (size < 255) ? size : 255;
-    memcpy(device, data, device_len);
-    device[device_len] = '\0';
+    // Allocate memory for the strings and ensure they are null-terminated
+    char *first_param = (char *)malloc(first_len + 1);
+    char *second_param = (char *)malloc(second_len + 1);
 
-    // Initialize errbuf with some data to avoid it being NULL
-    memset(errbuf, 'E', PCAP_ERRBUF_SIZE - 1);
-    errbuf[PCAP_ERRBUF_SIZE - 1] = '\0';
+    if (first_param == NULL || second_param == NULL) {
+        free(first_param);
+        free(second_param);
+        return 0;
+    }
+
+    memcpy(first_param, data, first_len);
+    first_param[first_len] = '\0';
+
+    memcpy(second_param, data + first_len, second_len);
+    second_param[second_len] = '\0';
 
     // Call the function-under-test
-    pcap_t *handle = pcap_create(device, errbuf);
+    pcap_t *handle = pcap_create(first_param, second_param);
 
-    // Clean up if handle is not NULL
+    // Clean up
+    free(first_param);
+    free(second_param);
+
+    // If a handle was created, close it
     if (handle != NULL) {
         pcap_close(handle);
     }

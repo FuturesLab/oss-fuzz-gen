@@ -1,106 +1,89 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_lib_version at pcap-linux.c:6255:1 in pcap.h
-// pcap_findalldevs at pcap.c:672:1 in pcap.h
-// pcap_freealldevs at pcap.c:1414:1 in pcap.h
-// pcap_open_live at pcap.c:2813:1 in pcap.h
+// pcap_open_dead at pcap.c:4620:1 in pcap.h
+// pcap_dump_open at sf-pcap.c:895:1 in pcap.h
+// pcap_dump_file at sf-pcap.c:1194:1 in pcap.h
+// pcap_dump_ftell at sf-pcap.c:1200:1 in pcap.h
+// pcap_dump_close at sf-pcap.c:1255:1 in pcap.h
+// pcap_dump_fopen at sf-pcap.c:981:1 in pcap.h
+// pcap_dump_ftell at sf-pcap.c:1200:1 in pcap.h
+// pcap_dump_close at sf-pcap.c:1255:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_lookupnet at pcap.c:1547:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_strerror at pcap.c:3786:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
-#define ERROR_BUFFER_SIZE 256
-
-static void fuzz_pcap_lib_version() {
-    const char *version = pcap_lib_version();
-    if (version) {
-        printf("Libpcap version: %s\n", version);
+static pcap_t *initialize_pcap() {
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!handle) {
+        fprintf(stderr, "Failed to open pcap handle: %s\n", errbuf);
     }
+    return handle;
 }
 
-static void fuzz_pcap_findalldevs() {
-    pcap_if_t *alldevs;
-    char errbuf[ERROR_BUFFER_SIZE];
-
-    int result = pcap_findalldevs(&alldevs, errbuf);
-    if (result == -1) {
-        fprintf(stderr, "Error in pcap_findalldevs: %s\n", errbuf);
-        return;
+static void write_dummy_file(const char *filename, const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(filename, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-
-    pcap_if_t *d;
-    for (d = alldevs; d != NULL; d = d->next) {
-        printf("Device: %s\n", d->name);
-        if (d->description) {
-            printf("Description: %s\n", d->description);
-        }
-    }
-
-    pcap_freealldevs(alldevs);
-}
-
-static void fuzz_pcap_open_live(const char *device) {
-    char errbuf[ERROR_BUFFER_SIZE];
-    pcap_t *handle = pcap_open_live(device, BUFSIZ, 1, 1000, errbuf);
-    if (handle == NULL) {
-        fprintf(stderr, "Error in pcap_open_live: %s\n", errbuf);
-        return;
-    }
-
-    printf("Opened device %s for live capture\n", device);
-    pcap_close(handle);
-}
-
-static void fuzz_pcap_lookupnet(const char *device) {
-    bpf_u_int32 net, mask;
-    char errbuf[ERROR_BUFFER_SIZE];
-
-    int result = pcap_lookupnet(device, &net, &mask, errbuf);
-    if (result == -1) {
-        fprintf(stderr, "Error in pcap_lookupnet: %s\n", errbuf);
-        return;
-    }
-
-    printf("Device %s: Network: %u, Mask: %u\n", device, net, mask);
-}
-
-static void fuzz_pcap_statustostr(int status) {
-    const char *status_str = pcap_statustostr(status);
-    printf("Status %d: %s\n", status, status_str);
-}
-
-static void fuzz_pcap_strerror(int errnum) {
-    const char *error_str = pcap_strerror(errnum);
-    printf("Error %d: %s\n", errnum, error_str);
 }
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    fuzz_pcap_lib_version();
-    fuzz_pcap_findalldevs();
+    pcap_t *pcap_handle = initialize_pcap();
+    if (!pcap_handle) return 0;
 
-    // Use a portion of the input data as a device name
-    char device_name[Size + 1];
-    memcpy(device_name, Data, Size);
-    device_name[Size] = '\0';
+    // Prepare the filename for pcap_dump_open
+    char filename[] = "./dummy_file";
+    write_dummy_file(filename, Data, Size);
 
-    fuzz_pcap_open_live(device_name);
-    fuzz_pcap_lookupnet(device_name);
+    // Test pcap_dump_open
+    pcap_dumper_t *dumper = pcap_dump_open(pcap_handle, filename);
+    if (dumper) {
+        // Test pcap_dump_file
+        FILE *dump_file = pcap_dump_file(dumper);
+        if (dump_file) {
+            // Test pcap_dump_ftell
+            long position = pcap_dump_ftell(dumper);
+            (void)position; // Suppress unused variable warning
+        }
+        // Test pcap_dump_close
+        pcap_dump_close(dumper);
+    }
 
-    // Use the first byte of input data as a status/error code
-    int status_code = Data[0];
-    fuzz_pcap_statustostr(status_code);
-    fuzz_pcap_strerror(status_code);
+    // Test pcap_dump_fopen
+    FILE *file = fopen(filename, "rb");
+    if (file) {
+        pcap_dumper_t *dumper_fopen = pcap_dump_fopen(pcap_handle, file);
+        if (dumper_fopen) {
+            // Test pcap_dump_ftell
+            long position = pcap_dump_ftell(dumper_fopen);
+            (void)position; // Suppress unused variable warning
 
+            // Test pcap_dump_close
+            pcap_dump_close(dumper_fopen);
+        }
+        // fclose(file); // Remove this line to avoid double-free
+    }
+
+    // Test pcap_next_etherent
+    file = fopen(filename, "r");
+    if (file) {
+        struct pcap_etherent *etherent;
+        while ((etherent = pcap_next_etherent(file)) != NULL) {
+            // Process etherent if needed
+        }
+        fclose(file);
+    }
+
+    pcap_close(pcap_handle);
     return 0;
 }
