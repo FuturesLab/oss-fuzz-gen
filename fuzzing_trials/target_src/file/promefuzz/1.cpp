@@ -1,9 +1,11 @@
 // This fuzz driver is generated for library file, aiming to fuzz the following functions:
 // magic_open at magic.c:267:1 in magic.h
 // magic_load at magic.c:317:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
-// magic_file at magic.c:414:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
+// magic_errno at magic.c:577:1 in magic.h
+// magic_version at magic.c:607:1 in magic.h
+// magic_getparam at magic.c:656:1 in magic.h
+// magic_load_buffers at magic.c:329:1 in magic.h
+// magic_setparam at magic.c:613:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
@@ -14,41 +16,50 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <magic.h>
 #include <cstdint>
-#include <cstddef>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <magic.h>
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Write the data to a dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Open a magic cookie
-    magic_t magic_cookie = magic_open(MAGIC_NONE);
-    if (!magic_cookie) {
+    // Initialize magic_t object
+    magic_t cookie = magic_open(MAGIC_NONE);
+    if (cookie == NULL) {
         return 0;
     }
 
-    // Load the magic database
-    if (magic_load(magic_cookie, NULL) == -1) {
-        magic_error(magic_cookie);
+    // Prepare a dummy file if necessary
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (dummy_file != NULL) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
     }
 
-    // Identify the file type
-    const char *result = magic_file(magic_cookie, "./dummy_file");
-    if (!result) {
-        magic_error(magic_cookie);
-    }
+    // Fuzz magic_load
+    const char *filename = Size > 0 ? "./dummy_file" : NULL;
+    magic_load(cookie, filename);
 
-    // Close the magic cookie
-    magic_close(magic_cookie);
+    // Fuzz magic_errno
+    int err = magic_errno(cookie);
+
+    // Fuzz magic_version
+    int version = magic_version();
+
+    // Fuzz magic_getparam
+    int param_type = (Size > 0) ? Data[0] : 0;
+    size_t param_value;
+    magic_getparam(cookie, param_type, &param_value);
+
+    // Fuzz magic_load_buffers
+    void *buffers[] = { (void *)Data };
+    size_t buffer_sizes[] = { Size };
+    magic_load_buffers(cookie, buffers, buffer_sizes, 1);
+
+    // Fuzz magic_setparam
+    magic_setparam(cookie, param_type, &param_value);
+
+    // Cleanup
+    magic_close(cookie);
 
     return 0;
 }

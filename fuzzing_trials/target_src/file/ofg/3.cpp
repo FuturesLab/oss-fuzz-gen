@@ -1,58 +1,29 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <magic.h>
+extern "C" {
+    #include <magic.h>
+    #include <stddef.h>
+    #include <stdint.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    struct magic_set *ms;
-    int param_type;
-    const void *param_value;
-
-    // Initialize the magic_set structure
-    ms = magic_open(MAGIC_NONE);
-    if (ms == NULL) {
+    struct magic_set *magic = magic_open(MAGIC_NONE);
+    if (magic == NULL) {
         return 0;
     }
 
-    // Load the default magic database
-    if (magic_load(ms, NULL) != 0) {
-        magic_close(ms);
+    // Ensure data is not null and has enough size to be used as a parameter
+    if (size < sizeof(int)) {
+        magic_close(magic);
         return 0;
     }
 
-    // Ensure the data size is sufficient for fuzzing
-    if (size < sizeof(int) + 1) {
-        magic_close(ms);
-        return 0;
-    }
+    // Use the first part of data as an integer parameter
+    int param = *(const int *)data;
+    const void *value = data + sizeof(int);
 
-    // Extract the parameter type from the input data
-    memcpy(&param_type, data, sizeof(int));
-    data += sizeof(int);
-    size -= sizeof(int);
-
-    // Use the remaining data as the parameter value
-    param_value = static_cast<const void *>(data);
-
-    // Call the function-under-test and check for errors
-    // We will attempt to use a valid param_type for better coverage
-    if (param_type < 0 || param_type > MAGIC_PARAM_INDIR_MAX) {
-        param_type = MAGIC_PARAM_INDIR_MAX; // Use a valid parameter type
-    }
-
-    if (magic_setparam(ms, param_type, param_value) != 0) {
-        // Handle error if needed, e.g., logging, but for fuzzing we just continue
-    }
-
-    // Optionally, perform additional operations to increase coverage
-    // For example, we can use magic_file or magic_buffer with the remaining data
-    if (size > 0) {
-        magic_buffer(ms, data, size);
-    }
+    // Call the function under test
+    magic_setparam(magic, param, value);
 
     // Clean up
-    magic_close(ms);
-
+    magic_close(magic);
     return 0;
 }

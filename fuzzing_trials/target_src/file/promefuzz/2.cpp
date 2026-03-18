@@ -2,8 +2,10 @@
 // magic_open at magic.c:267:1 in magic.h
 // magic_load at magic.c:317:1 in magic.h
 // magic_error at magic.c:569:1 in magic.h
-// magic_check at magic.c:348:1 in magic.h
+// magic_close at magic.c:306:1 in magic.h
 // magic_file at magic.c:414:1 in magic.h
+// magic_error at magic.c:569:1 in magic.h
+// magic_error at magic.c:569:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
@@ -16,53 +18,63 @@
 #include <cstddef>
 #include <magic.h>
 #include <cstdint>
-#include <cstring>
-#include <cstdlib>
+#include <cstddef>
 #include <cstdio>
+#include <cerrno>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Prepare a dummy file with the fuzz data
+    const char* dummyFileName = "./dummy_file";
+    FILE* dummyFile = fopen(dummyFileName, "wb");
+    if (!dummyFile) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, dummyFile);
+    fclose(dummyFile);
 
-    // Convert the first byte of data to an int for flags
-    int flags = Data[0];
-
-    // Create a magic cookie
-    magic_t magic_cookie = magic_open(flags);
-    if (magic_cookie == NULL) {
+    // Open a magic cookie
+    magic_t magicCookie = magic_open(MAGIC_NONE);
+    if (!magicCookie) {
+        // magic_open failed
         return 0;
     }
 
-    // Attempt to load a magic database
-    const char *filename = nullptr;
-    if (Size > 1) {
-        filename = "./dummy_file";
-        FILE *file = fopen(filename, "wb");
-        if (file) {
-            fwrite(Data + 1, 1, Size - 1, file);
-            fclose(file);
-        }
-    }
-
-    int load_result = magic_load(magic_cookie, filename);
-    if (load_result == -1) {
-        // Check for errors
-        const char *error = magic_error(magic_cookie);
+    // Load the default magic database
+    if (magic_load(magicCookie, NULL) == -1) {
+        // Handle magic_load error
+        const char *error = magic_error(magicCookie);
         if (error) {
-            // Handle error if needed (e.g., log it)
+            fprintf(stderr, "magic_load error: %s\n", error);
         }
+        magic_close(magicCookie);
+        return 0;
     }
-
-    // Check the magic database
-    int check_result = magic_check(magic_cookie, filename);
 
     // Identify the file type
-    const char *file_type = magic_file(magic_cookie, filename);
-    if (file_type) {
-        // Handle file type if needed (e.g., log it)
+    const char* result = magic_file(magicCookie, dummyFileName);
+    if (!result) {
+        // Handle magic_file error
+        const char *error = magic_error(magicCookie);
+        if (error) {
+            fprintf(stderr, "magic_file error: %s\n", error);
+        }
+    } else {
+        // Optionally process the result
+        printf("File type: %s\n", result);
+    }
+
+    // Check for any errors again
+    const char *error = magic_error(magicCookie);
+    if (error) {
+        fprintf(stderr, "magic error: %s\n", error);
     }
 
     // Clean up
-    magic_close(magic_cookie);
+    magic_close(magicCookie);
+
+    // Remove the dummy file
+    remove(dummyFileName);
 
     return 0;
 }

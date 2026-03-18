@@ -1,47 +1,33 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <magic.h>
+#include <cstdint>  // Include for uint8_t
+#include <cstdlib>  // Include for malloc and free
+#include <cstring>  // Include for memcpy
 
 extern "C" {
-    // Include the necessary C headers and function declarations
-    struct magic_set *magic_open(int flags);
-    int magic_list(struct magic_set *, const char *);
-    void magic_close(struct magic_set *);
+    #include <magic.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    struct magic_set *magic = NULL;
-    char *filename = NULL;
-
-    // Ensure the data size is sufficient to create a valid string
-    if (size < 1) {
-        return 0;
-    }
-
-    // Create a null-terminated string from the input data
-    filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        return 0;
-    }
-    memcpy(filename, data, size);
-    filename[size] = '\0';
-
     // Initialize the magic_set structure
-    magic = magic_open(MAGIC_NONE);
+    struct magic_set *magic = magic_open(MAGIC_NONE);
     if (magic == NULL) {
-        free(filename);
         return 0;
     }
+
+    // Ensure the data is null-terminated before using it as a string
+    char *file_path = (char *)malloc(size + 1);
+    if (file_path == NULL) {
+        magic_close(magic);
+        return 0;
+    }
+    memcpy(file_path, data, size);
+    file_path[size] = '\0';
 
     // Call the function-under-test
-    magic_list(magic, filename);
+    magic_load(magic, file_path);
 
-    // Clean up resources
+    // Clean up
+    free(file_path);
     magic_close(magic);
-    free(filename);
 
     return 0;
 }

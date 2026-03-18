@@ -1,33 +1,28 @@
-#include <cstddef>
-#include <cstdint>
+#include <stdint.h>
+#include <stddef.h>
 #include <magic.h>
-#include <cstdio>
-
-extern "C" {
-    const char * magic_buffer(struct magic_set *, const void *, size_t);
-}
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    struct magic_set *magic = magic_open(MAGIC_NONE);
-    if (magic == NULL) {
+    // Initialize a magic_set structure
+    struct magic_set *ms = magic_open(MAGIC_NONE);
+    if (ms == NULL) {
+        return 0; // If magic_open fails, return immediately
+    }
+
+    // Ensure the data is not empty and size is sufficient
+    if (size < sizeof(int)) {
+        magic_close(ms);
         return 0;
     }
 
-    // Attempt to load the default magic database
-    if (magic_load(magic, NULL) != 0) {
-        // If loading fails, print the error and continue to test the buffer
-        fprintf(stderr, "Failed to load magic database: %s\n", magic_error(magic));
-    }
+    // Extract an integer from the data
+    int flags = *(int*)data;
 
-    const char *result = magic_buffer(magic, data, size);
+    // Call the function-under-test
+    magic_setflags(ms, flags);
 
-    // Optionally, you can do something with the result, like logging or further processing.
-    if (result != NULL) {
-        printf("Magic buffer result: %s\n", result);
-    } else {
-        fprintf(stderr, "Magic buffer returned NULL: %s\n", magic_error(magic));
-    }
+    // Clean up
+    magic_close(ms);
 
-    magic_close(magic);
     return 0;
 }

@@ -1,11 +1,12 @@
 // This fuzz driver is generated for library file, aiming to fuzz the following functions:
 // magic_open at magic.c:267:1 in magic.h
 // magic_load at magic.c:317:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
-// magic_file at magic.c:414:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
-// magic_compile at magic.c:340:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
+// magic_close at magic.c:306:1 in magic.h
+// magic_setflags at magic.c:594:1 in magic.h
+// magic_getflags at magic.c:585:1 in magic.h
+// magic_setparam at magic.c:613:1 in magic.h
+// magic_version at magic.c:607:1 in magic.h
+// magic_descriptor at magic.c:403:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
@@ -18,62 +19,58 @@
 #include <cstddef>
 #include <magic.h>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
+#include <unistd.h>
+#include <fcntl.h>
 #include <iostream>
-#include <fstream>
-
-static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    std::ofstream outFile("./dummy_file", std::ios::binary);
-    if (outFile.is_open()) {
-        outFile.write(reinterpret_cast<const char*>(Data), Size);
-        outFile.close();
-    }
-}
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's at least some data for flags
+    if (Size < 1) return 0;
 
-    int flags = Data[0];
-    magic_t magic = magic_open(flags);
-    if (!magic) {
+    // Create a magic_t object
+    magic_t magic = magic_open(MAGIC_NONE);
+    if (magic == NULL) {
         return 0;
     }
 
-    std::string filename;
-    if (Size > 1) {
-        // Ensure null-termination for filename
-        filename.assign(reinterpret_cast<const char*>(Data + 1), Size - 1);
+    // Load the default magic database
+    if (magic_load(magic, NULL) == -1) {
+        magic_close(magic);
+        return 0;
     }
 
-    // Write data to a dummy file for testing magic_file
-    writeDummyFile(Data, Size);
+    // Set flags using the data
+    int flags = static_cast<int>(Data[0]);
+    magic_setflags(magic, flags);
 
-    // Test magic_load
-    if (magic_load(magic, filename.empty() ? nullptr : filename.c_str()) == -1) {
-        const char *error = magic_error(magic);
-        if (error) {
-            std::cerr << "Error loading magic: " << error << std::endl;
-        }
-    } else {
-        // Test magic_file with dummy file
-        const char *result = magic_file(magic, "./dummy_file");
-        if (!result) {
-            const char *error = magic_error(magic);
-            if (error) {
-                std::cerr << "Error identifying file: " << error << std::endl;
-            }
+    // Get current flags
+    int current_flags = magic_getflags(magic);
+
+    // Set a parameter (example: MAGIC_PARAM_INDIR_MAX)
+    // Ensure the parameter value is of the correct type (size_t)
+    size_t param_value = static_cast<size_t>(Data[0]);
+    magic_setparam(magic, MAGIC_PARAM_INDIR_MAX, &param_value);
+
+    // Get library version
+    int version = magic_version();
+
+    // Write data to a dummy file
+    int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd != -1) {
+        write(fd, Data, Size);
+        lseek(fd, 0, SEEK_SET);
+
+        // Use magic_descriptor to get a description of the file
+        const char *description = magic_descriptor(magic, fd);
+        if (description != NULL) {
+            // Print the description (for debugging purposes)
+            std::cout << description << std::endl;
         }
 
-        // Test magic_compile
-        if (magic_compile(magic, filename.empty() ? nullptr : filename.c_str()) == -1) {
-            const char *error = magic_error(magic);
-            if (error) {
-                std::cerr << "Error compiling magic: " << error << std::endl;
-            }
-        }
+        close(fd);
     }
 
+    // Clean up
     magic_close(magic);
     return 0;
 }

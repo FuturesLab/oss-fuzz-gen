@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library file, aiming to fuzz the following functions:
 // magic_open at magic.c:267:1 in magic.h
+// magic_compile at magic.c:340:1 in magic.h
+// magic_errno at magic.c:577:1 in magic.h
 // magic_setflags at magic.c:594:1 in magic.h
-// magic_load at magic.c:317:1 in magic.h
-// magic_getflags at magic.c:585:1 in magic.h
-// magic_setparam at magic.c:613:1 in magic.h
-// magic_descriptor at magic.c:403:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
+// magic_getparam at magic.c:656:1 in magic.h
+// magic_load_buffers at magic.c:329:1 in magic.h
+// magic_list at magic.c:356:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
@@ -18,65 +18,51 @@
 #include <cstddef>
 #include <magic.h>
 #include <cstdint>
-#include <cstdio>
-#include <fcntl.h>
-#include <unistd.h>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <fstream>
 
-// Define a dummy parameter identifier as it's not declared in the provided headers
-#define DUMMY_MAGIC_PARAM 0
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    std::ofstream ofs("./dummy_file", std::ios::binary);
+    ofs.write(reinterpret_cast<const char*>(Data), Size);
+    ofs.close();
+}
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    // Initialize magic library
-    magic_t magic = magic_open(MAGIC_NONE);
-    if (!magic) {
+    if (Size == 0) return 0;
+    
+    magic_t magic_cookie = magic_open(MAGIC_NONE);
+    if (magic_cookie == NULL) {
         return 0;
     }
 
-    // Use the input data to set flags, load files, and set parameters
-    if (Size > 0) {
-        int flags = Data[0]; // Use the first byte for flags
-        magic_setflags(magic, flags);
-    }
+    // Prepare dummy file
+    writeDummyFile(Data, Size);
 
-    // Write Data to a dummy file
-    const char *dummy_filename = "./dummy_file";
-    FILE *file = fopen(dummy_filename, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+    // Test magic_compile
+    magic_compile(magic_cookie, "./dummy_file");
 
-    // Load the magic database from the dummy file
-    magic_load(magic, dummy_filename);
+    // Test magic_errno
+    int err = magic_errno(magic_cookie);
 
-    // Attempt to get the flags
-    int current_flags = magic_getflags(magic);
+    // Test magic_setflags
+    int flags = Data[0] % 256; // Simple flag selection
+    magic_setflags(magic_cookie, flags);
 
-    // Set a parameter using the input data
-    if (Size > sizeof(size_t)) {
-        size_t param = 0;
-        memcpy(&param, Data + 1, sizeof(size_t)); // Safely copy the size_t value
-        magic_setparam(magic, DUMMY_MAGIC_PARAM, &param);
-    }
+    // Test magic_getparam with correct size parameter
+    size_t param = 0; // Use size_t instead of int to match expected type
+    magic_getparam(magic_cookie, MAGIC_PARAM_INDIR_MAX, &param);
 
-    // Open the dummy file and get a file descriptor
-    int fd = open(dummy_filename, O_RDONLY);
-    if (fd != -1) {
-        // Get a description of the file descriptor
-        const char *description = magic_descriptor(magic, fd);
-        if (description) {
-            // Do something with the description
-        }
-        close(fd);
-    }
+    // Test magic_load_buffers
+    void *buffers[1] = {const_cast<uint8_t*>(Data)};
+    size_t sizes[1] = {Size};
+    magic_load_buffers(magic_cookie, buffers, sizes, 1);
 
-    // Check for any errors
-    const char *error = magic_error(magic);
-    if (error) {
-        // Handle the error
-    }
+    // Test magic_list
+    magic_list(magic_cookie, "./dummy_file");
 
-    // Cleanup
-    magic_close(magic);
+    magic_close(magic_cookie);
+
     return 0;
 }

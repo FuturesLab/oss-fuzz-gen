@@ -1,44 +1,33 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <magic.h>
-#include <stdio.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+
+extern "C" {
+    // Declare the function-under-test
+    const char* magic_getpath(const char* path, int flags);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
+    // Ensure that the input data is not empty
     if (size == 0) {
-        return 0; // No data to process
-    }
-
-    // Declare and initialize variables
-    struct magic_set *magic = magic_open(MAGIC_NONE);
-    const char *result = NULL;
-    
-    // Ensure magic is not NULL
-    if (magic == NULL) {
-        fprintf(stderr, "Failed to initialize magic library\n");
         return 0;
     }
 
-    // Load the default magic database
-    if (magic_load(magic, NULL) != 0) {
-        fprintf(stderr, "Failed to load magic database: %s\n", magic_error(magic));
-        magic_close(magic);
-        return 0;
-    }
+    // Allocate memory for the path string and copy data into it
+    char* path = new char[size + 1];
+    std::memcpy(path, data, size);
+    path[size] = '\0'; // Null-terminate the string
 
-    // Call the function-under-test directly with the fuzzing input
-    result = magic_buffer(magic, data, size);
+    // Define a non-zero integer for flags
+    int flags = 1; // Example flag value
 
-    // Do something with the result if needed
-    if (result != NULL) {
-        // For example, print the result (not necessary for fuzzing)
-        // printf("Magic Buffer: %s\n", result);
-    } else {
-        fprintf(stderr, "magic_buffer failed: %s\n", magic_error(magic));
-    }
+    // Call the function-under-test
+    const char* result = magic_getpath(path, flags);
 
-    // Clean up
-    magic_close(magic);
+    // Clean up allocated memory
+    delete[] path;
 
+    // The result is a const char* and doesn't need to be freed
+    // Return 0 to indicate successful execution
     return 0;
 }
