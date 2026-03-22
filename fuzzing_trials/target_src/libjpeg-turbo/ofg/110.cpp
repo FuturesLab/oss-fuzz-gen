@@ -1,47 +1,38 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Initialize variables
+    if (size < 1) return 0;
+
     tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Exit if decompression initialization fails
-    }
+    if (!handle) return 0;
 
-    // Allocate memory for YUV planes
-    unsigned char *yuvPlanes[3];
-    int strides[3];
-    int width = 16; // Example width
-    int height = 16; // Example height
+    // Define some parameters for the decompression
+    int width = 100;  // Example width
+    int height = 100; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int flags = 0; // No flags
+    int pitch = width * tjPixelSize[pixelFormat]; // Calculate pitch
 
-    // Calculate the size of each plane and allocate memory
-    for (int i = 0; i < 3; i++) {
-        strides[i] = width;
-        yuvPlanes[i] = (unsigned char *)malloc(strides[i] * height);
-        if (yuvPlanes[i] == nullptr) {
-            // Clean up and exit if memory allocation fails
-            for (int j = 0; j < i; j++) {
-                free(yuvPlanes[j]);
-            }
-            tjDestroy(handle);
-            return 0;
-        }
+    // Allocate buffer for decompressed image
+    unsigned char* destBuf = (unsigned char*)malloc(width * height * tjPixelSize[pixelFormat]);
+    if (!destBuf) {
+        tjDestroy(handle);
+        return 0;
     }
 
     // Call the function-under-test
-    tj3DecompressToYUVPlanes8(handle, data, size, yuvPlanes, strides);
+    int result = tjDecompress2(handle, data, (unsigned long)size, destBuf, width, pitch, height, pixelFormat, flags);
 
     // Clean up
-    for (int i = 0; i < 3; i++) {
-        free(yuvPlanes[i]);
-    }
+    free(destBuf);
     tjDestroy(handle);
 
     return 0;

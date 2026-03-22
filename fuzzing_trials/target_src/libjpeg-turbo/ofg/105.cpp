@@ -1,47 +1,54 @@
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
+#include <cstdlib> // for std::malloc and std::free
+#include <algorithm> // for std::min
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Initialize variables for tjEncodeYUV
-    tjhandle handle = tjInitCompress();
+    if (size < 3) {
+        return 0; // Not enough data to proceed
+    }
+
+    // Initialize the TurboJPEG decompressor
+    tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
-        return 0;
+        return 0; // Failed to initialize
     }
 
-    // Ensure there is enough data to extract parameters
-    if (size < 12) {
+    // Dynamically determine width and height based on input size
+    int width = std::min(static_cast<int>(size / 3), 256); // Limit to 256 for practical reasons
+    int height = std::min(static_cast<int>(size / 3), 256);
+
+    // Prepare YUV planes
+    const unsigned char *yuvPlanes[3];
+    int planeSizes[3];
+
+    // Calculate plane sizes and assign data
+    planeSizes[0] = width * height; // Y plane size
+    planeSizes[1] = width * height / 4; // U plane size
+    planeSizes[2] = width * height / 4; // V plane size
+
+    if (size < static_cast<size_t>(planeSizes[0] + planeSizes[1] + planeSizes[2])) {
         tjDestroy(handle);
-        return 0;
+        return 0; // Not enough data for YUV planes
     }
 
-    // Extract width and height from the data
-    int width = (int)data[0] + 1;  // Ensure non-zero
-    int height = (int)data[1] + 1; // Ensure non-zero
-    int pitch = width * 3;         // Assuming 3 bytes per pixel for RGB
+    yuvPlanes[0] = data; // Y plane
+    yuvPlanes[1] = data + planeSizes[0]; // U plane
+    yuvPlanes[2] = data + planeSizes[0] + planeSizes[1]; // V plane
 
-    // Extract pixel format
-    int pixelFormat = (int)data[2] % TJ_NUMPF;
-
-    // Allocate memory for the image buffer and YUV buffer
-    unsigned char *imgBuf = (unsigned char *)(data + 3);
-    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, TJSAMP_444));
-
-    if (yuvBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
+    // Prepare the destination buffer
+    int pixelFormat = TJPF_RGB; // Output pixel format
+    unsigned char *dstBuffer = new unsigned char[width * height * tjPixelSize[pixelFormat]];
 
     // Call the function-under-test
-    tjEncodeYUV(handle, imgBuf, width, pitch, height, pixelFormat, yuvBuf, 4, TJSAMP_444);
+    tj3DecodeYUVPlanes8(handle, yuvPlanes, planeSizes, dstBuffer, width, 0, height, pixelFormat);
 
     // Clean up
-    free(yuvBuf);
+    delete[] dstBuffer;
     tjDestroy(handle);
 
     return 0;

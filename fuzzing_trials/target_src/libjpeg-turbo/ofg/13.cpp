@@ -1,28 +1,40 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
-// Declaration of the function-under-test
-int tj3YUVPlaneWidth(int componentID, int width, int align);
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract three integers
-    if (size < 3 * sizeof(int)) {
+    // Initialize variables for tjDecompressToYUV2
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
         return 0;
     }
 
-    // Extract three integers from the input data
-    int componentID = static_cast<int>(data[0]);
-    int width = static_cast<int>(data[1]);
-    int align = static_cast<int>(data[2]);
+    const unsigned char *jpegBuf = data;
+    unsigned long jpegSize = (unsigned long)size;
+
+    // Allocate memory for the YUV buffer
+    int width = 640;  // Example width
+    int height = 480; // Example height
+    int subsamp = TJSAMP_420; // Example subsampling
+    int flags = 0; // No flags
+
+    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
+    if (yuvBuf == nullptr) {
+        tjDestroy(handle);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = tj3YUVPlaneWidth(componentID, width, align);
+    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, flags);
 
-    // Print the result (optional, for debugging purposes)
-    printf("tj3YUVPlaneWidth(%d, %d, %d) = %d\n", componentID, width, align, result);
+    // Cleanup
+    free(yuvBuf);
+    tjDestroy(handle);
 
     return 0;
 }

@@ -1,63 +1,59 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
-#include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-#include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-#include "../src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Initialize variables for tjDecompressToYUV2
     tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
         return 0;
     }
 
-    // Define parameters for tjDecompressToYUV2
     const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = static_cast<unsigned long>(size);
-
-    // Assuming some arbitrary dimensions for the YUV output
-    int width = 128;  // Width of the image
-    int height = 128; // Height of the image
-    int strides = width; // Strides for YUV planes
+    unsigned long jpegSize = (unsigned long)size;
 
     // Allocate memory for the YUV buffer
-    unsigned char *yuvBuf = static_cast<unsigned char *>(malloc(width * height * 3));
+    int width = 640;  // Example width
+    int height = 480; // Example height
+    int subsamp = TJSAMP_420; // Example subsampling
+    int flags = 0; // No flags
+
+    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
     if (yuvBuf == nullptr) {
         tjDestroy(handle);
         return 0;
     }
 
     // Call the function-under-test
-    int result = tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, strides, height, 0);
+    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, flags);
 
-    // Clean up
+    // Cleanup
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tj3Decompress12
-    int ret_tj3GetErrorCode_opgfx = tj3GetErrorCode(0);
-    if (ret_tj3GetErrorCode_opgfx < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tj3DecompressToYUVPlanes8
+    tjhandle ret_tj3Init_qmago = tj3Init(TJFLAG_NOREALLOC);
+    unsigned char* ret_tjAlloc_gpltq = tjAlloc(TJFLAG_FASTDCT);
+    if (ret_tjAlloc_gpltq == NULL){
+    	return 0;
+    }
+    int hguubqjt = size;
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3GetScalingFactors
+    int tdenndwe = 64;
+    tjscalingfactor* ret_tj3GetScalingFactors_rsshh = tj3GetScalingFactors(&tdenndwe);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    if (ret_tj3GetScalingFactors_rsshh == NULL){
     	return 0;
     }
 
-    int ret_tj3Decompress12_oqezz = tj3Decompress12(0, yuvBuf, (size_t )ret_tj3GetErrorCode_opgfx, NULL, TJ_NUMCS, TJ_YUV);
-    if (ret_tj3Decompress12_oqezz < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Decompress12 to tj3YUVPlaneSize
-    int cpxoxfqm = size;
-    tjscalingfactor* ret_tj3GetScalingFactors_zrujp = tj3GetScalingFactors(&cpxoxfqm);
-    if (ret_tj3GetScalingFactors_zrujp == NULL){
-    	return 0;
-    }
-
-    size_t ret_tj3YUVPlaneSize_ukopq = tj3YUVPlaneSize(TJXOPT_OPTIMIZE, size, ret_tj3Decompress12_oqezz, ret_tj3GetErrorCode_opgfx, cpxoxfqm);
-    if (ret_tj3YUVPlaneSize_ukopq < 0){
+    int ret_tj3DecompressToYUVPlanes8_gexau = tj3DecompressToYUVPlanes8(ret_tj3Init_qmago, yuvBuf, TJ_NUMINIT, &ret_tjAlloc_gpltq, &hguubqjt);
+    if (ret_tj3DecompressToYUVPlanes8_gexau < 0){
     	return 0;
     }
 

@@ -1,80 +1,69 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
-#include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-#include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-#include "../src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tjInitDecompress();
+    if (size < 12) {
+        // Need at least 12 bytes for width, height, subsamp, and quality
+        return 0;
+    }
+
+    // Extract width, height, subsamp, and quality from the input data
+    int width = (data[0] << 8) | data[1];
+    int height = (data[2] << 8) | data[3];
+    int subsamp = data[4] % 5; // Using % 5 to ensure a valid subsampling option
+    int quality = data[5] % 101; // Quality should be between 0 and 100
+
+    // Ensure width and height are non-zero
+    width = width == 0 ? 1 : width;
+    height = height == 0 ? 1 : height;
+
+    // Calculate the minimum YUV buffer size
+    int yuvSize = tjBufSizeYUV2(width, 4, height, subsamp);
+    if (size < 12 + yuvSize) {
+        return 0;
+    }
+
+    // Point to the YUV image data
+    const unsigned char *yuvImage = data + 12;
+
+    // Allocate memory for the compressed JPEG image
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+
+    // Create a TurboJPEG compressor handle
+    tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
         return 0;
     }
 
-    // Define parameters for tjDecompressToYUV2
-    const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = static_cast<unsigned long>(size);
-
-    // Assuming some arbitrary dimensions for the YUV output
-    int width = 128;  // Width of the image
-    int height = 128; // Height of the image
-    int strides = width; // Strides for YUV planes
-
-    // Allocate memory for the YUV buffer
-    unsigned char *yuvBuf = static_cast<unsigned char *>(malloc(width * height * 3));
-    if (yuvBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
-
     // Call the function-under-test
-    int result = tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, strides, height, 0);
+    tjCompressFromYUV(handle, yuvImage, width, 4, height, subsamp, &jpegBuf, &jpegSize, quality, 0);
 
     // Clean up
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tj3Decompress12
-    tjhandle ret_tj3Init_ddzny = tj3Init(TJ_NUMSAMP);
-    int phoycpzm = -1;
-    tjscalingfactor* ret_tj3GetScalingFactors_fmlyj = tj3GetScalingFactors(&phoycpzm);
-    if (ret_tj3GetScalingFactors_fmlyj == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjCompressFromYUV to TJBUFSIZEYUV
+    int tejgrvte = 0;
+    tjscalingfactor* ret_tjGetScalingFactors_bscru = tjGetScalingFactors(&tejgrvte);
+    if (ret_tjGetScalingFactors_bscru == NULL){
     	return 0;
     }
 
-    int ret_tj3Decompress12_ufobm = tj3Decompress12(ret_tj3Init_ddzny, yuvBuf, (size_t )phoycpzm, NULL, TJ_NUMXOP, TJFLAG_STOPONWARNING);
-    if (ret_tj3Decompress12_ufobm < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Decompress12 to tjDecompressHeader2
-    tjhandle ret_tjInitCompress_vuksk = tjInitCompress();
-    char yypgkfmu[1024] = "cyyuj";
-    tj3Free(yypgkfmu);
-    int kepohvxq = 0;
-    tjscalingfactor* ret_tj3GetScalingFactors_lmdft = tj3GetScalingFactors(&kepohvxq);
-    if (ret_tj3GetScalingFactors_lmdft == NULL){
-    	return 0;
-    }
-    int zjadpbju = 1;
-    tjscalingfactor* ret_tj3GetScalingFactors_kbxwr = tj3GetScalingFactors(&zjadpbju);
-    if (ret_tj3GetScalingFactors_kbxwr == NULL){
-    	return 0;
-    }
-
-    int ret_tjDecompressHeader2_gomzz = tjDecompressHeader2(ret_tjInitCompress_vuksk, (unsigned char *)yypgkfmu, (unsigned long )kepohvxq, &ret_tj3Decompress12_ufobm, &zjadpbju, &result);
-    if (ret_tjDecompressHeader2_gomzz < 0){
+    unsigned long ret_TJBUFSIZEYUV_eycib = TJBUFSIZEYUV((int )jpegSize, tejgrvte, TJXOPT_COPYNONE);
+    if (ret_TJBUFSIZEYUV_eycib < 0){
     	return 0;
     }
 
     // End mutation: Producer.APPEND_MUTATOR
 
-    free(yuvBuf);
     tjDestroy(handle);
+    tjFree(jpegBuf);
 
     return 0;
 }

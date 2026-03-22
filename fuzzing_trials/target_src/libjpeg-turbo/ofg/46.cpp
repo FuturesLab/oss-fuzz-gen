@@ -1,40 +1,36 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h> // Include the necessary header for memcpy
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    void tj3Free(void *);
+    // Declare other functions that could be tested if available
+    // e.g., void processMemory(void *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == NULL) {
+    // Ensure size is non-zero to allocate memory
+    if (size == 0) {
         return 0;
     }
 
-    const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = size;
-
-    int width = 100;  // Example width, should be set according to actual needs
-    int height = 100; // Example height, should be set according to actual needs
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int flags = 0; // Example flags
-    int pitch = 0; // Example pitch, can be set to 0 for default
-
-    // Allocate buffer for decompressed image
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (dstBuf == NULL) {
-        tjDestroy(handle);
-        return 0;
+    // Allocate memory and copy data to it
+    void *memory = malloc(size);
+    if (memory == NULL) {
+        return 0; // Allocation failed, exit early
     }
 
-    // Fuzz the function tjDecompress2
-    tjDecompress2(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, pixelFormat, flags);
+    // Copy the input data to the allocated memory
+    memcpy(memory, data, size);
 
-    // Clean up
-    free(dstBuf);
-    tjDestroy(handle);
+    // Here you can add calls to other functions that use 'memory'
+    // e.g., processMemory(memory);
+
+    // Call the function under test
+    tj3Free(memory);
+
+    // No need to free 'memory' as tj3Free is expected to handle it
 
     return 0;
 }

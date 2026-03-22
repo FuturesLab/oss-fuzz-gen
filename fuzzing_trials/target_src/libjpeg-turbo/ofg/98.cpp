@@ -1,30 +1,47 @@
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 extern "C" {
-    // Function-under-test from the project
-    void * tj3Alloc(size_t);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
-    // Ensure size is not zero to allocate memory
-    if (size == 0) {
-        return 0;
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Failed to create temp file
     }
 
-    // Call the function-under-test with the size of the input
-    void *allocatedMemory = tj3Alloc(size);
-
-    // Check if memory was allocated successfully
-    if (allocatedMemory != NULL) {
-        // Simulate usage of allocated memory
-        // Here we could potentially write or manipulate the memory
-        // For fuzzing purposes, we are just ensuring the function is called
-
-        // Free the allocated memory if necessary
-        // Assuming there's a corresponding free function, e.g., tj3Free
-        // tj3Free(allocatedMemory);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0; // Failed to write data
     }
+    close(fd);
+
+    // Initialize the parameters for tjLoadImage
+    int width = 0;
+    int height = 0;
+    int subsamp = 0;
+    int colorspace = 0;
+    int flags = 0;
+
+    // Call the function-under-test
+    unsigned char *image = tjLoadImage(tmpl, &width, 1, &height, &subsamp, flags);
+
+    // Clean up
+    if (image != NULL) {
+        tjFree(image);
+    }
+    unlink(tmpl); // Remove the temporary file
 
     return 0;
 }

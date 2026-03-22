@@ -1,29 +1,34 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
 
-// Assuming the function is part of a C library, we wrap it with extern "C"
 extern "C" {
-    int tjPlaneWidth(int componentID, int width, int subsamp);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
-// Fuzzing harness for tjPlaneWidth
 extern "C" int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract three integers
-    if (size < 3 * sizeof(int)) {
-        return 0;
+    if (size < 2) {
+        return 0; // Not enough data to be a valid JPEG
     }
 
-    // Extract three integers from the input data
-    int componentID = static_cast<int>(data[0]);
-    int width = static_cast<int>(data[1]);
-    int subsamp = static_cast<int>(data[2]);
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
+        return 0; // Initialization failed
+    }
 
-    // Call the function-under-test
-    int result = tjPlaneWidth(componentID, width, subsamp);
+    int width, height, jpegSubsamp, jpegColorspace;
+    // Cast away constness for the tjDecompressHeader2 function call
+    if (tjDecompressHeader2(handle, const_cast<unsigned char*>(data), size, &width, &height, &jpegSubsamp) == 0) {
+        // Allocate buffer for decompressed image
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer != NULL) {
+            // Attempt to decompress the image
+            tjDecompress2(handle, const_cast<unsigned char*>(data), size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
+    }
 
-    // Use the result in some way to avoid compiler optimizations
-    volatile int sink = result;
-    (void)sink;
-
+    tjDestroy(handle);
     return 0;
 }

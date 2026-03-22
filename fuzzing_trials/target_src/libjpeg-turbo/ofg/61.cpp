@@ -1,23 +1,58 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include for close()
 
-// Assuming the function is part of a C library, we wrap it with extern "C"
 extern "C" {
-    // Include the necessary header where tjGetErrorStr is declared
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+
+    unsigned short * tj3LoadImage16(tjhandle handle, const char *filename, int *width, int align, int *height, int *pixelFormat);
+
+    // Correctly declare tjFree for unsigned char *
+    void tjFree(unsigned char *buffer);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    char *errorStr = tjGetErrorStr();
-
-    // Print the error string to ensure the function is being called
-    if (errorStr != nullptr) {
-        printf("Error: %s\n", errorStr);
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Initialize parameters for tj3LoadImage16
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
+        remove(tmpl);
+        return 0;
+    }
+
+    int width = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB; // Use a valid pixel format
+    int align = 1; // Default alignment
+
+    // Call the function-under-test
+    unsigned short *image = tj3LoadImage16(handle, tmpl, &width, align, &height, &pixelFormat);
+
+    // Clean up
+    if (image) {
+        // Cast image to unsigned char* for tjFree
+        tjFree(reinterpret_cast<unsigned char *>(image));
+    }
+    tjDestroy(handle);
+    remove(tmpl);
 
     return 0;
 }

@@ -1,35 +1,23 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
 
+// Assuming the function-under-test is part of a library
 extern "C" {
-    // Include the necessary headers for the function-under-test
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    unsigned long tjBufSize(int width, int height, int jpegSubsamp);
 }
 
-// Define the LLVMFuzzerTestOneInput function
 extern "C" int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables needed for tj3SetCroppingRegion
-    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
-    tjregion region;
+    // Declare and initialize variables for the function parameters
+    int width = 1;  // Width of the image, must be positive
+    int height = 1; // Height of the image, must be positive
+    int jpegSubsamp = 0; // JPEG subsampling, typically 0, 1, or 2
 
-    // Ensure the handle is not NULL
-    if (!handle) {
-        return 0;
-    }
+    // Call the function-under-test with the initialized parameters
+    unsigned long bufferSize = tjBufSize(width, height, jpegSubsamp);
 
-    // Initialize the region with some values
-    region.x = (size > 0) ? data[0] % 256 : 0;
-    region.y = (size > 1) ? data[1] % 256 : 0;
-    region.w = (size > 2) ? data[2] % 256 : 1; // Width should be non-zero
-    region.h = (size > 3) ? data[3] % 256 : 1; // Height should be non-zero
-
-    // Call the function-under-test
-    int result = tj3SetCroppingRegion(handle, region);
-
-    // Clean up and free resources
-    tj3Destroy(handle);
+    // Print the buffer size for debugging purposes (optional)
+    printf("Buffer Size: %lu\n", bufferSize);
 
     return 0;
 }

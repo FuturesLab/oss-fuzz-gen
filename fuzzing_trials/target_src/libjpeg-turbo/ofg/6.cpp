@@ -1,25 +1,44 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Assuming the function is declared in a C library
 extern "C" {
-    size_t tj3YUVBufSize(int width, int height, int subsamp, int align);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+
+    int tj3SetCroppingRegion(tjhandle handle, tjregion region);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    int width = 1;  // Minimum valid width
-    int height = 1; // Minimum valid height
-    int subsamp = 0; // Assuming 0 is a valid subsampling option
-    int align = 1;   // Minimum valid alignment
+    if (size < sizeof(tjregion)) {
+        return 0; // Not enough data to fill tjregion
+    }
+
+    // Initialize tjhandle
+    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    if (handle == nullptr) {
+        return 0; // Initialization failed
+    }
+
+    // Initialize tjregion with data
+    tjregion region;
+    memcpy(&region, data, sizeof(tjregion));
+
+    // Validate region dimensions to ensure they are positive
+    region.w = (abs(region.w) % 1000) + 1; // Ensure width is at least 1
+    region.h = (abs(region.h) % 1000) + 1; // Ensure height is at least 1
+
+    // Ensure region is within valid bounds
+    region.x = abs(region.x) % 1000; // Limit x to a reasonable value
+    region.y = abs(region.y) % 1000; // Limit y to a reasonable value
 
     // Call the function-under-test
-    size_t bufSize = tj3YUVBufSize(width, height, subsamp, align);
+    if (tj3SetCroppingRegion(handle, region) != 0) {
+        // Handle error if needed, e.g., log or return
+    }
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    volatile size_t result = bufSize;
-    (void)result;
+    // Clean up
+    tj3Destroy(handle);
 
     return 0;
 }

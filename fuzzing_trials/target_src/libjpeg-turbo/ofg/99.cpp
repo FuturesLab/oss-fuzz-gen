@@ -1,28 +1,51 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    
-    void tj3Free(void *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    // Allocate memory for a buffer with the same size as the input data
-    void *buffer = malloc(size);
-    if (buffer == nullptr) {
-        return 0; // If allocation fails, return early
+    if (size < 10) {
+        return 0; // Ensure there is enough data for the input parameters
     }
 
-    // Copy the input data into the buffer
-    memcpy(buffer, data, size);
+    // Initialize tjhandle
+    tjhandle handle = tjInitCompress();
+    if (handle == nullptr) {
+        return 0; // Failed to initialize, exit early
+    }
+
+    // Extract parameters from the data
+    int width = (int)data[0] + 1;  // Ensure width is at least 1
+    int height = (int)data[1] + 1; // Ensure height is at least 1
+    int pixelFormat = (int)data[2] % TJ_NUMPF;
+    int quality = (int)data[3] % 101; // Quality range 0-100
+    int flags = (int)data[4] % (TJFLAG_ACCURATEDCT + 1);
+
+    // Prepare input image buffer
+    int pixelSize = tjPixelSize[pixelFormat];
+    size_t imageSize = width * height * pixelSize;
+    if (size < imageSize + 10) {
+        tjDestroy(handle);
+        return 0; // Not enough data for the image, exit early
+    }
+    const unsigned char *srcBuf = data + 10;
+
+    // Prepare output buffer
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
 
     // Call the function-under-test
-    tj3Free(buffer);
+    int result = tjCompress2(handle, srcBuf, width, 0, height, pixelFormat, &jpegBuf, &jpegSize, TJSAMP_444, quality, flags);
 
-    // Return 0 to indicate successful execution
+    // Clean up
+    if (jpegBuf != nullptr) {
+        tjFree(jpegBuf);
+    }
+    tjDestroy(handle);
+
     return 0;
 }

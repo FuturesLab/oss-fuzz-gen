@@ -1,90 +1,81 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    if (size < 10) {
-        return 0; // Not enough data to proceed
-    }
-
-    // Initialize variables
-    tjhandle handle = tjInitCompress();
+    // Initialize variables for tjDecompressToYUV2
+    tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
-        return 0; // Initialization failed
+        return 0;
     }
 
-    // Extract parameters from the input data
-    int width = (data[0] << 8) + data[1];
-    int height = (data[2] << 8) + data[3];
-    int subsamp = data[4] % 4; // Limit subsampling to valid values [0, 3]
-    int flags = data[5] % 2;   // Limit flags to valid values [0, 1]
+    const unsigned char *jpegBuf = data;
+    unsigned long jpegSize = (unsigned long)size;
 
-    // Ensure width and height are positive
-    width = width > 0 ? width : 1;
-    height = height > 0 ? height : 1;
+    // Allocate memory for the YUV buffer
+    int width = 640;  // Example width
+    int height = 480; // Example height
+    int subsamp = TJSAMP_420; // Example subsampling
+    int flags = 0; // No flags
 
-    // Calculate the YUV buffer size
-    int yuvSize = tjBufSizeYUV2(width, 4, height, subsamp);
-    if (yuvSize <= 0 || yuvSize > static_cast<int>(size - 6)) {
+    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
+    if (yuvBuf == nullptr) {
         tjDestroy(handle);
-        return 0; // Invalid YUV buffer size
+        return 0;
     }
 
-    // Create a YUV buffer and copy data into it
-    const unsigned char *yuvBuffer = data + 6;
+    // Call the function-under-test
+    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, flags);
 
-    // Allocate output buffer
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
+    // Cleanup
 
-    // Call the function under test
-    int result = tjCompressFromYUV(handle, yuvBuffer, width, 4, height, subsamp, &jpegBuf, &jpegSize, 80, flags);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tj3DecompressToYUVPlanes8
+    tjhandle ret_tj3Init_hduhh = tj3Init(TJXOPT_NOOUTPUT);
 
-    // Clean up
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tjAlloc
+    unsigned char* ret_tjAlloc_uloid = tjAlloc(TJ_NUMINIT);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjCompressFromYUV to tjEncodeYUVPlanes
-    tjhandle ret_tj3Init_qtwqm = tj3Init(0);
-    unsigned char* ret_tjAlloc_wggxf = tjAlloc((int )jpegSize);
-    if (ret_tjAlloc_wggxf == NULL){
+
+    if (ret_tjAlloc_uloid == NULL){
     	return 0;
     }
-    int zehunnpd = -1;
-    tjscalingfactor* ret_tjGetScalingFactors_kurxi = tjGetScalingFactors(&zehunnpd);
-    if (ret_tjGetScalingFactors_kurxi == NULL){
-    	return 0;
-    }
-    void* ret_tj3Alloc_bzwcm = tj3Alloc(TJFLAG_FASTUPSAMPLE);
-    if (ret_tj3Alloc_bzwcm == NULL){
-    	return 0;
-    }
-    int psczgovr = 64;
-    tjscalingfactor* ret_tj3GetScalingFactors_dnhyr = tj3GetScalingFactors(&psczgovr);
-    if (ret_tj3GetScalingFactors_dnhyr == NULL){
-    	return 0;
-    }
-    int meelzbcl = size;
-    tjscalingfactor* ret_tjGetScalingFactors_oilgj = tjGetScalingFactors(&meelzbcl);
-    if (ret_tjGetScalingFactors_oilgj == NULL){
+    int ltabktjq = size;
+    tjscalingfactor* ret_tjGetScalingFactors_dhfnl = tjGetScalingFactors(&ltabktjq);
+    if (ret_tjGetScalingFactors_dhfnl == NULL){
     	return 0;
     }
 
-    int ret_tjEncodeYUVPlanes_zrjjl = tjEncodeYUVPlanes(ret_tj3Init_qtwqm, ret_tjAlloc_wggxf, TJFLAG_LIMITSCANS, TJFLAG_FORCEMMX, zehunnpd, (int )jpegSize, (unsigned char **)&ret_tj3Alloc_bzwcm, &psczgovr, meelzbcl, TJXOPT_CROP);
-    if (ret_tjEncodeYUVPlanes_zrjjl < 0){
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjGetScalingFactors to tjEncodeYUV
+    tjhandle ret_tj3Init_jcqsb = tj3Init(64);
+    unsigned char* ret_tjAlloc_rxgyd = tjAlloc(TJ_NUMXOP);
+    if (ret_tjAlloc_rxgyd == NULL){
+    	return 0;
+    }
+    tjFree(ret_tjAlloc_uloid);
+
+    int ret_tjEncodeYUV_stuac = tjEncodeYUV(ret_tj3Init_jcqsb, ret_tjAlloc_rxgyd, TJ_NUMCS, ltabktjq, TJXOPT_ARITHMETIC, TJFLAG_NOREALLOC, ret_tjAlloc_uloid, 0, TJFLAG_BOTTOMUP);
+    if (ret_tjEncodeYUV_stuac < 0){
     	return 0;
     }
 
     // End mutation: Producer.APPEND_MUTATOR
 
+    int ret_tj3DecompressToYUVPlanes8_ugjbo = tj3DecompressToYUVPlanes8(ret_tj3Init_hduhh, yuvBuf, TJFLAG_NOREALLOC, &ret_tjAlloc_uloid, &ltabktjq);
+    if (ret_tj3DecompressToYUVPlanes8_ugjbo < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    free(yuvBuf);
     tjDestroy(handle);
 
-    return result;
+    return 0;
 }

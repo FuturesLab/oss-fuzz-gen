@@ -1,47 +1,59 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
+    // Initialize the TurboJPEG handle
     tjhandle handle = tjInitCompress();
-    if (!handle) {
-        return 0;
+    if (handle == nullptr) {
+        return 0; // If initialization failed, exit early
     }
 
-    // Ensure size is sufficient for at least one pixel
-    if (size < sizeof(uint16_t)) { // Assuming J16SAMPLE is uint16_t
+    // Ensure that the data is not null and size is greater than zero
+    if (data == nullptr || size == 0) {
         tjDestroy(handle);
         return 0;
     }
 
-    // Initialize J16SAMPLE pointer
-    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data);
-
-    // Define image dimensions and pixel format
-    int width = 1;  // Minimum width
-    int height = size / (sizeof(uint16_t) * width);  // Calculate height based on available data
-    int pitch = width * sizeof(uint16_t);
-    int pixelFormat = TJPF_RGB;  // Example pixel format
-
-    // Initialize destination buffer and size
+    // Allocate memory for a dummy image buffer
+    int width = 100, height = 100, subsamp = TJSAMP_444, jpegQual = 75;
+    unsigned long jpegSize = 0;
     unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
 
-    // Call the function-under-test
-    int result = tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
-
-    // Clean up
-    if (jpegBuf) {
-        tjFree(jpegBuf);
+    // Ensure the input data size is large enough for the dummy image
+    if (size < static_cast<size_t>(width * height * tjPixelSize[TJPF_RGB])) {
+        tjDestroy(handle);
+        return 0;
     }
+
+    // Compress the image to JPEG format
+    int compressResult = tjCompress2(handle, (unsigned char *)data, width, 0, height, TJPF_RGB,
+                                     &jpegBuf, &jpegSize, subsamp, jpegQual, TJFLAG_FASTDCT);
+    if (compressResult == 0 && jpegBuf != nullptr) {
+        // Call the function-under-test with the compressed JPEG buffer
+        tj3SetICCProfile(handle, jpegBuf, jpegSize);
+    }
+
+    // Clean up the TurboJPEG handle and free the JPEG buffer
     tjDestroy(handle);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3SetICCProfile to tj3GetICCProfile
+        tjhandle ret_tj3Init_bebgt = tj3Init(TJFLAG_FORCESSE3);
+        size_t mbgmnymw = 64;
+
+        int ret_tj3GetICCProfile_ipihz = tj3GetICCProfile(ret_tj3Init_bebgt, &jpegBuf, &mbgmnymw);
+        if (ret_tj3GetICCProfile_ipihz < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+    tjFree(jpegBuf);
 
     return 0;
 }

@@ -1,40 +1,42 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for a valid path
-    if (size < 1) return 0;
+    if (size < 1) return 0; // Ensure there's at least some data to process
 
-    // Allocate memory for the path, ensuring null-termination
-    char *path = (char *)malloc(size + 1);
-    if (!path) return 0;
-    memcpy(path, data, size);
-    path[size] = '\0';
+    // Initialize TurboJPEG decompressor
+    tjhandle decompressor = tjInitDecompress();
+    if (decompressor == nullptr) {
+        return 0; // If initialization fails, return
+    }
 
-    // Initialize parameters for the function call
-    tjhandle handle = tjInitDecompress();
-    int width = 0;
-    int pitch = 0;
-    int height = 0;
-    int pixelFormat = TJPF_RGB;
+    // Define some parameters for decompression
+    int width = 100;  // Example width
+    int height = 100; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pitch = 0; // Auto-calculate the pitch
+    int flags = 0; // No flags
+
+    // Allocate memory for the decompressed image
+    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+    if (dstBuf == nullptr) {
+        tjDestroy(decompressor);
+        return 0; // If memory allocation fails, return
+    }
 
     // Call the function-under-test
-    unsigned char *image = (unsigned char *)tj3LoadImage16(handle, path, &width, pitch, &height, &pixelFormat);
+    int result = tjDecompress2(decompressor, data, (unsigned long)size, dstBuf, width, pitch, height, pixelFormat, flags);
 
     // Clean up
-    if (image) {
-        tjFree(image);
-    }
-    tjDestroy(handle);
-    free(path);
+    free(dstBuf);
+    tjDestroy(decompressor);
 
     return 0;
 }

@@ -1,43 +1,74 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h> // Include this for FILE type
+#include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/jpeglib.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
-    if (handle == nullptr) {
+    tjhandle handle = tjInitTransform();
+    if (!handle) {
         return 0;
     }
 
-    // Define width and height for the decompressed image
-    int width = 100;  // Example width
-    int height = 100; // Example height
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+    tjtransform transform;
+    transform.op = TJXOP_NONE; // No transform operation
+    transform.options = 0;
+    transform.r = {0, 0, 0, 0}; // No cropping
+    transform.customFilter = nullptr;
 
-    // Calculate the size of the decompressed image buffer
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int pitch = width * tjPixelSize[pixelFormat];
-    size_t decompressedSize = pitch * height;
+    int flags = 0; // No flags
 
-    // Allocate buffer for the decompressed image
-    J16SAMPLE *decompressedBuffer = new J16SAMPLE[decompressedSize];
-    if (decompressedBuffer == nullptr) {
-        tj3Destroy(handle);
-        return 0;
-    }
+    // Allocate memory for the destination buffer
+    unsigned char *dstBuf = nullptr;
+    unsigned long dstSize = 0;
 
     // Call the function-under-test
-    int result = tj3Decompress16(handle, data, size, decompressedBuffer, width, height);
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjTransform
+    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, TJFLAG_PROGRESSIVE);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
 
     // Clean up
-    delete[] decompressedBuffer;
-    tj3Destroy(handle);
+    if (dstBuf) {
+        tjFree(dstBuf);
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjTransform to tj3Decompress8
+    tjhandle ret_tj3Init_cycpy = tj3Init(TJ_ALPHAFIRST);
+    unsigned char* ret_tjAlloc_isirt = tjAlloc(TJXOPT_NOOUTPUT);
+    if (ret_tjAlloc_isirt == NULL){
+    	return 0;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjAlloc to tj3Compress12
+    tjhandle ret_tjInitCompress_njvgd = tjInitCompress();
+    int acxrmyre = 0;
+    tjscalingfactor* ret_tjGetScalingFactors_uscgs = tjGetScalingFactors(&acxrmyre);
+    if (ret_tjGetScalingFactors_uscgs == NULL){
+    	return 0;
+    }
+
+    int ret_tj3Compress12_meiib = tj3Compress12(ret_tjInitCompress_njvgd, NULL, TJFLAG_LIMITSCANS, TJXOPT_OPTIMIZE, acxrmyre, TJ_NUMPF, &ret_tjAlloc_isirt, (size_t *)&dstSize);
+    if (ret_tj3Compress12_meiib < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    int ret_tj3Decompress8_cwjxf = tj3Decompress8(ret_tj3Init_cycpy, ret_tjAlloc_isirt, 0, NULL, TJFLAG_PROGRESSIVE, (int )dstSize);
+    if (ret_tj3Decompress8_cwjxf < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    tjDestroy(handle);
 
     return 0;
 }

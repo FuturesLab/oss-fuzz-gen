@@ -1,23 +1,30 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    // Initialize an integer parameter for tj3Init
-    int initParam = 0; // Typically, 0 is used for default initialization
+    // Ensure we have enough data to extract four integers
+    if (size < sizeof(int) * 4) {
+        return 0;
+    }
+
+    // Extract four integers from the input data
+    int width = *(reinterpret_cast<const int*>(data));
+    int height = *(reinterpret_cast<const int*>(data + sizeof(int)));
+    int subsamp = *(reinterpret_cast<const int*>(data + 2 * sizeof(int)));
+    int align = *(reinterpret_cast<const int*>(data + 3 * sizeof(int)));
 
     // Call the function-under-test
-    tjhandle handle = tj3Init(initParam);
+    unsigned long bufferSize = tjBufSizeYUV2(width, height, subsamp, align);
 
-    // Check if the handle is valid and perform cleanup
-    if (handle != nullptr) {
-        tj3Destroy(handle);
-    }
+    // Use the bufferSize to avoid compiler optimizations removing the call
+    volatile unsigned long result = bufferSize;
+    (void)result;
 
     return 0;
 }

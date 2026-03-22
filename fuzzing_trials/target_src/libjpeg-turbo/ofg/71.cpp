@@ -1,47 +1,50 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
+    // Initialize the TurboJPEG compressor
     tjhandle handle = tjInitCompress();
-    if (!handle) {
-        return 0;
-    }
 
-    // Ensure size is sufficient for at least one pixel
-    if (size < sizeof(uint16_t)) { // Assuming J16SAMPLE is uint16_t
+    // Check if the handle is valid
+    if (handle != nullptr) {
+        // Prepare parameters for tjCompress2
+        int width = 100;  // Example width
+        int height = 100; // Example height
+        int pixelFormat = TJPF_RGB; // Example pixel format
+        int jpegSubsamp = TJSAMP_444; // Example subsampling
+        int jpegQual = 75; // Example quality
+
+        // Allocate buffer for the output JPEG image
+        unsigned long jpegSize = 0;
+        unsigned char* jpegBuf = nullptr;
+
+        // Use the input data as the source image buffer
+        // Ensure the input data is large enough for the specified width, height, and pixel format
+        if (size >= width * height * tjPixelSize[pixelFormat]) {
+            // Compress the image
+            int result = tjCompress2(handle, data, width, 0, height, pixelFormat, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, TJFLAG_FASTDCT);
+
+            // Check if compression was successful
+            if (result == 0) {
+                // Normally, you'd do something with the compressed JPEG data here.
+            }
+
+            // Free the JPEG buffer
+            if (jpegBuf) {
+                tjFree(jpegBuf);
+            }
+        }
+
+        // Clean up by destroying the handle
         tjDestroy(handle);
-        return 0;
     }
-
-    // Initialize J16SAMPLE pointer
-    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data);
-
-    // Define image dimensions and pixel format
-    int width = 1;  // Minimum width
-    int height = size / (sizeof(uint16_t) * width);  // Calculate height based on available data
-    int pitch = width * sizeof(uint16_t);
-    int pixelFormat = TJPF_RGB;  // Example pixel format
-
-    // Initialize destination buffer and size
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
-
-    // Call the function-under-test
-    int result = tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
-
-    // Clean up
-    if (jpegBuf) {
-        tjFree(jpegBuf);
-    }
-    tjDestroy(handle);
 
     return 0;
 }

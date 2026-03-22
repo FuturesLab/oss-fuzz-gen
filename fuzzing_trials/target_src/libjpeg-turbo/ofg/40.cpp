@@ -1,29 +1,26 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
 
+// Assuming tj3YUVPlaneWidth is defined in an external C library
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    int tj3YUVPlaneWidth(int componentID, int width, int subsampling);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        return 0; // Initialization failed, exit early
+    if (size < 3) {
+        return 0; // Ensure there is enough data to extract three integers
     }
 
-    unsigned char *iccProfile = nullptr;
-    size_t iccProfileSize = 0;
+    // Extract three integers from the input data
+    int componentID = static_cast<int>(data[0]);
+    int width = static_cast<int>(data[1]);
+    int subsampling = static_cast<int>(data[2]);
 
     // Call the function-under-test
-    int result = tj3GetICCProfile(handle, &iccProfile, &iccProfileSize);
+    int result = tj3YUVPlaneWidth(componentID, width, subsampling);
 
-    // Clean up
-    if (iccProfile) {
-        tjFree(iccProfile);
-    }
-    tjDestroy(handle);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result; // In this case, we simply cast to void
 
     return 0;
 }

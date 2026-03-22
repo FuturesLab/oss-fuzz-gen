@@ -1,37 +1,54 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    tjhandle handle;
-    int result;
+    if (size < 12) {
+        // Need at least 12 bytes for width, height, subsamp, and quality
+        return 0;
+    }
 
-    // Initialize the TurboJPEG decompressor
-    handle = tjInitDecompress();
+    // Extract width, height, subsamp, and quality from the input data
+    int width = (data[0] << 8) | data[1];
+    int height = (data[2] << 8) | data[3];
+    int subsamp = data[4] % 5; // Using % 5 to ensure a valid subsampling option
+    int quality = data[5] % 101; // Quality should be between 0 and 100
+
+    // Ensure width and height are non-zero
+    width = width == 0 ? 1 : width;
+    height = height == 0 ? 1 : height;
+
+    // Calculate the minimum YUV buffer size
+    int yuvSize = tjBufSizeYUV2(width, 4, height, subsamp);
+    if (size < 12 + yuvSize) {
+        return 0;
+    }
+
+    // Point to the YUV image data
+    const unsigned char *yuvImage = data + 12;
+
+    // Allocate memory for the compressed JPEG image
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+
+    // Create a TurboJPEG compressor handle
+    tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
-        return 0; // If initialization fails, exit early
+        return 0;
     }
 
-    // Since we're fuzzing, let's attempt to decompress the input data
-    // For this, we need some dummy variables to pass to the function
-    int width, height, jpegSubsamp, jpegColorspace;
-    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
-        // If header decompression is successful, attempt to decompress the image
-        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
-        if (buffer) {
-            tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
-            free(buffer);
-        }
-    }
+    // Call the function-under-test
+    tjCompressFromYUV(handle, yuvImage, width, 4, height, subsamp, &jpegBuf, &jpegSize, quality, 0);
 
-    // Clean up the TurboJPEG decompressor
-    result = tjDestroy(handle);
+    // Clean up
+    tjDestroy(handle);
+    tjFree(jpegBuf);
 
-    // Return the result (though for fuzzing purposes, the return value is not typically used)
-    return result;
+    return 0;
 }

@@ -1,24 +1,57 @@
-#include <cstddef>
-#include <cstdint>  // Include this header for uint8_t
-
-// Assuming the function is part of a C library, we wrap it in extern "C"
 extern "C" {
-    size_t tj3YUVPlaneSize(int, int, int, int, int);
+#include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include for memcpy
+
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Declare and initialize parameters for tj3YUVPlaneSize
-    int componentID = 1;  // Typically a value from 0 to 2 for Y, U, V components
-    int width = 640;      // Example width, can be varied
-    int stride = 640;     // Example stride, typically equal to or greater than width
-    int height = 480;     // Example height, can be varied
-    int align = 1;        // Example alignment, typically a power of 2
+    // Initialize the parameters for tjEncodeYUV
+    tjhandle handle = tjInitCompress();
+    if (handle == nullptr) {
+        return 0; // If initialization fails, exit early
+    }
 
-    // Call the function-under-test with initialized parameters
-    size_t planeSize = tj3YUVPlaneSize(componentID, width, stride, height, align);
+    // Ensure that the input size is sufficient for at least a small image
+    if (size < 3) {
+        tjDestroy(handle);
+        return 0;
+    }
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)planeSize;
+    // Use the input data to determine image dimensions
+    int width = data[0] % 256 + 1; // Width should be at least 1
+    int height = data[1] % 256 + 1; // Height should be at least 1
+    int pixelFormat = TJPF_RGB; // Assume input is RGB format
+    int padding = 1; // TJ_PAD(1) for no padding
+    int subsampling = TJSAMP_444; // Use a common subsampling format
+
+    // Allocate memory for the source image and the destination YUV image
+    unsigned char *srcBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, padding, height, subsampling));
+
+    if (srcBuf == nullptr || dstBuf == nullptr) {
+        free(srcBuf);
+        free(dstBuf);
+        tjDestroy(handle);
+        return 0;
+    }
+
+    // Fill the source buffer with input data
+    size_t copySize = width * height * tjPixelSize[pixelFormat];
+    if (copySize > size - 2) {
+        copySize = size - 2;
+    }
+    memcpy(srcBuf, data + 2, copySize);
+
+    // Call the function-under-test
+    tjEncodeYUV(handle, srcBuf, width, padding, height, pixelFormat, dstBuf, subsampling, 0);
+
+    // Clean up
+    free(srcBuf);
+    free(dstBuf);
+    tjDestroy(handle);
 
     return 0;
 }

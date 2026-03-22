@@ -1,46 +1,50 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Initialize variables for tjDecodeYUVPlanes
+    // Initialize tjhandle
     tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        return 0; // If initialization fails, exit early
+    if (handle == nullptr) {
+        return 0;
     }
 
-    // Ensure the data size is sufficient for the parameters
-    if (size < 6) {
+    // Allocate memory for the YUV buffer
+    // Assuming a maximum image size for fuzzing purposes
+    const int maxWidth = 4096;
+    const int maxHeight = 4096;
+    const int numChannels = 3; // YUV has 3 channels
+    unsigned char *yuvBuffer = (unsigned char *)malloc(maxWidth * maxHeight * numChannels);
+    if (yuvBuffer == nullptr) {
         tjDestroy(handle);
         return 0;
     }
 
-    // Set up the YUV planes
-    const unsigned char *yuvPlanes[3];
-    const int planeSizes[3] = {1, 1, 1}; // Minimal size for each plane
-    yuvPlanes[0] = data;
-    yuvPlanes[1] = data + 1;
-    yuvPlanes[2] = data + 2;
+    // Set a width and height for the YUV image
+    int width = 128; // Example width
+    int height = 128; // Example height
 
-    // Image dimensions and subsampling
-    int width = 1;
-    int height = 1;
-    int subsamp = TJSAMP_444; // Use a valid subsampling option
-    int flags = 0;
+    // Ensure data is not null and has a minimum size
+    if (data == nullptr || size < 2) {
+        free(yuvBuffer);
+        tjDestroy(handle);
+        return 0;
+    }
 
-    // Output buffer
-    unsigned char *dstBuf = new unsigned char[width * height * tjPixelSize[TJPF_RGB]];
-
-    // Call the function under test
-    tjDecodeYUVPlanes(handle, yuvPlanes, planeSizes, width, dstBuf, width, height, TJPF_RGB, subsamp, flags);
+    // Call the function-under-test with valid parameters
+    int jpegSubsamp, jpegColorspace;
+    unsigned char *nonConstData = const_cast<unsigned char *>(data);
+    if (tjDecompressHeader2(handle, nonConstData, size, &width, &height, &jpegSubsamp) == 0) {
+        tj3DecompressToYUV8(handle, nonConstData, size, yuvBuffer, 0);
+    }
 
     // Clean up
-    delete[] dstBuf;
+    free(yuvBuffer);
     tjDestroy(handle);
 
     return 0;

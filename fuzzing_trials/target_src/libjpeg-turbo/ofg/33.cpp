@@ -1,56 +1,44 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <cstdlib> // For std::malloc and std::free
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    if (size < 10) {
-        return 0; // Not enough data to proceed
-    }
-
     // Initialize variables
-    tjhandle handle = tjInitCompress();
+    tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
-        return 0; // Initialization failed
+        return 0; // Failed to initialize, exit early
     }
 
-    // Extract parameters from the input data
-    int width = (data[0] << 8) + data[1];
-    int height = (data[2] << 8) + data[3];
-    int subsamp = data[4] % 4; // Limit subsampling to valid values [0, 3]
-    int flags = data[5] % 2;   // Limit flags to valid values [0, 1]
+    // Define variables for decompression
+    int width, height, jpegSubsamp, jpegColorspace;
 
-    // Ensure width and height are positive
-    width = width > 0 ? width : 1;
-    height = height > 0 ? height : 1;
-
-    // Calculate the YUV buffer size
-    int yuvSize = tjBufSizeYUV2(width, 4, height, subsamp);
-    if (yuvSize <= 0 || yuvSize > static_cast<int>(size - 6)) {
+    // Attempt to read the header to get image dimensions
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) != 0) {
         tjDestroy(handle);
-        return 0; // Invalid YUV buffer size
+        return 0; // Failed to read header, exit early
     }
 
-    // Create a YUV buffer and copy data into it
-    const unsigned char *yuvBuffer = data + 6;
+    // Allocate buffer for decompressed image
+    uint16_t *outputBuffer = (uint16_t *)std::malloc(width * height * 3 * sizeof(uint16_t)); // Assuming RGB format
+    if (outputBuffer == nullptr) {
+        tjDestroy(handle);
+        return 0; // Failed to allocate memory, exit early
+    }
 
-    // Allocate output buffer
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-
-    // Call the function under test
-    int result = tjCompressFromYUV(handle, yuvBuffer, width, 4, height, subsamp, &jpegBuf, &jpegSize, 80, flags);
+    // Call the function-under-test with the correct number of arguments
+    if (tj3Decompress16(handle, data, size, outputBuffer, width * 3 * sizeof(uint16_t), TJPF_RGB) != 0) {
+        // Handle decompression error
+    }
 
     // Clean up
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
+    std::free(outputBuffer);
     tjDestroy(handle);
 
-    return result;
+    return 0;
 }

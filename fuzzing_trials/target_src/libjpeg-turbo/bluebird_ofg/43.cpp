@@ -1,60 +1,67 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include "unistd.h" // For close() and remove()
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
+    tjhandle handle = NULL;
+    char filename[] = "/tmp/fuzzimageXXXXXX";
+    int fd = mkstemp(filename);
+    if (fd == -1) {
+        return 0;
+    }
+    close(fd);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjInitDecompress with tjInitTransform
-    tjhandle handle = tjInitTransform();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (handle == NULL) {
+    // Initialize TurboJPEG handle
+    handle = tj3Init(TJINIT_COMPRESS);
+    if (!handle) {
+        remove(filename);
         return 0;
     }
 
-    const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = size;
-
-    int width = 100;  // Example width, should be set according to actual needs
-    int height = 100; // Example height, should be set according to actual needs
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int flags = 0; // Example flags
-    int pitch = 0; // Example pitch, can be set to 0 for default
-
-    // Allocate buffer for decompressed image
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (dstBuf == NULL) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjDestroy with tj3GetErrorCode
-        tj3GetErrorCode(handle);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Ensure size is large enough for width, height, and pixel data
+    if (size < 6) {
+        tj3Destroy(handle);
+        remove(filename);
         return 0;
     }
 
-    // Fuzz the function tjDecompress2
+    // Extract width and height from the data
+    int width = (int)data[0] + 1; // Avoid zero width
+    int height = (int)data[1] + 1; // Avoid zero height
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 8 of tjDecompress2
+    // Calculate number of pixels
+    size_t numPixels = width * height;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjDecompress2
-    tjDecompress2(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, 1, -1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Ensure data size is sufficient for pixel data
+    if (size < 6 + numPixels * sizeof(uint8_t)) {
+        tj3Destroy(handle);
+        remove(filename);
+        return 0;
+    }
 
+    // Prepare pixel data
+    uint8_t *pixels = (uint8_t *)malloc(numPixels * sizeof(uint8_t));
+    if (!pixels) {
+        tj3Destroy(handle);
+        remove(filename);
+        return 0;
+    }
+    memcpy(pixels, data + 6, numPixels * sizeof(uint8_t));
 
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Call the function-under-test
+    int result = tj3SaveImage8(handle, filename, pixels, width, 0, height, TJPF_GRAY);
 
     // Clean up
-    free(dstBuf);
-    tjDestroy(handle);
+    free(pixels);
+    tj3Destroy(handle);
+    remove(filename);
 
     return 0;
 }

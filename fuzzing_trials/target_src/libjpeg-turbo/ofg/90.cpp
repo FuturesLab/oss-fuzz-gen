@@ -1,43 +1,28 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for the parameters
-    if (size < 100) return 0; // Adjust this based on realistic minimum size needed
-
-    // Initialize parameters for tjEncodeYUV2
-    tjhandle handle = tjInitCompress();
-    if (!handle) return 0;
-
-    unsigned char *srcBuf = const_cast<unsigned char*>(data);
-    int width = 10;  // Example width, adjust as needed
-    int pitch = 0;   // Use 0 to indicate the pitch should be calculated
-    int height = 10; // Example height, adjust as needed
-    int pixelFormat = TJPF_RGB; // Example pixel format, adjust as needed
-
-    // Allocate destination buffer
-    unsigned long yuvSize = tjBufSizeYUV2(width, pitch, height, TJSAMP_444);
-    unsigned char *dstBuf = (unsigned char *)malloc(yuvSize);
-    if (!dstBuf) {
-        tjDestroy(handle);
-        return 0;
+    // Initialize the TurboJPEG decompressor
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // If initialization fails, return early
     }
 
-    int subsamp = TJSAMP_444; // Example subsampling, adjust as needed
-    int flags = 0; // No flags for now
+    // Prepare the output parameters
+    int width = 0, height = 0, jpegSubsamp = 0, jpegColorspace = 0;
 
     // Call the function-under-test
-    int result = tjEncodeYUV2(handle, srcBuf, width, pitch, height, pixelFormat, dstBuf, subsamp, flags);
+    int result = tjDecompressHeader3(handle, data, (unsigned long)size, &width, &height, &jpegSubsamp, &jpegColorspace);
 
-    // Clean up
-    free(dstBuf);
+    // Clean up the TurboJPEG decompressor
     tjDestroy(handle);
 
-    return 0;
+    return 0; // Always return 0 from the fuzzer function
 }

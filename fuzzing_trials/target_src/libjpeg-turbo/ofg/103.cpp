@@ -1,32 +1,39 @@
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
-#include <cstddef>
-#include <cstdint>
-
 extern "C" int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Ensure size is non-zero and within a reasonable range for allocation
-    if (size == 0 || size > 1024) {
-        return 0;
+    if (size < 4) {
+        return 0; // Not enough data to proceed
     }
 
-    // Convert size to int, ensuring it stays within the valid range for tjAlloc
-    int allocSize = static_cast<int>(size);
+    // Extract width, height, and subsampling from the data
+    int width = data[0] + 1;  // Ensure width is positive
+    int height = data[1] + 1; // Ensure height is positive
+    int subsamp = data[2] % 4; // Use a valid subsampling option (0-3)
+    int align = (data[3] % 8) + 1; // Ensure alignment is between 1 and 8
 
     // Call the function-under-test
-    unsigned char *allocatedMemory = tjAlloc(allocSize);
+    unsigned long bufferSize = tjBufSizeYUV2(width, height, subsamp, align);
 
-    // Check if allocation was successful
-    if (allocatedMemory != nullptr) {
-        // Do something with allocatedMemory if necessary
-        // ...
-
-        // Free the allocated memory after use
-        tjFree(allocatedMemory);
+    // Allocate a buffer of the calculated size
+    unsigned char *buffer = (unsigned char *)malloc(bufferSize);
+    if (buffer == nullptr) {
+        return 0; // Memory allocation failed
     }
 
+    // Use the buffer in some way, here we just simulate processing
+    memset(buffer, 0, bufferSize);
+
+    // Free the allocated buffer
+    free(buffer);
+
+    // Return 0 to indicate success
     return 0;
 }

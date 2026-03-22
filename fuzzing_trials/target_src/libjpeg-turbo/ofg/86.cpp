@@ -1,34 +1,41 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h> // Include this for FILE type
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/jpeglib.h" // Include this for JSAMPLE
 }
 
 extern "C" int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        return 0; // If initialization fails, return early
+    if (size < sizeof(JSAMPLE)) { // Corrected to use JSAMPLE
+        return 0; // Not enough data to form a valid input
     }
 
-    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
-    unsigned long jpegSize = static_cast<unsigned long>(size);
+    // Initialize variables
+    tjhandle handle = tjInitCompress();
+    if (!handle) {
+        return 0; // Failed to initialize compressor
+    }
 
-    // Allocate a buffer for the YUV image
-    int width = 1;  // Minimal non-zero width
-    int height = 1; // Minimal non-zero height
-    int subsamp = TJSAMP_444; // Use a common subsampling factor
-    int yuvSize = tjBufSizeYUV2(width, 1, height, subsamp);
-    unsigned char *yuvBuf = new unsigned char[yuvSize];
+    // Prepare input parameters
+    const JSAMPLE *srcBuf = (const JSAMPLE *)data; // Corrected to use JSAMPLE
+    int width = 1;   // Minimum width
+    int height = 1;  // Minimum height
+    int pitch = width * sizeof(JSAMPLE); // Corrected to use JSAMPLE
+    int pixelFormat = TJPF_RGB;
+
+    unsigned char *jpegBuf = NULL;
+    size_t jpegSize = 0;
 
     // Call the function-under-test
-    tjDecompressToYUV(handle, jpegBuf, jpegSize, yuvBuf, 1);
+    int result = tjCompress2(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize, TJSAMP_444, 100, TJFLAG_FASTDCT);
 
-    // Clean up
-    delete[] yuvBuf;
+    // Free resources
+    if (jpegBuf != NULL) {
+        tjFree(jpegBuf);
+    }
     tjDestroy(handle);
 
     return 0;

@@ -1,23 +1,33 @@
+#include <stdint.h>
+#include <stddef.h>
+
 extern "C" {
-    #include <stddef.h>
-    #include <stdint.h>
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Declare and initialize variables with non-NULL values
-    int width = 1; // Minimum valid width
-    int height = 1; // Minimum valid height
-    int subsamp = TJSAMP_444; // A valid subsampling option from libjpeg-turbo
-    int align = 1; // Minimum valid alignment
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
+    if (!handle) {
+        return 0;
+    }
+
+    // Ensure the size is sufficient to fill a tjregion struct
+    if (size < sizeof(tjregion)) {
+        tj3Destroy(handle);
+        return 0;
+    }
+
+    // Initialize a tjregion structure using the input data
+    tjregion region;
+    region.x = (int)data[0];
+    region.y = (int)data[1];
+    region.w = (int)data[2];
+    region.h = (int)data[3];
 
     // Call the function-under-test
-    size_t yuvBufSize = tj3YUVBufSize(width, height, subsamp, align);
+    tj3SetCroppingRegion(handle, region);
 
-    // Use the result to prevent compiler optimizations from removing the function call
-    (void)yuvBufSize;
-
+    // Clean up
+    tj3Destroy(handle);
     return 0;
 }

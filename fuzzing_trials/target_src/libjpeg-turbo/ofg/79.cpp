@@ -1,32 +1,25 @@
-#include <stddef.h>
-#include <stdint.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
-    tjscalingfactor scalingFactor;
-
-    // Ensure data and size are sufficient to define scaling factors
-    if (size < 2) {
-        tj3Destroy(handle);
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
         return 0;
     }
 
-    // Set scaling factor values using data
-    scalingFactor.num = data[0] % 17 + 1;  // Ensure non-zero and within a reasonable range
-    scalingFactor.denom = data[1] % 17 + 1; // Ensure non-zero and within a reasonable range
+    unsigned char *jpegBuf = const_cast<unsigned char*>(data);
+    unsigned long jpegSize = static_cast<unsigned long>(size);
+    int width = 0, height = 0, jpegSubsamp = 0;
 
     // Call the function-under-test
-    tj3SetScalingFactor(handle, scalingFactor);
+    tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp);
 
-    // Clean up
-    tj3Destroy(handle);
-
+    tjDestroy(handle);
     return 0;
 }

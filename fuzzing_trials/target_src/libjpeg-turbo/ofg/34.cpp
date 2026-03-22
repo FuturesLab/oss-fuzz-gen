@@ -1,39 +1,30 @@
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
+// Include the correct path for turbojpeg.h
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Initialize variables for tjCompressFromYUV function
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
-        return 0; // Initialization failed, exit early
+    if (size < 3) {
+        return 0; // Not enough data to process
     }
 
-    const unsigned char *srcBuf = data;
-    int width = 16; // Example width
-    int pad = 4; // Example padding
-    int height = (size / width) / 3; // Calculate height based on size and width
-    int subsamp = TJSAMP_420; // Example subsampling option
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    int jpegQual = 75; // Example JPEG quality
-    int flags = 0; // Example flags
+    // Extract parameters from the input data
+    int width = data[0] + 1;  // Ensure width is at least 1
+    int height = data[1] + 1; // Ensure height is at least 1
+    int subsamp = data[2] % TJSAMP_GRAY; // Use a valid subsampling option
+    int plane = 0; // Start with the first plane
+    int align = 1; // Minimum valid alignment
 
-    // Call the function-under-test
-    int result = tjCompressFromYUV(handle, srcBuf, width, pad, height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
+    // Call the function-under-test with the initialized parameters
+    unsigned long result = tjPlaneSizeYUV(width, height, subsamp, plane, align);
 
-    // Free the JPEG buffer if it was allocated
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
-
-    // Destroy the TurboJPEG compressor handle
-    tjDestroy(handle);
+    // Use the result (here we just suppress the unused variable warning)
+    (void)result;
 
     return 0;
 }

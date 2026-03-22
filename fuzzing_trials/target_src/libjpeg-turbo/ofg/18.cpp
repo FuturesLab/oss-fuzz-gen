@@ -1,56 +1,28 @@
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    // Declare the function-under-test
+    size_t tj3YUVBufSize(int width, int height, int subsamp, int align);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    if (size < 4) {
-        return 0; // Ensure there's enough data for width and height
-    }
-
-    // Initialize the TurboJPEG compressor
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
+    // Ensure we have enough data to extract four integers
+    if (size < 16) {
         return 0;
     }
 
-    // Extract width and height from the input data
-    int width = data[0] + 1; // Avoid zero width
-    int height = data[1] + 1; // Avoid zero height
+    // Extract four integers from the input data
+    int width = static_cast<int>(data[0]) + 1;  // Ensure non-zero width
+    int height = static_cast<int>(data[1]) + 1; // Ensure non-zero height
+    int subsamp = static_cast<int>(data[2]) % 5; // Assuming 5 subsampling types
+    int align = static_cast<int>(data[3]) % 4;   // Common alignments: 1, 2, 4, 8
 
-    // Ensure the input buffer is large enough for the image data
-    if (size < static_cast<size_t>(width * height * 3 + 4)) {
-        tjDestroy(handle);
-        return 0;
-    }
+    // Call the function-under-test
+    size_t bufSize = tj3YUVBufSize(width, height, subsamp, align);
 
-    // Set up the input image buffer
-    const unsigned char *srcBuf = data + 4;
-
-    // Allocate the output buffer
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height);
-    if (dstBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Set the padding and subsampling options
-    int pitch = width * 3;
-    int pixelFormat = TJPF_RGB; // Set a valid pixel format
-    int subsamp = TJSAMP_444; // Use a valid subsampling option
-    int flags = 0; // No special flags
-
-    // Call the function-under-test with correct number of arguments
-    tjEncodeYUV3(handle, srcBuf, width, pitch, height, pixelFormat, dstBuf, 4, subsamp, flags);
-
-    // Clean up
-    free(dstBuf);
-    tjDestroy(handle);
+    // Use the result in some way to prevent optimizations from removing the call
+    (void)bufSize;
 
     return 0;
 }

@@ -1,52 +1,57 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <string.h>
 
+// Include necessary C headers and wrap them in extern "C"
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    
+    // Function signature for the function-under-test
+    int tj3GetICCProfile(tjhandle handle, unsigned char **iccProfile, size_t *iccProfileSize);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
     // Initialize variables
-    tjhandle handle = tjInitCompress();
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
     if (handle == NULL) {
-        return 0;
+        return 0;  // Exit if initialization fails
     }
 
-    // Ensure there's enough data to proceed
-    if (size < sizeof(uint16_t)) { // Use uint16_t instead of J16SAMPLE
-        tjDestroy(handle);
-        return 0;
+    unsigned char *iccProfile = NULL;
+    size_t iccProfileSize = 0;
+
+    // Ensure that the data is not empty
+    if (size > 0) {
+        // Create a buffer to simulate a JPEG header, as tj3GetICCProfile expects a valid JPEG
+        unsigned char jpegHeader[2] = {0xFF, 0xD8}; // SOI marker for JPEG
+        unsigned char *jpegData = (unsigned char *)malloc(size + sizeof(jpegHeader));
+        if (jpegData == NULL) {
+            tj3Destroy(handle);
+            return 0;
+        }
+
+        // Prepend the JPEG header to the input data
+        memcpy(jpegData, jpegHeader, sizeof(jpegHeader));
+        memcpy(jpegData + sizeof(jpegHeader), data, size);
+
+        // Decompress the JPEG data to ensure the handle is valid for ICC profile extraction
+        int width, height, jpegSubsamp, jpegColorspace;
+        if (tjDecompressHeader3(handle, jpegData, size + sizeof(jpegHeader), &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+            // Attempt to call the function-under-test
+            int result = tj3GetICCProfile(handle, &iccProfile, &iccProfileSize);
+
+            // Free the ICC profile if it was allocated
+            if (iccProfile != NULL) {
+                tj3Free(iccProfile);
+            }
+        }
+
+        free(jpegData);
     }
 
-    // Allocate and initialize input buffer
-    uint16_t *inputBuffer = (uint16_t *)malloc(size); // Use uint16_t instead of J16SAMPLE
-    if (inputBuffer == NULL) {
-        tjDestroy(handle);
-        return 0;
-    }
-    memcpy(inputBuffer, data, size);
+    // Clean up and destroy the TurboJPEG handle
+    tj3Destroy(handle);
 
-    // Set image dimensions and parameters
-    int width = 128;  // Example width
-    int height = 128; // Example height
-    int pitch = width * sizeof(uint16_t); // Use uint16_t instead of J16SAMPLE
-    int pixelFormat = TJPF_RGB; // Example pixel format
-
-    // Allocate output buffer
-    unsigned char *jpegBuf = NULL;
-    size_t jpegSize = 0;
-
-    // Call the function-under-test
-    int result = tj3Compress16(handle, inputBuffer, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
-
-    // Clean up
-    free(inputBuffer);
-    tjFree(jpegBuf);
-    tjDestroy(handle);
-
-    return result;
+    return 0;
 }

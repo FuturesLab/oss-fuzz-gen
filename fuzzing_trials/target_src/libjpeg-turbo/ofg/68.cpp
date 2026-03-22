@@ -1,39 +1,38 @@
-#include <cstddef>
-#include <cstdint>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return 0; // Not enough data to proceed
+    tjhandle handle = tjInitTransform();
+    if (!handle) {
+        return 0;
     }
-
-    // Initialize parameters for tj3CompressFromYUV8
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (handle == nullptr) {
-        return 0; // Initialization failed
-    }
-
-    const unsigned char *srcBuf = data;
-    int width = static_cast<int>(data[0]); // Set width from data
-    int height = static_cast<int>(data[1]); // Set height from data
-    int subsamp = static_cast<int>(data[2] % 3); // Ensure subsamp is a valid value
 
     unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
+    unsigned long jpegSize = 0;
+    tjtransform transform;
+    transform.op = TJXOP_NONE; // No transform operation
+    transform.options = 0;
+    transform.r = {0, 0, 0, 0}; // No cropping
+    transform.customFilter = nullptr;
+
+    int flags = 0; // No flags
+
+    // Allocate memory for the destination buffer
+    unsigned char *dstBuf = nullptr;
+    unsigned long dstSize = 0;
 
     // Call the function-under-test
-    tj3CompressFromYUV8(handle, srcBuf, width, height, subsamp, &jpegBuf, &jpegSize);
+    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, flags);
 
     // Clean up
-    if (jpegBuf != nullptr) {
-        tj3Free(jpegBuf);
+    if (dstBuf) {
+        tjFree(dstBuf);
     }
-    tj3Destroy(handle);
+    tjDestroy(handle);
 
     return 0;
 }

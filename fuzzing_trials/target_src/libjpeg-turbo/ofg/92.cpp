@@ -3,21 +3,27 @@
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();  // Initialize a TurboJPEG decompression handle
-
+    tjhandle handle = tjInitDecompress();
     if (handle == NULL) {
-        return 0;  // If initialization fails, exit early
+        return 0;
     }
 
-    // Call the function-under-test
-    int errorCode = tjGetErrorCode(handle);
+    // Check if the input data can be used for decompression
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        // Allocate buffer for decompression
+        unsigned char *buffer = new unsigned char[width * height * tjPixelSize[TJPF_RGB]];
+        if (buffer != NULL) {
+            // Decompress the image
+            tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            delete[] buffer;
+        }
+    }
 
-    // Clean up
+    // Clean up the handle
     tjDestroy(handle);
 
     return 0;

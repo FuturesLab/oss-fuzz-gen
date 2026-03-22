@@ -1,43 +1,28 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <iostream>
 
+// Assume the function-under-test is declared somewhere
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    int tj3YUVPlaneHeight(int componentID, int subsamp, int height);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
+    // Ensure the input size is sufficient to extract three integers
+    if (size < 3 * sizeof(int)) {
         return 0;
     }
 
-    unsigned long jpegSize = static_cast<unsigned long>(size);
-    int width = 1, height = 1, jpegSubsamp = TJSAMP_444, jpegColorspace = TJCS_RGB;
-    int pixelFormat = TJPF_RGB;
-
-    // Decompress the JPEG header to get the image dimensions
-    if (tjDecompressHeader3(handle, data, jpegSize, &width, &height, &jpegSubsamp, &jpegColorspace) != 0) {
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Allocate buffer for the decompressed image
-    unsigned char *dstBuf = static_cast<unsigned char *>(malloc(width * height * tjPixelSize[pixelFormat]));
-    if (dstBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
+    // Extract three integers from the input data
+    int componentID = static_cast<int>(data[0] % 3); // Assuming 3 components (e.g., Y, U, V)
+    int subsamp = static_cast<int>(data[1] % 5);     // Assuming 5 subsampling options
+    int height = static_cast<int>(data[2] % 1000) + 1; // Height should be positive
 
     // Call the function-under-test
-    tjDecompress2(handle, data, jpegSize, dstBuf, width, 0 /* pitch */, height, pixelFormat, 0);
+    int result = tj3YUVPlaneHeight(componentID, subsamp, height);
 
-    // Clean up
-    free(dstBuf);
-    tjDestroy(handle);
+    // Use the result in some way to avoid compiler optimizations
+    volatile int sink = result;
+    (void)sink;
 
     return 0;
 }

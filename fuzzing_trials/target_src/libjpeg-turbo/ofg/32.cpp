@@ -1,37 +1,37 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    if (data == nullptr || size == 0) {
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
         return 0;
     }
 
-    // Define and initialize the parameters for tjLoadImage
-    const char *filename = "dummy.jpg"; // Use a dummy filename
-    int width = 0;
-    int height = 0;
-    int pixelFormat = TJPF_RGB; // Common pixel format
-    int align = 1; // Common alignment
-    int flags = 0; // No specific flags
+    // Create a buffer for the decompressed image
+    int width = 256; // Example width
+    int height = 256; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pitch = width * tjPixelSize[pixelFormat];
+    unsigned char *destBuffer = (unsigned char *)malloc(pitch * height);
 
-    // Allocate memory for the output image
-    unsigned char *imageBuffer = nullptr;
+    if (destBuffer == NULL) {
+        tjDestroy(handle);
+        return 0;
+    }
 
     // Call the function-under-test
-    imageBuffer = tjLoadImage(filename, &width, align, &height, &pixelFormat, flags);
+    tjDecompress2(handle, data, size, destBuffer, width, pitch, height, pixelFormat, 0);
 
-    // Free the allocated image buffer if it's not nullptr
-    if (imageBuffer != nullptr) {
-        tjFree(imageBuffer);
-    }
+    // Clean up
+    free(destBuffer);
+    tjDestroy(handle);
 
     return 0;
 }

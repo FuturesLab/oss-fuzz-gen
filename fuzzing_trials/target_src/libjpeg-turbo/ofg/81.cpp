@@ -1,42 +1,34 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    if (size < 1) {
+    if (size < 3) {
+        return 0; // Not enough data to form a valid JPEG header
+    }
+
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
         return 0;
     }
 
-    tjhandle handle = tjInitTransform();
-    if (handle == nullptr) {
-        return 0;
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer != NULL) {
+            tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
     }
-
-    // Allocate memory for the destination buffer
-    unsigned char *dstBuffer = nullptr;
-    unsigned long dstSize = 0;
-
-    // Initialize a tjtransform structure
-    tjtransform transform;
-    memset(&transform, 0, sizeof(tjtransform));
-
-    // Set some options for the transformation
-    int options = 0;
-
-    // Call tjTransform with the provided data
-    int result = tjTransform(handle, data, size, 1, &dstBuffer, &dstSize, &transform, options);
 
     // Clean up
-    if (dstBuffer != nullptr) {
-        tjFree(dstBuffer);
-    }
     tjDestroy(handle);
 
-    return result;
+    return 0;
 }

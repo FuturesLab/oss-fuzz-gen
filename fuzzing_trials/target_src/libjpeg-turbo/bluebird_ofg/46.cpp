@@ -1,65 +1,54 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitTransform();
-    if (handle == nullptr) {
-        return 0; // Handle initialization failure
+    if (size < 1) {
+        return 0;
+    } // Ensure there's at least some data to process
+
+    // Initialize TurboJPEG decompressor
+    tjhandle decompressor = tjInitDecompress();
+    if (decompressor == nullptr) {
+        return 0; // If initialization fails, return
     }
 
-    unsigned char *jpegBuf = nullptr; // This will be allocated by tj3Transform
-    size_t jpegSize = 0;
-    int n = 1; // Number of transforms
-    tjtransform transform;
-    memset(&transform, 0, sizeof(tjtransform)); // Initialize transform with zeros
+    // Define some parameters for decompression
+    int width = 100;  // Example width
+    int height = 100; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pitch = 0; // Auto-calculate the pitch
+    int flags = 0; // No flags
+
+    // Allocate memory for the decompressed image
+    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+    if (dstBuf == nullptr) {
+        tjDestroy(decompressor);
+        return 0; // If memory allocation fails, return
+    }
 
     // Call the function-under-test
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of tj3Transform
-    int result = tj3Transform(handle, (const unsigned char *)data, size, n, &jpegBuf, &jpegSize, &transform);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of tjDecompress2
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 6 of tjDecompress2
+    int result = tjDecompress2(decompressor, data, (unsigned long)size, dstBuf, TJ_NUMPF, pitch, 64, pixelFormat, flags);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
 
     // Clean up
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Transform to tjPlaneSizeYUV
-    int xvfaspvl = -1;
-    tjscalingfactor* ret_tj3GetScalingFactors_cxido = tj3GetScalingFactors(&xvfaspvl);
-    if (ret_tj3GetScalingFactors_cxido == NULL){
-    	return 0;
-    }
-    int plalzfyo = 0;
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tj3GetScalingFactors with tjGetScalingFactors
-    tjscalingfactor* ret_tj3GetScalingFactors_pxltf = tjGetScalingFactors(&plalzfyo);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_tj3GetScalingFactors_pxltf == NULL){
-    	return 0;
-    }
-
-    unsigned long ret_tjPlaneSizeYUV_ogmhr = tjPlaneSizeYUV(xvfaspvl, TJ_NUMINIT, 1, result, plalzfyo);
-    if (ret_tjPlaneSizeYUV_ogmhr < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    tjDestroy(handle);
+    free(dstBuf);
+    tjDestroy(decompressor);
 
     return 0;
 }

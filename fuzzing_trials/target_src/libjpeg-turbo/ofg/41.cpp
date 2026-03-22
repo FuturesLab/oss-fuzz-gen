@@ -1,40 +1,28 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
 
+// Assuming the function is declared in an external C library
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    int tj3YUVPlaneWidth(int componentID, int width, int subsampling);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Initialize variables for tjDecompress
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // If initialization fails, exit early
+    // Ensure the size is sufficient to extract three integers
+    if (size < 3 * sizeof(int)) {
+        return 0;
     }
 
-    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
-    unsigned long jpegSize = static_cast<unsigned long>(size);
-
-    // Set up output buffer
-    int width = 100;  // Example width
-    int height = 100; // Example height
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int pitch = width * tjPixelSize[pixelFormat];
-    unsigned char *dstBuf = static_cast<unsigned char *>(malloc(pitch * height));
-
-    if (dstBuf == nullptr) {
-        tjDestroy(handle);
-        return 0; // If memory allocation fails, exit early
-    }
+    // Extract integers from the input data
+    int componentID = static_cast<int>(data[0] % 3); // Assuming componentID is between 0 and 2
+    int width = static_cast<int>(data[1]) + 1; // Ensure width is non-zero
+    int subsampling = static_cast<int>(data[2] % 4); // Assuming subsampling is between 0 and 3
 
     // Call the function-under-test
-    int result = tjDecompress(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, pixelFormat, 0);
+    int result = tj3YUVPlaneWidth(componentID, width, subsampling);
 
-    // Clean up
-    free(dstBuf);
-    tjDestroy(handle);
+    // Print the result (optional, for debugging purposes)
+    printf("Result: %d\n", result);
 
     return 0;
 }

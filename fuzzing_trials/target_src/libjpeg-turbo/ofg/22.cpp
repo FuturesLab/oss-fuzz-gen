@@ -1,49 +1,60 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/jpeglib.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+
+    // Ensure tj3Free is declared for freeing unsigned short *
+    void tj3Free(void *buffer); 
 }
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for tjEncodeYUVPlanes
-    tjhandle handle = tjInitCompress();  // Initialize TurboJPEG compressor
-    if (handle == nullptr) {
-        return 0;  // If initialization fails, return early
-    }
-
-    // Ensure that the input size is sufficient for width, height, and pixel format
-    if (size < 12) {
-        tjDestroy(handle);
+    // Create a temporary file to store the input data
+    if (size == 0) {
         return 0;
     }
 
-    // Extract width, height, and pixel format from the data
-    int width = (int)data[0] + 1;  // Ensure width is at least 1
-    int height = (int)data[1] + 1; // Ensure height is at least 1
-    int pixelFormat = (int)data[2] % TJ_NUMPF; // Ensure valid pixel format
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Calculate the pitch (row stride) for the image
-    int pitch = width * tjPixelSize[pixelFormat];
-
-    // Allocate memory for YUV planes
-    unsigned char* yuvPlanes[3];
-    int yuvStrides[3] = { width, width / 2, width / 2 }; // Typical strides for Y, U, and V planes
-
-    for (int i = 0; i < 3; i++) {
-        yuvPlanes[i] = new unsigned char[width * height / ((i == 0) ? 1 : 4)];
+    // Initialize variables for function call
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
+        remove(tmpl);
+        return 0;
     }
 
-    // Call the function under test
-    int result = tjEncodeYUVPlanes(handle, data, width, pitch, height, pixelFormat, yuvPlanes, yuvStrides, 0, TJFLAG_FASTDCT);
+    int width = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pitch = 0; // Pitch will be calculated based on width and pixel format
+    int align = 1; // Alignment parameter for tj3LoadImage16
+
+    // Call the function-under-test
+    unsigned short *image = tj3LoadImage16(handle, tmpl, &width, align, &height, &pixelFormat);
 
     // Clean up
-    for (int i = 0; i < 3; i++) {
-        delete[] yuvPlanes[i];
+    if (image) {
+        tj3Free(image); // Use tj3Free to free the unsigned short * buffer
     }
     tjDestroy(handle);
+    remove(tmpl); // Delete the temporary file
 
     return 0;
 }

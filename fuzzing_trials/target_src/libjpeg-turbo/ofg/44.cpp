@@ -1,40 +1,24 @@
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <cstdio>
 #include <cstdlib>
 
+// Assuming tj3YUVPlaneHeight is declared in an external C library
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    int tj3YUVPlaneHeight(int componentID, int width, int subsampling);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
+    // Ensure there is enough data to extract three integers
+    if (size < 3 * sizeof(int)) {
         return 0;
     }
 
-    const unsigned char *jpegBuf = data;
-    size_t jpegSize = size;
+    // Extract integers from the input data
+    int componentID = static_cast<int>(data[0]); // Using first byte for componentID
+    int width = static_cast<int>(data[1]);       // Using second byte for width
+    int subsampling = static_cast<int>(data[2]); // Using third byte for subsampling
 
-    int width = 100;  // Example width, should be adjusted based on the input
-    int height = 100; // Example height, should be adjusted based on the input
-
-    // Allocate memory for the decompressed image
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * 3); // Assuming 3 bytes per pixel (RGB)
-    if (dstBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Call the function-under-test
-    int result = tjDecompress2(handle, jpegBuf, jpegSize, dstBuf, width, 0 /* pitch */, height, TJPF_RGB, TJFLAG_FASTDCT);
-
-    // Clean up
-    free(dstBuf);
-    tjDestroy(handle);
+    // Call the function-under-test with the extracted values
+    tj3YUVPlaneHeight(componentID, width, subsampling);
 
     return 0;
 }

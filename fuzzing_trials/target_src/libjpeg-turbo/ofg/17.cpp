@@ -1,45 +1,28 @@
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    // Declaration of the function-under-test
+    size_t tj3YUVBufSize(int width, int height, int subsamp, int align);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    if (size < 10) {
-        return 0; // Not enough data to proceed
+    if (size < 4) {
+        return 0; // Not enough data to extract four integers
     }
 
-    // Initialize variables for tjEncodeYUV3
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
-        return 0; // Failed to initialize TurboJPEG compressor
-    }
+    // Extract four integers from the input data
+    int width = static_cast<int>(data[0]);
+    int height = static_cast<int>(data[1]);
+    int subsamp = static_cast<int>(data[2]);
+    int align = static_cast<int>(data[3]);
 
-    const unsigned char *srcBuf = data;
-    int width = 100;  // Example width
-    int pitch = 0;    // Auto-calculate pitch
-    int height = 100; // Example height
-    int pixelFormat = TJPF_RGB; // Example pixel format
+    // Call the function-under-test
+    size_t bufSize = tj3YUVBufSize(width, height, subsamp, align);
 
-    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, pitch, height, pixelFormat));
-    if (dstBuf == nullptr) {
-        tjDestroy(handle);
-        return 0; // Memory allocation failed
-    }
-
-    int subsamp = TJSAMP_420; // Example subsampling
-    int flags = 0;            // No flags
-    int align = 1;            // Example alignment value
-
-    // Call the function-under-test with the correct number of arguments
-    int result = tjEncodeYUV3(handle, srcBuf, width, pitch, height, pixelFormat, dstBuf, align, subsamp, flags);
-
-    // Clean up
-    free(dstBuf);
-    tjDestroy(handle);
+    // Use the result to avoid compiler optimizations removing the function call
+    volatile size_t result = bufSize;
+    (void)result;
 
     return 0;
 }

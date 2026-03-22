@@ -1,37 +1,38 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
+#include <iostream>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
-        return 0; // Return if handle initialization failed
+    if (size < 1) return 0; // Ensure there's at least some data
+
+    // Initialize TurboJPEG decompressor
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
+        std::cerr << "Failed to initialize TurboJPEG decompressor" << std::endl;
+        return 0;
     }
 
-    const unsigned char *srcBuf = data; // Input buffer
-    int width = 64; // Example width
-    int height = 64; // Example height
-    int pitch = width * 3; // Assuming 3 bytes per pixel for RGB
-    int subsamp = TJSAMP_444; // Example subsampling
-    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, pitch, height, subsamp));
-    int flags = 0; // No flags
-
-    if (dstBuf == nullptr) {
+    // Allocate memory for the output YUV buffer
+    int width = 128;  // Example width
+    int height = 128; // Example height
+    int yuvSize = tjBufSizeYUV2(width, 4, height, TJSAMP_420);
+    unsigned char *yuvBuffer = (unsigned char *)malloc(yuvSize);
+    if (!yuvBuffer) {
+        std::cerr << "Failed to allocate YUV buffer" << std::endl;
         tjDestroy(handle);
-        return 0; // Return if memory allocation failed
+        return 0;
     }
 
-    // Call the function-under-test
-    int result = tj3EncodeYUV8(handle, srcBuf, width, pitch, height, subsamp, dstBuf, flags);
+    // Call the function under test
+    int result = tjDecompressToYUV(handle, (unsigned char *)data, (unsigned long)size, yuvBuffer, 4);
 
     // Clean up
-    free(dstBuf);
+    free(yuvBuffer);
     tjDestroy(handle);
 
     return 0;

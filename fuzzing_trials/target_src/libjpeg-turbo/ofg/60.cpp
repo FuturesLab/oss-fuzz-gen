@@ -1,24 +1,25 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitCompress();  // Initialize a TurboJPEG compressor handle
-    if (handle == NULL) {
-        return 0;  // If initialization fails, return early
-    }
+    // Declare and initialize variables for the function parameters
+    int width = 1; // Minimum valid value for width
+    int height = 1; // Minimum valid value for height
+    int subsamp = TJSAMP_444; // Use a valid subsampling option
+    int align = 1; // Minimum valid value for alignment
 
-    // Ensure that the data is not NULL and size is greater than zero
-    if (data != NULL && size > 0) {
-        // Call the function-under-test with the provided data
-        int result = tj3SetICCProfile(handle, (unsigned char *)data, size);
-    }
+    // Call the function-under-test
+    size_t result = tj3YUVPlaneSize(width, height, subsamp, align, 0);
 
-    tjDestroy(handle);  // Clean up and destroy the TurboJPEG handle
+    // Use the result to avoid compiler optimizations
+    (void)result;
+
     return 0;
 }

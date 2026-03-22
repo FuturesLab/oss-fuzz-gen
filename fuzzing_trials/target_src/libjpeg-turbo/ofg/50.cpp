@@ -1,42 +1,70 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h> // For malloc and free
+#include <string.h> // For memcpy
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // If initialization fails, exit early
+    if (size < 4) {
+        return 0; // Not enough data to form a valid ICC profile
     }
 
-    // Define dimensions and subsampling for the output YUV image
-    int width = 640;
-    int height = 480;
-    int subsamp = TJSAMP_420; // Common subsampling format
-    int flags = 0;
-
-    // Calculate the buffer size for the YUV image
-    int align = 4; // Alignment parameter for tjBufSizeYUV2
-    unsigned long yuvSize = tjBufSizeYUV2(width, align, height, subsamp);
-
-    // Allocate memory for the YUV buffer
-    unsigned char *yuvBuffer = (unsigned char *)malloc(yuvSize);
-    if (yuvBuffer == nullptr) {
-        tjDestroy(handle);
-        return 0; // If allocation fails, exit early
+    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    if (handle == NULL) {
+        return 0; // Initialization failed, exit early
     }
+
+    // Allocate memory for the ICC profile
+    unsigned char *iccProfile = (unsigned char *)malloc(size);
+    if (iccProfile == NULL) {
+        tj3Destroy(handle);
+        return 0; // Memory allocation failed, exit early
+    }
+
+    // Copy the input data to the ICC profile buffer
+    memcpy(iccProfile, data, size);
 
     // Call the function-under-test
-    int result = tjDecompressToYUV2(handle, data, size, yuvBuffer, width, align, height, flags);
+    int result = tj3SetICCProfile(handle, iccProfile, size);
 
-    // Clean up resources
-    free(yuvBuffer);
-    tjDestroy(handle);
+    // Check if the function call was successful to ensure coverage
+    if (result == 0) {
+        // Perform additional operations to further increase coverage
+        unsigned char *jpegBuf = NULL;
+        size_t jpegSize = 0;
+        int width = 100; // Example width
+        int height = 100; // Example height
+        int pixelFormat = TJPF_RGB; // Pixel format for tj3Compress8
+
+        // Create a dummy image buffer with valid content to ensure compression
+        unsigned char *imageBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+        if (imageBuf != NULL) {
+            // Fill the image buffer with some pattern or data
+            for (int i = 0; i < width * height * tjPixelSize[pixelFormat]; i++) {
+                imageBuf[i] = (unsigned char)(i % 256);
+            }
+
+            // Compress the image to JPEG
+            result = tj3Compress8(handle, imageBuf, width, 0, height, pixelFormat, &jpegBuf, &jpegSize);
+            if (result == 0) {
+                // Successfully compressed, check jpegBuf and jpegSize for further operations
+                if (jpegBuf != NULL && jpegSize > 0) {
+                    // Process the JPEG buffer to ensure it is not null and has size
+                    // This ensures that the function under test is effectively utilized
+                }
+                tj3Free(jpegBuf); // Free the buffer allocated by libjpeg-turbo
+            }
+
+            free(imageBuf);
+        }
+    }
+
+    // Clean up
+    free(iccProfile);
+    tj3Destroy(handle);
 
     return 0;
 }

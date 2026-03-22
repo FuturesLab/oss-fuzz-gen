@@ -1,54 +1,63 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "unistd.h" // Include for close()
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
+
+    unsigned short * tj3LoadImage16(tjhandle handle, const char *filename, int *width, int align, int *height, int *pixelFormat);
+
+    // Correctly declare tjFree for unsigned char *
+    void tjFree(unsigned char *buffer);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Initialize the TurboJPEG decompressor
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // If initialization fails, return early
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Initialize parameters for tj3LoadImage16
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjInitDecompress with tjInitCompress
+    tjhandle handle = tjInitCompress();
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    if (!handle) {
+        remove(tmpl);
+        return 0;
     }
 
-    // Define variables for image dimensions and subsampling
-    int width = 0, height = 0, jpegSubsamp = 0;
+    int width = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB; // Use a valid pixel format
+    int align = 1; // Default alignment
 
-    // Get the image dimensions and subsampling type from the JPEG header
-    if (tjDecompressHeader2(handle, const_cast<uint8_t *>(data), size, &width, &height, &jpegSubsamp) != 0) {
-        tjDestroy(handle);
-        return 0; // If header decompression fails, return early
+    // Call the function-under-test
+    unsigned short *image = tj3LoadImage16(handle, tmpl, &width, align, &height, &pixelFormat);
+
+    // Clean up
+    if (image) {
+        // Cast image to unsigned char* for tjFree
+        tjFree(reinterpret_cast<unsigned char *>(image));
     }
-
-    // Allocate memory for YUV planes
-    unsigned char *yuvPlanes[3];
-    int strides[3];
-    for (int i = 0; i < 3; i++) {
-        strides[i] = 0; // Initialize strides to zero
-        yuvPlanes[i] = static_cast<unsigned char *>(malloc(tjPlaneSizeYUV(i, width, strides[i], height, jpegSubsamp)));
-        if (yuvPlanes[i] == nullptr) {
-            // Free allocated memory and destroy handle on failure
-            for (int j = 0; j < i; j++) {
-                free(yuvPlanes[j]);
-            }
-            tjDestroy(handle);
-            return 0;
-        }
-    }
-
-    // Decompress the JPEG image to YUV planes
-    tjDecompressToYUVPlanes(handle, const_cast<uint8_t *>(data), size, yuvPlanes, width, strides, height, 0);
-
-    // Free allocated memory
-    for (int i = 0; i < 3; i++) {
-        free(yuvPlanes[i]);
-    }
-
-    // Destroy the TurboJPEG decompressor handle
     tjDestroy(handle);
+    remove(tmpl);
 
     return 0;
 }

@@ -1,30 +1,34 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <cstdlib>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == NULL) {
-        return 0;
-    }
+    // Assuming J16SAMPLE is a 16-bit sample, using uint16_t as a substitute
+    if (size < sizeof(uint16_t)) return 0;
 
-    unsigned char *yuvBuffer = new unsigned char[size];
-    if (yuvBuffer == NULL) {
-        tjDestroy(handle);
-        return 0;
-    }
+    // Initialize variables
+    tjhandle handle = tjInitCompress();
+    if (handle == nullptr) return 0;
 
-    int width = 128;  // Example width, adjust as needed
-    int height = 128; // Example height, adjust as needed
+    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data);
+    int width = 1;  // Minimum width
+    int height = 1; // Minimum height
+    int pitch = width * sizeof(uint16_t);
+    int pixelFormat = TJPF_RGB; // Assuming RGB format
+    unsigned char *jpegBuf = nullptr;
+    size_t jpegSize = 0;
 
-    int result = tj3DecompressToYUV8(handle, data, size, yuvBuffer, width);
+    // Call the function-under-test
+    tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
 
-    delete[] yuvBuffer;
+    // Clean up
+    tjFree(jpegBuf);
     tjDestroy(handle);
 
     return 0;

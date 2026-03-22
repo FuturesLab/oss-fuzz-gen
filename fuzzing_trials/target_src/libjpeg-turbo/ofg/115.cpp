@@ -3,40 +3,25 @@
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
-        return 0; // If initialization fails, exit early.
+    // Ensure there is enough data to extract three integers
+    if (size < 3 * sizeof(int)) {
+        return 0;
     }
 
-    // Assuming the data is a valid image buffer, you might want to perform compression
-    // Here, we provide a dummy buffer and parameters for the sake of example
-    unsigned char* jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    int width = 100;  // Dummy width
-    int height = 100; // Dummy height
-    int jpegSubsamp = TJSAMP_444;
-    int jpegQual = 75;
+    // Extract three integers from the data
+    int componentID = *(reinterpret_cast<const int*>(data));
+    int width = *(reinterpret_cast<const int*>(data + sizeof(int)));
+    int subsamp = *(reinterpret_cast<const int*>(data + 2 * sizeof(int)));
 
-    // Compress the image
-    int compressResult = tjCompress2(handle, data, width, 0, height, TJPF_RGB,
-                                     &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, TJFLAG_FASTDCT);
+    // Call the function-under-test
+    int result = tjPlaneWidth(componentID, width, subsamp);
 
-    // Free the JPEG buffer if it was allocated
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
-
-    // Destroy the handle
-    int destroyResult = tjDestroy(handle);
-
-    // Suppress unused variable warnings
-    (void)compressResult;
-    (void)destroyResult;
+    // Use the result to avoid compiler optimizations
+    volatile int sink = result;
+    (void)sink;
 
     return 0;
 }

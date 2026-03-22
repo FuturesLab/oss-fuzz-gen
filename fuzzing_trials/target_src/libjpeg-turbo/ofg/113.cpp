@@ -1,36 +1,27 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    void * tj3Alloc(size_t);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
+    // Ensure the size is non-zero to allocate memory
+    if (size == 0) {
         return 0;
     }
 
-    int width = 100;  // Example width
-    int height = 100; // Example height
-    int pixelFormat = TJPF_RGB; // Example pixel format
-
-    // Allocate buffer for decompressed image
-    unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (!buffer) {
-        tjDestroy(handle);
-        return 0;
-    }
+    // Use the size of the input data as the size parameter for tj3Alloc
+    size_t alloc_size = size;
 
     // Call the function-under-test
-    tjDecompress2(handle, data, size, buffer, width, 0 /* pitch */, height, pixelFormat, TJFLAG_FASTDCT);
+    void *allocated_memory = tj3Alloc(alloc_size);
 
-    // Clean up
-    free(buffer);
-    tjDestroy(handle);
+    // If allocation was successful, free the allocated memory
+    if (allocated_memory != NULL) {
+        free(allocated_memory);
+    }
 
     return 0;
 }

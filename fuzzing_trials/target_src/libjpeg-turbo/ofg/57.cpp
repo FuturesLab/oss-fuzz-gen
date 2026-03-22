@@ -1,62 +1,46 @@
-#include <stddef.h>
-#include <stdint.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    // Initialize the TurboJPEG handle
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (handle == nullptr) {
-        return 0; // If initialization fails, exit early
+    if (size < 1) {
+        return 0;  // Not enough data to process
     }
 
-    // Set up the YUV planes
-    const unsigned char *yuvPlanes[3];
-    int strides[3];
-    int width = 64;  // Example width
-    int height = 64; // Example height
+    tjhandle handle = tjInitCompress();  // Initialize a TurboJPEG compressor handle
 
-    // Allocate memory for YUV planes
-    unsigned char *yPlane = new unsigned char[width * height];
-    unsigned char *uPlane = new unsigned char[width * height / 4];
-    unsigned char *vPlane = new unsigned char[width * height / 4];
-
-    // Initialize YUV planes with non-null data
-    for (int i = 0; i < width * height; i++) {
-        yPlane[i] = data[i % size];
-    }
-    for (int i = 0; i < width * height / 4; i++) {
-        uPlane[i] = data[i % size];
-        vPlane[i] = data[i % size];
+    if (handle == NULL) {
+        return 0;  // If handle initialization failed, exit early
     }
 
-    yuvPlanes[0] = yPlane;
-    yuvPlanes[1] = uPlane;
-    yuvPlanes[2] = vPlane;
+    int width = 100;  // Example width
+    int height = 100; // Example height
+    int jpegSubsamp = TJSAMP_444; // Example subsampling
+    int jpegQual = 75; // Example quality
+    unsigned long jpegSize = 0;
+    unsigned char *jpegBuf = NULL;
 
-    strides[0] = width;
-    strides[1] = width / 2;
-    strides[2] = width / 2;
+    // Compress the image
+    int result = tjCompress2(handle, data, width, 0, height, TJPF_RGB, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, TJFLAG_FASTDCT);
 
-    // Output buffer
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
+    if (result != 0) {
+        char *errorStr = tjGetErrorStr2(handle);
+        if (errorStr != NULL) {
+            printf("Error: %s\n", errorStr);
+        }
+    }
 
-    // Call the function-under-test
-    int result = tj3CompressFromYUVPlanes8(handle, yuvPlanes, width, strides, height, &jpegBuf, &jpegSize);
-
-    // Clean up
-    delete[] yPlane;
-    delete[] uPlane;
-    delete[] vPlane;
-    if (jpegBuf != nullptr) {
+    // Free the JPEG buffer
+    if (jpegBuf != NULL) {
         tjFree(jpegBuf);
     }
-    tj3Destroy(handle);
+
+    // Clean up the TurboJPEG handle
+    tjDestroy(handle);
 
     return 0;
 }

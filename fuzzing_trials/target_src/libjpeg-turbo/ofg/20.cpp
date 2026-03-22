@@ -3,29 +3,24 @@
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Declare and initialize the integer variable to be used as a parameter
-    int numScalingFactors = 0;
+    if (size == 0) {
+        return 0;
+    }
+
+    // Initialize the TurboJPEG decompressor
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // If initialization fails, exit the fuzzer
+    }
 
     // Call the function-under-test
-    tjscalingfactor *scalingFactors = tjGetScalingFactors(&numScalingFactors);
+    int result = tj3DecompressHeader(handle, data, size);
 
-    // Check if the function returned a non-NULL pointer
-    if (scalingFactors != NULL) {
-        // Process the scaling factors (if needed)
-        for (int i = 0; i < numScalingFactors; ++i) {
-            // Access scalingFactors[i].num and scalingFactors[i].denom
-            // For demonstration, we'll just print them
-            int num = scalingFactors[i].num;
-            int denom = scalingFactors[i].denom;
-            (void)num;    // Suppress unused variable warning
-            (void)denom;  // Suppress unused variable warning
-        }
-    }
+    // Clean up the TurboJPEG handle
+    tjDestroy(handle);
 
     return 0;
 }

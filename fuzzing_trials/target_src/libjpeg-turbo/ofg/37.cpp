@@ -1,26 +1,34 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
-// Include the correct path for the turbojpeg.h
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    int width = 1;  // Minimum width
-    int height = 1; // Minimum height
-    int subsamp = TJSAMP_444; // Assuming 4:4:4 subsampling
-    int align = 1;  // Minimum alignment
-    int plane = 0;  // Default plane
+    // Initialize the TurboJPEG decompressor
+    tjhandle decompressor = tjInitDecompress();
+    if (decompressor == NULL) {
+        return 0; // Initialization failed, exit early
+    }
 
-    // Call the function-under-test
-    size_t result = tj3YUVPlaneSize(width, height, subsamp, align, plane);
+    // Assuming the data is a JPEG image, attempt to decompress it
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(decompressor, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        // Allocate buffer for decompressed image
+        unsigned char *buffer = new unsigned char[width * height * tjPixelSize[TJPF_RGB]];
+        
+        // Decompress the image
+        tjDecompress2(decompressor, data, size, buffer, width, 0 /* pitch */, height, TJPF_RGB, TJFLAG_FASTDCT);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+        // Clean up
+        delete[] buffer;
+    }
+
+    // Destroy the TurboJPEG decompressor
+    tjDestroy(decompressor);
 
     return 0;
 }
