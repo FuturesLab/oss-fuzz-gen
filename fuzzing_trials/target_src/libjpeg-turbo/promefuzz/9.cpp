@@ -1,17 +1,11 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3Init at turbojpeg.c:538:20 in turbojpeg.h
-// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Get at turbojpeg.c:807:15 in turbojpeg.h
-// tj3Get at turbojpeg.c:807:15 in turbojpeg.h
-// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
 // tj3DecompressHeader at turbojpeg.c:1815:15 in turbojpeg.h
-// tj3GetICCProfile at turbojpeg.c:1926:15 in turbojpeg.h
+// tj3TransformBufSize at turbojpeg.c:2831:18 in turbojpeg.h
+// tj3Transform at turbojpeg.c:2870:15 in turbojpeg.h
 // tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
+// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
 // tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
 #include <iostream>
 #include <sstream>
@@ -28,51 +22,59 @@
 #include <cstring>
 #include <cstdio>
 
+static void handleError(tjhandle handle) {
+    const char* errorStr = tj3GetErrorStr(handle);
+    if (errorStr) {
+        fprintf(stderr, "Error: %s\n", errorStr);
+    }
+}
+
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Initialize a TurboJPEG instance for both compression and decompression
-    tjhandle compressHandle = tj3Init(TJINIT_COMPRESS);
-    tjhandle decompressHandle = tj3Init(TJINIT_DECOMPRESS);
-
-    if (!compressHandle || !decompressHandle) {
-        if (compressHandle) tj3Destroy(compressHandle);
-        if (decompressHandle) tj3Destroy(decompressHandle);
+    // Initialize TurboJPEG instance for decompression
+    tjhandle decompressor = tj3Init(TJINIT_DECOMPRESS);
+    if (!decompressor) {
+        handleError(nullptr);
         return 0;
     }
 
-    // Fuzz tj3Set with random parameters and values from the input data
-    int param = Data[0];
-    int value = (Size > 1) ? Data[1] : 0;
-    tj3Set(compressHandle, param, value);
-    tj3Set(decompressHandle, param, value);
+    // Test tj3DecompressHeader
+    if (tj3DecompressHeader(decompressor, Data, Size) == -1) {
+        handleError(decompressor);
+    }
 
-    // Fuzz tj3Get with random parameters
-    tj3Get(compressHandle, param);
-    tj3Get(decompressHandle, param);
+    // Test tj3TransformBufSize
+    tjtransform transform;
+    memset(&transform, 0, sizeof(transform));
+    size_t bufSize = tj3TransformBufSize(decompressor, &transform);
+    if (bufSize == 0) {
+        handleError(decompressor);
+    }
 
-    // Fuzz tj3SetICCProfile with a portion of the input data
+    // Prepare for tj3Transform
+    unsigned char *dstBufs[1] = { nullptr };
+    size_t dstSizes[1] = { 0 };
+
+    // Test tj3Transform
+    if (tj3Transform(decompressor, Data, Size, 1, dstBufs, dstSizes, &transform) == -1) {
+        handleError(decompressor);
+    }
+
+    // Clean up allocated buffers
+    if (dstBufs[0]) {
+        tj3Free(dstBufs[0]);
+    }
+
+    // Test tj3SetICCProfile
     if (Size > 2) {
-        unsigned char *iccBuf = (unsigned char *)malloc(Size - 2);
-        if (iccBuf) {
-            memcpy(iccBuf, Data + 2, Size - 2);
-            tj3SetICCProfile(compressHandle, iccBuf, Size - 2);
-            free(iccBuf);
+        if (tj3SetICCProfile(decompressor, (unsigned char*)Data, Size) == -1) {
+            handleError(decompressor);
         }
     }
 
-    // Fuzz tj3DecompressHeader with the input data
-    tj3DecompressHeader(decompressHandle, Data, Size);
-
-    // Fuzz tj3GetICCProfile to retrieve potential ICC profile
-    unsigned char *iccBuf = nullptr;
-    size_t iccSize = 0;
-    tj3GetICCProfile(decompressHandle, &iccBuf, &iccSize);
-    if (iccBuf) tj3Free(iccBuf);
-
-    // Clean up and destroy TurboJPEG instances
-    tj3Destroy(compressHandle);
-    tj3Destroy(decompressHandle);
+    // Clean up
+    tj3Destroy(decompressor);
 
     return 0;
 }

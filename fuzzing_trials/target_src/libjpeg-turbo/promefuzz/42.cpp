@@ -1,14 +1,15 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
 // tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
-// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
 // tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
-// tj3GetErrorCode at turbojpeg.c:643:15 in turbojpeg.h
-// tjDecodeYUVPlanes at turbojpeg.c:2652:15 in turbojpeg.h
-// tj3EncodeYUVPlanes8 at turbojpeg.c:1508:15 in turbojpeg.h
+// tjCompress2 at turbojpeg.c:1204:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
 // tjCompressFromYUVPlanes at turbojpeg.c:1394:15 in turbojpeg.h
 // tjFree at turbojpeg.c:896:16 in turbojpeg.h
-// tj3DecodeYUVPlanes8 at turbojpeg.c:2511:15 in turbojpeg.h
+// tjCompress at turbojpeg.c:1235:15 in turbojpeg.h
+// tjDecompress2 at turbojpeg.c:2059:15 in turbojpeg.h
 // tjGetErrorCode at turbojpeg.c:652:15 in turbojpeg.h
+// tj3GetErrorCode at turbojpeg.c:643:15 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,66 +19,69 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <turbojpeg.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <turbojpeg.h>
-
-static tjhandle createTurboJPEGInstance() {
-    tjhandle handle = tjInitCompress();
-    if (!handle) {
-        fprintf(stderr, "Error initializing TurboJPEG: %s\n", tjGetErrorStr());
-        return nullptr;
-    }
-    return handle;
-}
-
-static void destroyTurboJPEGInstance(tjhandle handle) {
-    if (handle) {
-        tjDestroy(handle);
-    }
-}
+#include <iostream>
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    tjhandle handle = createTurboJPEGInstance();
+    // Initialize TurboJPEG handle
+    tjhandle handle = tjInitCompress();
     if (!handle) return 0;
 
-    // Fuzzing tj3GetErrorCode
-    int errorCode = tj3GetErrorCode(handle);
-
-    // Fuzzing tjDecodeYUVPlanes
-    const unsigned char *srcPlanes[3] = {Data, Data, Data};
-    int strides[3] = {0, 0, 0};
-    unsigned char *dstBuf = static_cast<unsigned char*>(malloc(Size));
-    if (dstBuf) {
-        tjDecodeYUVPlanes(handle, srcPlanes, strides, 0, dstBuf, 1, 0, 1, 0, 0);
-        free(dstBuf);
-    }
-
-    // Fuzzing tj3EncodeYUVPlanes8
-    unsigned char *dstPlanes[3] = {nullptr, nullptr, nullptr};
-    int encodeStrides[3] = {0, 0, 0};
-    tj3EncodeYUVPlanes8(handle, Data, 1, 0, 1, 0, dstPlanes, encodeStrides);
-
-    // Fuzzing tjCompressFromYUVPlanes
+    // Prepare dummy buffers and variables
     unsigned char *jpegBuf = nullptr;
     unsigned long jpegSize = 0;
-    tjCompressFromYUVPlanes(handle, srcPlanes, 1, strides, 1, 0, &jpegBuf, &jpegSize, 75, 0);
-    tjFree(jpegBuf);
+    unsigned char *dstBuf = nullptr;
+    unsigned long compressedSize = 0;
 
-    // Fuzzing tj3DecodeYUVPlanes8
-    unsigned char *decodeDstBuf = static_cast<unsigned char*>(malloc(Size));
-    if (decodeDstBuf) {
-        tj3DecodeYUVPlanes8(handle, srcPlanes, strides, decodeDstBuf, 1, 0, 1, 0);
-        free(decodeDstBuf);
+    // Prepare source buffer
+    const unsigned char *srcBuf = Data;
+    int width = 100;  // Arbitrary width
+    int height = 100; // Arbitrary height
+    int pixelFormat = TJPF_RGB;
+    int jpegSubsamp = TJSAMP_444;
+    int jpegQual = 75;
+    int flags = 0;
+
+    // Ensure srcBuf has enough data for the image
+    size_t requiredSize = width * height * tjPixelSize[pixelFormat];
+    if (Size < requiredSize) {
+        tjDestroy(handle);
+        return 0;
     }
 
-    // Fuzzing tjGetErrorCode
-    int errorCode2 = tjGetErrorCode(handle);
+    // Fuzz tjCompress2
+    tjCompress2(handle, srcBuf, width, 0, height, pixelFormat, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
+    tjFree(jpegBuf);
 
-    destroyTurboJPEGInstance(handle);
+    // Fuzz tjCompressFromYUVPlanes
+    const unsigned char *srcPlanes[3] = {Data, Data, Data};
+    const int strides[3] = {width, width / 2, width / 2};
+    tjCompressFromYUVPlanes(handle, srcPlanes, width, strides, height, jpegSubsamp, &jpegBuf, &jpegSize, jpegQual, flags);
+    tjFree(jpegBuf);
+
+    // Fuzz tjCompress
+    dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
+    tjCompress(handle, const_cast<unsigned char *>(srcBuf), width, 0, height, tjPixelSize[pixelFormat], dstBuf, &compressedSize, jpegSubsamp, jpegQual, flags);
+    delete[] dstBuf;
+
+    // Fuzz tjDecompress2
+    dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
+    tjDecompress2(handle, Data, Size, dstBuf, width, 0, height, pixelFormat, flags);
+    delete[] dstBuf;
+
+    // Fuzz tjGetErrorCode
+    int errorCode = tjGetErrorCode(handle);
+
+    // Fuzz tj3GetErrorCode
+    int errorCode3 = tj3GetErrorCode(handle);
+
+    // Clean up
+    tjDestroy(handle);
+
     return 0;
 }

@@ -1,3 +1,15 @@
+// This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
+// tjLoadImage at turbojpeg.c:3107:26 in turbojpeg.h
+// tjSaveImage at turbojpeg.c:3128:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
+// tjDecompress2 at turbojpeg.c:2059:15 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
+// tj3LoadImage16 at turbojpeg-mp.c:434:21 in turbojpeg.h
+// tj3SaveImage16 at turbojpeg-mp.c:487:15 in turbojpeg.h
+// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
+// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -6,19 +18,15 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstdint>
-#include "../src/turbojpeg.h"
+#include <turbojpeg.h>
 
-extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
 
     // Prepare dummy file
     const char *filename = "./dummy_file";
     FILE *file = fopen(filename, "wb");
-    if (!file) {
-        return 0;
-    }
+    if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
@@ -40,12 +48,7 @@ extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *Data, size_t Size) {
         // Test tjDecompress2
         unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
         if (dstBuf) {
-
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 6 of tjDecompress2
-            tjDecompress2(handle, Data, Size, dstBuf, width, pitch, -1, pixelFormat, flags);
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+            tjDecompress2(handle, Data, Size, dstBuf, width, pitch, height, pixelFormat, flags);
             free(dstBuf);
         }
         tjDestroy(handle);

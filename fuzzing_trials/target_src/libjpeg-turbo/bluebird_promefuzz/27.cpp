@@ -10,115 +10,103 @@
 #include "../src/turbojpeg.h"
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <cstdio>
+#include <cstring>
 
-static void test_tjGetErrorStr() {
-    char *errorStr = tjGetErrorStr();
-    if (errorStr) {
-        printf("tjGetErrorStr: %s\n", errorStr);
-    }
-}
-
-static void test_tjGetErrorStr2(tjhandle handle) {
-    char *errorStr = tjGetErrorStr2(handle);
-    if (errorStr) {
-        printf("tjGetErrorStr2: %s\n", errorStr);
-    }
-}
-
-static void test_tjDecompress2(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    } // Need at least some data for a JPEG buffer
-    int width = 100, height = 100, pitch = 0, pixelFormat = TJPF_RGB, flags = 0;
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (!dstBuf) {
-        return;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjDecompress2
-    int result = tjDecompress2(handle, Data, Size, dstBuf, width, pitch, height, TJFLAG_PROGRESSIVE, flags);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (result == 0) {
-        printf("tjDecompress2 succeeded.\n");
-    } else {
-        test_tjGetErrorStr2(handle);
-    }
-    free(dstBuf);
-}
-
-static void test_tjDecompress(tjhandle handle, uint8_t *jpegBuf, size_t jpegSize) {
-    int width = 100, height = 100, pitch = 0, pixelSize = tjPixelSize[TJPF_RGB], flags = 0;
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * pixelSize);
-    if (!dstBuf) {
-        return;
-    }
-
-    int result = tjDecompress(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, pixelSize, flags);
-    if (result == 0) {
-        printf("tjDecompress succeeded.\n");
-    } else {
-        test_tjGetErrorStr2(handle);
-    }
-    free(dstBuf);
-}
-
-static void test_tjSaveImage(const uint8_t *Data, size_t Size) {
-    int width = 100, height = 100, pitch = width * tjPixelSize[TJPF_RGB], pixelFormat = TJPF_RGB, flags = 0;
-    size_t bufferSize = pitch * height;
-    if (Size < bufferSize) {
+static void handleDecompressToYUVPlanes(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < 2) {
         return;
     }
     
-    unsigned char *buffer = (unsigned char *)malloc(bufferSize);
-    if (!buffer) {
-        return;
+    unsigned char *dstPlanes[3] = {nullptr, nullptr, nullptr};
+    int strides[3] = {0, 0, 0};
+    int width = 100, height = 100, flags = 0;
+    
+    // Allocate memory for YUV planes
+    for (int i = 0; i < 3; i++) {
+        dstPlanes[i] = static_cast<unsigned char*>(malloc(width * height));
+        if (!dstPlanes[i]) {
+                return;
+        }
     }
-    memcpy(buffer, Data, bufferSize);
 
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 5 of tjSaveImage
-    int result = tjSaveImage("./dummy_file", buffer, width, pitch, height, TJFLAG_STOPONWARNING, flags);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 5 of tjDecompressToYUVPlanes
+    tjDecompressToYUVPlanes(handle, Data, Size, dstPlanes, width, NULL, height, flags);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
-    if (result == 0) {
-        printf("tjSaveImage succeeded.\n");
-    } else {
-        test_tjGetErrorStr();
+
+    // Free allocated memory
+    for (int i = 0; i < 3; i++) {
+        free(dstPlanes[i]);
     }
-    free(buffer);
 }
 
-static void test_tjLoadImage() {
-    int width = 0, height = 0, pixelFormat = 0, flags = 0;
-    unsigned char *imageData = tjLoadImage("./dummy_file", &width, 1, &height, &pixelFormat, flags);
-    if (imageData) {
-        printf("tjLoadImage succeeded.\n");
-        tjFree(imageData);
-    } else {
-        test_tjGetErrorStr();
+static void handleSetScalingFactor(tjhandle handle) {
+    int numScalingFactors = 0;
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tjGetScalingFactors
+    int xknjiski = 1;
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tjGetScalingFactors
+    int nrjtklmd = -1;
+    tjscalingfactor *scalingFactors = tjGetScalingFactors(&nrjtklmd);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    if (scalingFactors && numScalingFactors > 0) {
+        tj3SetScalingFactor(handle, scalingFactors[0]);
     }
+}
+
+static void handleSetCroppingRegion(tjhandle handle) {
+    tjregion croppingRegion = {0, 0, 50, 50};
+    tj3SetCroppingRegion(handle, croppingRegion);
+}
+
+static void handleDecompression(tjhandle handle, const uint8_t *Data, size_t Size) {
+    handleSetScalingFactor(handle);
+    handleSetCroppingRegion(handle);
+    handleDecompressToYUVPlanes(handle, Data, Size);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        test_tjGetErrorStr();
+    if (Size < 2) {
         return 0;
     }
 
-    test_tjGetErrorStr();
-    test_tjGetErrorStr2(handle);
-    test_tjDecompress2(handle, Data, Size);
-    test_tjDecompress(handle, const_cast<uint8_t*>(Data), Size);
-    test_tjSaveImage(Data, Size);
-    test_tjLoadImage();
+    int initType = TJINIT_DECOMPRESS;
 
-    tjDestroy(handle);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3Init
+    tjhandle handle = tj3Init(TJXOPT_PERFECT);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    if (!handle) {
+        return 0;
+    }
+
+    handleDecompression(handle, Data, Size);
+
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjDestroy with tj3GetErrorCode
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tj3GetErrorCode with tjGetErrorCode
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjGetErrorCode with tj3GetErrorCode
+    tj3GetErrorCode(handle);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
     return 0;
 }

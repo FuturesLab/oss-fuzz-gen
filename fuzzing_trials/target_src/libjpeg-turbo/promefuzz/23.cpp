@@ -1,20 +1,14 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tjBufSizeYUV at turbojpeg.c:1007:25 in turbojpeg.h
-// tjAlloc at turbojpeg.c:883:26 in turbojpeg.h
-// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
-// tjBufSize at turbojpeg.c:933:25 in turbojpeg.h
-// tjCompress at turbojpeg.c:1235:15 in turbojpeg.h
-// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
 // tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
-// tjDecodeYUVPlanes at turbojpeg.c:2652:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
 // tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
-// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
+// tj3GetErrorCode at turbojpeg.c:643:15 in turbojpeg.h
+// tj3DecompressHeader at turbojpeg.c:1815:15 in turbojpeg.h
+// tj3GetICCProfile at turbojpeg.c:1926:15 in turbojpeg.h
+// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
+// tjDecompressHeader3 at turbojpeg.c:1874:15 in turbojpeg.h
 // tjDecompressHeader2 at turbojpeg.c:1903:15 in turbojpeg.h
-// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
-// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
-// tjDecodeYUV at turbojpeg.c:2724:15 in turbojpeg.h
-// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
-// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjDecompressHeader at turbojpeg.c:1914:15 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -27,73 +21,68 @@
 #include <turbojpeg.h>
 #include <cstdint>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
-#include <iostream>
+
+static tjhandle initializeTurboJPEG() {
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
+        fprintf(stderr, "Failed to initialize TurboJPEG: %s\n", tjGetErrorStr());
+    }
+    return handle;
+}
+
+static void cleanupTurboJPEG(tjhandle handle) {
+    if (handle) {
+        tjDestroy(handle);
+    }
+}
+
+static void handleError(tjhandle handle) {
+    int errorCode = tj3GetErrorCode(handle);
+    if (errorCode != 0) {
+        fprintf(stderr, "TurboJPEG error code: %d\n", errorCode);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < 10) return 0; // Ensure there's enough data for meaningful fuzzing
+    if (Size == 0) return 0;
 
-    // Fuzz tjBufSizeYUV
-    int width = Data[0];
-    int height = Data[1];
-    int subsamp = Data[2] % 6; // Valid subsampling values are 0-5
-    unsigned long yuvBufSize = tjBufSizeYUV(width, height, subsamp);
+    tjhandle handle = initializeTurboJPEG();
+    if (!handle) return 0;
 
-    // Fuzz tjAlloc
-    unsigned char *allocatedBuffer = tjAlloc(yuvBufSize);
-    if (allocatedBuffer) {
-        std::memset(allocatedBuffer, 0, yuvBufSize);
-    }
+    int width, height, subsamp, colorspace;
+    unsigned char *iccBuf = nullptr;
+    size_t iccSize = 0;
 
-    // Fuzz tjCompress
-    tjhandle handle = tjInitCompress();
-    if (handle) {
-        unsigned long maxCompressedSize = tjBufSize(width, height, subsamp); // Get the maximum size needed
-        unsigned char *dstBuf = (unsigned char *)malloc(maxCompressedSize);
-        if (dstBuf) {
-            unsigned long compressedSize = maxCompressedSize;
-            int result = tjCompress(handle, allocatedBuffer, width, 0, height, TJPF_RGB, dstBuf, &compressedSize, subsamp, 75, 0);
-            free(dstBuf);
+    // Test tj3DecompressHeader
+    int result = tj3DecompressHeader(handle, Data, Size);
+    if (result == 0) {
+        // Test tj3GetICCProfile
+        result = tj3GetICCProfile(handle, &iccBuf, &iccSize);
+        if (result == 0 && iccBuf) {
+            tj3Free(iccBuf);
         }
-        tjDestroy(handle);
     }
 
-    // Fuzz tjDecodeYUVPlanes
-    const unsigned char *srcPlanes[3] = {allocatedBuffer, allocatedBuffer, allocatedBuffer};
-    int strides[3] = {width, width / 2, width / 2};
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]); // Ensure enough space for RGB
-    if (dstBuf) {
-        handle = tjInitDecompress();
-        if (handle) {
-            int result = tjDecodeYUVPlanes(handle, srcPlanes, strides, subsamp, dstBuf, width, 0, height, TJPF_RGB, 0);
-            tjDestroy(handle);
-        }
-        free(dstBuf);
+    // Test tjDecompressHeader3
+    result = tjDecompressHeader3(handle, Data, Size, &width, &height, &subsamp, &colorspace);
+    if (result != 0) {
+        handleError(handle);
     }
 
-    // Fuzz tjDecompressHeader2
-    handle = tjInitDecompress();
-    if (handle && Size >= 10) {
-        int imgWidth = 0, imgHeight = 0, imgSubsamp = 0;
-        int result = tjDecompressHeader2(handle, (unsigned char *)Data, Size, &imgWidth, &imgHeight, &imgSubsamp);
-        tjDestroy(handle);
+    // Test tjDecompressHeader2
+    result = tjDecompressHeader2(handle, const_cast<unsigned char*>(Data), Size, &width, &height, &subsamp);
+    if (result != 0) {
+        handleError(handle);
     }
 
-    // Fuzz tjDecodeYUV
-    handle = tjInitDecompress();
-    if (handle) {
-        dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]); // Ensure enough space for RGB
-        if (dstBuf) {
-            int result = tjDecodeYUV(handle, allocatedBuffer, 1, subsamp, dstBuf, width, 0, height, TJPF_RGB, 0);
-            free(dstBuf);
-        }
-        tjDestroy(handle);
+    // Test tjDecompressHeader
+    result = tjDecompressHeader(handle, const_cast<unsigned char*>(Data), Size, &width, &height);
+    if (result != 0) {
+        handleError(handle);
     }
 
-    // Cleanup
-    if (allocatedBuffer) {
-        tjFree(allocatedBuffer);
-    }
-
+    cleanupTurboJPEG(handle);
     return 0;
 }

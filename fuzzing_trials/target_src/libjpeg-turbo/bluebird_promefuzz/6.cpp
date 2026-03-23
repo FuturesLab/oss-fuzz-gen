@@ -9,98 +9,109 @@
 #include <cstddef>
 #include "../src/turbojpeg.h"
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <exception>
+#include <iostream>
+#include <fstream>
 
-static void handleError(tjhandle handle) {
-    const char *errorStr = tj3GetErrorStr(handle);
-    if (errorStr) {
-        fprintf(stderr, "Error: %s\n", errorStr);
+static void writeFile(const char* filename, const uint8_t* data, size_t size) {
+    std::ofstream file(filename, std::ios::binary);
+    if (file.is_open()) {
+        file.write(reinterpret_cast<const char*>(data), size);
+        file.close();
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    // Create a dummy file for file-based operations
-    const char *dummyFile = "./dummy_file";
-    FILE *file = fopen(dummyFile, "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
 
-    // Initialize TurboJPEG handle
-    tjhandle handle = tjInitCompress();
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjInitCompress with tjInitTransform
+    tjhandle handle = tjInitTransform();
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
     if (!handle) {
-        handleError(handle);
         return 0;
     }
 
-    // Test tjGetErrorStr2
-    const char *errorStr2 = tjGetErrorStr2(handle);
-    if (errorStr2) {
-        printf("tjGetErrorStr2: %s\n", errorStr2);
-    }
+    int width = 256; // Example width
+    int height = 256; // Example height
+    int subsamp = TJSAMP_420; // Example subsampling
+    int jpegQual = 75; // Example quality
+    int flags = 0; // Example flags
 
-    // Test tj3GetErrorStr
-    const char *errorStr3 = tj3GetErrorStr(handle);
-    if (errorStr3) {
-        printf("tj3GetErrorStr: %s\n", errorStr3);
-    }
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+    int align = 1; // Example alignment
 
-    // Allocate buffer for image data
-    int width = 10, height = 10, pixelFormat = TJPF_RGB;
-    size_t bufferSize = width * height * tjPixelSize[pixelFormat] * sizeof(unsigned short);
-    unsigned short *imageBuffer = (unsigned short *)malloc(bufferSize);
-    if (!imageBuffer) {
+    // Prepare a dummy YUV buffer
+    size_t yuvSize = tjBufSizeYUV2(width, align, height, subsamp);
+    unsigned char *yuvBuf = (unsigned char *)malloc(yuvSize);
+    if (!yuvBuf) {
         tjDestroy(handle);
         return 0;
     }
-    memcpy(imageBuffer, Data, std::min(Size, bufferSize));
+    memcpy(yuvBuf, Data, std::min(Size, yuvSize));
 
-    // Test tj3SaveImage16
-    if (tj3SaveImage16(handle, dummyFile, imageBuffer, width, 0, height, pixelFormat) == -1) {
-        handleError(handle);
+    // Fuzz tjCompressFromYUV
+    tjCompressFromYUV(handle, yuvBuf, width, align, height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
+
+    // Fuzz tjDecompressToYUVPlanes if jpegBuf is valid
+    if (jpegBuf) {
+        unsigned char *dstPlanes[3] = { nullptr, nullptr, nullptr };
+        int strides[3] = { width, width / 2, width / 2 };
+        for (int i = 0; i < 3; i++) {
+            dstPlanes[i] = (unsigned char *)malloc(strides[i] * height / (i == 0 ? 1 : 2));
+        }
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of tjDecompressToYUVPlanes
+        tjDecompressToYUVPlanes(handle, jpegBuf, TJFLAG_LIMITSCANS, dstPlanes, width, strides, height, flags);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        for (int i = 0; i < 3; i++) {
+            free(dstPlanes[i]);
+        }
+        tjFree(jpegBuf);
     }
 
-    // Test tj3LoadImage16
-    int loadedWidth = 0, loadedHeight = 0, loadedPixelFormat = TJPF_UNKNOWN;
-    unsigned short *loadedImage = tj3LoadImage16(handle, dummyFile, &loadedWidth, 1, &loadedHeight, &loadedPixelFormat);
-    if (!loadedImage) {
-        handleError(handle);
-    } else {
-        tj3Free(loadedImage);
+    // Fuzz tjEncodeYUV
+    unsigned char *dstBuf = (unsigned char *)malloc(yuvSize);
+    if (dstBuf) {
+        tjEncodeYUV(handle, yuvBuf, width, width, height, 3, dstBuf, subsamp, flags);
+        free(dstBuf);
     }
 
-    // Test tjSaveImage
-    size_t bufferSize8 = width * height * tjPixelSize[pixelFormat];
-    unsigned char *imageBuffer8 = (unsigned char *)malloc(bufferSize8);
-    if (!imageBuffer8) {
-        free(imageBuffer);
-        tjDestroy(handle);
-        return 0;
+    // Fuzz tjEncodeYUVPlanes
+    unsigned char *dstPlanes2[3] = { nullptr, nullptr, nullptr };
+    int strides2[3] = { width, width / 2, width / 2 };
+    for (int i = 0; i < 3; i++) {
+        dstPlanes2[i] = (unsigned char *)malloc(strides2[i] * height / (i == 0 ? 1 : 2));
     }
-    memcpy(imageBuffer8, Data, std::min(Size, bufferSize8));
-
-    if (tjSaveImage(dummyFile, imageBuffer8, width, 0, height, pixelFormat, 0) == -1) {
-        handleError(handle);
+    tjEncodeYUVPlanes(handle, yuvBuf, width, width, height, TJPF_RGB, dstPlanes2, strides2, subsamp, flags);
+    for (int i = 0; i < 3; i++) {
+        free(dstPlanes2[i]);
     }
 
-    // Test tjLoadImage
-    int loadedWidth8 = 0, loadedHeight8 = 0, loadedPixelFormat8 = TJPF_UNKNOWN;
-    unsigned char *loadedImage8 = tjLoadImage(dummyFile, &loadedWidth8, 1, &loadedHeight8, &loadedPixelFormat8, 0);
-    if (!loadedImage8) {
-        handleError(handle);
-    } else {
-        free(loadedImage8);
+    // Fuzz tjEncodeYUV3
+    dstBuf = (unsigned char *)malloc(yuvSize);
+    if (dstBuf) {
+        tjEncodeYUV3(handle, yuvBuf, width, width, height, TJPF_RGB, dstBuf, align, subsamp, flags);
+        free(dstBuf);
     }
 
-    // Cleanup
-    free(imageBuffer);
-    free(imageBuffer8);
+    // Fuzz tjCompress
+    unsigned long maxCompressedSize = tjBufSize(width, height, subsamp);
+    unsigned char *compressedBuf = (unsigned char *)malloc(maxCompressedSize);
+    if (compressedBuf) {
+        tjCompress(handle, yuvBuf, width, width, height, 3, compressedBuf, &jpegSize, subsamp, jpegQual, flags);
+        free(compressedBuf);
+    }
+
+    free(yuvBuf);
     tjDestroy(handle);
-
     return 0;
 }

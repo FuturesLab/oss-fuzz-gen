@@ -1,3 +1,21 @@
+// This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tj3Get at turbojpeg.c:807:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
+// tj3DecodeYUVPlanes8 at turbojpeg.c:2511:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
+// tjInitTransform at turbojpeg.c:2751:20 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tj3YUVBufSize at turbojpeg.c:971:18 in turbojpeg.h
+// tj3DecodeYUV8 at turbojpeg.c:2678:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
+// tj3EncodeYUVPlanes8 at turbojpeg.c:1508:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
+// tj3YUVBufSize at turbojpeg.c:971:18 in turbojpeg.h
+// tj3EncodeYUV8 at turbojpeg.c:1688:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
+// tjInitTransform at turbojpeg.c:2751:20 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,7 +25,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "../src/turbojpeg.h"
+#include <turbojpeg.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -145,7 +163,7 @@ static void fuzz_tj3DecodeYUVPlanes8(tjhandle handle, const uint8_t *Data, size_
     delete[] dstBuf;
 }
 
-extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
+extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
     tjhandle handle = tjInitTransform();
     if (handle == nullptr) return 0;
 

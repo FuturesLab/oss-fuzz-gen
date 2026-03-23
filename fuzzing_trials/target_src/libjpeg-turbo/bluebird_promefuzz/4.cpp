@@ -7,94 +7,93 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdio>
-#include <cstdlib>
 #include "../src/turbojpeg.h"
-#include <cstdint>
-#include <cstring>
 
-static tjhandle initializeHandle() {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjInitCompress with tjInitTransform
-    tjhandle handle = tjInitTransform();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+static tjhandle createDecompressor() {
+    tjhandle handle = tjInitDecompress();
     if (!handle) {
-        fprintf(stderr, "Error initializing TurboJPEG compressor: %s\n", tjGetErrorStr());
-        return nullptr;
+        fprintf(stderr, "Failed to create TurboJPEG decompressor: %s\n", tjGetErrorStr());
+        exit(1);
     }
     return handle;
 }
 
-static void cleanupHandle(tjhandle handle) {
-    if (handle) {
-        tjDestroy(handle);
+static void destroyDecompressor(tjhandle handle) {
+    if (tjDestroy(handle) != 0) {
+        fprintf(stderr, "Failed to destroy TurboJPEG decompressor: %s\n", tjGetErrorStr());
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    } // Ensure there's at least some data
+    if (Size < 10) return 0; // Ensure there's enough data to read basic parameters
 
-    tjhandle handle = initializeHandle();
-    if (!handle) {
+    // Create a TurboJPEG decompressor handle
+    tjhandle handle = createDecompressor();
+
+    // Extract parameters from input data
+    int align = 1 << (Data[0] % 4); // Alignment: 1, 2, 4, 8
+    int width = (Data[1] % 256) + 1;
+    int height = (Data[2] % 256) + 1;
+    int pixelFormat = Data[3] % TJ_NUMPF;
+    int subsamp = Data[4] % TJ_NUMSAMP;
+    int pitch = width * tjPixelSize[pixelFormat];
+
+    // Prepare buffers
+    size_t yuvBufSize = tj3YUVBufSize(width, align, height, subsamp);
+    if (Size < yuvBufSize + 10) {
+        destroyDecompressor(handle);
         return 0;
     }
 
-    // Prepare dummy data for fuzzing
-    int width = 256, height = 256, pitch = width * 3;
-    int pixelFormat = TJPF_RGB;
-    int subsamp = TJSAMP_420;
-    int flags = 0;
-    unsigned char *srcBuf = new unsigned char[pitch * height];
-    unsigned char *dstBuf = new unsigned char[tjBufSizeYUV2(width, 4, height, subsamp)];
-    unsigned char *dstPlanes[3] = { dstBuf, dstBuf + (width * height), dstBuf + (width * height * 5 / 4) };
-    int strides[3] = { width, width / 2, width / 2 };
+    const unsigned char *srcBuf = Data + 5;
+    unsigned char *dstBuf = (unsigned char *)malloc(pitch * height);
+    if (!dstBuf) {
+        destroyDecompressor(handle);
+        return 0;
+    }
 
-    // Fill srcBuf with fuzz data
-    memcpy(srcBuf, Data, Size < pitch * height ? Size : pitch * height);
+    // Call tj3DecodeYUV8
+    if (tj3DecodeYUV8(handle, srcBuf, align, dstBuf, width, pitch, height, pixelFormat) == -1) {
+        fprintf(stderr, "tj3DecodeYUV8 error: %s\n", tj3GetErrorStr(handle));
+    }
 
-    // Fuzz tjEncodeYUVPlanes
-    tjEncodeYUVPlanes(handle, srcBuf, width, pitch, height, pixelFormat, dstPlanes, strides, subsamp, flags);
+    // Prepare parameters for tjDecodeYUVPlanes
+    int planeSizes[3] = {
+        tj3YUVPlaneWidth(0, width, subsamp) * height,
+        tj3YUVPlaneWidth(1, width, subsamp) * (height / 2),
+        tj3YUVPlaneWidth(2, width, subsamp) * (height / 2)
+    };
 
-    // Fuzz tj3CompressFromYUVPlanes8
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
-    tj3CompressFromYUVPlanes8(handle, (const unsigned char * const *)dstPlanes, width, strides, height, &jpegBuf, &jpegSize);
+    if (Size < planeSizes[0] + planeSizes[1] + planeSizes[2] + 5) {
+        free(dstBuf);
+        destroyDecompressor(handle);
+        return 0;
+    }
 
-    // Fuzz tjCompressFromYUVPlanes
-    unsigned long jpegSizeLong = 0;
-    tjCompressFromYUVPlanes(handle, (const unsigned char **)dstPlanes, width, strides, height, subsamp, &jpegBuf, &jpegSizeLong, 75, flags);
+    const unsigned char *srcPlanes[3] = {srcBuf, srcBuf + planeSizes[0], srcBuf + planeSizes[0] + planeSizes[1]};
+    int strides[3] = {tj3YUVPlaneWidth(0, width, subsamp), tj3YUVPlaneWidth(1, width, subsamp), tj3YUVPlaneWidth(2, width, subsamp)};
 
-    // Fuzz tj3EncodeYUV8
-    int align = 4;
+    if (tjDecodeYUVPlanes(handle, srcPlanes, strides, subsamp, dstBuf, width, pitch, height, pixelFormat, 0) == -1) {
+        fprintf(stderr, "tjDecodeYUVPlanes error: %s\n", tj3GetErrorStr(handle));
+    }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 5 of tj3EncodeYUV8
-    tj3EncodeYUV8(handle, srcBuf, width, pitch, height, TJXOPT_CROP, dstBuf, align);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Prepare parameters for tjEncodeYUV
+    if (tjEncodeYUV(handle, dstBuf, width, pitch, height, tjPixelSize[pixelFormat], dstBuf, subsamp, 0) == -1) {
+        fprintf(stderr, "tjEncodeYUV error: %s\n", tj3GetErrorStr(handle));
+    }
 
+    // Prepare parameters for tjDecodeYUV
+    if (tjDecodeYUV(handle, srcBuf, align, subsamp, dstBuf, width, pitch, height, pixelFormat, 0) == -1) {
+        fprintf(stderr, "tjDecodeYUV error: %s\n", tj3GetErrorStr(handle));
+    }
 
-
-    // Fuzz tjEncodeYUV3
-    tjEncodeYUV3(handle, srcBuf, width, pitch, height, pixelFormat, dstBuf, align, subsamp, flags);
-
-    // Fuzz tj3DecodeYUVPlanes8
-    unsigned char *decodedBuf = new unsigned char[pitch * height];
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tj3DecodeYUVPlanes8
-    tj3DecodeYUVPlanes8(handle, (const unsigned char * const *)dstPlanes, strides, decodedBuf, width, pitch, height, 1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Prepare parameters for tjEncodeYUV2
+    if (tjEncodeYUV2(handle, dstBuf, width, pitch, height, pixelFormat, dstBuf, subsamp, 0) == -1) {
+        fprintf(stderr, "tjEncodeYUV2 error: %s\n", tj3GetErrorStr(handle));
+    }
 
     // Cleanup
-    delete[] srcBuf;
-    delete[] dstBuf;
-    delete[] decodedBuf;
-    tjFree(jpegBuf);
-    cleanupHandle(handle);
-
+    free(dstBuf);
+    destroyDecompressor(handle);
     return 0;
 }

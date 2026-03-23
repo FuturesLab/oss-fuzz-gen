@@ -1,17 +1,15 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tj3YUVBufSize at turbojpeg.c:971:18 in turbojpeg.h
-// tjDecodeYUV at turbojpeg.c:2724:15 in turbojpeg.h
-// tj3YUVBufSize at turbojpeg.c:971:18 in turbojpeg.h
-// tj3DecodeYUV8 at turbojpeg.c:2678:15 in turbojpeg.h
+// tjDecompress2 at turbojpeg.c:2059:15 in turbojpeg.h
+// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
 // tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
 // tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
-// tjBufSizeYUV2 at turbojpeg.c:999:25 in turbojpeg.h
-// tjEncodeYUV2 at turbojpeg.c:1758:15 in turbojpeg.h
-// tjPlaneSizeYUV at turbojpeg.c:1048:25 in turbojpeg.h
-// tjDecodeYUVPlanes at turbojpeg.c:2652:15 in turbojpeg.h
-// tjBufSizeYUV2 at turbojpeg.c:999:25 in turbojpeg.h
-// tjEncodeYUV at turbojpeg.c:1767:15 in turbojpeg.h
-// tj3YUVBufSize at turbojpeg.c:971:18 in turbojpeg.h
+// tjTransform at turbojpeg.c:3044:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tj3GetErrorCode at turbojpeg.c:643:15 in turbojpeg.h
+// tjDecompressHeader2 at turbojpeg.c:1903:15 in turbojpeg.h
+// tjCompress at turbojpeg.c:1235:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjDecompressToYUV2 at turbojpeg.c:2404:15 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -26,138 +24,102 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
+#include <setjmp.h>
 
-static void fuzz_tjEncodeYUV2(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int pixelFormat = Data[2] % TJ_NUMPF;
-    int subsamp = Data[3] % TJ_NUMSAMP;
-
-    size_t srcBufSize = width * height * tjPixelSize[pixelFormat];
-    if (Size < 4 + srcBufSize) return;
-
-    unsigned char *srcBuf = (unsigned char *)(Data + 4);
-    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
-
-    if (dstBuf) {
-        tjEncodeYUV2(handle, srcBuf, width, 0, height, pixelFormat, dstBuf, subsamp, 0);
-        free(dstBuf);
-    }
+static tjhandle createDecompressor() {
+    return tjInitDecompress();
 }
 
-static void fuzz_tjDecodeYUVPlanes(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 6) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int pixelFormat = Data[2] % TJ_NUMPF;
-    int subsamp = Data[3] % TJ_NUMSAMP;
-    int numPlanes = 3; // Y, U, V planes
-    int stride = Data[4] + 1;
-
-    const unsigned char *srcPlanes[3];
-    const int strides[3] = {stride, stride / 2, stride / 2};
-    size_t planeSizes[3];
-
-    for (int i = 0; i < numPlanes; i++) {
-        planeSizes[i] = tjPlaneSizeYUV(i, width, strides[i], height, subsamp);
-        if (Size < 6 + planeSizes[i]) return;
-        srcPlanes[i] = Data + 6 + (i > 0 ? planeSizes[i - 1] : 0);
-    }
-
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (dstBuf) {
-        tjDecodeYUVPlanes(handle, srcPlanes, strides, subsamp, dstBuf, width, 0, height, pixelFormat, 0);
-        free(dstBuf);
-    }
+static tjhandle createCompressor() {
+    return tjInitCompress();
 }
 
-static void fuzz_tjEncodeYUV(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int pixelSize = Data[2] % 4 + 1;
-    int subsamp = Data[3] % TJ_NUMSAMP;
-
-    size_t srcBufSize = width * height * pixelSize;
-    if (Size < 4 + srcBufSize) return;
-
-    unsigned char *srcBuf = (unsigned char *)(Data + 4);
-    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
-
-    if (dstBuf) {
-        tjEncodeYUV(handle, srcBuf, width, 0, height, pixelSize, dstBuf, subsamp, 0);
-        free(dstBuf);
-    }
-}
-
-static void fuzz_tj3YUVBufSize(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return;
-
-    int width = Data[0] + 1;
-    int align = 1 << (Data[1] % 3);
-    int height = Data[2] + 1;
-    int subsamp = Data[3] % TJ_NUMSAMP;
-
-    tj3YUVBufSize(width, align, height, subsamp);
-}
-
-static void fuzz_tjDecodeYUV(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 5) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int pixelFormat = Data[2] % TJ_NUMPF;
-    int subsamp = Data[3] % TJ_NUMSAMP;
-    int align = 1 << (Data[4] % 3);
-
-    size_t srcBufSize = tj3YUVBufSize(width, align, height, subsamp);
-    if (Size < 5 + srcBufSize) return;
-
-    const unsigned char *srcBuf = Data + 5;
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-
-    if (dstBuf) {
-        tjDecodeYUV(handle, srcBuf, align, subsamp, dstBuf, width, 0, height, pixelFormat, 0);
-        free(dstBuf);
-    }
-}
-
-static void fuzz_tj3DecodeYUV8(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 5) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int pixelFormat = Data[2] % TJ_NUMPF;
-    int align = 1 << (Data[3] % 3);
-    int pitch = Data[4] + 1;
-
-    size_t srcBufSize = tj3YUVBufSize(width, align, height, TJ_NUMSAMP);
-    if (Size < 5 + srcBufSize) return;
-
-    const unsigned char *srcBuf = Data + 5;
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-
-    if (dstBuf) {
-        tj3DecodeYUV8(handle, srcBuf, align, dstBuf, width, pitch, height, pixelFormat);
-        free(dstBuf);
+static void destroyHandle(tjhandle handle) {
+    if (handle) {
+        tjDestroy(handle);
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size) {
-    tjhandle handle = tjInitCompress();
-    if (!handle) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    fuzz_tjEncodeYUV2(handle, Data, Size);
-    fuzz_tjDecodeYUVPlanes(handle, Data, Size);
-    fuzz_tjEncodeYUV(handle, Data, Size);
-    fuzz_tj3YUVBufSize(Data, Size);
-    fuzz_tjDecodeYUV(handle, Data, Size);
-    fuzz_tj3DecodeYUV8(handle, Data, Size);
+    // Initialize a TurboJPEG decompressor handle
+    tjhandle decompressor = createDecompressor();
+    if (!decompressor) {
+        return 0;
+    }
 
-    tjDestroy(handle);
+    // Initialize a TurboJPEG compressor handle
+    tjhandle compressor = createCompressor();
+    if (!compressor) {
+        destroyHandle(decompressor);
+        return 0;
+    }
+
+    // Prepare buffers and variables for tjTransform
+    unsigned char *dstBufs[1] = {nullptr};
+    unsigned long dstSizes[1] = {0};
+    tjtransform transforms[1] = {0};
+    int n = 1;
+    int flags = 0;
+
+    // Fuzz tjTransform
+    tjTransform(decompressor, Data, Size, n, dstBufs, dstSizes, transforms, flags);
+
+    // Clean up buffers
+    for (int i = 0; i < n; i++) {
+        if (dstBufs[i]) {
+            tjFree(dstBufs[i]);
+        }
+    }
+
+    // Fuzz tj3GetErrorCode
+    tj3GetErrorCode(decompressor);
+
+    // Prepare variables for tjDecompressHeader2
+    int width = 0, height = 0, jpegSubsamp = 0;
+
+    // Fuzz tjDecompressHeader2
+    tjDecompressHeader2(decompressor, const_cast<unsigned char *>(Data), Size, &width, &height, &jpegSubsamp);
+
+    // Prepare variables for tjCompress
+    unsigned char *srcBuf = (unsigned char *)malloc(width * height * 3);
+    unsigned char *compressedBuf = nullptr;
+    unsigned long compressedSize = 0;
+    int pixelSize = 3;
+    int jpegQual = 75;
+
+    // Fuzz tjCompress
+    if (srcBuf) {
+        memset(srcBuf, 0, width * height * pixelSize);
+        tjCompress(compressor, srcBuf, width, width * pixelSize, height, pixelSize, compressedBuf, &compressedSize, jpegSubsamp, jpegQual, flags);
+        tjFree(compressedBuf);
+        free(srcBuf);
+    }
+
+    // Prepare variables for tjDecompressToYUV2
+    unsigned char *yuvBuf = (unsigned char *)malloc(width * height * 3 / 2);
+
+    // Fuzz tjDecompressToYUV2
+    if (yuvBuf) {
+        tjDecompressToYUV2(decompressor, Data, Size, yuvBuf, width, 4, height, flags);
+        free(yuvBuf);
+    }
+
+    // Prepare variables for tjDecompress2
+    unsigned char *decompressedBuf = (unsigned char *)malloc(width * height * pixelSize);
+
+    // Fuzz tjDecompress2
+    if (decompressedBuf) {
+        tjDecompress2(decompressor, Data, Size, decompressedBuf, width, width * pixelSize, height, TJPF_RGB, flags);
+        free(decompressedBuf);
+    }
+
+    // Clean up handles
+    destroyHandle(decompressor);
+    destroyHandle(compressor);
+
     return 0;
 }

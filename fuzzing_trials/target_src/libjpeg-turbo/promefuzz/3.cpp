@@ -5,26 +5,20 @@
 // tj3Set at turbojpeg.c:671:15 in turbojpeg.h
 // tj3Set at turbojpeg.c:671:15 in turbojpeg.h
 // tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
 // tj3JPEGBufSize at turbojpeg.c:903:18 in turbojpeg.h
-// tj3YUVBufSize at turbojpeg.c:971:18 in turbojpeg.h
+// tj3Get at turbojpeg.c:807:15 in turbojpeg.h
 // tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
-// tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
+// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
+// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
+// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
+// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
+// tj3Compress16 at turbojpeg-mp.c:71:15 in turbojpeg.h
+// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
+// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
 // tj3Free at turbojpeg.c:890:16 in turbojpeg.h
 // tj3Free at turbojpeg.c:890:16 in turbojpeg.h
 // tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3EncodeYUV8 at turbojpeg.c:1688:15 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3CompressFromYUV8 at turbojpeg.c:1429:15 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -36,71 +30,60 @@
 #include <turbojpeg.h>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 3) return 0;  // Ensure there's enough data for basic operations
 
     // Initialize TurboJPEG instance for compression
     tjhandle handle = tj3Init(TJINIT_COMPRESS);
     if (!handle) return 0;
 
-    // Set various parameters using tj3Set
-    tj3Set(handle, TJPARAM_QUALITY, Data[0] % 101); // Quality between 0-100
-    tj3Set(handle, TJPARAM_SUBSAMP, Data[0] % 6);   // Subsampling options
-    tj3Set(handle, TJPARAM_FASTDCT, Data[0] % 2);
-    tj3Set(handle, TJPARAM_ARITHMETIC, Data[0] % 2);
-    tj3Set(handle, TJPARAM_NOREALLOC, Data[0] % 2);
-    tj3Set(handle, TJPARAM_OPTIMIZE, Data[0] % 2);
-    tj3Set(handle, TJPARAM_PROGRESSIVE, Data[0] % 2);
+    // Set some parameters using the data
+    tj3Set(handle, TJPARAM_QUALITY, Data[0] % 101);
+    tj3Set(handle, TJPARAM_SUBSAMP, Data[1] % 4);
+    tj3Set(handle, TJPARAM_PRECISION, 16);
+    tj3Set(handle, TJPARAM_NOREALLOC, 0);
+    tj3Set(handle, TJPARAM_FASTUPSAMPLE, 1);
 
-    // Calculate buffer sizes
-    int width = 100, height = 100, align = 4;
-    int subsamp = Data[0] % 6; // Ensure subsamp is consistent with tj3Set
-    size_t jpegBufSize = tj3JPEGBufSize(width, height, subsamp);
-    size_t yuvBufSize = tj3YUVBufSize(width, align, height, subsamp);
+    // Calculate a buffer size using image dimensions and subsampling
+    int width = 256, height = 256; // Example dimensions
+    size_t jpegBufSize = tj3JPEGBufSize(width, height, TJSAMP_444);
 
-    // Allocate buffers
-    unsigned char *jpegBuf = static_cast<unsigned char *>(tj3Alloc(jpegBufSize));
-    unsigned char *yuvBuf = static_cast<unsigned char *>(tj3Alloc(yuvBufSize));
-    unsigned char *srcBuf = static_cast<unsigned char *>(malloc(width * height * 3));
+    // Retrieve a parameter to check the setup
+    tj3Get(handle, TJPARAM_QUALITY);
 
-    if (!jpegBuf || !yuvBuf || !srcBuf) {
-        tj3Free(jpegBuf);
-        tj3Free(yuvBuf);
-        free(srcBuf);
-        tj3Destroy(handle);
-        return 0;
+    // Allocate memory for JPEG buffer
+    unsigned char *jpegBuf = (unsigned char *)tj3Alloc(jpegBufSize);
+
+    // Set an ICC profile if possible
+    if (Size > 3) {
+        tj3SetICCProfile(handle, const_cast<unsigned char *>(Data + 3), Size - 3);
     }
 
-    // Ensure srcBuf is initialized to avoid undefined behavior
-    memset(srcBuf, 0, width * height * 3);
+    // More parameter settings
+    tj3Set(handle, TJPARAM_ARITHMETIC, 0);
+    tj3Set(handle, TJPARAM_OPTIMIZE, 1);
+    tj3Set(handle, TJPARAM_PROGRESSIVE, 1);
 
-    // Encode YUV
-    if (tj3EncodeYUV8(handle, srcBuf, width, width * 3, height, TJPF_RGB, yuvBuf, align) == -1) {
-        tj3Free(jpegBuf);
-        tj3Free(yuvBuf);
-        free(srcBuf);
-        tj3Destroy(handle);
-        return 0;
-    }
+    // Prepare a dummy source buffer for compression
+    unsigned short srcBuf[width * height];
+    memset(srcBuf, 0, sizeof(srcBuf)); // Initialize with zeros
 
-    // Compress from YUV
+    // Compress the image
     size_t jpegSize = jpegBufSize;
-    if (tj3CompressFromYUV8(handle, yuvBuf, width, align, height, &jpegBuf, &jpegSize) == -1) {
-        tj3Free(jpegBuf);
-        tj3Free(yuvBuf);
-        free(srcBuf);
-        tj3Destroy(handle);
-        return 0;
+    if (tj3Compress16(handle, srcBuf, width, 0, height, TJPF_RGB, &jpegBuf, &jpegSize) == 0) {
+        // Successfully compressed
     }
 
-    // Free buffers
+    // Free allocated resources
     tj3Free(jpegBuf);
-    tj3Free(yuvBuf);
-    free(srcBuf);
+    tj3Free(nullptr); // Safe to call with nullptr
+    tj3Free(nullptr); // Safe to call with nullptr
+    tj3Free(nullptr); // Safe to call with nullptr
 
-    // Destroy TurboJPEG instance
+    // Destroy the TurboJPEG instance
     tj3Destroy(handle);
 
     return 0;

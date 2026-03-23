@@ -1,3 +1,15 @@
+// This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
+// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
+// tjBufSizeYUV2 at turbojpeg.c:999:25 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjCompressFromYUV at turbojpeg.c:1476:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjBufSize at turbojpeg.c:933:25 in turbojpeg.h
+// tjBufSizeYUV2 at turbojpeg.c:999:25 in turbojpeg.h
+// tj3YUVPlaneSize at turbojpeg.c:1020:18 in turbojpeg.h
+// tjPlaneSizeYUV at turbojpeg.c:1048:25 in turbojpeg.h
+// TJBUFSIZEYUV at turbojpeg.c:1013:25 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,7 +19,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "../src/turbojpeg.h"
+#include <turbojpeg.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -98,7 +110,7 @@ static void fuzz_TJBUFSIZEYUV(const uint8_t* Data, size_t Size) {
     TJBUFSIZEYUV(width, height, jpegSubsamp);
 }
 
-extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t* Data, size_t Size) {
+extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t* Data, size_t Size) {
     fuzz_tjCompressFromYUV(Data, Size);
     fuzz_tjBufSize(Data, Size);
     fuzz_tjBufSizeYUV2(Data, Size);

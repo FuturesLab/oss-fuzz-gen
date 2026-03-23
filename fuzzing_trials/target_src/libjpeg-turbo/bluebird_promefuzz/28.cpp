@@ -11,114 +11,95 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio>
+#include <iostream>
+#include <fstream>
 
-static void test_tjGetErrorStr() {
-    char *errorStr = tjGetErrorStr();
-    if (errorStr) {
-        printf("tjGetErrorStr: %s\n", errorStr);
-    }
-}
-
-static void test_tjGetErrorStr2(tjhandle handle) {
-    char *errorStr = tjGetErrorStr2(handle);
-    if (errorStr) {
-        printf("tjGetErrorStr2: %s\n", errorStr);
-    }
-}
-
-static void test_tjDecompress2(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    } // Need at least some data for a JPEG buffer
-    int width = 100, height = 100, pitch = 0, pixelFormat = TJPF_RGB, flags = 0;
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (!dstBuf) {
-        return;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjDecompress2
-    int result = tjDecompress2(handle, Data, Size, dstBuf, width, pitch, height, TJFLAG_PROGRESSIVE, flags);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (result == 0) {
-        printf("tjDecompress2 succeeded.\n");
-    } else {
-        test_tjGetErrorStr2(handle);
-    }
-    free(dstBuf);
-}
-
-static void test_tjDecompress(tjhandle handle, uint8_t *jpegBuf, size_t jpegSize) {
-    int width = 100, height = 100, pitch = 0, pixelSize = tjPixelSize[TJPF_RGB], flags = 0;
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * pixelSize);
-    if (!dstBuf) {
-        return;
-    }
-
-    int result = tjDecompress(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, pixelSize, flags);
-    if (result == 0) {
-        printf("tjDecompress succeeded.\n");
-    } else {
-        test_tjGetErrorStr2(handle);
-    }
-    free(dstBuf);
-}
-
-static void test_tjSaveImage(const uint8_t *Data, size_t Size) {
-    int width = 100, height = 100, pitch = width * tjPixelSize[TJPF_RGB], pixelFormat = TJPF_RGB, flags = 0;
-    size_t bufferSize = pitch * height;
-    if (Size < bufferSize) {
-        return;
-    }
-    
-    unsigned char *buffer = (unsigned char *)malloc(bufferSize);
-    if (!buffer) {
-        return;
-    }
-    memcpy(buffer, Data, bufferSize);
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 5 of tjSaveImage
-    int result = tjSaveImage("./dummy_file", buffer, width, pitch, height, TJXOPT_PERFECT, flags);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (result == 0) {
-        printf("tjSaveImage succeeded.\n");
-    } else {
-        test_tjGetErrorStr();
-    }
-    free(buffer);
-}
-
-static void test_tjLoadImage() {
-    int width = 0, height = 0, pixelFormat = 0, flags = 0;
-    unsigned char *imageData = tjLoadImage("./dummy_file", &width, 1, &height, &pixelFormat, flags);
-    if (imageData) {
-        printf("tjLoadImage succeeded.\n");
-        tjFree(imageData);
-    } else {
-        test_tjGetErrorStr();
-    }
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    std::ofstream ofs("./dummy_file", std::ios::binary);
+    ofs.write(reinterpret_cast<const char*>(Data), Size);
+    ofs.close();
 }
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        test_tjGetErrorStr();
-        return 0;
+    if (Size < 1) return 0;
+
+    // Fuzz TJBUFSIZE
+    int width = Data[0];
+    int height = (Size > 1) ? Data[1] : 1;
+    try {
+        unsigned long bufSize = TJBUFSIZE(width, height);
+    } catch (...) {
+        // Handle exceptions if necessary
     }
 
-    test_tjGetErrorStr();
-    test_tjGetErrorStr2(handle);
-    test_tjDecompress2(handle, Data, Size);
-    test_tjDecompress(handle, const_cast<uint8_t*>(Data), Size);
-    test_tjSaveImage(Data, Size);
-    test_tjLoadImage();
+    // Fuzz tjDecompressToYUVPlanes
+    if (Size >= 4) {
+        tjhandle handle = tjInitDecompress();
+        unsigned char *jpegBuf = const_cast<unsigned char*>(Data);
+        unsigned long jpegSize = Size;
+        int outWidth = Data[2];
+        int outHeight = Data[3];
+        unsigned char *dstPlanes[3] = { nullptr, nullptr, nullptr };
+        int strides[3] = { 0, 0, 0 };
+        int flags = 0;
 
-    tjDestroy(handle);
+        if (handle) {
+            tjDecompressToYUVPlanes(handle, jpegBuf, jpegSize, dstPlanes, outWidth, strides, outHeight, flags);
+            tjDestroy(handle);
+        }
+    }
+
+    // Fuzz tj3YUVPlaneHeight
+    int componentID = Data[0] % 3;
+    int subsamp = (Size > 1) ? Data[1] % 4 : 0;
+    try {
+        int planeHeight = tj3YUVPlaneHeight(componentID, height, subsamp);
+    } catch (...) {
+        // Handle exceptions if necessary
+    }
+
+    // Fuzz tjDecompressHeader2
+    if (Size >= 3) {
+        tjhandle handle = tjInitDecompress();
+        unsigned char *jpegBuf = const_cast<unsigned char*>(Data);
+        unsigned long jpegSize = Size;
+        int width = 0, height = 0, jpegSubsamp = 0;
+
+        if (handle) {
+            tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp);
+            tjDestroy(handle);
+        }
+    }
+
+    // Fuzz tjCompress
+    if (Size >= 6) {
+        tjhandle handle = tjInitCompress();
+        unsigned char *srcBuf = const_cast<unsigned char*>(Data);
+        int width = Data[0];
+        int pitch = width * 3;
+        int height = Data[1];
+        int pixelSize = 3;
+        unsigned char *dstBuf = nullptr;
+        unsigned long compressedSize = 0;
+        int jpegSubsamp = Data[2] % 4;
+        int jpegQual = Data[3] % 101;
+        int flags = 0;
+
+        if (handle) {
+            tjCompress(handle, srcBuf, width, pitch, height, pixelSize, dstBuf, &compressedSize, jpegSubsamp, jpegQual, flags);
+            tjDestroy(handle);
+        }
+    }
+
+    // Fuzz tjBufSizeYUV
+    if (Size >= 3) {
+        int subsamp = Data[2] % 4;
+        try {
+            unsigned long yuvBufSize = tjBufSizeYUV(width, height, subsamp);
+        } catch (...) {
+            // Handle exceptions if necessary
+        }
+    }
+
     return 0;
 }

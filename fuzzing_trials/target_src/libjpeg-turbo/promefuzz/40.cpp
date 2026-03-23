@@ -1,14 +1,14 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3Transform at turbojpeg.c:2870:15 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3TransformBufSize at turbojpeg.c:2831:18 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
+// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjCompress2 at turbojpeg.c:1204:15 in turbojpeg.h
+// tjGetErrorCode at turbojpeg.c:652:15 in turbojpeg.h
+// tj3GetErrorCode at turbojpeg.c:643:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjCompressFromYUVPlanes at turbojpeg.c:1394:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjDecompress2 at turbojpeg.c:2059:15 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,59 +22,80 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
-
-static tjtransform dummyTransform() {
-    tjtransform transform = {};
-    transform.op = TJXOP_NONE;
-    transform.r = {0, 0, 0, 0};
-    transform.customFilter = nullptr;
-    transform.data = nullptr;
-    return transform;
-}
+#include <cstdio>
+#include <stdexcept>
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Initialize TurboJPEG handle for transformation
-    tjhandle handle = tj3Init(TJINIT_TRANSFORM);
-    if (!handle) {
-        std::cerr << "Failed to initialize TurboJPEG: " << tj3GetErrorStr(nullptr) << std::endl;
-        return 0;
+    // Initialize TurboJPEG handle
+    tjhandle handle = tjInitCompress();
+    if (!handle) return 0;
+
+    try {
+        // Allocate buffers for JPEG compression
+        unsigned char *jpegBuf = nullptr;
+        unsigned long jpegSize = 0;
+
+        // Ensure source buffer is large enough for a minimal image
+        int width = 256;  // Example dimensions
+        int height = 256;
+        int pixelFormat = TJPF_RGB;
+        size_t minSize = width * height * tjPixelSize[pixelFormat];
+
+        if (Size < minSize) {
+            tjDestroy(handle);
+            return 0; // Not enough data for a valid image
+        }
+
+        // Dummy source buffer for compression
+        unsigned char *srcBuf = (unsigned char *)malloc(minSize);
+        if (!srcBuf) throw std::bad_alloc();
+        memcpy(srcBuf, Data, minSize);
+
+        int jpegQual = 75;
+        int jpegSubsamp = TJSAMP_444;
+        int flags = 0;
+
+        // Test tjCompress2
+        tjCompress2(handle, srcBuf, width, 0, height, pixelFormat, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
+
+        // Test tjGetErrorCode
+        int errorCode = tjGetErrorCode(handle);
+
+        // Test tj3GetErrorCode
+        int errorSeverity = tj3GetErrorCode(handle);
+
+        // Clean up JPEG buffer
+        tjFree(jpegBuf);
+        free(srcBuf);
+
+        // Dummy YUV plane data for tjCompressFromYUVPlanes
+        const unsigned char *srcPlanes[3] = {Data, Data, Data};
+        int strides[3] = {256, 128, 128};
+
+        // Test tjCompressFromYUVPlanes
+        tjCompressFromYUVPlanes(handle, srcPlanes, width, strides, height, jpegSubsamp, &jpegBuf, &jpegSize, jpegQual, flags);
+
+        // Clean up JPEG buffer
+        tjFree(jpegBuf);
+
+        // Allocate buffer for decompression
+        unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+        if (!dstBuf) throw std::bad_alloc();
+
+        // Test tjDecompress2
+        tjDecompress2(handle, Data, Size, dstBuf, width, 0, height, pixelFormat, flags);
+
+        // Clean up decompression buffer
+        free(dstBuf);
+
+    } catch (...) {
+        // Handle exceptions and clean up
     }
 
-    // Fuzz tj3SetICCProfile
-    unsigned char *iccBuf = nullptr;
-    size_t iccSize = 0;
-    if (Size > 1) {
-        iccBuf = const_cast<unsigned char*>(Data);
-        iccSize = Size;
-    }
-    if (tj3SetICCProfile(handle, iccBuf, iccSize) == -1) {
-        std::cerr << "Error in tj3SetICCProfile: " << tj3GetErrorStr(handle) << std::endl;
-    }
-
-    // Fuzz tj3Transform
-    unsigned char *jpegBuf = const_cast<unsigned char*>(Data);
-    size_t jpegSize = Size;
-    int n = 1;
-    unsigned char *dstBufs[1] = {nullptr};
-    size_t dstSizes[1] = {0};
-    tjtransform transforms[1] = {dummyTransform()};
-
-    if (tj3Transform(handle, jpegBuf, jpegSize, n, dstBufs, dstSizes, transforms) == -1) {
-        std::cerr << "Error in tj3Transform: " << tj3GetErrorStr(handle) << std::endl;
-    }
-
-    // Fuzz tj3TransformBufSize
-    size_t bufSize = tj3TransformBufSize(handle, &transforms[0]);
-    if (bufSize == 0) {
-        std::cerr << "Error in tj3TransformBufSize: " << tj3GetErrorStr(handle) << std::endl;
-    }
-
-    // Cleanup
-    if (dstBufs[0]) tj3Free(dstBufs[0]);
-    tj3Destroy(handle);
+    // Cleanup TurboJPEG handle
+    tjDestroy(handle);
 
     return 0;
 }
