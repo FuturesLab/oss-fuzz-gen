@@ -1,0 +1,106 @@
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdint>
+#include <cstddef>
+#include "/src/json-c/json_util.h"
+#include "/src/json-c/json_object.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
+
+static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
+
+extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
+    // Step 1: Write data to a dummy file
+    write_to_dummy_file(Data, Size);
+
+    // Step 2: Test json_object_from_file
+    struct json_object *obj = json_object_from_file("./dummy_file");
+    if (obj) {
+        // Step 3: Test json_object_to_json_string_length
+        size_t length;
+        const char *json_str = json_object_to_json_string_length(obj, JSON_C_TO_STRING_PLAIN, &length);
+
+        // Step 4: Test json_object_to_json_string_ext
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_to_json_string_length to json_object_double_to_json_string
+
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function json_object_from_fd with json_object_new_array_ext
+        struct json_object* ret_json_object_from_fd_qvgxy = json_object_new_array_ext(0);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+        if (ret_json_object_from_fd_qvgxy == NULL){
+        	return 0;
+        }
+        int32_t ret_json_object_get_int_skhfn = json_object_get_int(NULL);
+        if (ret_json_object_get_int_skhfn < 0){
+        	return 0;
+        }
+        struct printbuf qrivridm;
+        memset(&qrivridm, 0, sizeof(qrivridm));
+
+        int ret_json_object_double_to_json_string_wyfzn = json_object_double_to_json_string(ret_json_object_from_fd_qvgxy, &qrivridm, (int )ret_json_object_get_int_skhfn, (int )length);
+        if (ret_json_object_double_to_json_string_wyfzn < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_double_to_json_string to json_object_set_string_len
+        const char* ret_json_object_to_json_string_udafp = json_object_to_json_string(obj);
+        if (ret_json_object_to_json_string_udafp == NULL){
+        	return 0;
+        }
+        void* ret_json_object_get_userdata_weurl = json_object_get_userdata(obj);
+        if (ret_json_object_get_userdata_weurl == NULL){
+        	return 0;
+        }
+
+        int ret_json_object_set_string_len_ihzee = json_object_set_string_len(obj, (const char *)ret_json_object_get_userdata_weurl, ret_json_object_double_to_json_string_wyfzn);
+        if (ret_json_object_set_string_len_ihzee < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+        const char *json_str_ext = json_object_to_json_string_ext(obj, JSON_C_TO_STRING_PRETTY);
+
+        // Step 5: Test json_object_to_file
+        int result = json_object_to_file("./dummy_file", obj);
+
+        // Step 6: Test json_object_to_fd
+        int fd = open("./dummy_file", O_WRONLY | O_CREAT, 0644);
+        if (fd != -1) {
+
+            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of json_object_to_fd
+            result = json_object_to_fd(JSON_C_TO_STRING_COLOR, obj, JSON_C_TO_STRING_PLAIN);
+            // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+            close(fd);
+        }
+
+        // Step 7: Test json_object_to_file_ext
+        result = json_object_to_file_ext("./dummy_file", obj, JSON_C_TO_STRING_PRETTY);
+
+        // Clean up
+        json_object_put(obj);
+    }
+
+    return 0;
+}
