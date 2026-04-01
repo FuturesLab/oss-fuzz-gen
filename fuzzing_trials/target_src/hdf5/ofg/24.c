@@ -1,34 +1,29 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t file_id;
-    double hit_rate;
-    herr_t status;
-
-    // Check if the size is sufficient to create a file name
-    if (size < 1) {
+    // Ensure the data size is sufficient for extracting multiple values
+    if (size < 20) {
         return 0;
     }
 
-    // Create a temporary HDF5 file using the data as part of the file name
-    char filename[256];
-    snprintf(filename, sizeof(filename), "fuzz_test_%u.h5", data[0]);
+    // Extract values from data
+    const char *location = (const char *)data;
+    const char *attr_name = (const char *)(data + 1);
+    unsigned int idx_type = (unsigned int)data[2];
+    hid_t loc_id = (hid_t)data[3];
+    const char *name = (const char *)(data + 4);
+    H5_index_t index_type = (H5_index_t)(data[5] % 3); // Assuming 3 types
+    H5_iter_order_t order = (H5_iter_order_t)(data[6] % 3); // Assuming 3 orders
+    hsize_t n = (hsize_t)data[7];
+    hid_t aapl_id = (hid_t)data[8];
+    hid_t lapl_id = (hid_t)data[9];
+    hid_t es_id = (hid_t)data[10];
 
-    // Create a new HDF5 file using default properties
-    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file
-    }
+    // Call the function-under-test with the correct number of arguments
+    hid_t result = H5Aopen_by_idx_async(loc_id, name, index_type, order, n, aapl_id, lapl_id, es_id);
 
-    // Call the function-under-test
-    status = H5Fget_mdc_hit_rate(file_id, &hit_rate);
-
-    // Close the HDF5 file
-    H5Fclose(file_id);
-
+    // Return 0 to indicate the fuzzer can continue
     return 0;
 }

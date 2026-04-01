@@ -1,27 +1,41 @@
+#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <pcap.h>
 
-// Function prototype for LLVMFuzzerTestOneInput
+// Define the fuzzer test function
 int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Initialize variables
-    pcap_t *p = pcap_open_dead(DLT_EN10MB, 65535); // Open a fake pcap_t structure
-    int protocol;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *pcap_handle = NULL;
+    FILE *file_handle = NULL;
 
-    // Ensure we have enough data to extract an integer for the protocol
-    if (size < sizeof(int)) {
-        pcap_close(p);
+    // Ensure that the data size is sufficient for a minimum valid pcap file header
+    if (size < 24) { // 24 bytes for a typical pcap file header
         return 0;
     }
 
-    // Copy the first sizeof(int) bytes from data to protocol
-    protocol = *((int *)data);
+    // Create a temporary file to simulate a pcap file
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
+        return 0;
+    }
+
+    // Write the input data to the temporary file
+    fwrite(data, 1, size, temp_file);
+    rewind(temp_file);
+
+    // Open the temporary file as a pcap file
+    pcap_handle = pcap_fopen_offline(temp_file, errbuf);
+    if (pcap_handle == NULL) {
+        fclose(temp_file);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = pcap_set_protocol_linux(p, protocol);
+    file_handle = pcap_file(pcap_handle);
 
     // Clean up
-    pcap_close(p);
+    pcap_close(pcap_handle);
+    fclose(temp_file);
 
     return 0;
 }

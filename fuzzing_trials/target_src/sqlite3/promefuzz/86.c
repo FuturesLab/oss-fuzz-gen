@@ -1,13 +1,15 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_result_null at sqlite3.c:78859:17 in sqlite3.h
+// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
+// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
+// sqlite3_reset at sqlite3.c:78461:16 in sqlite3.h
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_enable_load_extension at sqlite3.c:127686:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_load_extension at sqlite3.c:127655:16 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_set_authorizer at sqlite3.c:110840:16 in sqlite3.h
-// sqlite3_create_function at sqlite3.c:173127:16 in sqlite3.h
-// sqlite3_db_name at sqlite3.c:175965:24 in sqlite3.h
+// sqlite3_column_count at sqlite3.c:79599:16 in sqlite3.h
+// sqlite3_bind_parameter_index at sqlite3.c:80290:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_column_decltype at sqlite3.c:79906:24 in sqlite3.h
+// sqlite3_column_name at sqlite3.c:79883:24 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
@@ -15,62 +17,74 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sqlite3.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
 
-static int dummy_authorizer(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK;
-}
-
-static void dummy_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
-    sqlite3_result_null(context);
-}
-
-int LLVMFuzzerTestOneInput_86(const uint8_t *Data, size_t Size) {
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
-    int rc;
-
-    // Open a database connection
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
+// Helper function to create a prepared statement
+static sqlite3_stmt* createPreparedStatement(sqlite3 *db, const char *sql) {
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return NULL;
     }
+    return stmt;
+}
 
-    // Enable load extension
-    rc = sqlite3_enable_load_extension(db, 1);
-    if (rc != SQLITE_OK) {
+// Helper function to execute and reset a prepared statement
+static void executeAndResetStatement(sqlite3_stmt *stmt) {
+    sqlite3_step(stmt);
+    sqlite3_reset(stmt);
+}
+
+// Fuzzing entry point
+int LLVMFuzzerTestOneInput_86(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
+
+    sqlite3 *db = NULL;
+    sqlite3_open(":memory:", &db);
+
+    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);"
+                      "INSERT INTO test (value) VALUES ('foo'), ('bar');"
+                      "SELECT * FROM test;";
+    sqlite3_stmt *stmt = createPreparedStatement(db, sql);
+    if (!stmt) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Fuzz sqlite3_load_extension
-    char fileName[256];
-    snprintf(fileName, sizeof(fileName), "./dummy_file_%zu", Size);
-    FILE *file = fopen(fileName, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    // Fuzz sqlite3_column_count
+    int columnCount = sqlite3_column_count(stmt);
+
+    // Ensure paramName is null-terminated by copying to a new buffer
+    char *paramName = (char *)malloc(Size + 1);
+    if (paramName) {
+        memcpy(paramName, Data, Size);
+        paramName[Size] = '\0';  // Null-terminate the string
+
+        // Fuzz sqlite3_bind_parameter_index
+        int paramIndex = sqlite3_bind_parameter_index(stmt, paramName);
+
+        // Fuzz sqlite3_bind_text
+        if (paramIndex > 0) {
+            sqlite3_bind_text(stmt, paramIndex, paramName, Size, SQLITE_STATIC);
+        }
+
+        free(paramName);
     }
-    rc = sqlite3_load_extension(db, fileName, NULL, &errMsg);
-    if (errMsg) {
-        sqlite3_free(errMsg);
+
+    // Fuzz sqlite3_column_decltype
+    for (int i = 0; i < columnCount; i++) {
+        const char *declType = sqlite3_column_decltype(stmt, i);
     }
 
-    // Fuzz sqlite3_set_authorizer
-    rc = sqlite3_set_authorizer(db, dummy_authorizer, NULL);
+    // Fuzz sqlite3_column_name
+    for (int i = 0; i < columnCount; i++) {
+        const char *columnName = sqlite3_column_name(stmt, i);
+    }
 
-    // Fuzz sqlite3_create_function
-    rc = sqlite3_create_function(db, "dummy_func", 1, SQLITE_UTF8, NULL, dummy_function, NULL, NULL);
+    // Execute and reset the statement
+    executeAndResetStatement(stmt);
 
-    // Fuzz sqlite3_db_name
-    const char *dbName = sqlite3_db_name(db, 0);
-
-    // Clean up
+    // Cleanup
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
-    remove(fileName);
 
     return 0;
 }

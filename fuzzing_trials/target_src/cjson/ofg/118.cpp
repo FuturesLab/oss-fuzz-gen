@@ -25,17 +25,16 @@ int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
 
   recurse = data[0] == '1' ? 1 : 0;
 
-  json = cJSON_Parse((const char *)data + offset);
-
+  json = cJSON_ParseWithOpts((const char *)data + offset, NULL, 1);
   if (json == NULL)
     return 0;
 
   duplicate = cJSON_Duplicate(json, recurse);
 
-  if (duplicate != NULL)
-    cJSON_Delete(duplicate);
-
   cJSON_Delete(json);
+  if (duplicate != NULL) {
+    cJSON_Delete(duplicate);
+  }
 
   return 0;
 }

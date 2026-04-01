@@ -1,28 +1,34 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Failed to initialize, exit early
+    if (size < 2) {
+        return 0; // Not enough data to be a valid JPEG
     }
 
-    int width = 0;
-    int height = 0;
-    int jpegSubsamp = 0;
-    int jpegColorspace = 0;
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
+        return 0; // Initialization failed
+    }
 
-    // Call the function-under-test
-    int result = tjDecompressHeader3(handle, data, (unsigned long)size, &width, &height, &jpegSubsamp, &jpegColorspace);
+    int width, height, jpegSubsamp, jpegColorspace;
+    // Cast away constness for the tjDecompressHeader2 function call
+    if (tjDecompressHeader2(handle, const_cast<unsigned char*>(data), size, &width, &height, &jpegSubsamp) == 0) {
+        // Allocate buffer for decompressed image
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer != NULL) {
+            // Attempt to decompress the image
+            tjDecompress2(handle, const_cast<unsigned char*>(data), size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
+    }
 
-    // Clean up the TurboJPEG decompressor handle
     tjDestroy(handle);
-
     return 0;
 }

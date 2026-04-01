@@ -1,86 +1,93 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_get_reference_ID at isom_read.c:1270:8 in isomedia.h
-// gf_isom_set_last_sample_duration at isom_write.c:1419:8 in isomedia.h
-// gf_isom_set_ctts_v1 at isom_write.c:7867:8 in isomedia.h
-// gf_isom_rtp_set_time_sequence_offset at hint_track.c:292:8 in isomedia.h
-// gf_isom_set_last_sample_duration_ex at isom_write.c:1431:8 in isomedia.h
-// gf_isom_check_data_reference at isom_read.c:1705:8 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_get_media_original_duration at isom_read.c:1448:5 in isomedia.h
+// gf_isom_get_track_duration at isom_read.c:1076:5 in isomedia.h
+// gf_isom_get_track_magic at isom_read.c:6160:5 in isomedia.h
+// gf_isom_get_missing_bytes at isom_read.c:2482:5 in isomedia.h
+// gf_isom_get_current_tfdt at isom_read.c:5822:5 in isomedia.h
+// gf_isom_get_media_data_size at isom_read.c:4131:5 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* initialize_iso_file() {
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return isom_file;
+// Dummy structure to simulate GF_ISOFile since it's incomplete in the header
+typedef struct {
+    char *fileName;
+    void *moov; // Use void* since the actual type is unknown
+} DummyGF_ISOFile;
+
+static DummyGF_ISOFile* create_dummy_isofile(const uint8_t *Data, size_t Size) {
+    DummyGF_ISOFile *iso_file = (DummyGF_ISOFile *)malloc(sizeof(DummyGF_ISOFile));
+    if (!iso_file) return NULL;
+
+    // Initialize the structure with some dummy values
+    memset(iso_file, 0, sizeof(DummyGF_ISOFile));
+    iso_file->fileName = "./dummy_file";
+
+    // Write Data to dummy file for file-based operations
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+
+    // Initialize moov to avoid null pointer dereference
+    iso_file->moov = malloc(1); // Allocate a byte to simulate moov
+    if (!iso_file->moov) {
+        free(iso_file);
+        return NULL;
+    }
+    memset(iso_file->moov, 0, 1);
+
+    return iso_file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
+static void cleanup_dummy_isofile(DummyGF_ISOFile *iso_file) {
+    if (iso_file) {
+        if (iso_file->moov) {
+            free(iso_file->moov);
+        }
+        free(iso_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_56(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 9) return 0;
+    if (Size < sizeof(uint32_t)) return 0;
 
-    GF_ISOFile *isom_file = initialize_iso_file();
-    if (!isom_file) return 0;
+    DummyGF_ISOFile *dummy_iso_file = create_dummy_isofile(Data, Size);
+    if (!dummy_iso_file) return 0;
 
-    u32 trackNumber = *((u32 *)Data);
-    u32 referenceType = *((u32 *)(Data + 4));
-    u32 referenceIndex = *((u32 *)(Data + 8));
-    u32 duration = *((u32 *)(Data + 12));
-    u32 dur_num = *((u32 *)(Data + 16));
-    u32 dur_den = *((u32 *)(Data + 20));
-    u32 ctts_shift = *((u32 *)(Data + 24));
-    u32 HintDescriptionIndex = *((u32 *)(Data + 28));
-    u32 SequenceNumberOffset = *((u32 *)(Data + 32));
-    u32 sampleDescriptionIndex = *((u32 *)(Data + 36));
+    // Cast to GF_ISOFile for API compatibility
+    GF_ISOFile *iso_file = (GF_ISOFile *)dummy_iso_file;
 
-    GF_ISOTrackID refTrackID;
-    GF_Err err;
+    uint32_t trackNumber = *(uint32_t *)Data;
 
-    // Test gf_isom_get_reference_ID
-    err = gf_isom_get_reference_ID(isom_file, trackNumber, referenceType, referenceIndex, &refTrackID);
-    if (err != GF_OK) {
-        // Handle error if necessary
-    }
+    // Test gf_isom_get_media_original_duration
+    u64 duration = gf_isom_get_media_original_duration(iso_file, trackNumber);
+    (void)duration; // Suppress unused variable warning
 
-    // Test gf_isom_set_last_sample_duration
-    err = gf_isom_set_last_sample_duration(isom_file, trackNumber, duration);
-    if (err != GF_OK) {
-        // Handle error if necessary
-    }
+    // Test gf_isom_get_track_duration
+    u64 track_duration = gf_isom_get_track_duration(iso_file, trackNumber);
+    (void)track_duration;
 
-    // Test gf_isom_set_ctts_v1
-    err = gf_isom_set_ctts_v1(isom_file, trackNumber, ctts_shift);
-    if (err != GF_OK) {
-        // Handle error if necessary
-    }
+    // Test gf_isom_get_track_magic
+    u64 magic_number = gf_isom_get_track_magic(iso_file, trackNumber);
+    (void)magic_number;
 
-    // Test gf_isom_rtp_set_time_sequence_offset
-    err = gf_isom_rtp_set_time_sequence_offset(isom_file, trackNumber, HintDescriptionIndex, SequenceNumberOffset);
-    if (err != GF_OK) {
-        // Handle error if necessary
-    }
+    // Test gf_isom_get_missing_bytes
+    u64 missing_bytes = gf_isom_get_missing_bytes(iso_file, trackNumber);
+    (void)missing_bytes;
 
-    // Test gf_isom_set_last_sample_duration_ex
-    err = gf_isom_set_last_sample_duration_ex(isom_file, trackNumber, dur_num, dur_den);
-    if (err != GF_OK) {
-        // Handle error if necessary
-    }
+    // Test gf_isom_get_current_tfdt
+    u64 tfdt = gf_isom_get_current_tfdt(iso_file, trackNumber);
+    (void)tfdt;
 
-    // Test gf_isom_check_data_reference
-    err = gf_isom_check_data_reference(isom_file, trackNumber, sampleDescriptionIndex);
-    if (err != GF_OK) {
-        // Handle error if necessary
-    }
+    // Test gf_isom_get_media_data_size
+    u64 media_data_size = gf_isom_get_media_data_size(iso_file, trackNumber);
+    (void)media_data_size;
 
-    cleanup_iso_file(isom_file);
+    cleanup_dummy_isofile(dummy_iso_file);
     return 0;
 }

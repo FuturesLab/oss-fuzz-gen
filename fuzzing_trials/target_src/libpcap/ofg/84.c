@@ -2,25 +2,31 @@
 #include <stdlib.h>
 #include <pcap.h>
 
-// Function prototype for the fuzzing target
 int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Initialize the pcap_t structure
+    pcap_t *handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and max snapshot length
+    int datalink_type;
 
-    if (pcap == NULL) {
-        return 0; // If pcap_open_dead fails, return early
+    // Initialize a pcap handle with a non-NULL value
+    handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (handle == NULL) {
+        return 0;
     }
 
-    // If data is not null and size is greater than zero, proceed with further processing
-    if (data != NULL && size > 0) {
-        // Call the function-under-test
-        int snapshot_length = pcap_snapshot(pcap);
-        // Use the snapshot_length in some meaningful way if needed
+    // Ensure data is not empty and size is sufficient for an int
+    if (size < sizeof(int)) {
+        pcap_close(handle);
+        return 0;
     }
+
+    // Use the first 4 bytes of data as the datalink type
+    datalink_type = *((int *)data);
+
+    // Call the function-under-test
+    pcap_set_datalink(handle, datalink_type);
 
     // Clean up
-    pcap_close(pcap);
+    pcap_close(handle);
 
     return 0;
 }

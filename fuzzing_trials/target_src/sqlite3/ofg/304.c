@@ -1,46 +1,54 @@
 #include <stdint.h>
 #include <sqlite3.h>
+#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_304(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
-
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
+    sqlite3 *db;
+    sqlite3_blob *blob = NULL;
+    const char *db_name = "test.db";
+    const char *table_name = "test_table";
+    const char *column_name = "test_column";
+    const char *sql_create_table = "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, test_column BLOB)";
+    const char *sql_insert_blob = "INSERT INTO test_table (test_column) VALUES (zeroblob(100))";
     int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, name TEXT); INSERT INTO test (name) VALUES ('Alice'), ('Bob'), ('Charlie'); SELECT * FROM test;";
-    const void *column_name;
+    int offset = 0;
+    int bytes_to_write = size < 100 ? size : 100; // Limit to 100 bytes for the blob
 
-    // Open a new in-memory database
-    rc = sqlite3_open(":memory:", &db);
+    // Open a connection to the SQLite database
+    rc = sqlite3_open(db_name, &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare the SELECT statement
-    rc = sqlite3_prepare_v2(db, "SELECT * FROM test;", -1, &stmt, NULL);
+    // Create table if it doesn't exist
+    rc = sqlite3_exec(db, sql_create_table, 0, 0, 0);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Use the input data to determine the column index
-    int column_index = data[0] % sqlite3_column_count(stmt);
+    // Insert a blob with a fixed size
+    rc = sqlite3_exec(db, sql_insert_blob, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Call the function-under-test
-    column_name = sqlite3_column_name16(stmt, column_index);
+    // Open the blob for writing
+    rc = sqlite3_blob_open(db, "main", table_name, column_name, 1, 1, &blob);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Write data to the blob
+    rc = sqlite3_blob_write(blob, data, bytes_to_write, offset);
+    
+    // Close the blob
+    sqlite3_blob_close(blob);
+
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

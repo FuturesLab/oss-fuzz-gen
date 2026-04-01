@@ -1,11 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFUnsetField at tif_dir.c:1166:5 in tiffio.h
-// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
-// TIFFDataWidth at tif_dirinfo.c:692:5 in tiffio.h
-// TIFFCurrentDirectory at tif_open.c:874:8 in tiffio.h
-// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
-// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
+// TIFFRawStripSize at tif_strip.c:168:10 in tiffio.h
+// TIFFVStripSize at tif_strip.c:142:10 in tiffio.h
+// TIFFVTileSize at tif_tile.c:238:10 in tiffio.h
+// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
+// TIFFTileRowSize at tif_tile.c:177:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -22,51 +23,49 @@
 #include <cstdlib>
 #include <cstring>
 
-extern "C" int LLVMFuzzerTestOneInput_88(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t) * 2 + sizeof(TIFFDataType)) {
-        return 0;
-    }
-
-    // Prepare a dummy TIFF file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
+static TIFF* createDummyTIFF(const uint8_t *Data, size_t Size) {
+    FILE* file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the dummy TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
+    TIFF* tif = TIFFOpen("./dummy_file", "r");
+    return tif;
+}
+
+extern "C" int LLVMFuzzerTestOneInput_88(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
+
+    TIFF* tif = createDummyTIFF(Data, Size);
+    if (!tif) return 0;
+
+    uint32_t index = Data[0] % 256; // Use the first byte for index
+    tmsize_t bufferSize = 1024;
+    void* buffer = malloc(bufferSize);
+    if (!buffer) {
+        TIFFClose(tif);
         return 0;
     }
 
-    // Extract a tag and a TIFFDataType from the input data
-    uint32_t tag = *reinterpret_cast<const uint32_t *>(Data);
-    TIFFDataType dataType = *reinterpret_cast<const TIFFDataType *>(Data + sizeof(uint32_t));
-    uint32_t anotherTag = *reinterpret_cast<const uint32_t *>(Data + sizeof(uint32_t) + sizeof(TIFFDataType));
+    // Fuzz TIFFReadEncodedTile
+    TIFFReadEncodedTile(tif, index, buffer, bufferSize);
 
-    // Fuzz TIFFUnsetField
-    TIFFUnsetField(tif, tag);
+    // Fuzz TIFFRawStripSize
+    TIFFRawStripSize(tif, index);
 
-    // Fuzz TIFFFindField
-    const TIFFField *field = TIFFFindField(tif, tag, dataType);
+    // Fuzz TIFFVStripSize
+    TIFFVStripSize(tif, index);
 
-    // Fuzz TIFFDataWidth
-    int width = TIFFDataWidth(dataType);
+    // Fuzz TIFFVTileSize
+    TIFFVTileSize(tif, index);
 
-    // Fuzz TIFFCurrentDirectory
-    tdir_t currentDir = TIFFCurrentDirectory(tif);
+    // Fuzz TIFFStripSize
+    TIFFStripSize(tif);
 
-    // Fuzz TIFFReadDirectory
-    int readDirResult = TIFFReadDirectory(tif);
+    // Fuzz TIFFTileRowSize
+    TIFFTileRowSize(tif);
 
-    // Fuzz TIFFFieldWithTag
-    const TIFFField *fieldWithTag = TIFFFieldWithTag(tif, anotherTag);
-
-    // Cleanup
+    free(buffer);
     TIFFClose(tif);
-    remove("./dummy_file");
-
     return 0;
 }

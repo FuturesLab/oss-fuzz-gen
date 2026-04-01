@@ -1,44 +1,26 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h> // Include this for size_t
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_369(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
-    int rc;
+    sqlite3 *db;
+    sqlite3_int64 rowid;
 
-    // Open an in-memory database
+    // Ensure data is large enough to extract a 64-bit integer for rowid
+    if (size < sizeof(sqlite3_int64)) {
+        return 0;
+    }
+
+    // Open an in-memory SQLite database
     if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0; // If opening the database fails, return early
-    }
-
-    // Create a table
-    const char *createTableSQL = "CREATE TABLE IF NOT EXISTS fuzz_table (id INTEGER PRIMARY KEY, data BLOB);";
-    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
         return 0;
     }
 
-    // Prepare an SQL statement to insert data
-    sqlite3_stmt *stmt;
-    const char *insertSQL = "INSERT INTO fuzz_table (data) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, insertSQL, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Extract a 64-bit integer from the input data to use as rowid
+    rowid = *(const sqlite3_int64 *)data;
 
-    // Bind the fuzz input data to the SQL statement
-    sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
-
-    // Execute the SQL statement
-    sqlite3_step(stmt);
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
+    // Call the function-under-test
+    sqlite3_set_last_insert_rowid(db, rowid);
 
     // Close the database
     sqlite3_close(db);

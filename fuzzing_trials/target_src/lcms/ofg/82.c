@@ -1,27 +1,29 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
-// Fuzzing harness for cmsIsToneCurveMonotonic
+// Function signature for the fuzzer entry point
 int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create a tone curve
-    if (size < sizeof(uint16_t)) {
+    // Ensure the size is sufficient to extract a cmsUInt32Number
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Create a tone curve with at least one segment
-    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurve16(NULL, 1, (const uint16_t *)data);
+    // Extract a cmsUInt32Number from the input data
+    cmsUInt32Number options = *(const cmsUInt32Number *)data;
+
+    // Create a dummy cmsHANDLE
+    cmsHPROFILE handle = cmsOpenProfileFromMem(data, size);
+    if (handle == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    if (toneCurve != NULL) {
-        cmsBool isMonotonic = cmsIsToneCurveMonotonic(toneCurve);
-        // Use the result to prevent compiler optimizations
-        if (isMonotonic) {
-            // Do something if monotonic
-        }
-        // Free the tone curve
-        cmsFreeToneCurve(toneCurve);
-    }
+    cmsBool result = cmsGDBCompute(handle, options);
+
+    // Clean up
+    cmsCloseProfile(handle);
 
     return 0;
 }

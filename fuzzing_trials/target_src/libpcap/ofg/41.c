@@ -8,12 +8,18 @@ int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
     char errbuf[PCAP_ERRBUF_SIZE];
 
     // Ensure errbuf is null-terminated
-    memset(errbuf, 0, PCAP_ERRBUF_SIZE);
+    memset(errbuf, 0, sizeof(errbuf));
 
-    // Call the function-under-test
-    int result = pcap_findalldevs(&alldevs, errbuf);
+    // Use the input data to influence the fuzzing process
+    if (size > 0) {
+        // For demonstration, we'll just use the first byte to decide behavior
+        if (data[0] % 2 == 0) {
+            // Call the function-under-test
+            int result = pcap_findalldevs(&alldevs, errbuf);
+        }
+    }
 
-    // Clean up
+    // Clean up if devices were found
     if (alldevs != NULL) {
         pcap_freealldevs(alldevs);
     }

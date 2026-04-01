@@ -1,29 +1,38 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    tjhandle handle = nullptr;
-
-    // Initialize the TurboJPEG decompressor
-    handle = tj3Init(TJINIT_DECOMPRESS);
-    if (handle == nullptr) {
-        return 0; // Initialization failed, exit the fuzzer
+    tjhandle handle = tjInitTransform();
+    if (!handle) {
+        return 0;
     }
 
-    // Assuming the function under test is tjDecompressHeader3, which requires valid input
-    int width, height, jpegSubsamp, jpegColorspace;
-    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
-        // Decompression header succeeded, proceed with further processing if needed
-    }
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+    tjtransform transform;
+    transform.op = TJXOP_NONE; // No transform operation
+    transform.options = 0;
+    transform.r = {0, 0, 0, 0}; // No cropping
+    transform.customFilter = nullptr;
+
+    int flags = 0; // No flags
+
+    // Allocate memory for the destination buffer
+    unsigned char *dstBuf = nullptr;
+    unsigned long dstSize = 0;
+
+    // Call the function-under-test
+    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, flags);
 
     // Clean up
-    tj3Destroy(handle);
+    if (dstBuf) {
+        tjFree(dstBuf);
+    }
+    tjDestroy(handle);
 
     return 0;
 }

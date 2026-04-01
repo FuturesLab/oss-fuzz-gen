@@ -18,15 +18,15 @@ int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Create a JSON item from the input data
-    cJSON *item = cJSON_CreateString((const char *)data);
-    if (item == NULL) {
+    // Create a new JSON item from the input data
+    cJSON *new_item = cJSON_ParseWithLength((const char *)data, size);
+    if (new_item == NULL) {
         cJSON_Delete(root_array);
         return 0;
     }
 
-    // Add the item to the array
-    cJSON_bool result = cJSON_AddItemToArray(root_array, item);
+    // Add the new item to the root array
+    cJSON_bool result = cJSON_AddItemToArray(root_array, new_item);
 
     // Clean up
     cJSON_Delete(root_array);

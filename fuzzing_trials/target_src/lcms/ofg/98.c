@@ -1,24 +1,24 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include for memcpy
-#include <lcms2.h>
+#include <stdlib.h>
+#include <lcms2.h> // Include the Little CMS library header
 
+// Remove 'extern "C"' as it is not needed in a C file
 int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to extract a cmsColorSpaceSignature
-    if (size < sizeof(cmsColorSpaceSignature)) {
-        return 0;
+    cmsHPROFILE hProfile = NULL;
+
+    // Create a memory-based profile from the input data
+    if (size > 0) {
+        hProfile = cmsOpenProfileFromMem((void*)data, (cmsUInt32Number)size);
     }
 
-    // Extract a cmsColorSpaceSignature from the input data
-    cmsColorSpaceSignature colorSpaceSignature;
-    memcpy(&colorSpaceSignature, data, sizeof(cmsColorSpaceSignature));
+    // Check if the profile was successfully created
+    if (hProfile != NULL) {
+        // Call the function-under-test
+        cmsBool result = cmsMD5computeID(hProfile);
 
-    // Call the function-under-test
-    cmsInt32Number channels = cmsChannelsOfColorSpace(colorSpaceSignature);
-
-    // Use the result in some way (e.g., print, log, etc.)
-    // For fuzzing, we generally don't need to do anything with the result
-    (void)channels; // Suppress unused variable warning
+        // Close the profile after use
+        cmsCloseProfile(hProfile);
+    }
 
     return 0;
 }

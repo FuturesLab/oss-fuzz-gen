@@ -1,42 +1,61 @@
-#include <cstdint>
-#include <cstdlib>
-
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+}
 
-    int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-        // Initialize variables for tj3Compress16 function
-        tjhandle handle = tjInitCompress();
-        if (!handle) return 0;
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio> // For printing debug information
 
-        // Use TJPF_RGBX to ensure 4 bytes per pixel, which matches the J16SAMPLE size
-        const int pixelFormat = TJPF_RGBX;
-        const int bytesPerPixel = tjPixelSize[pixelFormat];
-        
-        // Ensure that the input data size is sufficient for at least a 1x1 image
-        if (size < bytesPerPixel) {
-            tjDestroy(handle);
-            return 0;
-        }
-
-        // Convert the input data to unsigned short as required by tj3Compress16
-        const unsigned short *srcBuf = reinterpret_cast<const unsigned short *>(data);
-        int width = 1; // Minimum width
-        int pitch = width * bytesPerPixel;
-        int height = 1; // Minimum height
-
-        unsigned char *compressedBuf = nullptr;
-        size_t compressedSize = 0;
-
-        // Call the function-under-test
-        int result = tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &compressedBuf, &compressedSize);
-
-        // Clean up
-        tjFree(compressedBuf);
-        tjDestroy(handle);
-
-        return result;
+extern "C" int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
+    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    if (!handle) {
+        return 0;
     }
+
+    // Define YUV image dimensions
+    int width = 640;  // Example width
+    int height = 480; // Example height
+    int subsamp = TJSAMP_420; // Example subsampling
+
+    // Calculate the size of the YUV buffer
+    size_t yuvSize = tj3YUVBufSize(width, 4, height, subsamp);
+    if (size < yuvSize) {
+        tj3Destroy(handle);
+        return 0;
+    }
+
+    // Allocate memory for the YUV image
+    unsigned char *yuvBuf = (unsigned char *)malloc(yuvSize);
+    if (!yuvBuf) {
+        tj3Destroy(handle);
+        return 0;
+    }
+
+    // Copy the input data to the YUV buffer
+    memcpy(yuvBuf, data, yuvSize);
+
+    // Allocate memory for the compressed image
+    unsigned char *jpegBuf = nullptr;
+    size_t jpegSize = 0;
+
+    // Call the function-under-test
+    int result = tj3CompressFromYUV8(handle, yuvBuf, width, 4, height, &jpegBuf, &jpegSize);
+
+    // Ensure the function under test is invoked properly
+    if (result == 0 && jpegBuf != nullptr && jpegSize > 0) {
+        // Do something with jpegBuf to ensure it's used, e.g., validate or process it
+        printf("Compressed JPEG size: %zu\n", jpegSize); // Print the size of the compressed image
+    } else {
+        printf("Compression failed or produced no output.\n");
+    }
+
+    // Clean up
+    free(yuvBuf);
+    if (jpegBuf) {
+        tj3Free(jpegBuf);
+    }
+    tj3Destroy(handle);
+
+    return 0;
 }

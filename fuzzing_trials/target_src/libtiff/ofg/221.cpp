@@ -1,27 +1,45 @@
-#include <cstdint>
-#include <cstddef>
-#include <cmath>
-
 extern "C" {
-    // Declaration of the function-under-test
-    int uv_encode(double u, double v, int precision);
+#include <tiffio.h>
+#include <unistd.h>  // Include for 'unlink' and 'close'
 }
 
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+
 extern "C" int LLVMFuzzerTestOneInput_221(const uint8_t *data, size_t size) {
-    if (size < sizeof(double) * 2 + sizeof(int)) {
-        return 0; // Not enough data to extract two doubles and an int
+    // Ensure data is large enough to create a valid string
+    if (size < 1) {
+        return 0;
     }
 
-    // Extract two doubles and an int from the input data
-    double u = *reinterpret_cast<const double*>(data);
-    double v = *reinterpret_cast<const double*>(data + sizeof(double));
-    int precision = *reinterpret_cast<const int*>(data + sizeof(double) * 2);
+    // Create a temporary TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Ensure precision is within a reasonable range
-    precision = std::abs(precision) % 100; // Example range limit for precision
+    // Open the temporary file as a TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "w");
+    if (!tiff) {
+        close(fd);
+        return 0;
+    }
+
+    // Set up a non-NULL string for the third parameter
+    char description[256];
+    size_t desc_len = (size < 255) ? size : 255;
+    memcpy(description, data, desc_len);
+    description[desc_len] = '\0';
 
     // Call the function-under-test
-    uv_encode(u, v, precision);
+    int result = TIFFWriteCheck(tiff, 1, description);
+
+    // Cleanup
+    TIFFClose(tiff);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }

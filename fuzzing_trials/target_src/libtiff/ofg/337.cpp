@@ -1,48 +1,39 @@
 #include <cstdint>
 #include <cstdlib>
-#include <unistd.h>   // For close
-#include <cstring>    // For memcpy
+#include <cstring> // Include for memcpy
 
 extern "C" {
-#include <tiffio.h>
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_337(const uint8_t *data, size_t size) {
-    TIFF *tiff;
-    void *buffer;
-    tmsize_t bufferSize;
+    TIFF *tiff = nullptr;
+    void *buffer = nullptr;
+    tmsize_t bufferSize = static_cast<tmsize_t>(size);
 
-    // Initialize TIFF structure using a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    // Ensure that the buffer is not NULL by allocating memory
+    if (size > 0) {
+        buffer = malloc(size);
+        if (buffer == nullptr) {
+            return 0; // Exit if memory allocation fails
+        }
+        // Copy data to the buffer
+        memcpy(buffer, data, size);
     }
-    tiff = TIFFFdOpen(fd, "w", "r");
+
+    // Open a TIFF file in memory for writing
+    tiff = TIFFOpen("mem:", "w");
     if (tiff == nullptr) {
-        close(fd);
-        return 0;
+        free(buffer);
+        return 0; // Exit if TIFFOpen fails
     }
-
-    // Ensure buffer is not NULL and has a reasonable size
-    bufferSize = (tmsize_t)size;
-    buffer = malloc(bufferSize);
-    if (buffer == nullptr) {
-        TIFFClose(tiff);
-        close(fd);
-        return 0;
-    }
-
-    // Copy data to buffer
-    memcpy(buffer, data, bufferSize);
 
     // Call the function-under-test
     TIFFWriteBufferSetup(tiff, buffer, bufferSize);
 
     // Clean up
-    free(buffer);
     TIFFClose(tiff);
-    close(fd);
+    free(buffer);
 
     return 0;
 }

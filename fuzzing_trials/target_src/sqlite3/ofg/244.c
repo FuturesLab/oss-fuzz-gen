@@ -1,30 +1,27 @@
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <string.h>  // Include for NULL
+#include <stddef.h>
 #include <sqlite3.h>
 
+// Define a callback function to be used as the rollback hook
+void rollback_callback(void *arg) {
+    // For fuzzing purposes, this function can be left empty
+}
+
 int LLVMFuzzerTestOneInput_244(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to create at least one sqlite3_value
-    if (size < 1) {
+    sqlite3 *db;
+    int rc;
+    void *pArg = (void *)data; // Use the input data as an argument to the callback
+
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create an SQLite memory context
-    sqlite3 *db;
-    sqlite3_open(":memory:", &db);
+    // Set the rollback hook with the callback function
+    sqlite3_rollback_hook(db, rollback_callback, pArg);
 
-    // Prepare a statement to bind data
-    sqlite3_stmt *stmt;
-    sqlite3_prepare_v2(db, "SELECT ?;", -1, &stmt, NULL);
-
-    // Bind the input data to the statement
-    sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
-
-    // Execute the statement
-    sqlite3_step(stmt);
-
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Clean up and close the database
     sqlite3_close(db);
 
     return 0;

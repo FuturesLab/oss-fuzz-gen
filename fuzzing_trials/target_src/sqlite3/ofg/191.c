@@ -3,39 +3,32 @@
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_191(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    const char *sql = "CREATE TABLE test (id INT, value TEXT);";
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
-
-    // Open an in-memory SQLite database
+    
+    // Initialize a database in memory
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0;
+        return 0; // If opening the database fails, exit early
     }
 
-    // Prepare a simple SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
+    // Ensure the input data is null-terminated to safely use it as a string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Execute the function-under-test
-    const char *result = sqlite3_sql(stmt);
-
-    // Use the result in some way to avoid compiler optimizations
-    if (result != NULL) {
-        size_t len = strlen(result);
-        if (len > 0 && data != NULL && size > 0) {
-            // Just a dummy operation to use 'data' and 'size'
-            uint8_t dummy = data[0] ^ (uint8_t)len;
-            (void)dummy;
-        }
+    // Execute the SQL command
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
     }
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    free(sql);
     sqlite3_close(db);
 
     return 0;

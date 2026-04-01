@@ -1,36 +1,33 @@
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
 #include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
-extern int LLVMFuzzerTestOneInput_236(const uint8_t *data, size_t size) {
+int LLVMFuzzerTestOneInput_236(const uint8_t *data, size_t size) {
+    // Ensure there's enough data for the function call
+    if (size < sizeof(int)) {
+        return 0;
+    }
+
     // Initialize SQLite
-    int result = sqlite3_initialize();
-    if (result != SQLITE_OK) {
-        return 0; // Initialization failed, return early
-    }
-
-    // Create an in-memory database
     sqlite3 *db;
-    result = sqlite3_open(":memory:", &db);
-    if (result != SQLITE_OK) {
-        sqlite3_shutdown();
-        return 0; // Failed to open database, return early
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
     }
 
-    // Prepare a SQL statement using the fuzzing input data
-    sqlite3_stmt *stmt;
-    result = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
-    if (result == SQLITE_OK) {
-        // Optionally, execute the statement
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
-    }
+    // Extract an integer from the data to use as the configuration option
+    int config_option = *(int *)data;
+    data += sizeof(int);
+    size -= sizeof(int);
 
-    // Close the database connection
+    // Create a non-NULL pointer for the void* parameter
+    void *param = (void *)data;
+
+    // Call the function-under-test
+    sqlite3_vtab_config(db, config_option, param);
+
+    // Clean up
     sqlite3_close(db);
-
-    // Shutdown SQLite
-    sqlite3_shutdown();
 
     return 0;
 }

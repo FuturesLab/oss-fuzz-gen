@@ -6,159 +6,78 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstdint>
-#include <cstddef>
 #include "../src/turbojpeg.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <cstdio>
-
-static tjhandle createHandle() {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjInitCompress with tjInitTransform
-    return tjInitTransform();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-}
-
-static void destroyHandle(tjhandle handle) {
-    if (handle) {
-        tjDestroy(handle);
-    }
-}
-
-static void fuzz_tj3GetErrorCode(tjhandle handle) {
-    int errorCode = tj3GetErrorCode(handle);
-    (void)errorCode; // Suppress unused variable warning
-}
-
-static void fuzz_tjCompress(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 10) {
-        return;
-    } // Ensure minimal data for width, height, etc.
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int pixelSize = Data[2] % 4 + 1;
-    int jpegQual = Data[3] % 100 + 1;
-    int jpegSubsamp = Data[4] % 5;
-    int flags = Data[5] % 2;
-
-    unsigned char *srcBuf = (unsigned char *)malloc(width * height * pixelSize);
-    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSize(width, height, jpegSubsamp));
-    unsigned long compressedSize = 0;
-
-    if (srcBuf && dstBuf) {
-        memcpy(srcBuf, Data + 6, std::min(Size - 6, (size_t)(width * height * pixelSize)));
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 8 of tjCompress
-        tjCompress(handle, srcBuf, width, 0, height, pixelSize, dstBuf, &compressedSize, TJXOPT_ARITHMETIC, jpegQual, flags);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    }
-
-    free(srcBuf);
-    free(dstBuf);
-}
-
-static void fuzz_tjDecompressHeader2(tjhandle handle, const uint8_t *Data, size_t Size) {
-    int width = 0, height = 0, jpegSubsamp = 0;
-    tjDecompressHeader2(handle, (unsigned char *)Data, Size, &width, &height, &jpegSubsamp);
-}
-
-static void fuzz_tjDecompress2(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 10) {
-        return;
-    } // Ensure minimal data for width, height, etc.
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int pixelFormat = Data[2] % 5;
-    int flags = Data[3] % 2;
-
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-
-    if (dstBuf) {
-        tjDecompress2(handle, Data, Size, dstBuf, width, 0, height, pixelFormat, flags);
-        free(dstBuf);
-    }
-}
-
-static void fuzz_tjTransform(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 10) {
-        return;
-    } // Ensure minimal data for transformations
-
-    int n = Data[0] % 5 + 1;
-    int flags = Data[1] % 2;
-
-    unsigned char **dstBufs = (unsigned char **)malloc(n * sizeof(unsigned char *));
-    unsigned long *dstSizes = (unsigned long *)malloc(n * sizeof(unsigned long));
-    tjtransform *transforms = (tjtransform *)malloc(n * sizeof(tjtransform));
-
-    if (dstBufs && dstSizes && transforms) {
-        for (int i = 0; i < n; i++) {
-            dstBufs[i] = nullptr;
-            dstSizes[i] = 0;
-            transforms[i].op = Data[2 + i] % 8;
-            transforms[i].data = nullptr;
-            transforms[i].customFilter = nullptr;
-        }
-        tjTransform(handle, Data, Size, n, dstBufs, dstSizes, transforms, flags);
-
-        for (int i = 0; i < n; i++) {
-            free(dstBufs[i]);
-        }
-    }
-
-    free(dstBufs);
-    free(dstSizes);
-    free(transforms);
-}
-
-static void fuzz_tjDecompressToYUV2(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 10) {
-        return;
-    } // Ensure minimal data for width, height, etc.
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int align = Data[2] % 4 + 1;
-    int flags = Data[3] % 2;
-
-    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSizeYUV(width, height, TJ_420));
-
-    if (dstBuf) {
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjDecompressToYUV2
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 6 of tjDecompressToYUV2
-        tjDecompressToYUV2(handle, Data, Size, dstBuf, width, align, TJ_BGR, TJFLAG_FORCEMMX);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        free(dstBuf);
-    }
-}
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    tjhandle handle = createHandle();
-    if (!handle) {
+    if (Size < 1) {
         return 0;
     }
 
-    fuzz_tj3GetErrorCode(handle);
-    fuzz_tjCompress(handle, Data, Size);
-    fuzz_tjDecompressHeader2(handle, Data, Size);
-    fuzz_tjDecompress2(handle, Data, Size);
-    fuzz_tjTransform(handle, Data, Size);
-    fuzz_tjDecompressToYUV2(handle, Data, Size);
+    // Prepare dummy file
+    const char *filename = "./dummy_file";
+    FILE *file = fopen(filename, "wb");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    destroyHandle(handle);
+    // Variables for image dimensions and pixel format
+    int width = 0, height = 0, pixelFormat = TJPF_RGB, pitch = 0;
+    int flags = 0, align = 1;
+
+    // Allocate memory for tjLoadImage
+    unsigned char *imgBuffer = tjLoadImage(filename, &width, align, &height, &pixelFormat, flags);
+    if (imgBuffer) {
+        // Test tjSaveImage
+        tjSaveImage(filename, imgBuffer, width, pitch, height, pixelFormat, flags);
+        tjFree(imgBuffer);
+    }
+
+    // Create a TurboJPEG instance handle
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjInitDecompress with tjInitCompress
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjLoadImage to tjPlaneSizeYUV
+    tjscalingfactor* ret_tj3GetScalingFactors_xxirj = tj3GetScalingFactors(&width);
+    if (ret_tj3GetScalingFactors_xxirj == NULL){
+    	return 0;
+    }
+
+    unsigned long ret_tjPlaneSizeYUV_hugjl = tjPlaneSizeYUV(width, pixelFormat, TJ_NUMINIT, 64, TJFLAG_NOREALLOC);
+    if (ret_tjPlaneSizeYUV_hugjl < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    tjhandle handle = tjInitCompress();
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    if (handle) {
+        // Test tjDecompress2
+        unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+        if (dstBuf) {
+            tjDecompress2(handle, Data, Size, dstBuf, width, pitch, height, pixelFormat, flags);
+            free(dstBuf);
+        }
+        tjDestroy(handle);
+    }
+
+    // Re-create a TurboJPEG instance handle for tj3LoadImage16 and tj3SaveImage16
+    handle = tj3Init(TJINIT_COMPRESS);
+    if (handle) {
+        // Allocate memory for tj3LoadImage16
+        int width16 = 0, height16 = 0, pixelFormat16 = TJPF_RGB;
+        unsigned short *imgBuffer16 = tj3LoadImage16(handle, filename, &width16, align, &height16, &pixelFormat16);
+        if (imgBuffer16) {
+            // Test tj3SaveImage16
+            tj3SaveImage16(handle, filename, imgBuffer16, width16, pitch, height16, pixelFormat16);
+            tj3Free(imgBuffer16);
+        }
+        tj3Destroy(handle);
+    }
+
     return 0;
 }

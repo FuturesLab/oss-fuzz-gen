@@ -1,49 +1,62 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
     tjhandle handle = tjInitTransform();
-    if (handle == nullptr) {
-        return 0; // Handle initialization failure
+    if (!handle) {
+        return 0;
     }
 
-    unsigned char *jpegBuf = nullptr; // This will be allocated by tj3Transform
-    size_t jpegSize = 0;
-    int n = 1; // Number of transforms
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
     tjtransform transform;
-    memset(&transform, 0, sizeof(tjtransform)); // Initialize transform with zeros
+    transform.op = TJXOP_NONE; // No transform operation
+    transform.options = 0;
+    transform.r = {0, 0, 0, 0}; // No cropping
+    transform.customFilter = nullptr;
+
+    int flags = 0; // No flags
+
+    // Allocate memory for the destination buffer
+    unsigned char *dstBuf = nullptr;
+    unsigned long dstSize = 0;
 
     // Call the function-under-test
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of tj3Transform
-    int result = tj3Transform(handle, (const unsigned char *)data, size, n, &jpegBuf, &jpegSize, &transform);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjTransform
+    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, TJFLAG_PROGRESSIVE);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
 
     // Clean up
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
+    if (dstBuf) {
+        tjFree(dstBuf);
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Transform to tjEncodeYUV
-    tjhandle ret_tj3Init_zpnhw = tj3Init(TJXOPT_PERFECT);
-    unsigned char* ret_tjAlloc_rzrlz = tjAlloc(TJ_NUMCS);
-    if (ret_tjAlloc_rzrlz == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjTransform to tj3Decompress8
+    tjhandle ret_tj3Init_cycpy = tj3Init(TJ_ALPHAFIRST);
+    unsigned char* ret_tjAlloc_isirt = tjAlloc(TJXOPT_NOOUTPUT);
+    if (ret_tjAlloc_isirt == NULL){
     	return 0;
     }
 
-    int ret_tjEncodeYUV_tlrnv = tjEncodeYUV(ret_tj3Init_zpnhw, jpegBuf, TJXOPT_NOOUTPUT, TJXOPT_TRIM, TJXOPT_PROGRESSIVE, size, ret_tjAlloc_rzrlz, TJ_YUV, TJ_NUMCS);
-    if (ret_tjEncodeYUV_tlrnv < 0){
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tj3Decompress8 with tj3Decompress16
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of tj3Decompress16
+    int ret_tj3Decompress8_cwjxf = tj3Decompress16(ret_tj3Init_cycpy, (const unsigned char *)"w", 0, NULL, TJFLAG_PROGRESSIVE, (int)dstSize);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    if (ret_tj3Decompress8_cwjxf < 0){
     	return 0;
     }
 

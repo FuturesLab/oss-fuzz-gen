@@ -1,25 +1,25 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
-// Define the LLVMFuzzerTestOneInput function
 int LLVMFuzzerTestOneInput_226(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables needed for the function-under-test
-    cmsUInt16Number encodedLab[3]; // Array to hold the encoded Lab values
-    cmsCIELab lab;
-
-    // Ensure the size is sufficient to extract values for cmsCIELab
-    if (size < sizeof(cmsCIELab)) {
+    if (size < sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Extract values from the data buffer to initialize cmsCIELab
-    lab.L = ((const float *)data)[0];
-    lab.a = ((const float *)data)[1];
-    lab.b = ((const float *)data)[2];
+    // Create a tone curve with a single segment
+    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurveFloat(NULL, 2, (const cmsFloat32Number *)data);
+
+    // Ensure the tone curve is not NULL
+    if (toneCurve == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    cmsFloat2LabEncoded(encodedLab, &lab);
+    cmsUInt32Number entries = cmsGetToneCurveEstimatedTableEntries(toneCurve);
+
+    // Clean up
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }

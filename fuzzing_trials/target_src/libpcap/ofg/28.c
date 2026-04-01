@@ -1,28 +1,37 @@
+#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <pcap.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
-    int *dlt_buf = NULL;
-    char errbuf[PCAP_ERRBUF_SIZE];
-
-    // Create a dummy pcap_t handle using pcap_open_dead
-    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    // Allocate memory for pcap_t structure
+    pcap_t *pcap_handle = pcap_open_dead(DLT_RAW, 65535);
     if (pcap_handle == NULL) {
-        return 0;
+        return 0; // Return if allocation fails
     }
 
-    // Use the input data in some way to ensure it's not null
+    // Ensure the data is not empty
     if (size > 0) {
-        // Call the function-under-test
-        int result = pcap_list_datalinks(pcap_handle, &dlt_buf);
+        // Copy the input data to a buffer
+        char *buffer = (char *)malloc(size + 1);
+        if (buffer == NULL) {
+            pcap_close(pcap_handle);
+            return 0; // Return if allocation fails
+        }
+        memcpy(buffer, data, size);
+        buffer[size] = '\0'; // Null-terminate the buffer
+
+        // Use the buffer to set a filter or some other operation
+        // Here, just a placeholder for potential operations
+        // pcap_setfilter(pcap_handle, ...);
+
+        free(buffer);
     }
 
-    // Free resources
-    if (dlt_buf != NULL) {
-        pcap_free_datalinks(dlt_buf);
-    }
+    // Call the function-under-test
+    int precision = pcap_get_tstamp_precision(pcap_handle);
+
+    // Clean up
     pcap_close(pcap_handle);
 
     return 0;

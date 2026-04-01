@@ -1,39 +1,55 @@
+#include <tiffio.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring> // Include for memcpy
+#include <cstring>
+#include <unistd.h> // Include this for the 'close' function
 
 extern "C" {
-    #include <tiffio.h>
-
-    int TIFFFieldReadCount(const TIFFField *);
+    #include <tiffio.h> // Ensure all C headers are wrapped with extern "C"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_293(const uint8_t *data, size_t size) {
-    // Since TIFFField is an incomplete type, we cannot use sizeof(TIFFField).
-    // Instead, we need to determine a safe size for fuzzing.
-    const size_t safeSize = 128; // Assuming a safe buffer size for fuzzing
-
-    // Ensure that the size is at least the safe size to avoid out-of-bounds access
-    if (size < safeSize) {
+    if (size < 1) {
         return 0;
     }
 
-    // Create a buffer to hold the data for the TIFFField
-    uint8_t buffer[safeSize];
+    // Create a temporary TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Copy the data into the buffer
-    std::memcpy(buffer, data, safeSize);
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
 
-    // Cast the buffer to a TIFFField pointer
-    TIFFField* tiffField = reinterpret_cast<TIFFField*>(buffer);
+    // Write the fuzz data to the file
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        remove(tmpl);
+        return 0;
+    }
+
+    // Prepare parameters for TIFFComputeTile
+    uint32_t x = size > 0 ? data[0] : 0;
+    uint32_t y = size > 1 ? data[1] : 0;
+    uint32_t z = size > 2 ? data[2] : 0;
+    uint16_t sample = size > 3 ? data[3] : 0;
 
     // Call the function-under-test
-    int readCount = TIFFFieldReadCount(tiffField);
+    TIFFComputeTile(tiff, x, y, z, sample);
 
-    // Use the readCount result in some way to avoid compiler optimizations
-    if (readCount < 0) {
-        return 1;
-    }
+    // Clean up
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

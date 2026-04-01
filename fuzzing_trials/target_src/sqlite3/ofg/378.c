@@ -1,37 +1,34 @@
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
-#include <stdlib.h> // Include for NULL
+#include <stddef.h> // Include this for size_t
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_378(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_str *strObj = NULL;
+    sqlite3 *db;
+    int rc;
+    const char *dbName;
+    int dbIndex = 0; // Default to the first database
 
-    // Initialize SQLite
-    if (sqlite3_initialize() != SQLITE_OK) {
+    // Open an in-memory database for testing
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
-        return 0;
+    // Use the data to determine the database index, ensuring it is non-negative
+    if (size > 0) {
+        dbIndex = (int)data[0];
     }
 
     // Call the function-under-test
-    strObj = sqlite3_str_new(db);
+    dbName = sqlite3_db_name(db, dbIndex);
 
-    // Feed non-null input to the function under test
-    if (strObj != NULL && data != NULL && size > 0) {
-        sqlite3_str_append(strObj, (const char *)data, size);
+    // Perform any necessary checks or operations on dbName
+    if (dbName != NULL) {
+        // Do something with dbName if needed
     }
 
-    // Cleanup
-    if (strObj != NULL) {
-        sqlite3_str_finish(strObj);
-    }
+    // Close the database connection
     sqlite3_close(db);
-    sqlite3_shutdown();
 
     return 0;
 }

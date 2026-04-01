@@ -1,37 +1,43 @@
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring> // Include for memcpy
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <cstdlib> // Include this header for mkstemp
 
 extern "C" {
-    #include <tiffio.h>
-    #include <tiff.h> // Include for TIFFField definition
-    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for the complete definition of TIFFField
+#include <tiffio.h>
 }
 
-// Function-under-test
-extern "C" int TIFFFieldSetGetCountSize(const TIFFField *);
-
 extern "C" int LLVMFuzzerTestOneInput_259(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for a TIFFField structure
-    if (size < sizeof(TIFFField)) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-
-    // Allocate memory for a TIFFField structure
-    TIFFField *field = reinterpret_cast<TIFFField *>(malloc(sizeof(TIFFField)));
-    if (field == nullptr) {
+    
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
+    close(fd);
 
-    // Copy data into the TIFFField structure
-    memcpy(field, data, sizeof(TIFFField));
+    // Open the TIFF file using the temporary file path
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff != nullptr) {
+        // Call the function-under-test
+        uint32_t numTiles = TIFFNumberOfTiles(tiff);
+        
+        // Close the TIFF file
+        TIFFClose(tiff);
+    }
 
-    // Call the function-under-test
-    int result = TIFFFieldSetGetCountSize(field);
-
-    // Free allocated memory
-    free(field);
+    // Remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

@@ -1,66 +1,85 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
-// ucl_parser_add_chunk at ucl_parser.c:3109:6 in ucl.h
-// ucl_parser_get_comments at ucl_util.c:3915:1 in ucl.h
-// ucl_parser_get_object at ucl_util.c:590:1 in ucl.h
-// ucl_object_emit_file_funcs at ucl_emitter_utils.c:401:1 in ucl.h
-// ucl_object_emit_fd_funcs at ucl_emitter_utils.c:420:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_array_merge at ucl_util.c:3193:6 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
+// ucl_object_delete_key at ucl_util.c:2503:6 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_parser_free at ucl_util.c:599:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ucl.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <string.h>
+
+static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file != NULL) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (!parser) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Simulate parsing input data
-    ucl_parser_add_chunk(parser, Data, Size);
+    // Prepare strings from the input data
+    char *str1 = strndup((const char *)Data, Size);
+    char *str2 = strndup((const char *)(Data + Size / 2), Size - Size / 2);
 
-    // Test ucl_parser_get_comments
-    const ucl_object_t *comments = ucl_parser_get_comments(parser);
+    // Create UCL objects from strings
+    ucl_object_t *obj1 = ucl_object_fromstring(str1);
+    ucl_object_t *obj2 = ucl_object_fromstring(str2);
 
-    // Test ucl_parser_get_object
-    ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    // Ensure objects are arrays for merging
+    ucl_object_t *array1 = ucl_object_fromstring("[]");
+    ucl_object_t *array2 = ucl_object_fromstring("[]");
 
-    // Prepare dummy file for ucl_object_emit_file_funcs
-    FILE *dummy_file = fopen("./dummy_file", "w+");
-    if (dummy_file) {
-        struct ucl_emitter_functions *file_funcs = ucl_object_emit_file_funcs(dummy_file);
-        if (file_funcs) {
-            // Use the file_funcs if needed
-            free(file_funcs);
-        }
-        fclose(dummy_file);
+    // Attempt to merge arrays
+    if (array1 && array2) {
+        ucl_array_merge(array1, array2, true);
     }
 
-    // Prepare dummy file descriptor for ucl_object_emit_fd_funcs
-    int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    if (fd != -1) {
-        struct ucl_emitter_functions *fd_funcs = ucl_object_emit_fd_funcs(fd);
-        if (fd_funcs) {
-            // Use the fd_funcs if needed
-            free(fd_funcs);
-        }
-        close(fd);
+    // Insert key-value pairs into an object
+    ucl_object_t *obj3 = ucl_object_fromstring("{}");
+    if (obj3 && obj1 && obj2) {
+        ucl_object_insert_key(obj3, obj1, "key1", 0, true);
+        ucl_object_insert_key(obj3, obj2, "key2", 0, true);
     }
 
-    // Cleanup
-    if (top_obj) {
-        ucl_object_unref(top_obj);
+    // Delete a key from the object
+    if (obj3) {
+        ucl_object_delete_key(obj3, "key1");
     }
-    ucl_parser_free(parser);
+
+    // Free allocated resources
+    if (array1) {
+        ucl_object_unref(array1);
+    }
+    if (array2) {
+        ucl_object_unref(array2);
+    }
+    if (obj3) {
+        ucl_object_unref(obj3);
+    }
+    if (str1) {
+        free(str1);
+    }
+    if (str2) {
+        free(str2);
+    }
 
     return 0;
 }

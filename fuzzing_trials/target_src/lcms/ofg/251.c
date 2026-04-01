@@ -1,29 +1,26 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_251(const uint8_t *data, size_t size) {
-    // Initialize a cmsPipeline object
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
-    if (!pipeline) {
+    cmsHPROFILE hProfile;
+    cmsUInt32Number Intent = 0;
+    cmsUInt32Number Flags = 0;
+
+    // Create a profile from the input data, assuming the data size is sufficient
+    if (size < sizeof(cmsHPROFILE)) {
         return 0;
     }
 
-    // Add a simple identity transformation for testing purposes
-    cmsStage *identityStage = cmsStageAllocIdentity(NULL, 3);
-    if (identityStage) {
-        cmsPipelineInsertStage(pipeline, cmsAT_END, identityStage);
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
     }
 
-    // Fuzz the cmsPipelineDup function
-    cmsPipeline *duplicatedPipeline = cmsPipelineDup(pipeline);
+    // Fuzz the cmsIsCLUT function
+    cmsBool result = cmsIsCLUT(hProfile, Intent, Flags);
 
-    // Clean up
-    if (duplicatedPipeline) {
-        cmsPipelineFree(duplicatedPipeline);
-    }
-    cmsPipelineFree(pipeline);
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

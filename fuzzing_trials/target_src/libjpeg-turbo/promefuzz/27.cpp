@@ -1,15 +1,21 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
-// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
 // tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
-// tjBufSizeYUV2 at turbojpeg.c:999:25 in turbojpeg.h
+// tj3Get at turbojpeg.c:807:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
 // tj3DecodeYUVPlanes8 at turbojpeg.c:2511:15 in turbojpeg.h
-// tjEncodeYUV3 at turbojpeg.c:1734:15 in turbojpeg.h
-// tjEncodeYUVPlanes at turbojpeg.c:1663:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
+// tjInitTransform at turbojpeg.c:2751:20 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tj3YUVBufSize at turbojpeg.c:971:18 in turbojpeg.h
+// tj3DecodeYUV8 at turbojpeg.c:2678:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
+// tj3EncodeYUVPlanes8 at turbojpeg.c:1508:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
+// tj3YUVBufSize at turbojpeg.c:971:18 in turbojpeg.h
 // tj3EncodeYUV8 at turbojpeg.c:1688:15 in turbojpeg.h
-// tjCompressFromYUVPlanes at turbojpeg.c:1394:15 in turbojpeg.h
-// tj3CompressFromYUVPlanes8 at turbojpeg.c:1259:15 in turbojpeg.h
-// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
+// tjInitTransform at turbojpeg.c:2751:20 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -25,73 +31,150 @@
 #include <cstring>
 #include <iostream>
 
-static tjhandle initializeHandle() {
-    tjhandle handle = tjInitCompress();
-    if (!handle) {
-        std::cerr << "Failed to initialize TurboJPEG handle: " << tjGetErrorStr() << std::endl;
+static void fuzz_tj3DecodeYUV8(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < 8) return;
+
+    int width = Data[0] + 1;
+    int height = Data[1] + 1;
+    int align = 1 << (Data[2] % 4); // 1, 2, 4, 8
+    int pixelFormat = Data[3] % TJ_NUMPF;
+
+    size_t yuvSize = tj3YUVBufSize(width, align, height, TJSAMP_444);
+    if (Size < yuvSize + 8) return;
+
+    const unsigned char *srcBuf = Data + 4;
+    unsigned char *dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
+
+    int pitch = width * tjPixelSize[pixelFormat];
+    int result = tj3DecodeYUV8(handle, srcBuf, align, dstBuf, width, pitch, height, pixelFormat);
+    if (result != 0) {
+        const char *errStr = tjGetErrorStr();
+        std::cerr << "tj3DecodeYUV8 error: " << errStr << std::endl;
     }
-    return handle;
+
+    delete[] dstBuf;
 }
 
-static void cleanupHandle(tjhandle handle) {
-    if (handle) {
+static void fuzz_tj3EncodeYUVPlanes8(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < 8) return;
+
+    int width = Data[0] + 1;
+    int height = Data[1] + 1;
+    int pixelFormat = Data[2] % TJ_NUMPF;
+
+    size_t rgbSize = width * height * tjPixelSize[pixelFormat];
+    if (Size < rgbSize + 8) return;
+
+    const unsigned char *srcBuf = Data + 4;
+    unsigned char *dstPlanes[3];
+    int strides[3];
+
+    for (int i = 0; i < 3; i++) {
+        strides[i] = width;
+        dstPlanes[i] = new unsigned char[width * height];
+    }
+
+    int result = tj3EncodeYUVPlanes8(handle, srcBuf, width, width * tjPixelSize[pixelFormat], height, pixelFormat, dstPlanes, strides);
+    if (result != 0) {
+        const char *errStr = tjGetErrorStr();
+        std::cerr << "tj3EncodeYUVPlanes8 error: " << errStr << std::endl;
+    }
+
+    for (int i = 0; i < 3; i++) {
+        delete[] dstPlanes[i];
+    }
+}
+
+static void fuzz_tj3EncodeYUV8(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < 8) return;
+
+    int width = Data[0] + 1;
+    int height = Data[1] + 1;
+    int align = 1 << (Data[2] % 4); // 1, 2, 4, 8
+    int pixelFormat = Data[3] % TJ_NUMPF;
+
+    size_t rgbSize = width * height * tjPixelSize[pixelFormat];
+    if (Size < rgbSize + 8) return;
+
+    const unsigned char *srcBuf = Data + 4;
+    size_t yuvSize = tj3YUVBufSize(width, align, height, TJSAMP_444);
+    unsigned char *dstBuf = new unsigned char[yuvSize];
+
+    int result = tj3EncodeYUV8(handle, srcBuf, width, width * tjPixelSize[pixelFormat], height, pixelFormat, dstBuf, align);
+    if (result != 0) {
+        const char *errStr = tjGetErrorStr();
+        std::cerr << "tj3EncodeYUV8 error: " << errStr << std::endl;
+    }
+
+    delete[] dstBuf;
+}
+
+static void fuzz_tjInitTransform() {
+    tjhandle handle = tjInitTransform();
+    if (handle == nullptr) {
+        const char *errStr = tjGetErrorStr();
+        std::cerr << "tjInitTransform error: " << errStr << std::endl;
+    } else {
         tjDestroy(handle);
     }
 }
 
-extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    if (Size < 10) return 0; // Ensure enough data for meaningful fuzzing
+static void fuzz_tj3Get(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < 4) return;
 
-    tjhandle handle = initializeHandle();
-    if (!handle) return 0;
+    int param = Data[0]; // Assuming a valid parameter range
+    int value = tj3Get(handle, param);
+    if (value == -1) {
+        const char *errStr = tjGetErrorStr();
+        std::cerr << "tj3Get error: " << errStr << std::endl;
+    }
+}
 
-    int width = 100; // Example width
-    int height = 100; // Example height
-    int pitch = width * 3; // Assuming pixelFormat is RGB
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int subsamp = TJSAMP_444; // Example subsampling
-    int align = 4; // Example alignment
-    int flags = 0; // Example flags
-    int strides[3] = {width, width / 2, width / 2};
+static void fuzz_tj3DecodeYUVPlanes8(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < 8) return;
 
-    // Calculate buffer sizes based on image dimensions and subsampling
-    size_t yuvSize = tjBufSizeYUV2(width, align, height, subsamp);
-    unsigned char* dstBuf = (unsigned char*)malloc(yuvSize);
-    unsigned char* jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
+    int width = Data[0] + 1;
+    int height = Data[1] + 1;
+    int pixelFormat = Data[2] % TJ_NUMPF;
 
-    // Prepare YUV planes
-    const unsigned char* srcPlanes[3] = {Data, Data + width * height, Data + 2 * width * height};
-    if (Size < 3 * width * height) {
-        free(dstBuf);
-        cleanupHandle(handle);
-        return 0;
+    const unsigned char *srcPlanes[3];
+    int strides[3];
+    size_t planeSize = width * height;
+
+    if (Size < planeSize * 3 + 8) return;
+
+    srcPlanes[0] = Data + 4;
+    srcPlanes[1] = Data + 4 + planeSize;
+    srcPlanes[2] = Data + 4 + planeSize * 2;
+
+    for (int i = 0; i < 3; i++) {
+        strides[i] = width;
     }
 
-    // Call tj3DecodeYUVPlanes8
-    tj3DecodeYUVPlanes8(handle, srcPlanes, strides, dstBuf, width, pitch, height, pixelFormat);
+    unsigned char *dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
 
-    // Call tjEncodeYUV3
-    tjEncodeYUV3(handle, Data, width, pitch, height, pixelFormat, dstBuf, align, subsamp, flags);
+    int pitch = width * tjPixelSize[pixelFormat];
+    int result = tj3DecodeYUVPlanes8(handle, srcPlanes, strides, dstBuf, width, pitch, height, pixelFormat);
+    if (result != 0) {
+        const char *errStr = tjGetErrorStr();
+        std::cerr << "tj3DecodeYUVPlanes8 error: " << errStr << std::endl;
+    }
 
-    // Call tjEncodeYUVPlanes
-    unsigned char* dstPlanes[3] = {dstBuf, dstBuf + width * height, dstBuf + 2 * width * height};
-    tjEncodeYUVPlanes(handle, Data, width, pitch, height, pixelFormat, dstPlanes, strides, subsamp, flags);
+    delete[] dstBuf;
+}
 
-    // Call tj3EncodeYUV8
-    tj3EncodeYUV8(handle, Data, width, pitch, height, pixelFormat, dstBuf, align);
+extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
+    tjhandle handle = tjInitTransform();
+    if (handle == nullptr) return 0;
 
-    // Call tjCompressFromYUVPlanes
-    tjCompressFromYUVPlanes(handle, srcPlanes, width, strides, height, subsamp, &jpegBuf, &jpegSize, 75, flags);
+    fuzz_tj3DecodeYUV8(handle, Data, Size);
+    fuzz_tj3EncodeYUVPlanes8(handle, Data, Size);
+    fuzz_tj3EncodeYUV8(handle, Data, Size);
+    fuzz_tj3Get(handle, Data, Size);
+    fuzz_tj3DecodeYUVPlanes8(handle, Data, Size);
 
-    // Call tj3CompressFromYUVPlanes8
-    size_t jpegSize8 = 0;
-    tj3CompressFromYUVPlanes8(handle, srcPlanes, width, strides, height, &jpegBuf, &jpegSize8);
-
-    // Cleanup and free allocated resources
-    if (jpegBuf) tjFree(jpegBuf);
-    free(dstBuf);
-    cleanupHandle(handle);
+    tjDestroy(handle);
+    fuzz_tjInitTransform();
 
     return 0;
 }

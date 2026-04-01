@@ -1,44 +1,27 @@
-#include <cstdint>
-#include <cstdlib>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_89(const uint8_t *data, size_t size) {
-    TIFF *tiff = nullptr;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-
-    if (fd == -1) {
+    // Ensure the size is sufficient to extract a tmsize_t value
+    if (size < sizeof(tmsize_t)) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
+    // Create and initialize a TIFFOpenOptions object
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    if (options == NULL) {
         return 0;
     }
 
-    // Close the file descriptor as TIFFOpen will open it again
-    close(fd);
-
-    // Open the TIFF file
-    tiff = TIFFOpen(tmpl, "r");
-    if (tiff == nullptr) {
-        return 0;
-    }
+    // Extract a tmsize_t value from the input data
+    tmsize_t maxSingleMemAlloc = *(const tmsize_t *)data;
 
     // Call the function-under-test
-    TIFFDeferStrileArrayWriting(tiff);
+    TIFFOpenOptionsSetMaxSingleMemAlloc(options, maxSingleMemAlloc);
 
     // Clean up
-    TIFFClose(tiff);
-    unlink(tmpl);
+    TIFFOpenOptionsFree(options);
 
     return 0;
 }

@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3Get at turbojpeg.c:807:15 in turbojpeg.h
-// tj3GetICCProfile at turbojpeg.c:1926:15 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3TransformBufSize at turbojpeg.c:2831:18 in turbojpeg.h
-// tj3DecompressHeader at turbojpeg.c:1815:15 in turbojpeg.h
-// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
+// tjPlaneHeight at turbojpeg.c:1117:15 in turbojpeg.h
+// tj3YUVPlaneSize at turbojpeg.c:1020:18 in turbojpeg.h
+// tj3YUVPlaneHeight at turbojpeg.c:1091:15 in turbojpeg.h
+// tjPlaneSizeYUV at turbojpeg.c:1048:25 in turbojpeg.h
+// tjPlaneWidth at turbojpeg.c:1083:15 in turbojpeg.h
+// tjBufSizeYUV at turbojpeg.c:1007:25 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,58 +14,57 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <turbojpeg.h>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
+#include <cstdio>
 #include <cstdlib>
+#include <turbojpeg.h>
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 4) return 0; // Ensure there are enough bytes to read
 
-    tjhandle handle = nullptr;
-    unsigned char *iccBuf = nullptr;
-    size_t iccSize = 0;
-    tjtransform transform = {0};
+    int componentID = Data[0] % 3; // Assuming 0 = Y, 1 = U/Cb, 2 = V/Cr
+    int width = Data[1] + 1;       // Avoid zero width
+    int height = Data[2] + 1;      // Avoid zero height
+    int subsamp = Data[3] % 5;     // Assuming 5 subsampling options
 
-    // Fuzz tj3GetErrorStr
-    char *errorStr = tj3GetErrorStr(handle);
-    if (errorStr) {
-        // Do something with errorStr, e.g., log or verify it
+    // Fuzz tjPlaneHeight
+    int planeHeight = tjPlaneHeight(componentID, height, subsamp);
+    if (planeHeight == -1) {
+        // Handle error
     }
 
-    // Fuzz tj3Get
-    int param = Data[0]; // Use the first byte as a parameter
-    int paramValue = tj3Get(handle, param);
-    (void)paramValue; // Suppress unused variable warning
-
-    // Fuzz tj3GetICCProfile
-    int iccProfileResult = tj3GetICCProfile(handle, &iccBuf, &iccSize);
-    if (iccProfileResult == 0 && iccBuf != nullptr) {
-        tj3Free(iccBuf);
+    // Fuzz tj3YUVPlaneSize
+    size_t planeSize = tj3YUVPlaneSize(componentID, width, 0, height, subsamp);
+    if (planeSize == 0) {
+        // Handle error
     }
 
-    // Fuzz tj3TransformBufSize
-    size_t transformBufSize = tj3TransformBufSize(handle, &transform);
-    (void)transformBufSize; // Suppress unused variable warning
-
-    // Fuzz tj3DecompressHeader
-    if (Size > 1) {
-        const unsigned char *jpegBuf = Data + 1;
-        size_t jpegSize = Size - 1;
-        int decompressHeaderResult = tj3DecompressHeader(handle, jpegBuf, jpegSize);
-        (void)decompressHeaderResult; // Suppress unused variable warning
-    }
-
-    // Fuzz tj3SetICCProfile
-    if (Size > 1) {
-        unsigned char *iccBuffer = (unsigned char *)malloc(Size - 1);
-        if (iccBuffer) {
-            std::memcpy(iccBuffer, Data + 1, Size - 1);
-            int setICCProfileResult = tj3SetICCProfile(handle, iccBuffer, Size - 1);
-            (void)setICCProfileResult; // Suppress unused variable warning
-            free(iccBuffer);
+    // Fuzz tj3YUVPlaneHeight
+    try {
+        int planeHeight3 = tj3YUVPlaneHeight(componentID, height, subsamp);
+        if (planeHeight3 == 0) {
+            // Handle error
         }
+    } catch (...) {
+        // Handle exceptions
+    }
+
+    // Fuzz tjPlaneSizeYUV
+    unsigned long planeSizeYUV = tjPlaneSizeYUV(componentID, width, 0, height, subsamp);
+    if (planeSizeYUV == (unsigned long)-1) {
+        // Handle error
+    }
+
+    // Fuzz tjPlaneWidth
+    int planeWidth = tjPlaneWidth(componentID, width, subsamp);
+    if (planeWidth == -1) {
+        // Handle error
+    }
+
+    // Fuzz tjBufSizeYUV
+    unsigned long bufSizeYUV = tjBufSizeYUV(width, height, subsamp);
+    if (bufSizeYUV == (unsigned long)-1) {
+        // Handle error
     }
 
     return 0;

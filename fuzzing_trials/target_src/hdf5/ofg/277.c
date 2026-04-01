@@ -1,27 +1,25 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <hdf5.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_277(const uint8_t *data, size_t size) {
-    // Ensure the input size is large enough to extract parameters
-    if (size < 3) return 0;
+    // Ensure we have enough data to extract meaningful values
+    if (size < sizeof(hid_t) + sizeof(H5F_scope_t)) {
+        return 0;
+    }
 
-    // Extract parameters from the input data
-    const char *file_name = (const char *)data;
-    const char *dataset_name = (const char *)(data + 1);
-    unsigned int flags = (unsigned int)data[2];
+    // Extract hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
 
-    // Use some valid default values for the hid_t parameters
-    hid_t dapl_id = H5P_DEFAULT;
-    hid_t dxpl_id = H5P_DEFAULT;
-    hid_t es_id = H5ES_NONE;
+    // Extract H5F_scope_t from the input data
+    H5F_scope_t scope = *((H5F_scope_t *)(data + sizeof(hid_t)));
 
-    // Call the function-under-test with the correct number of arguments
-    hid_t dataset_id = H5Dopen_async(file_name, dataset_name, dapl_id, es_id);
+    // Call the function-under-test
+    herr_t result = H5Fflush(file_id, scope);
 
-    // If a valid dataset_id is returned, close it
-    if (dataset_id >= 0) {
-        H5Dclose(dataset_id);
+    // Use the result to prevent compiler optimizations
+    if (result != 0) {
+        // Handle errors if necessary
     }
 
     return 0;

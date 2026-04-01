@@ -1,94 +1,80 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_nametoeproto at nametoaddr.c:596:1 in namedb.h
-// pcap_nametonetaddr at nametoaddr.c:220:1 in namedb.h
-// pcap_parsesrcstr at pcap.c:2295:1 in pcap.h
-// pcap_createsrcstr at pcap.c:2276:1 in pcap.h
-// pcap_nametoaddrinfo at nametoaddr.c:178:1 in namedb.h
-// pcap_nametoproto at nametoaddr.c:475:1 in namedb.h
+// pcap_open_dead at pcap.c:4620:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_dump_open at sf-pcap.c:895:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_dump_flush at sf-pcap.c:1245:1 in pcap.h
+// pcap_dump_ftell64 at sf-pcap.c:1213:1 in pcap.h
+// pcap_dump_ftell at sf-pcap.c:1200:1 in pcap.h
+// pcap_dump_file at sf-pcap.c:1194:1 in pcap.h
+// pcap_dump_close at sf-pcap.c:1255:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
-#include <namedb.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <netdb.h>
+#include <stdlib.h>
+#include <string.h>
 
-static void fuzz_pcap_nametoeproto(const uint8_t *Data, size_t Size) {
-    char *protocol_name = strndup((const char *)Data, Size);
-    if (protocol_name) {
-        int proto_number = pcap_nametoeproto(protocol_name);
-        // Handle the return value if needed
-        free(protocol_name);
-    }
-}
-
-static void fuzz_pcap_nametonetaddr(const uint8_t *Data, size_t Size) {
-    char *network_name = strndup((const char *)Data, Size);
-    if (network_name) {
-        bpf_u_int32 net_addr = pcap_nametonetaddr(network_name);
-        // Handle the return value if needed
-        free(network_name);
-    }
-}
-
-static void fuzz_pcap_parsesrcstr(const uint8_t *Data, size_t Size) {
+static pcap_t *initialize_pcap() {
     char errbuf[PCAP_ERRBUF_SIZE];
-    int type;
-    char host[256], port[256], name[256];
-
-    char *source_str = strndup((const char *)Data, Size);
-    if (source_str) {
-        int result = pcap_parsesrcstr(source_str, &type, host, port, name, errbuf);
-        // Handle the return value and error buffer if needed
-        free(source_str);
+    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet, snapshot length
+    if (!handle) {
+        fprintf(stderr, "Failed to open pcap handle: %s\n", errbuf);
+        return NULL;
     }
-}
-
-static void fuzz_pcap_createsrcstr(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return; // Ensure there's enough data for type and at least one char for each string
-    char errbuf[PCAP_ERRBUF_SIZE];
-    char source[256];
-    int type = Data[0];
-    const char *host = (const char *)&Data[1];
-    const char *port = (const char *)&Data[2];
-    const char *name = (const char *)&Data[3];
-
-    int result = pcap_createsrcstr(source, type, host, port, name, errbuf);
-    // Handle the return value and error buffer if needed
-}
-
-static void fuzz_pcap_nametoaddrinfo(const uint8_t *Data, size_t Size) {
-    char *hostname = strndup((const char *)Data, Size);
-    if (hostname) {
-        struct addrinfo *addr_info = pcap_nametoaddrinfo(hostname);
-        if (addr_info) {
-            freeaddrinfo(addr_info); // Clean up the addrinfo structure
-        }
-        free(hostname);
-    }
-}
-
-static void fuzz_pcap_nametoproto(const uint8_t *Data, size_t Size) {
-    char *protocol_name = strndup((const char *)Data, Size);
-    if (protocol_name) {
-        int proto_number = pcap_nametoproto(protocol_name);
-        // Handle the return value if needed
-        free(protocol_name);
-    }
+    return handle;
 }
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    fuzz_pcap_nametoeproto(Data, Size);
-    fuzz_pcap_nametonetaddr(Data, Size);
-    fuzz_pcap_parsesrcstr(Data, Size);
-    fuzz_pcap_createsrcstr(Data, Size);
-    fuzz_pcap_nametoaddrinfo(Data, Size);
-    fuzz_pcap_nametoproto(Data, Size);
+    if (Size < 1) return 0;
+
+    pcap_t *pcap_handle = initialize_pcap();
+    if (!pcap_handle) return 0;
+
+    const char *filename = "./dummy_file";
+    FILE *file = fopen(filename, "wb");
+    if (!file) {
+        pcap_close(pcap_handle);
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    pcap_dumper_t *dumper = pcap_dump_open(pcap_handle, filename);
+    if (!dumper) {
+        pcap_close(pcap_handle);
+        return 0;
+    }
+
+    // Test pcap_dump_flush
+    pcap_dump_flush(dumper);
+
+    // Test pcap_dump_ftell64
+    int64_t pos64 = pcap_dump_ftell64(dumper);
+    if (pos64 == PCAP_ERROR) {
+        // Handle error if necessary
+    }
+
+    // Test pcap_dump_ftell
+    long pos = pcap_dump_ftell(dumper);
+    if (pos == -1) {
+        // Handle error if necessary
+    }
+
+    // Test pcap_dump_file
+    FILE *dumper_file = pcap_dump_file(dumper);
+    if (dumper_file) {
+        // Perform operations on the FILE* if needed
+    }
+
+    // Clean up
+    pcap_dump_close(dumper);
+    pcap_close(pcap_handle);
+
     return 0;
 }

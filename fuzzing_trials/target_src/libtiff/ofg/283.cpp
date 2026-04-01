@@ -1,50 +1,55 @@
 #include <tiffio.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include unistd.h for the close() function
+
+extern "C" {
+    // Include necessary C headers, source files, functions, and code here.
+}
 
 extern "C" int LLVMFuzzerTestOneInput_283(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the test
-    if (size < sizeof(uint32_t) + sizeof(tmsize_t)) {
+    TIFF *tiff;
+    void *buffer;
+    uint32_t x = 0, y = 0, z = 0;
+    uint16_t sample = 0;
+    char tmpl[] = "/tmp/fuzz-tiffXXXXXX";
+    int fd = mkstemp(tmpl);
+
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize necessary variables
-    TIFF *tif = nullptr;
-    uint32_t strip = 0;
-    void *buffer = nullptr;
-    tmsize_t bufferSize = 0;
+    close(fd);
 
-    // Create a temporary TIFF file in memory
-    tif = TIFFOpen("temp.tiff", "w");
-    if (!tif) {
+    // Create a new TIFF file
+    tiff = TIFFOpen(tmpl, "w");
+    if (!tiff) {
         return 0;
     }
 
-    // Extract strip number and buffer size from the input data
-    memcpy(&strip, data, sizeof(uint32_t));
-    memcpy(&bufferSize, data + sizeof(uint32_t), sizeof(tmsize_t));
-
-    // Ensure bufferSize is not negative and does not exceed the remaining data
-    if (bufferSize < 0 || bufferSize > size - sizeof(uint32_t) - sizeof(tmsize_t)) {
-        TIFFClose(tif);
+    // Ensure the buffer is not NULL and has a size
+    if (size > 0) {
+        buffer = malloc(size);
+        if (!buffer) {
+            TIFFClose(tiff);
+            return 0;
+        }
+        memcpy(buffer, data, size);
+    } else {
+        TIFFClose(tiff);
         return 0;
     }
-
-    // Allocate buffer and copy the data
-    buffer = malloc(bufferSize);
-    if (buffer == nullptr) {
-        TIFFClose(tif);
-        return 0;
-    }
-    memcpy(buffer, data + sizeof(uint32_t) + sizeof(tmsize_t), bufferSize);
 
     // Call the function-under-test
-    TIFFWriteRawStrip(tif, strip, buffer, bufferSize);
+    TIFFWriteTile(tiff, buffer, x, y, z, sample);
 
     // Clean up
     free(buffer);
-    TIFFClose(tif);
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

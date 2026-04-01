@@ -6,27 +6,21 @@
 extern "C" {
 #endif
 
-int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size); /* required by C89 */
-
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-  // Call the function-under-test
-  cJSON *array = cJSON_CreateArray();
+    // Call the function-under-test
+    cJSON *json_array = cJSON_CreateArray();
 
-  // Check if the array was created successfully
-  if (array == NULL) {
+    // Perform operations on the created array to ensure it is used
+    if (json_array != NULL) {
+        // Add some elements to the array to test its functionality
+        cJSON_AddItemToArray(json_array, cJSON_CreateNumber(42));
+        cJSON_AddItemToArray(json_array, cJSON_CreateString("fuzz"));
+
+        // Clean up by deleting the created cJSON array
+        cJSON_Delete(json_array);
+    }
+
     return 0;
-  }
-
-  // Attempt to parse the input data as JSON and add it to the array
-  cJSON *parsed = cJSON_ParseWithLength((const char *)data, size);
-  if (parsed != NULL) {
-    cJSON_AddItemToArray(array, parsed);
-  }
-
-  // Clean up the created cJSON array
-  cJSON_Delete(array);
-
-  return 0;
 }
 
 #ifdef __cplusplus

@@ -1,27 +1,49 @@
-#include <stddef.h>   // For size_t
-#include <stdlib.h>   // For NULL
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
 
-// Define a dummy authorizer function
-int dummy_authorizer(void *pUserData, int action, const char *param1, const char *param2, const char *dbName, const char *triggerName) {
-    // Always return SQLITE_OK for simplicity
+// Define a sample authorizer callback function
+int authorizer_callback_134(void *pArg, int action, const char *detail1, const char *detail2, const char *detail3, const char *detail4) {
+    // For fuzzing purposes, return SQLITE_OK to allow all actions
     return SQLITE_OK;
 }
 
 int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    void *pUserData = (void *)data; // Use the input data as user data
+    sqlite3 *db;
+    int rc;
+    char *errMsg = 0;
 
-    // Open a connection to an in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Call the function-under-test
-    sqlite3_set_authorizer(db, dummy_authorizer, pUserData);
+    // Set the authorizer with the callback function
+    rc = sqlite3_set_authorizer(db, authorizer_callback_134, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Close the database connection
+    // Ensure the input data is null-terminated before using it as an SQL statement
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+    }
+
+    // Clean up
+    free(sql);
     sqlite3_close(db);
 
     return 0;

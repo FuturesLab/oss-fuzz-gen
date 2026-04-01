@@ -1,27 +1,30 @@
+#include <pcap.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <pcap.h>
-#include <sys/time.h> // Include this for the timeval structure
+#include <stdio.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
-    // Initialize variables
-    u_char *user_data = (u_char *)data;
-    struct pcap_pkthdr pkthdr;
-    const u_char *packet_data = data;
-
-    // Ensure size is large enough to fill pcap_pkthdr
-    if (size < sizeof(struct pcap_pkthdr)) {
+    // Ensure size is sufficient for a null-terminated string
+    if (size < 2) {
         return 0;
     }
 
-    // Initialize pcap_pkthdr with data
-    pkthdr.ts.tv_sec = (long)data[0];
-    pkthdr.ts.tv_usec = (long)data[1];
-    pkthdr.caplen = size;
-    pkthdr.len = size;
+    // Allocate memory for the file name and error buffer
+    char filename[size + 1];
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    // Copy data into filename and null-terminate it
+    memcpy(filename, data, size);
+    filename[size] = '\0';
 
     // Call the function-under-test
-    pcap_dump(user_data, &pkthdr, packet_data);
+    pcap_t *handle = pcap_open_offline(filename, errbuf);
+
+    // If handle is not NULL, close it
+    if (handle != NULL) {
+        pcap_close(handle);
+    }
 
     return 0;
 }

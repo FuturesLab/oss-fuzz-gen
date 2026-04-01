@@ -1,40 +1,29 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_149(const uint8_t *data, size_t size) {
     sqlite3 *db = NULL;
-    char *errMsg = NULL;
     int rc;
+    sqlite3_int64 lastRowId;
 
-    // Ensure the data is null-terminated to be used as a SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Open a new in-memory SQLite database
+    // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        free(sql);
         return 0;
     }
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK && errMsg != NULL) {
-        sqlite3_free(errMsg);
-    }
+    // Create a table and insert a row to ensure there is a last insert row id
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    const char *insertSQL = "INSERT INTO test (value) VALUES ('test');";
+    sqlite3_exec(db, createTableSQL, 0, 0, 0);
+    sqlite3_exec(db, insertSQL, 0, 0, 0);
 
     // Call the function-under-test
-    sqlite3_int64 lastRowId = sqlite3_last_insert_rowid(db);
+    lastRowId = sqlite3_last_insert_rowid(db);
 
     // Clean up
     sqlite3_close(db);
-    free(sql);
 
     return 0;
 }

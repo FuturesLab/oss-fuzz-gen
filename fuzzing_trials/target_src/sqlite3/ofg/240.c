@@ -1,47 +1,33 @@
-#include <stddef.h>  // Include this for size_t and NULL
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
 
-// Define a dummy callback function to be used as the rollback hook
-static void rollback_callback(void *arg) {
-    // This is a simple callback function that does nothing
-    (void)arg;  // Prevent unused variable warning
-}
-
+// Fuzzing function
 int LLVMFuzzerTestOneInput_240(const uint8_t *data, size_t size) {
-    // Initialize variables
-    sqlite3 *db = NULL;
-    int rc;
-    void *previous_hook = NULL;
-    void *hook_arg = (void *)1;  // Arbitrary non-NULL pointer
-    char *errMsg = NULL;
+    // Initialize SQLite library
+    if (sqlite3_initialize() != SQLITE_OK) {
+        return 0; // If initialization fails, return 0 to continue fuzzing
+    }
 
-    // Open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Create an in-memory database
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        sqlite3_shutdown();
         return 0;
     }
 
-    // Set the rollback hook using the function-under-test
-    previous_hook = sqlite3_rollback_hook(db, rollback_callback, hook_arg);
+    // Create a statement from the input data
+    sqlite3_stmt *stmt;
+    sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
 
-    // Begin a transaction
-    rc = sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
+    // Finalize the statement to clean up
+    sqlite3_finalize(stmt);
 
-    // Execute a command that will cause an error and trigger a rollback
-    // For example, inserting into a non-existent table
-    rc = sqlite3_exec(db, "INSERT INTO non_existent_table VALUES(1);", NULL, NULL, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    // Clean up and close the database
+    // Close the database
     sqlite3_close(db);
 
-    return 0;
+    // Shutdown SQLite library
+    sqlite3_shutdown();
+
+    return 0; // Return 0 to indicate the fuzzer should continue testing
 }

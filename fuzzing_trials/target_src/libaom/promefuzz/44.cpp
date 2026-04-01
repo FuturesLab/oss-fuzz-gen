@@ -1,11 +1,12 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
 // aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_CPUUSED at aomcx.h:1910:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD at aomcx.h:1919:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF at aomcx.h:1913:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_MAX_INTER_BITRATE_PCT at aomcx.h:1948:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_CQ_LEVEL at aomcx.h:1937:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_MAX_INTRA_BITRATE_PCT at aomcx.h:1940:1 in aomcx.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -19,53 +20,83 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
-#include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
-#include "aomcx.h"
+#include <iostream>
+#include "aom/aom_integer.h"
+#include "aom/aom_image.h"
+#include "aom/aom_codec.h"
+#include "aom/aom_frame_buffer.h"
+#include "aom/aom_encoder.h"
+#include "aom/aom_external_partition.h"
+#include "aom/aom.h"
+#include "aom/aom_decoder.h"
+#include "aom/aomcx.h"
+#include "aom/aomdx.h"
+
+static aom_codec_ctx_t* initialize_codec() {
+    aom_codec_ctx_t* codec = new aom_codec_ctx_t;
+    memset(codec, 0, sizeof(aom_codec_ctx_t));
+    codec->iface = aom_codec_av1_cx();
+    codec->init_flags = 0;
+    return codec;
+}
+
+static void cleanup_codec(aom_codec_ctx_t* codec) {
+    if (codec) {
+        aom_codec_destroy(codec);
+        delete codec;
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) * 6) return 0;
+    if (Size < 1) return 0;
 
-    int cpu_used = *reinterpret_cast<const int*>(Data);
-    int static_threshold = *reinterpret_cast<const int*>(Data + sizeof(int));
-    int enable_auto_alt_ref = *reinterpret_cast<const int*>(Data + sizeof(int) * 2);
-    int max_inter_bitrate_pct = *reinterpret_cast<const int*>(Data + sizeof(int) * 3);
-    int cq_level = *reinterpret_cast<const int*>(Data + sizeof(int) * 4);
-    int max_intra_bitrate_pct = *reinterpret_cast<const int*>(Data + sizeof(int) * 5);
+    aom_codec_ctx_t* codec = initialize_codec();
+    if (!codec) return 0;
 
-    aom_codec_ctx_t codec;
-    memset(&codec, 0, sizeof(codec));
+    // Define control IDs
+    int ctrl_id_obmc = AV1E_SET_ENABLE_OBMC;
+    int ctrl_id_skip_postproc = AV1E_SET_SKIP_POSTPROC_FILTERING;
+    int ctrl_id_tpl_model = AV1E_SET_ENABLE_TPL_MODEL;
+    int ctrl_id_tile_rows = AV1E_SET_TILE_ROWS;
+    int ctrl_id_tile_columns = AV1E_SET_TILE_COLUMNS;
+    int ctrl_id_noise_sensitivity = AV1E_SET_NOISE_SENSITIVITY;
 
-    // Assuming the codec interface is initialized properly
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    if (!iface) return 0;
+    // Fuzzing AV1E_SET_ENABLE_OBMC
+    {
+        unsigned int enable_obmc = Data[0] % 2;
+        aom_codec_control(codec, ctrl_id_obmc, enable_obmc);
+    }
 
-    codec.iface = iface;
+    // Fuzzing AV1E_SET_SKIP_POSTPROC_FILTERING
+    if (Size > 1) {
+        unsigned int skip_filtering = Data[1] % 2;
+        aom_codec_control(codec, ctrl_id_skip_postproc, skip_filtering);
+    }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_CPUUSED
-    aom_codec_control_typechecked_AOME_SET_CPUUSED(&codec, 0, cpu_used);
+    // Fuzzing AV1E_SET_ENABLE_TPL_MODEL
+    if (Size > 2) {
+        unsigned int enable_tpl_model = Data[2] % 2;
+        aom_codec_control(codec, ctrl_id_tpl_model, enable_tpl_model);
+    }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD
-    aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD(&codec, 0, static_threshold);
+    // Fuzzing AV1E_SET_TILE_ROWS
+    if (Size > 3) {
+        unsigned int tile_rows = Data[3] % 64; // Assuming a reasonable max tile row count
+        aom_codec_control(codec, ctrl_id_tile_rows, tile_rows);
+    }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF
-    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF(&codec, 0, enable_auto_alt_ref);
+    // Fuzzing AV1E_SET_TILE_COLUMNS
+    if (Size > 4) {
+        unsigned int tile_columns = Data[4] % 64; // Assuming a reasonable max tile column count
+        aom_codec_control(codec, ctrl_id_tile_columns, tile_columns);
+    }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_MAX_INTER_BITRATE_PCT
-    aom_codec_control_typechecked_AOME_SET_MAX_INTER_BITRATE_PCT(&codec, 0, max_inter_bitrate_pct);
+    // Fuzzing AV1E_SET_NOISE_SENSITIVITY
+    if (Size > 5) {
+        unsigned int noise_sensitivity = Data[5] % 6; // Assuming noise sensitivity levels are from 0 to 5
+        aom_codec_control(codec, ctrl_id_noise_sensitivity, noise_sensitivity);
+    }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_CQ_LEVEL
-    aom_codec_control_typechecked_AOME_SET_CQ_LEVEL(&codec, 0, cq_level);
-
-    // Fuzz aom_codec_control_typechecked_AOME_SET_MAX_INTRA_BITRATE_PCT
-    aom_codec_control_typechecked_AOME_SET_MAX_INTRA_BITRATE_PCT(&codec, 0, max_intra_bitrate_pct);
-
+    cleanup_codec(codec);
     return 0;
 }

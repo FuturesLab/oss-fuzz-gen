@@ -1,13 +1,11 @@
 #include <cstdint>
 #include <cstddef>
 
-extern "C" {
-    // Function-under-test declaration
-    void LogLuv24toXYZ(uint32_t input, float *output);
-}
+// Assume this is the function-under-test provided in some library
+extern "C" void LogLuv24toXYZ(uint32_t input, float *output);
 
 extern "C" int LLVMFuzzerTestOneInput_347(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to form a uint32_t
+    // Ensure we have enough data to extract a uint32_t
     if (size < sizeof(uint32_t)) {
         return 0;
     }
@@ -18,7 +16,7 @@ extern "C" int LLVMFuzzerTestOneInput_347(const uint8_t *data, size_t size) {
         input |= static_cast<uint32_t>(data[i]) << (i * 8);
     }
 
-    // Allocate a float array for the output
+    // Initialize a float array to hold the output
     float output[3] = {0.0f, 0.0f, 0.0f};
 
     // Call the function-under-test

@@ -1,35 +1,27 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h>
 
-// Fuzzing harness for sqlite3_get_clientdata
 int LLVMFuzzerTestOneInput_325(const uint8_t *data, size_t size) {
-    // Initialize SQLite database handle
-    sqlite3 *db;
-    int rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Ensure the data size is sufficient to create a valid sqlite3_vfs structure
+    if (size < sizeof(sqlite3_vfs)) {
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a string
-    char *clientDataKey = (char *)malloc(size + 1);
-    if (clientDataKey == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(clientDataKey, data, size);
-    clientDataKey[size] = '\0';
+    // Create a sqlite3_vfs structure from the input data
+    sqlite3_vfs vfs_instance;
+    sqlite3_vfs *vfs = &vfs_instance;
 
-    // Since sqlite3_get_clientdata is not a valid function, we will use a placeholder
-    // function call to demonstrate the fuzzing process. This should be replaced with
-    // a valid SQLite function if needed.
-    // Example: void *result = sqlite3_exec(db, clientDataKey, NULL, NULL, NULL);
+    // Initialize the sqlite3_vfs structure with non-NULL values
+    vfs->iVersion = 1;
+    vfs->szOsFile = 1024;
+    vfs->mxPathname = 256;
+    vfs->pNext = NULL;
+    vfs->zName = "test_vfs";
+    vfs->pAppData = (void *)data;  // Use input data as app data
 
-    // Clean up
-    free(clientDataKey);
-    sqlite3_close(db);
+    // Call the function-under-test
+    int result = sqlite3_vfs_unregister(vfs);
 
     return 0;
 }

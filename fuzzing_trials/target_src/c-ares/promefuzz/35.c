@@ -1,144 +1,96 @@
 // This fuzz driver is generated for library cares, aiming to fuzz the following functions:
-// ares_dns_rr_set_u16 at ares_dns_record.c:1158:15 in ares_dns_record.h
+// ares_inet_ntop at inet_ntop.c:64:20 in ares.h
+// ares_dns_rr_get_addr at ares_dns_record.c:757:23 in ares_dns_record.h
+// ares_dns_addr_to_ptr at ares_dns_record.c:1465:7 in ares_dns_record.h
+// ares_free_string at ares_free_string.c:30:6 in ares.h
+// ares_dns_parse at ares_dns_parse.c:1310:15 in ares_dns_record.h
 // ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_dns_rr_set_opt at ares_dns_record.c:1404:15 in ares_dns_record.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_search_dnsrec at ares_search.c:473:15 in ares.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_dns_record_create at ares_dns_record.c:52:15 in ares_dns_record.h
-// ares_dns_record_query_add at ares_dns_record.c:252:15 in ares_dns_record.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_dns_record_rr_add at ares_dns_record.c:396:15 in ares_dns_record.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_dns_rr_set_u8 at ares_dns_record.c:1140:15 in ares_dns_record.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
-// ares_dns_rr_set_u16 at ares_dns_record.c:1158:15 in ares_dns_record.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
+// ares_dns_pton at ares_hosts_file.c:103:13 in ares_dns_record.h
+// ares_dns_rr_get_addr6 at ares_dns_record.c:774:29 in ares_dns_record.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <arpa/inet.h>
 #include <ares.h>
 #include <ares_dns_record.h>
 
-static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-    // Dummy callback function for ares_search_dnsrec
+static void fuzz_ares_inet_ntop(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(struct in_addr)) return;
+
+    int af = AF_INET;
+    char dst[INET6_ADDRSTRLEN];
+    const void *src = (const void *)Data;
+
+    if (Size >= sizeof(struct in6_addr)) {
+        af = AF_INET6;
+        src = (const void *)Data;
+    }
+
+    ares_inet_ntop(af, src, dst, sizeof(dst));
+}
+
+static void fuzz_ares_dns_rr_get_addr(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(ares_dns_rr_key_t)) return;
+
+    const ares_dns_rr_t *dns_rr = NULL; // Assuming valid pointer setup elsewhere
+    ares_dns_rr_key_t key = (ares_dns_rr_key_t)Data[Size - 1];
+
+    ares_dns_rr_get_addr(dns_rr, key);
+}
+
+static void fuzz_ares_dns_addr_to_ptr(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(struct ares_addr)) return;
+
+    const struct ares_addr *addr = (const struct ares_addr *)Data;
+    char *result = ares_dns_addr_to_ptr(addr);
+    if (result) {
+        ares_free_string(result);
+    }
+}
+
+static void fuzz_ares_dns_parse(const uint8_t *Data, size_t Size) {
+    ares_dns_record_t *dnsrec = NULL;
+    unsigned int flags = 0; // You can modify flags as needed
+
+    ares_dns_parse(Data, Size, flags, &dnsrec);
+    if (dnsrec) {
+        ares_dns_record_destroy(dnsrec);
+    }
+}
+
+static void fuzz_ares_dns_pton(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    char ipaddr[INET6_ADDRSTRLEN];
+    size_t copy_size = Size > INET6_ADDRSTRLEN - 1 ? INET6_ADDRSTRLEN - 1 : Size;
+    memcpy(ipaddr, Data, copy_size);
+    ipaddr[copy_size] = '\0';
+
+    struct ares_addr addr;
+    addr.family = AF_UNSPEC;
+    size_t out_len;
+
+    ares_dns_pton(ipaddr, &addr, &out_len);
+}
+
+static void fuzz_ares_dns_rr_get_addr6(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(ares_dns_rr_key_t)) return;
+
+    const ares_dns_rr_t *dns_rr = NULL; // Assuming valid pointer setup elsewhere
+    ares_dns_rr_key_t key = (ares_dns_rr_key_t)Data[Size - 1];
+
+    ares_dns_rr_get_addr6(dns_rr, key);
 }
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    // Check if the input size is sufficient to avoid buffer overflows
-    if (Size < sizeof(unsigned short) * 5 + 1) {
-        return 0;  // Not enough data
-    }
+    fuzz_ares_inet_ntop(Data, Size);
+    fuzz_ares_dns_rr_get_addr(Data, Size);
+    fuzz_ares_dns_addr_to_ptr(Data, Size);
+    fuzz_ares_dns_parse(Data, Size);
+    fuzz_ares_dns_pton(Data, Size);
+    fuzz_ares_dns_rr_get_addr6(Data, Size);
 
-    ares_dns_record_t *dnsrec = NULL;
-    ares_dns_rr_t *rr = NULL;
-    ares_channel_t *channel = NULL;
-    
-    unsigned short id = *(unsigned short *)Data;
-    unsigned short flags = *(unsigned short *)(Data + 2);
-    ares_dns_opcode_t opcode = *(ares_dns_opcode_t *)(Data + 4);
-    ares_dns_rcode_t rcode = *(ares_dns_rcode_t *)(Data + 6);
-
-    const char *hostname = (const char *)(Data + 8);
-    size_t hostname_len = strnlen(hostname, Size - 8);
-    if (8 + hostname_len + 1 >= Size) {
-        return 0;  // Avoid reading beyond buffer
-    }
-
-    size_t offset = 8 + hostname_len + 1;
-    if (offset + sizeof(ares_dns_rec_type_t) + sizeof(ares_dns_class_t) >= Size) {
-        return 0;  // Avoid reading beyond buffer
-    }
-
-    ares_dns_rec_type_t qtype = *(ares_dns_rec_type_t *)(Data + offset);
-    offset += sizeof(ares_dns_rec_type_t);
-
-    ares_dns_class_t qclass = *(ares_dns_class_t *)(Data + offset);
-    offset += sizeof(ares_dns_class_t);
-
-    if (ares_dns_record_create(&dnsrec, id, flags, opcode, rcode) != ARES_SUCCESS) {
-        return 0;
-    }
-
-    if (ares_dns_record_query_add(dnsrec, hostname, qtype, qclass) != ARES_SUCCESS) {
-        ares_dns_record_destroy(dnsrec);
-        return 0;
-    }
-
-    const char *rr_name = (const char *)(Data + offset);
-    size_t rr_name_len = strnlen(rr_name, Size - offset);
-    offset += rr_name_len + 1;
-    if (offset + sizeof(ares_dns_rec_type_t) + sizeof(ares_dns_class_t) + sizeof(unsigned int) >= Size) {
-        ares_dns_record_destroy(dnsrec);
-        return 0;  // Avoid reading beyond buffer
-    }
-
-    ares_dns_rec_type_t rr_type = *(ares_dns_rec_type_t *)(Data + offset);
-    offset += sizeof(ares_dns_rec_type_t);
-
-    ares_dns_class_t rr_class = *(ares_dns_class_t *)(Data + offset);
-    offset += sizeof(ares_dns_class_t);
-
-    unsigned int ttl = *(unsigned int *)(Data + offset);
-    offset += sizeof(unsigned int);
-
-    if (ares_dns_record_rr_add(&rr, dnsrec, ARES_SECTION_ANSWER, rr_name, rr_type, rr_class, ttl) != ARES_SUCCESS) {
-        ares_dns_record_destroy(dnsrec);
-        return 0;
-    }
-
-    if (offset + sizeof(unsigned char) + sizeof(unsigned short) * 2 >= Size) {
-        ares_dns_record_destroy(dnsrec);
-        return 0;  // Avoid reading beyond buffer
-    }
-
-    unsigned char u8_val = *(Data + offset);
-    offset += sizeof(unsigned char);
-
-    if (ares_dns_rr_set_u8(rr, 0, u8_val) != ARES_SUCCESS) {
-        ares_dns_record_destroy(dnsrec);
-        return 0;
-    }
-
-    unsigned short u16_val1 = *(unsigned short *)(Data + offset);
-    offset += sizeof(unsigned short);
-
-    if (ares_dns_rr_set_u16(rr, 0, u16_val1) != ARES_SUCCESS) {
-        ares_dns_record_destroy(dnsrec);
-        return 0;
-    }
-
-    unsigned short u16_val2 = *(unsigned short *)(Data + offset);
-    offset += sizeof(unsigned short);
-
-    if (ares_dns_rr_set_u16(rr, 0, u16_val2) != ARES_SUCCESS) {
-        ares_dns_record_destroy(dnsrec);
-        return 0;
-    }
-
-    if (offset + sizeof(unsigned short) >= Size) {
-        ares_dns_record_destroy(dnsrec);
-        return 0;  // Avoid reading beyond buffer
-    }
-
-    unsigned short opt = *(unsigned short *)(Data + offset);
-    offset += sizeof(unsigned short);
-
-    const unsigned char *val = Data + offset;
-    size_t val_len = Size - offset;
-
-    if (ares_dns_rr_set_opt(rr, 0, opt, val, val_len) != ARES_SUCCESS) {
-        ares_dns_record_destroy(dnsrec);
-        return 0;
-    }
-
-    ares_search_dnsrec(channel, dnsrec, dummy_callback, NULL);
-
-    ares_dns_record_destroy(dnsrec);
     return 0;
 }

@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
-// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
-// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFReadFromUserBuffer at tif_read.c:1555:5 in tiffio.h
+// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
+// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
+// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
+// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -17,63 +17,65 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <exception>
+#include <fcntl.h>
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_85(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t) * 4) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Create a dummy TIFF file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
+    // Create a dummy file to be used by TIFF functions
+    const char *filename = "./dummy_file.tiff";
+    FILE *file = fopen(filename, "wb+");
+    if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(filename, "r+");
     if (!tif) {
+        remove(filename);
         return 0;
     }
 
-    try {
-        uint32_t row = 0;
-        uint32_t width = 0, height = 0;
-        uint32_t orientation = ORIENTATION_TOPLEFT;
-        uint32_t *raster = (uint32_t *)_TIFFmalloc(sizeof(uint32_t) * width * height);
-        if (!raster) {
-            TIFFClose(tif);
-            return 0;
-        }
-
-        // Fuzz TIFFReadRGBAStrip
-        TIFFReadRGBAStrip(tif, row, raster);
-
-        // Fuzz TIFFReadRGBAImageOriented
-        TIFFReadRGBAImageOriented(tif, width, height, raster, orientation, 0);
-
-        // Fuzz TIFFReadRGBAStripExt
-        TIFFReadRGBAStripExt(tif, row, raster, 1);
-
-        // Fuzz TIFFReadRGBAImage
-        TIFFReadRGBAImage(tif, width, height, raster, 0);
-
-        // Fuzz TIFFReadScanline
-        TIFFReadScanline(tif, raster, row, 0);
-
-        // Fuzz TIFFReadRGBATile
-        TIFFReadRGBATile(tif, 0, 0, raster);
-
-        _TIFFfree(raster);
-    } catch (const std::exception &e) {
-        // Handle any exceptions thrown by the TIFF library
+    // Prepare buffers for reading and writing
+    tmsize_t bufferSize = 1024;
+    void *inbuf = malloc(bufferSize);
+    void *outbuf = malloc(bufferSize);
+    if (!inbuf || !outbuf) {
+        TIFFClose(tif);
+        remove(filename);
+        free(inbuf);
+        free(outbuf);
+        return 0;
     }
 
+    // Fuzz TIFFReadFromUserBuffer
+    TIFFReadFromUserBuffer(tif, 0, inbuf, bufferSize, outbuf, bufferSize);
+
+    // Fuzz TIFFReadEncodedTile
+    TIFFReadEncodedTile(tif, 0, outbuf, bufferSize);
+
+    // Print directory to stdout
+    TIFFPrintDirectory(tif, stdout, 0);
+
+    // Fuzz TIFFWriteEncodedStrip
+    TIFFWriteEncodedStrip(tif, 0, inbuf, bufferSize);
+
+    // Fuzz TIFFStripSize
+    TIFFStripSize(tif);
+
+    // Fuzz TIFFReadEncodedStrip
+    TIFFReadEncodedStrip(tif, 0, outbuf, bufferSize);
+
+    // Clean up
     TIFFClose(tif);
+    remove(filename);
+    free(inbuf);
+    free(outbuf);
+
     return 0;
 }

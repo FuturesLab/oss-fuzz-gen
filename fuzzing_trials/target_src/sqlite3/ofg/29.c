@@ -1,26 +1,40 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stddef.h>  // Include for NULL
+
+// Mock function to create a valid sqlite3_stmt object for testing
+sqlite3_stmt* create_valid_stmt_29(const uint8_t *data, size_t size) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    
+    // Open a temporary in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return NULL;
+    }
+
+    // Prepare a statement using the fuzzer input data as SQL query
+    if (sqlite3_prepare_v2(db, (const char*)data, size, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        return NULL;
+    }
+
+    // Close the database connection, statement remains valid
+    sqlite3_close(db);
+    return stmt;
+}
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    sqlite3_str *str;
-    char *result;
-
-    // Initialize a new sqlite3_str object
-    str = sqlite3_str_new(NULL);
-
-    // Append data to the sqlite3_str object if size is greater than 0
-    if (size > 0) {
-        sqlite3_str_append(str, (const char *)data, (int)size);
+    // Create a valid sqlite3_stmt object using the input data
+    sqlite3_stmt *stmt = create_valid_stmt_29(data, size);
+    if (stmt == NULL) {
+        return 0;
     }
 
     // Call the function-under-test
-    result = sqlite3_str_finish(str);
+    int result = sqlite3_stmt_isexplain(stmt);
 
-    // Free the result to avoid memory leaks
-    if (result != NULL) {
-        sqlite3_free(result);
-    }
+    // Finalize the statement to clean up resources
+    sqlite3_finalize(stmt);
 
     return 0;
 }

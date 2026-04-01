@@ -1,28 +1,47 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitCompress(); // Initialize a TurboJPEG compressor handle
-    int param1 = 0; // Example integer parameter
-    int param2 = 0; // Example integer parameter
-
-    // Ensure the handle is not NULL
-    if (handle == nullptr) {
-        return 0;
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Failed to create temp file
     }
 
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0; // Failed to write data
+    }
+    close(fd);
+
+    // Initialize the parameters for tjLoadImage
+    int width = 0;
+    int height = 0;
+    int subsamp = 0;
+    int colorspace = 0;
+    int flags = 0;
+
     // Call the function-under-test
-    int result = tj3Set(handle, param1, param2);
+    unsigned char *image = tjLoadImage(tmpl, &width, 1, &height, &subsamp, flags);
 
     // Clean up
-    tjDestroy(handle);
+    if (image != NULL) {
+        tjFree(image);
+    }
+    unlink(tmpl); // Remove the temporary file
 
     return 0;
 }

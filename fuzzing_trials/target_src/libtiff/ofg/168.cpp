@@ -1,28 +1,41 @@
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>  // Include for close, write
+#include <fcntl.h>   // Include for mkstemp
+
 extern "C" {
-#include <tiffio.h>
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_168(const uint8_t *data, size_t size) {
-    // Initialize TIFF structure
-    TIFF *tiff = TIFFOpen("/tmp/fuzzfile.tiff", "w");
-    if (tiff == NULL) {
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Ensure that the data size is sufficient for a valid strip size calculation
-    if (size < sizeof(uint32_t)) {
-        TIFFClose(tiff);
+    // Write the data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
         return 0;
     }
+    close(fd);
 
-    // Use the first four bytes of data as the uint32_t parameter
-    uint32_t stripSizeParam = *(reinterpret_cast<const uint32_t*>(data));
+    // Open the TIFF file
+    TIFF* tif = TIFFOpen(tmpl, "r");
+    if (tif == nullptr) {
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    tmsize_t stripSize = TIFFVStripSize(tiff, stripSizeParam);
+    uint32_t numStrips = TIFFNumberOfStrips(tif);
 
     // Clean up
-    TIFFClose(tiff);
+    TIFFClose(tif);
+    remove(tmpl);
 
     return 0;
 }

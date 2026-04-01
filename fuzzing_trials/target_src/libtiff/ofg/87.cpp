@@ -1,32 +1,40 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include this for memcpy
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>  // Include for memcpy
+#include <tiffio.h>
 
 extern "C" {
-    #include <tiffio.h>
+    #include <tiffio.h>  // Ensure TIFF functions are linked correctly
 }
 
 extern "C" int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract a tmsize_t value
-    if (size < sizeof(tmsize_t)) {
+    // Ensure size is sufficient to create a buffer
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize TIFFOpenOptions
-    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
-    if (options == NULL) {
+    // Initialize TIFF structure
+    TIFF *tiff = TIFFOpen("dummy.tiff", "r");
+    if (tiff == nullptr) {
         return 0;
     }
 
-    // Extract a tmsize_t value from the input data
-    tmsize_t maxSingleMemAlloc;
-    memcpy(&maxSingleMemAlloc, data, sizeof(tmsize_t));
+    // Allocate a buffer with the provided data
+    void *buffer = malloc(size);
+    if (buffer == nullptr) {
+        TIFFClose(tiff);
+        return 0;
+    }
+
+    // Copy data into the buffer
+    memcpy(buffer, data, size);
 
     // Call the function-under-test
-    TIFFOpenOptionsSetMaxSingleMemAlloc(options, maxSingleMemAlloc);
+    TIFFReadBufferSetup(tiff, buffer, static_cast<tmsize_t>(size));
 
     // Clean up
-    TIFFOpenOptionsFree(options);
+    free(buffer);
+    TIFFClose(tiff);
 
     return 0;
 }

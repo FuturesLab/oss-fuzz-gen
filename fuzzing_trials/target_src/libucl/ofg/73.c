@@ -1,40 +1,26 @@
 #include "ucl.h"
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
+// Example variable handler function
+static const char *example_variable_handler(const char *var_name, size_t var_len, void *ud) {
+    // Return a static string for demonstration purposes
+    return "example_value";
+}
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to extract meaningful input
-    if (size < 2) {
-        return 0;
-    }
-
-    // Create a ucl_parser instance
     struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Extract a file name from the input data
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-    memcpy(filename, data, size);
-    filename[size] = '\0';  // Ensure null-termination
+    // Use the first byte of data to determine the user data
+    void *user_data = (void *)(uintptr_t)(size > 0 ? data[0] : 0);
 
-    // Extract a priority value from the input data
-    unsigned int priority = data[0];  // Use the first byte as priority
+    // Set the variable handler
+    ucl_parser_set_variables_handler(parser, example_variable_handler, user_data);
 
-    // Call the function-under-test
-    ucl_parser_add_file_priority(parser, filename, priority);
-
-    // Clean up
-    free(filename);
+    // Cleanup
     ucl_parser_free(parser);
-
     return 0;
 }

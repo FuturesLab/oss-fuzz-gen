@@ -1,38 +1,43 @@
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 
 extern "C" {
-    #include <tiffio.h>
-
-    // The correct declaration of TIFFErrorExtR should include the ellipsis for variable arguments
+    // Correct the function declaration to match the one in tiffio.h
     void TIFFErrorExtR(TIFF *, const char *, const char *, ...);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_280(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to extract meaningful strings
+    // Ensure the input size is sufficient for our test
     if (size < 3) {
         return 0;
     }
 
-    // Create a dummy TIFF pointer
-    TIFF *tiff = TIFFOpen("/dev/null", "r");
+    // Create a dummy TIFF object
+    TIFF *tiff = TIFFOpen("/dev/null", "w");
     if (tiff == nullptr) {
         return 0;
     }
 
-    // Extract strings from the input data
-    const char *module = reinterpret_cast<const char*>(data);
-    const char *fmt = reinterpret_cast<const char*>(data + 1);
+    // Allocate memory for the strings and ensure they are null-terminated
+    char module[256];
+    char fmt[256];
 
-    // Use a non-null void pointer
-    void *dummyPointer = static_cast<void*>(const_cast<uint8_t*>(data + 2));
+    size_t module_len = size / 3;
+    size_t fmt_len = size / 3;
+
+    // Copy data into module and fmt ensuring null-termination
+    strncpy(module, reinterpret_cast<const char*>(data), module_len);
+    module[module_len] = '\0';
+
+    strncpy(fmt, reinterpret_cast<const char*>(data + module_len), fmt_len);
+    fmt[fmt_len] = '\0';
 
     // Call the function-under-test
-    TIFFErrorExtR(tiff, module, fmt, dummyPointer);
+    TIFFErrorExtR(tiff, module, fmt);
 
-    // Close the TIFF pointer
+    // Clean up
     TIFFClose(tiff);
 
     return 0;

@@ -1,45 +1,24 @@
 #include <cstdint>
 #include <cstdlib>
 
+// Assuming tj3YUVPlaneHeight is declared in an external C library
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    int tj3YUVPlaneHeight(int componentID, int width, int subsampling);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
+    // Ensure there is enough data to extract three integers
+    if (size < 3 * sizeof(int)) {
         return 0;
     }
 
-    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
-    unsigned long jpegSize = static_cast<unsigned long>(size);
+    // Extract integers from the input data
+    int componentID = static_cast<int>(data[0]); // Using first byte for componentID
+    int width = static_cast<int>(data[1]);       // Using second byte for width
+    int subsampling = static_cast<int>(data[2]); // Using third byte for subsampling
 
-    int width = 1;  // Initialize with a non-zero value
-    int height = 1; // Initialize with a non-zero value
-    int jpegSubsamp = TJSAMP_444; // Use a valid subsampling value
-    int jpegColorspace = TJCS_RGB; // Use a valid colorspace value
-
-    // Get the JPEG header to determine width and height
-    if (tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp) != 0) {
-        tjDestroy(handle);
-        return 0;
-    }
-
-    int pixelFormat = TJPF_RGB; // Use a valid pixel format
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (dstBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Call the function-under-test
-    tjDecompress(handle, jpegBuf, jpegSize, dstBuf, width, 0, height, pixelFormat, 0);
-
-    // Cleanup
-    free(dstBuf);
-    tjDestroy(handle);
+    // Call the function-under-test with the extracted values
+    tj3YUVPlaneHeight(componentID, width, subsampling);
 
     return 0;
 }

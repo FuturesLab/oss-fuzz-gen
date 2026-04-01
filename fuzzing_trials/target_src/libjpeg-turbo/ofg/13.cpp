@@ -1,54 +1,40 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>  // Include for FILE operations
 
-// Include the correct path for turbojpeg.h
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-
-    unsigned short * tj3LoadImage16(tjhandle handle, const char *filename, int *width, int pitch, int *height, int *pixelFormat);
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Initialize variables for tjDecompressToYUV2
     tjhandle handle = tjInitDecompress();
-    if (handle == NULL) {
-        return 0; // Exit if handle initialization fails
+    if (handle == nullptr) {
+        return 0;
     }
 
-    // Create a temporary filename for testing
-    const char *filename = "temp_image.tiff";
+    const unsigned char *jpegBuf = data;
+    unsigned long jpegSize = (unsigned long)size;
 
-    // Write the input data to the file
-    FILE *file = fopen(filename, "wb");
-    if (file == NULL) {
+    // Allocate memory for the YUV buffer
+    int width = 640;  // Example width
+    int height = 480; // Example height
+    int subsamp = TJSAMP_420; // Example subsampling
+    int flags = 0; // No flags
+
+    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
+    if (yuvBuf == nullptr) {
         tjDestroy(handle);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Initialize other parameters
-    int width = 0;
-    int pitch = 0;
-    int height = 0;
-    int pixelFormat = TJPF_RGB;
 
     // Call the function-under-test
-    unsigned short *image = tj3LoadImage16(handle, filename, &width, pitch, &height, &pixelFormat);
+    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, flags);
 
-    // Clean up
-    if (image != NULL) {
-        free(image); // Use free instead of tjFree for unsigned short *
-    }
+    // Cleanup
+    free(yuvBuf);
     tjDestroy(handle);
-
-    // Remove the temporary file
-    remove(filename);
 
     return 0;
 }

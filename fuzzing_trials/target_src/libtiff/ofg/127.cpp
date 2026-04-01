@@ -1,53 +1,25 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>  // Include this for the 'close' function
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_127(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize parameters for TIFFReadRGBATileExt
-    uint32_t x = 0;
-    uint32_t y = 0;
-    uint32_t *raster = (uint32_t *)malloc(sizeof(uint32_t) * TIFFTileSize(tiff));
-    if (!raster) {
-        TIFFClose(tiff);
-        remove(tmpl);
-        return 0;
-    }
-    int stopOnError = 1;
-
     // Call the function-under-test
-    TIFFReadRGBATileExt(tiff, x, y, raster, stopOnError);
+    TIFFCodec *codecs = TIFFGetConfiguredCODECs();
 
-    // Clean up
-    free(raster);
-    TIFFClose(tiff);
-    remove(tmpl);
+    // Iterate over the codecs list to ensure we access the data
+    TIFFCodec *current = codecs;
+    while (current != NULL && current->name != NULL) {
+        // Access codec details to simulate usage
+        const char *codecName = current->name;
+        uint16_t scheme = current->scheme;
+
+        // Print codec name and scheme for debugging purposes
+        (void)codecName; // Suppress unused variable warning
+        (void)scheme; // Suppress unused variable warning
+
+        // Move to the next codec
+        current++;
+    }
+
+    // Note: No need to free codecs as per TIFFGetConfiguredCODECs documentation
 
     return 0;
 }

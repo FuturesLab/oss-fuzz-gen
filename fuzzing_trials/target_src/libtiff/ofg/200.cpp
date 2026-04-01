@@ -1,18 +1,27 @@
 #include <cstdint>
-#include <cstddef>
-#include <tiffio.h>  // Include the TIFF library header
+#include <cstdlib>
+#include <tiffio.h>
+
+extern "C" {
+    // Include necessary headers and ensure the function signature is wrapped in extern "C"
+    void TIFFOpenOptionsSetMaxCumulatedMemAlloc(TIFFOpenOptions *, tmsize_t);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_200(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to form a uint32_t
-    if (size < sizeof(uint32_t)) {
-        return 0;
+    // Initialize variables
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    tmsize_t maxMemAlloc = 1024; // Set a default non-zero value for max memory allocation
+
+    if (size >= sizeof(tmsize_t)) {
+        // Use the data input to set the maxMemAlloc value
+        maxMemAlloc = *reinterpret_cast<const tmsize_t*>(data);
     }
 
-    // Cast the input data to a uint32_t pointer
-    uint32_t *longValue = (uint32_t *)data;
-
     // Call the function-under-test
-    TIFFSwabLong(longValue);
+    TIFFOpenOptionsSetMaxCumulatedMemAlloc(options, maxMemAlloc);
+
+    // Clean up
+    TIFFOpenOptionsFree(options);
 
     return 0;
 }

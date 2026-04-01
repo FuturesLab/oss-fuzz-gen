@@ -1,20 +1,37 @@
-#include <stdint.h>
-#include <stddef.h>
 #include <tiffio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>   // Include for write() and close()
+#include <fcntl.h>    // Include for mkstemp()
 
 extern "C" int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint16_t)) {
-        return 0; // Not enough data to form a uint16_t
+    // Create a temporary file to write the TIFF data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(tmpl, "r+");
+    if (tif == NULL) {
+        return 0;
     }
 
-    // Extract a uint16_t value from the input data
-    uint16_t codec_id = *(reinterpret_cast<const uint16_t*>(data));
-
     // Call the function-under-test
-    const TIFFCodec *codec = TIFFFindCODEC(codec_id);
+    TIFFWriteDirectory(tif);
 
-    // The function returns a pointer, but we don't need to do anything with it
-    // for the purpose of fuzzing. We just ensure the function is called.
+    // Cleanup
+    TIFFClose(tif);
+    remove(tmpl);
 
     return 0;
 }

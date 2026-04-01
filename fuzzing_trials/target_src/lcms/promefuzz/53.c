@@ -1,91 +1,83 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// _cmsWriteUInt16Array at cmsplugin.c:281:20 in lcms2_plugin.h
-// cmsCloseIOhandler at cmsio0.c:510:19 in lcms2.h
-// _cmsReadUInt32Number at cmsplugin.c:156:20 in lcms2_plugin.h
-// _cmsWriteUInt32Number at cmsplugin.c:295:20 in lcms2_plugin.h
-// _cmsWriteAlignment at cmsplugin.c:462:19 in lcms2_plugin.h
-// _cmsReadUInt16Array at cmsplugin.c:137:20 in lcms2_plugin.h
+// cmsCreateLab4ProfileTHR at cmsvirt.c:524:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsCreateLab4Profile at cmsvirt.c:570:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsCreateLab2Profile at cmsvirt.c:517:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsWhitePointFromTemp at cmswtpnt.c:48:20 in lcms2.h
+// cmsTempFromWhitePoint at cmswtpnt.c:143:20 in lcms2.h
+// cmsCreateLab2ProfileTHR at cmsvirt.c:473:23 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "lcms2.h"
-#include "lcms2_plugin.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <lcms2.h>
 
-static cmsUInt32Number DummyRead(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count) {
-    // Dummy read implementation
-    return size * count;
-}
-
-static cmsBool DummySeek(struct _cms_io_handler* iohandler, cmsUInt32Number offset) {
-    // Dummy seek implementation
-    return TRUE;
-}
-
-static cmsBool DummyClose(struct _cms_io_handler* iohandler) {
-    // Dummy close implementation
-    return TRUE;
-}
-
-static cmsUInt32Number DummyTell(struct _cms_io_handler* iohandler) {
-    // Dummy tell implementation
-    return 0;
-}
-
-static cmsBool DummyWrite(struct _cms_io_handler* iohandler, cmsUInt32Number size, const void* Buffer) {
-    // Dummy write implementation
-    return TRUE;
-}
-
-static cmsIOHANDLER* CreateDummyIOHandler() {
-    cmsIOHANDLER* io = (cmsIOHANDLER*)malloc(sizeof(cmsIOHANDLER));
-    if (io) {
-        memset(io, 0, sizeof(cmsIOHANDLER));
-        io->Read = DummyRead;
-        io->Seek = DummySeek;
-        io->Close = DummyClose;
-        io->Tell = DummyTell;
-        io->Write = DummyWrite;
+static cmsCIExyY GenerateRandomCIExyY(const uint8_t *Data, size_t Size) {
+    cmsCIExyY whitePoint;
+    if (Size >= sizeof(cmsCIExyY)) {
+        memcpy(&whitePoint, Data, sizeof(cmsCIExyY));
+    } else {
+        whitePoint.x = 0.3127; // Default D65 white point
+        whitePoint.y = 0.3290;
+        whitePoint.Y = 1.0;
     }
-    return io;
+    return whitePoint;
+}
+
+static cmsFloat64Number GenerateRandomTemperature(const uint8_t *Data, size_t Size) {
+    if (Size >= sizeof(cmsFloat64Number)) {
+        cmsFloat64Number temp;
+        memcpy(&temp, Data, sizeof(cmsFloat64Number));
+        // Ensure temperature is within the valid range
+        if (temp < 4000.0) temp = 4000.0;
+        if (temp > 25000.0) temp = 25000.0;
+        return temp;
+    }
+    return 6500.0; // Default to D65
 }
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number)) {
-        return 0; // Not enough data to proceed
+    cmsContext context = NULL;
+    cmsCIExyY whitePoint = GenerateRandomCIExyY(Data, Size);
+    cmsFloat64Number tempK = GenerateRandomTemperature(Data, Size);
+    cmsFloat64Number calculatedTempK;
+    cmsHPROFILE profile;
+
+    // Test cmsCreateLab4ProfileTHR
+    profile = cmsCreateLab4ProfileTHR(context, &whitePoint);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
 
-    cmsIOHANDLER* io = CreateDummyIOHandler();
-    if (!io) {
-        return 0; // Failed to create IO handler
+    // Test cmsCreateLab4Profile
+    profile = cmsCreateLab4Profile(&whitePoint);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
 
-    // Fuzz _cmsWriteUInt16Array
-    cmsUInt32Number n = Size / sizeof(cmsUInt16Number);
-    _cmsWriteUInt16Array(io, n, (const cmsUInt16Number*)Data);
+    // Test cmsCreateLab2Profile
+    profile = cmsCreateLab2Profile(&whitePoint);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
 
-    // Fuzz cmsCloseIOhandler
-    cmsCloseIOhandler(io);
+    // Test cmsWhitePointFromTemp
+    cmsWhitePointFromTemp(&whitePoint, tempK);
 
-    // Fuzz _cmsReadUInt32Number
-    cmsUInt32Number readValue;
-    _cmsReadUInt32Number(io, &readValue);
+    // Test cmsTempFromWhitePoint
+    cmsTempFromWhitePoint(&calculatedTempK, &whitePoint);
 
-    // Fuzz _cmsWriteUInt32Number
-    _cmsWriteUInt32Number(io, readValue);
-
-    // Fuzz _cmsWriteAlignment
-    _cmsWriteAlignment(io);
-
-    // Fuzz _cmsReadUInt16Array
-    _cmsReadUInt16Array(io, n, (cmsUInt16Number*)Data);
-
-    // Clean up
-    free(io);
+    // Test cmsCreateLab2ProfileTHR
+    profile = cmsCreateLab2ProfileTHR(context, &whitePoint);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
 
     return 0;
 }

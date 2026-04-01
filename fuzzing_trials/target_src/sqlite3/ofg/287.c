@@ -1,63 +1,79 @@
 #include <stdint.h>
 #include <sqlite3.h>
+#include <stdlib.h>
 #include <string.h>
 
-// Helper function to create a new sqlite3_value and set its value
-static sqlite3_value* create_sqlite3_value(const uint8_t *data, size_t size) {
-    sqlite3_value *value;
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-
-    // Open a temporary SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return NULL;
-    }
-
-    // Prepare a dummy statement to create a value
-    rc = sqlite3_prepare_v2(db, "SELECT ?", -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return NULL;
-    }
-
-    // Bind the data to the statement
-    sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT);
-
-    // Get the value from the statement
-    value = sqlite3_column_value(stmt, 0);
-
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
-
-    return value;
+// Dummy implementations for sqlite3_module and the callback function
+static int xCreate(sqlite3 *db, void *pAux, int argc, const char *const *argv, sqlite3_vtab **ppVTab, char **pzErr) {
+    *ppVTab = NULL;
+    *pzErr = NULL;
+    return SQLITE_OK;
 }
 
-int LLVMFuzzerTestOneInput_287(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
-        const char *default_data = "default";
-        data = (const uint8_t *)default_data;
-        size = strlen(default_data);
-    }
+static int xConnect(sqlite3 *db, void *pAux, int argc, const char *const *argv, sqlite3_vtab **ppVTab, char **pzErr) {
+    *ppVTab = NULL;
+    *pzErr = NULL;
+    return SQLITE_OK;
+}
 
-    // Create a sqlite3_value object using the helper function
-    sqlite3_value *value = create_sqlite3_value(data, size);
-    if (!value) {
+static sqlite3_module dummy_module = {
+    0,          // iVersion
+    xCreate,    // xCreate
+    xConnect,   // xConnect
+    NULL,       // xBestIndex
+    NULL,       // xDisconnect
+    NULL,       // xDestroy_287
+    NULL,       // xOpen
+    NULL,       // xClose
+    NULL,       // xFilter
+    NULL,       // xNext
+    NULL,       // xEof
+    NULL,       // xColumn
+    NULL,       // xRowid
+    NULL,       // xUpdate
+    NULL,       // xBegin
+    NULL,       // xSync
+    NULL,       // xCommit
+    NULL,       // xRollback
+    NULL,       // xFindFunction
+    NULL,       // xRename
+    NULL,       // xSavepoint
+    NULL,       // xRelease
+    NULL,       // xRollbackTo
+    NULL,       // xShadowName
+};
+
+// Dummy callback function
+static void dummy_callback_287(void *p) {
+    (void)p;
+}
+
+extern int LLVMFuzzerTestOneInput_287(const uint8_t *data, size_t size) {
+    sqlite3 *db = NULL;
+    char *errMsg = NULL;
+    const char *module_name = "dummy_module";
+    void *client_data = NULL;
+
+    // Open an in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Call the function-under-test
-    const void *blob = sqlite3_value_blob(value);
-
-    // Use the returned blob in some way to avoid compiler optimizations removing the call
-    if (blob != NULL) {
-        volatile const void *use_blob = blob;
-        (void)use_blob; // Suppress unused variable warning
+    // Ensure data is a valid string for module name
+    char *name = (char *)malloc(size + 1);
+    if (name == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(name, data, size);
+    name[size] = '\0';
 
-    // No need to free value explicitly as it is managed by SQLite
+    // Call the function under test
+    sqlite3_create_module_v2(db, module_name, &dummy_module, client_data, dummy_callback_287);
+
+    // Clean up
+    free(name);
+    sqlite3_close(db);
+
     return 0;
 }

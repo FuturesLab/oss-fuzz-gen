@@ -1,12 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFRewriteDirectory at tif_dirwrite.c:483:5 in tiffio.h
-// TIFFWriteCustomDirectory at tif_dirwrite.c:303:5 in tiffio.h
-// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
-// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
+// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
+// TIFFFileName at tif_open.c:803:13 in tiffio.h
+// TIFFGetCloseProc at tif_open.c:932:15 in tiffio.h
+// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
+// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
+// TIFFFreeDirectory at tif_dir.c:1629:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -23,57 +22,60 @@
 #include <cstdlib>
 #include <cstring>
 
-static void createDummyFile(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static TIFF* createDummyTIFF(const char* filename) {
+    TIFF* tiff = TIFFOpen(filename, "w");
+    if (!tiff) {
+        fprintf(stderr, "Failed to open TIFF file for writing.\n");
+        return nullptr;
     }
+    return tiff;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_109(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < sizeof(uint64_t)) {
         return 0;
     }
 
-    // Create a dummy file with the provided data
-    createDummyFile(Data, Size);
+    // Write dummy data to a file to simulate a TIFF file
+    const char* dummyFilename = "./dummy_file";
+    FILE* file = fopen(dummyFilename, "wb");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
-    if (!tif) {
+    // Open the dummy TIFF file
+    TIFF* tiff = createDummyTIFF(dummyFilename);
+    if (!tiff) {
         return 0;
     }
 
-    // Prepare a buffer for scanline writing
-    void *buf = malloc(TIFFScanlineSize(tif));
-    if (!buf) {
-        TIFFClose(tif);
-        return 0;
+    // Call TIFFCreateEXIFDirectory
+    TIFFCreateEXIFDirectory(tiff);
+
+    // Call TIFFFileName
+    const char* filename = TIFFFileName(tiff);
+    if (filename) {
+        printf("TIFF file name: %s\n", filename);
     }
 
-    // Attempt to write scanline
-    TIFFWriteScanline(tif, buf, 0, 0);
+    // Call TIFFGetCloseProc
+    TIFFCloseProc closeProc = TIFFGetCloseProc(tiff);
+    if (closeProc) {
+        printf("TIFF close procedure is set.\n");
+    }
 
-    // Attempt to write the directory
-    TIFFWriteDirectory(tif);
+    // Call TIFFCreateGPSDirectory
+    TIFFCreateGPSDirectory(tiff);
 
-    // Attempt to rewrite the directory
-    TIFFRewriteDirectory(tif);
-
-    // Attempt to write a custom directory
-    uint64_t dir_offset = 0;
-    TIFFWriteCustomDirectory(tif, &dir_offset);
-
-    // Attempt to checkpoint the directory
-    TIFFCheckpointDirectory(tif);
-
-    // Attempt to defer strile array writing
-    TIFFDeferStrileArrayWriting(tif);
+    // Use the first 8 bytes of Data as the offset for TIFFReadEXIFDirectory
+    toff_t offset = *((const uint64_t*)Data);
+    TIFFReadEXIFDirectory(tiff, offset);
 
     // Clean up
-    free(buf);
-    TIFFClose(tif);
+    TIFFFreeDirectory(tiff);
+    TIFFClose(tiff);
 
     return 0;
 }

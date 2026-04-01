@@ -1,32 +1,17 @@
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
+#include <cstddef> // For size_t
+#include <cstdint> // For uint8_t
 
 extern "C" {
-    // Function-under-test declaration
-    void lou_logFile(const char *);
+    #include "/src/liblouis/liblouis/liblouis.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    // Ensure the input data is not empty
-    if (size == 0) {
-        return 0;
-    }
+    // Since lou_charSize does not take any parameters, we can directly call it.
+    int charSize = lou_charSize();
 
-    // Allocate memory for a null-terminated string
-    char *logFilePath = new char[size + 1];
-    
-    // Copy the input data into the allocated memory
-    std::memcpy(logFilePath, data, size);
-    
-    // Null-terminate the string
-    logFilePath[size] = '\0';
-
-    // Call the function-under-test
-    lou_logFile(logFilePath);
-
-    // Clean up allocated memory
-    delete[] logFilePath;
+    // Optionally, you can use the result in some way, for example, logging it.
+    // However, for fuzzing purposes, just calling the function is sufficient.
+    (void)charSize; // Suppress unused variable warning
 
     return 0;
 }

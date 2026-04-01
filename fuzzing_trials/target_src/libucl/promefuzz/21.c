@@ -1,12 +1,15 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_fromdouble at ucl_util.c:3104:1 in ucl.h
-// ucl_object_fromdouble at ucl_util.c:3104:1 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_array_append at ucl_util.c:3131:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_array_pop_last at ucl_util.c:3283:1 in ucl.h
-// ucl_object_todouble at ucl_util.c:3446:1 in ucl.h
+// ucl_object_replace_key at ucl_util.c:2545:6 in ucl.h
+// ucl_object_fromstring_common at ucl_util.c:2225:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
+// ucl_object_fromstring_common at ucl_util.c:2225:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
+// ucl_object_fromstring_common at ucl_util.c:2225:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
 #include <stdint.h>
@@ -18,50 +21,69 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <string.h>
+
+static ucl_object_t* create_ucl_object_from_data(const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
+        return NULL;
+    }
+    // Use a portion of data to determine the type
+    ucl_type_t type = (ucl_type_t)(Data[0] % (UCL_NULL + 1));
+    return ucl_object_typed_new(type);
+}
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double)) {
+    if (Size < 1) {
         return 0;
     }
 
-    double dv;
-    memcpy(&dv, Data, sizeof(double));
-
-    // Step 1: Create a UCL object from double
-    ucl_object_t *obj_from_double = ucl_object_fromdouble(dv);
-    if (obj_from_double == NULL) {
+    // Create a top level UCL object of type UCL_OBJECT
+    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
+    if (!top) {
         return 0;
     }
 
-    // Step 2: Create an array object
-    ucl_object_t *array_obj = ucl_object_fromdouble(0.0); // Initialize as a valid UCL array
-    if (array_obj == NULL) {
-        ucl_object_unref(obj_from_double);
-        return 0;
-    }
-    array_obj->type = UCL_ARRAY; // Explicitly set type to array
-
-    // Step 3: Append the double object to the array
-    bool append_result = ucl_array_append(array_obj, obj_from_double);
-    if (!append_result) {
-        ucl_object_unref(obj_from_double);
-        ucl_object_unref(array_obj);
+    // Create an element UCL object from input data
+    ucl_object_t *element = create_ucl_object_from_data(Data, Size);
+    if (!element) {
+        ucl_object_unref(top);
         return 0;
     }
 
-    // Step 4: Pop the last element from the array
-    ucl_object_t *popped_obj = ucl_array_pop_last(array_obj);
-    if (popped_obj != NULL) {
-        // Step 5: Convert the popped object back to double
-        double result = ucl_object_todouble(popped_obj);
-        (void)result; // Use the result to avoid unused variable warning
+    // Use part of the data as a key
+    const char *key = (const char *)Data;
+    size_t keylen = Size < 256 ? Size : 255; // Limit key length to 255
+    bool copy_key = true;
 
-        // Cleanup
-        ucl_object_unref(popped_obj);
+    // Replace key in the top object
+    bool replaced = ucl_object_replace_key(top, element, key, keylen, copy_key);
+
+    // Create another element from a string
+    ucl_object_t *str_obj = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE);
+    if (str_obj) {
+        ucl_object_insert_key(top, str_obj, "inserted_key_1", 14, true);
     }
 
-    // Cleanup remaining objects
-    ucl_object_unref(array_obj);
+    // Insert another element
+    ucl_object_t *str_obj2 = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE_BOOLEAN);
+    if (str_obj2) {
+        ucl_object_insert_key(top, str_obj2, "inserted_key_2", 14, true);
+    }
+
+    // Insert yet another element
+    ucl_object_t *str_obj3 = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE_INT);
+    if (str_obj3) {
+        ucl_object_insert_key(top, str_obj3, "inserted_key_3", 14, true);
+    }
+
+    // Create a final UCL object with a specific type
+    ucl_object_t *final_obj = ucl_object_typed_new(UCL_STRING);
+    if (final_obj) {
+        ucl_object_unref(final_obj);
+    }
+
+    // Clean up
+    ucl_object_unref(top);
 
     return 0;
 }

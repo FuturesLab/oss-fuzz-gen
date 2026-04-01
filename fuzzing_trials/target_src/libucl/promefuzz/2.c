@@ -1,62 +1,75 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_toint at ucl_util.c:3475:1 in ucl.h
-// ucl_object_lookup_path at ucl_util.c:2919:1 in ucl.h
-// ucl_object_toint at ucl_util.c:3475:1 in ucl.h
-// ucl_object_lookup_path at ucl_util.c:2919:1 in ucl.h
-// ucl_object_toint at ucl_util.c:3475:1 in ucl.h
-// ucl_object_lookup_path at ucl_util.c:2919:1 in ucl.h
-// ucl_object_lookup_path at ucl_util.c:2919:1 in ucl.h
-// ucl_object_iterate_new at ucl_util.c:2794:1 in ucl.h
-// ucl_object_iterate_safe at ucl_util.c:2839:1 in ucl.h
-// ucl_object_iterate_free at ucl_util.c:2903:6 in ucl.h
+// ucl_object_new at ucl_util.c:2980:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_lookup at ucl_util.c:2673:1 in ucl.h
+// ucl_object_lookup at ucl_util.c:2673:1 in ucl.h
+// ucl_object_lookup at ucl_util.c:2673:1 in ucl.h
+// ucl_object_validate at ucl_schema.c:1068:6 in ucl.h
+// ucl_object_toboolean at ucl_util.c:3499:6 in ucl.h
+// ucl_object_tostring at ucl_util.c:3527:1 in ucl.h
+// ucl_object_toboolean at ucl_util.c:3499:6 in ucl.h
+// ucl_object_emit at ucl_emitter.c:661:1 in ucl.h
+// ucl_object_emit at ucl_emitter.c:661:1 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ucl.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+
+static ucl_object_t* create_dummy_ucl_object() {
+    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
+    if (obj != NULL) {
+        obj->value.ov = ucl_object_new();
+        obj->key = "dummy_key";
+        obj->keylen = strlen(obj->key);
+        obj->type = UCL_OBJECT;
+        
+        ucl_object_t *child = ucl_object_fromstring("dummy_value");
+        ucl_object_insert_key(obj->value.ov, child, "dummy_key", strlen("dummy_key"), false);
+    }
+    return obj;
+}
+
+static void free_ucl_object(ucl_object_t *obj) {
+    if (obj != NULL) {
+        ucl_object_unref(obj->value.ov);
+        free(obj);
+    }
+}
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    ucl_object_t *root_obj = create_dummy_ucl_object();
+    if (root_obj == NULL) {
         return 0;
     }
 
-    // Create a dummy UCL object
-    ucl_object_t obj;
-    memset(&obj, 0, sizeof(ucl_object_t));
-    
-    // Initialize the object with some data
-    obj.value.iv = (int64_t)Data[0];
-    obj.type = UCL_INT;
+    const ucl_object_t *lookup_obj1 = ucl_object_lookup(root_obj->value.ov, "dummy_key");
+    const ucl_object_t *lookup_obj2 = ucl_object_lookup(root_obj->value.ov, "nonexistent_key");
+    const ucl_object_t *lookup_obj3 = ucl_object_lookup(root_obj->value.ov, NULL);
 
-    // Prepare a dummy path for lookup
-    char path[256];
-    snprintf(path, sizeof(path), "dummy.path[%d]", Data[0] % 10);
+    struct ucl_schema_error err;
+    bool is_valid = ucl_object_validate(root_obj->value.ov, lookup_obj1, &err);
 
-    // Invoke the target functions
-    int64_t int_value1 = ucl_object_toint(&obj);
-    const ucl_object_t *lookup_obj1 = ucl_object_lookup_path(&obj, path);
-    int64_t int_value2 = ucl_object_toint(lookup_obj1);
-    const ucl_object_t *lookup_obj2 = ucl_object_lookup_path(lookup_obj1, path);
-    int64_t int_value3 = ucl_object_toint(lookup_obj2);
-    const ucl_object_t *lookup_obj3 = ucl_object_lookup_path(lookup_obj2, path);
-    const ucl_object_t *lookup_obj4 = ucl_object_lookup_path(lookup_obj3, path);
+    bool bool_value1 = ucl_object_toboolean(lookup_obj1);
+    const char *string_value = ucl_object_tostring(lookup_obj1);
+    bool bool_value2 = ucl_object_toboolean(lookup_obj2);
 
-    // Create an iterator
-    ucl_object_iter_t iter = ucl_object_iterate_new(&obj);
-    if (iter != NULL) {
-        // Iterate over the object safely
-        const ucl_object_t *iter_obj;
-        while ((iter_obj = ucl_object_iterate_safe(iter, true)) != NULL) {
-            // Perform operations on iter_obj if needed
-        }
-        // Free the iterator to prevent memory leaks
-        ucl_object_iterate_free(iter);
+    unsigned char *json_output = ucl_object_emit(root_obj->value.ov, UCL_EMIT_JSON);
+    unsigned char *config_output = ucl_object_emit(root_obj->value.ov, UCL_EMIT_CONFIG);
+
+    if (json_output != NULL) {
+        free(json_output);
+    }
+    if (config_output != NULL) {
+        free(config_output);
     }
 
+    free_ucl_object(root_obj);
     return 0;
 }

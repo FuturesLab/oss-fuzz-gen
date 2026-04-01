@@ -1,38 +1,31 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_371(const uint8_t *data, size_t size) {
-    // Ensure there is enough data for a filename
-    if (size < 5) {
+    // Ensure there is enough data to fill two cmsCIELab structures
+    if (size < 2 * sizeof(cmsCIELab)) {
         return 0;
     }
 
-    // Create a temporary filename from the input data
-    char filename[256];
-    size_t filename_size = (size < 255) ? size : 255;
-    memcpy(filename, data, filename_size);
-    filename[filename_size] = '\0';
+    // Initialize two cmsCIELab structures using the input data
+    cmsCIELab lab1, lab2;
 
-    // Ensure the filename is valid by replacing any invalid characters
-    for (size_t i = 0; i < filename_size; i++) {
-        if (filename[i] == '\0' || filename[i] == '/' || filename[i] == '\\') {
-            filename[i] = '_';
-        }
+    // Copy data into the first cmsCIELab structure
+    for (size_t i = 0; i < sizeof(cmsCIELab); i++) {
+        ((uint8_t*)&lab1)[i] = data[i];
     }
 
-    // Create a dummy profile for testing
-    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
-        return 0;
+    // Copy data into the second cmsCIELab structure
+    for (size_t i = 0; i < sizeof(cmsCIELab); i++) {
+        ((uint8_t*)&lab2)[i] = data[i + sizeof(cmsCIELab)];
     }
 
     // Call the function-under-test
-    cmsBool result = cmsSaveProfileToFile(hProfile, filename);
+    cmsFloat64Number deltaE = cmsDeltaE(&lab1, &lab2);
 
-    // Clean up
-    cmsCloseProfile(hProfile);
+    // Use deltaE to prevent compiler optimizations
+    (void)deltaE;
 
     return 0;
 }

@@ -1,32 +1,33 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <zlib.h>
 
-// Fuzzing harness for the gzeof function
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the data to
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    // Declare and initialize variables
+    gzFile file;
+    char filename[] = "/tmp/fuzz_input.gz";
+
+    // Write the input data to a temporary file
+    FILE *temp = fopen(filename, "wb");
+    if (temp == NULL) {
         return 0;
     }
+    fwrite(data, 1, size, temp);
+    fclose(temp);
 
-    // Write the input data to the temporary file
-    fwrite(data, 1, size, tempFile);
-    rewind(tempFile);
-
-    // Open the temporary file as a gzFile
-    gzFile gzFilePtr = gzdopen(fileno(tempFile), "rb");
-    if (gzFilePtr == NULL) {
-        fclose(tempFile);
+    // Open the file with gzopen
+    file = gzopen(filename, "rb");
+    if (file == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    int result = gzeof(gzFilePtr);
+    int result = gzeof(file);
 
     // Clean up
-    gzclose(gzFilePtr);
-    fclose(tempFile);
+    gzclose(file);
+    remove(filename);
 
     return 0;
 }

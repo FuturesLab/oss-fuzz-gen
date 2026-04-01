@@ -1,8 +1,12 @@
+#include <tiffio.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h> // Include this for the 'close' function
+
 extern "C" {
+    // Wrap C headers and functions with extern "C" to ensure proper linkage
     #include <tiffio.h>
-    #include <unistd.h>  // For close, unlink, and write
-    #include <fcntl.h>   // For mkstemp
-    #include <stdlib.h>  // For mkstemp
 }
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
@@ -10,27 +14,36 @@ extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // If unable to create a temp file, return
+        return 0;
     }
 
     // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
+    FILE *file = fdopen(fd, "wb");
+    if (file == nullptr) {
         close(fd);
-        return 0; // If unable to write all data, return
+        return 0;
     }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Close the file descriptor as TIFFOpen will open it again
-    close(fd);
-
-    // Open the TIFF file using the temporary filename
-    TIFF* tiff = TIFFOpen(tmpl, "r");
-    if (tiff != NULL) {
+    // Open the TIFF file using the temporary file path
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff != nullptr) {
         // Call the function-under-test
-        TIFFCleanup(tiff);
+        TIFFReadWriteProc readProc = TIFFGetReadProc(tiff);
+
+        // Perform any additional operations if needed
+        if (readProc != nullptr) {
+            // Example: Call the readProc function (if applicable)
+            // readProc(...);
+        }
+
+        // Close the TIFF file
+        TIFFClose(tiff);
     }
 
-    // Remove the temporary file
-    unlink(tmpl);
+    // Clean up the temporary file
+    remove(tmpl);
 
     return 0;
 }

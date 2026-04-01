@@ -1,8 +1,8 @@
-#include <stdint.h>
+#include <cstdint>
 #include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_331(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract a uint16_t value
+    // Check if the size is sufficient to extract a uint16_t
     if (size < sizeof(uint16_t)) {
         return 0;
     }
@@ -13,8 +13,9 @@ extern "C" int LLVMFuzzerTestOneInput_331(const uint8_t *data, size_t size) {
     // Call the function-under-test
     int result = TIFFIsCODECConfigured(codec);
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    (void)result;
+    // Optionally, you can use the result to perform further checks or logging
+    // For this fuzzing harness, we simply return 0
+    (void)result; // Suppress unused variable warning
 
     return 0;
 }

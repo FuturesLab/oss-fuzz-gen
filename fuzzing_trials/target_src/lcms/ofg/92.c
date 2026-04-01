@@ -1,29 +1,32 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsBool result;
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
+    cmsStage *stage = cmsStageAllocIdentity(NULL, 3);
+    cmsStage *unlinkedStage = NULL;
 
-    // Ensure size is non-zero to create a valid profile from memory
-    if (size == 0) {
+    // Ensure pipeline and stage are not NULL
+    if (pipeline == NULL || stage == NULL) {
         return 0;
     }
 
-    // Create a profile from the input data
-    hProfile = cmsOpenProfileFromMem((void *)data, (cmsUInt32Number)size);
-    
-    // If the profile creation fails, exit
-    if (hProfile == NULL) {
-        return 0;
-    }
+    // Add the stage to the pipeline
+    cmsPipelineInsertStage(pipeline, cmsAT_BEGIN, stage);
+
+    // Define a stage location, assuming cmsAT_BEGIN for the purpose of fuzzing
+    cmsStageLoc stageLoc = cmsAT_BEGIN;
 
     // Call the function-under-test
-    result = cmsMD5computeID(hProfile);
+    cmsPipelineUnlinkStage(pipeline, stageLoc, &unlinkedStage);
 
-    // Close the profile to free resources
-    cmsCloseProfile(hProfile);
+    // Clean up
+    if (unlinkedStage != NULL) {
+        cmsStageFree(unlinkedStage);
+    }
+    cmsPipelineFree(pipeline);
 
     return 0;
 }

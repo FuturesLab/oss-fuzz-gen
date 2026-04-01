@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <unistd.h>
 #include <fcntl.h>
@@ -10,30 +11,31 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_139(const uint8_t *data, size_t size) {
-    TIFF *tiff = nullptr;
+    // Create a temporary file to store the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
+        unlink(tmpl);
         return 0;
     }
 
-    // Close the file descriptor so TIFF can open it
+    // Close the file descriptor
     close(fd);
 
-    // Open the temporary file with TIFF library
-    tiff = TIFFOpen(tmpl, "r+");
-    if (tiff) {
+    // Open the TIFF file
+    TIFF* tif = TIFFOpen(tmpl, "r");
+    if (tif) {
         // Call the function-under-test
-        TIFFWriteDirectory(tiff);
+        int result = TIFFIsByteSwapped(tif);
 
-        // Close the TIFF file
-        TIFFClose(tiff);
+        // Clean up
+        TIFFClose(tif);
     }
 
     // Remove the temporary file

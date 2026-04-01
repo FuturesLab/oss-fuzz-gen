@@ -1,37 +1,51 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <wchar.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_264(const uint8_t *data, size_t size) {
     // Initialize variables
-    cmsHANDLE dictHandle;
-    const wchar_t *key = L"exampleKey";
-    const wchar_t *value = L"exampleValue";
-    cmsMLU *displayName = cmsMLUalloc(NULL, 1);
-    cmsMLU *displayValue = cmsMLUalloc(NULL, 1);
-    cmsBool result;
+    cmsHTRANSFORM transform;
+    cmsHPROFILE inputProfile, outputProfile;
+    cmsUInt32Number inputFormat, outputFormat;
+    cmsUInt32Number sizeOfTransform = 1; // Set to a non-zero value
 
-    // Ensure displayName and displayValue are not NULL
-    if (displayName == NULL || displayValue == NULL) {
+    // Check if the input size is sufficient
+    if (size < sizeof(cmsUInt32Number) * 2) {
         return 0;
     }
 
-    // Create a dictionary handle
-    dictHandle = cmsDictAlloc(NULL);
-    if (dictHandle == NULL) {
-        cmsMLUfree(displayName);
-        cmsMLUfree(displayValue);
+    // Create input and output profiles
+    inputProfile = cmsCreate_sRGBProfile();
+    outputProfile = cmsCreate_sRGBProfile();
+
+    // Define input and output formats
+    inputFormat = TYPE_RGB_8;
+    outputFormat = TYPE_RGB_8;
+
+    // Create a transform
+    transform = cmsCreateTransform(inputProfile, inputFormat, 
+                                   outputProfile, outputFormat, 
+                                   INTENT_PERCEPTUAL, 0);
+
+    // Allocate memory for input and output buffers
+    const void *inputBuffer = (const void *)data;
+    void *outputBuffer = malloc(size);
+    if (outputBuffer == NULL) {
+        cmsDeleteTransform(transform);
+        cmsCloseProfile(inputProfile);
+        cmsCloseProfile(outputProfile);
         return 0;
     }
 
-    // Add an entry to the dictionary using the function-under-test
-    result = cmsDictAddEntry(dictHandle, key, value, displayName, displayValue);
+    // Call the function-under-test
+    cmsDoTransform(transform, inputBuffer, outputBuffer, sizeOfTransform);
 
-    // Cleanup
-    cmsDictFree(dictHandle);
-    cmsMLUfree(displayName);
-    cmsMLUfree(displayValue);
+    // Clean up
+    free(outputBuffer);
+    cmsDeleteTransform(transform);
+    cmsCloseProfile(inputProfile);
+    cmsCloseProfile(outputProfile);
 
     return 0;
 }

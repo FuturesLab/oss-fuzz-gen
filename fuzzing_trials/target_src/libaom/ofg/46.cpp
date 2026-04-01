@@ -1,27 +1,42 @@
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <aom/aom_image.h>
 #include <aom/aom_codec.h>
 
-extern "C" {
-    #include <aom/aom_codec.h>
-}
-
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec_context;
+    // Initialize an aom_image_t structure
+    aom_image_t img;
+    memset(&img, 0, sizeof(aom_image_t));
 
-    // Initialize codec context with some valid values
-    codec_context.name = "test_codec";
-    codec_context.priv = (aom_codec_priv_t *)data; // Using data as a placeholder
-    codec_context.iface = nullptr; // Assuming iface is not necessary for destruction
-    codec_context.err = AOM_CODEC_OK;
-    codec_context.err_detail = nullptr;
-    codec_context.init_flags = 0;
-    codec_context.config.enc = nullptr;
-    codec_context.config.dec = nullptr;
+    // Set some non-NULL values for the aom_image_t structure
+    img.fmt = AOM_IMG_FMT_I420;
+    img.w = 640;
+    img.h = 480;
+    img.d_w = 640;
+    img.d_h = 480;
+    img.stride[0] = 640;
+    img.stride[1] = 320;
+    img.stride[2] = 320;
+    img.planes[0] = (uint8_t *)malloc(640 * 480);
+    img.planes[1] = (uint8_t *)malloc(320 * 240);
+    img.planes[2] = (uint8_t *)malloc(320 * 240);
 
-    // Call the function under test
-    aom_codec_err_t result = aom_codec_destroy(&codec_context);
+    // Ensure the data is not NULL and size is valid for metadata retrieval
+    if (data != nullptr && size > 0) {
+        // Call the function-under-test
+        const aom_metadata_t *metadata = aom_img_get_metadata(&img, size);
 
-    // Return 0 to indicate the fuzzer should continue
+        // Process the metadata if needed (for fuzzing purposes, we just check if it's not NULL)
+        if (metadata != nullptr) {
+            // Example processing (not doing anything specific here)
+        }
+    }
+
+    // Free allocated memory
+    free(img.planes[0]);
+    free(img.planes[1]);
+    free(img.planes[2]);
+
     return 0;
 }

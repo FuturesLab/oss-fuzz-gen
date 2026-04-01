@@ -1,19 +1,24 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <pcap.h>
 
-// Fuzzing harness for the function-under-test
 int LLVMFuzzerTestOneInput_108(const uint8_t *data, size_t size) {
-    // Declare and initialize a pcap_t object
-    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and max snaplen
+    // Ensure that the input size is sufficient for an integer
+    if (size < sizeof(int)) {
+        return 0;
+    }
 
-    // Ensure pcap_handle is not NULL before calling the function
-    if (pcap_handle != NULL) {
-        // Call the function-under-test
-        pcap_breakloop(pcap_handle);
+    // Extract an integer from the input data
+    int status_code = *(const int *)data;
 
-        // Close the pcap handle
-        pcap_close(pcap_handle);
+    // Call the function-under-test
+    const char *result = pcap_statustostr(status_code);
+
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (result != NULL) {
+        // Do something trivial with the result
+        volatile char first_char = result[0];
+        (void)first_char;
     }
 
     return 0;

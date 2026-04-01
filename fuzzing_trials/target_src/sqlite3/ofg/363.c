@@ -1,27 +1,53 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_363(const uint8_t *data, size_t size) {
-    // Declare and initialize a sqlite3_mutex object
-    sqlite3_mutex *mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_FAST);
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
 
-    // Ensure the mutex is not NULL
-    if (mutex == NULL) {
-        return 0;
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0; // Early exit if database cannot be opened
     }
 
-    // Lock the mutex to ensure it is held
-    sqlite3_mutex_enter(mutex);
+    // Create a dummy table
+    rc = sqlite3_exec(db, "CREATE TABLE test (data TEXT);", 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0; // Early exit if table cannot be created
+    }
 
-    // Call the function-under-test
-    int result = sqlite3_mutex_held(mutex);
+    // Prepare an SQL statement
+    sqlite3_stmt *stmt;
+    rc = sqlite3_prepare_v2(db, "INSERT INTO test (data) VALUES (?);", -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0; // Early exit if statement cannot be prepared
+    }
 
-    // Unlock the mutex
-    sqlite3_mutex_leave(mutex);
+    // Bind the input data to the SQL statement
+    rc = sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0; // Early exit if data cannot be bound
+    }
 
-    // Free the mutex
-    sqlite3_mutex_free(mutex);
+    // Execute the SQL statement
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0; // Early exit if statement execution fails
+    }
+
+    // Cleanup
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

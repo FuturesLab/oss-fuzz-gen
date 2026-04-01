@@ -1,37 +1,24 @@
+#include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <sqlite3.h>
 #include <string.h>
 #include <stdlib.h> // Include for malloc and free
 
-// Mock function to create a sqlite3_stmt for testing purposes
-sqlite3_stmt* create_mock_stmt() {
-    sqlite3_stmt *stmt = NULL;
-    sqlite3 *db = NULL;
-    const char *sql = "SELECT * FROM test WHERE id = ?1 AND name = ?2";
-
-    // Open a connection to an in-memory database
-    if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
-        // Prepare the SQL statement
-        sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    }
-
-    // Normally we would close the database connection, but for this mock,
-    // we leave it open to keep the statement valid.
-    return stmt;
-}
-
 int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    sqlite3_stmt *stmt = create_mock_stmt();
-    char *param_name = NULL;
+    // Initialize SQLite
+    sqlite3 *db;
+    sqlite3_open(":memory:", &db);
 
-    if (stmt == NULL || size == 0) {
-        return 0;
-    }
+    // Create a dummy statement
+    const char *sql = "SELECT * FROM test WHERE column = ?";
+    sqlite3_stmt *stmt;
+    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 
-    // Allocate memory for the parameter name and ensure it is null-terminated
-    param_name = (char *)malloc(size + 1);
+    // Ensure data is null-terminated for use as a string
+    char *param_name = (char *)malloc(size + 1);
     if (param_name == NULL) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
         return 0;
     }
     memcpy(param_name, data, size);
@@ -43,6 +30,7 @@ int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
     // Clean up
     free(param_name);
     sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

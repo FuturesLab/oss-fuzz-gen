@@ -1,15 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetErrorHandlerExt at tif_error.c:39:21 in tiffio.h
-// TIFFSetWarningHandlerExt at tif_warning.c:39:21 in tiffio.h
-// TIFFIsBigTIFF at tif_open.c:912:5 in tiffio.h
-// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
+// TIFFSetClientInfo at tif_extension.c:78:6 in tiffio.h
+// TIFFClientdata at tif_open.c:833:11 in tiffio.h
+// TIFFSetFileName at tif_open.c:808:13 in tiffio.h
+// TIFFFileName at tif_open.c:803:13 in tiffio.h
+// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
+// TIFFGetClientInfo at tif_extension.c:64:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFSetErrorHandlerExt at tif_error.c:39:21 in tiffio.h
-// TIFFSetWarningHandlerExt at tif_warning.c:39:21 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -21,49 +18,36 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
+#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_82(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's at least one byte to process
+    if (Size < 1) return 0;
 
-    // Create a dummy file with the input data
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Create a dummy TIFF structure
+    TIFF* tiff = TIFFOpen("./dummy_file", "w");
+    if (!tiff) return 0;
 
-    // Open the dummy file using TIFFOpen
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) return 0;
+    // Prepare dummy client data
+    char dummyClientData[] = "dummy_client_data";
+    TIFFSetClientInfo(tiff, dummyClientData, "client_data_name");
 
-    // Set custom error and warning handlers
-    TIFFErrorHandlerExt oldErrorHandler = TIFFSetErrorHandlerExt(nullptr);
-    TIFFErrorHandlerExt oldWarningHandler = TIFFSetWarningHandlerExt(nullptr);
+    // Test TIFFClientdata
+    thandle_t clientData = TIFFClientdata(tiff);
 
-    // Check if the file is BigTIFF
-    int isBigTIFF = TIFFIsBigTIFF(tif);
+    // Test TIFFSetFileName and TIFFFileName
+    const char* newFileName = "new_dummy_file";
+    const char* prevFileName = TIFFSetFileName(tiff, newFileName);
+    const char* currentFileName = TIFFFileName(tiff);
 
-    // Prepare a buffer for reading scanlines
-    tmsize_t scanlineSize = TIFFScanlineSize(tif);
-    void *buf = _TIFFmalloc(scanlineSize);
+    // Test TIFFFieldWithName
+    const char* fieldName = "dummy_field";
+    const TIFFField* field = TIFFFieldWithName(tiff, fieldName);
 
-    // Attempt to read the first scanline
-    if (buf) {
-        TIFFReadScanline(tif, buf, 0, 0);
-        _TIFFfree(buf);
-    }
+    // Test TIFFGetClientInfo
+    void* clientInfo = TIFFGetClientInfo(tiff, "client_data_name");
 
-    // Check if the file is ready for writing
-    TIFFWriteCheck(tif, 1, "dummy_file");
-
-    // Clean up and close the TIFF file
-    TIFFClose(tif);
-
-    // Restore previous error and warning handlers
-    TIFFSetErrorHandlerExt(oldErrorHandler);
-    TIFFSetWarningHandlerExt(oldWarningHandler);
-
+    // Cleanup
+    TIFFClose(tiff);
     return 0;
 }

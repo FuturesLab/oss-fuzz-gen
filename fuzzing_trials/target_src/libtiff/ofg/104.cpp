@@ -1,53 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <cstdint>
+#include <cstddef>
 #include <tiffio.h>
-#include <stdlib.h> // Include for mkstemp
-
-extern "C" {
-    #include <tiffio.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
+    if (size < sizeof(uint64_t)) {
+        return 0; // Not enough data to form even one uint64_t
     }
 
-    // Create a temporary file to hold the TIFF data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Calculate the number of uint64_t elements we can create from the input data
+    tmsize_t num_elements = size / sizeof(uint64_t);
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
-    }
+    // Allocate memory for the uint64_t array
+    uint64_t* longArray = new uint64_t[num_elements];
 
-    // Close the file descriptor
-    close(fd);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == NULL) {
-        return 0;
+    // Copy the input data into the uint64_t array
+    for (tmsize_t i = 0; i < num_elements; ++i) {
+        longArray[i] = *(reinterpret_cast<const uint64_t*>(data + i * sizeof(uint64_t)));
     }
 
     // Call the function-under-test
-    TIFFUnmapFileProc unmapFileProc = TIFFGetUnmapFileProc(tiff);
-
-    // Perform any additional operations with unmapFileProc if needed
-    // For this fuzzing harness, we just call the function
+    TIFFSwabArrayOfLong8(longArray, num_elements);
 
     // Clean up
-    TIFFClose(tiff);
-    remove(tmpl);
+    delete[] longArray;
 
     return 0;
 }

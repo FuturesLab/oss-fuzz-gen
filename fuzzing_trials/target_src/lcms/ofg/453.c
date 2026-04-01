@@ -1,28 +1,29 @@
 #include <stdint.h>
-#include <string.h> // Include for memcpy
+#include <stdlib.h>
 #include <lcms2.h>
 
+// Fuzzing harness for cmsIsMatrixShaper
 int LLVMFuzzerTestOneInput_453(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to extract the required parameters
-    if (size < sizeof(cmsColorSpaceSignature) + sizeof(cmsFloat64Number)) {
+    cmsHPROFILE hProfile;
+
+    // Ensure we have enough data to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
         return 0;
     }
 
-    // Extract cmsColorSpaceSignature from the input data
-    cmsColorSpaceSignature colorSpaceSignature;
-    memcpy(&colorSpaceSignature, data, sizeof(cmsColorSpaceSignature));
+    // Create a profile from the input data
+    hProfile = cmsOpenProfileFromMem((void*)data, size);
 
-    // Extract cmsFloat64Number from the input data
-    cmsFloat64Number inkLimit;
-    memcpy(&inkLimit, data + sizeof(cmsColorSpaceSignature), sizeof(cmsFloat64Number));
-
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateInkLimitingDeviceLink(colorSpaceSignature, inkLimit);
-
-    // Clean up if a valid profile was created
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
+    // If the profile creation failed, return early
+    if (hProfile == NULL) {
+        return 0;
     }
+
+    // Call the function under test
+    cmsBool result = cmsIsMatrixShaper(hProfile);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

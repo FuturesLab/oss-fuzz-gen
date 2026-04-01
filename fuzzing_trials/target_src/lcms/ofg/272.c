@@ -2,24 +2,23 @@
 #include <stddef.h>
 #include <lcms2.h>
 
-// Define a custom log error handler function
-void customLogErrorHandler(cmsContext context, cmsUInt32Number errorCode, const char *text) {
-    // Custom error handling logic (e.g., logging to a file or console)
-    (void)context; // Suppress unused variable warning
-    (void)errorCode; // Suppress unused variable warning
-    (void)text; // Suppress unused variable warning
-}
-
 int LLVMFuzzerTestOneInput_272(const uint8_t *data, size_t size) {
+    // Ensure there's enough data to create a valid context and profile
     if (size < sizeof(cmsContext)) {
-        return 0; // Not enough data to form a valid cmsContext
+        return 0;
     }
 
-    cmsContext context = (cmsContext)(uintptr_t)data; // Cast data to cmsContext
-    cmsLogErrorHandlerFunction logErrorHandler = customLogErrorHandler;
+    // Use a portion of the data to create a context
+    cmsContext context = (cmsContext)(uintptr_t)data; // Cast data to cmsContext type
 
     // Call the function-under-test
-    cmsSetLogErrorHandlerTHR(context, logErrorHandler);
+    cmsHPROFILE profile = cmsCreateNULLProfileTHR(context);
+
+    // Check if the profile is not NULL and perform any additional operations if needed
+    if (profile != NULL) {
+        // For example, we can close the profile to clean up
+        cmsCloseProfile(profile);
+    }
 
     return 0;
 }

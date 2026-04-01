@@ -3,32 +3,38 @@
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (movie == NULL) {
+    // Alternative approach: Write data to a temporary file and open it
+    char temp_filename[] = "/tmp/fuzz_temp_file.XXXXXX";
+    int fd = mkstemp(temp_filename);
+    if (fd == -1) {
         return 0;
     }
 
-    GF_ISOTrackID TrackID = 1; // Example track ID
-    GF_ISOSample sample;
-    u32 DescIndex = 1;
-    u32 Duration = 1000; // Example duration
-    u8 PaddingBits = 0;
-    u16 DegradationPriority = 0;
-    Bool redundant_coding = GF_FALSE;
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(temp_filename);
+        return 0;
+    }
+    close(fd);
 
-    // Initialize the sample with some data
-    sample.data = (uint8_t *)data; // Corrected pointer type conversion
-    sample.dataLength = size;
-    sample.DTS = 0; // Corrected member name
-    sample.CTS_Offset = 0;
-    sample.IsRAP = 1;
+    // Open the ISO file from the temporary file
+    GF_ISOFile *file = gf_isom_open(temp_filename, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        unlink(temp_filename);
+        return 0;
+    }
 
-    // Call the function under test
-    gf_isom_fragment_add_sample(movie, TrackID, &sample, DescIndex, Duration, PaddingBits, DegradationPriority, redundant_coding);
+    // Initialize parameters
+    Bool root_meta = GF_TRUE; // or GF_FALSE, try both
+    u32 track_num = 1; // Assuming at least one track, adjust as needed
+
+    // Call the function-under-test
+    gf_isom_remove_meta_xml(file, root_meta, track_num);
 
     // Clean up
-    gf_isom_close(movie);
+    gf_isom_close(file);
+    unlink(temp_filename);
 
     return 0;
 }

@@ -1,50 +1,27 @@
 #include <cstdint>
-#include <cstdio>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-extern "C" {
-    #include <tiffio.h>
-    #include <unistd.h>
-    #include <stdlib.h> // Include for mkstemp
-}
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    if (size < 1) {
+    // Ensure that the size is sufficient to extract the necessary parameters
+    if (size < sizeof(uint32_t) + sizeof(uint16_t)) {
         return 0;
     }
 
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != ssize_t(size)) {
-        close(fd);
-        return 0;
-    }
-
-    // Close the file descriptor
-    close(fd);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
+    // Initialize TIFF structure
+    TIFF *tiff = TIFFOpen("/tmp/fuzzfileXXXXXX", "w");
     if (tiff == nullptr) {
-        unlink(tmpl);
         return 0;
     }
+
+    // Extract parameters from the input data
+    uint32_t row = *(reinterpret_cast<const uint32_t*>(data));
+    uint16_t sample = *(reinterpret_cast<const uint16_t*>(data + sizeof(uint32_t)));
 
     // Call the function-under-test
-    uint32_t currentRow = TIFFCurrentRow(tiff);
+    uint32_t strip = TIFFComputeStrip(tiff, row, sample);
 
     // Clean up
     TIFFClose(tiff);
-    unlink(tmpl);
 
     return 0;
 }

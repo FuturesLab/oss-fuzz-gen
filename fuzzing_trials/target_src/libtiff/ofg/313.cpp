@@ -1,22 +1,19 @@
-#include <cstddef>
 #include <cstdint>
-#include <cstring> // Include this header for memcpy
+#include <cstddef>
+#include <cstring> // Include for memcpy
 #include <tiffio.h>
 
 extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
-    #include <tiffio.h>
+    #include <tiffio.h> // Ensure TIFF functions are wrapped in extern "C"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_313(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to represent a float
     if (size < sizeof(float)) {
-        return 0;
+        return 0; // Not enough data to form a float
     }
 
-    // Initialize a float variable from the input data
+    // Copy data into a float variable
     float value;
-    // Copy the data into the float variable, ensuring no overflow
     memcpy(&value, data, sizeof(float));
 
     // Call the function-under-test

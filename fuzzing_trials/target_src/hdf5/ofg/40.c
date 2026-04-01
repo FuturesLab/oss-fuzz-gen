@@ -1,41 +1,27 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
-// Define a simple iterator function
-herr_t iterate_callback(hid_t group, const char *name, const H5L_info_t *info, void *op_data) {
-    // Simple operation, just return success
-    return 0;
-}
-
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for a meaningful test
-    if (size < 1) {
+    // Ensure the data size is sufficient to extract necessary inputs
+    if (size < 3) {
         return 0;
     }
 
-    // Initialize HDF5 library
-    H5open();
+    // Initialize parameters for H5Freopen_async
+    const char *filename = "testfile.h5";
+    const char *options = "r";
+    unsigned int flags = (unsigned int)data[0];  // Use first byte of data
+    hid_t file_id = (hid_t)data[1];              // Use second byte of data
+    hid_t async_id = (hid_t)data[2];             // Use third byte of data
 
-    // Create a new file using default properties.
-    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Call the function-under-test with correct parameters
+    hid_t result = H5Freopen_async(file_id, async_id);
 
-    // Create a group in the file.
-    hid_t group_id = H5Gcreate2(file_id, "/TestGroup", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Prepare the parameters for H5Literate
-    hsize_t idx = 0;
-    void *op_data = NULL; // No operation data needed for this simple example
-
-    // Call the function-under-test
-    H5Literate(group_id, H5_INDEX_NAME, H5_ITER_INC, &idx, iterate_callback, op_data);
-
-    // Close the group and file
-    H5Gclose(group_id);
-    H5Fclose(file_id);
-
-    // Close HDF5 library
-    H5close();
+    // Handle the result as needed (e.g., check for errors)
+    if (result < 0) {
+        // Error handling if necessary
+    }
 
     return 0;
 }

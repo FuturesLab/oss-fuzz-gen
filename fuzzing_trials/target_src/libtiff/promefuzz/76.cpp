@@ -1,14 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpenOptionsAlloc at tif_open.c:80:18 in tiffio.h
-// TIFFOpenOptionsSetMaxCumulatedMemAlloc at tif_open.c:106:6 in tiffio.h
-// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFClientdata at tif_open.c:833:11 in tiffio.h
+// TIFFSetClientInfo at tif_extension.c:78:6 in tiffio.h
+// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
+// TIFFGetClientInfo at tif_extension.c:64:7 in tiffio.h
+// TIFFSetClientdata at tif_open.c:838:11 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFFdOpenExt at tif_unix.c:214:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpenExt at tif_unix.c:237:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,58 +15,41 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <tiffio.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_76(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Prepare a dummy file for testing
-    const char *filename = "./dummy_file";
-    FILE *file = fopen(filename, "wb");
+    // Create a dummy TIFF file for testing
+    FILE *file = fopen("./dummy_file", "wb");
     if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the file descriptor
-    int fd = open(filename, O_RDONLY);
-    if (fd < 0) return 0;
+    // Open the dummy TIFF file using libtiff
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    if (!tif) return 0;
 
-    // Allocate TIFFOpenOptions
-    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
-    if (!opts) {
-        close(fd);
-        return 0;
-    }
+    // Test TIFFClientdata
+    thandle_t clientData = TIFFClientdata(tif);
 
-    // Set a random memory allocation limit
-    tmsize_t maxMemAlloc = static_cast<tmsize_t>(Data[0]);
-    TIFFOpenOptionsSetMaxCumulatedMemAlloc(opts, maxMemAlloc);
+    // Test TIFFSetClientInfo
+    TIFFSetClientInfo(tif, static_cast<void*>(clientData), "test_client_info");
 
-    // Try opening the TIFF file with various functions
-    TIFF *tiff = nullptr;
-    
-    // Using TIFFFdOpen
-    tiff = TIFFFdOpen(fd, filename, "r");
-    if (tiff) TIFFClose(tiff);
+    // Test TIFFFieldWithName
+    const TIFFField *field = TIFFFieldWithName(tif, "test_field_name");
 
-    // Using TIFFFdOpenExt
-    tiff = TIFFFdOpenExt(fd, filename, "r", opts);
-    if (tiff) TIFFClose(tiff);
+    // Test TIFFGetClientInfo
+    void *clientInfo = TIFFGetClientInfo(tif, "test_client_info");
 
-    // Using TIFFOpenExt
-    tiff = TIFFOpenExt(filename, "r", opts);
-    if (tiff) TIFFClose(tiff);
+    // Test TIFFSetClientdata
+    thandle_t oldClientData = TIFFSetClientdata(tif, clientData);
 
-    // Clean up
-    TIFFClose(tiff);
-    TIFFOpenOptionsFree(opts);
-    close(fd);
-    unlink(filename);
+    // Clean up resources
+    TIFFClose(tif);  // TIFFClose already calls TIFFCleanup internally
 
     return 0;
 }

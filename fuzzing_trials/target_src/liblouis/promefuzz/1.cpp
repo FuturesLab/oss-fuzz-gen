@@ -1,8 +1,8 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_registerLogCallback at logging.c:86:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
-// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
-// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
+// lou_setLogLevel at logging.c:143:1 in liblouis.h
+// lou_indexTables at metadata.c:945:1 in liblouis.h
+// lou_findTable at metadata.c:1063:1 in liblouis.h
+// lou_findTables at metadata.c:1110:1 in liblouis.h
 // lou_free at compileTranslationTable.c:5363:1 in liblouis.h
 #include <iostream>
 #include <sstream>
@@ -13,45 +13,50 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <liblouis.h>
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include "liblouis.h"
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    if (Size < 2) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    // Register a simple log callback
-    lou_registerLogCallback(nullptr);
+    // Set log level using the first byte of data
+    logLevels level = static_cast<logLevels>(Data[0]);
+    lou_setLogLevel(level);
 
-    // Ensure null-termination for the table list string
-    std::vector<char> tableListVec(Data, Data + Size);
-    tableListVec.push_back('\0');
-    const char *tableList = tableListVec.data();
+    // Prepare dummy table names
+    const char *tables[] = {"table1", "table2", nullptr};
+    lou_indexTables(tables);
 
-    // Check the table
-    lou_checkTable(tableList);
+    // Extract a query string from the input data
+    size_t querySize = Size - 1;
+    char *query = static_cast<char *>(malloc(querySize + 1));
+    if (!query) {
+        return 0;
+    }
+    memcpy(query, Data + 1, querySize);
+    query[querySize] = '\0';
 
-    // Free resources
-    lou_free();
+    // Find a single table
+    char *foundTable = lou_findTable(query);
+    if (foundTable) {
+        free(foundTable);
+    }
 
-    // Calculate the number of widechar elements we can safely copy
-    size_t numWideChars = Size / sizeof(widechar);
+    // Find multiple tables
+    char **foundTables = lou_findTables(query);
+    if (foundTables) {
+        for (char **table = foundTables; *table; ++table) {
+            free(*table);
+        }
+        free(foundTables);
+    }
 
-    // Prepare input buffer
-    std::vector<widechar> inbuf(numWideChars);
-    int inlen = numWideChars;
-    std::memcpy(inbuf.data(), Data, inlen * sizeof(widechar));
-
-    // Prepare output buffer
-    std::vector<widechar> outbuf(numWideChars);
-    int outlen = numWideChars;
-
-    // Translate string
-    lou_translateString(tableList, inbuf.data(), &inlen, outbuf.data(), &outlen, nullptr, nullptr, 0);
-
-    // Free resources
+    // Clean up
+    free(query);
     lou_free();
 
     return 0;

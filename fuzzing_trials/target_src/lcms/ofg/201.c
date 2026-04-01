@@ -3,32 +3,22 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_201(const uint8_t *data, size_t size) {
-    cmsPipeline *pipeline;
-    cmsStage *stage;
-    cmsContext context = cmsCreateContext(NULL, NULL);
-
-    // Create a pipeline with at least one stage to ensure it's not NULL
-    pipeline = cmsPipelineAlloc(context, 3, 3);
-    if (pipeline == NULL) {
-        cmsDeleteContext(context);
+    if (size < sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Add an identity stage to the pipeline
-    cmsStage *identityStage = cmsStageAllocIdentity(context, 3);
-    if (identityStage == NULL) {
-        cmsPipelineFree(pipeline);
-        cmsDeleteContext(context);
+    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Create a default tone curve
+    if (toneCurve == NULL) {
         return 0;
     }
-    cmsPipelineInsertStage(pipeline, cmsAT_END, identityStage);
+
+    cmsFloat32Number input = *((cmsFloat32Number *)data); // Use the first bytes as input value
 
     // Call the function-under-test
-    stage = cmsPipelineGetPtrToLastStage(pipeline);
+    cmsFloat32Number result = cmsEvalToneCurveFloat(toneCurve, input);
 
     // Clean up
-    cmsPipelineFree(pipeline);
-    cmsDeleteContext(context);
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }

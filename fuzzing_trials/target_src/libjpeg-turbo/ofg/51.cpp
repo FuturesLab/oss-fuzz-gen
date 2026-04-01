@@ -1,43 +1,41 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    // Alternatively, you can use one of the other paths if applicable:
-    // #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    // #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tjInitDecompress();
-    if (handle == NULL) {
-        return 0; // Exit if initialization fails
-    }
-
-    // Define parameters for tjDecompressToYUV2
-    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
-    unsigned long jpegSize = static_cast<unsigned long>(size);
-
-    // Arbitrary width and height for the output image
-    int width = 128;
-    int height = 128;
-
-    // YUV buffer size calculation
-    int yuvSize = tjBufSizeYUV2(width, 4, height, TJ_420);
-    unsigned char *yuvBuf = static_cast<unsigned char *>(malloc(yuvSize));
-
-    // Ensure yuvBuf is not NULL
-    if (yuvBuf == NULL) {
-        tjDestroy(handle);
+    if (size < 1) {
         return 0;
     }
 
+    // Initialize variables
+    tjhandle handle = tjInitTransform();
+    if (!handle) {
+        return 0;
+    }
+
+    // Prepare the destination buffer and its size
+    unsigned char *dstBuf = nullptr;
+    size_t dstSize = 0;
+
+    // Set transformation options
+    tjtransform transform;
+    memset(&transform, 0, sizeof(tjtransform));
+    transform.op = TJXOP_NONE; // No transformation
+    transform.options = 0;     // No options
+
     // Call the function-under-test
-    int result = tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, TJ_420);
+    int result = tj3Transform(handle, data, size, 1, &dstBuf, &dstSize, &transform);
 
     // Clean up
-    free(yuvBuf);
+    if (dstBuf) {
+        tjFree(dstBuf);
+    }
     tjDestroy(handle);
 
     return 0;

@@ -1,29 +1,19 @@
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>  // Include for memcpy
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <cstdio>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_288(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read a uint32_t
-    if (size < sizeof(uint32_t)) {
-        return 0;
-    }
-
-    // Initialize a TIFF structure
-    TIFF *tiff = TIFFOpen("/dev/null", "w");
+    // Initialize TIFF structure
+    TIFF *tiff = TIFFOpen("/tmp/fuzzfileXXXXXX", "w");
     if (tiff == nullptr) {
         return 0;
     }
 
-    // Extract a uint32_t value from the input data
-    uint32_t value;
-    memcpy(&value, data, sizeof(uint32_t));
+    // Ensure the size is non-zero to provide a valid parameter
+    uint32_t stripSize = size > 0 ? static_cast<uint32_t>(data[0]) : 1;
 
     // Call the function-under-test
-    uint32_t stripSize = TIFFDefaultStripSize(tiff, value);
+    uint32_t result = TIFFDefaultStripSize(tiff, stripSize);
 
     // Clean up
     TIFFClose(tiff);

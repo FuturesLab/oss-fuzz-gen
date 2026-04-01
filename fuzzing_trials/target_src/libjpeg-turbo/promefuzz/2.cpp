@@ -1,18 +1,21 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
-// tj3TransformBufSize at turbojpeg.c:2831:18 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
+// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
+// tj3SetScalingFactor at turbojpeg.c:1981:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3SetCroppingRegion at turbojpeg.c:2006:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3SetCroppingRegion at turbojpeg.c:2006:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Transform at turbojpeg.c:2870:15 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3Decompress16 at turbojpeg-mp.c:148:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Transform at turbojpeg.c:2870:15 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3Free at turbojpeg.c:890:16 in turbojpeg.h
 // tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
 #include <iostream>
@@ -25,70 +28,71 @@
 #include <cstdint>
 #include <cstddef>
 #include <turbojpeg.h>
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <cstdio>
+#include <iostream>
+
+static tjscalingfactor getRandomScalingFactor() {
+    tjscalingfactor factor;
+    factor.num = rand() % 8 + 1;  // Random factor between 1/8 and 8/8
+    factor.denom = 8;
+    return factor;
+}
+
+static tjregion getRandomCroppingRegion() {
+    tjregion region;
+    region.x = rand() % 100;  // Random x starting point
+    region.y = rand() % 100;  // Random y starting point
+    region.w = rand() % 100;  // Random width
+    region.h = rand() % 100;  // Random height
+    return region;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 2) return 0;
 
-    tjhandle handle = tj3Init(TJINIT_TRANSFORM);
+    tjhandle handle = tjInitDecompress();
     if (!handle) return 0;
 
-    // Prepare transformation parameters
-    tjtransform transform = {};
-    transform.op = Data[0] % 8; // Random operation from 0 to 7
-
-    // Estimate buffer size
-    size_t bufSize = tj3TransformBufSize(handle, &transform);
-    if (bufSize == 0) {
-        tj3Destroy(handle);
-        return 0;
+    tjscalingfactor scalingFactor = getRandomScalingFactor();
+    if (tj3SetScalingFactor(handle, scalingFactor) == -1) {
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
     }
 
-    // Allocate buffer
-    unsigned char *dstBuf = static_cast<unsigned char*>(tj3Alloc(bufSize));
+    tjregion croppingRegion1 = getRandomCroppingRegion();
+    if (tj3SetCroppingRegion(handle, croppingRegion1) == -1) {
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    }
+
+    tjregion croppingRegion2 = getRandomCroppingRegion();
+    if (tj3SetCroppingRegion(handle, croppingRegion2) == -1) {
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    }
+
+    size_t allocSize = 1024;  // Arbitrary size for allocation
+    void *buffer = tj3Alloc(allocSize);
+    if (!buffer) {
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    }
+
+    std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+
+    unsigned short *dstBuf = static_cast<unsigned short*>(tj3Alloc(allocSize));
     if (!dstBuf) {
-        tj3Destroy(handle);
-        return 0;
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    } else {
+        if (tj3Decompress16(handle, Data, Size, dstBuf, 0, TJPF_RGB) == -1) {
+            std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+        }
     }
 
-    // Prepare destination sizes array
-    size_t dstSizes[1] = { bufSize };
+    std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
 
-    // Perform transformation
-    unsigned char *dstBufs[1] = { dstBuf };
-    int result = tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, &transform);
-    if (result == -1) {
-        tj3Free(dstBuf);
-        tj3Destroy(handle);
-        return 0;
-    }
-
-    // Get error string
-    char *errorStr = tj3GetErrorStr(handle);
-
-    // Free the destination buffer
+    tj3Free(buffer);
     tj3Free(dstBuf);
 
-    // Set a parameter
-    result = tj3Set(handle, TJPARAM_NOREALLOC, 1);
-    if (result == -1) {
-        tj3Destroy(handle);
-        return 0;
-    }
-
-    // Perform transformation again
-    result = tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, &transform);
-    if (result == -1) {
-        errorStr = tj3GetErrorStr(handle);
-    }
-
-    // Free the destination buffer again
-    tj3Free(dstBuf);
-
-    // Destroy the TurboJPEG instance
     tj3Destroy(handle);
 
     return 0;

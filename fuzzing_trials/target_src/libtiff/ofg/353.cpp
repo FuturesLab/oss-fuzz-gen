@@ -1,66 +1,56 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstdio>
-#include <unistd.h> // For close()
+#include <unistd.h>
+#include <fcntl.h>
+#include <tiffio.h>
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_353(const uint8_t *data, size_t size) {
-    // Remove the check for sizeof(TIFF) as it's an incomplete type
-    // and we cannot determine its size. Instead, ensure there's enough
-    // data to attempt processing.
-    if (size == 0) {
-        return 0; // No data to process
-    }
+    TIFF *tiff;
+    uint32_t tile;
+    void *buf;
+    tmsize_t buflen;
+    tmsize_t result;
 
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    // Create a temporary TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
     int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Failed to create a temporary file
+    if (fd < 0) {
+        return 0;
     }
 
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
-        return 0; // Failed to open the file descriptor as a file
+        return 0;
     }
-
-    // Write the input data to the temporary file
-    fwrite(data, 1, size, file);
-    fclose(file);
+    close(fd);
 
     // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
-        return 0; // Failed to open the TIFF file
+    tiff = TIFFOpen(tmpl, "r");
+    if (tiff == NULL) {
+        return 0;
     }
 
-    // Prepare buffer for reading tile
-    tmsize_t tileSize = TIFFTileSize(tiff);
-    if (tileSize <= 0) {
+    // Initialize parameters for TIFFReadEncodedTile
+    tile = 0;  // Start with the first tile
+    buflen = TIFFTileSize(tiff);
+    buf = malloc(buflen);
+    if (buf == NULL) {
         TIFFClose(tiff);
-        remove(tmpl);
-        return 0; // Invalid tile size
+        return 0;
     }
 
-    void *buffer = _TIFFmalloc(tileSize);
-    if (!buffer) {
-        TIFFClose(tiff);
-        remove(tmpl);
-        return 0; // Failed to allocate buffer
-    }
-
-    // Attempt to read the first tile (tile index 0)
-    TIFFReadEncodedTile(tiff, 0, buffer, tileSize);
+    // Call the function-under-test
+    result = TIFFReadEncodedTile(tiff, tile, buf, buflen);
 
     // Clean up
-    _TIFFfree(buffer);
+    free(buf);
     TIFFClose(tiff);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }

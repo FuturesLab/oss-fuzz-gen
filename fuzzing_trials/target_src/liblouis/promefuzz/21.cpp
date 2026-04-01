@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_setDataPath at compileTranslationTable.c:59:1 in liblouis.h
-// lou_getDataPath at compileTranslationTable.c:70:1 in liblouis.h
-// lou_version at compileTranslationTable.c:5419:1 in liblouis.h
-// lou_getTable at compileTranslationTable.c:5118:1 in liblouis.h
-// lou_listTables at metadata.c:1172:1 in liblouis.h
-// lou_freeTableFiles at compileTranslationTable.c:4933:1 in liblouis.h
+// lou_translatePrehyphenated at lou_translateString.c:1410:1 in liblouis.h
+// lou_hyphenate at lou_translateString.c:4066:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
+// lou_backTranslate at lou_backTranslateString.c:159:1 in liblouis.h
+// lou_translate at lou_translateString.c:1135:1 in liblouis.h
+// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,60 +14,162 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <liblouis.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
-#include "liblouis.h"
+
+static void fuzz_lou_backTranslate(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int) * 5 + 1) return;
+
+    const char *tableList = reinterpret_cast<const char *>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen == Size) return; // Ensure null-termination
+
+    widechar *inbuf = new widechar[Size];
+    std::memcpy(inbuf, Data, Size);
+
+    int inlen = Size / sizeof(widechar);
+    int outlen = inlen * 2;
+    widechar *outbuf = new widechar[outlen];
+    formtype *typeform = nullptr;
+    char *spacing = nullptr;
+    int *outputPos = new int[inlen];
+    int *inputPos = new int[outlen];
+    int cursorPos = 0;
+    int mode = *reinterpret_cast<const int *>(Data + Size - sizeof(int));
+
+    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
+
+    delete[] inbuf;
+    delete[] outbuf;
+    delete[] outputPos;
+    delete[] inputPos;
+}
+
+static void fuzz_lou_translate(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int) * 5 + 1) return;
+
+    const char *tableList = reinterpret_cast<const char *>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen == Size) return; // Ensure null-termination
+
+    widechar *inbuf = new widechar[Size];
+    std::memcpy(inbuf, Data, Size);
+
+    int inlen = Size / sizeof(widechar);
+    int outlen = inlen * 2;
+    widechar *outbuf = new widechar[outlen];
+    formtype *typeform = nullptr;
+    char *spacing = nullptr;
+    int *outputPos = new int[inlen];
+    int *inputPos = new int[outlen];
+    int cursorPos = 0;
+    int mode = *reinterpret_cast<const int *>(Data + Size - sizeof(int));
+
+    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
+
+    delete[] inbuf;
+    delete[] outbuf;
+    delete[] outputPos;
+    delete[] inputPos;
+}
+
+static void fuzz_lou_translateString(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int) * 3 + 1) return;
+
+    const char *tableList = reinterpret_cast<const char *>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen == Size) return; // Ensure null-termination
+
+    widechar *inbuf = new widechar[Size];
+    std::memcpy(inbuf, Data, Size);
+
+    int inlen = Size / sizeof(widechar);
+    int outlen = inlen * 2;
+    widechar *outbuf = new widechar[outlen];
+    formtype *typeform = nullptr;
+    char *spacing = nullptr;
+    int mode = *reinterpret_cast<const int *>(Data + Size - sizeof(int));
+
+    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
+
+    delete[] inbuf;
+    delete[] outbuf;
+}
+
+static void fuzz_lou_translatePrehyphenated(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int) * 5 + 1) return;
+
+    const char *tableList = reinterpret_cast<const char *>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen == Size) return; // Ensure null-termination
+
+    widechar *inbuf = new widechar[Size];
+    std::memcpy(inbuf, Data, Size);
+
+    int inlen = Size / sizeof(widechar);
+    int outlen = inlen * 2;
+    widechar *outbuf = new widechar[outlen];
+    formtype *typeform = nullptr;
+    char *spacing = nullptr;
+    int *outputPos = new int[inlen];
+    int *inputPos = new int[outlen];
+    int cursorPos = 0;
+    char *inputHyphens = new char[inlen];
+    char *outputHyphens = new char[outlen];
+    int mode = *reinterpret_cast<const int *>(Data + Size - sizeof(int));
+
+    lou_translatePrehyphenated(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, inputHyphens, outputHyphens, mode);
+
+    delete[] inbuf;
+    delete[] outbuf;
+    delete[] outputPos;
+    delete[] inputPos;
+    delete[] inputHyphens;
+    delete[] outputHyphens;
+}
+
+static void fuzz_lou_hyphenate(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int) + 1) return;
+
+    const char *tableList = reinterpret_cast<const char *>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen == Size) return; // Ensure null-termination
+
+    widechar *inbuf = new widechar[Size];
+    std::memcpy(inbuf, Data, Size);
+
+    int inlen = Size / sizeof(widechar);
+    char *hyphens = new char[inlen];
+    int mode = *reinterpret_cast<const int *>(Data + Size - sizeof(int));
+
+    lou_hyphenate(tableList, inbuf, inlen, hyphens, mode);
+
+    delete[] inbuf;
+    delete[] hyphens;
+}
+
+static void fuzz_lou_checkTable(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    // Ensure null-termination for tableList
+    char *tableList = new char[Size + 1];
+    std::memcpy(tableList, Data, Size);
+    tableList[Size] = '\0';
+
+    lou_checkTable(tableList);
+
+    delete[] tableList;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    // Prepare a buffer to ensure null-terminated strings for functions requiring them
-    char buffer[1024];
-    if (Size < sizeof(buffer)) {
-        memcpy(buffer, Data, Size);
-        buffer[Size] = '\0'; // Null-terminate explicitly
-    } else {
-        memcpy(buffer, Data, sizeof(buffer) - 1);
-        buffer[sizeof(buffer) - 1] = '\0'; // Null-terminate explicitly
-    }
-
-    // Fuzz lou_setDataPath
-    char *setDataPathResult = lou_setDataPath(buffer);
-    if (setDataPathResult) {
-        // Normally handle the returned path if needed
-    }
-
-    // Fuzz lou_getDataPath
-    char *dataPath = lou_getDataPath();
-    if (dataPath) {
-        // Normally handle the retrieved path if needed
-    }
-
-    // Fuzz lou_version
-    const char *version = lou_version();
-    if (version) {
-        // Normally handle the version string if needed
-    }
-
-    // Fuzz lou_getTable
-    const void *table = lou_getTable(buffer);
-    if (table) {
-        // Normally handle the retrieved table if needed
-    }
-
-    // Fuzz lou_listTables
-    char **tableList = lou_listTables();
-    if (tableList) {
-        // Free the table list using lou_freeTableFiles
-        lou_freeTableFiles(tableList);
-    }
-
-    // Write Data to a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
-    }
-
+    fuzz_lou_backTranslate(Data, Size);
+    fuzz_lou_translate(Data, Size);
+    fuzz_lou_translateString(Data, Size);
+    fuzz_lou_translatePrehyphenated(Data, Size);
+    fuzz_lou_hyphenate(Data, Size);
+    fuzz_lou_checkTable(Data, Size);
     return 0;
 }

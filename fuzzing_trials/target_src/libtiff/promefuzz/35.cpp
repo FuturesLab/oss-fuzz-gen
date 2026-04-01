@@ -1,10 +1,13 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFSwabDouble at tif_swab.c:201:6 in tiffio.h
-// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabArrayOfShort at tif_swab.c:81:6 in tiffio.h
-// TIFFSwabArrayOfLong8 at tif_swab.c:138:6 in tiffio.h
-// TIFFSwabArrayOfTriples at tif_swab.c:99:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFReadRawTile at tif_read.c:1186:10 in tiffio.h
+// TIFFWriteEncodedTile at tif_write.c:414:10 in tiffio.h
+// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
+// TIFFWriteRawStrip at tif_write.c:328:10 in tiffio.h
+// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
+// TIFFReadRawStrip at tif_read.c:727:10 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,87 +17,66 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include <tiffio.h>
+}
+
 #include <cstdint>
-#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <tiffio.h>
 
-static void fuzzTIFFSwabDouble(const uint8_t *Data, size_t Size) {
-    if (Size >= sizeof(double)) {
-        double value;
-        memcpy(&value, Data, sizeof(double));
-        TIFFSwabDouble(&value);
-    }
-}
-
-static void fuzzTIFFSwabArrayOfDouble(const uint8_t *Data, size_t Size) {
-    if (Size >= sizeof(double)) {
-        tmsize_t n = Size / sizeof(double);
-        double *array = reinterpret_cast<double*>(malloc(n * sizeof(double)));
-        if (array) {
-            memcpy(array, Data, n * sizeof(double));
-            TIFFSwabArrayOfDouble(array, n);
-            free(array);
-        }
-    }
-}
-
-static void fuzzTIFFSwabArrayOfFloat(const uint8_t *Data, size_t Size) {
-    if (Size >= sizeof(float)) {
-        tmsize_t n = Size / sizeof(float);
-        float *array = reinterpret_cast<float*>(malloc(n * sizeof(float)));
-        if (array) {
-            memcpy(array, Data, n * sizeof(float));
-            TIFFSwabArrayOfFloat(array, n);
-            free(array);
-        }
-    }
-}
-
-static void fuzzTIFFSwabArrayOfShort(const uint8_t *Data, size_t Size) {
-    if (Size >= sizeof(uint16_t)) {
-        tmsize_t n = Size / sizeof(uint16_t);
-        uint16_t *array = reinterpret_cast<uint16_t*>(malloc(n * sizeof(uint16_t)));
-        if (array) {
-            memcpy(array, Data, n * sizeof(uint16_t));
-            TIFFSwabArrayOfShort(array, n);
-            free(array);
-        }
-    }
-}
-
-static void fuzzTIFFSwabArrayOfLong8(const uint8_t *Data, size_t Size) {
-    if (Size >= sizeof(uint64_t)) {
-        tmsize_t n = Size / sizeof(uint64_t);
-        uint64_t *array = reinterpret_cast<uint64_t*>(malloc(n * sizeof(uint64_t)));
-        if (array) {
-            memcpy(array, Data, n * sizeof(uint64_t));
-            TIFFSwabArrayOfLong8(array, n);
-            free(array);
-        }
-    }
-}
-
-static void fuzzTIFFSwabArrayOfTriples(const uint8_t *Data, size_t Size) {
-    if (Size >= 3) {
-        tmsize_t n = Size / 3;
-        uint8_t *array = reinterpret_cast<uint8_t*>(malloc(n * 3));
-        if (array) {
-            memcpy(array, Data, n * 3);
-            TIFFSwabArrayOfTriples(array, n);
-            free(array);
-        }
+static void writeToFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    fuzzTIFFSwabDouble(Data, Size);
-    fuzzTIFFSwabArrayOfDouble(Data, Size);
-    fuzzTIFFSwabArrayOfFloat(Data, Size);
-    fuzzTIFFSwabArrayOfShort(Data, Size);
-    fuzzTIFFSwabArrayOfLong8(Data, Size);
-    fuzzTIFFSwabArrayOfTriples(Data, Size);
+    if (Size < 1) return 0;
+
+    // Write input data to a dummy file
+    writeToFile(Data, Size);
+
+    // Open the dummy file using TIFF
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    if (!tif) {
+        return 0;
+    }
+
+    // Prepare buffers and variables
+    uint32_t tileIndex = 0;
+    uint32_t stripIndex = 0;
+    tmsize_t bufSize = 1024; // Arbitrary buffer size for demonstration
+    void *buffer = malloc(bufSize);
+    if (!buffer) {
+        TIFFClose(tif);
+        return 0;
+    }
+
+    // Fuzz TIFFReadRawTile
+    TIFFReadRawTile(tif, tileIndex, buffer, bufSize);
+
+    // Fuzz TIFFWriteEncodedTile
+    TIFFWriteEncodedTile(tif, tileIndex, buffer, bufSize);
+
+    // Fuzz TIFFWriteEncodedStrip
+    TIFFWriteEncodedStrip(tif, stripIndex, buffer, bufSize);
+
+    // Fuzz TIFFWriteRawStrip
+    TIFFWriteRawStrip(tif, stripIndex, buffer, bufSize);
+
+    // Fuzz TIFFReadEncodedStrip
+    TIFFReadEncodedStrip(tif, stripIndex, buffer, bufSize);
+
+    // Fuzz TIFFReadRawStrip
+    TIFFReadRawStrip(tif, stripIndex, buffer, bufSize);
+
+    // Clean up
+    free(buffer);
+    TIFFClose(tif);
+
     return 0;
 }

@@ -3,7 +3,7 @@
 #include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
@@ -13,72 +13,60 @@ extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
         return 0; // Not enough data to proceed
     }
 
-    // Initialize variables
+    // Initialize TurboJPEG compressor
     tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
-        return 0; // Initialization failed
+        return 0; // Failed to initialize compressor
     }
 
-    // Extract parameters from the input data
-    int width = (data[0] << 8) + data[1];
-    int height = (data[2] << 8) + data[3];
-    int subsamp = data[4] % 4; // Limit subsampling to valid values [0, 3]
-    int flags = data[5] % 2;   // Limit flags to valid values [0, 1]
+    // Extract dimensions and pixel format from the input data
+    int width = data[0] + 1;  // Ensure width is at least 1
+    int height = data[1] + 1; // Ensure height is at least 1
+    int pixelFormat = data[2] % TJ_NUMPF; // Choose a valid pixel format
 
-    // Ensure width and height are positive
-    width = width > 0 ? width : 1;
-    height = height > 0 ? height : 1;
+    // Set JPEG quality and subsampling
+    int jpegQuality = data[3] % 101; // Quality between 0 and 100
+    int subsample = data[4] % TJ_NUMSAMP; // Choose a valid subsampling option
 
-    // Calculate the YUV buffer size
-    int yuvSize = tjBufSizeYUV2(width, 4, height, subsamp);
-    if (yuvSize <= 0 || yuvSize > static_cast<int>(size - 6)) {
-        tjDestroy(handle);
-        return 0; // Invalid YUV buffer size
+    // Calculate the minimum buffer size needed for the input image
+    int bytesPerPixel = tjPixelSize[pixelFormat];
+    size_t minBufferSize = width * height * bytesPerPixel;
+
+    // Ensure we have enough data for the image buffer
+    if (size < 5 + minBufferSize) {
+
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjDestroy with tjGetErrorCode
+        tjGetErrorCode(handle);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+        return 0;
     }
 
-    // Create a YUV buffer and copy data into it
-    const unsigned char *yuvBuffer = data + 6;
-
-    // Allocate output buffer
+    // Allocate memory for the compressed image
     unsigned char *jpegBuf = nullptr;
     unsigned long jpegSize = 0;
 
-    // Call the function under test
-    int result = tjCompressFromYUV(handle, yuvBuffer, width, 4, height, subsamp, &jpegBuf, &jpegSize, 80, flags);
+    // Call the function-under-test
+    int result = tjCompress2(
+        handle, 
+        data + 5, // Offset data to allow room for width, height, etc.
+        width, 
+        0, // pitch (0 means use width * bytesPerPixel)
+        height, 
+        pixelFormat, 
+        &jpegBuf, 
+        &jpegSize, 
+        subsample, 
+        jpegQuality, 
+        TJFLAG_FASTDCT // Use fast DCT for compression
+    );
 
     // Clean up
     if (jpegBuf != nullptr) {
         tjFree(jpegBuf);
     }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjCompressFromYUV to tjEncodeYUV
-    tjhandle ret_tj3Init_fctyo = tj3Init(TJFLAG_BOTTOMUP);
-    int podavttr = 64;
-    tjscalingfactor* ret_tjGetScalingFactors_crrdb = tjGetScalingFactors(&podavttr);
-    if (ret_tjGetScalingFactors_crrdb == NULL){
-    	return 0;
-    }
-    int ret_tj3GetErrorCode_wfjhd = tj3GetErrorCode(0);
-    if (ret_tj3GetErrorCode_wfjhd < 0){
-    	return 0;
-    }
-    int ret_tjGetErrorCode_fhwlg = tjGetErrorCode(handle);
-    if (ret_tjGetErrorCode_fhwlg < 0){
-    	return 0;
-    }
-    tjscalingfactor* ret_tj3GetScalingFactors_jqhfh = tj3GetScalingFactors(&result);
-    if (ret_tj3GetScalingFactors_jqhfh == NULL){
-    	return 0;
-    }
-
-    int ret_tjEncodeYUV_mguay = tjEncodeYUV(ret_tj3Init_fctyo, jpegBuf, podavttr, TJXOPT_OPTIMIZE, ret_tj3GetErrorCode_wfjhd, TJXOPT_COPYNONE, (unsigned char *)data, ret_tjGetErrorCode_fhwlg, result);
-    if (ret_tjEncodeYUV_mguay < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     tjDestroy(handle);
 
-    return result;
+    return 0;
 }

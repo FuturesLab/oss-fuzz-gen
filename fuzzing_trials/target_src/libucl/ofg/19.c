@@ -1,37 +1,30 @@
 #include "ucl.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a ucl_parser object
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
-
-    // Add the input data to the parser
-    ucl_parser_add_chunk(parser, data, size);
-
-    // Get the root object from the parser
-    const ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root != NULL) {
-        // Call the function under test
-        char *key = ucl_copy_key_trash(root);
-        
-        // Free the copied key if it was allocated
-        if (key != NULL) {
-            free(key);
-        }
-    }
-
-    // Free the parser
-    ucl_parser_free(parser);
-
+  // Ensure the size is sufficient to divide into two parts
+  if (size < 2) {
     return 0;
+  }
+
+  // Create two ucl_object_t objects
+  ucl_object_t *array = ucl_object_new();
+  ucl_object_t *element = ucl_object_new();
+
+  // Initialize the array and element with some data
+  ucl_object_insert_key(array, ucl_object_fromstring("value1"), "key1", 4, false);
+  ucl_object_insert_key(element, ucl_object_fromstring("value2"), "key2", 4, false);
+
+  // Call the function-under-test
+  ucl_object_t *result = ucl_array_delete(array, element);
+
+  // Clean up
+  ucl_object_unref(array);
+  ucl_object_unref(element);
+  if (result != NULL) {
+    ucl_object_unref(result);
+  }
+
+  return 0;
 }

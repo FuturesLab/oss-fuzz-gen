@@ -1,19 +1,16 @@
-#include <stdbool.h>
-#include <stddef.h>
+#include "ucl.h"
 #include <stdint.h>
-#include <ucl.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+    // Initialize the ucl_parser structure
+    struct ucl_parser *parser = ucl_parser_new(0);
 
-    // Define non-NULL values for the parameters
-    unsigned int priority = 1; // Example priority value
-    enum ucl_duplicate_strategy duplicate_strategy = UCL_DUPLICATE_APPEND;
-    enum ucl_parse_type parse_type = UCL_PARSE_UCL;
+    // Add the input data to the parser
+    ucl_parser_add_string(parser, (const char *)data, size);
 
     // Call the function-under-test
-    bool result = ucl_parser_add_chunk_full(parser, data, size, priority, duplicate_strategy, parse_type);
+    int error_code = ucl_parser_get_error_code(parser);
 
     // Clean up
     ucl_parser_free(parser);

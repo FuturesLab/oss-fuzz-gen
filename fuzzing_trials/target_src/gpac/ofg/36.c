@@ -1,49 +1,39 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>   // For close() and unlink()
-#include <fcntl.h>    // For open() and O_* constants
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <stddef.h>
 #include <gpac/isomedia.h>
+#include <string.h> // Include for memcpy
 
 int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    GF_ISOFile *the_file = NULL;
-    u32 trackNumber = 1;
-    u32 index = 0;
-    char *scheme = NULL;
-    char *value = NULL;
+    GF_ISOFile *movie;
+    GF_ISOOpenMode mode;
 
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the input data is null-terminated and non-empty
+    if (size == 0) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
+    // Create a null-terminated copy of the data
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (!null_terminated_data) {
+        return 0; // Handle memory allocation failure
     }
-    close(fd);
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Open the temporary file as an ISO file
-    the_file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (!the_file) {
-        unlink(tmpl);
-        return 0;
+    // Initialize movie and mode with non-NULL values
+    movie = gf_isom_open(null_terminated_data, GF_ISOM_OPEN_READ, NULL);
+    mode = GF_ISOM_OPEN_READ;
+
+    if (movie != NULL) {
+        // Call the function-under-test
+        gf_isom_can_access_movie(movie, mode);
+
+        // Close the movie after testing
+        gf_isom_close(movie);
     }
 
-    // Call the function-under-test
-    gf_isom_get_track_kind(the_file, trackNumber, index, &scheme, &value);
-
-    // Clean up
-    gf_isom_close(the_file);
-    if (scheme) free(scheme);
-    if (value) free(value);
-
-    // Remove the temporary file
-    unlink(tmpl);
+    // Free the allocated memory
+    free(null_terminated_data);
 
     return 0;
 }

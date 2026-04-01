@@ -3,21 +3,25 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    const cmsCIEXYZ *d50_xyz = cmsD50_XYZ();
+    cmsHPROFILE hProfile;
+    cmsUInt32Number model;
 
-    // Use the returned cmsCIEXYZ structure in some way to ensure it is accessed
-    if (d50_xyz != NULL) {
-        // Access the X, Y, and Z components
-        volatile double x = d50_xyz->X;
-        volatile double y = d50_xyz->Y;
-        volatile double z = d50_xyz->Z;
-
-        // Use the values to prevent compiler optimizations from removing the code
-        (void)x;
-        (void)y;
-        (void)z;
+    // Ensure the input data is non-zero to create a valid profile
+    if (size < sizeof(cmsHPROFILE)) {
+        return 0;
     }
+
+    // Create a profile from the input data
+    hProfile = cmsOpenProfileFromMem((const void*)data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    model = cmsGetHeaderModel(hProfile);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

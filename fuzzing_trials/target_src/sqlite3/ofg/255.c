@@ -1,55 +1,69 @@
 #include <stdint.h>
+#include <stddef.h>  // Include for size_t
+#include <stdlib.h>  // Include for NULL
 #include <sqlite3.h>
-#include <stdlib.h>
-#include <string.h>
+#include <string.h>  // Include for memcpy
 
 int LLVMFuzzerTestOneInput_255(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    char *errMsg = NULL;
+    sqlite3_mutex *mutex;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
+    const char *sql;
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Initialize the SQLite library
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
 
-    // Create a dummy table for testing
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
+    // Allocate a mutex
+    mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_FAST);
+    if (mutex == NULL) {
         return 0;
     }
 
-    // Prepare the input as an SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    free(sql);
-
-    if (rc == SQLITE_OK && stmt != NULL) {
-        // Call the function-under-test
-        char *expanded_sql = sqlite3_expanded_sql(stmt);
-
-        // Free the expanded SQL string if it was allocated
-        if (expanded_sql != NULL) {
-            sqlite3_free(expanded_sql);
+    // Simulate using the input data to influence the function-under-test
+    if (size > 0) {
+        // Create an in-memory database
+        rc = sqlite3_open(":memory:", &db);
+        if (rc) {
+            sqlite3_mutex_free(mutex);
+            sqlite3_shutdown();
+            return 0;
         }
 
-        // Finalize the prepared statement
-        sqlite3_finalize(stmt);
+        // Dummy SQL statement that uses input data
+        sql = "CREATE TABLE IF NOT EXISTS fuzz_table(data BLOB);";
+        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(errMsg);
+            sqlite3_close(db);
+            sqlite3_mutex_free(mutex);
+            sqlite3_shutdown();
+            return 0;
+        }
+
+        // Insert the input data into the table
+        sqlite3_mutex_enter(mutex);
+        sqlite3_stmt *stmt;
+        sql = "INSERT INTO fuzz_table (data) VALUES (?);";
+        rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+        if (rc == SQLITE_OK) {
+            sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
+        }
+        sqlite3_mutex_leave(mutex);
+
+        // Clean up
+        sqlite3_close(db);
     }
 
-    // Close the SQLite database
-    sqlite3_close(db);
+    // Call the function-under-test
+    sqlite3_mutex_free(mutex);
+
+    // Deinitialize the SQLite library
+    sqlite3_shutdown();
 
     return 0;
 }

@@ -1,55 +1,47 @@
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <cstdlib>
 
 extern "C" {
-    // Include the actual header for the function-under-test
-    #include "/src/liblouis/liblouis/liblouis.h"
+    #include "/src/liblouis/liblouis/liblouis.h"  // Correct path to the header file
 }
 
-// Function signature to fuzz
-extern "C" char * lou_getTableInfo(const char *, const char *);
-
-// Fuzzing harness
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient to create two non-null strings
+    // Ensure we have enough data to create two non-null strings
     if (size < 2) {
         return 0;
     }
 
-    // Calculate lengths for the two strings
-    size_t len1 = size / 2;
-    size_t len2 = size - len1;
+    // Split the input data into two parts for the two string parameters
+    size_t mid = size / 2;
 
-    // Allocate memory for the two strings, ensuring they are null-terminated
-    char *tableName = (char *)malloc(len1 + 1);
-    char *infoType = (char *)malloc(len2 + 1);
+    // Create null-terminated strings for the function parameters
+    char *param1 = static_cast<char*>(malloc(mid + 1));
+    char *param2 = static_cast<char*>(malloc(size - mid + 1));
 
-    if (tableName == NULL || infoType == NULL) {
-        free(tableName);
-        free(infoType);
+    if (param1 == NULL || param2 == NULL) {
+        free(param1);
+        free(param2);
         return 0;
     }
 
-    // Copy data into the strings and null-terminate them
-    memcpy(tableName, data, len1);
-    tableName[len1] = '\0';
+    memcpy(param1, data, mid);
+    param1[mid] = '\0';
 
-    memcpy(infoType, data + len1, len2);
-    infoType[len2] = '\0';
+    memcpy(param2, data + mid, size - mid);
+    param2[size - mid] = '\0';
 
     // Call the function-under-test
-    char *result = lou_getTableInfo(tableName, infoType);
+    char *result = lou_getTableInfo(param1, param2);
 
     // Free the allocated memory
-    free(tableName);
-    free(infoType);
+    free(param1);
+    free(param2);
 
-    // If the function returns a dynamically allocated string, free it
-    if (result != NULL) {
-        free(result);
-    }
+    // Assuming lou_getTableInfo returns a dynamically allocated string
+    // that needs to be freed. If not, remove this free.
+    free(result);
 
     return 0;
 }

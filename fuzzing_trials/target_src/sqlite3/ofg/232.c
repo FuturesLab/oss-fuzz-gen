@@ -1,33 +1,27 @@
-#include <stddef.h>  // Include for size_t
 #include <stdint.h>
+#include <stddef.h>  // Include this header to define size_t
 #include <sqlite3.h>
+
+// Dummy callback function to be used as the update hook
+void update_hook_callback_232(void *pArg, int op, char const *zDb, char const *zTbl, sqlite3_int64 rowid) {
+    // This is a placeholder function. It does nothing in this context.
+}
 
 int LLVMFuzzerTestOneInput_232(const uint8_t *data, size_t size) {
     sqlite3 *db;
     int rc;
-    int configOption;
-    void *pArg;
+    void *pArg = (void *)data;  // Use the input data as a dummy argument
 
-    // Initialize SQLite database in memory
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure size is sufficient to extract configOption and pArg
-    if (size < sizeof(int) + sizeof(void *)) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Set the update hook with a dummy callback
+    sqlite3_update_hook(db, update_hook_callback_232, pArg);
 
-    // Extract configOption and pArg from data
-    configOption = *(int *)data;
-    pArg = (void *)(data + sizeof(int));
-
-    // Call the function-under-test
-    sqlite3_vtab_config(db, configOption, pArg);
-
-    // Close the SQLite database
+    // Close the database
     sqlite3_close(db);
 
     return 0;

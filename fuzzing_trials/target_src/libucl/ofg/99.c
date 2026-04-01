@@ -1,30 +1,21 @@
-#include <stdbool.h>
-#include <stddef.h>
+#include "ucl.h"
 #include <stdint.h>
-#include <ucl.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser;
-    const unsigned char *chunk;
-    unsigned int priority;
-
-    // Initialize parser
-    parser = ucl_parser_new(0);
-    if (parser == NULL) {
+    // Ensure that size is large enough to create a ucl_object_iter_t
+    if (size < sizeof(ucl_object_iter_t)) {
         return 0;
     }
 
-    // Use the provided data as the chunk
-    chunk = data;
-
-    // Set a non-zero priority
-    priority = 1;
+    // Initialize a ucl_object_iter_t from the input data
+    ucl_object_iter_t *iter = (ucl_object_iter_t *)data;
 
     // Call the function under test
-    bool result = ucl_parser_add_chunk_priority(parser, chunk, size, priority);
+    bool result = ucl_object_iter_chk_excpn(iter);
 
-    // Clean up
-    ucl_parser_free(parser);
+    // The result is not used further, as we are primarily interested in testing for crashes or undefined behavior
+    (void)result;
 
     return 0;
 }

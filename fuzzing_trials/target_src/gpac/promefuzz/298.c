@@ -1,65 +1,67 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_iamf_config_get at avc_ext.c:2668:14 in isomedia.h
+// gf_isom_get_last_created_track_id at isom_write.c:596:15 in isomedia.h
+// gf_isom_get_constant_sample_size at isom_read.c:1780:5 in isomedia.h
 // gf_isom_get_track_id at isom_read.c:796:15 in isomedia.h
-// gf_isom_enum_track_references at isom_read.c:1219:22 in isomedia.h
-// gf_isom_av1_config_get at avc_ext.c:2605:15 in isomedia.h
-// gf_isom_get_avg_sample_delta at isom_read.c:2052:5 in isomedia.h
-// gf_isom_has_track_reference at isom_read.c:1295:5 in isomedia.h
-// gf_isom_get_track_switch_parameter at isom_read.c:4831:12 in isomedia.h
+// gf_isom_get_brands at isom_read.c:2657:12 in isomedia.h
+// gf_isom_set_default_sync_track at isom_read.c:4209:6 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "isomedia.h"
 
-// Helper function to create a dummy GF_ISOFile
-static GF_ISOFile* create_dummy_iso_file() {
-    // Allocate a dummy size for the GF_ISOFile
-    GF_ISOFile* iso_file = (GF_ISOFile*)malloc(1024);
-    if (!iso_file) return NULL;
-    memset(iso_file, 0, 1024);
-    return iso_file;
-}
-
-// Helper function to clean up the dummy GF_ISOFile
-static void cleanup_dummy_iso_file(GF_ISOFile* iso_file) {
-    if (iso_file) {
-        free(iso_file);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_298(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32)) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    GF_ISOFile* iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    // Prepare the environment
+    write_dummy_file(Data, Size);
 
-    // Extract trackNumber from the input data
-    u32 trackNumber = *(u32*)Data;
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    if (!isom_file) return 0;
 
-    // Fuzz gf_isom_get_track_id
-    GF_ISOTrackID track_id = gf_isom_get_track_id(iso_file, trackNumber);
+    u32 trackNumber = *((u32 *)Data);
+    u32 sampleDescriptionIndex = *(((u32 *)Data) + 1);
 
-    // Fuzz gf_isom_enum_track_references
-    u32 referenceType, referenceCount;
-    const GF_ISOTrackID *references = gf_isom_enum_track_references(iso_file, trackNumber, 0, &referenceType, &referenceCount);
-
-    // Fuzz gf_isom_av1_config_get
-    GF_AV1Config *av1_config = gf_isom_av1_config_get(iso_file, trackNumber, 0);
-    if (av1_config) {
-        free(av1_config); // Clean up if a valid config was returned
+    // Test gf_isom_iamf_config_get
+    GF_IAConfig *config = gf_isom_iamf_config_get(isom_file, trackNumber, sampleDescriptionIndex);
+    if (config) {
+        // Clean up the config if it was allocated
+        free(config);
     }
 
-    // Fuzz gf_isom_get_avg_sample_delta
-    u32 avg_sample_delta = gf_isom_get_avg_sample_delta(iso_file, trackNumber);
+    // Test gf_isom_get_last_created_track_id
+    GF_ISOTrackID lastTrackID = gf_isom_get_last_created_track_id(isom_file);
 
-    // Fuzz gf_isom_has_track_reference
-    u32 ref_index = gf_isom_has_track_reference(iso_file, trackNumber, referenceType, track_id);
+    // Test gf_isom_get_constant_sample_size
+    u32 sampleSize = gf_isom_get_constant_sample_size(isom_file, trackNumber);
 
-    // Fuzz gf_isom_get_track_switch_parameter
-    u32 switchGroupID, criteriaListSize;
-    const u32 *criteria = gf_isom_get_track_switch_parameter(iso_file, trackNumber, 1, &switchGroupID, &criteriaListSize);
+    // Test gf_isom_get_track_id
+    GF_ISOTrackID trackID = gf_isom_get_track_id(isom_file, trackNumber);
 
-    cleanup_dummy_iso_file(iso_file);
+    // Test gf_isom_get_brands
+    const u32 *brands = gf_isom_get_brands(isom_file);
+
+    // Test gf_isom_set_default_sync_track
+    gf_isom_set_default_sync_track(isom_file, trackNumber);
+
+    // Clean up ISO file
+    gf_isom_close(isom_file);
 
     return 0;
 }

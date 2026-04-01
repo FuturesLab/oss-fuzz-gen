@@ -3,42 +3,37 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_262(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsColorSpaceSignature colorSpace;
-    cmsToneCurve *toneCurves[3]; // Assuming a maximum of 3 channels for simplicity
-    const cmsToneCurve **toneCurvePtr = (const cmsToneCurve **)toneCurves;
-    cmsHPROFILE profile;
-
-    // Ensure the data size is sufficient to extract necessary information
-    if (size < sizeof(cmsColorSpaceSignature)) {
-        return 0;
+    // Check if the input size is sufficient for the operations
+    if (size < sizeof(float) * 3) {
+        return 0; // Not enough data to proceed
     }
 
-    // Extract a cmsColorSpaceSignature from the input data
-    colorSpace = *(cmsColorSpaceSignature *)data;
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3); // Allocate a pipeline with 3 input and 3 output channels
 
-    // Initialize tone curves
-    for (int i = 0; i < 3; i++) {
-        toneCurves[i] = cmsBuildGamma(NULL, 2.2); // Example gamma value
-        if (toneCurves[i] == NULL) {
-            // Clean up and return if tone curve creation fails
-            for (int j = 0; j < i; j++) {
-                cmsFreeToneCurve(toneCurves[j]);
-            }
-            return 0;
-        }
+    if (pipeline == NULL) {
+        return 0; // If allocation fails, exit early
     }
+
+    // Simulate adding some elements to the pipeline
+    cmsStage *identityStage = cmsStageAllocIdentity(NULL, 3); // Create an identity stage
+    if (identityStage != NULL) {
+        cmsPipelineInsertStage(pipeline, cmsAT_END, identityStage);
+    }
+
+    // Use the input data to create a sample point for testing
+    const float *inputSample = (const float *)data;
 
     // Call the function-under-test
-    profile = cmsCreateLinearizationDeviceLink(colorSpace, toneCurvePtr);
+    cmsPipelineEvalFloat(inputSample, inputSample, pipeline);
+
+    // Duplicate the pipeline to test duplication functionality
+    cmsPipeline *dupPipeline = cmsPipelineDup(pipeline);
 
     // Clean up
-    for (int i = 0; i < 3; i++) {
-        cmsFreeToneCurve(toneCurves[i]);
+    if (dupPipeline != NULL) {
+        cmsPipelineFree(dupPipeline);
     }
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
+    cmsPipelineFree(pipeline);
 
     return 0;
 }

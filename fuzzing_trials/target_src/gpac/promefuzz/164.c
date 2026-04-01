@@ -1,83 +1,74 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_add_chapter at isom_write.c:3227:8 in isomedia.h
-// gf_isom_set_track_magic at isom_write.c:8936:8 in isomedia.h
-// gf_isom_get_chapter at isom_read.c:1551:8 in isomedia.h
-// gf_isom_get_media_time at isom_read.c:1342:8 in isomedia.h
-// gf_isom_get_track_creation_time at isom_read.c:1004:8 in isomedia.h
-// gf_isom_refresh_fragmented at isom_read.c:3088:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_get_y3d_info at isom_read.c:6244:8 in isomedia.h
+// gf_isom_enable_compression at isom_write.c:2660:8 in isomedia.h
+// gf_isom_set_y3d_info at isom_write.c:9065:8 in isomedia.h
+// gf_isom_get_reference at isom_read.c:1237:8 in isomedia.h
+// gf_isom_hint_blank_data at hint_track.c:414:8 in isomedia.h
+// gf_isom_add_user_data_boxes at isom_write.c:3856:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Allocate a dummy memory block for GF_ISOFile using a generic pointer
-    GF_ISOFile *iso_file = (GF_ISOFile *)malloc(1024); // Assuming 1024 bytes is enough for the dummy
-    if (!iso_file) return NULL;
-    memset(iso_file, 0, 1024);
+static GF_ISOFile* initialize_iso_file() {
+    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
+    // We assume there's a function to create or open an ISO file, which is typical in such libraries.
+    GF_ISOFile* iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
     return iso_file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
+static void cleanup_iso_file(GF_ISOFile* iso_file) {
     if (iso_file) {
-        free(iso_file);
+        // Assuming there's a function to close and clean up an ISO file
+        gf_isom_close(iso_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_164(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
+    GF_ISOFile *iso_file = initialize_iso_file();
     if (!iso_file) return 0;
 
-    u32 trackNumber = Data[0] % 5; // Random track number between 0 and 4
-    u64 timestamp = 0;
-    char *chapter_name = NULL;
+    u32 trackNumber = *(u32*)Data;
+    u32 sampleDescriptionIndex = *((u32*)Data + 1);
+    u32 referenceType = *((u32*)Data + 2);
+    u32 referenceIndex = Size > sizeof(u32) * 3 ? *((u32*)Data + 3) : 1;
 
-    if (Size > 8) {
-        timestamp = *((u64 *)(Data + 1)) % 10000; // Random timestamp
-    }
+    GF_ISOM_Y3D_Info y3d_info;
+    memset(&y3d_info, 0, sizeof(GF_ISOM_Y3D_Info));
 
-    if (Size > 9) {
-        chapter_name = (char *)(Data + 9);
-    }
+    // Fuzz gf_isom_get_y3d_info
+    gf_isom_get_y3d_info(iso_file, trackNumber, sampleDescriptionIndex, &y3d_info);
 
-    // Fuzz gf_isom_add_chapter
-    gf_isom_add_chapter(iso_file, trackNumber, timestamp, chapter_name);
+    // Fuzz gf_isom_enable_compression
+    GF_ISOCompressMode compress_mode = (GF_ISOCompressMode)(Data[0] % 3); // Assuming 3 different modes
+    u32 compress_flags = Size > sizeof(u32) * 4 ? *((u32*)Data + 4) : 0;
+    gf_isom_enable_compression(iso_file, compress_mode, compress_flags);
 
-    // Fuzz gf_isom_set_track_magic
-    if (Size > 17) {
-        u64 magic = *((u64 *)(Data + 9));
-        gf_isom_set_track_magic(iso_file, trackNumber, magic);
-    }
+    // Fuzz gf_isom_set_y3d_info
+    gf_isom_set_y3d_info(iso_file, trackNumber, sampleDescriptionIndex, &y3d_info);
 
-    // Fuzz gf_isom_get_chapter
-    if (Size > 21) {
-        u32 chapterIndex = Data[17] % 10; // Random chapter index
-        u64 chapter_time;
-        const char *retrieved_name;
-        gf_isom_get_chapter(iso_file, trackNumber, chapterIndex, &chapter_time, &retrieved_name);
-    }
+    // Fuzz gf_isom_get_reference
+    u32 refTrack;
+    gf_isom_get_reference(iso_file, trackNumber, referenceType, referenceIndex, &refTrack);
 
-    // Fuzz gf_isom_get_media_time
-    if (Size > 25) {
-        u32 movieTime = *((u32 *)(Data + 21)) % 5000; // Random movie time
-        u64 mediaTime;
-        gf_isom_get_media_time(iso_file, trackNumber, movieTime, &mediaTime);
-    }
+    // Fuzz gf_isom_hint_blank_data
+    u8 AtBegin = Data[0] % 2;
+    gf_isom_hint_blank_data(iso_file, trackNumber, AtBegin);
 
-    // Fuzz gf_isom_get_track_creation_time
-    if (Size > 33) {
-        u64 creationTime, modificationTime;
-        gf_isom_get_track_creation_time(iso_file, trackNumber, &creationTime, &modificationTime);
-    }
-
-    // Fuzz gf_isom_refresh_fragmented
-    if (Size > 41) {
-        u64 MissingBytes;
-        const char *new_location = (const char *)(Data + 33);
-        gf_isom_refresh_fragmented(iso_file, &MissingBytes, new_location);
+    // Fuzz gf_isom_add_user_data_boxes
+    if (Size > sizeof(u32) * 5) {
+        u8 *userData = (u8*)malloc(Size - sizeof(u32) * 5);
+        if (userData) {
+            memcpy(userData, Data + sizeof(u32) * 5, Size - sizeof(u32) * 5);
+            gf_isom_add_user_data_boxes(iso_file, trackNumber, userData, (u32)(Size - sizeof(u32) * 5));
+            free(userData);
+        }
     }
 
     cleanup_iso_file(iso_file);

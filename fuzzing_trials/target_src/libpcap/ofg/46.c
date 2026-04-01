@@ -1,31 +1,37 @@
-#include <pcap/pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    pcap_t *pcap;
+    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    int tstamp_type;
 
-    if (size < sizeof(int)) {
+    // Since pcap_open_offline() requires a file, we use pcap_open_dead() for fuzzing
+    // as it does not require a real file and can be used for testing purposes.
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Initialize a pcap_t object with a dummy device
-    pcap = pcap_open_dead(DLT_RAW, 65535);
-    if (pcap == NULL) {
-        return 0;
-    }
-
-    // Extract an integer from the input data
-    memcpy(&tstamp_type, data, sizeof(int));
+    // Create a dummy packet to simulate input data
+    const uint8_t dummy_packet[42] = {
+        0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E, // Destination MAC
+        0x5E, 0x4D, 0x3C, 0x2B, 0x1A, 0x00, // Source MAC
+        0x08, 0x00,                         // EtherType (IPv4)
+        // IP Header (20 bytes)
+        0x45, 0x00, 0x00, 0x28, 0x1c, 0x46, 0x40, 0x00,
+        0x40, 0x06, 0xb1, 0xe6, 0xc0, 0xa8, 0x00, 0x68,
+        0xc0, 0xa8, 0x00, 0x01,
+        // TCP Header (20 bytes)
+        0x00, 0x50, 0x00, 0x50, 0x00, 0x00, 0x00, 0x00,
+        0x50, 0x02, 0x20, 0x00, 0x91, 0x7c, 0x00, 0x00
+    };
 
     // Call the function-under-test
-    int result = pcap_set_tstamp_type(pcap, tstamp_type);
+    int result = pcap_datalink(pcap_handle);
 
     // Clean up
-    pcap_close(pcap);
+    pcap_close(pcap_handle);
 
     return 0;
 }

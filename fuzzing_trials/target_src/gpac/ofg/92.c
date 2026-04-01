@@ -3,21 +3,35 @@
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    // Initialize parameters for gf_isom_setup_track_fragment_template
-    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    // Check if the size is sufficient to extract parameters
+    if (size < sizeof(uint32_t) * 3 + sizeof(uint64_t) * 2 + sizeof(GF_ISOEditType)) {
+        return 0;
+    }
+
+    // Initialize parameters
+    GF_ISOFile *movie = gf_isom_open("test.mp4", GF_ISOM_OPEN_WRITE, NULL); // Open a test file
     if (!movie) {
         return 0;
     }
 
-    GF_ISOTrackID TrackID = 1; // Assuming a valid TrackID, adjust as necessary
-    u8 *boxes = (u8 *)data; // Use the input data as boxes
-    u32 boxes_size = (u32)size; // Set boxes_size to the size of the input data
-    u8 force_traf_flags = 0; // Example value, adjust as necessary
+    u32 trackNumber = *((u32 *)data);
+    data += sizeof(u32);
 
-    // Call the function-under-test
-    gf_isom_setup_track_fragment_template(movie, TrackID, boxes, boxes_size, force_traf_flags);
+    u32 seg_index = *((u32 *)data);
+    data += sizeof(u32);
 
-    // Clean up
+    u64 EditDuration = *((u64 *)data);
+    data += sizeof(u64);
+
+    u64 MediaTime = *((u64 *)data);
+    data += sizeof(u64);
+
+    GF_ISOEditType EditMode = *((GF_ISOEditType *)data);
+
+    // Fuzz the function
+    gf_isom_modify_edit(movie, trackNumber, seg_index, EditDuration, MediaTime, EditMode);
+
+    // Close the movie file
     gf_isom_close(movie);
 
     return 0;

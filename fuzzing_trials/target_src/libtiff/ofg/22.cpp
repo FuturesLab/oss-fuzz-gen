@@ -1,45 +1,49 @@
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <unistd.h> // Include for write, close, unlink
+#include <unistd.h>  // Include for the 'close' function
 
 extern "C" {
-    #include <tiffio.h>
-}
+    int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
+        if (size < 1) {
+            return 0;
+        }
 
-extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+        // Create a temporary file to write the input data
+        char tmpl[] = "/tmp/fuzzfileXXXXXX";
+        int fd = mkstemp(tmpl);
+        if (fd == -1) {
+            return 0;
+        }
+
+        FILE *file = fdopen(fd, "wb");
+        if (!file) {
+            close(fd);
+            return 0;
+        }
+
+        fwrite(data, 1, size, file);
+        fclose(file);
+
+        // Open the temporary file as a TIFF
+        TIFF *tiff = TIFFOpen(tmpl, "r");
+        if (tiff == nullptr) {
+            remove(tmpl);
+            return 0;
+        }
+
+        // Create a non-null character array
+        char msg[256] = "Test Message";
+
+        // Call the function-under-test
+        TIFFRGBAImageOK(tiff, msg);
+
+        // Clean up
+        TIFFClose(tiff);
+        remove(tmpl);
+
         return 0;
     }
-
-    // Write the data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    close(fd);
-
-    // Open the TIFF file using the TIFF library
-    TIFF* tif = TIFFOpen(tmpl, "r");
-    if (tif == nullptr) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Prepare a non-NULL char pointer
-    char description[] = "Test Description";
-
-    // Call the function-under-test
-    TIFFRGBAImageOK(tif, description);
-
-    // Clean up
-    TIFFClose(tif);
-    unlink(tmpl);
-
-    return 0;
 }

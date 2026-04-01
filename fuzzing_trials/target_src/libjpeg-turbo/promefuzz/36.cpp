@@ -1,14 +1,15 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
+// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjCompress2 at turbojpeg.c:1204:15 in turbojpeg.h
+// tjGetErrorCode at turbojpeg.c:652:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjCompressFromYUVPlanes at turbojpeg.c:1394:15 in turbojpeg.h
 // tj3GetErrorCode at turbojpeg.c:643:15 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
-// tjDecompressHeader3 at turbojpeg.c:1874:15 in turbojpeg.h
-// tj3GetICCProfile at turbojpeg.c:1926:15 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3DecompressHeader at turbojpeg.c:1815:15 in turbojpeg.h
-// tjDecompressHeader at turbojpeg.c:1914:15 in turbojpeg.h
-// tj3DecompressToYUVPlanes8 at turbojpeg.c:2125:15 in turbojpeg.h
+// tjFree at turbojpeg.c:896:16 in turbojpeg.h
 // tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
 #include <iostream>
 #include <sstream>
@@ -25,64 +26,78 @@
 #include <cstring>
 #include <iostream>
 
-static void handleError(tjhandle handle) {
-    int errorCode = tj3GetErrorCode(handle);
-    if (errorCode == TJERR_FATAL) {
-        std::cerr << "Fatal error occurred: " << tj3GetErrorStr(handle) << std::endl;
-    } else if (errorCode == TJERR_WARNING) {
-        std::cerr << "Warning: " << tj3GetErrorStr(handle) << std::endl;
-    }
-}
-
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        std::cerr << "Failed to initialize TurboJPEG decompressor." << std::endl;
+    // Initialize tjhandle
+    tjhandle handle = tjInitCompress();
+    if (!handle) return 0;
+
+    // Prepare dummy image data for compression
+    int width = 100;
+    int height = 100;
+    int pixelFormat = TJPF_RGB;
+    int jpegQual = 75;
+    int jpegSubsamp = TJSAMP_444;
+    int flags = 0;
+    unsigned long jpegSize = 0;
+    unsigned char *jpegBuf = nullptr;
+
+    // Prepare a dummy source buffer
+    unsigned char *srcBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+    if (!srcBuf) {
+        tjDestroy(handle);
+        return 0;
+    }
+    memset(srcBuf, 0, width * height * tjPixelSize[pixelFormat]);
+
+    // Attempt to compress the data
+    tjCompress2(handle, srcBuf, width, 0, height, pixelFormat, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
+
+    // Retrieve the error code
+    int errorCode = tjGetErrorCode(handle);
+    std::cout << "Error Code: " << errorCode << std::endl;
+
+    // Free the JPEG buffer if it was allocated
+    if (jpegBuf) {
+        tjFree(jpegBuf);
+        jpegBuf = nullptr;
+    }
+
+    // Cleanup
+    free(srcBuf);
+    tjDestroy(handle);
+
+    // Initialize another tjhandle for YUV compression
+    handle = tjInitCompress();
+    if (!handle) return 0;
+
+    // Ensure the input data is large enough for YUV planes
+    if (Size < width * height * 3 / 2) {
+        tjDestroy(handle);
         return 0;
     }
 
-    // Prepare variables for tjDecompressHeader3
-    int width, height, subsamp, colorspace;
-    if (tjDecompressHeader3(handle, Data, Size, &width, &height, &subsamp, &colorspace) == 0) {
-        // Successfully retrieved header
-    } else {
-        handleError(handle);
-    }
+    // Prepare dummy YUV planes
+    const unsigned char *srcPlanes[3];
+    int strides[3] = { width, width / 2, width / 2 };
+    srcPlanes[0] = Data;
+    srcPlanes[1] = Data + width * height;
+    srcPlanes[2] = Data + width * height + (width / 2) * (height / 2);
 
-    // Prepare variables for tj3GetICCProfile
-    unsigned char *iccBuf = nullptr;
-    size_t iccSize = 0;
-    if (tj3GetICCProfile(handle, &iccBuf, &iccSize) == 0) {
-        if (iccBuf) tj3Free(iccBuf);
-    } else {
-        handleError(handle);
-    }
+    // Attempt to compress from YUV planes
+    tjCompressFromYUVPlanes(handle, srcPlanes, width, strides, height, jpegSubsamp, &jpegBuf, &jpegSize, jpegQual, flags);
 
-    // Prepare variables for tj3DecompressHeader
-    if (tj3DecompressHeader(handle, Data, Size) == 0) {
-        // Successfully retrieved header
-    } else {
-        handleError(handle);
-    }
+    // Retrieve the error code
+    errorCode = tj3GetErrorCode(handle);
+    std::cout << "YUV Error Code: " << errorCode << std::endl;
 
-    // Prepare variables for tjDecompressHeader
-    if (tjDecompressHeader(handle, const_cast<unsigned char*>(Data), Size, &width, &height) == 0) {
-        // Successfully retrieved header
-    } else {
-        handleError(handle);
+    // Cleanup
+    if (jpegBuf) {
+        tjFree(jpegBuf);
+        jpegBuf = nullptr;
     }
-
-    // Prepare variables for tj3DecompressToYUVPlanes8
-    unsigned char *dstPlanes[3] = {nullptr, nullptr, nullptr};
-    int strides[3] = {0, 0, 0};
-    if (tj3DecompressToYUVPlanes8(handle, Data, Size, dstPlanes, strides) == 0) {
-        // Successfully decompressed to YUV planes
-    } else {
-        handleError(handle);
-    }
-
     tjDestroy(handle);
+
     return 0;
 }

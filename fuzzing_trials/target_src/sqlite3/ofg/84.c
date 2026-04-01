@@ -1,33 +1,31 @@
-#include <stdint.h>
-#include <stddef.h>  // Include for size_t and NULL
-#include <sqlite3.h>
+#include <stddef.h>  // Include for size_t
+#include <stdint.h>  // Include for uint8_t
+#include <sqlite3.h> // Project-specific library
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    sqlite3_str *str;
+    sqlite3 *db = NULL;
+    int rc;
 
-    // Initialize a sqlite3_str object
-    str = sqlite3_str_new(NULL);
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
 
-    // Ensure the data is not empty
-    if (size > 0) {
-        // Append the input data to the sqlite3_str object
-        sqlite3_str_append(str, (const char *)data, (int)size);
-    } else {
-        // Append a default string if data is empty
-        sqlite3_str_append(str, "default", 7);
+    // Create a table to ensure the database is not empty
+    char *errMsg = 0;
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INT, value TEXT);", 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
 
     // Call the function-under-test
-    char *result = sqlite3_str_value(str);
+    sqlite3_interrupt(db);
 
-    // Use the result in some way to avoid compiler optimizations
-    if (result != NULL) {
-        volatile char dummy = result[0];
-        (void)dummy;
-    }
-
-    // Free the sqlite3_str object
-    sqlite3_str_finish(str);
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

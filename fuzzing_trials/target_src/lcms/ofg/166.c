@@ -1,33 +1,32 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_166(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to create input and output arrays
-    if (size < 4 * sizeof(cmsUInt16Number)) {
+    cmsHPROFILE hProfile;
+    cmsUInt32Number Intent;
+    cmsBool BPC;
+
+    // Check if the size is sufficient to extract required values
+    if (size < sizeof(cmsUInt32Number) + sizeof(cmsBool)) {
         return 0;
     }
 
-    // Initialize input and output arrays
-    cmsUInt16Number input[4];
-    cmsUInt16Number output[4];
-
-    // Populate input array with data
-    for (int i = 0; i < 4; i++) {
-        input[i] = ((cmsUInt16Number *)data)[i];
-    }
-
-    // Create a dummy cmsPipeline object
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 4, 4);
-    if (!pipeline) {
+    // Create a profile from the data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
         return 0;
     }
+
+    // Extract Intent and BPC from the data
+    Intent = *(cmsUInt32Number *)(data);
+    BPC = *(cmsBool *)(data + sizeof(cmsUInt32Number));
 
     // Call the function-under-test
-    cmsPipelineEval16(input, output, pipeline);
+    cmsUInt32Number result = cmsFormatterForColorspaceOfProfile(hProfile, Intent, BPC);
 
-    // Free the cmsPipeline object
-    cmsPipelineFree(pipeline);
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

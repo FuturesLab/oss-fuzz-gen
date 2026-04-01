@@ -1,35 +1,23 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>  // Include this header for memcpy
+#include <tiffio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <cstring> // Include the C++ header for memcpy
 
 extern "C" {
-    #include <tiffio.h>
-
-    // Function-under-test declaration
-    void TIFFOpenOptionsSetMaxCumulatedMemAlloc(TIFFOpenOptions *, tmsize_t);
+    void TIFFRGBAImageEnd(TIFFRGBAImage *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_195(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract a tmsize_t value
-    if (size < sizeof(tmsize_t)) {
-        return 0;
+    if (size < sizeof(TIFFRGBAImage)) {
+        return 0; // Not enough data to initialize TIFFRGBAImage
     }
 
-    // Initialize TIFFOpenOptions
-    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
-    if (options == NULL) {
-        return 0;
-    }
-
-    // Extract a tmsize_t value from the data
-    tmsize_t maxMemAlloc = 0;
-    memcpy(&maxMemAlloc, data, sizeof(tmsize_t));
+    // Initialize a TIFFRGBAImage structure from the input data
+    TIFFRGBAImage img;
+    std::memcpy(&img, data, sizeof(TIFFRGBAImage)); // Use std::memcpy for C++
 
     // Call the function-under-test
-    TIFFOpenOptionsSetMaxCumulatedMemAlloc(options, maxMemAlloc);
-
-    // Clean up
-    TIFFOpenOptionsFree(options);
+    TIFFRGBAImageEnd(&img);
 
     return 0;
 }

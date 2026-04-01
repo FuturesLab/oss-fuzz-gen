@@ -1,30 +1,23 @@
-#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
+#include <pcap.h>
 
-// Removed the 'extern "C"' linkage specification, as it is not valid in C code
 int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
     pcap_t *pcap_handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
     struct pcap_pkthdr *header;
-    const u_char *packet;
-
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a temporary file to store the pcap data
+    const u_char *packet_data;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    
+    // Create a temporary file to write the data
     FILE *temp_file = tmpfile();
     if (temp_file == NULL) {
         return 0;
     }
-
+    
     // Write the input data to the temporary file
     fwrite(data, 1, size, temp_file);
-    fflush(temp_file);
-    fseek(temp_file, 0, SEEK_SET);
+    rewind(temp_file);
 
     // Open the temporary file as a pcap file
     pcap_handle = pcap_fopen_offline(temp_file, errbuf);
@@ -34,9 +27,9 @@ int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
     }
 
     // Call the function-under-test
-    int result = pcap_next_ex(pcap_handle, &header, &packet);
+    int result = pcap_next_ex(pcap_handle, &header, &packet_data);
 
-    // Cleanup
+    // Clean up
     pcap_close(pcap_handle);
     fclose(temp_file);
 

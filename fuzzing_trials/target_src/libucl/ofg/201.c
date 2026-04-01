@@ -1,39 +1,33 @@
+#include "ucl.h"
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdbool.h>
-#include <ucl.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_201(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
-    char filename[] = "testfile.ucl";
-    unsigned int priority = 0; // Example priority value
-    enum ucl_duplicate_strategy duplicate_strategy = UCL_DUPLICATE_APPEND;
-    enum ucl_parse_type parse_type = UCL_PARSE_UCL;
-
-    // Ensure that the parser is not NULL
-    if (parser == NULL) {
-        return 0;
-    }
-
-    // Use the provided data for fuzzing
-    if (size > 0) {
-        // Create a temporary file to write the data to
-        FILE *file = fopen(filename, "wb");
-        if (file != NULL) {
-            fwrite(data, 1, size, file);
-            fclose(file);
-
-            // Call the function under test
-            bool result = ucl_parser_add_file_full(parser, filename, priority, duplicate_strategy, parse_type);
-
-            // Optionally, handle the result or log it
-            (void)result; // Suppress unused variable warning
-        }
-    }
-
-    // Clean up
-    ucl_parser_free(parser);
-
+  if (size == 0) {
     return 0;
+  }
+
+  // Create a new UCL parser
+  struct ucl_parser *parser = ucl_parser_new(0);
+  if (parser == NULL) {
+    return 0;
+  }
+
+  // Add the input data to the parser
+  ucl_parser_add_string(parser, (const char *)data, size);
+
+  // Get the root object from the parser
+  const ucl_object_t *root_obj = ucl_parser_get_object(parser);
+  if (root_obj != NULL) {
+    // Call the function-under-test
+    const char *result = ucl_object_tostring_forced(root_obj);
+    (void)result; // Use result to avoid unused variable warning
+  }
+
+  // Free the parser
+  ucl_parser_free(parser);
+
+  return 0;
 }

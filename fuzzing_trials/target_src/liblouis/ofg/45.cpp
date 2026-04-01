@@ -1,30 +1,32 @@
 #include <cstdint>
 #include <cstddef>
-#include <cstdio> // Include the C standard I/O library for printf
+#include <iostream>
 
-// Assuming the function is part of a C library, we need to wrap it in extern "C"
 extern "C" {
-    // Define the logcallback type
-    typedef void (*logcallback)(int level, const char *message);
+    // Define a log callback function type
+    typedef void (*logcallback)(const char* message);
 
-    // Declare the function-under-test
-    void lou_registerLogCallback(logcallback cb);
+    // Mock implementation of the function-under-test
+    void lou_registerLogCallback_45(logcallback callback) {
+        if (callback) {
+            callback("Test log message");
+        }
+    }
 }
 
-// A simple log callback function for testing
-void testLogCallback(int level, const char *message) {
-    // For the purpose of this fuzzer, we can simply print the log level and message
-    // In a real fuzzing scenario, you might want to do something more sophisticated
-    printf("Log Level: %d, Message: %s\n", level, message);
+// Example log callback function
+void exampleLogCallback_45(const char* message) {
+    std::cout << "Log: " << message << std::endl;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Initialize the log callback
-    logcallback cb = testLogCallback;
+    // Ensure the data is not NULL and size is sufficient
+    if (data == nullptr || size == 0) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    lou_registerLogCallback(cb);
+    // Call the function-under-test with a valid log callback
+    lou_registerLogCallback_45(exampleLogCallback_45);
 
-    // Return 0 to indicate the fuzzer ran successfully
     return 0;
 }

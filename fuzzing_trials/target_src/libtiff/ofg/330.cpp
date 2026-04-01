@@ -1,21 +1,51 @@
-#include <cstdint>
 #include <tiffio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>  // Include this header for the 'close' function
+
+extern "C" {
+    // Include necessary C headers, source files, functions, and code here.
+}
 
 extern "C" int LLVMFuzzerTestOneInput_330(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract a uint16_t value
-    if (size < sizeof(uint16_t)) {
+    TIFF *tiff;
+    uint32_t strip = 0;
+    tmsize_t result;
+
+    // Create a temporary file for TIFF
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract a uint16_t value from the input data
-    uint16_t codec = *(reinterpret_cast<const uint16_t*>(data));
+    // Initialize TIFF structure
+    tiff = TIFFOpen(tmpl, "w");
+    if (!tiff) {
+        close(fd);
+        return 0;
+    }
+
+    // Ensure the data is not NULL and has a reasonable size
+    void *buffer = malloc(size);
+    if (!buffer) {
+        TIFFClose(tiff);
+        close(fd);
+        return 0;
+    }
+    memcpy(buffer, data, size);
 
     // Call the function-under-test
-    int result = TIFFIsCODECConfigured(codec);
+    result = TIFFWriteEncodedStrip(tiff, strip, buffer, (tmsize_t)size);
 
-    // Use the result in some way (e.g., print, log, or check)
-    // In this case, we just return 0 to indicate the function was called
-    (void)result; // Suppress unused variable warning
+    // Clean up
+    free(buffer);
+    TIFFClose(tiff);
+    close(fd);
+    remove(tmpl);
 
     return 0;
 }

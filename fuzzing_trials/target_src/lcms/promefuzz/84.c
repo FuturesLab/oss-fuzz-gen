@@ -1,71 +1,82 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsOpenProfileFromFile at cmsio0.c:1232:23 in lcms2.h
-// cmsGetHeaderManufacturer at cmsio0.c:1009:27 in lcms2.h
-// cmsFormatterForColorspaceOfProfile at cmspack.c:4025:27 in lcms2.h
-// cmsSetHeaderAttributes at cmsio0.c:1045:16 in lcms2.h
-// cmsSetEncodedICCversion at cmsio0.c:1112:16 in lcms2.h
-// cmsGetHeaderAttributes at cmsio0.c:1039:16 in lcms2.h
-// cmsDetectBlackPoint at cmssamp.c:194:19 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// _cmsWriteTypeBase at cmsplugin.c:434:20 in lcms2_plugin.h
+// _cmsWriteUInt64Number at cmsplugin.c:324:20 in lcms2_plugin.h
+// _cmsAdjustEndianess32 at cmsplugin.c:58:28 in lcms2_plugin.h
+// _cmsWriteUInt32Number at cmsplugin.c:295:20 in lcms2_plugin.h
+// _cmsReadUInt32Number at cmsplugin.c:156:20 in lcms2_plugin.h
+// _cmsWriteUInt16Number at cmsplugin.c:268:20 in lcms2_plugin.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include "lcms2.h"
+#include "lcms2_plugin.h"
 
-static cmsHPROFILE CreateDummyProfile(const uint8_t *Data, size_t Size) {
-    FILE *fp = fopen("./dummy_file", "wb");
-    if (!fp) return NULL;
-    fwrite(Data, 1, Size, fp);
-    fclose(fp);
-    
-    return cmsOpenProfileFromFile("./dummy_file", "r");
+static cmsIOHANDLER* create_iohandler() {
+    cmsIOHANDLER* iohandler = (cmsIOHANDLER*)malloc(sizeof(cmsIOHANDLER));
+    if (iohandler) {
+        iohandler->stream = fopen("./dummy_file", "wb+");
+        iohandler->ContextID = NULL;
+        iohandler->UsedSpace = 0;
+        iohandler->ReportedSize = 0;
+        memset(iohandler->PhysicalFile, 0, cmsMAX_PATH);
+
+        iohandler->Read = NULL;  // Implement as needed
+        iohandler->Seek = NULL;  // Implement as needed
+        iohandler->Close = NULL; // Implement as needed
+        iohandler->Tell = NULL;  // Implement as needed
+        iohandler->Write = NULL; // Implement as needed
+    }
+    return iohandler;
+}
+
+static void destroy_iohandler(cmsIOHANDLER* iohandler) {
+    if (iohandler) {
+        if (iohandler->stream) {
+            fclose((FILE*)iohandler->stream);
+        }
+        free(iohandler);
+    }
 }
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    cmsHPROFILE hProfile = CreateDummyProfile(Data, Size);
-    if (!hProfile) return 0;
-
-    // Test cmsGetHeaderManufacturer
-    cmsUInt32Number manufacturer = cmsGetHeaderManufacturer(hProfile);
-
-    // Test cmsFormatterForColorspaceOfProfile
-    cmsUInt32Number nBytes = (Data[0] % 2) + 1; // 1 or 2 bytes
-    cmsBool lIsFloat = Data[0] % 2; // 0 or 1
-    cmsUInt32Number formatter = cmsFormatterForColorspaceOfProfile(hProfile, nBytes, lIsFloat);
-
-    // Test cmsSetHeaderAttributes
-    cmsUInt64Number flags = 0;
-    if (Size >= 8) {
-        memcpy(&flags, Data, sizeof(cmsUInt64Number));
+    if (Size < sizeof(cmsUInt64Number) + 2 * sizeof(cmsUInt32Number) + sizeof(cmsUInt16Number)) {
+        return 0;
     }
-    cmsSetHeaderAttributes(hProfile, flags);
 
-    // Test cmsSetEncodedICCversion
-    cmsUInt32Number version = 0;
-    if (Size >= 4) {
-        memcpy(&version, Data, sizeof(cmsUInt32Number));
+    cmsIOHANDLER* iohandler = create_iohandler();
+    if (!iohandler || !iohandler->stream) {
+        destroy_iohandler(iohandler);
+        return 0;
     }
-    cmsSetEncodedICCversion(hProfile, version);
 
-    // Test cmsGetHeaderAttributes
-    cmsUInt64Number retrievedFlags = 0;
-    cmsGetHeaderAttributes(hProfile, &retrievedFlags);
+    cmsTagTypeSignature sig = (cmsTagTypeSignature)(*(uint32_t*)Data);
+    cmsUInt64Number uint64 = *(cmsUInt64Number*)(Data + sizeof(cmsUInt32Number));
+    cmsUInt32Number uint32 = *(cmsUInt32Number*)(Data + sizeof(cmsUInt64Number) + sizeof(cmsUInt32Number));
+    cmsUInt16Number uint16 = *(cmsUInt16Number*)(Data + sizeof(cmsUInt64Number) + 2 * sizeof(cmsUInt32Number));
 
-    // Test cmsDetectBlackPoint
-    cmsCIEXYZ BlackPoint;
-    cmsUInt32Number Intent = 0; // Assuming some valid intent
-    cmsBool blackPointResult = cmsDetectBlackPoint(&BlackPoint, hProfile, Intent, 0);
+    // Check if iohandler->Write is implemented before using it
+    if (iohandler->Write) {
+        // _cmsWriteTypeBase
+        _cmsWriteTypeBase(iohandler, sig);
 
-    cmsCloseProfile(hProfile);
-    remove("./dummy_file");
-    
+        // _cmsWriteUInt64Number
+        _cmsWriteUInt64Number(iohandler, &uint64);
+
+        // _cmsAdjustEndianess32
+        _cmsAdjustEndianess32(uint32);
+
+        // _cmsWriteUInt32Number
+        _cmsWriteUInt32Number(iohandler, uint32);
+
+        // _cmsReadUInt32Number
+        cmsUInt32Number read_uint32;
+        _cmsReadUInt32Number(iohandler, &read_uint32);
+
+        // _cmsWriteUInt16Number
+        _cmsWriteUInt16Number(iohandler, uint16);
+    }
+
+    destroy_iohandler(iohandler);
     return 0;
 }

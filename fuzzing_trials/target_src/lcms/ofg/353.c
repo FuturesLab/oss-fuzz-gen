@@ -1,29 +1,39 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include the string.h library for memcpy
+#include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_353(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract a cmsFloat64Number
-    if (size < sizeof(cmsFloat64Number)) {
+    cmsHANDLE handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Initialize the cmsToneCurve
-    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Using a common gamma value for initialization
-    if (toneCurve == NULL) {
+    // Ensure size is sufficient for an integer and a string
+    if (size < sizeof(int) + 1) {
+        cmsIT8Free(handle);
         return 0;
     }
 
-    // Extract a cmsFloat64Number from the input data
-    cmsFloat64Number inputNumber;
-    memcpy(&inputNumber, data, sizeof(cmsFloat64Number));
+    // Extract an integer from the data
+    int index;
+    memcpy(&index, data, sizeof(int));
 
-    // Call the function under test
-    cmsFloat64Number result = cmsEstimateGamma(toneCurve, inputNumber);
+    // Use the remaining data as a string
+    char *patchName = (char *)malloc(size - sizeof(int) + 1);
+    if (patchName == NULL) {
+        cmsIT8Free(handle);
+        return 0;
+    }
+    memcpy(patchName, data + sizeof(int), size - sizeof(int));
+    patchName[size - sizeof(int)] = '\0'; // Ensure null-termination
+
+    // Call the function-under-test
+    const char *result = cmsIT8GetPatchName(handle, index, patchName);
 
     // Clean up
-    cmsFreeToneCurve(toneCurve);
+    free(patchName);
+    cmsIT8Free(handle);
 
     return 0;
 }

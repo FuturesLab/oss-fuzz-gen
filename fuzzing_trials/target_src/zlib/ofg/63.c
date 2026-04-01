@@ -1,41 +1,41 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <zlib.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <zlib.h>
 
 int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
     gzFile file;
-    z_off_t offset;
-    int whence;
+    int error_code;
+    const char *error_msg;
 
     // Create a temporary file to use with gzFile
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    fwrite(data, 1, size, tempFile);
-    rewind(tempFile);
+    // Write data to the temporary file
+    fwrite(data, 1, size, temp_file);
+    rewind(temp_file);
 
-    // Open the temporary file with gzdopen
-    file = gzdopen(fileno(tempFile), "rb");
+    // Open the temporary file with gzopen
+    file = gzdopen(fileno(temp_file), "rb");
     if (file == NULL) {
-        fclose(tempFile);
+        fclose(temp_file);
         return 0;
     }
-
-    // Initialize offset and whence
-    offset = (z_off_t)(size > 0 ? data[0] : 0); // Use the first byte of data as offset if available
-    whence = (size > 1 ? data[1] % 3 : 0); // Use the second byte of data to determine whence
 
     // Call the function-under-test
-    gzseek(file, offset, whence);
+    error_msg = gzerror(file, &error_code);
 
-    // Clean up
+    // Use the error message and code to prevent unused variable warnings
+    if (error_msg != NULL) {
+        printf("Error message: %s\n", error_msg);
+    }
+    printf("Error code: %d\n", error_code);
+
+    // Close the gzFile and the temporary file
     gzclose(file);
-    fclose(tempFile);
+    fclose(temp_file);
 
     return 0;
 }

@@ -1,17 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpenOptionsAlloc at tif_open.c:80:18 in tiffio.h
-// TIFFOpenOptionsSetMaxCumulatedMemAlloc at tif_open.c:106:6 in tiffio.h
-// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
-// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
-// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFFdOpenExt at tif_unix.c:214:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpenExt at tif_unix.c:237:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFClientOpenExt at tif_open.c:300:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// TIFFSwabFloat at tif_swab.c:165:6 in tiffio.h
+// TIFFCIELabToXYZ at tif_color.c:43:6 in tiffio.h
+// XYZtoRGB24 at tif_luv.c:865:5 in tiffio.h
+// TIFFXYZToRGB at tif_color.c:89:6 in tiffio.h
+// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,78 +15,42 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h>
-#include <fcntl.h>
-#include <cerrno>
-#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_79(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Step 1: Allocate TIFFOpenOptions
-    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
-    if (!opts) return 0;
-
-    // Step 2: Set Max Cumulative Memory Allocation
-    tmsize_t maxMemAlloc = static_cast<tmsize_t>(Data[0]);
-    TIFFOpenOptionsSetMaxCumulatedMemAlloc(opts, maxMemAlloc);
-
-    // Step 3: Write data to a dummy file
-    const char *filename = "./dummy_file";
-    FILE *file = fopen(filename, "wb");
-    if (!file) {
-        TIFFOpenOptionsFree(opts);
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Step 4: Open the file using file descriptor
-    int fd = open(filename, O_RDONLY);
-    if (fd == -1) {
-        TIFFOpenOptionsFree(opts);
+    if (Size < sizeof(uint32_t) + sizeof(float) * 3 + sizeof(uint8_t) * 3) {
         return 0;
     }
 
-    // Step 5: Test TIFFFdOpen
-    TIFF *tiff = TIFFFdOpen(fd, filename, "r");
-    if (tiff) {
-        TIFFClose(tiff);
-    }
+    // Prepare data for LogLuv24toXYZ
+    uint32_t logLuvColor = *reinterpret_cast<const uint32_t*>(Data);
+    float xyzOutput[3] = {0.0f, 0.0f, 0.0f};
+    LogLuv24toXYZ(logLuvColor, xyzOutput);
 
-    // Step 6: Test TIFFFdOpenExt
-    tiff = TIFFFdOpenExt(fd, filename, "r", opts);
-    if (tiff) {
-        TIFFClose(tiff);
-    }
+    // Prepare data for TIFFSwabFloat
+    float swabFloat = *reinterpret_cast<const float*>(Data + sizeof(uint32_t));
+    TIFFSwabFloat(&swabFloat);
 
-    // Step 7: Test TIFFOpenExt
-    tiff = TIFFOpenExt(filename, "r", opts);
-    if (tiff) {
-        TIFFClose(tiff);
-    }
+    // Prepare data for TIFFCIELabToXYZ
+    TIFFCIELabToRGB labToRgb;
+    uint32_t L = static_cast<uint32_t>(Data[sizeof(uint32_t) + sizeof(float)]);
+    int32_t a = static_cast<int32_t>(Data[sizeof(uint32_t) + sizeof(float) + 1]);
+    int32_t bVal = static_cast<int32_t>(Data[sizeof(uint32_t) + sizeof(float) + 2]);
+    float cieX, cieY, cieZ;
+    TIFFCIELabToXYZ(&labToRgb, L, a, bVal, &cieX, &cieY, &cieZ);
 
-    // Step 8: Test TIFFClientOpenExt with dummy functions
-    TIFFReadWriteProc dummyReadWriteProc = [](thandle_t, void*, tmsize_t) -> tmsize_t { return 0; };
-    TIFFSeekProc dummySeekProc = [](thandle_t, toff_t, int) -> toff_t { return 0; };
-    TIFFCloseProc dummyCloseProc = [](thandle_t) -> int { return 0; };
-    TIFFSizeProc dummySizeProc = [](thandle_t) -> toff_t { return 0; };
-    TIFFMapFileProc dummyMapProc = [](thandle_t, void**, toff_t*) -> int { return 0; };
-    TIFFUnmapFileProc dummyUnmapProc = [](thandle_t, void*, toff_t) -> void {};
+    // Prepare data for XYZtoRGB24
+    float xyzInput[3] = {xyzOutput[0], xyzOutput[1], xyzOutput[2]};
+    uint8_t rgbOutput[3];
+    XYZtoRGB24(xyzInput, rgbOutput);
 
-    tiff = TIFFClientOpenExt(filename, "r", nullptr, dummyReadWriteProc, dummyReadWriteProc, dummySeekProc, 
-                             dummyCloseProc, dummySizeProc, dummyMapProc, dummyUnmapProc, opts);
-    if (tiff) {
-        TIFFClose(tiff);
-    }
+    // Prepare data for TIFFXYZToRGB
+    uint32_t r, g, b;
+    TIFFXYZToRGB(&labToRgb, cieX, cieY, cieZ, &r, &g, &b);
 
-    // Cleanup
-    TIFFOpenOptionsFree(opts);
-    close(fd);
-    remove(filename);
+    // Prepare data for TIFFSwabArrayOfFloat
+    float floatArray[3] = {xyzOutput[0], xyzOutput[1], xyzOutput[2]};
+    tmsize_t numFloats = 3;
+    TIFFSwabArrayOfFloat(floatArray, numFloats);
 
     return 0;
 }

@@ -1,31 +1,28 @@
 #include <stdint.h>
 #include <hdf5.h>
-#include <stdio.h> // Include stdio.h for snprintf
+#include <stdbool.h>
 
 int LLVMFuzzerTestOneInput_246(const uint8_t *data, size_t size) {
+    // Initialize variables
     hid_t file_id;
     herr_t status;
+    _Bool no_attrs_hint;
 
-    // Ensure the size is sufficient for a file name
-    if (size < 1) {
+    // Check if the input size is sufficient
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Create a temporary file name using the input data
-    char filename[256];
-    snprintf(filename, sizeof(filename), "fuzz_test_%.*s.h5", (int)size, data);
-
-    // Create a new HDF5 file using the input data as part of the filename
-    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
-    }
+    // Extract hid_t from input data
+    file_id = *(const hid_t *)data;
 
     // Call the function-under-test
-    status = H5Fformat_convert(file_id);
+    status = H5Fget_dset_no_attrs_hint(file_id, &no_attrs_hint);
 
-    // Close the file
-    H5Fclose(file_id);
+    // Use the result to prevent compiler optimizations
+    if (status < 0) {
+        // Handle error case if necessary
+    }
 
     return 0;
 }

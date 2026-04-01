@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_tstamp_type_val_to_description at pcap.c:3508:1 in pcap.h
-// pcap_tstamp_type_val_to_name at pcap.c:3496:1 in pcap.h
-// pcap_datalink_val_to_name at pcap.c:3429:1 in pcap.h
-// pcap_datalink_name_to_val at pcap.c:3417:1 in pcap.h
-// pcap_datalink_val_to_description at pcap.c:3441:1 in pcap.h
-// pcap_datalink_val_to_description_or_dlt at pcap.c:3453:1 in pcap.h
+// pcap_create at pcap.c:2306:1 in pcap.h
+// pcap_set_immediate_mode at pcap.c:2680:1 in pcap.h
+// pcap_setdirection at pcap.c:3884:1 in pcap.h
+// pcap_set_snaplen at pcap.c:2599:1 in pcap.h
+// pcap_set_rfmon at pcap.c:2617:1 in pcap.h
+// pcap_set_protocol_linux at pcap-linux.c:6233:1 in pcap.h
+// pcap_set_tstamp_type at pcap.c:2635:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,83 +14,55 @@
 #include <stdio.h>
 #include <pcap.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
-static void fuzz_pcap_tstamp_type_val_to_description(int value) {
-    const char *description = pcap_tstamp_type_val_to_description(value);
-    if (description) {
-        // Handle valid description
-    } else {
-        // Handle NULL description
-    }
-}
-
-static void fuzz_pcap_tstamp_type_val_to_name(int value) {
-    const char *name = pcap_tstamp_type_val_to_name(value);
-    if (name) {
-        // Handle valid name
-    } else {
-        // Handle NULL name
-    }
-}
-
-static void fuzz_pcap_datalink_val_to_name(int value) {
-    const char *name = pcap_datalink_val_to_name(value);
-    if (name) {
-        // Handle valid name
-    } else {
-        // Handle NULL name
-    }
-}
-
-static void fuzz_pcap_datalink_name_to_val(const char *name) {
-    int value = pcap_datalink_name_to_val(name);
-    if (value != -1) {
-        // Handle valid value
-    } else {
-        // Handle invalid name
-    }
-}
-
-static void fuzz_pcap_datalink_val_to_description(int value) {
-    const char *description = pcap_datalink_val_to_description(value);
-    if (description) {
-        // Handle valid description
-    } else {
-        // Handle NULL description
-    }
-}
-
-static void fuzz_pcap_datalink_val_to_description_or_dlt(int value) {
-    const char *description = pcap_datalink_val_to_description_or_dlt(value);
-    if (description) {
-        // Handle valid description
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size < 1) return 0;
 
-    int value;
-    memcpy(&value, Data, sizeof(int));
+    // Create a pcap_t handle
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle = pcap_create("any", errbuf);
+    if (!handle) return 0;
 
-    fuzz_pcap_tstamp_type_val_to_description(value);
-    fuzz_pcap_tstamp_type_val_to_name(value);
-    fuzz_pcap_datalink_val_to_name(value);
-    fuzz_pcap_datalink_val_to_description(value);
-    fuzz_pcap_datalink_val_to_description_or_dlt(value);
+    // Fuzz pcap_set_immediate_mode
+    int immediate_mode = Data[0] % 2;
+    pcap_set_immediate_mode(handle, immediate_mode);
 
-    if (Size > sizeof(int)) {
-        char *name = (char *)malloc(Size - sizeof(int) + 1);
-        if (name) {
-            memcpy(name, Data + sizeof(int), Size - sizeof(int));
-            name[Size - sizeof(int)] = '\0';
-            fuzz_pcap_datalink_name_to_val(name);
-            free(name);
-        }
-    }
+    // Fuzz pcap_setdirection
+    pcap_direction_t direction = (pcap_direction_t)(Data[0] % 3);
+    pcap_setdirection(handle, direction);
+
+    // Fuzz pcap_set_snaplen
+    int snaplen = Data[0];
+    pcap_set_snaplen(handle, snaplen);
+
+    // Fuzz pcap_set_rfmon
+    int rfmon = Data[0] % 2;
+    pcap_set_rfmon(handle, rfmon);
+
+    // Fuzz pcap_set_protocol_linux (Linux specific)
+    int protocol = Data[0];
+    pcap_set_protocol_linux(handle, protocol);
+
+    // Fuzz pcap_set_tstamp_type
+    int tstamp_type = Data[0];
+    pcap_set_tstamp_type(handle, tstamp_type);
+
+    // Cleanup
+    pcap_close(handle);
+
+    // Optionally write data to a dummy file
+    write_dummy_file(Data, Size);
 
     return 0;
 }

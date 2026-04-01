@@ -1,43 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
 
-// Include the correct path for turbojpeg.h
+// Assume the function-under-test is declared somewhere
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    int tj3YUVPlaneHeight(int componentID, int subsamp, int height);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Initialize variables for tj3Decompress16
-    tjhandle handle = tjInitDecompress();
-    if (handle == NULL) {
+    // Ensure the input size is sufficient to extract three integers
+    if (size < 3 * sizeof(int)) {
         return 0;
     }
 
-    // Assume the image dimensions for fuzzing purposes (e.g., 100x100)
-    int width = 100;
-    int height = 100;
+    // Extract three integers from the input data
+    int componentID = static_cast<int>(data[0] % 3); // Assuming 3 components (e.g., Y, U, V)
+    int subsamp = static_cast<int>(data[1] % 5);     // Assuming 5 subsampling options
+    int height = static_cast<int>(data[2] % 1000) + 1; // Height should be positive
 
-    // Allocate memory for the decompressed image buffer
-    unsigned short *buffer = (unsigned short *)malloc(width * height * sizeof(unsigned short));
-    if (buffer == NULL) {
-        tjDestroy(handle);
-        return 0;
-    }
+    // Call the function-under-test
+    int result = tj3YUVPlaneHeight(componentID, subsamp, height);
 
-    // Correct the function call to match the expected signature
-    // Assume a pitch value (e.g., width * sizeof(unsigned short)) and a pixel format (e.g., TJPF_RGB)
-    int pitch = width * sizeof(unsigned short);
-    int pixelFormat = TJPF_RGB;
-
-    // Call the function-under-test with the corrected number of arguments
-    int result = tj3Decompress16(handle, data, size, buffer, pitch, pixelFormat);
-
-    // Clean up
-    free(buffer);
-    tjDestroy(handle);
+    // Use the result in some way to avoid compiler optimizations
+    volatile int sink = result;
+    (void)sink;
 
     return 0;
 }

@@ -1,36 +1,32 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include this header for memcpy
-#include <tiffio.h>
-
 extern "C" {
-    #include <tiffio.h> // Ensure TIFFSwabArrayOfFloat is correctly linked
+    #include <tiffio.h>
+    #include <stdlib.h>
+    #include <string.h>  // Include string.h for memcpy
 }
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Ensure the size is a multiple of sizeof(float) to correctly interpret the data as floats
-    if (size % sizeof(float) != 0 || size == 0) {
+    // Ensure the size is a multiple of the size of float
+    if (size % sizeof(float) != 0) {
         return 0;
     }
 
     // Calculate the number of floats
-    tmsize_t num_floats = size / sizeof(float);
+    tmsize_t num_floats = static_cast<tmsize_t>(size / sizeof(float));
 
     // Allocate memory for the float array
-    float *floatArray = static_cast<float *>(malloc(size));
-
-    if (floatArray == nullptr) {
-        return 0; // Exit if memory allocation fails
+    float *float_array = static_cast<float *>(malloc(size));
+    if (float_array == NULL) {
+        return 0;
     }
 
-    // Copy the input data into the float array
-    memcpy(floatArray, data, size);
+    // Copy data into the float array
+    memcpy(float_array, data, size);
 
     // Call the function-under-test
-    TIFFSwabArrayOfFloat(floatArray, num_floats);
+    TIFFSwabArrayOfFloat(float_array, num_floats);
 
-    // Clean up allocated memory
-    free(floatArray);
+    // Free the allocated memory
+    free(float_array);
 
     return 0;
 }

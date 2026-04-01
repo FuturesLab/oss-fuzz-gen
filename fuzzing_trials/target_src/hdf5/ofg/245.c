@@ -1,22 +1,24 @@
 #include <stdint.h>
+#include <stdbool.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_245(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract an hid_t
-    if (size < sizeof(hid_t)) {
+    // Ensure there is enough data to use
+    if (size < sizeof(hid_t) + sizeof(_Bool)) {
         return 0;
     }
 
-    // Extract an hid_t from the data
-    hid_t dataset_id = *(const hid_t *)data;
+    // Extract hid_t from the input data
+    hid_t file_id = *(const hid_t *)data;
+    
+    // Extract _Bool from the input data
+    _Bool no_attrs_hint = *(const _Bool *)(data + sizeof(hid_t));
 
     // Call the function-under-test
-    herr_t result = H5Dclose(dataset_id);
+    herr_t result = H5Fget_dset_no_attrs_hint(file_id, &no_attrs_hint);
 
-    // Use the result to prevent compiler optimizations that could skip the call
-    if (result != 0) {
-        // Handle error if necessary, but for fuzzing, just ensure the call is made
-    }
+    // Use the result in some way to prevent compiler optimizations
+    (void)result;
 
     return 0;
 }

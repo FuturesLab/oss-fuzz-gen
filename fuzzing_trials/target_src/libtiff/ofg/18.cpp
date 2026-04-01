@@ -1,31 +1,35 @@
 #include <cstdint>
-#include <cstddef>
+#include <cstdlib>
+#include <cstring>  // Include for memcpy
 
 extern "C" {
     #include <tiffio.h>
-    #include <tiff.h>
+    #include "/src/libtiff/libtiff/tif_dir.h"  // Correct path for the definition of TIFFField
 
-    // Declaration of the function to be tested
+    // Function prototype for the function-under-test
     int TIFFFieldSetGetSize(const TIFFField *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a TIFFField structure
-    // Since TIFFField is an incomplete type, we cannot use sizeof directly.
-    // We will assume a minimum size based on typical structure sizes.
-    const size_t minSize = 16; // Adjust this based on expected structure size
-    if (size < minSize) {
+    // Ensure there is enough data to create a TIFFField object
+    if (size < sizeof(TIFFField)) {
         return 0;
     }
 
-    // Cast the input data to a TIFFField pointer
-    const TIFFField *field = reinterpret_cast<const TIFFField *>(data);
+    // Create a TIFFField object from the input data
+    TIFFField *tiffField = reinterpret_cast<TIFFField *>(malloc(sizeof(TIFFField)));
+    if (tiffField == nullptr) {
+        return 0;
+    }
+
+    // Copy data into the TIFFField object
+    memcpy(tiffField, data, sizeof(TIFFField));
 
     // Call the function-under-test
-    int result = TIFFFieldSetGetSize(field);
+    int result = TIFFFieldSetGetSize(tiffField);
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    // Clean up
+    free(tiffField);
 
     return 0;
 }

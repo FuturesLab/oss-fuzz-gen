@@ -1,48 +1,45 @@
-#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    // Removed the non-existent tjtypes.h include
 }
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Initialize variables for tjCompressFromYUVPlanes
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
+    // Initialize necessary variables
+    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    if (handle == NULL) {
+        return 0; // If initialization fails, exit early
+    }
+
+    // Define image dimensions and pixel format
+    int width = 256; // Example width
+    int height = 256; // Example height
+    int pitch = width * sizeof(uint16_t); // Calculate pitch using uint16_t for 16-bit samples
+    int pixelFormat = TJPF_RGB; // Example pixel format
+
+    // Allocate memory for the compressed image
+    unsigned char *compressedImage = NULL;
+    size_t compressedSize = 0;
+
+    // Ensure the input data is large enough to represent an image
+    if (size < width * height * sizeof(uint16_t)) {
+        tj3Destroy(handle);
         return 0;
     }
 
-    const unsigned char *srcPlanes[3] = {nullptr, nullptr, nullptr};
-    int width = 2;  // Minimum width
-    int strides[3] = {width, width / 2, width / 2}; // Assuming YUV 4:2:0 format
-    int height = 2; // Minimum height
-    int subsamp = TJSAMP_420; // Common YUV subsampling
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    int jpegQual = 75; // Typical JPEG quality
-    int flags = 0; // No flags
+    // Call the function-under-test
+    int result = tj3Compress16(handle, (const uint16_t *)data, width, pitch, height, pixelFormat, &compressedImage, &compressedSize);
 
-    // Ensure data is large enough to fill the YUV planes
-    if (size < width * height * 3 / 2) {
-        tjDestroy(handle);
-        return 0;
+    // Free the compressed image buffer if it was allocated
+    if (compressedImage != NULL) {
+        tj3Free(compressedImage);
     }
 
-    // Assign data to YUV planes
-    srcPlanes[0] = data;
-    srcPlanes[1] = data + width * height;
-    srcPlanes[2] = data + width * height + (width / 2) * (height / 2);
-
-    // Call the function under test
-    int result = tjCompressFromYUVPlanes(handle, srcPlanes, width, strides, height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
-
-    // Clean up
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
-    tjDestroy(handle);
+    // Clean up and destroy the TurboJPEG handle
+    tj3Destroy(handle);
 
     return 0;
 }

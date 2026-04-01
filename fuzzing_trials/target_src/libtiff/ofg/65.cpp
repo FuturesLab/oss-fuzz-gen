@@ -1,18 +1,22 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include this header for the 'close' function
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
+#include <tiffio.h>
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Create a temporary file to act as a TIFF file
-    char tmpl[] = "/tmp/fuzz_tiffXXXXXX";
-    int fd = mkstemp(tmpl);
+    if (size < sizeof(uint64_t)) {
+        return 0; // Not enough data to extract a uint64_t
+    }
+
+    // Create a temporary TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
+    int fd = mkstemps(tmpl, 5);
     if (fd == -1) {
         return 0;
     }
@@ -21,24 +25,21 @@ extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
         close(fd);
         return 0;
     }
-
-    // Write the fuzz data to the temporary file
     fwrite(data, 1, size, file);
     fclose(file);
 
-    // Open the temporary file as a TIFF image
+    // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r+");
     if (!tiff) {
-        remove(tmpl);
         return 0;
     }
 
-    // Initialize a non-NULL uint64_t pointer
+    // Extract a uint64_t from the data
     uint64_t customDirOffset = 0;
-    uint64_t *offsetPtr = &customDirOffset;
+    memcpy(&customDirOffset, data, sizeof(uint64_t));
 
     // Call the function-under-test
-    TIFFWriteCustomDirectory(tiff, offsetPtr);
+    TIFFWriteCustomDirectory(tiff, &customDirOffset);
 
     // Clean up
     TIFFClose(tiff);

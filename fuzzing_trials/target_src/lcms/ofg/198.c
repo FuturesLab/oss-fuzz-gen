@@ -1,23 +1,47 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
-// Fuzzing harness for cmsMLUfree
 int LLVMFuzzerTestOneInput_198(const uint8_t *data, size_t size) {
-    // Initialize a cmsMLU object
-    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
+    // Initialize variables
+    cmsHANDLE handle;
+    char *columnName;
 
-    // Ensure mlu is not NULL
-    if (mlu == NULL) {
+    // Check if the input size is sufficient to form a valid column name
+    if (size == 0) {
         return 0;
     }
 
-    // Optionally, populate the cmsMLU object with some data
-    // Here we use some arbitrary values for demonstration purposes
-    cmsMLUsetASCII(mlu, "en", "US", "Sample Text");
+    // Create a dummy IT8 handle
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
+        return 0;
+    }
+
+    // Ensure the data is null-terminated before using it as a string
+    columnName = (char *)malloc(size + 1);
+    if (columnName == NULL) {
+        cmsIT8Free(handle);
+        return 0;
+    }
+
+    memcpy(columnName, data, size);
+    columnName[size] = '\0';
 
     // Call the function-under-test
-    cmsMLUfree(mlu);
+    cmsBool result = cmsIT8SetIndexColumn(handle, columnName);
+
+    // Check the result to ensure the function is being executed properly
+    if (!result) {
+        fprintf(stderr, "cmsIT8SetIndexColumn failed for column name: %s\n", columnName);
+    }
+
+    // Clean up
+    free(columnName);
+    cmsIT8Free(handle);
 
     return 0;
 }

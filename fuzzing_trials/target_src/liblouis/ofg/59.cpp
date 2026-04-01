@@ -1,28 +1,23 @@
 #include <cstdint>
-#include <cstdlib>
+#include <cstddef>
 #include <cstring>
 
+// Assuming the function is defined in an external C library
 extern "C" {
-    // Function-under-test
     void lou_logFile(const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Ensure that the input data is null-terminated to be used as a C-style string
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == nullptr) {
-        return 0; // Exit if memory allocation fails
-    }
-    
-    // Copy the data into the inputString and null-terminate it
-    memcpy(inputString, data, size);
-    inputString[size] = '\0';
+    // Ensure the input data is null-terminated to safely pass as a C string
+    char *logFilePath = new char[size + 1];
+    memcpy(logFilePath, data, size);
+    logFilePath[size] = '\0';
 
-    // Call the function-under-test with the fuzz input
-    lou_logFile(inputString);
+    // Call the function-under-test
+    lou_logFile(logFilePath);
 
-    // Free the allocated memory
-    free(inputString);
+    // Clean up allocated memory
+    delete[] logFilePath;
 
     return 0;
 }

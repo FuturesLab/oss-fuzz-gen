@@ -1,35 +1,52 @@
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring>
+#include <unistd.h>  // Include for close()
 #include <tiffio.h>
 
 extern "C" {
-    // Include the TIFFField structure definition
-    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path to the header file
-
-    // Function to be fuzzed
-    int TIFFFieldWriteCount(const TIFFField *);
+    #include <tiffio.h>  // Ensure TIFF library functions are treated as C
 }
 
 extern "C" int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
-    if (size < sizeof(TIFFField)) {
-        return 0; // Not enough data to form a valid TIFFField
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Allocate memory for a TIFFField structure
-    TIFFField *field = (TIFFField *)malloc(sizeof(TIFFField));
-    if (field == nullptr) {
-        return 0; // Memory allocation failed
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
     }
 
-    // Copy data into the TIFFField structure
-    memcpy(field, data, sizeof(TIFFField));
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Call the function-under-test
-    int result = TIFFFieldWriteCount(field);
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        remove(tmpl);
+        return 0;
+    }
 
-    // Clean up
-    free(field);
+    // Prepare the tag and value to pass to TIFFGetFieldDefaulted
+    uint32_t tag = 0;  // Using 0 as a placeholder, can be adjusted for specific tags
+    void *value = malloc(256);  // Allocate some memory for the value
+
+    if (value) {
+        // Call the function-under-test
+        TIFFGetFieldDefaulted(tiff, tag, value);
+
+        // Free the allocated memory
+        free(value);
+    }
+
+    // Close the TIFF file and remove the temporary file
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

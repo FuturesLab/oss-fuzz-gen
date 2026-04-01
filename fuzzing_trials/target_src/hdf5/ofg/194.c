@@ -3,24 +3,25 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_194(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function call
-    hid_t group_id = H5I_INVALID_HID;  // Initialize to an invalid ID
-    hsize_t idx = 0;  // Initialize index to zero
-
-    // Ensure that the input size is sufficient to extract the needed values
-    if (size < sizeof(hid_t) + sizeof(hsize_t)) {
+    // Ensure the data is large enough to extract necessary parameters
+    if (size < 4) { // Adjusted minimum size for this example
         return 0;
     }
 
-    // Extract the hid_t and hsize_t values from the input data
-    group_id = *(const hid_t *)data;
-    idx = *(const hsize_t *)(data + sizeof(hid_t));
+    // Extract parameters from the data
+    const char *filename = "/tmp/testfile.h5"; // Example file name
+    unsigned int flags = (unsigned int)data[0]; // Example flags for file open
+    hid_t access_plist = (hid_t)data[1]; // Example file access property list identifier
+    hid_t es_id = (hid_t)data[2]; // Example event stack identifier
 
     // Call the function-under-test
-    H5G_obj_t obj_type = H5Gget_objtype_by_idx(group_id, idx);
+    hid_t file_id = H5Fopen_async(filename, flags, access_plist, es_id);
 
-    // Use obj_type in some way, for example, just to avoid compiler warnings
-    (void)obj_type;
+    // Check the result (optional, for debugging purposes)
+    if (file_id >= 0) {
+        // Successfully opened file, close it
+        H5Fclose(file_id);
+    }
 
     return 0;
 }

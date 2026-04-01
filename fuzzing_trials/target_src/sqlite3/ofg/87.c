@@ -1,41 +1,33 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this for size_t
+#include <stddef.h>  // Include this header for size_t
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
     int rc;
-    const char *sql = "CREATE TABLE test(id INT); INSERT INTO test (id) VALUES (1);";
+    int limit_id;
+    int new_limit;
 
-    // Open an in-memory database
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Ensure size is sufficient to extract two integers
+    if (size < 2 * sizeof(int)) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare a statement from the fuzzing data
-    const char *tail;
-    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, &tail);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Extract limit_id and new_limit from the data
+    limit_id = *((int *)data);
+    new_limit = *((int *)(data + sizeof(int)));
 
     // Call the function-under-test
-    int busy = sqlite3_stmt_busy(stmt);
+    sqlite3_limit(db, limit_id, new_limit);
 
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Close the database
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;

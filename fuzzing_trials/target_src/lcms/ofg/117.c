@@ -1,31 +1,24 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Declare and initialize the parameters for cmsSetDeviceClass
-    cmsHPROFILE profile;
-    cmsProfileClassSignature deviceClass;
-
-    // Initialize the profile using cmsOpenProfileFromMem
-    if (size < sizeof(cmsProfileClassSignature)) {
-        return 0; // Ensure there's enough data to proceed
+    // Ensure there's enough data to fill a cmsCIEXYZ structure
+    if (size < sizeof(cmsCIEXYZ)) {
+        return 0;
     }
 
-    // Open a profile from the provided data
-    profile = cmsOpenProfileFromMem(data, size);
-    if (profile == NULL) {
-        return 0; // If profile creation fails, exit
-    }
+    // Initialize the cmsCIEXYZ structure
+    cmsCIEXYZ xyz;
+    cmsUInt16Number encoded[3];
 
-    // Extract a cmsProfileClassSignature from the data
-    deviceClass = *(cmsProfileClassSignature *)data;
+    // Copy data into the cmsCIEXYZ structure
+    // Assuming data is in the correct format and size is sufficient
+    memcpy(&xyz, data, sizeof(cmsCIEXYZ));
 
     // Call the function-under-test
-    cmsSetDeviceClass(profile, deviceClass);
-
-    // Close the profile to avoid memory leaks
-    cmsCloseProfile(profile);
+    cmsFloat2XYZEncoded(encoded, &xyz);
 
     return 0;
 }

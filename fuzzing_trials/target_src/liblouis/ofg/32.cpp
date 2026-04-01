@@ -1,39 +1,33 @@
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <cstdlib>
 
-// Include the appropriate header for the function
 extern "C" {
     #include "/src/liblouis/liblouis/liblouis.h"
 }
 
-// Fuzzing harness
+// Fuzzer entry point
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create two non-null strings
-    if (size < 2) {
-        return 0;
+    // Ensure the data is null-terminated to safely use it as a C-string
+    char *cstr = (char *)malloc(size + 1);
+    if (cstr == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    
+    memcpy(cstr, data, size);
+    cstr[size] = '\0'; // Null-terminate the string
 
-    // Split the data into two parts for the two string parameters
-    size_t mid = size / 2;
+    // Call the function-under-test
+    char *result = lou_setDataPath(cstr);
 
-    // Allocate memory for the two strings and null-terminate them
-    char *str1 = new char[mid + 1];
-    char *str2 = new char[size - mid + 1];
+    // Free the allocated memory
+    free(cstr);
 
-    // Copy data into the strings and null-terminate
-    memcpy(str1, data, mid);
-    str1[mid] = '\0';
-
-    memcpy(str2, data + mid, size - mid);
-    str2[size - mid] = '\0';
-
-    // Call the function under test
-    formtype result = lou_getTypeformForEmphClass(str1, str2);
-
-    // Clean up
-    delete[] str1;
-    delete[] str2;
+    // Free the result if needed
+    if (result != NULL) {
+        free(result);
+    }
 
     return 0;
 }

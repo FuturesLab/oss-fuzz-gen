@@ -1,35 +1,21 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return 0;
-    }
+    cmsContext context;
+    cmsHANDLE handle;
 
-    // Ensure the data is null-terminated for string usage
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        cmsDeleteContext(context);
-        return 0;
-    }
-    memcpy(filename, data, size);
-    filename[size] = '\0';
-
-    // Use a fixed mode for testing purposes
-    const char *mode = "r"; // Read mode
+    // Initialize the context with a non-null value
+    context = cmsCreateContext(NULL, NULL);
 
     // Call the function-under-test
-    cmsIOHANDLER *handler = cmsOpenIOhandlerFromFile(context, filename, mode);
+    handle = cmsGBDAlloc(context);
 
     // Clean up
-    if (handler != NULL) {
-        cmsCloseIOhandler(handler);
+    if (handle != NULL) {
+        cmsGBDFree(handle);
     }
-    free(filename);
     cmsDeleteContext(context);
 
     return 0;

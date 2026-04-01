@@ -11,9 +11,9 @@ extern "C" {
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-  cJSON *json;
-  cJSON *object_reference;
-  
+  cJSON *json = NULL;
+  cJSON *object_reference = NULL;
+
   if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }

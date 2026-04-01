@@ -12,22 +12,20 @@ int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size); /* required by 
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
   cJSON *json;
-  char *printed_json = NULL;
+  char *unformatted_json = NULL;
 
   if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }
 
   json = cJSON_Parse((const char *)data);
-
   if (json == NULL) {
     return 0;
   }
 
-  printed_json = cJSON_PrintUnformatted(json);
-
-  if (printed_json != NULL) {
-    free(printed_json);
+  unformatted_json = cJSON_PrintUnformatted(json);
+  if (unformatted_json != NULL) {
+    free(unformatted_json);
   }
 
   cJSON_Delete(json);

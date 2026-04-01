@@ -1,8 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetFieldDefaulted at tif_aux.c:382:5 in tiffio.h
+// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
+// TIFFGetFieldDefaulted at tif_aux.c:382:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,41 +17,66 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include "tiffio.h"
+#include <tiffio.h>
 
-extern "C" int LLVMFuzzerTestOneInput_71(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(float) * 3 + sizeof(uint32_t)) return 0;
+static TIFF* openDummyTIFF(const uint8_t* Data, size_t Size) {
+    FILE* file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+    return TIFFOpen("./dummy_file", "r");
+}
 
-    // Prepare float array for XYZ values
-    float xyz[3];
-    memcpy(xyz, Data, sizeof(float) * 3);
-    
-    // Prepare uint32_t for LogLuv values
-    uint32_t logluv = 0;
-    memcpy(&logluv, Data + sizeof(float) * 3, sizeof(uint32_t));
+static void fuzzTIFFGetField(TIFF* tif, uint32_t tag) {
+    int ret = TIFFGetField(tif, tag, nullptr);
+    (void)ret; // Avoid unused variable warning
+}
 
-    // Test LogLuv32fromXYZ
-    uint32_t result32fromXYZ = LogLuv32fromXYZ(xyz, 1);
+static void fuzzTIFFGetFieldDefaulted(TIFF* tif, uint32_t tag) {
+    int ret = TIFFGetFieldDefaulted(tif, tag, nullptr);
+    (void)ret; // Avoid unused variable warning
+}
 
-    // Test LogLuv24fromXYZ
-    uint32_t result24fromXYZ = LogLuv24fromXYZ(xyz, 1);
+static void fuzzTIFFFindField(TIFF* tif, uint32_t tag) {
+    const TIFFField* field = TIFFFindField(tif, tag, TIFF_NOTYPE);
+    (void)field; // Avoid unused variable warning
+}
 
-    // Test LogLuv24toXYZ
-    float outputXYZ24[3] = {0};
-    LogLuv24toXYZ(logluv, outputXYZ24);
+static void fuzzTIFFVGetFieldDefaulted(TIFF* tif, uint32_t tag) {
+    // Dummy implementation since va_list cannot be used with fixed arguments
+    int ret = TIFFGetFieldDefaulted(tif, tag, nullptr);
+    (void)ret; // Avoid unused variable warning
+}
 
-    // Test LogLuv32toXYZ
-    float outputXYZ32[3] = {0};
-    LogLuv32toXYZ(logluv, outputXYZ32);
+static void fuzzTIFFVGetField(TIFF* tif, uint32_t tag) {
+    // Dummy implementation since va_list cannot be used with fixed arguments
+    int ret = TIFFGetField(tif, tag, nullptr);
+    (void)ret; // Avoid unused variable warning
+}
 
-    // Test TIFFSwabArrayOfFloat
-    TIFFSwabArrayOfFloat(xyz, 3);
+static void fuzzTIFFVSetField(TIFF* tif, uint32_t tag) {
+    // Dummy implementation since va_list cannot be used with fixed arguments
+    int ret = TIFFSetField(tif, tag, nullptr);
+    (void)ret; // Avoid unused variable warning
+}
 
-    // Test TIFFSwabLong
-    TIFFSwabLong(&logluv);
-    
+extern "C" int LLVMFuzzerTestOneInput_71(const uint8_t* Data, size_t Size) {
+    if (Size < sizeof(uint32_t)) return 0;
+
+    TIFF* tif = openDummyTIFF(Data, Size);
+    if (!tif) return 0;
+
+    uint32_t tag = *reinterpret_cast<const uint32_t*>(Data);
+    fuzzTIFFGetField(tif, tag);
+    fuzzTIFFGetFieldDefaulted(tif, tag);
+    fuzzTIFFFindField(tif, tag);
+    fuzzTIFFVGetFieldDefaulted(tif, tag);
+    fuzzTIFFVGetField(tif, tag);
+    fuzzTIFFVSetField(tif, tag);
+
+    TIFFClose(tif);
     return 0;
 }

@@ -1,57 +1,42 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
-#include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-#include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-#include "../src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0;
+    if (size < 1) return 0; // Ensure there's at least some data to process
+
+    // Initialize TurboJPEG decompressor
+    tjhandle decompressor = tjInitDecompress();
+    if (decompressor == nullptr) {
+        return 0; // If initialization fails, return
     }
 
-    // Define parameters for tjDecompressToYUV2
-    const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = static_cast<unsigned long>(size);
+    // Define some parameters for decompression
+    int width = 100;  // Example width
+    int height = 100; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pitch = 0; // Auto-calculate the pitch
+    int flags = 0; // No flags
 
-    // Assuming some arbitrary dimensions for the YUV output
-    int width = 128;  // Width of the image
-    int height = 128; // Height of the image
-    int strides = width; // Strides for YUV planes
-
-    // Allocate memory for the YUV buffer
-    unsigned char *yuvBuf = static_cast<unsigned char *>(malloc(width * height * 3));
-    if (yuvBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
+    // Allocate memory for the decompressed image
+    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+    if (dstBuf == nullptr) {
+        tjDestroy(decompressor);
+        return 0; // If memory allocation fails, return
     }
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 6 of tjDecompressToYUV2
-    int result = tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, strides, TJFLAG_FORCESSE3, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    int result = tjDecompress2(decompressor, data, (unsigned long)size, dstBuf, width, pitch, height, pixelFormat, flags);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tj3Decompress12
-    tjhandle ret_tjInitTransform_rlegq = tjInitTransform();
-
-    int ret_tj3Decompress12_qmkky = tj3Decompress12(ret_tjInitTransform_rlegq, yuvBuf, 0, NULL, TJFLAG_FASTDCT, TJ_YUV);
-    if (ret_tj3Decompress12_qmkky < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(yuvBuf);
-    tjDestroy(handle);
+    free(dstBuf);
+    tjDestroy(decompressor);
 
     return 0;
 }

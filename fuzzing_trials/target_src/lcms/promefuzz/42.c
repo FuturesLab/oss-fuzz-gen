@@ -1,74 +1,100 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsIT8Alloc at cmscgats.c:1454:22 in lcms2.h
-// cmsIT8Free at cmscgats.c:1170:16 in lcms2.h
-// cmsIT8SetData at cmscgats.c:2894:19 in lcms2.h
-// cmsIT8SaveToFile at cmscgats.c:2007:19 in lcms2.h
-// cmsIT8SetDataFormat at cmscgats.c:1694:19 in lcms2.h
-// cmsIT8SetComment at cmscgats.c:1522:19 in lcms2.h
-// cmsIT8SetPropertyStr at cmscgats.c:1533:19 in lcms2.h
-// cmsIT8SetPropertyUncooked at cmscgats.c:1563:19 in lcms2.h
+// cmsOpenProfileFromFile at cmsio0.c:1232:23 in lcms2.h
+// cmsMLUalloc at cmsnamed.c:33:19 in lcms2.h
+// cmsMLUsetASCII at cmsnamed.c:336:19 in lcms2.h
+// cmsGetProfileInfoUTF8 at cmsio1.c:1037:28 in lcms2.h
+// cmsMLUgetASCII at cmsnamed.c:542:27 in lcms2.h
+// cmsMLUtranslationsCodes at cmsnamed.c:696:19 in lcms2.h
+// cmsMLUgetWide at cmsnamed.c:629:27 in lcms2.h
+// cmsMLUgetUTF8 at cmsnamed.c:590:27 in lcms2.h
+// cmsGetProfileInfoASCII at cmsio1.c:1027:28 in lcms2.h
+// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsMLUfree at cmsnamed.c:476:16 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 #include "lcms2.h"
 
-static cmsHANDLE createDummyIT8Handle() {
-    // Assuming the IT8 structure requires initialization
-    // The actual structure size and initialization might differ
-    return (cmsHANDLE) cmsIT8Alloc(NULL);
+#define DUMMY_FILE "./dummy_file"
+
+// Helper function to create a dummy profile
+static cmsHPROFILE createDummyProfile() {
+    FILE *file = fopen(DUMMY_FILE, "wb");
+    if (file) {
+        // Write some dummy data to the file
+        fwrite("DUMMY_PROFILE_DATA", 1, 18, file);
+        fclose(file);
+    }
+    return cmsOpenProfileFromFile(DUMMY_FILE, "r");
 }
 
-static void releaseDummyIT8Handle(cmsHANDLE hIT8) {
-    // Assuming a function to release the dummy IT8 handle
-    cmsIT8Free(hIT8);
+// Helper function to create a dummy cmsMLU object
+static cmsMLU* createDummyMLU() {
+    cmsMLU* mlu = cmsMLUalloc(NULL, 1);
+    if (mlu) {
+        cmsMLUsetASCII(mlu, "en", "US", "Dummy String");
+    }
+    return mlu;
 }
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    cmsHANDLE hIT8 = createDummyIT8Handle();
-    if (!hIT8) return 0;
+    // Variables for function parameters
+    cmsHPROFILE hProfile = NULL;
+    cmsMLU *mlu = NULL;
+    char LanguageCode[3] = "en";
+    char CountryCode[3] = "US";
+    char Buffer[256];
+    wchar_t WideBuffer[256];
+    cmsUInt32Number BufferSize = sizeof(Buffer);
 
-    if (Size < 1) {
-        releaseDummyIT8Handle(hIT8);
-        return 0;
+    // Prepare environment
+    hProfile = createDummyProfile();
+    mlu = createDummyMLU();
+
+    // Fuzz cmsGetProfileInfoUTF8
+    if (hProfile) {
+        cmsGetProfileInfoUTF8(hProfile, 0, LanguageCode, CountryCode, Buffer, BufferSize);
     }
 
-    // Ensure the input data is null-terminated for string operations
-    char *nullTerminatedData = (char *)malloc(Size + 1);
-    if (!nullTerminatedData) {
-        releaseDummyIT8Handle(hIT8);
-        return 0;
-    }
-    memcpy(nullTerminatedData, Data, Size);
-    nullTerminatedData[Size] = '\0';
-
-    // Fuzz cmsIT8SetData
-    cmsIT8SetData(hIT8, nullTerminatedData, "SampleName", "Value");
-
-    // Fuzz cmsIT8SaveToFile
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        fclose(file);
-        cmsIT8SaveToFile(hIT8, "./dummy_file");
+    // Fuzz cmsMLUgetASCII
+    if (mlu) {
+        cmsMLUgetASCII(mlu, LanguageCode, CountryCode, Buffer, BufferSize);
     }
 
-    // Fuzz cmsIT8SetDataFormat
-    int index = nullTerminatedData[0] % 10;  // Example index
-    cmsIT8SetDataFormat(hIT8, index, "SampleFormat");
+    // Fuzz cmsMLUtranslationsCodes
+    if (mlu) {
+        cmsMLUtranslationsCodes(mlu, 0, LanguageCode, CountryCode);
+    }
 
-    // Fuzz cmsIT8SetComment
-    cmsIT8SetComment(hIT8, nullTerminatedData);
+    // Fuzz cmsMLUgetWide
+    if (mlu) {
+        cmsMLUgetWide(mlu, LanguageCode, CountryCode, WideBuffer, BufferSize);
+    }
 
-    // Fuzz cmsIT8SetPropertyStr
-    cmsIT8SetPropertyStr(hIT8, "PropertyKey", nullTerminatedData);
+    // Fuzz cmsMLUgetUTF8
+    if (mlu) {
+        cmsMLUgetUTF8(mlu, LanguageCode, CountryCode, Buffer, BufferSize);
+    }
 
-    // Fuzz cmsIT8SetPropertyUncooked
-    cmsIT8SetPropertyUncooked(hIT8, "PropertyKey", nullTerminatedData);
+    // Fuzz cmsGetProfileInfoASCII
+    if (hProfile) {
+        cmsGetProfileInfoASCII(hProfile, 0, LanguageCode, CountryCode, Buffer, BufferSize);
+    }
 
-    free(nullTerminatedData);
-    releaseDummyIT8Handle(hIT8);
+    // Cleanup
+    if (hProfile) {
+        cmsCloseProfile(hProfile);
+    }
+    if (mlu) {
+        cmsMLUfree(mlu);
+    }
+
     return 0;
 }

@@ -1,48 +1,69 @@
 #include <stdint.h>
 #include <sqlite3.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+// Dummy callback functions to be used as window function callbacks
+void step_callback(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Dummy implementation
+}
+
+void final_callback(sqlite3_context *context) {
+    // Dummy implementation
+}
+
+void value_callback(sqlite3_context *context) {
+    // Dummy implementation
+}
+
+void inverse_callback(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Dummy implementation
+}
+
+void destroy_callback(void *p) {
+    // Dummy implementation
+}
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_blob *blob;
-    sqlite3_stmt *stmt;
+    char *errMsg = 0;
     int rc;
-    
-    // Open a temporary in-memory database
+    const char *zFunctionName = "test_window_func";
+
+    // Initialize SQLite in-memory database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Create a table with a BLOB column
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);", NULL, NULL, NULL);
-    if (rc != SQLITE_OK) {
+    // Ensure the function name is null-terminated
+    char *functionName = (char *)malloc(size + 1);
+    if (functionName == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(functionName, data, size);
+    functionName[size] = '\0';
 
-    // Insert a row with the provided data as a BLOB
-    rc = sqlite3_prepare_v2(db, "INSERT INTO test (data) VALUES (?);", -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-    sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    // Open the BLOB for reading
-    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 0, &blob);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Call the function-under-test
-    int blob_size = sqlite3_blob_bytes(blob);
+    // Fuzz the sqlite3_create_window_function
+    sqlite3_create_window_function(
+        db, 
+        functionName, 
+        1, 
+        SQLITE_UTF8, 
+        NULL, 
+        step_callback, 
+        final_callback, 
+        value_callback, 
+        inverse_callback, 
+        destroy_callback
+    );
 
     // Clean up
-    sqlite3_blob_close(blob);
+    free(functionName);
     sqlite3_close(db);
 
     return 0;

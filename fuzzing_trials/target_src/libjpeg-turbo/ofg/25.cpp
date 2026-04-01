@@ -1,34 +1,50 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h" // Ensure the correct header is included
 }
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitCompress();
-    if (handle == NULL) {
-        return 0;
+    if (size < sizeof(uint16_t)) { // Assuming J16SAMPLE is a 16-bit sample, use uint16_t
+        return 0; // Not enough data to form a valid sample
     }
 
-    const unsigned char *yuvPlanes[3] = {data, data, data};
-    int strides[3] = {0, 0, 0};
-    int width = 1;  // Minimal valid width
-    int height = 1; // Minimal valid height
-    int subsamp = TJSAMP_444; // Using a valid subsampling option
-    unsigned char *jpegBuf = NULL;
-    unsigned long jpegSize = 0;
-    int jpegQual = 75; // Typical JPEG quality
-    int flags = 0;
+    // Initialize parameters for tj3Compress16
+    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    if (!handle) {
+        return 0; // Failed to initialize
+    }
 
-    // Correct the function call by removing the extra 'width' argument
-    tjCompressFromYUVPlanes(handle, yuvPlanes, width, strides, height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
+    // Allocate memory for input
+    uint16_t *j16Sample = (uint16_t *)malloc(size);
+    if (!j16Sample) {
+        tj3Destroy(handle);
+        return 0; // Memory allocation failed
+    }
+    memcpy(j16Sample, data, size);
+
+    int width = 1; // Minimum valid width
+    int height = 1; // Minimum valid height
+    int pitch = width * sizeof(uint16_t); // Assuming pitch is width * sizeof(uint16_t)
+    int pixelFormat = TJPF_RGB; // Assuming RGB format
+
+    unsigned char *compressedImage = nullptr;
+    size_t compressedSize = 0;
+
+    // Call the function under test
+    int result = tj3Compress16(handle, j16Sample, width, pitch, height, pixelFormat, &compressedImage, &compressedSize);
 
     // Clean up
-    tjFree(jpegBuf);
-    tjDestroy(handle);
+    if (compressedImage) {
+        tj3Free(compressedImage);
+    }
+    free(j16Sample);
+    tj3Destroy(handle);
 
     return 0;
 }

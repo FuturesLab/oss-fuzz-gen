@@ -1,38 +1,42 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include for size_t
+#include <string.h>  // Include for NULL
 #include <sqlite3.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // No input data to process
-    }
-
     sqlite3 *db;
-    char *errMsg = 0;
     int rc;
+    const char *modules[] = {"module1", "module2", NULL}; // Example module names
 
-    // Open a new in-memory database
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        return 0; // Unable to open database
-    }
-
-    // Prepare a SQL command from the input data
-    char *sql = strndup((const char *)data, size);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0; // Memory allocation failed
-    }
-
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+        return 0;
     }
 
-    // Clean up
-    free(sql);
+    // Ensure the input data is used meaningfully
+    if (size > 0) {
+        // Create a table to ensure the database is not empty
+        rc = sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value BLOB);", 0, 0, 0);
+        if (rc != SQLITE_OK) {
+            sqlite3_close(db);
+            return 0;
+        }
+
+        // Insert the input data into the table
+        sqlite3_stmt *stmt;
+        rc = sqlite3_prepare_v2(db, "INSERT INTO test (value) VALUES (?);", -1, &stmt, 0);
+        if (rc == SQLITE_OK) {
+            sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
+        }
+    }
+
+    // Call the function-under-test
+    sqlite3_drop_modules(db, modules);
+
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

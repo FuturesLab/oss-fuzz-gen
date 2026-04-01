@@ -1,42 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFReadGPSDirectory at tif_dirread.c:5564:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFNumberOfStrips at tif_strip.c:65:10 in tiffio.h
+// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -47,81 +16,58 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
 #include <tiffio.h>
+}
+
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstdarg>
 
-extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+static TIFF* openDummyTIFF(const char* filename) {
+    TIFF* tif = TIFFOpen(filename, "r");
+    return tif;
+}
+
+static void writeDummyFile(const uint8_t* data, size_t size) {
+    FILE* file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(data, 1, size, file);
+        fclose(file);
     }
+}
 
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
+extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t* Data, size_t Size) {
+    // Write dummy file
+    writeDummyFile(Data, Size);
 
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    // Open the dummy TIFF file
+    TIFF* tif = openDummyTIFF("./dummy_file");
     if (!tif) {
         return 0;
     }
 
-    uint32_t tag = 0;
-    tdir_t dir = 0;
-    toff_t offset = 0;
-    TIFFDataType dataType = TIFF_NOTYPE;
+    // Call TIFFStripSize
+    tmsize_t stripSize = TIFFStripSize(tif);
 
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
+    // Call _TIFFmalloc
+    void* buffer = _TIFFmalloc(stripSize);
+    if (!buffer) {
+        TIFFClose(tif);
+        return 0;
+    }
 
-    TIFFReadGPSDirectory(tif, offset);
+    // Call TIFFNumberOfStrips
+    uint32_t numStrips = TIFFNumberOfStrips(tif);
 
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
+    // Iterate over strips if any
+    for (uint32_t i = 0; i < numStrips; ++i) {
+        // Call TIFFReadEncodedStrip
+        TIFFReadEncodedStrip(tif, i, buffer, stripSize);
+    }
 
-    TIFFSetDirectory(tif, dir);
-
-    TIFFGetField(tif, tag, nullptr);
-    
-    TIFFReadEXIFDirectory(tif, offset);
-
-    TIFFGetField(tif, tag, nullptr);
-
-    TIFFFindField(tif, tag, dataType);
-
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-    TIFFGetField(tif, tag, nullptr);
-
-    TIFFClose(tif);
+    // Cleanup
+    _TIFFfree(buffer);
     TIFFClose(tif);
 
     return 0;

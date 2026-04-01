@@ -2,26 +2,30 @@
 #include <stdlib.h>
 #include <hdf5.h>
 
-int LLVMFuzzerTestOneInput_265(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t group_id = H5I_INVALID_HID; // Initialize to an invalid ID
-    hsize_t idx = 0;
-    char obj_name[256]; // Buffer for object name
-    size_t buf_size = sizeof(obj_name);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    // Ensure the data is large enough to extract meaningful values
-    if (size < sizeof(hid_t) + sizeof(hsize_t)) {
+int LLVMFuzzerTestOneInput_265(const uint8_t *data, size_t size) {
+    // Ensure size is large enough to extract an hid_t value
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Extract values from data
-    group_id = *((hid_t *)data);
-    idx = *((hsize_t *)(data + sizeof(hid_t)));
+    // Extract an hid_t value from the input data
+    hid_t input_id = *((hid_t *)data);
 
     // Call the function-under-test
-    ssize_t result = H5Gget_objname_by_idx(group_id, idx, obj_name, buf_size);
+    hid_t plist_id = H5Aget_create_plist(input_id);
 
-    // You can add additional checks or operations based on the result here
+    // Close the property list if it is valid
+    if (plist_id >= 0) {
+        H5Pclose(plist_id);
+    }
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

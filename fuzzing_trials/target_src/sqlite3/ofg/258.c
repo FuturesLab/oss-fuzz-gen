@@ -1,40 +1,61 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_258(const uint8_t *data, size_t size) {
-    // Initialize an SQLite database in memory
     sqlite3 *db;
-    int rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    sqlite3_stmt *stmt;
+    char *errMsg = 0;
+    int rc;
+
+    if (size == 0) {
         return 0;
     }
 
-    // Prepare an SQL statement using the input data
-    sqlite3_stmt *stmt;
-    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        return 0;
+    }
+
+    // Create a simple table
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare a statement using the input data
+    const uint8_t *sqlData = data;
+    size_t sqlSize = size;
+    char *sql = (char *)malloc(sqlSize + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, sqlData, sqlSize);
+    sql[sqlSize] = '\0';
+
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    free(sql);
+
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Step through the SQL statement
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        // Process the row (dummy operation)
+    // Call the function-under-test
+    char *expandedSQL = sqlite3_expanded_sql(stmt);
+    if (expandedSQL != NULL) {
+        sqlite3_free(expandedSQL);
     }
 
-    // Finalize the statement and close the database
+    // Clean up
     sqlite3_finalize(stmt);
     sqlite3_close(db);
-
-    // Call the function-under-test
-    int keyword_count = sqlite3_keyword_count();
-
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (keyword_count > 0) {
-        // Just a dummy operation to use the keyword_count
-        keyword_count = keyword_count * 2;
-    }
 
     return 0;
 }

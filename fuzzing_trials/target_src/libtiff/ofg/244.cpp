@@ -1,30 +1,42 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <tiffio.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>  // Include for 'close' and 'unlink'
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_244(const uint8_t *data, size_t size) {
-    // Create a TIFF memory stream
-    TIFF* tiff = TIFFClientOpen("MemTIFF", "r", (thandle_t)data,
-                                [](thandle_t fd, tdata_t buf, tsize_t size) -> tsize_t { return size; },
-                                [](thandle_t fd, tdata_t buf, tsize_t size) -> tsize_t { return 0; },
-                                [](thandle_t fd, toff_t off, int whence) -> toff_t { return 0; },
-                                [](thandle_t fd) -> int { return 0; },
-                                [](thandle_t fd) -> toff_t { return 0; },
-                                [](thandle_t fd, tdata_t* pbase, toff_t* psize) -> int { return 0; },
-                                [](thandle_t fd, tdata_t base, toff_t size) -> void {});
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
+    // Write the fuzzing data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == nullptr) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
     if (tiff == nullptr) {
+        unlink(tmpl);
         return 0;
     }
 
     // Call the function-under-test
-    TIFFCreateGPSDirectory(tiff);
+    int result = TIFFLastDirectory(tiff);
 
-    // Close the TIFF memory stream
+    // Clean up
     TIFFClose(tiff);
+    unlink(tmpl);
 
     return 0;
 }

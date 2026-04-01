@@ -11,115 +11,78 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio>
+#include <iostream>
 
-static void test_tjGetErrorStr() {
-    char *errorStr = tjGetErrorStr();
-    if (errorStr) {
-        printf("tjGetErrorStr: %s\n", errorStr);
-    }
+static tjscalingfactor getRandomScalingFactor() {
+    tjscalingfactor factor;
+    factor.num = rand() % 8 + 1;  // Random factor between 1/8 and 8/8
+    factor.denom = 8;
+    return factor;
 }
 
-static void test_tjGetErrorStr2(tjhandle handle) {
-    char *errorStr = tjGetErrorStr2(handle);
-    if (errorStr) {
-        printf("tjGetErrorStr2: %s\n", errorStr);
-    }
-}
-
-static void test_tjDecompress2(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    } // Need at least some data for a JPEG buffer
-    int width = 100, height = 100, pitch = 0, pixelFormat = TJPF_RGB, flags = 0;
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (!dstBuf) {
-        return;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjDecompress2
-    int result = tjDecompress2(handle, Data, Size, dstBuf, width, pitch, height, TJXOPT_ARITHMETIC, flags);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (result == 0) {
-        printf("tjDecompress2 succeeded.\n");
-    } else {
-        test_tjGetErrorStr2(handle);
-    }
-    free(dstBuf);
-}
-
-static void test_tjDecompress(tjhandle handle, uint8_t *jpegBuf, size_t jpegSize) {
-    int width = 100, height = 100, pitch = 0, pixelSize = tjPixelSize[TJPF_RGB], flags = 0;
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * pixelSize);
-    if (!dstBuf) {
-        return;
-    }
-
-    int result = tjDecompress(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, pixelSize, flags);
-    if (result == 0) {
-        printf("tjDecompress succeeded.\n");
-    } else {
-        test_tjGetErrorStr2(handle);
-    }
-    free(dstBuf);
-}
-
-static void test_tjSaveImage(const uint8_t *Data, size_t Size) {
-    int width = 100, height = 100, pitch = width * tjPixelSize[TJPF_RGB], pixelFormat = TJPF_RGB, flags = 0;
-    size_t bufferSize = pitch * height;
-    if (Size < bufferSize) {
-        return;
-    }
-    
-    unsigned char *buffer = (unsigned char *)malloc(bufferSize);
-    if (!buffer) {
-        return;
-    }
-    memcpy(buffer, Data, bufferSize);
-
-    int result = tjSaveImage("./dummy_file", buffer, width, pitch, height, pixelFormat, flags);
-    if (result == 0) {
-        printf("tjSaveImage succeeded.\n");
-    } else {
-        test_tjGetErrorStr();
-    }
-    free(buffer);
-}
-
-static void test_tjLoadImage() {
-    int width = 0, height = 0, pixelFormat = 0, flags = 0;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of tjLoadImage
-    int nkcnciul = 1;
-    unsigned char *imageData = tjLoadImage("./dummy_file", &width, 1, &height, &nkcnciul, flags);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (imageData) {
-        printf("tjLoadImage succeeded.\n");
-        tjFree(imageData);
-    } else {
-        test_tjGetErrorStr();
-    }
+static tjregion getRandomCroppingRegion() {
+    tjregion region;
+    region.x = rand() % 100;  // Random x starting point
+    region.y = rand() % 100;  // Random y starting point
+    region.w = rand() % 100;  // Random width
+    region.h = rand() % 100;  // Random height
+    return region;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        test_tjGetErrorStr();
+    if (Size < 2) {
         return 0;
     }
 
-    test_tjGetErrorStr();
-    test_tjGetErrorStr2(handle);
-    test_tjDecompress2(handle, Data, Size);
-    test_tjDecompress(handle, const_cast<uint8_t*>(Data), Size);
-    test_tjSaveImage(Data, Size);
-    test_tjLoadImage();
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
+        return 0;
+    }
 
-    tjDestroy(handle);
+    tjscalingfactor scalingFactor = getRandomScalingFactor();
+    if (tj3SetScalingFactor(handle, scalingFactor) == -1) {
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    }
+
+    tjregion croppingRegion1 = getRandomCroppingRegion();
+    if (tj3SetCroppingRegion(handle, croppingRegion1) == -1) {
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    }
+
+    tjregion croppingRegion2 = getRandomCroppingRegion();
+    if (tj3SetCroppingRegion(handle, croppingRegion2) == -1) {
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    }
+
+    size_t allocSize = 1024;  // Arbitrary size for allocation
+    void *buffer = tj3Alloc(allocSize);
+    if (!buffer) {
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    }
+
+    std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+
+    unsigned short *dstBuf = static_cast<unsigned short*>(tj3Alloc(allocSize));
+    if (!dstBuf) {
+        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    } else {
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of tj3Decompress16
+        if (tj3Decompress16(handle, Data, Size, dstBuf, TJFLAG_FORCEMMX, TJPF_RGB) == -1) {
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+            std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+        }
+    }
+
+    std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+
+    tj3Free(buffer);
+    tj3Free(dstBuf);
+
+    tj3Destroy(handle);
+
     return 0;
 }

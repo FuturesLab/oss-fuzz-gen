@@ -1,10 +1,14 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_dx at av1_dx_iface.c:1796:20 in aomdx.h
-// aom_codec_dec_init_ver at aom_decoder.c:25:17 in aom_decoder.h
-// aom_codec_set_frame_buffer_functions at aom_decoder.c:120:17 in aom_decoder.h
-// aom_codec_get_stream_info at aom_decoder.c:75:17 in aom_decoder.h
-// aom_codec_decode at aom_decoder.c:94:17 in aom_decoder.h
-// aom_codec_get_frame at aom_decoder.c:109:14 in aom_decoder.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,64 +22,51 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom.h"
-#include "aom_codec.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_external_partition.h"
-#include "aom_frame_buffer.h"
-#include "aom_image.h"
-#include "aom_integer.h"
-#include "aomcx.h"
-#include "aomdx.h"
-
-static int get_frame_buffer(void *priv, size_t min_size, aom_codec_frame_buffer_t *fb) {
-    if (!priv || !fb) return -1;
-    if (fb->data == NULL || fb->size < min_size) {
-        fb->data = static_cast<uint8_t*>(realloc(fb->data, min_size));
-        if (!fb->data) return -1;
-        fb->size = min_size;
-    }
-    return 0;
-}
-
-static int release_frame_buffer(void *priv, aom_codec_frame_buffer_t *fb) {
-    if (!priv || !fb) return -1;
-    free(fb->data);
-    fb->data = NULL;
-    fb->size = 0;
-    return 0;
-}
+#include <exception>
+#include "aom/aom_codec.h"
+#include "aom/aom_encoder.h"
+#include "aom/aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg;
-    memset(&cfg, 0, sizeof(cfg));
-    cfg.threads = 1;
-
-    if (aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, 0, AOM_DECODER_ABI_VERSION) != AOM_CODEC_OK) {
-        return 0;
+    if (Size < 6) {
+        return 0;  // Not enough data to proceed
     }
 
-    aom_codec_set_frame_buffer_functions(&codec_ctx, get_frame_buffer, release_frame_buffer, NULL);
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
 
-    aom_codec_stream_info_t stream_info;
-    memset(&stream_info, 0, sizeof(stream_info));
+    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
+        return 0;  // Failed to get default config
+    }
 
-    aom_codec_get_stream_info(&codec_ctx, &stream_info);
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0)) {
+        return 0;  // Failed to initialize codec
+    }
 
-    void *user_priv = NULL;
-    aom_codec_decode(&codec_ctx, Data, Size, user_priv);
+    try {
+        int enable_auto_alt_ref = Data[0] % 2;
+        aom_codec_control(&codec_ctx, AOME_SET_ENABLEAUTOALTREF, enable_auto_alt_ref);
 
-    aom_codec_iter_t iter = NULL;
-    while (aom_codec_get_frame(&codec_ctx, &iter)) {
-        // Process the frame
+        aom_scaling_mode_t scaling_mode;
+        scaling_mode.h_scaling_mode = static_cast<AOM_SCALING_MODE>(Data[1] % 9);
+        aom_codec_control(&codec_ctx, AOME_SET_SCALEMODE, &scaling_mode);
+
+        int num_spatial_layers = Data[2] % 4;
+        aom_codec_control(&codec_ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, num_spatial_layers);
+
+        int tuning = Data[3] % 3;
+        aom_codec_control(&codec_ctx, AOME_SET_TUNING, tuning);
+
+        int spatial_layer_id = Data[4] % 4;
+        aom_codec_control(&codec_ctx, AOME_SET_SPATIAL_LAYER_ID, spatial_layer_id);
+
+        int max_gf_interval = Data[5] % 100;
+        aom_codec_control(&codec_ctx, AV1E_SET_MAX_GF_INTERVAL, max_gf_interval);
+    } catch (const std::exception &e) {
+        // Handle any exceptions that might be thrown by the codec control functions
     }
 
     aom_codec_destroy(&codec_ctx);
-
     return 0;
 }

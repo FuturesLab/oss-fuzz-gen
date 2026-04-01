@@ -1,29 +1,37 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <gpac/isomedia.h>
+#include <gpac/constants.h>
 
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to extract necessary parameters
-    if (size < sizeof(uint32_t) * 2 + sizeof(uint64_t)) {
+    // Initialize variables
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_EDIT, NULL);
+    u32 trackNumber = 1;  // Assuming track number 1 for fuzzing
+    u32 StreamDescriptionIndex = 1;  // Assuming stream description index 1 for fuzzing
+
+    // Ensure movie is not NULL
+    if (!movie) {
         return 0;
     }
 
-    // Initialize parameters for gf_isom_get_media_time
-    GF_ISOFile *the_file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_READ, NULL);
-    if (!the_file) {
+    // Create a new ESD
+    GF_ESD *newESD = gf_odf_new_esd();
+    if (!newESD) {
+        gf_isom_close(movie);
         return 0;
     }
 
-    uint32_t trackNumber = *((uint32_t *)data);
-    uint32_t movieTime = *((uint32_t *)(data + sizeof(uint32_t)));
-    uint64_t MediaTime = *((uint64_t *)(data + sizeof(uint32_t) * 2));
+    // Fuzz the ESD with input data
+    if (size > 0) {
+        newESD->ESID = data[0];  // Use the first byte as ESID
+    }
 
-    // Call the function-under-test
-    gf_isom_get_media_time(the_file, trackNumber, movieTime, &MediaTime);
+    // Call the function under test
+    gf_isom_change_mpeg4_description(movie, trackNumber, StreamDescriptionIndex, newESD);
 
     // Clean up
-    gf_isom_close(the_file);
+    gf_isom_close(movie);
+    gf_odf_desc_del((GF_Descriptor *)newESD);
 
     return 0;
 }

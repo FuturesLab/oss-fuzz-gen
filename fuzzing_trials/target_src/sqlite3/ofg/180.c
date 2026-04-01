@@ -1,36 +1,36 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h>  // Include this for malloc and free
+
+// Define the callback functions with the correct signature
+void sampleFunc(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Example function body
+}
+
+void sampleStep(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Example step function body
+}
+
+void sampleFinal(sqlite3_context *context) {
+    // Example final function body
+}
 
 int LLVMFuzzerTestOneInput_180(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to create a valid string
-    if (size < 1) {
+    sqlite3 *db = NULL;
+    const void *functionName = L"sample_function";
+    int nArg = 1;
+    int eTextRep = SQLITE_UTF16;
+    void *pApp = NULL;
+
+    // Initialize SQLite database in memory
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Initialize SQLite database
-    sqlite3 *db;
-    int rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
+    // Call the function-under-test
+    sqlite3_create_function16(db, functionName, nArg, eTextRep, pApp, sampleFunc, sampleStep, sampleFinal);
 
-    // Create a null-terminated string from the input data
-    char *zDbName = (char *)malloc(size + 1);
-    if (zDbName == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(zDbName, data, size);
-    zDbName[size] = '\0';
-
-    // Call the function under test
-    int result = sqlite3_db_readonly(db, zDbName);
-
-    // Clean up
-    free(zDbName);
+    // Close the database
     sqlite3_close(db);
 
     return 0;

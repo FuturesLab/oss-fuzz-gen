@@ -1,38 +1,27 @@
 #include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize two ucl_object_t objects
+    ucl_object_t *obj1 = ucl_object_new_full(UCL_ARRAY, NULL);
+    ucl_object_t *obj2 = ucl_object_new_full(UCL_ARRAY, NULL);
 
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
+    // Add some dummy data to the objects to ensure they are not NULL
+    ucl_object_t *dummy_obj1 = ucl_object_fromstring("dummy1");
+    ucl_object_t *dummy_obj2 = ucl_object_fromstring("dummy2");
+    ucl_array_append(obj1, dummy_obj1);
+    ucl_array_append(obj2, dummy_obj2);
 
-    // Parse the input data as a UCL object
-    ucl_parser_add_string(parser, (const char *)data, size);
+    // Use the first byte of data to determine the boolean parameter
+    bool merge_recursively = size > 0 ? (data[0] % 2 == 0) : false;
 
-    if (ucl_parser_get_error(parser) != NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Get the root object
-    const ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Call the function-under-test
-    const ucl_object_t *head = ucl_array_head(root);
+    // Call the function under test
+    bool result = ucl_array_merge(obj1, obj2, merge_recursively);
 
     // Clean up
-    ucl_object_unref(root);
-    ucl_parser_free(parser);
+    ucl_object_unref(obj1);
+    ucl_object_unref(obj2);
 
     return 0;
 }

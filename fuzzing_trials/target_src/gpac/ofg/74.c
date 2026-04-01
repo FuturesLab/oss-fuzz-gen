@@ -1,34 +1,28 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <gpac/isomedia.h>
-#include <gpac/constants.h>
-#include <gpac/internal/isomedia_dev.h>  // Include the internal header where GF_TextSample is fully defined
 
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract start_char and end_char
-    if (size < 4) {
+    // Ensure that the input size is sufficient for u32 MajorBrand and u32 MinorVersion
+    if (size < sizeof(uint32_t) * 2) {
         return 0;
     }
 
-    // Initialize the GF_TextSample structure
-    GF_TextSample samp;
-    samp.text = NULL;
-    samp.len = 0;
-    samp.styles = NULL;
-    samp.highlight_color = NULL;
-    samp.scroll_delay = NULL;
-    samp.box = NULL;
-    samp.wrap = NULL;
-    samp.is_forced = 0;
-    samp.others = NULL;
-    samp.cur_karaoke = NULL;
+    // Initialize the GF_ISOFile structure
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
+        return 0;
+    }
 
-    // Extract start_char and end_char from the data
-    uint16_t start_char = (uint16_t)((data[0] << 8) | data[1]);
-    uint16_t end_char = (uint16_t)((data[2] << 8) | data[3]);
+    // Extract MajorBrand and MinorVersion from the input data
+    uint32_t MajorBrand = *(const uint32_t *)data;
+    uint32_t MinorVersion = *(const uint32_t *)(data + sizeof(uint32_t));
 
     // Call the function-under-test
-    gf_isom_text_add_highlight(&samp, start_char, end_char);
+    gf_isom_set_brand_info(movie, MajorBrand, MinorVersion);
+
+    // Clean up
+    gf_isom_close(movie);
 
     return 0;
 }

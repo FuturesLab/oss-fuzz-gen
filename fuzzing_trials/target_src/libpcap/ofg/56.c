@@ -1,34 +1,24 @@
-#include <pcap.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
-void packet_handler_56(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Example packet handler function
-    // Do nothing for now
-}
+#include <stddef.h>
+#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    pcap_t *handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    int packet_count_limit = 10; // Limit to 10 packets for fuzzing
-    int timeout_limit = 1000; // Timeout in milliseconds
-
-    // Create a pcap_t handle from the provided data
-    handle = pcap_open_offline_with_tstamp_precision((const char *)data, PCAP_TSTAMP_PRECISION_MICRO, errbuf);
-    if (handle == NULL) {
-        // If pcap_open_offline fails, return 0 to continue fuzzing
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Allocate a non-NULL user data pointer
-    u_char user_data = 0x01; // Example user data
+    // Interpret the first 4 bytes of data as an integer
+    int tstamp_type = *(const int*)data;
 
     // Call the function-under-test
-    pcap_loop(handle, packet_count_limit, packet_handler_56, &user_data);
+    const char *description = pcap_tstamp_type_val_to_description(tstamp_type);
 
-    // Close the pcap handle
-    pcap_close(handle);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    if (description) {
+        // For this fuzzing harness, we just check if the description is not NULL
+        volatile const char *desc = description;
+        (void)desc;
+    }
 
     return 0;
 }

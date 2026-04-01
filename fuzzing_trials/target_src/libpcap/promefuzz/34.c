@@ -1,65 +1,116 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_offline_with_tstamp_precision at savefile.c:335:1 in pcap.h
-// pcap_get_tstamp_precision at pcap.c:2753:1 in pcap.h
-// pcap_snapshot at pcap.c:3520:1 in pcap.h
-// pcap_bufsize at pcap.c:3552:1 in pcap.h
-// pcap_dump_open at sf-pcap.c:895:1 in pcap.h
-// pcap_dump_close at sf-pcap.c:1255:1 in pcap.h
-// pcap_dispatch at pcap.c:2957:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_nametoport at nametoaddr.c:304:1 in namedb.h
+// pcap_nametoaddr at nametoaddr.c:138:1 in namedb.h
+// pcap_nametonetaddr at nametoaddr.c:220:1 in namedb.h
+// pcap_nametoaddrinfo at nametoaddr.c:178:1 in namedb.h
+// pcap_nametoproto at nametoaddr.c:475:1 in namedb.h
+// pcap_nametoeproto at nametoaddr.c:596:1 in namedb.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <pcap.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
+#include <pcap.h>
+#include <pcap/namedb.h>
+#include <stdint.h>
 
-static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Dummy packet handler function
+static void fuzz_pcap_nametoport(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    
+    char *service_name = (char *)malloc(Size + 1);
+    if (!service_name) return;
+    
+    memcpy(service_name, Data, Size);
+    service_name[Size] = '\0';
+    
+    int tcp_port = 0, udp_port = 0;
+    pcap_nametoport(service_name, &tcp_port, &udp_port);
+    
+    free(service_name);
+}
+
+static void fuzz_pcap_nametoaddr(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    
+    char *hostname = (char *)malloc(Size + 1);
+    if (!hostname) return;
+    
+    memcpy(hostname, Data, Size);
+    hostname[Size] = '\0';
+    
+    pcap_nametoaddr(hostname);
+    
+    free(hostname);
+}
+
+static void fuzz_pcap_nametonetaddr(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    
+    char *network_name = (char *)malloc(Size + 1);
+    if (!network_name) return;
+    
+    memcpy(network_name, Data, Size);
+    network_name[Size] = '\0';
+    
+    pcap_nametonetaddr(network_name);
+    
+    free(network_name);
+}
+
+static void fuzz_pcap_nametoaddrinfo(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    
+    char *hostname = (char *)malloc(Size + 1);
+    if (!hostname) return;
+    
+    memcpy(hostname, Data, Size);
+    hostname[Size] = '\0';
+    
+    struct addrinfo *result = pcap_nametoaddrinfo(hostname);
+    if (result) {
+        freeaddrinfo(result);
+    }
+    
+    free(hostname);
+}
+
+static void fuzz_pcap_nametoproto(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    
+    char *proto_name = (char *)malloc(Size + 1);
+    if (!proto_name) return;
+    
+    memcpy(proto_name, Data, Size);
+    proto_name[Size] = '\0';
+    
+    pcap_nametoproto(proto_name);
+    
+    free(proto_name);
+}
+
+static void fuzz_pcap_nametoeproto(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    
+    char *proto_name = (char *)malloc(Size + 1);
+    if (!proto_name) return;
+    
+    memcpy(proto_name, Data, Size);
+    proto_name[Size] = '\0';
+    
+    pcap_nametoeproto(proto_name);
+    
+    free(proto_name);
 }
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap;
-    pcap_dumper_t *dumper;
-    char *filename = "./dummy_file";
-    FILE *file;
-
-    // Write the fuzzer data to a dummy file
-    file = fopen(filename, "wb");
-    if (file == NULL) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Test pcap_open_offline_with_tstamp_precision
-    pcap = pcap_open_offline_with_tstamp_precision(filename, PCAP_TSTAMP_PRECISION_MICRO, errbuf);
-    if (pcap == NULL) return 0;
-
-    // Test pcap_get_tstamp_precision
-    int tstamp_precision = pcap_get_tstamp_precision(pcap);
-
-    // Test pcap_snapshot
-    int snapshot = pcap_snapshot(pcap);
-
-    // Test pcap_bufsize
-    int bufsize = pcap_bufsize(pcap);
-
-    // Test pcap_dump_open
-    dumper = pcap_dump_open(pcap, filename);
-    if (dumper != NULL) {
-        pcap_dump_close(dumper);
-    }
-
-    // Test pcap_dispatch
-    pcap_dispatch(pcap, 10, dummy_packet_handler, NULL);
-
-    // Cleanup
-    pcap_close(pcap);
-
+    fuzz_pcap_nametoport(Data, Size);
+    fuzz_pcap_nametoaddr(Data, Size);
+    fuzz_pcap_nametonetaddr(Data, Size);
+    fuzz_pcap_nametoaddrinfo(Data, Size);
+    fuzz_pcap_nametoproto(Data, Size);
+    fuzz_pcap_nametoeproto(Data, Size);
     return 0;
 }

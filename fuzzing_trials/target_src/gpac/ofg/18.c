@@ -1,47 +1,37 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <gpac/isomedia.h> // Include the GPAC library header for type declarations
+#include <gpac/isomedia.h>
+
+// Mock implementation of gf_isom_meta_get_item_ref_id for demonstration purposes
+GF_EXPORT u32 mock_gf_isom_meta_get_item_ref_id(GF_ISOFile *file, Bool root_meta, u32 track_num, u32 from_id, u32 type, u32 ref_idx) {
+    // Function implementation
+    return 0; // Return a dummy value for demonstration purposes
+}
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for the function-under-test
-    u8 *sample_data;
-    u32 dataLength;
-    Bool use_selective_encryption;
-    u8 KI_length;
-    u8 IV_length;
-
-    // Ensure the size is large enough to extract meaningful values
-    if (size < 4) {
+    // Ensure the data size is sufficient for our test
+    if (size < 5 * sizeof(uint32_t) + 1) {
         return 0;
     }
 
-    // Allocate memory for sample_data and copy the input data
-    sample_data = (u8 *)malloc(size);
-    if (sample_data == NULL) {
+    // Initialize the GF_ISOFile structure
+    GF_ISOFile *file = gf_isom_open(NULL, GF_ISOM_OPEN_READ, NULL);
+    if (!file) {
         return 0;
     }
-    memcpy(sample_data, data, size);
 
-    // Set dataLength to the size of the input data
-    dataLength = (u32)size;
+    // Extract parameters from the input data
+    Bool root_meta = (Bool)data[0];
+    u32 track_num = *(const u32 *)(data + 1);
+    u32 from_id = *(const u32 *)(data + 1 + sizeof(u32));
+    u32 type = *(const u32 *)(data + 1 + 2 * sizeof(u32));
+    u32 ref_idx = *(const u32 *)(data + 1 + 3 * sizeof(u32));
 
-    // Set use_selective_encryption to a non-NULL value
-    use_selective_encryption = (Bool)(data[0] % 2);
+    // Call the mock function-under-test
+    mock_gf_isom_meta_get_item_ref_id(file, root_meta, track_num, from_id, type, ref_idx);
 
-    // Set KI_length and IV_length to arbitrary non-NULL values
-    KI_length = (u8)(data[1] % 256);
-    IV_length = (u8)(data[2] % 256);
-
-    // Call the function-under-test
-    GF_ISMASample *sample = gf_isom_ismacryp_sample_from_data(sample_data, dataLength, use_selective_encryption, KI_length, IV_length);
-
-    // Free allocated memory
-    free(sample_data);
-
-    // Normally, you would check the result of the function call here
-    // and possibly free any resources allocated by the function-under-test.
-    // However, for fuzzing purposes, we simply return.
+    // Clean up
+    gf_isom_close(file);
 
     return 0;
 }

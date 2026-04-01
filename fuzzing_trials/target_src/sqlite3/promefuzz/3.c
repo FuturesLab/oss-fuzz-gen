@@ -1,62 +1,81 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
 // sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
 // sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
+// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
+// sqlite3_column_count at sqlite3.c:79599:16 in sqlite3.h
+// sqlite3_column_type at sqlite3.c:79770:16 in sqlite3.h
+// sqlite3_column_name at sqlite3.c:79883:24 in sqlite3.h
 // sqlite3_column_text at sqlite3.c:79749:33 in sqlite3.h
-// sqlite3_snprintf at sqlite3.c:19369:18 in sqlite3.h
-// sqlite3_snprintf at sqlite3.c:19369:18 in sqlite3.h
-// sqlite3_reset at sqlite3.c:78461:16 in sqlite3.h
-// sqlite3_sql at sqlite3.c:80471:24 in sqlite3.h
+// sqlite3_column_bytes at sqlite3.c:79724:16 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sqlite3.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
-static void prepare_database(sqlite3 **db, sqlite3_stmt **stmt) {
-    sqlite3_open(":memory:", db);
-    sqlite3_exec(*db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, 0);
-    sqlite3_exec(*db, "INSERT INTO test (value) VALUES ('test1'), ('test2');", 0, 0, 0);
-    sqlite3_prepare_v2(*db, "SELECT value FROM test WHERE id = ?;", -1, stmt, 0);
-}
+static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
+    sqlite3_stmt *stmt = NULL;
+    const char *pzTail = NULL;
 
-static void cleanup(sqlite3 *db, sqlite3_stmt *stmt) {
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &pzTail);
+    if (rc != SQLITE_OK) {
+        const char *errmsg = sqlite3_errmsg(db);
+        (void)errmsg;  // Suppress unused variable warning
+        return;
+    }
+
+    rc = sqlite3_step(stmt);
+    rc = sqlite3_step(stmt);  // Call sqlite3_step twice as required
+
+    int column_count = sqlite3_column_count(stmt);
+    for (int i = 0; i < column_count; i++) {
+        int col_type = sqlite3_column_type(stmt, i);
+        const char *col_name = sqlite3_column_name(stmt, i);
+        const unsigned char *col_text = sqlite3_column_text(stmt, i);
+        int col_bytes = sqlite3_column_bytes(stmt, i);
+
+        (void)col_type;  // Suppress unused variable warning
+        (void)col_name;
+        (void)col_text;
+        (void)col_bytes;
+    }
+
     sqlite3_finalize(stmt);
-    sqlite3_close(db);
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    prepare_database(&db, &stmt);
+    if (Size == 0) return 0;
 
-    if (Size > 0) {
-        int index = Data[0] % 2 + 1; // Choose between 1 or 2
-        sqlite3_bind_text(stmt, 1, (const char *)&index, -1, SQLITE_TRANSIENT);
-
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            const unsigned char *text = sqlite3_column_text(stmt, 0);
-            if (text) {
-                char buffer[100];
-                sqlite3_snprintf(sizeof(buffer), buffer, "Value: %s", text);
-                sqlite3_snprintf(sizeof(buffer), buffer, "Value: %s", text);
-            }
-        }
-
-        sqlite3_reset(stmt);
-        const char *sql = sqlite3_sql(stmt);
-        if (sql) {
-            printf("SQL: %s\n", sql);
-        }
+    // Initialize SQLite
+    sqlite3 *db;
+    int rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    cleanup(db, stmt);
+    // Copy input data to a null-terminated string
+    char *sql = (char *)malloc(Size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, Data, Size);
+    sql[Size] = '\0';
 
+    // Execute fuzzing with the given SQL
+    execute_sqlite_fuzzing(db, sql);
+
+    // Cleanup
+    free(sql);
+    sqlite3_close(db);
     return 0;
 }

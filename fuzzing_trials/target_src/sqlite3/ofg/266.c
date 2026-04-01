@@ -1,40 +1,54 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_266(const uint8_t *data, size_t size) {
     sqlite3 *db = NULL;
-    char *errMsg = NULL;
-    char **result = NULL;
-    int rows = 0;
-    int columns = 0;
-
-    // Initialize SQLite in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    int rc;
+    char *errMsg = 0;
+    char *sql;
+    
+    // Initialize an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Ensure the input data is null-terminated and treat it as an SQL query
-    char *query = (char *)malloc(size + 1);
-    if (query == NULL) {
+    // Create a simple table
+    sql = "CREATE TABLE IF NOT EXISTS test(id INT, value TEXT);";
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
+        sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
-    memcpy(query, data, size);
-    query[size] = '\0';
 
-    // Call the function-under-test
-    sqlite3_get_table(db, query, &result, &rows, &columns, &errMsg);
-
-    // Clean up
-    if (result != NULL) {
-        sqlite3_free_table(result);
+    // Prepare the input data as an SQL statement
+    char *inputSQL = (char *)malloc(size + 1);
+    if (inputSQL == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
-    if (errMsg != NULL) {
+    memcpy(inputSQL, data, size);
+    inputSQL[size] = '\0';
+
+    // Execute the input SQL statement
+    rc = sqlite3_exec(db, inputSQL, 0, 0, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
         sqlite3_free(errMsg);
     }
-    free(query);
+
+    // Call the function-under-test
+    int changes = sqlite3_changes(db);
+    printf("Number of changes: %d\n", changes);
+
+    // Clean up
+    free(inputSQL);
     sqlite3_close(db);
 
     return 0;

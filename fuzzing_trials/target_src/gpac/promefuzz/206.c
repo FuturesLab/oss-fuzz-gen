@@ -1,105 +1,65 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_get_track_matrix at isom_read.c:4107:8 in isomedia.h
-// gf_isom_add_sample at isom_write.c:1061:8 in isomedia.h
-// gf_isom_text_set_display_flags at isom_write.c:8293:8 in isomedia.h
-// gf_isom_remove_track at isom_write.c:2942:8 in isomedia.h
-// gf_isom_remove_sample_group at isom_write.c:7632:8 in isomedia.h
-// gf_isom_get_pixel_aspect_ratio at isom_read.c:3946:8 in isomedia.h
+// gf_isom_lhvc_config_update at avc_ext.c:2343:8 in isomedia.h
+// gf_isom_hevc_set_tile_config at avc_ext.c:2337:8 in isomedia.h
+// gf_isom_hevc_config_get at avc_ext.c:2485:16 in isomedia.h
+// gf_isom_lhvc_config_get at avc_ext.c:2771:16 in isomedia.h
+// gf_isom_hevc_config_new at avc_ext.c:1889:8 in isomedia.h
+// gf_isom_hevc_config_update at avc_ext.c:2318:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
-
-// Function to initialize a dummy ISO file
-static GF_ISOFile *initialize_dummy_iso_file() {
+static GF_ISOFile* create_dummy_iso_file() {
     // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Assuming here we have a function to open or create an ISO file for testing
-    GF_ISOFile *iso_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_WRITE, NULL);
-    return iso_file;
+    // Assuming there's a function in the actual library to create an ISOFile.
+    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
 }
 
-// Function to clean up ISO file
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_close(iso_file);
-    }
-}
-
-// Function to write dummy data to a file
-static int write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
-    if (!file) return -1;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-    return 0;
+static GF_HEVCConfig* create_dummy_hevc_config() {
+    GF_HEVCConfig *config = malloc(sizeof(GF_HEVCConfig));
+    if (!config) return NULL;
+    memset(config, 0, sizeof(GF_HEVCConfig));
+    return config;
 }
 
 int LLVMFuzzerTestOneInput_206(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 4) return 0; // Ensure sufficient data size for accessing all variables
+    if (Size < sizeof(u32) * 3 + sizeof(Bool)) return 0;
 
-    // Write the data to a dummy file
-    if (write_dummy_file(Data, Size) != 0) return 0;
-
-    GF_ISOFile *iso_file = initialize_dummy_iso_file();
+    GF_ISOFile *iso_file = create_dummy_iso_file();
     if (!iso_file) return 0;
 
-    u32 trackNumber = *(u32 *)Data;
-    u32 matrix[9];
-    GF_Err result;
-
-    // Fuzz gf_isom_get_track_matrix
-    result = gf_isom_get_track_matrix(iso_file, trackNumber, matrix);
-    if (result != GF_OK) {
-        // Handle error if necessary
+    GF_HEVCConfig *hevc_config = create_dummy_hevc_config();
+    if (!hevc_config) {
+        gf_isom_close(iso_file);
+        return 0;
     }
 
-    // Fuzz gf_isom_add_sample
-    GF_ISOSample sample;
-    memset(&sample, 0, sizeof(GF_ISOSample));
-    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
-    result = gf_isom_add_sample(iso_file, trackNumber, sampleDescriptionIndex, &sample);
-    if (result != GF_OK) {
-        // Handle error if necessary
-    }
+    u32 trackNumber = *((u32 *)Data);
+    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
+    u32 outDescriptionIndex = 0;
+    Bool is_base_track = *((Bool *)(Data + sizeof(u32) * 2));
 
-    // Fuzz gf_isom_text_set_display_flags
-    u32 flags = *(u32 *)(Data + sizeof(u32) * 2);
-    GF_TextFlagsMode op_type = (GF_TextFlagsMode)(Data[Size - 1] % 3); // Assume 3 modes
-    result = gf_isom_text_set_display_flags(iso_file, trackNumber, sampleDescriptionIndex, flags, op_type);
-    if (result != GF_OK) {
-        // Handle error if necessary
-    }
+    gf_isom_lhvc_config_update(iso_file, trackNumber, sampleDescriptionIndex, hevc_config, 0);
+    gf_isom_hevc_set_tile_config(iso_file, trackNumber, sampleDescriptionIndex, hevc_config, is_base_track);
+    GF_HEVCConfig *retrieved_config = gf_isom_hevc_config_get(iso_file, trackNumber, sampleDescriptionIndex);
+    if (retrieved_config) free(retrieved_config);
+    retrieved_config = gf_isom_lhvc_config_get(iso_file, trackNumber, sampleDescriptionIndex);
+    if (retrieved_config) free(retrieved_config);
+    gf_isom_hevc_config_new(iso_file, trackNumber, hevc_config, NULL, NULL, &outDescriptionIndex);
+    gf_isom_hevc_config_update(iso_file, trackNumber, sampleDescriptionIndex, hevc_config);
 
-    // Fuzz gf_isom_remove_track
-    result = gf_isom_remove_track(iso_file, trackNumber);
-    if (result != GF_OK) {
-        // Handle error if necessary
-    }
-
-    // Fuzz gf_isom_remove_sample_group
-    u32 grouping_type = *(u32 *)(Data + sizeof(u32) * 3);
-    result = gf_isom_remove_sample_group(iso_file, trackNumber, grouping_type);
-    if (result != GF_OK) {
-        // Handle error if necessary
-    }
-
-    // Fuzz gf_isom_get_pixel_aspect_ratio
-    u32 hSpacing, vSpacing;
-    result = gf_isom_get_pixel_aspect_ratio(iso_file, trackNumber, sampleDescriptionIndex, &hSpacing, &vSpacing);
-    if (result != GF_OK) {
-        // Handle error if necessary
-    }
-
-    cleanup_iso_file(iso_file);
+    free(hevc_config);
+    gf_isom_close(iso_file);
     return 0;
 }

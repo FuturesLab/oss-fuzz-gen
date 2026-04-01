@@ -3,22 +3,17 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_127(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for extracting parameters
-    if (size < sizeof(hid_t) + sizeof(unsigned int)) {
-        return 0;
-    }
-
-    // Extract the parameters from the input data
-    hid_t file_id = *((hid_t *)data);
-    unsigned int types = *((unsigned int *)(data + sizeof(hid_t)));
+    // Declare and initialize variables for the function parameters
+    hid_t dset_id = 1; // Example dataset identifier, should be a valid HDF5 dataset ID
+    hid_t dxpl_id = 1; // Example dataset transfer property list identifier, should be valid
+    hsize_t offset[2] = {0, 0}; // Example offset, assuming a 2D dataset
+    uint32_t filter_mask = 0; // Example filter mask
+    void *chunk_data = (void *)data; // Use the input data as the chunk data
+    size_t nbytes = size; // Size of the chunk data
 
     // Call the function-under-test
-    ssize_t obj_count = H5Fget_obj_count(file_id, types);
+    herr_t result = H5Dread_chunk2(dset_id, dxpl_id, offset, &filter_mask, chunk_data, &nbytes);
 
-    // Use the result in some way to avoid any compiler optimizations
-    if (obj_count < 0) {
-        // Handle error case if needed
-    }
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

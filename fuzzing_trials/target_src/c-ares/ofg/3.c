@@ -1,52 +1,36 @@
 #include <ares.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <stdlib.h>
-#include <string.h>
-
-void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
-  // Dummy callback function for ares_gethostbyaddr
-}
+#include <stdint.h> // Include for uint8_t
+#include <stddef.h> // Include for size_t
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-  if (size == 0) {
+  ares_channel src = NULL; // Correct type is ares_channel, not ares_channel_t*
+  ares_channel dest = NULL; // Correct type is ares_channel, not ares_channel_t*
+  int status;
+
+  /* Initialize the ares library */
+  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
     return 0;
   }
 
-  ares_channel channel;
-  int status = ares_library_init(ARES_LIB_INIT_ALL);
-  if (status != ARES_SUCCESS) {
-    return 0;
-  }
-
-  status = ares_init(&channel);
+  /* Create a source channel for duplication */
+  status = ares_init(&src);
   if (status != ARES_SUCCESS) {
     ares_library_cleanup();
     return 0;
   }
 
-  // Determine family and address length
-  int family = (data[0] % 2 == 0) ? AF_INET : AF_INET6;
-  int addrlen = (family == AF_INET) ? 4 : 16;
+  /* Call the function-under-test */
+  ares_dup(&dest, src);
 
-  if (size < addrlen + 1) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
+  /* Clean up resources */
+  if (src) {
+    ares_destroy(src);
+  }
+  if (dest) {
+    ares_destroy(dest);
   }
 
-  // Extract address from data
-  const void *addr = data + 1;
-
-  // Dummy argument
-  void *arg = NULL;
-
-  // Call the function-under-test
-  ares_gethostbyaddr(channel, addr, addrlen, family, dummy_callback, arg);
-
-  // Clean up
-  ares_destroy(channel);
   ares_library_cleanup();
 
   return 0;

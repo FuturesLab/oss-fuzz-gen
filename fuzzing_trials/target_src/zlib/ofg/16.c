@@ -1,40 +1,41 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <zlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
+    // Initialize the z_stream structure
     z_stream stream;
-    int level, method, windowBits, memLevel, strategy, version_len;
-    const char *version;
+    memset(&stream, 0, sizeof(stream));
 
-    // Initialize z_stream
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
+    // Define parameters for deflateInit2_
+    int level = 1; // Compression level (1-9)
+    int method = Z_DEFLATED; // Compression method
+    int windowBits = 15; // Base two logarithm of the window size (9-15)
+    int memLevel = 8; // Memory level (1-9)
+    int strategy = Z_DEFAULT_STRATEGY; // Compression strategy
+    const char *version = ZLIB_VERSION; // Zlib version
+    int stream_size = (int)sizeof(z_stream); // Size of the z_stream structure
 
-    // Ensure size is sufficient for extracting parameters
-    if (size < 6) {
+    // Call the function-under-test
+    int result = deflateInit2_(&stream, level, method, windowBits, memLevel, strategy, version, stream_size);
+
+    // Check if deflateInit2_ was successful
+    if (result != Z_OK) {
         return 0;
     }
 
-    // Extract parameters from the input data
-    level = data[0] % 10; // Compression level 0-9
-    method = data[1] % 2; // Method (0 or 1, as Z_DEFLATED is typically used)
-    windowBits = (data[2] % 16) + 8; // Window size 8-15
-    memLevel = (data[3] % 9) + 1; // Memory level 1-9
-    strategy = data[4] % 5; // Strategy 0-4
-    version_len = data[5] % 10; // Length of version string
+    // Set the input data for zlib
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = size;
 
-    // Ensure version_len does not exceed remaining data size
-    if (version_len > size - 6) {
-        version_len = size - 6;
-    }
+    // Create a buffer for compressed data
+    uint8_t outbuffer[1024];
+    stream.next_out = outbuffer;
+    stream.avail_out = sizeof(outbuffer);
 
-    // Create a version string from the remaining data
-    version = (const char *)(data + 6);
-
-    // Call the function under test
-    deflateInit2_(&stream, level, method, windowBits, memLevel, strategy, version, version_len);
+    // Perform the deflation
+    deflate(&stream, Z_FINISH);
 
     // Clean up
     deflateEnd(&stream);

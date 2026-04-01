@@ -1,74 +1,77 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_ref at ucl_util.c:3591:1 in ucl.h
-// ucl_object_lookup_path_char at ucl_util.c:2926:1 in ucl.h
-// ucl_object_tolstring at ucl_util.c:3566:1 in ucl.h
-// ucl_object_tostring at ucl_util.c:3527:1 in ucl.h
-// ucl_copy_value_trash at ucl_util.c:546:1 in ucl.h
-// ucl_object_tostring_forced at ucl_util.c:3536:1 in ucl.h
+// ucl_object_new at ucl_util.c:2980:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_array_merge at ucl_util.c:3193:6 in ucl.h
+// ucl_elt_append at ucl_util.c:3397:1 in ucl.h
+// ucl_array_head at ucl_util.c:3258:1 in ucl.h
+// ucl_array_tail at ucl_util.c:3271:1 in ucl.h
+// ucl_array_pop_last at ucl_util.c:3283:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_array_delete at ucl_util.c:3231:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include "ucl.h"
+#include <stdbool.h>
+#include <ucl.h>
 
-static ucl_object_t *create_dummy_ucl_object() {
-    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
-    if (obj) {
-        obj->value.ov = NULL; // Initialize to NULL to prevent invalid access
-        obj->key = "dummy_key";
-        obj->next = NULL;
-        obj->prev = NULL;
-        obj->keylen = strlen(obj->key);
-        obj->len = 0;
-        obj->ref = 1;
-        obj->flags = 0;
-        obj->type = 0;
-        memset(obj->trash_stack, 0, sizeof(obj->trash_stack));
+static ucl_object_t* create_random_ucl_array(const uint8_t *Data, size_t Size) {
+    // Create a simple UCL array object for testing
+    ucl_object_t *array = ucl_object_new();
+    if (array) {
+        array->type = UCL_ARRAY;
+        array->value.av = NULL;
     }
-    return obj;
+    return array;
 }
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Create two UCL arrays for testing
+    ucl_object_t *array1 = create_random_ucl_array(Data, Size);
+    ucl_object_t *array2 = create_random_ucl_array(Data, Size);
 
-    ucl_object_t *obj = create_dummy_ucl_object();
-    if (!obj) return 0;
-
-    // Test ucl_object_ref
-    ucl_object_t *ref_obj = ucl_object_ref(obj);
-    if (ref_obj == NULL) {
-        free(obj);
+    if (!array1 || !array2) {
+        if (array1) ucl_object_unref(array1);
+        if (array2) ucl_object_unref(array2);
         return 0;
     }
 
-    // Test ucl_object_lookup_path_char
-    const char *path = "dummy_key";
-    char sep = '.';
-    const ucl_object_t *found_obj = ucl_object_lookup_path_char(obj, path, sep);
+    // Test ucl_array_merge
+    bool copy = (Size > 0) ? (Data[0] % 2 == 0) : false;
+    bool result = ucl_array_merge(array1, array2, copy);
 
-    // Test ucl_object_tolstring
-    size_t tlen;
-    const char *tolstring = ucl_object_tolstring(obj, &tlen);
+    // Test ucl_elt_append
+    ucl_object_t *new_head = ucl_elt_append(array1, array2);
 
-    // Test ucl_object_tostring
-    const char *tostring = ucl_object_tostring(obj);
+    // Test ucl_array_head
+    const ucl_object_t *head = ucl_array_head(array1);
 
-    // Test ucl_copy_value_trash
-    char *copied_value = ucl_copy_value_trash(obj);
+    // Test ucl_array_tail
+    const ucl_object_t *tail = ucl_array_tail(array1);
 
-    // Test ucl_object_tostring_forced
-    const char *tostring_forced = ucl_object_tostring_forced(obj);
+    // Test ucl_array_pop_last
+    ucl_object_t *popped = ucl_array_pop_last(array1);
+    if (popped) {
+        ucl_object_unref(popped);
+    }
+
+    // Test ucl_array_delete
+    ucl_object_t *deleted = ucl_array_delete(array1, array2);
+    if (deleted) {
+        ucl_object_unref(deleted);
+    }
 
     // Cleanup
-    if (copied_value) {
-        free(copied_value);
+    // Ensure array2 is not used after being freed
+    if (!result) {
+        ucl_object_unref(array2);
     }
-    free(obj);
+    ucl_object_unref(array1);
 
     return 0;
 }

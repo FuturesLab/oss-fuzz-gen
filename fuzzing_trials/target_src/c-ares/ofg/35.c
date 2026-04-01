@@ -1,79 +1,33 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
-#include <arpa/inet.h>
-#include <ares.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <string.h> // Include string.h for memcpy
+#include "ares.h"
 
-static void nameinfo_callback(void *arg, int status, int timeouts,
-                       char *node, char *service) {
-  // To avoid unused parameter warnings, we can use the parameters in a no-op way
-  (void)arg;
-  (void)status;
-  (void)timeouts;
-  (void)node;
-  (void)service;
-}
+// Remove the C++ style comment and use C style comments instead
+/* Extract ares_dns_rr_key_t from the input data */
+/* Extract unsigned short from the input data */
 
-int LLVMFuzzerTestOneInput_35(const uint8_t* data, size_t size) {
-  if (size < sizeof(uint16_t) + sizeof(uint32_t) + sizeof(int)) {
+// Declare the function in C linkage
+int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
+  if (size < sizeof(ares_dns_rr_key_t) + sizeof(unsigned short)) {
     return 0;
   }
 
-  ares_channel channel;
-  if (ares_init(&channel) != ARES_SUCCESS) {
-    return 0;
-  }
+  // Extract ares_dns_rr_key_t from the input data
+  ares_dns_rr_key_t key;
+  memcpy(&key, data, sizeof(ares_dns_rr_key_t));
 
-  struct sockaddr_in sa_in;
-  struct sockaddr_in6 sa_in6;
-  struct sockaddr *sa = NULL;
-  ares_socklen_t salen = 0;
+  // Extract unsigned short from the input data
+  unsigned short opt;
+  memcpy(&opt, data + sizeof(ares_dns_rr_key_t), sizeof(unsigned short));
 
-  size_t offset = 0;
-  int use_ipv4 = data[offset] % 2;
-  offset += 1;
+  // Call the function-under-test
+  ares_dns_opt_datatype_t result = ares_dns_opt_get_datatype(key, opt);
 
-  if (use_ipv4) {
-    if (size < offset + sizeof(uint16_t) + sizeof(uint32_t)) {
-      ares_destroy(channel);
-      return 0;
-    }
-    sa_in.sin_family = AF_INET;
-    memcpy(&sa_in.sin_port, &data[offset], sizeof(uint16_t));
-    offset += sizeof(uint16_t);
-    memcpy(&sa_in.sin_addr.s_addr, &data[offset], sizeof(uint32_t));
-    offset += sizeof(uint32_t);
-    sa = (struct sockaddr*)&sa_in;
-    salen = sizeof(sa_in);
-  } else {
-    if (size < offset + sizeof(uint16_t) + sizeof(sa_in6.sin6_addr)) {
-      ares_destroy(channel);
-      return 0;
-    }
-    sa_in6.sin6_family = AF_INET6;
-    memcpy(&sa_in6.sin6_port, &data[offset], sizeof(uint16_t));
-    offset += sizeof(uint16_t);
-    memcpy(&sa_in6.sin6_addr, &data[offset], sizeof(sa_in6.sin6_addr));
-    offset += sizeof(sa_in6.sin6_addr);
-    sa = (struct sockaddr*)&sa_in6;
-    salen = sizeof(sa_in6);
-  }
+  // Use the result in some way to avoid compiler optimizations removing the call
+  volatile ares_dns_opt_datatype_t dummy = result;
+  (void)dummy;
 
-  if (size < offset + sizeof(int)) {
-    ares_destroy(channel);
-    return 0;
-  }
-
-  int flags_int;
-  memcpy(&flags_int, &data[offset], sizeof(int));
-  offset += sizeof(int);
-
-  void *arg = NULL;
-
-  ares_getnameinfo(channel, sa, salen, flags_int, nameinfo_callback, arg);
-
-  ares_destroy(channel);
   return 0;
 }

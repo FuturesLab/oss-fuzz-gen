@@ -1,10 +1,16 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_nametoaddr at nametoaddr.c:138:1 in namedb.h
-// pcap_nametoeproto at nametoaddr.c:596:1 in namedb.h
-// pcap_nametonetaddr at nametoaddr.c:220:1 in namedb.h
-// pcap_nametoport at nametoaddr.c:304:1 in namedb.h
-// pcap_nametoaddrinfo at nametoaddr.c:178:1 in namedb.h
-// pcap_nametoproto at nametoaddr.c:475:1 in namedb.h
+// pcap_open_dead at pcap.c:4620:1 in pcap.h
+// pcap_compile at gencode.c:1186:1 in pcap.h
+// pcap_geterr at pcap.c:3614:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// bpf_validate at bpf_filter.c:541:1 in bpf.h
+// pcap_setfilter at pcap.c:3872:1 in pcap.h
+// pcap_geterr at pcap.c:3614:1 in pcap.h
+// bpf_dump at bpf_dump.c:30:1 in bpf.h
+// bpf_image at bpf_image.c:130:1 in bpf.h
+// pcap_offline_filter at pcap.c:4359:1 in pcap.h
+// pcap_freecode at gencode.c:1371:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,57 +18,84 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdint.h>
 #include <pcap.h>
+#include <bpf.h>
+#include <string.h>
+#include <unistd.h>
 
-static void write_dummy_file(const char *filename, const uint8_t *data, size_t size) {
-    FILE *file = fopen(filename, "wb");
+static pcap_t* create_dummy_pcap() {
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!handle) {
+        fprintf(stderr, "Failed to open pcap handle: %s\n", errbuf);
+        return NULL;
+    }
+    return handle;
+}
+
+static struct bpf_program compile_dummy_filter(pcap_t *handle, const char *filter_exp) {
+    struct bpf_program fp;
+    memset(&fp, 0, sizeof(fp)); // Initialize to zero to avoid uninitialized usage
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    if (pcap_compile(handle, &fp, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == -1) {
+        fprintf(stderr, "Failed to compile filter: %s\n", pcap_geterr(handle));
+        fp.bf_len = 0;
+        fp.bf_insns = NULL;
+    }
+    return fp;
+}
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
     if (file) {
-        fwrite(data, 1, size, file);
+        fwrite(Data, 1, Size, file);
         fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_74(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Ensure the data is null-terminated for string operations
-    char *input = (char *)malloc(Size + 1);
-    if (!input) return 0;
-    memcpy(input, Data, Size);
-    input[Size] = '\0';
-
-    // Fuzz pcap_nametoaddr
-    char *addr_result = pcap_nametoaddr(input);
-    if (addr_result) {
-        // Process addr_result if needed
+    if (Size < sizeof(struct bpf_insn)) {
+        return 0;
     }
 
-    // Fuzz pcap_nametoeproto
-    int eproto_result = pcap_nametoeproto(input);
-    // Process eproto_result if needed
-
-    // Fuzz pcap_nametonetaddr
-    bpf_u_int32 netaddr_result = pcap_nametonetaddr(input);
-    // Process netaddr_result if needed
-
-    // Fuzz pcap_nametoport
-    int tcp_port, udp_port;
-    int port_result = pcap_nametoport(input, &tcp_port, &udp_port);
-    // Process tcp_port, udp_port, and port_result if needed
-
-    // Fuzz pcap_nametoaddrinfo
-    struct addrinfo *addrinfo_result = pcap_nametoaddrinfo(input);
-    if (addrinfo_result) {
-        // Free addrinfo_result if allocated
-        freeaddrinfo(addrinfo_result);
+    pcap_t *handle = create_dummy_pcap();
+    if (!handle) {
+        return 0;
     }
 
-    // Fuzz pcap_nametoproto
-    int proto_result = pcap_nametoproto(input);
-    // Process proto_result if needed
+    struct bpf_program fp = compile_dummy_filter(handle, "tcp");
+    if (fp.bf_len == 0) {
+        pcap_close(handle);
+        return 0;
+    }
 
-    free(input);
+    struct bpf_insn *insns = (struct bpf_insn *)Data;
+    int insn_count = Size / sizeof(struct bpf_insn);
+
+    if (bpf_validate(insns, insn_count)) {
+        if (pcap_setfilter(handle, &fp) != 0) {
+            fprintf(stderr, "Failed to set filter: %s\n", pcap_geterr(handle));
+        }
+
+        bpf_dump(&fp, 3);
+        char *image = bpf_image(insns, insn_count);
+        if (image) {
+            printf("BPF Image: %s\n", image);
+        }
+
+        struct pcap_pkthdr header;
+        header.caplen = Size;
+        header.len = Size;
+        int match = pcap_offline_filter(&fp, &header, Data);
+        printf("Packet match: %d\n", match);
+    }
+
+    pcap_freecode(&fp); // Free the compiled filter to avoid memory leak
+
+    write_dummy_file(Data, Size);
+
+    pcap_close(handle);
     return 0;
 }

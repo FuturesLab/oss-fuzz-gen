@@ -1,32 +1,28 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
     // Declare and initialize variables
-    cmsUInt32Number nPoints = 256; // Example value for the number of points
+    cmsInt32Number index = 0; // Initialize to 0 for simplicity
+    cmsToneCurve *toneCurve = NULL;
 
-    // Ensure that size is sufficient to create a tone curve
-    if (size < nPoints * sizeof(cmsUInt16Number)) {
+    // Ensure size is sufficient for creating a tone curve
+    if (size < sizeof(uint16_t)) {
         return 0;
     }
 
-    // Create a tone curve from the input data
-    cmsToneCurve *inputCurve = cmsBuildTabulatedToneCurve16(NULL, nPoints, (const cmsUInt16Number *)data);
-
-    // Check if the tone curve was created successfully
-    if (inputCurve == NULL) {
+    // Create a tone curve using the data provided
+    toneCurve = cmsBuildTabulatedToneCurve16(NULL, size / sizeof(uint16_t), (const uint16_t *)data);
+    if (toneCurve == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    cmsToneCurve *reversedCurve = cmsReverseToneCurveEx(nPoints, inputCurve);
+    const cmsCurveSegment *segment = cmsGetToneCurveSegment(index, toneCurve);
 
     // Clean up
-    if (reversedCurve != NULL) {
-        cmsFreeToneCurve(reversedCurve);
-    }
-    cmsFreeToneCurve(inputCurve);
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }

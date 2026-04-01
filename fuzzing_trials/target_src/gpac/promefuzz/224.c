@@ -1,87 +1,74 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_iff_create_image_identity_item at iff.c:2107:8 in isomedia.h
-// gf_isom_add_meta_item2 at meta.c:1792:8 in isomedia.h
-// gf_isom_sdp_add_line at hint_track.c:820:8 in isomedia.h
-// gf_isom_new_mpeg4_description at isom_write.c:933:8 in isomedia.h
 // gf_isom_set_handler_name at isom_write.c:6060:8 in isomedia.h
-// gf_isom_wma_set_tag at isom_write.c:6591:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_ac3_config_new at sample_descs.c:701:8 in isomedia.h
+// gf_isom_clone_sample_description at isom_write.c:4582:8 in isomedia.h
+// gf_isom_get_track_kind at isom_read.c:1157:8 in isomedia.h
+// gf_isom_sdp_add_track_line at hint_track.c:740:8 in isomedia.h
+// gf_isom_get_handler_name at isom_read.c:1694:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_isofile() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Assuming a function gf_isom_open_file exists to create a new ISO file.
-    GF_ISOFile *isom_file = gf_isom_open_file("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    return isom_file;
+static GF_ISOFile* create_dummy_iso_file() {
+    // Return a NULL pointer for GF_ISOFile as we cannot allocate it directly
+    return NULL;
 }
 
-static GF_ImageItemProperties* create_dummy_image_props() {
-    GF_ImageItemProperties *image_props = (GF_ImageItemProperties *)malloc(sizeof(GF_ImageItemProperties));
-    if (!image_props) return NULL;
-    memset(image_props, 0, sizeof(GF_ImageItemProperties));
-    // Initialize other necessary fields if required
-    return image_props;
-}
-
-static GF_ESD* create_dummy_esd() {
-    GF_ESD *esd = (GF_ESD *)malloc(sizeof(GF_ESD));
-    if (!esd) return NULL;
-    memset(esd, 0, sizeof(GF_ESD));
-    // Initialize other necessary fields if required
-    return esd;
+static GF_AC3Config* create_dummy_ac3_config() {
+    // Create a dummy AC3 config
+    GF_AC3Config *config = (GF_AC3Config*)malloc(sizeof(GF_AC3Config));
+    if (config) {
+        memset(config, 0, sizeof(GF_AC3Config));
+    }
+    return config;
 }
 
 int LLVMFuzzerTestOneInput_224(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *isom_file = create_dummy_isofile();
-    if (!isom_file) return 0;
+    if (Size < 4) return 0; // Ensure there's enough data for track number
 
-    char item_name[256];
-    u32 item_id = 0;
-    GF_ImageItemProperties *image_props = create_dummy_image_props();
-    if (!image_props) {
-        gf_isom_close(isom_file);
-        return 0;
-    }
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    GF_ISOFile *orig_file = create_dummy_iso_file();
+    GF_AC3Config *ac3_config = create_dummy_ac3_config();
 
-    // Fuzzing gf_isom_iff_create_image_identity_item
-    if (Size > 0) {
-        memcpy(item_name, Data, Size < 255 ? Size : 255);
-        item_name[Size < 255 ? Size : 255] = '\0';
-    } else {
-        item_name[0] = '\0';
-    }
-    gf_isom_iff_create_image_identity_item(isom_file, GF_TRUE, 0, item_name, item_id, image_props);
+    u32 trackNumber = *(u32*)Data;
+    const char *nameUTF8 = (const char*)(Data + 4);
+    const char *URLname = (Size > 8) ? (const char*)(Data + 8) : NULL;
+    const char *URNname = (Size > 12) ? (const char*)(Data + 12) : NULL;
 
-    // Fuzzing gf_isom_add_meta_item2
-    u32 io_item_id = 0;
-    gf_isom_add_meta_item2(isom_file, GF_TRUE, 0, GF_FALSE, "./dummy_file", item_name, &io_item_id, 0, NULL, NULL, NULL, NULL, image_props);
+    u32 outDescriptionIndex;
+    char *scheme = NULL;
+    char *value = NULL;
 
-    // Fuzzing gf_isom_sdp_add_line
-    gf_isom_sdp_add_line(isom_file, item_name);
+    // Fuzz gf_isom_set_handler_name
+    gf_isom_set_handler_name(iso_file, trackNumber, nameUTF8);
 
-    // Fuzzing gf_isom_new_mpeg4_description
-    GF_ESD *esd = create_dummy_esd();
-    if (esd) {
-        u32 outDescriptionIndex = 0;
-        gf_isom_new_mpeg4_description(isom_file, 1, esd, NULL, NULL, &outDescriptionIndex);
-        free(esd);
-    }
+    // Fuzz gf_isom_ac3_config_new
+    gf_isom_ac3_config_new(iso_file, trackNumber, ac3_config, URLname, URNname, &outDescriptionIndex);
 
-    // Fuzzing gf_isom_set_handler_name
-    gf_isom_set_handler_name(isom_file, 1, item_name);
+    // Fuzz gf_isom_clone_sample_description
+    gf_isom_clone_sample_description(iso_file, trackNumber, orig_file, trackNumber, outDescriptionIndex, URLname, URNname, &outDescriptionIndex);
 
-    // Fuzzing gf_isom_wma_set_tag
-    gf_isom_wma_set_tag(isom_file, "dummy_tag", item_name);
+    // Fuzz gf_isom_get_track_kind
+    gf_isom_get_track_kind(iso_file, trackNumber, 1, &scheme, &value);
 
-    // Cleanup
-    free(image_props);
-    gf_isom_close(isom_file);
+    // Fuzz gf_isom_sdp_add_track_line
+    gf_isom_sdp_add_track_line(iso_file, trackNumber, nameUTF8);
+
+    // Fuzz gf_isom_get_handler_name
+    const char *outName = NULL;
+    gf_isom_get_handler_name(iso_file, trackNumber, &outName);
+
+    // Clean up
+    if (scheme) free(scheme);
+    if (value) free(value);
+    free(ac3_config);
 
     return 0;
 }

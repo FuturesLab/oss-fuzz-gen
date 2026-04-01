@@ -1,34 +1,43 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_477(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract parameters
-    if (size < sizeof(cmsUInt32Number) * 4 + sizeof(cmsFloat64Number) * 4) {
-        return 0; // Not enough data to proceed
+    // Initialize variables for the function parameters
+    cmsHPROFILE hProfile;
+    cmsTagSignature tagSignature;
+    const void *tagData;
+    cmsUInt32Number tagSize;
+
+    // Ensure the size is sufficient for the parameters
+    if (size < sizeof(cmsTagSignature) + sizeof(cmsUInt32Number)) {
+        return 0;
     }
 
-    // Extract parameters from the input data
-    cmsUInt32Number n = *((cmsUInt32Number*)data);
-    cmsFloat64Number a = *((cmsFloat64Number*)(data + sizeof(cmsUInt32Number)));
-    cmsFloat64Number b = *((cmsFloat64Number*)(data + sizeof(cmsUInt32Number) + sizeof(cmsFloat64Number)));
-    cmsFloat64Number c = *((cmsFloat64Number*)(data + sizeof(cmsUInt32Number) + 2 * sizeof(cmsFloat64Number)));
-    cmsFloat64Number d = *((cmsFloat64Number*)(data + sizeof(cmsUInt32Number) + 3 * sizeof(cmsFloat64Number)));
-    cmsUInt32Number e = *((cmsUInt32Number*)(data + sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number)));
-    cmsUInt32Number f = *((cmsUInt32Number*)(data + 2 * sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number)));
+    // Extract tagSignature and tagSize from the input data
+    tagSignature = *(cmsTagSignature *)data;
+    tagSize = *(cmsUInt32Number *)(data + sizeof(cmsTagSignature));
 
-    // Use a valid non-NULL context
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    // Ensure tagSize does not exceed the remaining data size
+    if (tagSize > size - sizeof(cmsTagSignature) - sizeof(cmsUInt32Number)) {
+        return 0;
+    }
+
+    // Point tagData to the appropriate location in the input data
+    tagData = (const void *)(data + sizeof(cmsTagSignature) + sizeof(cmsUInt32Number));
+
+    // Create a dummy profile for testing
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateBCHSWabstractProfileTHR(context, n, a, b, c, d, e, f);
+    cmsWriteRawTag(hProfile, tagSignature, tagData, tagSize);
 
     // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-
-    cmsDeleteContext(context);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

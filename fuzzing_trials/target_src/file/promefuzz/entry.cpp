@@ -1,5 +1,5 @@
-// This is the entry of 19 fuzz drivers:
-// 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 17, 18, 19, 20, 23
+// This is the entry of 13 fuzz drivers:
+// 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -20,13 +20,7 @@ extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size);
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size);
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size);
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size);
-extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size);
-extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size);
-extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size);
-extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size);
-extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size);
-extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size);
-extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size);
+extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size);
 
 // Entry function
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
@@ -46,7 +40,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     }
 
     // Select driver
-    switch (driverIndex % 19) {
+    switch (driverIndex % 13) {
         case 0:
             return LLVMFuzzerTestOneInput_1(remainData, remainSize);
         case 1:
@@ -72,19 +66,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
         case 11:
             return LLVMFuzzerTestOneInput_12(remainData, remainSize);
         case 12:
-            return LLVMFuzzerTestOneInput_13(remainData, remainSize);
-        case 13:
-            return LLVMFuzzerTestOneInput_15(remainData, remainSize);
-        case 14:
-            return LLVMFuzzerTestOneInput_17(remainData, remainSize);
-        case 15:
-            return LLVMFuzzerTestOneInput_18(remainData, remainSize);
-        case 16:
-            return LLVMFuzzerTestOneInput_19(remainData, remainSize);
-        case 17:
-            return LLVMFuzzerTestOneInput_20(remainData, remainSize);
-        case 18:
-            return LLVMFuzzerTestOneInput_23(remainData, remainSize);
+            return LLVMFuzzerTestOneInput_14(remainData, remainSize);
         default:
             return 0;
     }

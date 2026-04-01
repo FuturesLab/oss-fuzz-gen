@@ -1,39 +1,34 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <pcap.h>
 
+// Remove the 'extern "C"' as it is not needed in a C file
 int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
-    // Initialize variables
-    pcap_t *pcap_handle = NULL;
-    pcap_dumper_t *dumper = NULL;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    char filename[256];
-
-    // Ensure the data size is sufficient for a filename
-    if (size < 2) {
+    // Ensure there is enough data to avoid accessing out of bounds
+    if (size < 4) {
         return 0;
     }
 
-    // Create a valid filename from the input data
-    size_t filename_length = (size < sizeof(filename) - 1) ? size : sizeof(filename) - 1;
-    memcpy(filename, data, filename_length);
-    filename[filename_length] = '\0';
+    // Declare and initialize the bpf_program structure
+    struct bpf_program prog;
+    prog.bf_len = 1;
+    prog.bf_insns = (struct bpf_insn *)malloc(sizeof(struct bpf_insn));
 
-    // Open a pcap handle with a dummy device
-    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (pcap_handle == NULL) {
-        return 0;
+    if (prog.bf_insns == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+
+    // Initialize the bpf_insn structure with some values
+    prog.bf_insns[0].code = (uint16_t)(data[0] % 256);
+    prog.bf_insns[0].jt = (uint8_t)(data[1] % 256);
+    prog.bf_insns[0].jf = (uint8_t)(data[2] % 256);
+    prog.bf_insns[0].k = (uint32_t)(data[3] % 256);
 
     // Call the function-under-test
-    dumper = pcap_dump_open(pcap_handle, filename);
+    pcap_freecode(&prog);
 
-    // Clean up
-    if (dumper != NULL) {
-        pcap_dump_close(dumper);
-    }
-    pcap_close(pcap_handle);
+    // Free allocated memory
+    free(prog.bf_insns);
 
     return 0;
 }

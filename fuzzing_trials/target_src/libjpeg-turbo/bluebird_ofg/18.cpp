@@ -1,66 +1,79 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "unistd.h" // Include for close()
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
+
+    unsigned short * tj3LoadImage16(tjhandle handle, const char *filename, int *width, int align, int *height, int *pixelFormat);
+
+    // Correctly declare tjFree for unsigned char *
+    void tjFree(unsigned char *buffer);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Initialize parameters for tj3LoadImage16
     tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // If initialization fails, exit early
+    if (!handle) {
+        remove(tmpl);
+        return 0;
     }
 
-    // Define dimensions and subsampling for the output YUV image
-    int width = 640;
-    int height = 480;
-    int subsamp = TJSAMP_420; // Common subsampling format
-    int flags = 0;
-
-    // Calculate the buffer size for the YUV image
-    int align = 4; // Alignment parameter for tjBufSizeYUV2
-    unsigned long yuvSize = tjBufSizeYUV2(width, align, height, subsamp);
-
-    // Allocate memory for the YUV buffer
-    unsigned char *yuvBuffer = (unsigned char *)malloc(yuvSize);
-    if (yuvBuffer == nullptr) {
-        tjDestroy(handle);
-        return 0; // If allocation fails, exit early
-    }
+    int width = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB; // Use a valid pixel format
+    int align = 1; // Default alignment
 
     // Call the function-under-test
-    int result = tjDecompressToYUV2(handle, data, size, yuvBuffer, width, align, height, flags);
 
-    // Clean up resources
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tjDecompressToYUV
-    tjhandle ret_tj3Init_okjwn = tj3Init(TJ_ALPHAFIRST);
-    void* ret_tj3Alloc_illtr = tj3Alloc(1);
-    if (ret_tj3Alloc_illtr == NULL){
-    	return 0;
-    }
-    int ret_tjDestroy_ikjgb = tjDestroy(0);
-    if (ret_tjDestroy_ikjgb < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of tjDecompressToYUV
-    int ret_tjDecompressToYUV_kgmge = tjDecompressToYUV(ret_tj3Init_okjwn, (unsigned char *)ret_tj3Alloc_illtr, TJ_NUMPF, yuvBuffer, TJXOPT_TRIM);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 5 of tj3LoadImage16
+    int ypcqeini = -1;
+    unsigned short *image = tj3LoadImage16(handle, tmpl, &width, align, &height, &ypcqeini);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
-    if (ret_tjDecompressToYUV_kgmge < 0){
+
+    // Clean up
+    if (image) {
+        // Cast image to unsigned char* for tjFree
+        tjFree(reinterpret_cast<unsigned char *>(image));
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3LoadImage16 to tjBufSize
+    int bozrqfpn = 0;
+    tjscalingfactor* ret_tj3GetScalingFactors_bfyxi = tj3GetScalingFactors(&bozrqfpn);
+    if (ret_tj3GetScalingFactors_bfyxi == NULL){
+    	return 0;
+    }
+
+    unsigned long ret_tjBufSize_ekjxc = tjBufSize(bozrqfpn, height, TJFLAG_FASTDCT);
+    if (ret_tjBufSize_ekjxc < 0){
     	return 0;
     }
 
     // End mutation: Producer.APPEND_MUTATOR
 
-    free(yuvBuffer);
     tjDestroy(handle);
+    remove(tmpl);
 
     return 0;
 }

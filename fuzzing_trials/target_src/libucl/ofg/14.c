@@ -1,31 +1,32 @@
 #include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include "ucl.h" // Assuming the UCL library provides this header
+#include <ucl.h>
+
+// Dummy destructor function
+void dummy_dtor(void *ud) {
+    // No operation
+}
+
+// Dummy emitter function
+void dummy_emitter(void *ud) {
+    // No operation
+}
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create at least three objects
-    if (size < 3) {
+    // Ensure that the input data is not NULL and has a minimum size
+    if (data == NULL || size < sizeof(void *)) {
         return 0;
     }
 
-    // Create and initialize ucl_object_t objects
-    ucl_object_t *obj1 = ucl_object_new();
-    ucl_object_t *obj2 = ucl_object_new();
-    ucl_object_t *obj3 = ucl_object_new();
+    // Use a portion of the data as a dummy user data
+    void *user_data = (void *)data;
 
-    // Populate the objects with some data to avoid NULL values
-    obj1 = ucl_object_fromstring_common((const char *)data, size, 0);
-    obj2 = ucl_object_fromstring_common((const char *)data, size, 0);
-    obj3 = ucl_object_fromstring_common((const char *)data, size, 0);
+    // Call the function-under-test
+    ucl_object_t *obj = ucl_object_new_userdata(dummy_dtor, dummy_emitter, user_data);
 
-    // Call the function under test
-    bool result = ucl_comments_move(obj1, obj2, obj3);
-
-    // Clean up
-    ucl_object_unref(obj1);
-    ucl_object_unref(obj2);
-    ucl_object_unref(obj3);
+    // Clean up if necessary
+    if (obj != NULL) {
+        ucl_object_unref(obj);
+    }
 
     return 0;
 }

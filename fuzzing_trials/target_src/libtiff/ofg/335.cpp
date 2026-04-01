@@ -1,29 +1,16 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-
 extern "C" {
-    #include <tiffio.h>
-
-    // Declare the function-under-test correctly with variable arguments
-    extern void TIFFErrorExt(thandle_t, const char *, const char *, ...);
+#include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_335(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract meaningful data for the parameters
-    if (size < 3) {
-        return 0;
-    }
+    // Initialize the parameters for TIFFErrorExt
+    thandle_t handle = (thandle_t)0x1234; // Example non-NULL handle
+    const char *module = "fuzz_module";   // Example module name
+    const char *fmt = "Error message format"; // Example format string
+    void *ap = (void *)data; // Use the data as a non-NULL void pointer
 
-    // Initialize parameters for TIFFErrorExt
-    thandle_t handle = reinterpret_cast<thandle_t>(data[0]); // Using first byte as handle
-    const char *module = "TestModule"; // Example module name
-    const char *fmt = "Error: %s"; // Example format string
-    const char *errorMsg = "Sample error message"; // Example error message
-
-    // Call the function-under-test with a non-null input
-    TIFFErrorExt(handle, module, fmt, errorMsg);
+    // Call the function-under-test
+    TIFFErrorExt(handle, module, fmt, ap);
 
     return 0;
 }

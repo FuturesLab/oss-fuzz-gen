@@ -1,30 +1,15 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_mprintf at sqlite3.c:19329:18 in sqlite3.h
 // sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
-// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_db_status at sqlite3.c:11036:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_status at sqlite3.c:10769:16 in sqlite3.h
-// sqlite3_mprintf at sqlite3.c:19329:18 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_mprintf at sqlite3.c:19329:18 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
-// sqlite3_mprintf at sqlite3.c:19329:18 in sqlite3.h
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_libversion at sqlite3.c:171116:24 in sqlite3.h
+// sqlite3_sourceid at sqlite3.c:252248:24 in sqlite3.h
+// sqlite3_initialize at sqlite3.c:171208:16 in sqlite3.h
+// sqlite3_vfs_find at sqlite3.c:13246:25 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -32,115 +17,48 @@
 #include <stdio.h>
 #include <sqlite3.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <string.h>
+#include <stddef.h>
 
-static int dummy_callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    (void)NotUsed;
-    for (int i = 0; i < argc; i++) {
-        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-    }
-    return 0;
+static void invoke_sqlite3_config() {
+    sqlite3_config(SQLITE_CONFIG_SINGLETHREAD);
+    sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
+    sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+    sqlite3_config(SQLITE_CONFIG_MEMSTATUS, 1);
+    sqlite3_config(SQLITE_CONFIG_SCRATCH, NULL, 0, 0);
+    sqlite3_config(SQLITE_CONFIG_PAGECACHE, NULL, 0, 0);
+    sqlite3_config(SQLITE_CONFIG_HEAP, NULL, 0, 0);
 }
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Step 1: Invoke sqlite3_libversion and sqlite3_sourceid
+    const char *version = sqlite3_libversion();
+    const char *sourceId = sqlite3_sourceid();
 
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
-    int rc;
-    int current, highwater;
-    char *sql = sqlite3_mprintf("%.*s", (int)Size, Data);
+    // Step 2: Configure SQLite using sqlite3_config
+    invoke_sqlite3_config();
 
-    // Step 1: sqlite3_config
-    sqlite3_config(SQLITE_CONFIG_LOG, NULL, NULL);
-
-    // Step 2: sqlite3_open
-    rc = sqlite3_open("./dummy_file", &db);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(sql);
-        return 0;
+    // Step 3: Initialize SQLite library
+    int initResult = sqlite3_initialize();
+    if (initResult != SQLITE_OK) {
+        return 0; // Early exit if initialization fails
     }
 
-    // Step 3: sqlite3_errmsg
-    const char *errmsg = sqlite3_errmsg(db);
-    if (errmsg) {
-        printf("Error: %s\n", errmsg);
-    }
-
-    // Step 4: sqlite3_exec
-    if (sql != NULL) {
-        rc = sqlite3_exec(db, sql, dummy_callback, 0, &errMsg);
-        if (rc != SQLITE_OK && errMsg != NULL) {
-            printf("SQL error: %s\n", errMsg);
-            sqlite3_free(errMsg);
+    // Step 4: Find a VFS using sqlite3_vfs_find
+    char *vfsName = NULL;
+    if (Size > 0) {
+        vfsName = (char *)malloc(Size + 1);
+        if (vfsName == NULL) {
+            return 0; // Early exit if memory allocation fails
         }
+        memcpy(vfsName, Data, Size);
+        vfsName[Size] = '\0'; // Null-terminate the string
     }
+    sqlite3_vfs *vfs = sqlite3_vfs_find(vfsName);
 
-    // Step 5: sqlite3_free
-    sqlite3_free(sql);
-
-    // Step 6-14: sqlite3_db_status
-    for (int i = 0; i < 9; ++i) {
-        sqlite3_db_status(db, SQLITE_DBSTATUS_LOOKASIDE_USED, &current, &highwater, 0);
-    }
-
-    // Step 15: sqlite3_close
-    sqlite3_close(db);
-
-    // Step 16-20: sqlite3_status
-    for (int i = 0; i < 5; ++i) {
-        sqlite3_status(SQLITE_STATUS_MEMORY_USED, &current, &highwater, 0);
-    }
-
-    // Step 21: sqlite3_mprintf
-    char *formatted = sqlite3_mprintf("Formatted: %.*s", (int)Size, Data);
-
-    // Step 22: sqlite3_free
-    sqlite3_free(formatted);
-
-    // Step 23: sqlite3_mprintf
-    formatted = sqlite3_mprintf("Another: %.*s", (int)Size, Data);
-
-    // Step 24: sqlite3_free
-    sqlite3_free(formatted);
-
-    // Repeat Steps 2-5
-    rc = sqlite3_open("./dummy_file", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
-
-    errmsg = sqlite3_errmsg(db);
-    if (errmsg) {
-        printf("Error: %s\n", errmsg);
-    }
-
-    sql = sqlite3_mprintf("%.*s", (int)Size, Data);
-    if (sql != NULL) {
-        rc = sqlite3_exec(db, sql, dummy_callback, 0, &errMsg);
-        if (rc != SQLITE_OK && errMsg != NULL) {
-            printf("SQL error: %s\n", errMsg);
-            sqlite3_free(errMsg);
-        }
-
-        rc = sqlite3_exec(db, sql, dummy_callback, 0, &errMsg);
-        if (rc != SQLITE_OK && errMsg != NULL) {
-            printf("SQL error: %s\n", errMsg);
-            sqlite3_free(errMsg);
-        }
-
-        rc = sqlite3_exec(db, sql, dummy_callback, 0, &errMsg);
-        if (rc != SQLITE_OK && errMsg != NULL) {
-            printf("SQL error: %s\n", errMsg);
-            sqlite3_free(errMsg);
-        }
-
-        sqlite3_free(sql);
-    }
-
-    // Final Step: sqlite3_close
-    sqlite3_close(db);
+    // Cleanup
+    free(vfsName);
+    // Normally, we'd call sqlite3_shutdown() here, but it's not thread-safe
+    // and must be called from a single thread after all database connections are closed.
 
     return 0;
 }

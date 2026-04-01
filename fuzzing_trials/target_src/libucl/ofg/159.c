@@ -1,35 +1,34 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <ucl.h>
 
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    // Initialize ucl_parser
-    struct ucl_parser *parser = ucl_parser_new(0);
+    struct ucl_parser *parser = ucl_parser_new(0); // Use 'struct' here
+    ucl_object_t *obj = NULL;
+    const ucl_object_t *result = NULL;
+    unsigned int index = 0;
+
     if (parser == NULL) {
         return 0;
     }
 
     // Parse the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
-        ucl_parser_free(parser);
-        return 0;
+    if (ucl_parser_add_chunk(parser, data, size)) {
+        obj = ucl_parser_get_object(parser);
+
+        // Ensure the object is an array
+        if (obj != NULL && ucl_object_type(obj) == UCL_ARRAY) {
+            // Try different indices to find an element
+            for (index = 0; index < 5; ++index) {
+                result = ucl_array_find_index(obj, index);
+            }
+        }
+
+        // Free the parsed object
+        ucl_object_unref(obj);
     }
 
-    // Get the root object
-    const ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Use a fixed index for fuzzing
-    unsigned int index = size % 10; // Example fixed index based on size
-
-    // Call the function-under-test
-    const ucl_object_t *result = ucl_array_find_index(root, index);
-
-    // Clean up
-    ucl_object_unref(root);
+    // Clean up the parser
     ucl_parser_free(parser);
 
     return 0;

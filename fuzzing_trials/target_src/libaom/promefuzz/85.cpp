@@ -1,5 +1,14 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_set_cx_data_buf at aom_encoder.c:244:17 in aom_encoder.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,99 +18,50 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <fstream>
 #include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
+#include "aom_encoder.h"
 #include "aomcx.h"
 
-static void fuzz_aom_codec_set_cx_data_buf(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_fixed_buf_t) + 2 * sizeof(unsigned int)) return;
-
-    aom_fixed_buf_t buf;
-    buf.buf = const_cast<uint8_t *>(Data);
-    buf.sz = Size;
-
-    unsigned int pad_before = static_cast<unsigned int>(Data[Size - 2]);
-    unsigned int pad_after = static_cast<unsigned int>(Data[Size - 1]);
-
-    aom_codec_err_t res = aom_codec_set_cx_data_buf(codec_ctx, &buf, pad_before, pad_after);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "aom_codec_set_cx_data_buf failed with error code: " << res << std::endl;
-    }
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-
-    int force_video_mode = static_cast<int>(Data[0]);
-    aom_codec_err_t res = aom_codec_control(codec_ctx, AV1E_SET_FORCE_VIDEO_MODE, force_video_mode);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE failed with error code: " << res << std::endl;
-    }
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-
-    int min_gf_interval = static_cast<int>(Data[0]);
-    aom_codec_err_t res = aom_codec_control(codec_ctx, AV1E_SET_MIN_GF_INTERVAL, min_gf_interval);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL failed with error code: " << res << std::endl;
-    }
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_rc_funcs_t)) return;
-
-    aom_rc_funcs_t rc_funcs;
-    memcpy(&rc_funcs, Data, sizeof(aom_rc_funcs_t));
-
-    aom_codec_err_t res = aom_codec_control(codec_ctx, AV1E_SET_EXTERNAL_RATE_CONTROL, &rc_funcs);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL failed with error code: " << res << std::endl;
-    }
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-
-    int max_consec_frame_drop = static_cast<int>(Data[0]);
-    aom_codec_err_t res = aom_codec_control(codec_ctx, AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR, max_consec_frame_drop);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR failed with error code: " << res << std::endl;
-    }
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_AQ_MODE(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-
-    int aq_mode = static_cast<int>(Data[0]);
-    aom_codec_err_t res = aom_codec_control(codec_ctx, AV1E_SET_AQ_MODE, aq_mode);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "aom_codec_control_typechecked_AV1E_SET_AQ_MODE failed with error code: " << res << std::endl;
-    }
-}
-
 extern "C" int LLVMFuzzerTestOneInput_85(const uint8_t *Data, size_t Size) {
-    aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    if (Size < sizeof(int)) return 0;
 
-    fuzz_aom_codec_set_cx_data_buf(&codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE(&codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL(&codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL(&codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(&codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_AQ_MODE(&codec_ctx, Data, Size);
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_err_t res;
+
+    // Assume the interface is for AV1 encoder
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+
+    // Initialize encoder configuration
+    aom_codec_enc_cfg_t cfg;
+    res = aom_codec_enc_config_default(iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) return 0;
+
+    // Initialize codec
+    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) return 0;
+
+    // Prepare a dummy file if needed
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
+
+    // Extract an integer from the input data
+    int control_value = *reinterpret_cast<const int*>(Data);
+
+    // Fuzz each target function with extracted control_value
+    aom_codec_control(&codec_ctx, AV1E_SET_NOISE_SENSITIVITY, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_FP_MT_UNIT_TEST, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_MIN_GF_INTERVAL, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_AUTO_INTRA_TOOLS_OFF, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_TILE_COLUMNS, control_value);
+    aom_codec_control(&codec_ctx, AV1E_SET_CDF_UPDATE_MODE, control_value);
+
+    // Cleanup
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

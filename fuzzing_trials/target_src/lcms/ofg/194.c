@@ -1,19 +1,24 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_194(const uint8_t *data, size_t size) {
-    cmsHANDLE dictHandle = NULL;
+    // Initialize a cmsToneCurve object
+    cmsToneCurve *originalCurve = cmsBuildGamma(NULL, 2.2); // Example gamma value
 
-    // Create a dummy dictionary entry to ensure dictHandle is not NULL
-    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
-    if (mlu != NULL) {
-        cmsMLUsetASCII(mlu, "en", "US", "Test Entry");
-        dictHandle = (cmsHANDLE)mlu;
+    // Ensure the originalCurve is not NULL
+    if (originalCurve == NULL) {
+        return 0;
     }
 
     // Call the function-under-test
-    cmsDictFree(dictHandle);
+    cmsToneCurve *duplicatedCurve = cmsDupToneCurve(originalCurve);
+
+    // Clean up the allocated resources
+    if (duplicatedCurve != NULL) {
+        cmsFreeToneCurve(duplicatedCurve);
+    }
+    cmsFreeToneCurve(originalCurve);
 
     return 0;
 }

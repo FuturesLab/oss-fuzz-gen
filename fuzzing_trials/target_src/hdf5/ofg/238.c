@@ -1,26 +1,20 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_238(const uint8_t *data, size_t size) {
-    // Use the input data to create a unique filename
-    char filename[256];
-    snprintf(filename, sizeof(filename), "/tmp/fuzz_test_file_%zu.h5", size);
+    // Initialize variables for the function parameters
+    hid_t dataset_id = 1; // Assuming a valid dataset ID for testing
+    hsize_t coords[2] = {1, 1}; // Example coordinates, adjust as needed
+    unsigned int filter_mask = 0;
+    haddr_t addr = 0;
+    hsize_t size_info[2] = {1, 1}; // Example size info, adjust as needed
 
-    // Define and initialize variables for H5Fcreate
-    unsigned int flags = H5F_ACC_TRUNC; // Use a valid flag for file creation
-    hid_t fcpl_id = H5P_DEFAULT; // File creation property list
-    hid_t fapl_id = H5P_DEFAULT; // File access property list
+    // Call the function under test
+    herr_t result = H5Dget_chunk_info_by_coord(dataset_id, coords, &filter_mask, &addr, size_info);
 
-    // Call the function-under-test
-    hid_t file_id = H5Fcreate(filename, flags, fcpl_id, fapl_id);
-
-    // Check if file creation was successful
-    if (file_id >= 0) {
-        // Close the file to clean up
-        H5Fclose(file_id);
-    }
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    (void)result;
 
     return 0;
 }

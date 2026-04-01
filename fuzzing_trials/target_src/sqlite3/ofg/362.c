@@ -1,40 +1,45 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this for size_t
-#include <stdlib.h>  // Include this for NULL
+#include <stddef.h>  // Include for size_t
+#include <stdlib.h>  // Include for NULL
 #include <sqlite3.h>
-#include <string.h>  // Include this for memcpy
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_362(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated for SQLite to process it as a string
-    char *sql = (char*)malloc(size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    sqlite3_mutex *mutex;
 
-    sqlite3 *db;
-    char *errMsg = NULL;
-
-    // Open an in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        free(sql);
+    // Initialize SQLite3 library
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free error message if any
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    // Create a new mutex
+    mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_FAST);
+    if (mutex == NULL) {
+        sqlite3_shutdown();
+        return 0;
     }
 
-    // Close the database
-    sqlite3_close(db);
+    // Enter the mutex
+    sqlite3_mutex_enter(mutex);
 
-    // Free the allocated SQL string
-    free(sql);
+    // Call the function-under-test
+    int result = sqlite3_mutex_held(mutex);
+
+    // Leave the mutex
+    sqlite3_mutex_leave(mutex);
+
+    // Free the mutex
+    sqlite3_mutex_free(mutex);
+
+    // Shutdown SQLite3 library
+    sqlite3_shutdown();
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

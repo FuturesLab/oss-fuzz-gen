@@ -1,106 +1,54 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_set_generic_protection at drm_sample.c:626:8 in isomedia.h
-// gf_isom_is_external_track at isom_read.c:6656:6 in isomedia.h
-// gf_isom_set_oma_protection at drm_sample.c:590:8 in isomedia.h
-// gf_isom_new_xml_subtitle_description at sample_descs.c:1326:8 in isomedia.h
-// gf_isom_probe_file_range at isom_read.c:153:5 in isomedia.h
-// gf_isom_probe_file at isom_read.c:189:5 in isomedia.h
+// gf_isom_open_progressive_ex at isom_read.c:435:8 in isomedia.h
+// gf_isom_get_sidx_duration at isom_read.c:6196:8 in isomedia.h
+// gf_isom_set_removed_bytes at isom_read.c:3185:8 in isomedia.h
+// gf_isom_set_movie_duration at movie_fragments.c:61:8 in isomedia.h
+// gf_isom_set_creation_time at isom_write.c:221:8 in isomedia.h
+// gf_isom_set_fragment_reference_time at movie_fragments.c:2552:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Allocate a dummy memory block for GF_ISOFile using a generic pointer
-    GF_ISOFile* isoFile = (GF_ISOFile*)malloc(1024); // Assuming a generic size
-    if (!isoFile) return NULL;
-    memset(isoFile, 0, 1024); // Initialize with zero
-    return isoFile;
-}
-
-static void cleanup_iso_file(GF_ISOFile* isoFile) {
-    if (isoFile) {
-        free(isoFile);
-    }
-}
-
 int LLVMFuzzerTestOneInput_313(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    GF_ISOFile* isoFile = create_dummy_iso_file();
-    if (!isoFile) return 0;
+    GF_ISOFile *isom_file = NULL;
+    GF_Err err;
 
-    // Fuzz gf_isom_set_generic_protection
-    u32 trackNumber = Data[0];
-    u32 sampleDescriptionIndex = Data[0];
-    u32 scheme_type = Data[0];
-    u32 scheme_version = Data[0];
-    char *scheme_uri = NULL;
-    char *kms_URI = NULL;
-    if (Size > 2) {
-        scheme_uri = (char*)Data + 1;
-    }
-    if (Size > 3) {
-        kms_URI = (char*)Data + 2;
-    }
-    gf_isom_set_generic_protection(isoFile, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, scheme_uri, kms_URI);
+    // Attempt to open a dummy file
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (!dummy_file) return 0;
+    fwrite(Data, 1, Size, dummy_file);
+    fclose(dummy_file);
 
-    // Fuzz gf_isom_is_external_track
-    GF_ISOTrackID tkid;
-    u32 type;
-    u32 flags;
-    const char *location;
-    gf_isom_is_external_track(isoFile, trackNumber, &tkid, &type, &flags, &location);
+    u64 sidx_dur = 0;
+    u32 sidx_timescale = 0;
+    err = gf_isom_open_progressive_ex("./dummy_file", 0, Size, 0, &isom_file, NULL, NULL);
+    if (err == GF_OK && isom_file) {
+        gf_isom_get_sidx_duration(isom_file, &sidx_dur, &sidx_timescale);
 
-    // Fuzz gf_isom_set_oma_protection
-    char *contentID = NULL;
-    if (Size > 4) {
-        contentID = (char*)Data + 3;
-    }
-    u32 encryption_type = Data[0];
-    u64 plainTextLength = Data[0];
-    char *textual_headers = NULL;
-    if (Size > 5) {
-        textual_headers = (char*)Data + 4;
-    }
-    u32 textual_headers_len = Data[0];
-    Bool selective_encryption = Data[0] % 2;
-    u32 KI_length = Data[0];
-    u32 IV_length = Data[0];
-    gf_isom_set_oma_protection(isoFile, trackNumber, sampleDescriptionIndex, contentID, kms_URI, encryption_type, plainTextLength, textual_headers, textual_headers_len, selective_encryption, KI_length, IV_length);
+        u64 bytes_removed = Data[0];
+        gf_isom_set_removed_bytes(isom_file, bytes_removed);
 
-    // Fuzz gf_isom_new_xml_subtitle_description
-    const char *xmlnamespace = NULL;
-    if (Size > 6) {
-        xmlnamespace = (char*)Data + 5;
-    }
-    const char *xml_schema_loc = NULL;
-    if (Size > 7) {
-        xml_schema_loc = (char*)Data + 6;
-    }
-    const char *auxiliary_mimes = NULL;
-    if (Size > 8) {
-        auxiliary_mimes = (char*)Data + 7;
-    }
-    u32 outDescriptionIndex;
-    gf_isom_new_xml_subtitle_description(isoFile, trackNumber, xmlnamespace, xml_schema_loc, auxiliary_mimes, &outDescriptionIndex);
+        u64 duration = Data[0];
+        Bool remove_mehd = (Bool)(Data[0] % 2);
+        gf_isom_set_movie_duration(isom_file, duration, remove_mehd);
 
-    // Fuzz gf_isom_probe_file_range
-    const char *fileName = "./dummy_file";
-    FILE *dummyFile = fopen(fileName, "wb");
-    if (dummyFile) {
-        fwrite(Data, 1, Size, dummyFile);
-        fclose(dummyFile);
+        u64 create_time = Data[0];
+        u64 modif_time = Data[0];
+        gf_isom_set_creation_time(isom_file, create_time, modif_time);
+
+        GF_ISOTrackID reference_track_ID = Data[0];
+        u64 ntp = Data[0];
+        u64 timestamp = Data[0];
+        Bool at_mux = (Bool)(Data[0] % 2);
+        gf_isom_set_fragment_reference_time(isom_file, reference_track_ID, ntp, timestamp, at_mux);
+
+        gf_isom_close(isom_file);
     }
-    u64 start_range = 0;
-    u64 end_range = Size;
-    gf_isom_probe_file_range(fileName, start_range, end_range);
 
-    // Fuzz gf_isom_probe_file
-    gf_isom_probe_file(fileName);
-
-    cleanup_iso_file(isoFile);
     return 0;
 }

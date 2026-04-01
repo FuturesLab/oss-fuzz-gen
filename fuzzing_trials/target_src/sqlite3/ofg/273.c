@@ -1,34 +1,41 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
-// Remove the 'extern "C"' linkage specification for C++ since this is C code
+// Callback function for sqlite3_exec
+int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_273(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    char *errMsg = NULL;
     int rc;
-    char *errMsg = 0;
-
-    // Open a new in-memory database
+    
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Execute a simple SQL statement to ensure there are changes
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INT); INSERT INTO test (id) VALUES (1);", 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
+    // Ensure the data is null-terminated for use as a SQL statement
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Call the function-under-test
-    int changes = sqlite3_total_changes(db);
-    printf("Total changes: %d\n", changes);
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, callback, NULL, &errMsg);
 
-    // Close the database
+    // Free resources
+    free(sql);
+    if (errMsg != NULL) {
+        sqlite3_free(errMsg);
+    }
     sqlite3_close(db);
 
     return 0;

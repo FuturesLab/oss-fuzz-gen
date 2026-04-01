@@ -1,27 +1,28 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t file_id = H5I_INVALID_HID; // Use an invalid ID initially
-    size_t max_size = 0;
-    size_t min_clean_size = 0;
-    size_t cur_size = 0;
+    // Initialize variables
+    hid_t file_id;
+    size_t max_size = 1024;
+    size_t min_clean_size = 512;
+    size_t cur_size = 256;
     int cur_num_entries = 0;
 
-    // Attempt to open a file using the input data, assuming it's a valid file name
-    // For fuzzing purposes, we can create a temporary file or use a dummy file
-    const char *filename = "/tmp/fuzz_test.h5"; // Temporary file name
-    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-    if (file_id >= 0) {
-        // Call the function-under-test
-        H5Fget_mdc_size(file_id, &max_size, &min_clean_size, &cur_size, &cur_num_entries);
-
-        // Close the file
-        H5Fclose(file_id);
+    // Ensure data size is sufficient for creating a file identifier
+    if (size < sizeof(hid_t)) {
+        return 0;
     }
+
+    // Use the data to simulate a file identifier
+    file_id = *((hid_t *)data);
+
+    // Call the function under test
+    herr_t status = H5Fget_mdc_size(file_id, &max_size, &min_clean_size, &cur_size, &cur_num_entries);
+
+    // Optionally, handle the status or use assertions for testing
+    // (In a real fuzzing scenario, you might log the status or check for specific conditions)
 
     return 0;
 }

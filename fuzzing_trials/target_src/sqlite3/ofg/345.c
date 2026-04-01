@@ -1,47 +1,23 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h>
-
-// Dummy function to act as the callback
-void dummy_callback() {
-    // Do nothing
-}
+#include "/src/sqlite3/bld/sqlite3.h"  // Correct path for the SQLite header
 
 int LLVMFuzzerTestOneInput_345(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errMsg = 0;
-    int rc;
+    // Initialize a sqlite3_str structure
+    sqlite3_str *acc;
+    sqlite3 *db = NULL;
 
-    // Initialize SQLite in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        return 0; // If opening the database fails, return early
-    }
+    // Create a new sqlite3_str object
+    acc = sqlite3_str_new(db);
 
-    // Ensure the data is null-terminated for use as a string
-    char *clientDataName = (char *)malloc(size + 1);
-    if (clientDataName == NULL) {
-        sqlite3_close(db);
-        return 0; // Memory allocation failed
-    }
-    memcpy(clientDataName, data, size);
-    clientDataName[size] = '\0';
+    // Use the input data as the text buffer by appending it
+    sqlite3_str_append(acc, (const char *)data, (int)size);
 
-    // Use a non-null pointer for the client data
-    void *clientData = (void *)data;
+    // Call the function-under-test
+    sqlite3_str_reset(acc);
 
-    // Since sqlite3_set_clientdata is not a valid function, we replace it with a valid SQLite function
-    // For demonstration, let's execute a simple SQL statement
-    rc = sqlite3_exec(db, clientDataName, dummy_callback, clientData, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    // Free allocated resources
-    free(clientDataName);
-    sqlite3_close(db);
+    // Free the sqlite3_str object
+    sqlite3_str_finish(acc);
 
     return 0;
 }

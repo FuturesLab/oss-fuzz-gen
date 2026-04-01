@@ -6,35 +6,42 @@
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_160(const uint8_t *data, size_t size) {
-    int fd;
-    char mode[4]; // Buffer to hold the mode string
-
-    // Ensure the mode string is null-terminated and not NULL
-    if (size < 1) {
+    // Ensure the data size is sufficient for a valid null-terminated string
+    if (size < 2) {
         return 0;
     }
 
-    // Create a temporary file to get a valid file descriptor
-    fd = open("/dev/null", O_WRONLY);
+    // Create a temporary file to use with gzdopen
+    char filename[] = "/tmp/fuzz_gzXXXXXX";
+    int fd = mkstemp(filename);
     if (fd == -1) {
         return 0;
     }
 
-    // Copy a portion of data to mode ensuring it is null-terminated
-    size_t mode_len = (size < 3) ? size : 3;
+    // Write the fuzzer data to the file
+    write(fd, data, size);
+
+    // Ensure the file descriptor is at the beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Prepare a mode string from the input data
+    char mode[4];
+    size_t mode_len = size < 3 ? size : 3; // Limit mode string length to 3
     memcpy(mode, data, mode_len);
-    mode[mode_len] = '\0';
+    mode[mode_len] = '\0'; // Null-terminate the mode string
 
     // Call the function under test
     gzFile gz = gzdopen(fd, mode);
 
-    // Clean up: close the gzFile if it was successfully opened
+    // Clean up
     if (gz != NULL) {
         gzclose(gz);
     } else {
-        // If gzdopen fails, close the file descriptor manually
-        close(fd);
+        close(fd); // Close the file descriptor if gzdopen fails
     }
+
+    // Remove the temporary file
+    unlink(filename);
 
     return 0;
 }

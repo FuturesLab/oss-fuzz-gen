@@ -1,70 +1,81 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_has_cenc_sample_group at isom_read.c:5020:6 in isomedia.h
-// gf_isom_new_track_from_template at isom_write.c:640:5 in isomedia.h
-// gf_isom_is_track_encrypted at isom_read.c:1624:6 in isomedia.h
-// gf_isom_get_sample_cenc_info at isom_read.c:5790:8 in isomedia.h
-// gf_isom_get_meta_type at meta.c:43:5 in isomedia.h
-// gf_isom_is_cenc_media at drm_sample.c:681:6 in isomedia.h
+// gf_isom_new_webvtt_description at sample_descs.c:1637:8 in isomedia.h
+// gf_isom_stxt_get_description at sample_descs.c:1385:8 in isomedia.h
+// gf_isom_set_ismacryp_protection at drm_sample.c:559:8 in isomedia.h
+// gf_isom_opus_config_new at sample_descs.c:476:8 in isomedia.h
+// gf_isom_sdp_track_get at hint_track.c:937:8 in isomedia.h
+// gf_isom_set_oma_protection at drm_sample.c:590:8 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file(const uint8_t *data, size_t size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return NULL;
-    fwrite(data, 1, size, file);
-    fclose(file);
-    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+static GF_ISOFile* create_dummy_iso_file() {
+    // Allocate memory for the ISO file structure
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return iso_file;
+}
+
+static GF_OpusConfig* create_dummy_opus_config() {
+    GF_OpusConfig *config = malloc(sizeof(GF_OpusConfig));
+    if (config) {
+        memset(config, 0, sizeof(GF_OpusConfig));
+    }
+    return config;
 }
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3) return 0;
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    GF_ISOFile *isom_file = create_dummy_iso_file(Data, Size);
-    if (!isom_file) return 0;
+    u32 trackNumber = 1;
+    u32 descriptionIndex = 0;
+    const char *URLname = NULL;
+    const char *URNname = NULL;
+    const char *config = (const char *)Data;
 
-    u32 trackNumber = *((u32 *)Data);
-    u32 sampleNumber = *(((u32 *)Data) + 1);
-    u32 sampleDescriptionIndex = *(((u32 *)Data) + 2);
-    Bool has_selective, has_roll, is_encrypted;
-    u32 crypt_byte_block, skip_byte_block, key_info_size;
-    const u8 *key_info;
-    GF_Err err;
+    // Fuzz gf_isom_new_webvtt_description
+    gf_isom_new_webvtt_description(iso_file, trackNumber, URLname, URNname, &descriptionIndex, config);
 
-    // Test gf_isom_has_cenc_sample_group
-    gf_isom_has_cenc_sample_group(isom_file, trackNumber, &has_selective, &has_roll);
+    // Fuzz gf_isom_stxt_get_description
+    const char *mime = NULL;
+    const char *encoding = NULL;
+    gf_isom_stxt_get_description(iso_file, trackNumber, descriptionIndex, &mime, &encoding, &config);
 
-    // Test gf_isom_new_track_from_template
-    u32 trakID = 0;
-    u32 MediaType = *((u32 *)Data);
-    u32 TimeScale = *((u32 *)Data);
-    u8 *tk_box = (u8 *)Data;
-    u32 tk_box_size = Size;
-    Bool udta_only = GF_FALSE;
-    gf_isom_new_track_from_template(isom_file, trakID, MediaType, TimeScale, tk_box, tk_box_size, udta_only);
+    // Fuzz gf_isom_set_ismacryp_protection
+    u32 scheme_type = 0;
+    u32 scheme_version = 1;
+    char *scheme_uri = NULL;
+    char *kms_URI = NULL;
+    Bool selective_encryption = 0;
+    u32 KI_length = 0;
+    u32 IV_length = 0;
+    gf_isom_set_ismacryp_protection(iso_file, trackNumber, descriptionIndex, scheme_type, scheme_version, scheme_uri, kms_URI, selective_encryption, KI_length, IV_length);
 
-    // Test gf_isom_is_track_encrypted
-    gf_isom_is_track_encrypted(isom_file, trackNumber);
+    // Fuzz gf_isom_opus_config_new
+    GF_OpusConfig *opus_config = create_dummy_opus_config();
+    if (opus_config) {
+        gf_isom_opus_config_new(iso_file, trackNumber, opus_config, (char *)URLname, (char *)URNname, &descriptionIndex);
+        free(opus_config);
+    }
 
-    // Test gf_isom_get_sample_cenc_info
-    err = gf_isom_get_sample_cenc_info(isom_file, trackNumber, sampleNumber, &is_encrypted, &crypt_byte_block, &skip_byte_block, &key_info, &key_info_size);
+    // Fuzz gf_isom_sdp_track_get
+    const char *sdp = NULL;
+    u32 sdp_length = 0;
+    gf_isom_sdp_track_get(iso_file, trackNumber, &sdp, &sdp_length);
 
-    // Test gf_isom_get_meta_type
-    Bool root_meta = GF_TRUE;
-    gf_isom_get_meta_type(isom_file, root_meta, trackNumber);
+    // Fuzz gf_isom_set_oma_protection
+    char *contentID = NULL;
+    u32 encryption_type = 0;
+    u64 plainTextLength = 0;
+    char *textual_headers = NULL;
+    u32 textual_headers_len = 0;
+    gf_isom_set_oma_protection(iso_file, trackNumber, descriptionIndex, contentID, kms_URI, encryption_type, plainTextLength, textual_headers, textual_headers_len, selective_encryption, KI_length, IV_length);
 
-    // Test gf_isom_is_cenc_media
-    gf_isom_is_cenc_media(isom_file, trackNumber, sampleDescriptionIndex);
-
-    gf_isom_close(isom_file);
+    gf_isom_close(iso_file);
     return 0;
 }

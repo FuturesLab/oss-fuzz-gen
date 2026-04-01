@@ -1,43 +1,36 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this for size_t
+#include <stddef.h>
 #include <sqlite3.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_262(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-    char *errMsg = 0;
-
-    // Open a new in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Create a simple table
-    const char *createTableSQL = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Use the input data to insert into the table
-    char insertSQL[256];
-    snprintf(insertSQL, sizeof(insertSQL), "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
-    rc = sqlite3_exec(db, insertSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
-
     // Call the function-under-test
-    int changes = sqlite3_changes(db);
+    int keyword_count = sqlite3_keyword_count();
+
+    // Use `data` and `size` to create a SQL statement and execute it
+    char *errMsg = 0;
+    sqlite3 *db;
+    sqlite3_open(":memory:", &db);
+
+    // Ensure the input is null-terminated for safety
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
     // Clean up
+    sqlite3_free(errMsg);
+    free(sql);
     sqlite3_close(db);
+
+    // Optionally, you can print the result for debugging purposes
+    printf("Number of SQLite keywords: %d\n", keyword_count);
 
     return 0;
 }

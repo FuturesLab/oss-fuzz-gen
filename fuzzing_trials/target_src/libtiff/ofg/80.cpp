@@ -1,51 +1,37 @@
 #include <tiffio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <cstdint>
+#include <cstdlib>
+#include <unistd.h> // For close, unlink, and write
 
 extern "C" int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    // Create a temporary file to write the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != ssize_t(size)) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
-        unlink(tmpl);
+        unlink(tmpl); // Clean up the temporary file
         return 0;
     }
+    close(fd);
 
-    // Rewind the file descriptor to the start
-    lseek(fd, 0, SEEK_SET);
-
-    // Open the TIFF file using the temporary file
-    TIFF *tiff = TIFFFdOpen(fd, tmpl, "r");
-    if (tiff == NULL) {
-        close(fd);
-        unlink(tmpl);
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        unlink(tmpl); // Clean up the temporary file
         return 0;
     }
 
     // Call the function-under-test
     tmsize_t stripSize = TIFFStripSize(tiff);
 
-    // Print the strip size (optional, for debugging purposes)
-    printf("TIFF Strip Size: %ld\n", (long)stripSize);
-
     // Clean up
     TIFFClose(tiff);
-    close(fd);
-    unlink(tmpl);
+    unlink(tmpl); // Remove the temporary file
 
     return 0;
 }

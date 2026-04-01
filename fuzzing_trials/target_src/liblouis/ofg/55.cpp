@@ -1,50 +1,48 @@
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
+#include <iostream>
 
-// Assuming widechar is defined as follows, based on typical usage:
-typedef uint32_t widechar;
-
-// Function prototype for the function-under-test
 extern "C" {
-    int lou_hyphenate(const char *text, const widechar *hyphenateTable, int length, char *hyphenatedText, int maxHyphenatedLength);
+    #include "/src/liblouis/liblouis/liblouis.h" // Correct path for the header
 }
 
 extern "C" int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create meaningful inputs
-    if (size < 4) {
+    // Define and initialize the parameters for lou_hyphenate
+    const char *lang = "en"; // Example language code
+    widechar *text;
+    int textLength;
+    char *hyphens;
+    int hyphensLength;
+
+    // Ensure the size is sufficient for the text and hyphens
+    if (size < 2) {
         return 0;
     }
 
-    // Create a null-terminated string for the 'text' parameter
-    char *text = (char *)malloc(size + 1);
-    if (text == NULL) {
-        return 0;
-    }
-    memcpy(text, data, size);
-    text[size] = '\0';
+    // Allocate memory for text and hyphens based on the input size
+    textLength = size / 2;
+    hyphensLength = textLength;
+    
+    text = (widechar *)malloc(textLength * sizeof(widechar));
+    hyphens = (char *)malloc(hyphensLength * sizeof(char));
 
-    // Create a widechar array for the 'hyphenateTable' parameter
-    widechar hyphenateTable[4] = {0x002D, 0x00AD, 0x2010, 0x2011}; // Example hyphenation points
-
-    // Define the length parameter
-    int length = static_cast<int>(size);
-
-    // Create a buffer for the 'hyphenatedText' parameter
-    int maxHyphenatedLength = length + 10; // Arbitrary buffer size
-    char *hyphenatedText = (char *)malloc(maxHyphenatedLength);
-    if (hyphenatedText == NULL) {
+    if (text == NULL || hyphens == NULL) {
         free(text);
+        free(hyphens);
         return 0;
     }
+
+    // Copy data into text and initialize hyphens
+    memcpy(text, data, textLength * sizeof(widechar));
+    memset(hyphens, 0, hyphensLength * sizeof(char));
 
     // Call the function-under-test
-    lou_hyphenate(text, hyphenateTable, length, hyphenatedText, maxHyphenatedLength);
+    lou_hyphenate(lang, text, textLength, hyphens, hyphensLength);
 
-    // Clean up
+    // Free allocated memory
     free(text);
-    free(hyphenatedText);
+    free(hyphens);
 
     return 0;
 }

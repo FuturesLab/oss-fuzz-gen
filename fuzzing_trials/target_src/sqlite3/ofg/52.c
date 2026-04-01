@@ -1,31 +1,22 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h> // Include this for size_t
 #include <sqlite3.h>
-#include <stdlib.h> // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    int nBytes;
-    void *buffer;
-
-    // Ensure size is not zero to avoid division by zero
-    if (size == 0) {
+    // Ensure there is at least one byte to interpret as an int
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Use the first byte of data as the number of bytes to generate
-    nBytes = data[0] % 256; // Limit the number of bytes to a reasonable size
-
-    // Allocate a buffer to store the random bytes
-    buffer = malloc(nBytes);
-    if (buffer == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
+    // Interpret the first few bytes of data as an integer
+    int flag = *(int*)data;
 
     // Call the function-under-test
-    sqlite3_randomness(nBytes, buffer);
+    sqlite3_int64 highwater = sqlite3_memory_highwater(flag);
 
-    // Free the allocated buffer
-    free(buffer);
+    // Use highwater in some way to prevent compiler optimizations from removing the call
+    volatile sqlite3_int64 use_result = highwater;
+    (void)use_result; // Prevent unused variable warning
 
     return 0;
 }

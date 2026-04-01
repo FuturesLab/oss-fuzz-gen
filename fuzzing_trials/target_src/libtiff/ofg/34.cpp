@@ -1,48 +1,43 @@
-#include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
-#include <fcntl.h>
-#include <unistd.h>
-#include <cstdio>
-#include <cstdlib>  // Include for mkstemp
+#include <cstdlib>
+#include <unistd.h>  // Include for 'close' and 'write'
+#include <cstdio>    // Include for 'remove'
 
 extern "C" {
+    // Include necessary C headers, source files, functions, and code here.
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a temporary file to write the data
+    // Create a temporary file to simulate a TIFF file
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the data to the temporary file
+    // Write the fuzz data to the temporary file
     if (write(fd, data, size) != static_cast<ssize_t>(size)) {
         close(fd);
         return 0;
     }
-
-    // Close the file descriptor
     close(fd);
 
-    // Open the TIFF file
-    TIFF* tiff = TIFFOpen(tmpl, "r");
-    if (tiff == nullptr) {
-        unlink(tmpl);
+    // Open the temporary file as a TIFF file
+    TIFF* tif = TIFFOpen(tmpl, "r");
+    if (tif == nullptr) {
+        // Clean up the temporary file
+        remove(tmpl);
         return 0;
     }
 
     // Call the function-under-test
-    TIFFReadWriteProc readProc = TIFFGetReadProc(tiff);
+    TIFFReadWriteProc readProc = TIFFGetReadProc(tif);
 
     // Clean up
-    TIFFClose(tiff);
-    unlink(tmpl);
+    TIFFClose(tif);
+    remove(tmpl);
 
     return 0;
 }

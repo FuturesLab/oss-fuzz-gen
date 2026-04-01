@@ -1,30 +1,33 @@
 #include <cstdint>
 #include <cstddef>
-#include <cstring>
+#include <cstring> // Include for std::memcpy
 
 extern "C" {
-    // Assuming the function is declared in a C header file
-    uint32_t LogLuv24fromXYZ(float *xyz, int param);
+    // Assume this is the function-under-test from an external C library
+    uint32_t LogLuv24fromXYZ(float *xyz, int num);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract float values and an int
-    if (size < sizeof(float) * 3 + sizeof(int)) {
-        return 0;
+    if (size < sizeof(float) * 3) {
+        return 0; // Not enough data to form a valid input
     }
 
-    // Declare and initialize the float array for XYZ values
+    // Initialize the float array with the first three floats from the data
     float xyz[3];
-    std::memcpy(xyz, data, sizeof(float) * 3);
+    for (int i = 0; i < 3; ++i) {
+        // Copy bytes into float
+        uint32_t temp;
+        std::memcpy(&temp, data + i * sizeof(float), sizeof(float));
+        xyz[i] = *reinterpret_cast<float*>(&temp);
+    }
 
-    // Extract the integer parameter
-    int param;
-    std::memcpy(&param, data + sizeof(float) * 3, sizeof(int));
+    // Use the remaining data size as the integer parameter
+    int num = static_cast<int>(size - sizeof(float) * 3);
 
     // Call the function-under-test
-    uint32_t result = LogLuv24fromXYZ(xyz, param);
+    uint32_t result = LogLuv24fromXYZ(xyz, num);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
+    // Optionally use the result to prevent compiler optimizations
     (void)result;
 
     return 0;

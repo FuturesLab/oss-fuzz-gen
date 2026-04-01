@@ -1,24 +1,30 @@
+#include <pcap.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_155(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated to be used as a C string
-    char *datalink_name = (char *)malloc(size + 1);
-    if (datalink_name == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Ensure that the data size is sufficient for the device name and error buffer
+    if (size < 2) {
+        return 0;
     }
 
-    memcpy(datalink_name, data, size);
-    datalink_name[size] = '\0'; // Null-terminate the string
+    // Initialize device name from input data
+    char device[256];
+    size_t device_len = size < 255 ? size : 255;
+    memcpy(device, data, device_len);
+    device[device_len] = '\0'; // Null-terminate the device name
 
-    // Call the function under test
-    int result = pcap_datalink_name_to_val(datalink_name);
+    // Initialize variables for network and netmask
+    bpf_u_int32 net = 0;
+    bpf_u_int32 netmask = 0;
 
-    // Clean up
-    free(datalink_name);
+    // Initialize error buffer
+    char errbuf[PCAP_ERRBUF_SIZE];
+    memset(errbuf, 0, sizeof(errbuf));
+
+    // Call the function-under-test
+    pcap_lookupnet(device, &net, &netmask, errbuf);
 
     return 0;
 }

@@ -1,31 +1,39 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <lcms2.h>  // Include Little CMS library header
+#include <string.h> // Include the string.h library for memcpy
+#include <lcms2.h>
 
-// Remove 'extern "C"' as it is not needed in C code
 int LLVMFuzzerTestOneInput_217(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsToneCurve *toneCurve = NULL;
-    cmsUInt32Number tableEntries;
+    // Initialize a cmsContext
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
+        return 0; // Exit if context creation fails
+    }
 
-    // Check if size is sufficient to create a tone curve
-    if (size < sizeof(cmsFloat32Number)) {
+    // Ensure that the input size is sufficient for the function under test
+    if (size < sizeof(cmsCIExyYTRIPLE)) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Create a tone curve with arbitrary parameters
-    cmsFloat32Number gamma = 2.2f;  // Example gamma value
-    toneCurve = cmsBuildGamma(NULL, gamma);
+    // Use the input data to create a cmsCIExyYTRIPLE structure
+    cmsCIExyYTRIPLE triple;
+    memcpy(&triple, data, sizeof(cmsCIExyYTRIPLE));
 
-    if (toneCurve == NULL) {
-        return 0;
+    // Call the function-under-test with the created structure
+    cmsHPROFILE profile = cmsCreate_OkLabProfile(context);
+    
+    // Check if profile creation was successful
+    if (profile != NULL) {
+        // Do something with the profile if needed
+        // For fuzzing, we might not need to do anything specific
+
+        // Release the profile after use
+        cmsCloseProfile(profile);
     }
 
-    // Call the function-under-test
-    tableEntries = cmsGetToneCurveEstimatedTableEntries(toneCurve);
-
-    // Clean up
-    cmsFreeToneCurve(toneCurve);
+    // Delete the context after use
+    cmsDeleteContext(context);
 
     return 0;
 }

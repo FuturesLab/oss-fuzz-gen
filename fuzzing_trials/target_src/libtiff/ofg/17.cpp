@@ -1,29 +1,29 @@
 #include <tiffio.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdarg>
+#include <cstdio>
 
 extern "C" {
 
-// A simple error handler function to be used with TIFFSetErrorHandler
-void CustomErrorHandler_17(const char* module, const char* fmt, va_list ap) {
+// Custom error handler function
+void customErrorHandler_17(const char* module, const char* fmt, va_list ap) {
     // Custom error handling logic can be implemented here
-    // For this example, we'll do nothing
+    // For fuzzing purposes, we can keep it simple
+    vfprintf(stderr, fmt, ap);
 }
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient for a meaningful test
-    if (size < 1) {
+    // Ensure that the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Cast the data to a TIFFErrorHandler function pointer
-    TIFFErrorHandler handler = (TIFFErrorHandler)CustomErrorHandler_17;
+    // Set a custom error handler
+    TIFFErrorHandler oldHandler = TIFFSetErrorHandler(customErrorHandler_17);
 
-    // Call the function-under-test
-    TIFFErrorHandler oldHandler = TIFFSetErrorHandler(handler);
-
-    // Optionally, restore the old error handler if needed
-    TIFFSetErrorHandler(oldHandler);
+    // Optionally, you can restore the old handler after testing
+    // TIFFSetErrorHandler(oldHandler);
 
     return 0;
 }

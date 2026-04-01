@@ -1,47 +1,29 @@
-#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-
-// Function to write data to a temporary file and return the file pointer
-FILE *write_data_to_temp_file(const uint8_t *data, size_t size) {
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
-        return NULL;
-    }
-
-    if (fwrite(data, 1, size, temp_file) != size) {
-        fclose(temp_file);
-        return NULL;
-    }
-
-    rewind(temp_file);
-    return temp_file;
-}
+#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    FILE *file;
-
-    // Write data to a temporary file
-    file = write_data_to_temp_file(data, size);
-    if (file == NULL) {
+    // Ensure the size is sufficient to create at least one integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize pcap_handle using the temporary file
-    pcap_handle = pcap_fopen_offline(file, errbuf);
-    if (pcap_handle == NULL) {
-        fclose(file);
+    // Allocate memory for the integer array
+    int *datalinks = (int *)malloc(size);
+    if (datalinks == NULL) {
         return 0;
     }
 
-    // Perform operations on pcap_handle if needed
+    // Copy data into the integer array
+    for (size_t i = 0; i < size / sizeof(int); i++) {
+        datalinks[i] = ((const int *)data)[i];
+    }
 
-    // Clean up
-    pcap_close(pcap_handle);
-    fclose(file);
+    // Call the function-under-test
+    pcap_free_datalinks(datalinks);
+
+    // Free the allocated memory
+    free(datalinks);
 
     return 0;
 }

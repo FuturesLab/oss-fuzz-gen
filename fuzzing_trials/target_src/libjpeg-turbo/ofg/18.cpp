@@ -1,51 +1,28 @@
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <cstdio> // Include for FILE operations
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    // Declare the function-under-test
+    size_t tj3YUVBufSize(int width, int height, int subsamp, int align);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Initialize variables for the function call
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
+    // Ensure we have enough data to extract four integers
+    if (size < 16) {
         return 0;
     }
 
-    // Create a temporary file to simulate an image file
-    const char *filename = "temp_image.ppm";
-    FILE *file = fopen(filename, "wb");
-    if (file == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Write the input data to the file
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Initialize other parameters
-    int width = 0;
-    int pitch = 0;
-    int height = 0;
-    int pixelFormat = TJPF_RGB;
+    // Extract four integers from the input data
+    int width = static_cast<int>(data[0]) + 1;  // Ensure non-zero width
+    int height = static_cast<int>(data[1]) + 1; // Ensure non-zero height
+    int subsamp = static_cast<int>(data[2]) % 5; // Assuming 5 subsampling types
+    int align = static_cast<int>(data[3]) % 4;   // Common alignments: 1, 2, 4, 8
 
     // Call the function-under-test
-    unsigned short *image = tj3LoadImage16(handle, filename, &width, pitch, &height, &pixelFormat);
+    size_t bufSize = tj3YUVBufSize(width, height, subsamp, align);
 
-    // Clean up
-    if (image != nullptr) {
-        tjFree(reinterpret_cast<unsigned char*>(image)); // Cast to unsigned char* for tjFree
-    }
-    tjDestroy(handle);
-
-    // Remove the temporary file
-    remove(filename);
+    // Use the result in some way to prevent optimizations from removing the call
+    (void)bufSize;
 
     return 0;
 }

@@ -1,56 +1,39 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <aom/aom_image.h>
 #include <aom/aom_codec.h>
+#include <aom/aomcx.h> // Include the encoder header for aom_codec_av1_cx and aom_codec_enc_init
 
 extern "C" {
-    const aom_metadata_t * aom_img_get_metadata(const aom_image_t *, size_t);
+    #include <aom/aom_codec.h>
+    #include <aom/aomcx.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    if (size < sizeof(aom_image_t)) {
+    // Initialize the codec context
+    aom_codec_ctx_t codec_ctx;
+
+    // Ensure that the codec context is non-NULL by allocating memory
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    if (iface == NULL) {
         return 0;
     }
 
-    // Create and initialize an aom_image_t structure
-    aom_image_t img;
-    memset(&img, 0, sizeof(aom_image_t));
-
-    // Set some fields in aom_image_t to non-null values
-    img.fmt = AOM_IMG_FMT_I420;
-    img.w = 640;
-    img.h = 480;
-    img.d_w = 640;
-    img.d_h = 480;
-    img.bps = 12;
-    img.stride[0] = 640;
-    img.stride[1] = 320;
-    img.stride[2] = 320;
-
-    // Allocate memory for the image planes
-    img.planes[0] = (uint8_t *)malloc(img.h * img.stride[0]);
-    img.planes[1] = (uint8_t *)malloc(img.h / 2 * img.stride[1]);
-    img.planes[2] = (uint8_t *)malloc(img.h / 2 * img.stride[2]);
-
-    if (!img.planes[0] || !img.planes[1] || !img.planes[2]) {
-        free(img.planes[0]);
-        free(img.planes[1]);
-        free(img.planes[2]);
+    // Initialize the codec context with the interface
+    if (aom_codec_enc_init(&codec_ctx, iface, NULL, 0) != AOM_CODEC_OK) {
         return 0;
     }
-
-    // Use the data as metadata size
-    size_t metadata_size = size - sizeof(aom_image_t);
 
     // Call the function-under-test
-    const aom_metadata_t *metadata = aom_img_get_metadata(&img, metadata_size);
+    const char *error_detail = aom_codec_error_detail(&codec_ctx);
 
-    // Free allocated memory
-    free(img.planes[0]);
-    free(img.planes[1]);
-    free(img.planes[2]);
+    // Check the result (optional, for debugging purposes)
+    if (error_detail != NULL) {
+        // Print the error detail (in a real fuzzing environment, you might log this)
+        // printf("Error Detail: %s\n", error_detail);
+    }
 
-    // Return 0 indicating no crash
+    // Destroy the codec context to clean up
+    aom_codec_destroy(&codec_ctx);
+
     return 0;
 }

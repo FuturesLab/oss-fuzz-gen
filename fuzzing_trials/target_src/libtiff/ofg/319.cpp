@@ -1,45 +1,38 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
 #include <tiffio.h>
+#include <unistd.h> // Include for close()
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_319(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Ensure there is enough data for mode and filename
-    }
-
     // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Failed to create a temporary file
+    if (fd < 0) {
+        return 0; // If file creation fails, exit early
     }
 
     // Write the fuzz data to the temporary file
     FILE *file = fdopen(fd, "wb");
-    if (!file) {
+    if (file == nullptr) {
         close(fd);
         return 0;
     }
-
     fwrite(data, 1, size, file);
     fclose(file);
 
-    // Prepare the mode string
-    const char *mode = reinterpret_cast<const char *>(data + size - 1);
-
-    // Call the function-under-test
-    TIFF *tiff = TIFFOpen(tmpl, mode);
-
-    // Cleanup
-    if (tiff) {
+    // Open the TIFF file using the function-under-test
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff != nullptr) {
+        // If the file is successfully opened, close it
         TIFFClose(tiff);
     }
+
+    // Clean up the temporary file
     remove(tmpl);
 
     return 0;

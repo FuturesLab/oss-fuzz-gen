@@ -1,55 +1,35 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <unistd.h> // For write and close
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <tiffio.h>
+
+extern "C" {
+    // Function prototype for the function-under-test
+    void* _TIFFcalloc(tmsize_t nmemb, tmsize_t size);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_177(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint32_t)) {
+    // Ensure there is enough data to extract two tmsize_t values
+    if (size < 2 * sizeof(tmsize_t)) {
         return 0;
     }
 
-    // Create a temporary file to hold the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Extract two tmsize_t values from the input data
+    tmsize_t nmemb = *(reinterpret_cast<const tmsize_t*>(data));
+    tmsize_t element_size = *(reinterpret_cast<const tmsize_t*>(data + sizeof(tmsize_t)));
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Prepare parameters for TIFFReadRGBAStrip
-    uint32_t strip = 0; // Starting strip
-    uint32_t *raster = (uint32_t *)malloc(TIFFStripSize(tiff) * sizeof(uint32_t));
-    if (!raster) {
-        TIFFClose(tiff);
-        remove(tmpl);
-        return 0;
+    // Ensure the values are non-zero to avoid trivial cases
+    if (nmemb == 0 || element_size == 0) {
+        nmemb = 1;
+        element_size = 1;
     }
 
     // Call the function-under-test
-    TIFFReadRGBAStrip(tiff, strip, raster);
+    void* result = _TIFFcalloc(nmemb, element_size);
 
-    // Clean up
-    free(raster);
-    TIFFClose(tiff);
-    remove(tmpl);
+    // Free the allocated memory if the allocation was successful
+    if (result != nullptr) {
+        _TIFFfree(result);
+    }
 
     return 0;
 }

@@ -1,91 +1,59 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_stxt_get_description at sample_descs.c:1385:8 in isomedia.h
-// gf_isom_sdp_get at hint_track.c:909:8 in isomedia.h
-// gf_isom_set_media_language at isom_write.c:297:8 in isomedia.h
-// gf_isom_get_media_language at isom_read.c:1100:8 in isomedia.h
-// gf_isom_get_copyright at isom_read.c:1483:8 in isomedia.h
-// gf_isom_sdp_track_get at hint_track.c:937:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_has_segment at isom_read.c:843:6 in isomedia.h
+// gf_isom_has_cenc_sample_group at isom_read.c:5020:6 in isomedia.h
+// gf_isom_enum_track_group at isom_read.c:6457:6 in isomedia.h
+// gf_isom_is_track_encrypted at isom_read.c:1624:6 in isomedia.h
+// gf_isom_is_ismacryp_media at drm_sample.c:218:6 in isomedia.h
+// gf_isom_is_omadrm_media at drm_sample.c:237:6 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* open_dummy_iso_file() {
-    // Simulate opening a dummy ISO file by returning a NULL pointer
-    return NULL;
-}
+#define DUMMY_FILE_PATH "./dummy_file"
 
-static void close_dummy_iso_file(GF_ISOFile *iso_file) {
-    // Dummy function to simulate closing an ISO file
-    // No operation needed since we're returning NULL in open_dummy_iso_file
+static GF_ISOFile* create_dummy_iso_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
+    if (!file) return NULL;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, NULL);
+    return isom_file;
 }
 
 int LLVMFuzzerTestOneInput_101(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(u32)) return 0;
 
-    GF_ISOFile *iso_file = open_dummy_iso_file();
+    GF_ISOFile *isom_file = create_dummy_iso_file(Data, Size);
+    if (!isom_file) return 0;
 
-    u32 trackNumber = Data[0];
-    u32 sampleDescriptionIndex = Size > 1 ? Data[1] : 0;
-    const char *mime = NULL;
-    const char *encoding = NULL;
-    const char *config = NULL;
-    GF_Err result;
+    u32 brand = 0, version = 0;
+    gf_isom_has_segment(isom_file, &brand, &version);
 
-    // Fuzzing gf_isom_stxt_get_description
-    result = gf_isom_stxt_get_description(iso_file, trackNumber, sampleDescriptionIndex, &mime, &encoding, &config);
-    if (result != GF_OK && result != GF_BAD_PARAM) {
-        // Handle unexpected errors
+    u32 trackNumber = *(u32*)Data;
+    Bool has_selective = GF_FALSE, has_roll = GF_FALSE;
+    gf_isom_has_cenc_sample_group(isom_file, trackNumber, &has_selective, &has_roll);
+
+    u32 idx = 0, track_group_type = 0, track_group_id = 0;
+    gf_isom_enum_track_group(isom_file, trackNumber, &idx, &track_group_type, &track_group_id);
+
+    gf_isom_is_track_encrypted(isom_file, trackNumber);
+
+    if (Size >= sizeof(u32) * 2) {
+        u32 sampleDescriptionIndex = *((u32*)Data + 1);
+        gf_isom_is_ismacryp_media(isom_file, trackNumber, sampleDescriptionIndex);
+        gf_isom_is_omadrm_media(isom_file, trackNumber, sampleDescriptionIndex);
     }
 
-    const char *sdp = NULL;
-    u32 length = 0;
-
-    // Fuzzing gf_isom_sdp_get
-    result = gf_isom_sdp_get(iso_file, &sdp, &length);
-    if (result != GF_OK && result != GF_BAD_PARAM) {
-        // Handle unexpected errors
-    }
-
-    // Fuzzing gf_isom_set_media_language
-    char languageCode[4] = "eng";
-    if (Size >= 4) {  // Ensure we have enough data to safely copy 3 bytes
-        memcpy(languageCode, Data + 1, 3);
-        languageCode[3] = '\0';
-    }
-    result = gf_isom_set_media_language(iso_file, trackNumber, languageCode);
-    if (result != GF_OK && result != GF_BAD_PARAM) {
-        // Handle unexpected errors
-    }
-
-    char *lang = NULL;
-
-    // Fuzzing gf_isom_get_media_language
-    result = gf_isom_get_media_language(iso_file, trackNumber, &lang);
-    if (result == GF_OK) {
-        free(lang);
-    } else if (result != GF_BAD_PARAM) {
-        // Handle unexpected errors
-    }
-
-    const char *threeCharCodes = NULL;
-    const char *notice = NULL;
-
-    // Fuzzing gf_isom_get_copyright
-    u32 Index = Size > 2 ? Data[2] : 0;
-    result = gf_isom_get_copyright(iso_file, Index, &threeCharCodes, &notice);
-    if (result != GF_OK && result != GF_BAD_PARAM) {
-        // Handle unexpected errors
-    }
-
-    // Fuzzing gf_isom_sdp_track_get
-    result = gf_isom_sdp_track_get(iso_file, trackNumber, &sdp, &length);
-    if (result != GF_OK && result != GF_BAD_PARAM) {
-        // Handle unexpected errors
-    }
-
-    close_dummy_iso_file(iso_file);
+    gf_isom_close(isom_file);
     return 0;
 }

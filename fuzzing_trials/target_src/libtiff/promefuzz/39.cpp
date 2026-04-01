@@ -1,9 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFXYZToRGB at tif_color.c:89:6 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFRawStripSize at tif_strip.c:168:10 in tiffio.h
+// TIFFRasterScanlineSize at tif_strip.c:375:10 in tiffio.h
+// TIFFVStripSize at tif_strip.c:142:10 in tiffio.h
+// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
+// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
+// TIFFTileRowSize at tif_tile.c:177:10 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,56 +16,47 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <tiffio.h>
+#include <cstdint>
+#include <cstring>
+#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t) + sizeof(float) * 3 + sizeof(int)) {
+    if (Size < sizeof(uint32_t)) {
+        return 0; // Not enough data to proceed
+    }
+
+    // Create a dummy file with the input data
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Open the dummy TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) {
         return 0;
     }
 
-    // Prepare the environment for LogLuv24toXYZ and LogLuv32toXYZ
-    uint32_t logluv24 = 0;
-    float xyz24[3] = {0.0f, 0.0f, 0.0f};
-    memcpy(&logluv24, Data, sizeof(uint32_t));
-    LogLuv24toXYZ(logluv24, xyz24);
+    // Use a portion of the input data to simulate a strip index or number of rows
+    uint32_t stripOrRows = 0;
+    memcpy(&stripOrRows, Data, sizeof(uint32_t));
 
-    uint32_t logluv32 = 0;
-    float xyz32[3] = {0.0f, 0.0f, 0.0f};
-    memcpy(&logluv32, Data, sizeof(uint32_t));
-    LogLuv32toXYZ(logluv32, xyz32);
+    // Invoke the target API functions with the TIFF handle and simulated values
+    tmsize_t rawStripSize = TIFFRawStripSize(tif, stripOrRows);
+    tmsize_t rasterScanlineSize = TIFFRasterScanlineSize(tif);
+    tmsize_t vStripSize = TIFFVStripSize(tif, stripOrRows);
+    tmsize_t scanlineSize = TIFFScanlineSize(tif);
+    tmsize_t stripSize = TIFFStripSize(tif);
+    tmsize_t tileRowSize = TIFFTileRowSize(tif);
 
-    // Prepare a copy of the input data for LogLuv24fromXYZ and TIFFSwabArrayOfFloat
-    size_t floatArrayOffset = sizeof(uint32_t);
-    size_t floatArraySize = (Size - floatArrayOffset) / sizeof(float);
-    std::vector<float> xyzInput(floatArraySize);
-    memcpy(xyzInput.data(), Data + floatArrayOffset, floatArraySize * sizeof(float));
+    // Handle the results (e.g., logging, further processing)
+    // For fuzzing, typically we just want to ensure no crashes occur
 
-    int pixelCount = static_cast<int>(*(Data + sizeof(uint32_t) + sizeof(float) * 3));
-    uint32_t logluvOutput = LogLuv24fromXYZ(xyzInput.data(), pixelCount);
-
-    // Prepare the environment for TIFFXYZToRGB
-    TIFFCIELabToRGB cielabToRgb;
-    uint32_t r = 0, g = 0, b = 0;
-    if (Size >= sizeof(uint32_t) + sizeof(float) * 3 * 2 + sizeof(TIFFCIELabToRGB)) {
-        float x = xyzInput[0];
-        float y = xyzInput[1];
-        float z = xyzInput[2];
-        TIFFXYZToRGB(&cielabToRgb, x, y, z, &r, &g, &b);
-    }
-
-    // Prepare the environment for TIFFSwabArrayOfFloat
-    tmsize_t n = static_cast<tmsize_t>(floatArraySize);
-    if (n > 0) {
-        TIFFSwabArrayOfFloat(xyzInput.data(), n);
-    }
-
-    // Prepare the environment for TIFFSwabLong
-    uint32_t swabLongValue = logluv24;
-    TIFFSwabLong(&swabLongValue);
+    // Clean up
+    TIFFClose(tif);
 
     return 0;
 }

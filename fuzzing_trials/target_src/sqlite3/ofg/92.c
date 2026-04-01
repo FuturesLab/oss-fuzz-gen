@@ -2,51 +2,59 @@
 #include <sqlite3.h>
 #include <string.h>
 
-// Dummy callback functions for the window function
-void stepFunc(sqlite3_context *context, int argc, sqlite3_value **argv) {}
-void finalFunc(sqlite3_context *context) {}
-void valueFunc(sqlite3_context *context) {}
-void inverseFunc(sqlite3_context *context, int argc, sqlite3_value **argv) {}
-void destroyFunc(void *p) {}
+// Define dummy callback functions for the window function
+void xStep(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Dummy implementation
+}
+
+void xFinal(sqlite3_context *context) {
+    // Dummy implementation
+}
+
+void xValue(sqlite3_context *context) {
+    // Dummy implementation
+}
+
+void xInverse(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Dummy implementation
+}
+
+void xDestroy_92(void *p) {
+    // Dummy implementation
+}
 
 int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    const char *zFunctionName = "test_window_function";
-    int nArg = 1; // Number of arguments expected by the window function
-    int eTextRep = SQLITE_UTF8; // Text encoding
-    void *pApp = NULL; // Application data
-
-    // Initialize SQLite in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    int rc;
+    
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
-
-    // Ensure that the data is null-terminated before using it as a function name
+    
+    // Ensure the data is null-terminated for the function name
     char functionName[256];
-    if (size < sizeof(functionName)) {
-        memcpy(functionName, data, size);
-        functionName[size] = '\0';
-    } else {
-        memcpy(functionName, data, sizeof(functionName) - 1);
-        functionName[sizeof(functionName) - 1] = '\0';
-    }
+    memset(functionName, 0, sizeof(functionName));
+    size_t copySize = size < sizeof(functionName) - 1 ? size : sizeof(functionName) - 1;
+    memcpy(functionName, data, copySize);
 
     // Call the function-under-test
-    sqlite3_create_window_function(
+    rc = sqlite3_create_window_function(
         db,
-        functionName,
-        nArg,
-        eTextRep,
-        pApp,
-        stepFunc,
-        finalFunc,
-        valueFunc,
-        inverseFunc,
-        destroyFunc
+        functionName,  // Function name
+        1,             // Number of arguments
+        SQLITE_UTF8,   // Text encoding
+        NULL,          // Application data
+        xStep,         // Step function
+        xFinal,        // Final function
+        xValue,        // Value function
+        xInverse,      // Inverse function
+        xDestroy_92       // Destroy function
     );
-
-    // Close the SQLite database
+    
+    // Close the database connection
     sqlite3_close(db);
-
+    
     return 0;
 }

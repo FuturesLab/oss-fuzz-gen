@@ -1,21 +1,8 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
-// TIFFFlush at tif_flush.c:30:5 in tiffio.h
-// TIFFGetVersion at tif_version.c:28:13 in tiffio.h
-// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
-// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
-// TIFFReadGPSDirectory at tif_dirread.c:5564:5 in tiffio.h
-// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
-// TIFFFreeDirectory at tif_dir.c:1629:6 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
+// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -25,73 +12,45 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
-static TIFF* createDummyTIFF() {
-    // Create a dummy TIFF file in memory
-    TIFF* tif = TIFFOpen("./dummy_file", "w");
-    if (!tif) {
-        return nullptr;
-    }
-
-    // Set some basic fields to create a valid TIFF structure
-    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
-    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
-    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-    TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-    TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-
-    // Write a single pixel to make it a valid TIFF
-    uint8_t pixel = 0;
-    TIFFWriteEncodedStrip(tif, 0, &pixel, 1);
-    TIFFFlush(tif);
-
-    return tif;
-}
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_117(const uint8_t *Data, size_t Size) {
-    // Prepare the environment
-    TIFF* tif = createDummyTIFF();
-    if (!tif) {
-        return 0;
+    if (Size < sizeof(uint32_t)) return 0;
+
+    // Prepare a uint32_t input for LogLuv functions and TIFFSwabLong
+    uint32_t logluvInput;
+    memcpy(&logluvInput, Data, sizeof(uint32_t));
+
+    // Prepare a float array for XYZ color space
+    float xyz[3] = {0.0f, 0.0f, 0.0f};
+
+    // Fuzzing LogLuv24toXYZ
+    LogLuv24toXYZ(logluvInput, xyz);
+
+    // Fuzzing LogLuv32toXYZ
+    LogLuv32toXYZ(logluvInput, xyz);
+
+    // Fuzzing LogLuv32fromXYZ
+    uint32_t logluv32Result = LogLuv32fromXYZ(xyz, 3);
+
+    // Fuzzing TIFFSwabLong
+    TIFFSwabLong(&logluvInput);
+
+    // Prepare a float array for TIFFSwabArrayOfFloat
+    float floatArray[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    if (Size >= sizeof(floatArray)) {
+        memcpy(floatArray, Data, sizeof(floatArray));
     }
 
-    // Test TIFFGetVersion
-    const char* version = TIFFGetVersion();
-    if (version) {
-        // Ensure version string is not empty
-        if (strlen(version) == 0) {
-            fprintf(stderr, "TIFFGetVersion returned an empty string.\n");
-            abort();
-        }
-    }
+    // Fuzzing TIFFSwabArrayOfFloat
+    TIFFSwabArrayOfFloat(floatArray, 4);
 
-    // Test TIFFCreateEXIFDirectory
-    TIFFCreateEXIFDirectory(tif);
-
-    // Test TIFFCreateGPSDirectory
-    TIFFCreateGPSDirectory(tif);
-
-    // Calculate a directory offset within the size of the data
-    toff_t diroff = (Size > sizeof(toff_t)) ? *(reinterpret_cast<const toff_t*>(Data)) : 0;
-
-    // Test TIFFReadGPSDirectory
-    TIFFReadGPSDirectory(tif, diroff);
-
-    // Test TIFFReadEXIFDirectory
-    TIFFReadEXIFDirectory(tif, diroff);
-
-    // Test TIFFFreeDirectory
-    TIFFFreeDirectory(tif);
-
-    // Cleanup
-    TIFFClose(tif);
+    // Fuzzing LogLuv24fromXYZ
+    uint32_t logluv24Result = LogLuv24fromXYZ(xyz, 3);
 
     return 0;
 }

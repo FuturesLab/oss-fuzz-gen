@@ -3,28 +3,31 @@
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (file == NULL) {
-        return 0; // If file creation fails, exit early
+    GF_ISOFile *movie;
+    u32 trackNumber;
+    u32 seg_index;
+
+    // Initialize the movie object
+    movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
+        return 0;
     }
 
-    // Ensure the file is not empty and has at least one track
-    GF_ISOTrackID trackID = 1; // Assuming a valid track ID
-    u32 timeScale = 1000; // Arbitrary time scale value
-    gf_isom_new_track(file, trackID, GF_ISOM_MEDIA_VISUAL, timeScale);
+    // Ensure size is sufficient for extracting trackNumber and seg_index
+    if (size < 8) {
+        gf_isom_close(movie);
+        return 0;
+    }
 
-    // Set up parameters for the function-under-test
-    u32 track_number = 1; // Assuming the first track
-    u32 track_group_id = 1; // Arbitrary non-zero group ID
-    u32 group_type = 1; // Arbitrary group type
-    Bool do_add = GF_TRUE; // Boolean value
+    // Extract trackNumber and seg_index from data
+    trackNumber = *((u32 *)data);
+    seg_index = *((u32 *)(data + 4));
 
     // Call the function-under-test
-    gf_isom_set_track_group(file, track_number, track_group_id, group_type, do_add);
+    gf_isom_remove_edit(movie, trackNumber, seg_index);
 
     // Clean up
-    gf_isom_close(file);
+    gf_isom_close(movie);
 
     return 0;
 }

@@ -2,26 +2,22 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_250(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    hid_t loc_id = H5P_DEFAULT;          // Location identifier
-    hid_t type_id = H5T_NATIVE_INT;      // Datatype identifier
-    hid_t space_id = H5S_SCALAR;         // Dataspace identifier
-    hid_t dcpl_id = H5P_DEFAULT;         // Dataset creation property list
-    hid_t dapl_id = H5P_DEFAULT;         // Dataset access property list
+    // Ensure the data size is sufficient to create a valid hid_t
+    if (size < sizeof(hid_t)) {
+        return 0;
+    }
 
-    // Ensure that the input data is not null and has a minimum size
-    if (data == NULL || size < sizeof(int)) {
+    // Create a file in memory using HDF5 to obtain a valid hid_t
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
     // Call the function-under-test
-    hid_t dataset_id = H5Dcreate_anon(loc_id, type_id, space_id, dcpl_id, dapl_id);
+    herr_t result = H5Fformat_convert(file_id);
 
-    // Check if the dataset was created successfully
-    if (dataset_id >= 0) {
-        // Close the dataset to prevent resource leaks
-        H5Dclose(dataset_id);
-    }
+    // Close the file to release resources
+    H5Fclose(file_id);
 
     return 0;
 }

@@ -1,85 +1,80 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_type at ucl_util.c:3068:1 in ucl.h
-// ucl_object_lookup_any at ucl_util.c:2683:1 in ucl.h
-// ucl_object_delete_keyl at ucl_util.c:2482:6 in ucl.h
-// ucl_object_reserve at ucl_util.c:3026:6 in ucl.h
-// ucl_object_replace_key at ucl_util.c:2545:6 in ucl.h
-// ucl_object_delete_key at ucl_util.c:2503:6 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
+// ucl_comments_find at ucl_util.c:3925:1 in ucl.h
+// ucl_comments_find at ucl_util.c:3925:1 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_elt_append at ucl_util.c:3397:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ucl.h>
-#include <stdbool.h>
 
-static ucl_object_t *create_dummy_ucl_object() {
-    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
-    if (obj) {
-        memset(obj, 0, sizeof(ucl_object_t));
-        obj->type = UCL_OBJECT;
-        obj->key = strdup("dummy_key");
-        obj->keylen = strlen(obj->key);
-    }
-    return obj;
-}
-
-static void cleanup_ucl_object(ucl_object_t *obj) {
-    if (obj) {
-        if (obj->key) {
-            free((void *)obj->key);
-        }
-        free(obj);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file != NULL) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    // Step 1: Prepare the environment
+    ucl_object_t *comments = NULL;
+    ucl_object_t *srch = NULL;
+    ucl_object_t *new_object = NULL;
+    ucl_object_t *from_string = NULL;
+    ucl_object_t *result = NULL;
+
+    // Step 2: Initialize objects
+    if (Size > 0) {
+        comments = ucl_object_typed_new(UCL_OBJECT);
+        srch = ucl_object_typed_new(UCL_OBJECT);
+
+        // Use the data as keys for the objects
+        comments->key = (const char *)Data;
+        comments->keylen = Size;
+        
+        srch->key = (const char *)Data;
+        srch->keylen = Size;
     }
 
-    ucl_object_t *ucl_obj = create_dummy_ucl_object();
-    if (!ucl_obj) {
-        return 0;
+    // Step 3: Invoke the target functions
+    const ucl_object_t *found_comment = ucl_comments_find(comments, srch);
+    found_comment = ucl_comments_find(comments, srch);
+
+    if (Size > 0) {
+        new_object = ucl_object_typed_new((ucl_type_t)(Data[0] % (UCL_NULL + 1)));
+        if (new_object != NULL) {
+            // Ensure the string is null-terminated before passing it to ucl_object_fromstring
+            char *null_terminated_string = (char *)malloc(Size + 1);
+            if (null_terminated_string != NULL) {
+                memcpy(null_terminated_string, Data, Size);
+                null_terminated_string[Size] = '\0';
+                from_string = ucl_object_fromstring(null_terminated_string);
+                free(null_terminated_string);
+
+                if (from_string != NULL) {
+                    result = ucl_elt_append(NULL, from_string);
+                    // Avoid double free by setting from_string to NULL after appending
+                    from_string = NULL;
+                }
+            }
+        }
     }
 
-    // Ensure the key is null-terminated
-    char *key = (char *)malloc(Size + 1);
-    if (!key) {
-        cleanup_ucl_object(ucl_obj);
-        return 0;
-    }
-    memcpy(key, Data, Size);
-    key[Size] = '\0';
+    // Step 4: Cleanup
+    if (comments) ucl_object_unref(comments);
+    if (srch) ucl_object_unref(srch);
+    if (new_object) ucl_object_unref(new_object);
+    if (result) ucl_object_unref(result);
 
-    // Fuzz ucl_object_type
-    ucl_type_t type = ucl_object_type(ucl_obj);
-
-    // Fuzz ucl_object_lookup_any
-    const ucl_object_t *found_obj = ucl_object_lookup_any(ucl_obj, key, "alternative_key", NULL);
-
-    // Fuzz ucl_object_delete_keyl
-    bool delete_keyl_result = ucl_object_delete_keyl(ucl_obj, key, Size);
-
-    // Fuzz ucl_object_reserve
-    size_t reserved_size = Data[0];
-    bool reserve_result = ucl_object_reserve(ucl_obj, reserved_size);
-
-    // Fuzz ucl_object_replace_key
-    ucl_object_t *new_obj = create_dummy_ucl_object();
-    if (new_obj) {
-        bool replace_key_result = ucl_object_replace_key(ucl_obj, new_obj, key, Size, true);
-    }
-
-    // Fuzz ucl_object_delete_key
-    bool delete_key_result = ucl_object_delete_key(ucl_obj, key);
-
-    // Cleanup new_obj after all operations
-    if (new_obj) {
-        cleanup_ucl_object(new_obj);
-    }
-
-    cleanup_ucl_object(ucl_obj);
-    free(key);
     return 0;
 }

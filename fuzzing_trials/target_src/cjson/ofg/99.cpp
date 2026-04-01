@@ -20,11 +20,13 @@ int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
     return 0;
   }
 
-  cJSON_bool result = cJSON_IsArray(json);
+  // Call the function-under-test
+  cJSON_bool is_array = cJSON_IsArray(json);
 
+  // Clean up
   cJSON_Delete(json);
 
-  return result;
+  return 0;
 }
 
 #ifdef __cplusplus

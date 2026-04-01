@@ -1,40 +1,46 @@
 #include <cstdint>
 #include <cstdio>
-#include <unistd.h>   // For close, write, and mkstemp
-#include <cstdlib>    // For remove
+#include <cstdlib>
+#include <unistd.h> // Include for close function
+#include <tiffio.h>
 
 extern "C" {
-#include <tiffio.h>
+    #include <tiffio.h> // Ensure TIFF functions are treated as C
 }
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    TIFF *tiff = nullptr;
-    uint32_t stripIndex = 0;
+    if (size < sizeof(uint32_t)) {
+        return 0;
+    }
 
-    // Create a temporary file to simulate a TIFF file
+    // Create a temporary file to hold the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Write the input data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
         close(fd);
-        remove(tmpl);
         return 0;
     }
-    close(fd);
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Open the temporary file with libtiff
-    tiff = TIFFOpen(tmpl, "r");
-    if (tiff == nullptr) {
+    // Open the temporary file as a TIFF image
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
         remove(tmpl);
         return 0;
     }
+
+    // Extract a uint32_t value from the input data for the second parameter
+    uint32_t param = *(reinterpret_cast<const uint32_t*>(data));
 
     // Call the function-under-test
-    uint64_t stripSize = TIFFVStripSize64(tiff, stripIndex);
+    uint64_t result = TIFFVStripSize64(tiff, param);
 
     // Clean up
     TIFFClose(tiff);

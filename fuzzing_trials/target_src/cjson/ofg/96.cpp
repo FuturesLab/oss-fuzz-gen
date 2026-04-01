@@ -1,35 +1,37 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "/src/cjson/cJSON.h"
-
-int LLVMFuzzerTestOneInput_96(const uint8_t* data, size_t size); /* required by C89 */
-
-int LLVMFuzzerTestOneInput_96(const uint8_t* data, size_t size) {
+int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
     if (size == 0) return 0;
 
-    const char *parse_end = NULL;
-    cJSON_bool require_null_termination = (data[0] % 2 == 0) ? 1 : 0;
+    // Ensure the input is null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) return 0;
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Ensure the input data is null-terminated if required
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) return 0;
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
+    // Decide the value for require_null_terminated
+    cJSON_bool require_null_terminated = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
 
-    cJSON *json = cJSON_ParseWithLengthOpts(input_data, size, &parse_end, require_null_termination);
+    // Prepare a pointer for error handling
+    const char *error_ptr = NULL;
 
+    // Call the function-under-test
+    cJSON *json = cJSON_ParseWithLengthOpts(input, size, &error_ptr, require_null_terminated);
+
+    // Clean up
     if (json != NULL) {
         cJSON_Delete(json);
     }
 
-    free(input_data);
+    free(input);
 
     return 0;
 }

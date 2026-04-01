@@ -1,47 +1,68 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <sqlite3.h>
+#include <string.h>
+#include <stdlib.h> // Include for malloc and free
 
-// Function to create a dummy sqlite3_value object
-sqlite3_value* create_dummy_sqlite3_value() {
-    sqlite3_value *value = NULL;
-    sqlite3_initialize();
-    // Create a new sqlite3_value using the sqlite3_value_new API
-    sqlite3 *db;
-    sqlite3_open(":memory:", &db); // Open a temporary in-memory database
-    sqlite3_stmt *stmt;
-    sqlite3_prepare_v2(db, "SELECT ?", -1, &stmt, NULL);
-    sqlite3_bind_null(stmt, 1); // Bind a NULL value to the statement
-    value = sqlite3_column_value(stmt, 0); // Get the value
-    return value;
+// Mock callback function to be used as the xDestroy_288 parameter
+void xDestroy_288(void *p) {
+    // Do nothing
 }
 
+// Example implementation of sqlite3_module to be used as a parameter
+static const sqlite3_module example_module = {
+    0, // iVersion
+    NULL, // xCreate
+    NULL, // xConnect
+    NULL, // xBestIndex
+    NULL, // xDisconnect
+    NULL, // xDestroy_288
+    NULL, // xOpen
+    NULL, // xClose
+    NULL, // xFilter
+    NULL, // xNext
+    NULL, // xEof
+    NULL, // xColumn
+    NULL, // xRowid
+    NULL, // xUpdate
+    NULL, // xBegin
+    NULL, // xSync
+    NULL, // xCommit
+    NULL, // xRollback
+    NULL, // xFindFunction
+    NULL, // xRename
+    NULL, // xSavepoint
+    NULL, // xRelease
+    NULL, // xRollbackTo
+    NULL, // xShadowName
+};
+
 int LLVMFuzzerTestOneInput_288(const uint8_t *data, size_t size) {
-    // Ensure that the data is not empty
-    if (size == 0) {
+    sqlite3 *db;
+    int rc;
+    char *errMsg = 0;
+    const char *module_name = "example_module";
+
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
         return 0;
     }
 
-    // Create a dummy sqlite3_value object
-    sqlite3_value *value = create_dummy_sqlite3_value();
-
-    // Set the value to the input data
-    if (value != NULL) {
-        sqlite3_value_bytes(value); // Correct usage to ensure value is initialized
+    // Ensure the data is null-terminated for use as a module name
+    char *module_name_input = (char *)malloc(size + 1);
+    if (module_name_input == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(module_name_input, data, size);
+    module_name_input[size] = '\0'; // Null-terminate the input
 
     // Call the function-under-test
-    const void *result = sqlite3_value_blob(value);
+    sqlite3_create_module_v2(db, module_name_input, &example_module, NULL, xDestroy_288);
 
-    // Use the result in some way to avoid compiler optimizations
-    if (result != NULL) {
-        printf("Blob data is not NULL\n");
-    }
-
-    // Free the sqlite3_value object if necessary
-    // Note: sqlite3_value objects obtained from sqlite3_column_value should not be freed manually
-    // They are automatically managed by SQLite when the statement is finalized
+    // Clean up
+    free(module_name_input);
+    sqlite3_close(db);
 
     return 0;
 }

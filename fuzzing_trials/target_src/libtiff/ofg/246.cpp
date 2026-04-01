@@ -1,33 +1,47 @@
-#include <cstdint>
-#include <cstddef>
-#include <cmath>
-#include <cstring> // Include for memcpy
+#include <tiffio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h> // Include for mkstemp
 
-// Function-under-test
 extern "C" {
-    int LogL16fromY(double, int);
+    // Include necessary C headers and functions
+    int TIFFCreateGPSDirectory(TIFF *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_246(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for extracting two values
-    if (size < sizeof(double) + sizeof(int)) {
+    // Create a temporary file to initialize a TIFF structure
+    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract double from data
-    double param1;
-    std::memcpy(&param1, data, sizeof(double));
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
 
-    // Extract int from data
-    int param2;
-    std::memcpy(&param2, data + sizeof(double), sizeof(int));
+    // Rewind the file descriptor to the beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFFdOpen(fd, tmpl, "r+");
+    if (tiff == NULL) {
+        close(fd);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = LogL16fromY(param1, param2);
+    TIFFCreateGPSDirectory(tiff);
 
-    // Optional: Use the result in some way to avoid compiler optimizations
-    volatile int use_result = result;
-    (void)use_result;
+    // Clean up
+    TIFFClose(tiff);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }

@@ -3,29 +3,24 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_424(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsUInt32Number rows = 3;
-    cmsUInt32Number cols = 3;
-    cmsFloat64Number matrix[9] = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
-    cmsFloat64Number offset[3] = {0.0, 0.0, 0.0};
-
-    if (size >= sizeof(cmsFloat64Number) * 12) {
-        // Use data to fill matrix and offset if enough data is available
-        for (size_t i = 0; i < 9; i++) {
-            matrix[i] = ((cmsFloat64Number*)data)[i];
-        }
-        for (size_t i = 0; i < 3; i++) {
-            offset[i] = ((cmsFloat64Number*)data)[9 + i];
-        }
+    if (size < sizeof(cmsTagSignature)) {
+        return 0;
     }
 
-    cmsStage *stage = cmsStageAllocMatrix(context, rows, cols, matrix, offset);
-
-    if (stage != NULL) {
-        cmsStageFree(stage);
+    // Create a memory-based profile using the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
     }
 
-    cmsDeleteContext(context);
+    // Extract a cmsTagSignature from the input data
+    cmsTagSignature tagSignature = *(cmsTagSignature *)data;
+
+    // Call the function-under-test
+    void *tagData = cmsReadTag(hProfile, tagSignature);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

@@ -1,43 +1,38 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint16_t)) {
+    if (size < 4) {
+        return 0;  // Not enough data for a valid JPEG header
+    }
+
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Initialize TurboJPEG handle
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (handle == nullptr) {
-        return 0;
+    // Allocate a buffer for decompressed image
+    unsigned char *dstBuf = NULL;
+    int width, height, jpegSubsamp, jpegColorspace;
+
+    // Attempt to decompress the JPEG image
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        int pixelFormat = TJPF_RGB;  // Choose a pixel format
+        int pitch = width * tjPixelSize[pixelFormat];
+        dstBuf = (unsigned char *)malloc(pitch * height);
+
+        if (dstBuf != NULL) {
+            tj3Decompress8(handle, data, size, dstBuf, pitch, pixelFormat);  // Corrected function call with 6 arguments
+            free(dstBuf);
+        }
     }
 
-    // Allocate memory for the compressed image
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
-
-    // Define image parameters
-    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data);
-    int width = 16;  // Example width
-    int height = 16; // Example height
-    int pitch = width * sizeof(uint16_t);
-    int pixelFormat = TJPF_RGBX; // Example pixel format
-
-    // Call the function-under-test
-    int result = tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
-
-    // Clean up
-    if (jpegBuf != nullptr) {
-        tj3Free(jpegBuf);
-    }
     tj3Destroy(handle);
-
     return 0;
 }

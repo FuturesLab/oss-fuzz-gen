@@ -1,45 +1,27 @@
-extern "C" {
-    #include <stddef.h>
-    #include <stdint.h>
-    #include <string.h>
-    #include <stdio.h> // Include the necessary header for printf
-
-    // Declaration of the function-under-test
-    const char * magic_getpath(const char *, int);
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <magic.h>
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure the data is non-null and has a reasonable size for a string
-    if (size == 0) {
+    // Initialize a magic_set structure
+    struct magic_set *ms = magic_open(MAGIC_NONE);
+
+    // Ensure the magic_set structure is not NULL
+    if (ms == NULL) {
         return 0;
     }
 
-    // Allocate memory for the input string and ensure null-termination
-    char *inputString = new char[size + 1];
-    memcpy(inputString, data, size);
-    inputString[size] = '\0'; // Null-terminate the string
-
-    // Use a variety of integers to explore different code paths
-    int intValues[] = {0, 1, -1, 42, 100, -100, 2147483647, -2147483648}; // Added edge cases for int
-    for (int i = 0; i < sizeof(intValues) / sizeof(intValues[0]); ++i) {
-        int someInt = intValues[i];
-
-        // Call the function-under-test
-        const char *result = magic_getpath(inputString, someInt);
-
-        // Check if the result is not null to ensure the function is being utilized
-        if (result != nullptr) {
-            // Optionally, perform further operations on the result
-            // For example, calculate its length or print it
-            size_t resultLength = strlen(result);
-            // Log the result length to ensure it's being used
-            printf("Result Length: %zu\n", resultLength);
-        }
+    // Load the default magic database
+    if (magic_load(ms, NULL) != 0) {
+        magic_close(ms);
+        return 0;
     }
 
-    // Clean up allocated memory
-    delete[] inputString;
+    // Call the function-under-test
+    int result = magic_errno(ms);
 
-    // Return 0 to indicate successful execution
+    // Clean up
+    magic_close(ms);
+
     return 0;
 }

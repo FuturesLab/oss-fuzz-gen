@@ -1,35 +1,38 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    hid_t dset_id = 1;  // Example dataset identifier, must be a valid identifier
-    hid_t dxpl_id = 1;  // Example data transfer property list identifier
-    hsize_t offset[1] = {0};  // Example offset, adjust dimensions as needed
-    uint32_t filter_mask = 0;  // Example filter mask
-    size_t chunk_size = size;  // Use the size of the input data as chunk size
+    hid_t file_id = -1;
 
-    // Allocate memory for the chunk data
-    void *chunk_data = malloc(chunk_size);
-    if (chunk_data == NULL) {
-        return 0;  // Exit if memory allocation fails
+    // Ensure the data size is sufficient to create a file name
+    if (size < 5) {
+        return 0;
     }
 
-    // Copy input data into chunk_data
-    memcpy(chunk_data, data, chunk_size);
+    // Create a simple file name from the input data
+    char file_name[6];
+    for (size_t i = 0; i < 5; ++i) {
+        file_name[i] = data[i] % 26 + 'a'; // Ensure it's a valid character
+    }
+    file_name[5] = '\0';
 
-    // Allocate memory for the buffer size
-    size_t buf_size = chunk_size;
+    // Create a new HDF5 file using the file name
+    file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file
+    }
 
-    // Call the function-under-test with the correct number of arguments
-    herr_t status = H5Dread_chunk(dset_id, dxpl_id, offset, &filter_mask, chunk_data, &buf_size);
+    // Reopen the file using H5Freopen
+    hid_t reopened_file_id = H5Freopen(file_id);
+    if (reopened_file_id < 0) {
+        H5Fclose(file_id);
+        return 0; // Failed to reopen file
+    }
 
-    // Free allocated memory
-    free(chunk_data);
+    // Close both file handles
+    H5Fclose(reopened_file_id);
+    H5Fclose(file_id);
 
-    // Return 0 indicating the fuzzer can continue
     return 0;
 }

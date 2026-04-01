@@ -9,20 +9,20 @@ int LLVMFuzzerTestOneInput_152(const uint8_t *data, size_t size) {
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
 
-    // Initialize deflate with default compression level
+    // Initialize the deflate stream
     if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
         return 0;
     }
 
-    // Ensure size is sufficient for accessing data
+    // Ensure size is sufficient for two integer parameters
     if (size < 2) {
         deflateEnd(&stream);
         return 0;
     }
 
-    // Use first byte of data for level and second byte for strategy
-    int level = data[0] % 10; // Valid levels are 0-9
-    int strategy = data[1] % 4; // Valid strategies are 0-3
+    // Extract two integer parameters from the input data
+    int level = data[0] % 10;  // Compression level, typically between 0-9
+    int strategy = data[1] % 4; // Strategy, typically between 0-3
 
     // Call the function-under-test
     deflateParams(&stream, level, strategy);

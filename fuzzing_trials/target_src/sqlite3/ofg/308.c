@@ -1,29 +1,46 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdlib.h>
+#include <string.h>
+
+// Define a simple sqlite3_vfs structure for testing
+static sqlite3_vfs test_vfs = {
+    1,                   // iVersion
+    sizeof(sqlite3_vfs), // szOsFile
+    1024,                // mxPathname
+    NULL,                // pNext
+    "test_vfs",          // zName
+    NULL,                // pAppData
+    NULL,                // xOpen
+    NULL,                // xDelete
+    NULL,                // xAccess
+    NULL,                // xFullPathname
+    NULL,                // xDlOpen
+    NULL,                // xDlError
+    NULL,                // xDlSym
+    NULL,                // xDlClose
+    NULL,                // xRandomness
+    NULL,                // xSleep
+    NULL,                // xCurrentTime
+    NULL,                // xGetLastError
+    NULL,                // xCurrentTimeInt64
+    NULL,                // xSetSystemCall
+    NULL,                // xGetSystemCall
+    NULL                 // xNextSystemCall
+};
 
 int LLVMFuzzerTestOneInput_308(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int enable = 0;
-
-    // Ensure the data size is large enough to extract an integer for 'enable'
+    // Ensure that the data size is sufficient to extract an integer for the 'makeDflt' parameter
     if (size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize SQLite database connection
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
-    }
-
-    // Use the first part of data to determine the 'enable' value
-    enable = *(int *)data;
+    // Extract an integer from the input data for the 'makeDflt' parameter
+    int makeDflt;
+    memcpy(&makeDflt, data, sizeof(int));
 
     // Call the function-under-test
-    sqlite3_enable_load_extension(db, enable);
+    int result = sqlite3_vfs_register(&test_vfs, makeDflt);
 
-    // Close the SQLite database connection
-    sqlite3_close(db);
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

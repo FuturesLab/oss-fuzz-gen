@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFRegisterCODEC at tif_compress.c:206:12 in tiffio.h
-// TIFFGetConfiguredCODECs at tif_compress.c:263:12 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// TIFFIsCODECConfigured at tif_codec.c:146:5 in tiffio.h
-// TIFFFindCODEC at tif_compress.c:192:18 in tiffio.h
-// TIFFUnRegisterCODEC at tif_compress.c:234:6 in tiffio.h
+// TIFFFieldIsAnonymous at tif_dirinfo.c:964:5 in tiffio.h
+// TIFFFieldPassCount at tif_dirinfo.c:958:5 in tiffio.h
+// TIFFFieldSetGetCountSize at tif_dirinfo.c:812:5 in tiffio.h
+// TIFFFieldReadCount at tif_dirinfo.c:960:5 in tiffio.h
+// TIFFFieldWriteCount at tif_dirinfo.c:962:5 in tiffio.h
+// TIFFFieldSetGetSize at tif_dirinfo.c:728:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,45 +14,56 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
-#include <cstddef>
-#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
+#include "tiffio.h"
 
-// Dummy initialization method for TIFFRegisterCODEC
-static int DummyTIFFInitMethod(TIFF *tif, int scheme) {
-    return 1; // Assume successful initialization
-}
+// Define a mock structure for TIFFField since the actual structure is incomplete
+struct MockTIFFField {
+    uint32_t field_tag;
+    short field_readcount;
+    TIFFDataType field_type;
+    int set_get_field_type; // Use int as a placeholder for TIFFSetGetFieldType
+    unsigned short field_bit;
+    unsigned char field_oktochange;
+    const char *field_name;
+    TIFFFieldArray *field_subfields;
+};
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *Data, size_t Size) {
-    // Use the data to create a dummy codec name and scheme
-    uint16_t scheme = 0;
-    if (Size >= 2) {
-        scheme = (Data[0] << 8) | Data[1];
-    }
-    char codecName[256];
-    snprintf(codecName, sizeof(codecName), "DummyCodec_%u", scheme);
-
-    // Register a codec
-    TIFFCodec *registeredCodec = TIFFRegisterCODEC(scheme, codecName, DummyTIFFInitMethod);
-
-    // Fetch configured codecs
-    TIFFCodec *configuredCodecs = TIFFGetConfiguredCODECs();
-    if (configuredCodecs) {
-        _TIFFfree(configuredCodecs);
+    if (Size < sizeof(MockTIFFField)) {
+        return 0; // Not enough data to form a valid MockTIFFField
     }
 
-    // Check if the codec is configured
-    int isConfigured = TIFFIsCODECConfigured(scheme);
+    // Allocate memory for a MockTIFFField structure
+    MockTIFFField field;
+    std::memcpy(&field, Data, sizeof(MockTIFFField));
 
-    // Find the codec
-    const TIFFCodec *foundCodec = TIFFFindCODEC(scheme);
+    // Fuzz TIFFFieldIsAnonymous
+    int isAnonymous = TIFFFieldIsAnonymous(reinterpret_cast<const TIFFField*>(&field));
+    std::cout << "TIFFFieldIsAnonymous: " << isAnonymous << std::endl;
 
-    // Unregister the codec if it was registered
-    if (registeredCodec) {
-        TIFFUnRegisterCODEC(registeredCodec);
-    }
+    // Fuzz TIFFFieldPassCount
+    int passCount = TIFFFieldPassCount(reinterpret_cast<const TIFFField*>(&field));
+    std::cout << "TIFFFieldPassCount: " << passCount << std::endl;
+
+    // Fuzz TIFFFieldSetGetCountSize
+    int countSize = TIFFFieldSetGetCountSize(reinterpret_cast<const TIFFField*>(&field));
+    std::cout << "TIFFFieldSetGetCountSize: " << countSize << std::endl;
+
+    // Fuzz TIFFFieldReadCount
+    int readCount = TIFFFieldReadCount(reinterpret_cast<const TIFFField*>(&field));
+    std::cout << "TIFFFieldReadCount: " << readCount << std::endl;
+
+    // Fuzz TIFFFieldWriteCount
+    int writeCount = TIFFFieldWriteCount(reinterpret_cast<const TIFFField*>(&field));
+    std::cout << "TIFFFieldWriteCount: " << writeCount << std::endl;
+
+    // Fuzz TIFFFieldSetGetSize
+    int getSize = TIFFFieldSetGetSize(reinterpret_cast<const TIFFField*>(&field));
+    std::cout << "TIFFFieldSetGetSize: " << getSize << std::endl;
 
     return 0;
 }

@@ -1,31 +1,26 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_378(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to extract necessary values
-    if (size < sizeof(cmsColorSpaceSignature)) {
+    // Assume a minimal size for the cmsStage object to perform operations
+    const size_t MIN_STAGE_SIZE = 16; // Assumed minimal size for safe operations
+
+    // Ensure that the size is sufficient to perform operations
+    if (size < MIN_STAGE_SIZE) {
         return 0;
     }
 
-    // Initialize variables
-    cmsHPROFILE hProfile;
-    cmsColorSpaceSignature colorSpaceSignature;
-
-    // Create a dummy profile for fuzzing
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
-        return 0;
-    }
-
-    // Extract colorSpaceSignature from data
-    colorSpaceSignature = *(cmsColorSpaceSignature *)data;
+    // Create a cmsStage object from the input data
+    const cmsStage *stage = (const cmsStage *)data;
 
     // Call the function-under-test
-    cmsSetColorSpace(hProfile, colorSpaceSignature);
+    cmsStageSignature signature = cmsStageType(stage);
 
-    // Clean up
-    cmsCloseProfile(hProfile);
+    // Use the signature in some way to avoid compiler optimizations
+    if (signature == cmsSigCurveSetElemType) {
+        // Do something trivial
+    }
 
     return 0;
 }

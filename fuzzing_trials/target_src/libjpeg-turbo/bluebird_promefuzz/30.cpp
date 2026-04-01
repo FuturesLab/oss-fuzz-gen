@@ -9,87 +9,102 @@
 #include <cstddef>
 #include "../src/turbojpeg.h"
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <exception>
+#include <iostream>
 
-static void fuzzTJBUFSIZE(int width, int height) {
-    try {
+static void fuzz_tjCompressFromYUV(const uint8_t* Data, size_t Size) {
+    if (Size < 10) return;
 
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of TJBUFSIZE
-        unsigned long bufferSize = TJBUFSIZE(width, TJ_NUMINIT);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
+    tjhandle handle = tjInitCompress();
+    if (!handle) return;
 
+    int width = Data[0] + 1;
+    int height = Data[1] + 1;
+    int align = 1 << (Data[2] % 3);
+    int subsamp = Data[3] % TJSAMP_UNKNOWN;
+    int jpegQual = Data[4] % 101;
+    int flags = Data[5] % 2;
 
-    } catch (const std::exception &e) {
-        // Handle any exception thrown by TJBUFSIZE
-    }
-}
+    unsigned char* jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
 
-static void fuzzTjDecompressHeader2(tjhandle handle, unsigned char *jpegBuf, unsigned long jpegSize) {
-    int width = 0, height = 0, jpegSubsamp = 0;
-    try {
-        int res = tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp);
-    } catch (const std::exception &e) {
-        // Handle any exception thrown by tjDecompressHeader2
-    }
-}
-
-static void fuzzTjDecompress2(tjhandle handle, const unsigned char *jpegBuf, unsigned long jpegSize) {
-    int width = 100, height = 100, pixelFormat = TJPF_RGB, flags = 0;
-    unsigned char *dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
-    try {
-        int res = tjDecompress2(handle, jpegBuf, jpegSize, dstBuf, width, 0, height, pixelFormat, flags);
-    } catch (const std::exception &e) {
-        // Handle any exception thrown by tjDecompress2
-    }
-    delete[] dstBuf;
-}
-
-static void fuzzTj3JPEGBufSize(int width, int height, int jpegSubsamp) {
-    try {
-        size_t bufferSize = tj3JPEGBufSize(width, height, jpegSubsamp);
-    } catch (const std::exception &e) {
-        // Handle any exception thrown by tj3JPEGBufSize
-    }
-}
-
-static void fuzzTj3DecompressHeader(tjhandle handle, const unsigned char *jpegBuf, size_t jpegSize) {
-    try {
-        int res = tj3DecompressHeader(handle, jpegBuf, jpegSize);
-    } catch (const std::exception &e) {
-        // Handle any exception thrown by tj3DecompressHeader
-    }
-}
-
-static void fuzzTjDecompressHeader3(tjhandle handle, const unsigned char *jpegBuf, unsigned long jpegSize) {
-    int width = 0, height = 0, jpegSubsamp = 0, jpegColorspace = 0;
-    try {
-        int res = tjDecompressHeader3(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp, &jpegColorspace);
-    } catch (const std::exception &e) {
-        // Handle any exception thrown by tjDecompressHeader3
-    }
-}
-
-extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    size_t yuvSize = tjBufSizeYUV2(width, align, height, subsamp);
+    if (yuvSize == (unsigned long)-1 || yuvSize > Size - 6) {
+        tjDestroy(handle);
+        return;
     }
 
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        return 0;
-    }
+    const unsigned char* srcBuf = Data + 6;
 
-    // Fuzz each function with random data
-    fuzzTJBUFSIZE(Data[0], Data[0]);
-    fuzzTjDecompressHeader2(handle, const_cast<unsigned char*>(Data), Size);
-    fuzzTjDecompress2(handle, Data, Size);
-    fuzzTj3JPEGBufSize(Data[0], Data[0], Data[0]);
-    fuzzTj3DecompressHeader(handle, Data, Size);
-    fuzzTjDecompressHeader3(handle, Data, Size);
+    tjCompressFromYUV(handle, srcBuf, width, align, height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
 
+    tjFree(jpegBuf);
     tjDestroy(handle);
+}
+
+static void fuzz_tjBufSize(const uint8_t* Data, size_t Size) {
+    if (Size < 3) return;
+
+    int width = Data[0] + 1;
+    int height = Data[1] + 1;
+    int subsamp = Data[2] % TJSAMP_UNKNOWN;
+
+    tjBufSize(width, height, subsamp);
+}
+
+static void fuzz_tjBufSizeYUV2(const uint8_t* Data, size_t Size) {
+    if (Size < 4) return;
+
+    int width = Data[0] + 1;
+    int align = 1 << (Data[1] % 3);
+    int height = Data[2] + 1;
+    int subsamp = Data[3] % TJSAMP_UNKNOWN;
+
+    tjBufSizeYUV2(width, align, height, subsamp);
+}
+
+static void fuzz_tj3YUVPlaneSize(const uint8_t* Data, size_t Size) {
+    if (Size < 5) return;
+
+    int componentID = Data[0] % 3;
+    int width = Data[1] + 1;
+    int stride = Data[2] + 1;
+    int height = Data[3] + 1;
+    int subsamp = Data[4] % TJSAMP_UNKNOWN;
+
+    tj3YUVPlaneSize(componentID, width, stride, height, subsamp);
+}
+
+static void fuzz_tjPlaneSizeYUV(const uint8_t* Data, size_t Size) {
+    if (Size < 5) return;
+
+    int componentID = Data[0] % 3;
+    int width = Data[1] + 1;
+    int stride = Data[2] + 1;
+    int height = Data[3] + 1;
+    int subsamp = Data[4] % TJSAMP_UNKNOWN;
+
+    tjPlaneSizeYUV(componentID, width, stride, height, subsamp);
+}
+
+static void fuzz_TJBUFSIZEYUV(const uint8_t* Data, size_t Size) {
+    if (Size < 3) return;
+
+    int width = Data[0] + 1;
+    int height = Data[1] + 1;
+    int jpegSubsamp = Data[2] % TJSAMP_UNKNOWN;
+
+    TJBUFSIZEYUV(width, height, jpegSubsamp);
+}
+
+extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t* Data, size_t Size) {
+    fuzz_tjCompressFromYUV(Data, Size);
+    fuzz_tjBufSize(Data, Size);
+    fuzz_tjBufSizeYUV2(Data, Size);
+    fuzz_tj3YUVPlaneSize(Data, Size);
+    fuzz_tjPlaneSizeYUV(Data, Size);
+    fuzz_TJBUFSIZEYUV(Data, Size);
+
     return 0;
 }

@@ -1,39 +1,45 @@
 #include "ucl.h"
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_153(const uint8_t *data, size_t size) {
     struct ucl_parser *parser;
     int fd;
     unsigned int priority;
-    
-    // Create a new UCL parser
-    parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
 
-    // Create a temporary file and write the data to it
-    fd = open("/tmp/fuzz_temp_file", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    // Create a temporary file to use its file descriptor
+    char filename[] = "/tmp/ucl_fuzz_XXXXXX";
+    fd = mkstemp(filename);
     if (fd == -1) {
-        ucl_parser_free(parser);
         return 0;
     }
 
-    write(fd, data, size);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(filename);
+        return 0;
+    }
+
+    // Reset the file offset to the beginning
     lseek(fd, 0, SEEK_SET);
 
-    // Set a priority value (try different values)
+    // Initialize the parser
+    parser = ucl_parser_new(0);
+
+    // Set a non-zero priority for testing
     priority = 1;
 
     // Call the function under test
     ucl_parser_add_fd_priority(parser, fd, priority);
 
     // Clean up
-    close(fd);
     ucl_parser_free(parser);
+    close(fd);
+    unlink(filename);
 
     return 0;
 }

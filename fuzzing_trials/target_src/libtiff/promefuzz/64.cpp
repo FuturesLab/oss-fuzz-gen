@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// LogL16toY at tif_luv.c:801:5 in tiffio.h
-// LogL10toY at tif_luv.c:883:5 in tiffio.h
-// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
+// TIFFFieldIsAnonymous at tif_dirinfo.c:964:5 in tiffio.h
+// TIFFFieldPassCount at tif_dirinfo.c:958:5 in tiffio.h
+// TIFFFieldSetGetSize at tif_dirinfo.c:728:5 in tiffio.h
+// TIFFFieldReadCount at tif_dirinfo.c:960:5 in tiffio.h
+// TIFFFieldWriteCount at tif_dirinfo.c:962:5 in tiffio.h
+// TIFFFieldSetGetCountSize at tif_dirinfo.c:812:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,63 +14,56 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdlib>
-#include <cstdio>
 #include <cstring>
+#include <cstdio>
+#include <cstdlib>
+#include <tiffio.h>
 
-// Dummy function to simulate TIFFOpen, as we cannot use actual file I/O
-static TIFF* createDummyTIFF() {
-    // Use TIFFOpen with "rm" to create a dummy in-memory TIFF structure
-    TIFF *tif = TIFFOpen("dummy_file", "rm");
-    return tif;
-}
+// Dummy implementation for TIFFFieldArray and TIFFSetGetFieldType
+typedef struct _TIFFFieldArray {
+    // Add necessary fields or methods if needed
+} TIFFFieldArray;
 
-static void cleanupTIFF(TIFF *tif) {
-    if (tif) {
-        TIFFClose(tif);
-    }
-}
+typedef enum {
+    TIFF_SETGET_UNDEFINED,
+    TIFF_SETGET_UINT8,
+    TIFF_SETGET_UINT16,
+    TIFF_SETGET_UINT32,
+    // Add other types as necessary
+} TIFFSetGetFieldType;
+
+// Dummy implementation for TIFFField
+struct _TIFFField {
+    uint32_t field_tag;
+    short field_readcount;
+    TIFFDataType field_type;
+    TIFFSetGetFieldType set_get_field_type;
+    unsigned short field_bit;
+    unsigned char field_oktochange;
+    const char *field_name;
+    TIFFFieldArray *field_subfields;
+};
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
-        return 0; // Not enough data to extract an integer
+    if (Size < sizeof(TIFFField)) {
+        return 0;
     }
 
-    int inputInt = *(reinterpret_cast<const int*>(Data));
-    double inputDouble = static_cast<double>(inputInt);
+    TIFFField field;
+    memcpy(&field, Data, sizeof(TIFFField));
 
-    // Fuzz LogL16toY
-    double resultLogL16toY = LogL16toY(inputInt);
+    // Call the target functions with the initialized TIFFField
+    int isAnonymous = TIFFFieldIsAnonymous(&field);
+    int passCount = TIFFFieldPassCount(&field);
+    int setGetSize = TIFFFieldSetGetSize(&field);
+    int readCount = TIFFFieldReadCount(&field);
+    int writeCount = TIFFFieldWriteCount(&field);
+    int countSize = TIFFFieldSetGetCountSize(&field);
 
-    // Fuzz LogL10toY
-    double resultLogL10toY = LogL10toY(inputInt);
-
-    // Fuzz LogL16fromY
-    int resultLogL16fromY = LogL16fromY(inputDouble, inputInt);
-
-    // Fuzz LogL10fromY
-    int resultLogL10fromY = LogL10fromY(inputDouble, inputInt);
-
-    // Create a dummy TIFF structure
-    TIFF *tif = createDummyTIFF();
-    if (!tif) {
-        return 0; // Failed to create TIFF structure
-    }
-
-    // Fuzz TIFFIsMSB2LSB
-    int resultTIFFIsMSB2LSB = TIFFIsMSB2LSB(tif);
-
-    // Fuzz TIFFReadBufferSetup
-    void *buffer = malloc(1024);
-    if (buffer) {
-        int resultTIFFReadBufferSetup = TIFFReadBufferSetup(tif, buffer, 1024);
-        free(buffer);
-    }
-
-    // Cleanup
-    cleanupTIFF(tif);
+    // Use the results to avoid compiler optimizations
+    volatile int results[] = {isAnonymous, passCount, setGetSize, readCount, writeCount, countSize};
+    (void)results;
 
     return 0;
 }

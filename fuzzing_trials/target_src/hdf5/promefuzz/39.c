@@ -1,13 +1,18 @@
 // This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
+// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
 // H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
-// H5Dwrite_chunk at H5D.c:1491:1 in H5Dpublic.h
+// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
 // H5Dclose at H5D.c:463:1 in H5Dpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
+// H5Fopen at H5F.c:812:1 in H5Fpublic.h
+// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
+// H5Dextend at H5Ddeprec.c:220:1 in H5Dpublic.h
+// H5Dget_space at H5D.c:597:1 in H5Dpublic.h
+// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
+// H5Dget_space at H5D.c:597:1 in H5Dpublic.h
+// H5Dread at H5D.c:1041:1 in H5Dpublic.h
 // H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Dread_chunk1 at H5Ddeprec.c:350:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Dread_chunk1 at H5Ddeprec.c:350:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
+// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -17,73 +22,73 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "H5Dpublic.h"
+#include <hdf5.h>
 
-static void init_dummy_file() {
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        fprintf(file, "Dummy data for HDF5 testing.\n");
-        fclose(file);
-    }
+#define DUMMY_FILE "./dummy_file"
+#define DATASET_NAME "fuzz_dataset"
+#define DATATYPE H5T_NATIVE_INT
+#define RANK 2
+#define DIM0 4
+#define DIM1 6
+
+static void prepare_dummy_file() {
+    hid_t file_id, space_id, dset_id;
+    hsize_t dims[RANK] = {DIM0, DIM1};
+    int data[DIM0][DIM1];
+    memset(data, 0, sizeof(data));
+
+    file_id = H5Fcreate(DUMMY_FILE, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    space_id = H5Screate_simple(RANK, dims, NULL);
+    dset_id = H5Dcreate2(file_id, DATASET_NAME, DATATYPE, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dset_id, DATATYPE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+
+    H5Dclose(dset_id);
+    H5Sclose(space_id);
+    H5Fclose(file_id);
 }
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(hsize_t) + sizeof(uint32_t) + sizeof(size_t)) {
-        return 0;
-    }
+    // Prepare dummy file for testing
+    prepare_dummy_file();
 
-    init_dummy_file();
+    hid_t file_id, space_id, dset_id, mem_space_id;
+    hsize_t dims[RANK] = {DIM0, DIM1};
+    int buf[DIM0][DIM1];
+    herr_t status;
 
-    hid_t loc_id = 0; // Assuming valid location id
-    hid_t type_id = 0; // Assuming valid type id
-    hid_t space_id = 0; // Assuming valid space id
-    hid_t lcpl_id = 0; // Assuming valid link creation property list id
-    hid_t dcpl_id = 0; // Assuming valid dataset creation property list id
-    hid_t dapl_id = 0; // Assuming valid dataset access property list id
+    file_id = H5Fopen(DUMMY_FILE, H5F_ACC_RDWR, H5P_DEFAULT);
+    space_id = H5Screate_simple(RANK, dims, NULL);
 
-    hid_t dset_id = H5Dcreate2(loc_id, "./dummy_dataset", type_id, space_id, lcpl_id, dcpl_id, dapl_id);
-    if (dset_id < 0) {
-        return 0;
-    }
+    // H5Dcreate2
+    dset_id = H5Dcreate2(file_id, DATASET_NAME, DATATYPE, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dset_id < 0) goto cleanup;
 
-    hsize_t offset = 0;
-    uint32_t filters = 0;
-    size_t data_size = Size - sizeof(hsize_t) - sizeof(uint32_t);
-    const void *buf = Data + sizeof(hsize_t) + sizeof(uint32_t);
+    // H5Dextend
+    status = H5Dextend(dset_id, dims);
+    if (status < 0) goto cleanup;
 
-    herr_t status = H5Dwrite_chunk(dset_id, 0, filters, &offset, data_size, buf);
-    if (status < 0) {
-        H5Dclose(dset_id);
-        return 0;
-    }
+    // H5Dget_space
+    mem_space_id = H5Dget_space(dset_id);
+    if (mem_space_id < 0) goto cleanup;
 
-    uint32_t read_filters;
-    void *read_buf = malloc(data_size);
-    if (!read_buf) {
-        H5Dclose(dset_id);
-        return 0;
-    }
+    // H5Dwrite
+    status = H5Dwrite(dset_id, DATATYPE, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf);
+    if (status < 0) goto cleanup;
 
-    status = H5Dread_chunk1(dset_id, 0, &offset, &read_filters, read_buf);
-    if (status < 0) {
-        free(read_buf);
-        H5Dclose(dset_id);
-        return 0;
-    }
+    // H5Dget_space
+    H5Sclose(mem_space_id);
+    mem_space_id = H5Dget_space(dset_id);
+    if (mem_space_id < 0) goto cleanup;
 
-    status = H5Dread_chunk1(dset_id, 0, &offset, &read_filters, read_buf);
-    if (status < 0) {
-        free(read_buf);
-        H5Dclose(dset_id);
-        return 0;
-    }
+    // H5Dread
+    status = H5Dread(dset_id, DATATYPE, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf);
+    if (status < 0) goto cleanup;
 
-    free(read_buf);
-
-    status = H5Dclose(dset_id);
-    if (status < 0) {
-        return 0;
-    }
+cleanup:
+    H5Dclose(dset_id);
+    H5Sclose(mem_space_id);
+    H5Sclose(space_id);
+    H5Fclose(file_id);
 
     return 0;
 }

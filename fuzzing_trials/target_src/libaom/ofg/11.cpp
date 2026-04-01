@@ -1,35 +1,37 @@
 #include <cstdint>
 #include <cstdlib>
-#include <aom/aom_image.h>
+#include <aom/aom_codec.h>
+#include <aom/aom_encoder.h>
 
-extern "C" int aom_img_plane_width(const aom_image_t *img, int plane);
+extern "C" {
+    #include <aom/aomcx.h> // Include the correct header for aom_codec_av1_cx
+}
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    aom_image_t img;
-    int plane;
+    // Initialize variables
+    aom_codec_ctx_t codec;
+    int control_id;
+    void *control_data;
 
-    // Ensure the size is large enough to extract necessary information
-    if (size < sizeof(int)) {
+    // Ensure the size is sufficient to extract control_id and control_data
+    if (size < sizeof(int) + sizeof(void *)) {
         return 0;
     }
 
-    // Initialize the image structure with non-null values
-    img.fmt = AOM_IMG_FMT_I420;  // Example format
-    img.w = 640;                 // Example width
-    img.h = 480;                 // Example height
-    img.d_w = 640;               // Example display width
-    img.d_h = 480;               // Example display height
-    img.x_chroma_shift = 1;      // Example chroma shift
-    img.y_chroma_shift = 1;      // Example chroma shift
-    img.bps = 12;                // Example bits per sample
+    // Extract control_id and control_data from the input data
+    control_id = *(reinterpret_cast<const int *>(data));
+    control_data = const_cast<void *>(reinterpret_cast<const void *>(data + sizeof(int)));
 
-    // Extract the plane value from the input data
-    plane = static_cast<int>(data[0] % 3); // Assuming 3 planes for I420 format
+    // Initialize the codec context
+    if (aom_codec_enc_init(&codec, aom_codec_av1_cx(), nullptr, 0) != AOM_CODEC_OK) {
+        return 0;
+    }
 
-    // Call the function under test
-    int width = aom_img_plane_width(&img, plane);
+    // Call the function-under-test
+    aom_codec_err_t result = aom_codec_control(&codec, control_id, control_data);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Destroy the codec context
+    aom_codec_destroy(&codec);
+
     return 0;
 }

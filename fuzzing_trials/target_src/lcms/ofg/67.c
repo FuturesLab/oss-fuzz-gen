@@ -1,34 +1,34 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
+#include <string.h> // Include for memcpy
 
-int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
+extern int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
+    if (size < sizeof(double) * 3 + sizeof(cmsCurveSegment)) {
+        return 0; // Not enough data to construct a segment
+    }
+
+    // Initialize variables for the function call
     cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return 0;
-    }
+    cmsUInt32Number nSegments = 1; // Use a simple case with one segment
 
-    // Allocate memory for the buffer and ensure it is not NULL
-    void *buffer = malloc(size);
-    if (buffer == NULL) {
-        cmsDeleteContext(context);
-        return 0;
-    }
-    memcpy(buffer, data, size);
+    // Define a simple cmsCurveSegment
+    cmsCurveSegment segment;
+    segment.Type = 1; // Assume a simple type for demonstration
 
-    // Define a non-NULL string for the 'const char *' parameter
-    const char *mode = "r";
+    // Copy data into segment parameters
+    memcpy(segment.Params, data, sizeof(double) * 3);
+    segment.x0 = 0.0; // Starting point of the segment
+    segment.x1 = 1.0; // Ending point of the segment
+    segment.nGridPoints = 0; // Not used for Type != 0
+    segment.SampledPoints = NULL; // Not used for Type != 0
 
     // Call the function-under-test
-    cmsIOHANDLER *iohandler = cmsOpenIOhandlerFromMem(context, buffer, (cmsUInt32Number)size, mode);
+    cmsToneCurve *toneCurve = cmsBuildSegmentedToneCurve(context, nSegments, &segment);
 
     // Clean up
-    if (iohandler != NULL) {
-        cmsCloseIOhandler(iohandler);
+    if (toneCurve != NULL) {
+        cmsFreeToneCurve(toneCurve);
     }
-    free(buffer);
     cmsDeleteContext(context);
 
     return 0;

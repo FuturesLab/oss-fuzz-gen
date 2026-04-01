@@ -1,88 +1,90 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_update_video_sample_entry_fields at isom_write.c:8557:8 in isomedia.h
-// gf_isom_evte_config_new at sample_descs.c:1846:8 in isomedia.h
-// gf_isom_truehd_config_new at sample_descs.c:436:8 in isomedia.h
-// gf_isom_set_rvc_config at isom_write.c:7065:8 in isomedia.h
-// gf_isom_get_rvc_config at isom_read.c:4936:8 in isomedia.h
-// gf_isom_get_visual_info at isom_read.c:3821:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_set_track_matrix at isom_write.c:5254:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_set_track_layout_info at isom_write.c:5263:8 in isomedia.h
+// gf_isom_set_ipod_compatible at isom_write.c:8995:8 in isomedia.h
+// gf_isom_get_track_layout_info at isom_read.c:4116:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_set_clean_aperture at isom_write.c:2132:8 in isomedia.h
+// gf_isom_remove_edits at isom_write.c:2797:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    return NULL; // Return NULL as we cannot create a complete GF_ISOFile without its definition
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *isom_file = create_dummy_iso_file();
+    if (Size < sizeof(u32) + sizeof(s32) * 9) {
+        return 0;
+    }
+
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
     if (!isom_file) return 0;
 
-    // Prepare variables for gf_isom_update_video_sample_entry_fields
-    u32 trackNumber = Size > 0 ? Data[0] : 0;
-    u32 sampleDescriptionIndex = Size > 1 ? Data[1] : 0;
-    u16 revision = Size > 2 ? Data[2] : 0;
-    u32 vendor = Size > 3 ? Data[3] : 0;
-    u32 temporalQ = Size > 4 ? Data[4] : 0;
-    u32 spatialQ = Size > 5 ? Data[5] : 0;
-    u32 horiz_res = Size > 6 ? Data[6] : 0;
-    u32 vert_res = Size > 7 ? Data[7] : 0;
-    u16 frames_per_sample = Size > 8 ? Data[8] : 0;
-    const char *compressor_name = "dummy_compressor";
-    s16 color_table_index = -1;
+    u32 trackNumber = *(u32 *)Data;
+    s32 matrix[9];
+    for (int i = 0; i < 9; i++) {
+        matrix[i] = *(s32 *)(Data + sizeof(u32) + sizeof(s32) * i);
+    }
 
-    gf_isom_update_video_sample_entry_fields(
-        isom_file, trackNumber, sampleDescriptionIndex, revision, vendor, 
-        temporalQ, spatialQ, horiz_res, vert_res, frames_per_sample, 
-        compressor_name, color_table_index
-    );
+    // Fuzz gf_isom_set_track_matrix
+    gf_isom_set_track_matrix(isom_file, trackNumber, matrix);
 
-    // Prepare variables for gf_isom_evte_config_new
-    u32 outDescriptionIndex = 0;
-    gf_isom_evte_config_new(isom_file, trackNumber, &outDescriptionIndex);
+    if (Size < sizeof(u32) * 15) {
+        gf_isom_close(isom_file);
+        return 0;
+    }
 
-    // Prepare variables for gf_isom_truehd_config_new
-    char *URLname = NULL;
-    char *URNname = NULL;
-    u32 format_info = 0;
-    u32 peak_data_rate = 0;
-    gf_isom_truehd_config_new(
-        isom_file, trackNumber, URLname, URNname, format_info, 
-        peak_data_rate, &outDescriptionIndex
-    );
+    u32 width = *(u32 *)(Data + sizeof(u32) * 10);
+    u32 height = *(u32 *)(Data + sizeof(u32) * 11);
+    s32 translation_x = *(s32 *)(Data + sizeof(u32) * 12);
+    s32 translation_y = *(s32 *)(Data + sizeof(u32) * 13);
+    s16 layer = *(s16 *)(Data + sizeof(u32) * 14);
 
-    // Prepare variables for gf_isom_set_rvc_config
-    u16 rvc_predefined = 0;
-    char *mime = "video/mime";
-    u8 *data = NULL;
-    u32 size = 0;
-    gf_isom_set_rvc_config(
-        isom_file, trackNumber, sampleDescriptionIndex, rvc_predefined, 
-        mime, data, size
-    );
+    // Fuzz gf_isom_set_track_layout_info
+    gf_isom_set_track_layout_info(isom_file, trackNumber, width, height, translation_x, translation_y, layer);
 
-    // Prepare variables for gf_isom_get_rvc_config
-    u16 rvc_predefined_out = 0;
-    u8 *data_out = NULL;
-    u32 size_out = 0;
-    const char *mime_out = NULL;
-    gf_isom_get_rvc_config(
-        isom_file, trackNumber, sampleDescriptionIndex, &rvc_predefined_out, 
-        &data_out, &size_out, &mime_out
-    );
+    // Fuzz gf_isom_set_ipod_compatible
+    gf_isom_set_ipod_compatible(isom_file, trackNumber);
 
-    // Prepare variables for gf_isom_get_visual_info
-    u32 Width = 0;
-    u32 Height = 0;
-    gf_isom_get_visual_info(
-        isom_file, trackNumber, sampleDescriptionIndex, &Width, &Height
-    );
+    u32 out_width, out_height;
+    s32 out_translation_x, out_translation_y;
+    s16 out_layer;
 
+    // Fuzz gf_isom_get_track_layout_info
+    gf_isom_get_track_layout_info(isom_file, trackNumber, &out_width, &out_height, &out_translation_x, &out_translation_y, &out_layer);
+
+    if (Size < sizeof(u32) * 24 + sizeof(s32) * 2) {
+        gf_isom_close(isom_file);
+        return 0;
+    }
+
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32) * 15);
+    u32 cleanApertureWidthN = *(u32 *)(Data + sizeof(u32) * 16);
+    u32 cleanApertureWidthD = *(u32 *)(Data + sizeof(u32) * 17);
+    u32 cleanApertureHeightN = *(u32 *)(Data + sizeof(u32) * 18);
+    u32 cleanApertureHeightD = *(u32 *)(Data + sizeof(u32) * 19);
+    s32 horizOffN = *(s32 *)(Data + sizeof(u32) * 20);
+    u32 horizOffD = *(u32 *)(Data + sizeof(u32) * 21);
+    s32 vertOffN = *(s32 *)(Data + sizeof(u32) * 22);
+    u32 vertOffD = *(u32 *)(Data + sizeof(u32) * 23);
+
+    // Fuzz gf_isom_set_clean_aperture
+    gf_isom_set_clean_aperture(isom_file, trackNumber, sampleDescriptionIndex, cleanApertureWidthN, cleanApertureWidthD, cleanApertureHeightN, cleanApertureHeightD, horizOffN, horizOffD, vertOffN, vertOffD);
+
+    // Fuzz gf_isom_remove_edits
+    gf_isom_remove_edits(isom_file, trackNumber);
+
+    gf_isom_close(isom_file);
     return 0;
 }

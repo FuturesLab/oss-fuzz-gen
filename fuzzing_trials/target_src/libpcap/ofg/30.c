@@ -1,26 +1,32 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <pcap.h>
+#include <stddef.h>
+#include <string.h>
 
+// Function signature to be fuzzed
+int pcap_parsesrcstr(const char *source, int *type, char *host, char *port, char *name, char *interface);
+
+// Fuzzer entry point
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Initialize a pcap_t structure
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap = pcap_open_dead(DLT_EN10MB, 65535);
-    
-    if (pcap == NULL) {
+    // Ensure the data size is sufficient for the test
+    if (size < 10) {
         return 0;
     }
+
+    // Allocate buffers for the parameters
+    char source[256];
+    int type;
+    char host[256];
+    char port[256];
+    char name[256];
+    char interface[256];
+
+    // Initialize the buffers with the data provided
+    size_t copy_size = size < 255 ? size : 255;
+    memcpy(source, data, copy_size);
+    source[copy_size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    int precision = pcap_get_tstamp_precision(pcap);
+    pcap_parsesrcstr(source, &type, host, port, name, interface);
 
-    // Use the precision value to prevent compiler optimization
-    if (precision < 0) {
-        pcap_close(pcap);
-        return 0;
-    }
-
-    // Clean up
-    pcap_close(pcap);
     return 0;
 }

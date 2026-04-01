@@ -1,26 +1,32 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Initialize the z_stream structure
+    // Initialize z_stream structure
     z_stream stream;
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
-    stream.next_in = (Bytef *)data; // Set the input data
-    stream.avail_in = (uInt)size; // Set the input size
+    
+    // Ensure the input size is non-zero
+    uLong inputSize = size > 0 ? size : 1;
 
-    // Initialize the uLong parameter
-    uLong length = size > 0 ? (uLong)size : 1; // Ensure length is non-zero
+    // Initialize the stream for compression
+    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+        return 0; // Initialization failed, return early
+    }
 
     // Call the function-under-test
-    uLong bound = deflateBound(&stream, length);
+    uLong bound = deflateBound(&stream, inputSize);
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    if (bound != 0) {
-        // Do something with the bound if necessary
+    // Use the result in some way to avoid compiler optimizations
+    if (bound > 0) {
+        // Do something with the bound, e.g., print or log
     }
+
+    // Clean up
+    deflateEnd(&stream);
 
     return 0;
 }

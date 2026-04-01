@@ -1,25 +1,28 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <lcms2.h>  // Assuming the function is part of the Little CMS library
+#include <lcms2.h>
 
-// Remove 'extern "C"' as it is not needed in a C file
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    // Initialize a cmsContext with a non-NULL value
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    
-    // Call the function-under-test
-    void *userData = cmsGetContextUserData(context);
-    
-    // Use the data provided by the fuzzer to simulate real input
-    if (size > 0) {
-        // Example of utilizing the input data in some way
-        // This is just a placeholder for actual logic using 'data'
-        // For instance, you might use 'data' to create a profile or other objects
-        // Here we just print the first byte, if size is non-zero
-        printf("First byte of data: %u\n", data[0]);
+    // Ensure that the size is sufficient to create a cmsContext
+    if (size < sizeof(void*)) {
+        return 0;
     }
-    
-    // Clean up the context
+
+    // Create a dummy user data
+    void *userData = (void *)(uintptr_t)(data[0]);
+
+    // Create a cmsContext with the dummy user data
+    cmsContext context = cmsCreateContext(NULL, userData);
+
+    // Call the function-under-test
+    void *retrievedUserData = cmsGetContextUserData(context);
+
+    // Optionally, you can add some checks or assertions here
+    if (retrievedUserData != userData) {
+        // Handle the case where the retrieved user data does not match
+    }
+
+    // Clean up
     cmsDeleteContext(context);
 
     return 0;

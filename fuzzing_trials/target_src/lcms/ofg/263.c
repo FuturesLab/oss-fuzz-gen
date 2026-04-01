@@ -1,53 +1,39 @@
 #include <stdint.h>
-#include <wchar.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_263(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHANDLE dictHandle;
-    wchar_t key[10];
-    wchar_t value[10];
-    cmsMLU *displayName;
-    cmsMLU *displayValue;
-    cmsBool result;
+    cmsHTRANSFORM transform;
+    const void *inputBuffer;
+    void *outputBuffer;
+    cmsUInt32Number sizeOfTransform;
 
-    // Ensure size is large enough to extract necessary data
-    if (size < 20) {
-        return 0;
+    // Initialize the input buffer with the provided data
+    inputBuffer = (const void *)data;
+
+    // Allocate memory for the output buffer
+    // Assuming the output buffer size is the same as input for simplicity
+    outputBuffer = malloc(size);
+    if (outputBuffer == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Initialize key and value from input data
-    for (int i = 0; i < 9 && i < size / 2; i++) {
-        key[i] = (wchar_t)data[i];
-        value[i] = (wchar_t)data[i + 10];
-    }
-    key[9] = L'\0';
-    value[9] = L'\0';
+    // Initialize the transform and sizeOfTransform with non-NULL values
+    // For simplicity, using a dummy transform and size; in real scenarios, these should be valid
+    cmsHPROFILE hInProfile = cmsCreate_sRGBProfile();
+    cmsHPROFILE hOutProfile = cmsCreate_sRGBProfile();
+    transform = cmsCreateTransform(hInProfile, TYPE_RGB_8, hOutProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
+    sizeOfTransform = size / 3; // Assuming RGB data, each pixel is 3 bytes
 
-    // Create a dictionary handle
-    dictHandle = cmsDictAlloc(NULL);
-    if (dictHandle == NULL) {
-        return 0;
-    }
-
-    // Create dummy cmsMLU objects for displayName and displayValue
-    displayName = cmsMLUalloc(NULL, 1);
-    displayValue = cmsMLUalloc(NULL, 1);
-
-    if (displayName == NULL || displayValue == NULL) {
-        cmsDictFree(dictHandle);
-        if (displayName != NULL) cmsMLUfree(displayName);
-        if (displayValue != NULL) cmsMLUfree(displayValue);
-        return 0;
-    }
-
-    // Call the function under test
-    result = cmsDictAddEntry(dictHandle, key, value, displayName, displayValue);
+    // Call the function-under-test
+    cmsDoTransform(transform, inputBuffer, outputBuffer, sizeOfTransform);
 
     // Clean up
-    cmsDictFree(dictHandle);
-    cmsMLUfree(displayName);
-    cmsMLUfree(displayValue);
+    cmsDeleteTransform(transform);
+    cmsCloseProfile(hInProfile);
+    cmsCloseProfile(hOutProfile);
+    free(outputBuffer);
 
     return 0;
 }

@@ -1,30 +1,38 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>  // For malloc and free
+#include <string.h>  // For memcpy
 #include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h>  // Include this header for malloc and free
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated and non-empty
+    // Ensure the input data is null-terminated and not empty
     if (size == 0) {
         return 0;
     }
 
-    // Create a buffer to hold the null-terminated string
-    char *option = (char *)malloc(size + 1);
-    if (option == NULL) {
+    // Allocate memory for the null-terminated string
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
         return 0;
     }
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(option, data, size);
-    option[size] = '\0';
+    // Copy the data into the input buffer and null-terminate it
+    memcpy(input, data, size);
+    input[size] = '\0';
 
     // Call the function-under-test
-    int result = sqlite3_compileoption_used(option);
+    sqlite3_compileoption_used(input);
 
     // Free the allocated memory
-    free(option);
+    free(input);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

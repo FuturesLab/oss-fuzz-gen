@@ -1,29 +1,23 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_316(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsUInt32Number dwFlags;
-    cmsBool bInput;
-
-    // Initialize variables to avoid NULL values
-    // Create a profile using cmsCreate_sRGBProfile as an example
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
-        return 0; // Exit if profile creation fails
+    // Check if the size of the input data is sufficient to create a profile
+    if (size < sizeof(cmsCIEXYZ)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Use data to initialize dwFlags and bInput
-    // Ensure that dwFlags and bInput are not NULL
-    dwFlags = (size > 0) ? data[0] : 0;
-    bInput = (size > 1) ? (cmsBool)(data[1] % 2) : 0;
+    // Create a profile using the input data
+    cmsHPROFILE profile = cmsOpenProfileFromMem(data, size);
 
-    // Call the function-under-test
-    cmsUInt32Number result = cmsFormatterForPCSOfProfile(hProfile, dwFlags, bInput);
+    // Check if the profile was created successfully
+    if (profile != NULL) {
+        // Perform operations on the profile if needed
+        // ...
 
-    // Clean up
-    cmsCloseProfile(hProfile);
+        // Close the profile to free resources
+        cmsCloseProfile(profile);
+    }
 
     return 0;
 }

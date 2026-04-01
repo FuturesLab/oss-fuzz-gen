@@ -1,37 +1,80 @@
 #include <stdint.h>
-#include <stddef.h> // Include this for size_t
 #include <sqlite3.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_199(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int current = 0;
-    int highwater = 0;
-    int status_op = 0; // Status operation code
-    int reset_flag = 0; // Reset flag
-    char *errMsg = 0;
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+    const void *blob_data;
+    int column_index = 0; // Default column index
 
-    // Initialize SQLite database in memory
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Create a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Ensure the data size is large enough to extract meaningful values
-    if (size > 0) {
-        status_op = data[0] % 10; // Limit status_op to a reasonable range
-        if (size > 1) {
-            reset_flag = data[1] % 2; // Limit reset_flag to 0 or 1
-        }
-    }
-
-    // Execute a simple SQL statement to modify the database state
-    if (sqlite3_exec(db, "CREATE TABLE test (id INT);", 0, 0, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Create a simple table for testing
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);";
+    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
         return 0;
     }
 
-    // Call the function-under-test
-    sqlite3_db_status(db, status_op, &current, &highwater, reset_flag);
+    // Prepare an insert statement
+    const char *insert_sql = "INSERT INTO test (data) VALUES (?);";
+    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Bind the input data as a blob
+    rc = sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to bind blob: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the insert statement
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Prepare a select statement
+    const char *select_sql = "SELECT data FROM test WHERE id = 1;";
+    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare select statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the select statement
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        // Call the function-under-test
+        blob_data = sqlite3_column_blob(stmt, column_index);
+    }
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
 
     // Close the database
     sqlite3_close(db);

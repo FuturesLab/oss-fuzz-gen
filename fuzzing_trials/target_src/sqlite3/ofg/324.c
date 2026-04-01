@@ -1,35 +1,37 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_324(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
+    sqlite3 *db;
+    int rc;
+    const char *errmsg;
 
-    // Open a temporary in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Ensure the input size is large enough to be a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a string
-    char *data_str = (char *)malloc(size + 1);
-    if (data_str == NULL) {
-        sqlite3_close(db);
+    // Create a null-terminated string from the input data
+    char *db_name = (char *)malloc(size + 1);
+    if (db_name == NULL) {
         return 0;
     }
-    memcpy(data_str, data, size);
-    data_str[size] = '\0';
+    memcpy(db_name, data, size);
+    db_name[size] = '\0';
 
-    // Execute the data as an SQL statement
-    sqlite3_exec(db, data_str, 0, 0, &errMsg);
+    // Attempt to open the database with the given name
+    rc = sqlite3_open(db_name, &db);
+    if (rc != SQLITE_OK) {
+        // Call the function-under-test
+        errmsg = sqlite3_errmsg(db);
+    }
 
-    // Cleanup
-    free(data_str);
-    sqlite3_free(errMsg);
+    // Clean up
     sqlite3_close(db);
+    free(db_name);
 
     return 0;
 }

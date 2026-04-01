@@ -1,39 +1,20 @@
 #include <cstdint>
-#include <cstdlib>
+#include <cstddef>
+#include <cstdio>
 
+// Assuming the function is part of a C library, we wrap it in extern "C"
 extern "C" {
-    #include <aom/aom_codec.h>
-    #include <aom/aom_encoder.h>
-    #include <aom/aomcx.h> // Include the correct header for aom_codec_av1_cx
+    const char * aom_codec_version_str();
 }
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Initialize the codec context
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Use the correct function
+    // Call the function-under-test
+    const char *version_str = aom_codec_version_str();
 
-    // Set up codec configuration
-    aom_codec_enc_cfg_t cfg;
-    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
-        return 0;
+    // Print the version string to ensure the function is called
+    if (version_str != nullptr) {
+        printf("AOM Codec Version: %s\n", version_str);
     }
-
-    // Initialize the codec context with configuration
-    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
-        return 0;
-    }
-
-    // Call the function under test
-    const char *error_message = aom_codec_error(&codec_ctx);
-    
-    // Use the error message in some way to avoid compiler optimizations
-    if (error_message != nullptr) {
-        volatile char first_char = error_message[0];
-        (void)first_char;
-    }
-    
-    // Destroy the codec context
-    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

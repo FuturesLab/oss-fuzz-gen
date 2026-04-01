@@ -1,36 +1,32 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
-// Mock function to simulate cmsDupProfileSequenceDescription
-cmsSEQ * cmsDupProfileSequenceDescription_1(const cmsSEQ *seq) {
-    // In a real scenario, this would duplicate the profile sequence description
-    // Here, we simply return a new cmsSEQ for demonstration purposes
-    cmsSEQ *newSeq = (cmsSEQ *)malloc(sizeof(cmsSEQ));
-    if (newSeq != NULL && seq != NULL) {
-        newSeq->n = seq->n; // Copy the n value
-        newSeq->ContextID = seq->ContextID; // Copy the ContextID
-        newSeq->seq = seq->seq; // Copy the seq pointer
-    }
-    return newSeq;
-}
-
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our cmsSEQ structure
+    // Ensure the size is large enough to create a cmsSEQ object
     if (size < sizeof(cmsSEQ)) {
         return 0;
     }
 
-    // Cast the input data to a cmsSEQ pointer
-    const cmsSEQ *inputSeq = (const cmsSEQ *)data;
+    // Allocate memory for a cmsSEQ object
+    cmsSEQ *seq = (cmsSEQ *)malloc(sizeof(cmsSEQ));
+    if (seq == NULL) {
+        return 0;
+    }
+
+    // Initialize the cmsSEQ object with data
+    memcpy(seq, data, sizeof(cmsSEQ));
 
     // Call the function-under-test
-    cmsSEQ *duplicateSeq = cmsDupProfileSequenceDescription_1(inputSeq);
+    cmsSEQ *dup_seq = cmsDupProfileSequenceDescription(seq);
 
-    // Free the duplicated sequence if it was successfully created
-    if (duplicateSeq != NULL) {
-        free(duplicateSeq);
+    // Clean up
+    if (dup_seq != NULL) {
+        cmsFreeProfileSequenceDescription(dup_seq);
     }
+
+    free(seq);
 
     return 0;
 }

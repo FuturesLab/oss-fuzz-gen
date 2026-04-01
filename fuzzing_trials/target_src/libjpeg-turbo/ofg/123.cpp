@@ -1,49 +1,45 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    typedef uint16_t J16SAMPLE; // Assuming J16SAMPLE is a 16-bit sample type
 }
 
 extern "C" int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-    // Initialize parameters for tj3SaveImage16
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    // Check if the input size is sufficient for a minimal JPEG header
+    if (size < 2 || data[0] != 0xFF || data[1] != 0xD8) {
+        // Not a valid JPEG file header
+        return 0;
+    }
+
+    tjhandle handle = tjInitDecompress();
     if (handle == NULL) {
         return 0;
     }
 
-    // Ensure the data size is sufficient for a minimal image
-    if (size < 6) {
-        tj3Destroy(handle);
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) != 0) {
+        tjDestroy(handle);
         return 0;
     }
 
-    // Use a portion of the data as a filename (null-terminated)
-    const char *filename = reinterpret_cast<const char *>(data);
-    size_t filename_len = strnlen(filename, size);
-    if (filename_len == size) {
-        tj3Destroy(handle);
+    // Ensure the output buffer is large enough to hold the decompressed image
+    J16SAMPLE *outputBuffer = (J16SAMPLE *)malloc(width * height * 3 * sizeof(J16SAMPLE));
+    if (outputBuffer == NULL) {
+        tjDestroy(handle);
         return 0;
     }
-
-    // Use the rest of the data as image samples
-    const uint16_t *samples = reinterpret_cast<const uint16_t *>(data + filename_len + 1);
-    size_t samples_size = size - filename_len - 1;
-
-    // Define image dimensions and other parameters
-    int width = 2;  // Minimal width
-    int height = 2; // Minimal height
-    int pitch = width * sizeof(uint16_t);
-    int flags = 0;  // No specific flags
 
     // Call the function-under-test
-    tj3SaveImage16(handle, filename, samples, width, pitch, height, flags);
+    int result = tjDecompress2(handle, data, size, (unsigned char *)outputBuffer, width, 0 /* pitch */, height, TJPF_RGB, TJFLAG_FASTDCT);
 
     // Clean up
-    tj3Destroy(handle);
+    free(outputBuffer);
+    tjDestroy(handle);
 
     return 0;
 }

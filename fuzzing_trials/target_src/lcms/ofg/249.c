@@ -3,36 +3,29 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_249(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsToneCurve *curve1 = NULL;
-    cmsToneCurve *curve2 = NULL;
-    cmsToneCurve *result = NULL;
-    cmsUInt32Number location = 0;
+    cmsContext context;
+    cmsCIExyY whitePoint;
+    cmsHPROFILE profile;
 
-    if (size < sizeof(cmsUInt32Number)) {
-        cmsDeleteContext(context);
+    // Initialize context with non-NULL value
+    context = cmsCreateContext(NULL, NULL);
+
+    // Ensure size is sufficient to extract cmsCIExyY values
+    if (size < sizeof(cmsCIExyY)) {
         return 0;
     }
 
-    // Create tone curves from the input data
-    curve1 = cmsBuildGamma(context, 2.2);  // Example gamma value
-    curve2 = cmsBuildGamma(context, 2.4);  // Another example gamma value
+    // Initialize whitePoint with data
+    whitePoint.x = *(const double *)data;
+    whitePoint.y = *(const double *)(data + sizeof(double));
+    whitePoint.Y = *(const double *)(data + 2 * sizeof(double));
 
-    // Extract a cmsUInt32Number from data
-    location = *(const cmsUInt32Number *)data;
-
-    // Call the function under test
-    result = cmsJoinToneCurve(context, curve1, curve2, location);
+    // Call the function-under-test
+    profile = cmsCreateLab2ProfileTHR(context, &whitePoint);
 
     // Clean up
-    if (result != NULL) {
-        cmsFreeToneCurve(result);
-    }
-    if (curve1 != NULL) {
-        cmsFreeToneCurve(curve1);
-    }
-    if (curve2 != NULL) {
-        cmsFreeToneCurve(curve2);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
     cmsDeleteContext(context);
 

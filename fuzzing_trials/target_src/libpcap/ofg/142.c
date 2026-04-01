@@ -3,23 +3,25 @@
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract an integer for timeout
-    if (size < sizeof(int)) {
-        return 0;
-    }
-
-    // Initialize a pcap_t structure
+    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+
+    // Initialize a pcap_t handle with pcap_create and pcap_activate
+    pcap_handle = pcap_create("any", errbuf);
     if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Extract an integer value from the data for the timeout
-    int timeout = *((int *)data);
+    if (pcap_activate(pcap_handle) != 0) {
+        pcap_close(pcap_handle);
+        return 0;
+    }
+
+    // Use the first byte of data as the timeout value
+    int timeout = (size > 0) ? data[0] : 0;
 
     // Call the function-under-test
-    int result = pcap_set_timeout(pcap_handle, timeout);
+    pcap_set_timeout(pcap_handle, timeout);
 
     // Clean up
     pcap_close(pcap_handle);

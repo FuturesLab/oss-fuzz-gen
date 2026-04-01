@@ -1,47 +1,73 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_segment_get_track_fragment_count at isom_read.c:895:5 in isomedia.h
-// gf_isom_get_next_alternate_group_id at isom_read.c:4851:5 in isomedia.h
-// gf_isom_vp_config_get at avc_ext.c:2626:14 in isomedia.h
-// gf_isom_get_next_moof_number at movie_fragments.c:3482:5 in isomedia.h
-// gf_isom_get_sample_description_count at isom_read.c:1373:5 in isomedia.h
-// gf_isom_get_udta_count at isom_read.c:2692:5 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_new_mj2k_description at sample_descs.c:886:8 in isomedia.h
+// gf_isom_set_media_language at isom_write.c:297:8 in isomedia.h
+// gf_isom_set_generic_protection at drm_sample.c:626:8 in isomedia.h
+// gf_isom_change_ismacryp_protection at drm_sample.c:386:8 in isomedia.h
+// gf_isom_av1_config_new at avc_ext.c:2007:8 in isomedia.h
+// gf_isom_stxt_get_description at sample_descs.c:1385:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "isomedia.h"
 
 static GF_ISOFile* create_dummy_iso_file() {
-    // Create a dummy GF_ISOFile object
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return isom_file;
+    // Instead of allocating memory, return a NULL pointer to simulate an ISO file
+    return NULL;
+}
+
+static GF_AV1Config* create_dummy_av1_config() {
+    GF_AV1Config *cfg = (GF_AV1Config*)malloc(sizeof(GF_AV1Config));
+    if (cfg) {
+        memset(cfg, 0, sizeof(GF_AV1Config));
+    }
+    return cfg;
+}
+
+static void cleanup_av1_config(GF_AV1Config *cfg) {
+    if (cfg) {
+        free(cfg);
+    }
 }
 
 int LLVMFuzzerTestOneInput_77(const uint8_t *Data, size_t Size) {
     GF_ISOFile *isom_file = create_dummy_iso_file();
-    if (!isom_file) return 0;
+    GF_AV1Config *av1_config = create_dummy_av1_config();
 
-    // Use the data to influence the behavior of the fuzzing
-    u32 moof_index = (Size > 0) ? Data[0] : 1;
-    u32 trackNumber = (Size > 1) ? Data[1] : 1;
-    u32 sampleDescriptionIndex = (Size > 2) ? Data[2] : 1;
+    u32 trackNumber = 1;
+    u32 sampleDescriptionIndex = 0;
+    u32 outDescriptionIndex = 0;
+    char *scheme_uri = NULL;
+    char *kms_uri = NULL;
+    char *language_code = "eng";
+    char *url_name = NULL;
+    char *urn_name = NULL;
 
-    // Call the target API functions
-    u32 track_fragment_count = gf_isom_segment_get_track_fragment_count(isom_file, moof_index);
-    u32 next_alternate_group_id = gf_isom_get_next_alternate_group_id(isom_file);
-    GF_VPConfig *vp_config = gf_isom_vp_config_get(isom_file, trackNumber, sampleDescriptionIndex);
-    u32 next_moof_number = gf_isom_get_next_moof_number(isom_file);
-    u32 sample_description_count = gf_isom_get_sample_description_count(isom_file, trackNumber);
-    u32 udta_count = gf_isom_get_udta_count(isom_file, trackNumber);
+    // Fuzz gf_isom_new_mj2k_description
+    u8 *dsi = (u8*)Data;
+    u32 dsi_len = (u32)Size;
+    gf_isom_new_mj2k_description(isom_file, trackNumber, url_name, urn_name, &outDescriptionIndex, dsi, dsi_len);
 
-    // Free the VPConfig if allocated
-    if (vp_config) {
-        free(vp_config);
-    }
+    // Fuzz gf_isom_set_media_language
+    gf_isom_set_media_language(isom_file, trackNumber, language_code);
 
-    // Clean up
-    gf_isom_close(isom_file);
+    // Fuzz gf_isom_set_generic_protection
+    gf_isom_set_generic_protection(isom_file, trackNumber, sampleDescriptionIndex, 0, 1, scheme_uri, kms_uri);
+
+    // Fuzz gf_isom_change_ismacryp_protection
+    gf_isom_change_ismacryp_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_uri, kms_uri);
+
+    // Fuzz gf_isom_av1_config_new
+    gf_isom_av1_config_new(isom_file, trackNumber, av1_config, url_name, urn_name, &outDescriptionIndex);
+
+    // Fuzz gf_isom_stxt_get_description
+    const char *mime = NULL;
+    const char *encoding = NULL;
+    const char *config = NULL;
+    gf_isom_stxt_get_description(isom_file, trackNumber, sampleDescriptionIndex, &mime, &encoding, &config);
+
+    cleanup_av1_config(av1_config);
 
     return 0;
 }

@@ -1,24 +1,30 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include string.h for memcpy
+#include <stdlib.h>
 #include <lcms2.h>
 
+// Fuzzer entry point
 int LLVMFuzzerTestOneInput_151(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read a cmsFloat64Number
-    if (size < sizeof(cmsFloat64Number)) {
+    // Ensure there is enough data to read
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Extract a cmsFloat64Number from the input data
-    cmsFloat64Number adaptationState;
-    memcpy(&adaptationState, data, sizeof(cmsFloat64Number));
+    // Create a memory context
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Allocate memory for cmsPipeline
+    cmsPipeline *pipeline = cmsPipelineAlloc(context, 3, 3);
+    if (pipeline == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
 
     // Call the function-under-test
-    cmsFloat64Number result = cmsSetAdaptationState(adaptationState);
+    cmsUInt32Number inputChannels = cmsPipelineInputChannels(pipeline);
 
-    // Use the result in some way to avoid compiler optimizations
-    volatile cmsFloat64Number useResult = result;
-    (void)useResult;
+    // Clean up
+    cmsPipelineFree(pipeline);
+    cmsDeleteContext(context);
 
     return 0;
 }

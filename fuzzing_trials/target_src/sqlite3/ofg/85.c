@@ -1,29 +1,37 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
 
-// Fuzzing harness for sqlite3_str_value
 int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    // Initialize a sqlite3_str object
-    sqlite3_str *str = sqlite3_str_new(NULL);
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
 
-    // Ensure data is not NULL and size is greater than 0
-    if (data != NULL && size > 0) {
-        // Append the input data to the sqlite3_str object
-        sqlite3_str_append(str, (const char *)data, (int)size);
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Call the function-under-test
-    char *result = sqlite3_str_value(str);
-
-    // Use the result in some way to prevent it from being optimized away
-    if (result != NULL) {
-        // Print the result length (for demonstration purposes)
-        volatile size_t result_length = strlen(result);
+    // Prepare a simple SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Free the sqlite3_str object
-    sqlite3_str_finish(str);
+    // Execute the SQL statement
+    rc = sqlite3_step(stmt);
+
+    // Check if the statement is busy
+    int is_busy = sqlite3_stmt_busy(stmt);
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

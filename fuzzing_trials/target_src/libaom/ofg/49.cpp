@@ -1,29 +1,26 @@
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include for memcpy
+
 extern "C" {
-#include <aom/aom_image.h>
+    #include <aom/aom_codec.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract parameters
-    if (size < 5 * sizeof(unsigned int)) {
+    // Declare and initialize the codec context
+    aom_codec_ctx_t codec_ctx;
+
+    // Ensure the codec context is not NULL
+    if (size < sizeof(aom_codec_ctx_t)) {
         return 0;
     }
 
-    // Initialize parameters for aom_img_alloc_with_border
-    aom_image_t *img = nullptr;
-    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(data[0] % 10); // Assuming there are 10 possible formats
-    unsigned int width = static_cast<unsigned int>(data[1] + 1);  // Ensure width is non-zero
-    unsigned int height = static_cast<unsigned int>(data[2] + 1); // Ensure height is non-zero
-    unsigned int border = static_cast<unsigned int>(data[3]);
-    unsigned int stride_align = static_cast<unsigned int>(data[4]);
-    unsigned int border_align = static_cast<unsigned int>(data[5]);
+    // Copy the data into the codec context
+    memcpy(&codec_ctx, data, sizeof(aom_codec_ctx_t));
 
     // Call the function-under-test
-    aom_image_t *result = aom_img_alloc_with_border(img, fmt, width, height, border, stride_align, border_align);
+    aom_codec_err_t result = aom_codec_destroy(&codec_ctx);
 
-    // Free the allocated image if not null
-    if (result != nullptr) {
-        aom_img_free(result);
-    }
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

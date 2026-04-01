@@ -1,8 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// XYZtoRGB24 at tif_luv.c:865:5 in tiffio.h
-// TIFFCIELabToXYZ at tif_color.c:43:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// _TIFFmemset at tif_unix.c:353:6 in tiffio.h
+// _TIFFmemcpy at tif_unix.c:355:6 in tiffio.h
+// _TIFFmemcmp at tif_unix.c:360:5 in tiffio.h
+// _TIFFrealloc at tif_unix.c:351:7 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,53 +15,51 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstddef>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(float) * 3) {
-        return 0;
+    if (Size < 1) return 0; // Ensure there's at least 1 byte for meaningful operations
+
+    // Test _TIFFmalloc
+    tmsize_t alloc_size = static_cast<tmsize_t>(Data[0]);
+    void *memory = _TIFFmalloc(alloc_size);
+    if (!memory) return 0; // Allocation failed, exit early
+
+    // Test _TIFFmemset
+    int set_value = Data[0];
+    _TIFFmemset(memory, set_value, alloc_size);
+
+    // Test _TIFFmemcpy
+    if (Size > 1) {
+        tmsize_t copy_size = (Size - 1) < alloc_size ? (Size - 1) : alloc_size;
+        _TIFFmemcpy(memory, Data + 1, copy_size);
     }
 
-    // Prepare dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
+    // Test _TIFFmemcmp
+    if (Size > 2) {
+        int cmp_result = _TIFFmemcmp(memory, Data + 2, alloc_size > (Size - 2) ? (Size - 2) : alloc_size);
+        (void)cmp_result; // Suppress unused variable warning
     }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
 
-    // Prepare data for LogLuv24toXYZ
-    uint32_t logluv24 = 0;
-    if (Size >= sizeof(uint32_t)) {
-        memcpy(&logluv24, Data, sizeof(uint32_t));
+    // Test _TIFFrealloc
+    if (Size > 3) {
+        tmsize_t realloc_size = static_cast<tmsize_t>(Data[3]);
+        void *reallocated_memory = _TIFFrealloc(memory, realloc_size);
+        if (reallocated_memory) {
+            memory = reallocated_memory;
+        } else {
+            // If realloc fails, the original memory block is not freed
+            // so we should not attempt to free it here
+            return 0;
+        }
     }
-    float xyz[3] = {0.0f, 0.0f, 0.0f};
-    LogLuv24toXYZ(logluv24, xyz);
 
-    // Prepare data for LogLuv32fromXYZ and LogLuv24fromXYZ
-    float xyzInput[3];
-    memcpy(xyzInput, Data, sizeof(float) * 3);
-    uint32_t logluv32 = LogLuv32fromXYZ(xyzInput, 3);
-    uint32_t logluv24FromXYZ = LogLuv24fromXYZ(xyzInput, 3);
-
-    // Prepare data for TIFFSwabArrayOfFloat
-    TIFFSwabArrayOfFloat(xyzInput, 3);
-
-    // Prepare data for XYZtoRGB24
-    uint8_t rgb[3] = {0, 0, 0};
-    XYZtoRGB24(xyzInput, rgb);
-
-    // Prepare data for TIFFCIELabToXYZ
-    TIFFCIELabToRGB cielabToRGB;
-    uint32_t L = static_cast<uint32_t>(Data[0]);
-    int32_t a = static_cast<int32_t>(Data[1]);
-    int32_t b = static_cast<int32_t>(Data[2]);
-    float x, y, z;
-    TIFFCIELabToXYZ(&cielabToRGB, L, a, b, &x, &y, &z);
+    // Cleanup
+    if (memory) {
+        _TIFFfree(memory);
+    }
 
     return 0;
 }

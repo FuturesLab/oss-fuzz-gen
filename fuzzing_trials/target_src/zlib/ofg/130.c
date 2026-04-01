@@ -5,17 +5,18 @@ int LLVMFuzzerTestOneInput_130(const uint8_t *data, size_t size) {
     // Call the function-under-test
     uLong flags = zlibCompileFlags();
 
-    // Use the input data in some way to ensure it is not null
-    // Here, we simply check if the size is greater than zero and use the first byte
-    if (size > 0) {
-        // Use the first byte of data to do something, e.g., print or check
-        uint8_t first_byte = data[0];
-        // For demonstration, we just use the first_byte in some way
-        (void)first_byte; // To avoid unused variable warning
-    }
+    // Use the result in some way to avoid compiler optimizations removing the call
+    // Here, we simply print the flags value, but in a real fuzzing scenario, you might
+    // want to perform further operations based on the flags value.
+    (void)flags; // Suppress unused variable warning
 
-    // Use the flags in some way to ensure the call is not optimized away
-    (void)flags; // To avoid unused variable warning
+    // Simulate using the input data to maximize fuzzing result
+    if (size > 0) {
+        // Example operation: feed the data to a zlib function
+        uLong crc = crc32(0L, Z_NULL, 0);
+        crc = crc32(crc, data, size);
+        (void)crc; // Suppress unused variable warning
+    }
 
     return 0;
 }

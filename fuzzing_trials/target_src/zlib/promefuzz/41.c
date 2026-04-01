@@ -1,62 +1,92 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// gzopen at gzlib.c:288:16 in zlib.h
-// gzputc at gzwrite.c:307:13 in zlib.h
-// gzsetparams at gzwrite.c:630:13 in zlib.h
-// gzseek at gzlib.c:438:17 in zlib.h
-// gzclearerr at gzlib.c:531:14 in zlib.h
-// gzclose_w at gzwrite.c:667:13 in zlib.h
-// gzopen at gzlib.c:288:16 in zlib.h
-// gzclose at gzclose.c:11:13 in zlib.h
+// inflateCopy at inflate.c:1328:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
+// inflate at inflate.c:474:13 in zlib.h
+// inflateGetDictionary at inflate.c:1167:13 in zlib.h
+// inflateGetDictionary at inflate.c:1167:13 in zlib.h
+// inflateSync at inflate.c:1264:13 in zlib.h
+// inflateSetDictionary at inflate.c:1187:13 in zlib.h
+// deflateSetDictionary at deflate.c:560:13 in zlib.h
+// inflateInit_ at inflate.c:214:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <zlib.h>
 
-static gzFile create_dummy_gzfile() {
-    FILE *file = fopen("./dummy_file", "wb+");
-    if (!file) return NULL;
-    fclose(file);
-    return gzopen("./dummy_file", "wb+");
+static void initialize_z_stream(z_streamp strm) {
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
+    strm->next_in = Z_NULL;
+    strm->avail_in = 0;
+}
+
+static void test_inflateCopy(z_streamp source) {
+    z_stream dest;
+    initialize_z_stream(&dest);
+    int ret = inflateCopy(&dest, source);
+    if (ret == Z_OK) {
+        inflateEnd(&dest);
+    }
+}
+
+static void test_inflate(z_streamp strm) {
+    int ret;
+    do {
+        ret = inflate(strm, Z_NO_FLUSH);
+    } while (ret == Z_OK);
+}
+
+static void test_inflateGetDictionary(z_streamp strm) {
+    uInt dictLength;
+    if (inflateGetDictionary(strm, NULL, &dictLength) == Z_OK && dictLength > 0) {
+        Bytef *dictionary = (Bytef *)malloc(dictLength);
+        if (dictionary) {
+            inflateGetDictionary(strm, dictionary, &dictLength);
+            free(dictionary);
+        }
+    }
+}
+
+static void test_inflateSync(z_streamp strm) {
+    inflateSync(strm);
+}
+
+static void test_inflateSetDictionary(z_streamp strm) {
+    const Bytef dictionary[] = "sample dictionary";
+    inflateSetDictionary(strm, dictionary, sizeof(dictionary));
+}
+
+static void test_deflateSetDictionary(z_streamp strm) {
+    const Bytef dictionary[] = "sample dictionary";
+    deflateSetDictionary(strm, dictionary, sizeof(dictionary));
 }
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    z_stream strm;
+    initialize_z_stream(&strm);
 
-    gzFile file = create_dummy_gzfile();
-    if (!file) return 0;
-
-    // Fuzz gzputc
-    gzputc(file, Data[0]);
-
-    // Fuzz gzsetparams with random level and strategy
-    if (Size >= 2) {
-        int level = Data[1] % 10; // Compression level [0-9]
-        int strategy = Data[1] % 5; // Strategy [0-4]
-        gzsetparams(file, level, strategy);
+    if (inflateInit(&strm) != Z_OK) {
+        return 0;
     }
 
-    // Fuzz gzseek
-    if (Size >= 3) {
-        z_off_t offset = Data[2] % 100; // Arbitrary offset
-        gzseek(file, offset, SEEK_SET);
-    }
+    strm.next_in = (Bytef *)Data;
+    strm.avail_in = Size;
 
-    // Fuzz gzclearerr
-    gzclearerr(file);
+    Bytef out[256];
+    strm.next_out = out;
+    strm.avail_out = sizeof(out);
 
-    // Fuzz gzclose_w
-    gzclose_w(file);
+    test_inflateCopy(&strm);
+    test_inflate(&strm);
+    test_inflateGetDictionary(&strm);
+    test_inflateSync(&strm);
+    test_inflateSetDictionary(&strm);
+    test_deflateSetDictionary(&strm);
 
-    // Reopen file for reading
-    file = gzopen("./dummy_file", "rb");
-    if (!file) return 0;
-
-    // Fuzz gzclose
-    gzclose(file);
-
+    inflateEnd(&strm);
     return 0;
 }

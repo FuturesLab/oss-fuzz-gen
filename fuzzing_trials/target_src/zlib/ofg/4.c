@@ -2,54 +2,34 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <zlib.h>
-#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Initialize variables for gzfread function
     voidp buffer;
-    z_size_t sizeToRead = 1; // Arbitrary non-zero size to read
-    z_size_t nmemb = size / sizeToRead; // Number of elements to read
+    z_size_t itemSize;
+    z_size_t itemCount;
     gzFile file;
 
-    // Allocate memory for the buffer
-    buffer = malloc(sizeToRead * nmemb);
-    if (buffer == NULL) {
-        return 0;
-    }
+    // Initialize the parameters
+    buffer = malloc(size > 0 ? size : 1); // Ensure buffer is not NULL
+    itemSize = size > 0 ? size : 1;       // Ensure itemSize is not zero
+    itemCount = 1;                        // Read one item for simplicity
 
-    // Open a gzFile in memory from the input data
-    FILE *tmp = tmpfile();
-    if (tmp == NULL) {
-        free(buffer);
-        return 0;
-    }
-    
-    file = gzdopen(dup(fileno(tmp)), "wb");
+    // Open a gzFile from the input data
+    file = gzdopen(fileno(tmpfile()), "wb+");
     if (file == NULL) {
-        fclose(tmp);
         free(buffer);
         return 0;
     }
 
-    // Write the input data to the gzFile
+    // Write the data to the gzFile to simulate a valid gzFile
     gzwrite(file, data, size);
-    gzrewind(file);
-
-    // Reopen the gzFile for reading
-    gzclose(file);
-    file = gzdopen(dup(fileno(tmp)), "rb");
-    if (file == NULL) {
-        fclose(tmp);
-        free(buffer);
-        return 0;
-    }
+    gzrewind(file); // Rewind to the beginning for reading
 
     // Call the function-under-test
-    gzfread(buffer, sizeToRead, nmemb, file);
+    gzfread(buffer, itemSize, itemCount, file);
 
     // Clean up
     gzclose(file);
-    fclose(tmp);
     free(buffer);
 
     return 0;

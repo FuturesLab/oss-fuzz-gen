@@ -1,81 +1,79 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_fromlstring at ucl_util.c:3084:1 in ucl.h
-// ucl_object_tolstring_safe at ucl_util.c:3546:6 in ucl.h
-// ucl_object_emit_full at ucl_emitter.c:694:6 in ucl.h
-// ucl_object_emit at ucl_emitter.c:661:1 in ucl.h
-// ucl_object_tostring_safe at ucl_util.c:3507:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
+// ucl_set_include_path at ucl_parser.c:3180:6 in ucl.h
+// ucl_array_append at ucl_util.c:3131:6 in ucl.h
+// ucl_array_prepend at ucl_util.c:3163:6 in ucl.h
+// ucl_array_replace_index at ucl_util.c:3378:1 in ucl.h
+// ucl_array_delete at ucl_util.c:3231:1 in ucl.h
 // ucl_object_iterate_new at ucl_util.c:2794:1 in ucl.h
-// ucl_object_iter_chk_excpn at ucl_util.c:2809:6 in ucl.h
+// ucl_object_iterate_safe at ucl_util.c:2839:1 in ucl.h
 // ucl_object_iterate_free at ucl_util.c:2903:6 in ucl.h
+// ucl_parser_free at ucl_util.c:599:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <ucl.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+#include "ucl.h"
 
-static void write_dummy_file(const uint8_t *data, size_t size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(data, 1, size, file);
-        fclose(file);
+static ucl_object_t* create_random_ucl_object(const uint8_t *Data, size_t Size) {
+    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
+    if (obj) {
+        obj->value.sv = (const char *)Data;
+        obj->len = Size;
     }
+    return obj;
 }
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Prepare data for ucl_object_fromlstring
-    const char *str = (const char *)Data;
-    size_t len = Size;
-    ucl_object_t *obj = ucl_object_fromlstring(str, len);
-    
-    if (obj != NULL) {
-        // Test ucl_object_tolstring_safe
-        const char *target;
-        size_t tlen;
-        ucl_object_tolstring_safe(obj, &target, &tlen);
+    // Initialize a parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (!parser) return 0;
 
-        // Only proceed with valid string objects for serialization
-        if (obj->type == UCL_STRING) {
-            // Test ucl_object_emit_full
-            struct ucl_emitter_functions emitter_functions = {0};
-            emitter_functions.ucl_emitter_append_character = NULL;
-            emitter_functions.ucl_emitter_append_len = NULL;
-            emitter_functions.ucl_emitter_append_int = NULL;
-            emitter_functions.ucl_emitter_append_double = NULL;
-            emitter_functions.ucl_emitter_free_func = NULL;
-            emitter_functions.ud = NULL;
+    // Create a UCL_ARRAY of paths
+    ucl_object_t *paths = create_random_ucl_object(Data, Size);
+    if (paths) {
+        // Fuzz ucl_set_include_path
+        ucl_set_include_path(parser, paths);
+    }
 
-            // Ensure the emitter functions are valid before calling
-            if (emitter_functions.ucl_emitter_append_len != NULL) {
-                ucl_object_emit_full(obj, UCL_EMIT_JSON, &emitter_functions, NULL);
-            }
+    // Create a UCL array object
+    ucl_object_t *ucl_array = create_random_ucl_object(Data, Size);
+    ucl_object_t *new_element = create_random_ucl_object(Data, Size);
 
-            // Test ucl_object_emit
-            unsigned char *emitted_str = ucl_object_emit(obj, UCL_EMIT_JSON);
-            if (emitted_str != NULL) {
-                free(emitted_str);
-            }
+    if (ucl_array && new_element) {
+        // Fuzz ucl_array_append
+        ucl_array_append(ucl_array, new_element);
+
+        // Fuzz ucl_array_prepend
+        ucl_array_prepend(ucl_array, new_element);
+
+        // Fuzz ucl_array_replace_index
+        ucl_array_replace_index(ucl_array, new_element, 0);
+
+        // Fuzz ucl_array_delete
+        ucl_array_delete(ucl_array, new_element);
+
+        // Initialize a valid iterator for safe iteration
+        ucl_object_iter_t iter = ucl_object_iterate_new(ucl_array);
+        if (iter) {
+            // Fuzz ucl_object_iterate_safe
+            ucl_object_iterate_safe(iter, true);
+            ucl_object_iterate_free(iter);
         }
-
-        // Test ucl_object_tostring_safe
-        ucl_object_tostring_safe(obj, &target);
-
-        ucl_object_unref(obj);
     }
 
-    // Properly initialize an iterator before using it
-    ucl_object_iter_t iter = ucl_object_iterate_new(obj);
-
-    if (iter != NULL) {
-        ucl_object_iter_chk_excpn(iter);
-        ucl_object_iterate_free(iter);
-    }
-
-    // Write data to dummy file
-    write_dummy_file(Data, Size);
+    // Clean up
+    ucl_parser_free(parser);
+    if (paths) free(paths);
+    if (ucl_array) free(ucl_array);
+    if (new_element) free(new_element);
 
     return 0;
 }

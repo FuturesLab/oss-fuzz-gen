@@ -1,28 +1,31 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    // Initialize a file identifier
-    hid_t file_id;
-    herr_t status;
+    // Initialize the HDF5 library
+    H5open();
 
-    // Create a temporary file name using the provided data
+    // Create a unique file name using the input data
     char filename[256];
-    size_t filename_size = size < 255 ? size : 255;
-    for (size_t i = 0; i < filename_size; ++i) {
-        filename[i] = data[i] % 26 + 'A'; // Ensure filename is valid
-    }
-    filename[filename_size] = '\0';
+    snprintf(filename, sizeof(filename), "fuzz_test_%zu.h5", size);
 
     // Create a new HDF5 file using the filename
-    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // If file creation fails, exit early
+    hid_t file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Ensure the file was created successfully
+    if (file_id >= 0) {
+        // Call the function-under-test: H5Fclose
+        herr_t status = H5Fclose(file_id);
+
+        // Optionally, check the status
+        if (status < 0) {
+            // Handle error if needed
+        }
     }
 
-    // Call the function-under-test
-    status = H5Fclose(file_id);
+    // Close the HDF5 library
+    H5close();
 
-    // Return 0 indicating the fuzzer can continue
     return 0;
 }

@@ -1,28 +1,43 @@
+#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Initialize the ucl_object_t
-    ucl_object_t *obj = ucl_object_new();
+  // If size is 0 we need a null-terminated string.
+  // We don't null-terminate the string and by the design
+  // of the API passing 0 as size with non null-terminated string
+  // gives undefined behavior.
+  if (size == 0) {
+    return 0;
+  }
 
-    // Ensure that the object is not NULL
-    if (obj == NULL) {
-        return 0;
+  struct ucl_parser *parser;
+  ucl_object_t *obj = NULL;
+  ucl_object_t *copy = NULL;
+
+  parser = ucl_parser_new(0);
+
+  // Add the input data to the parser
+  ucl_parser_add_string(parser, (char *)data, size);
+
+  // Get the parsed object
+  obj = ucl_parser_get_object(parser);
+
+  if (obj != NULL) {
+    // Call the function-under-test
+    copy = ucl_object_copy(obj);
+
+    // Clean up the copied object
+    if (copy != NULL) {
+      ucl_object_unref(copy);
     }
 
-    // Add some key-value pairs to the object for testing
-    ucl_object_insert_key(obj, ucl_object_fromstring("value1"), "key1", 0, false);
-    ucl_object_insert_key(obj, ucl_object_fromstring("value2"), "key2", 0, false);
-
-    // Define a variable for the enumeration type
-    enum ucl_object_keys_sort_flags sort_flag = UCL_SORT_KEYS_DEFAULT;
-
-    // Call the function under test
-    ucl_object_sort_keys(obj, sort_flag);
-
-    // Clean up
+    // Clean up the original object
     ucl_object_unref(obj);
+  }
 
-    return 0;
+  // Free the parser
+  ucl_parser_free(parser);
+
+  return 0;
 }

@@ -1,30 +1,51 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>  // Include for the free function
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Assuming tj3Alloc is defined in a C library
 extern "C" {
-    void * tj3Alloc(size_t);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    // Ensure size is not zero to avoid passing zero to tj3Alloc
-    if (size == 0) {
-        return 0;
+    if (size < 10) {
+        return 0; // Ensure there is enough data for the input parameters
     }
 
-    // Call the function-under-test with the size of the input data
-    void* allocatedMemory = tj3Alloc(size);
-
-    // Optionally, you can add checks or further operations on allocatedMemory
-    // For example, you could check if the memory allocation was successful
-    if (allocatedMemory != nullptr) {
-        // Simulate some operations on the allocated memory
-        // ...
-
-        // Free the allocated memory if needed
-        free(allocatedMemory);
+    // Initialize tjhandle
+    tjhandle handle = tjInitCompress();
+    if (handle == nullptr) {
+        return 0; // Failed to initialize, exit early
     }
+
+    // Extract parameters from the data
+    int width = (int)data[0] + 1;  // Ensure width is at least 1
+    int height = (int)data[1] + 1; // Ensure height is at least 1
+    int pixelFormat = (int)data[2] % TJ_NUMPF;
+    int quality = (int)data[3] % 101; // Quality range 0-100
+    int flags = (int)data[4] % (TJFLAG_ACCURATEDCT + 1);
+
+    // Prepare input image buffer
+    int pixelSize = tjPixelSize[pixelFormat];
+    size_t imageSize = width * height * pixelSize;
+    if (size < imageSize + 10) {
+        tjDestroy(handle);
+        return 0; // Not enough data for the image, exit early
+    }
+    const unsigned char *srcBuf = data + 10;
+
+    // Prepare output buffer
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+
+    // Call the function-under-test
+    int result = tjCompress2(handle, srcBuf, width, 0, height, pixelFormat, &jpegBuf, &jpegSize, TJSAMP_444, quality, flags);
+
+    // Clean up
+    if (jpegBuf != nullptr) {
+        tjFree(jpegBuf);
+    }
+    tjDestroy(handle);
 
     return 0;
 }

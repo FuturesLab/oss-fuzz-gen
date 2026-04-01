@@ -1,21 +1,23 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    char *errorStr = tjGetErrorStr();
-
-    // Check if the error string is not NULL and print it
-    if (errorStr != NULL) {
-        printf("Error String: %s\n", errorStr);
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0;
     }
 
+    unsigned long jpegSize = (unsigned long)size;
+    int width = 0;
+    int height = 0;
+
+    // Call the function-under-test
+    tjDecompressHeader(handle, (unsigned char *)data, jpegSize, &width, &height);
+
+    tjDestroy(handle);
     return 0;
 }

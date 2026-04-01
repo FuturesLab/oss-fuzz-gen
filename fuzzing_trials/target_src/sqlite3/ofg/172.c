@@ -1,30 +1,33 @@
+#include <stddef.h>  // For size_t and NULL
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sqlite3.h>
+#include <assert.h>
 
 int LLVMFuzzerTestOneInput_172(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated and non-empty
-    if (size == 0) {
-        return 0;
-    }
+    sqlite3 *db = NULL;
+    int rc;
+    sqlite3_int64 changes;
 
-    // Allocate memory for the null-terminated string
-    char *vfs_name = (char *)malloc(size + 1);
-    if (vfs_name == NULL) {
-        return 0;
-    }
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    assert(rc == SQLITE_OK);
 
-    // Copy the data into the string and null-terminate it
-    memcpy(vfs_name, data, size);
-    vfs_name[size] = '\0';
+    // Create a simple table
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, NULL);
+    assert(rc == SQLITE_OK);
+
+    // Insert some data into the table
+    rc = sqlite3_exec(db, "INSERT INTO test (value) VALUES ('A');", NULL, NULL, NULL);
+    assert(rc == SQLITE_OK);
 
     // Call the function-under-test
-    sqlite3_vfs *vfs = sqlite3_vfs_find(vfs_name);
+    changes = sqlite3_total_changes64(db);
 
-    // Free the allocated memory
-    free(vfs_name);
+    // Ensure that the function returns a non-negative value
+    assert(changes >= 0);
+
+    // Clean up and close the database
+    sqlite3_close(db);
 
     return 0;
 }

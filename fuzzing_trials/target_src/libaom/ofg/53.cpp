@@ -3,27 +3,20 @@
 #include <aom/aom_image.h>
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Ensure there is enough data for the parameters
-    if (size < 20) {
-        return 0;
-    }
-
-    // Initialize the parameters
-    aom_image_t img;
-    unsigned int x = static_cast<unsigned int>(data[0]);
-    unsigned int y = static_cast<unsigned int>(data[1]);
-    unsigned int w = static_cast<unsigned int>(data[2]);
-    unsigned int h = static_cast<unsigned int>(data[3]);
-    unsigned int stride = static_cast<unsigned int>(data[4]);
-
-    // Initialize the aom_image_t structure
-    aom_img_alloc(&img, AOM_IMG_FMT_I420, 640, 480, 1);
+    // Define and initialize parameters for aom_img_alloc
+    aom_image_t *img = nullptr;
+    aom_img_fmt_t img_fmt = AOM_IMG_FMT_I420; // Example format
+    unsigned int width = 640;  // Example width
+    unsigned int height = 480; // Example height
+    unsigned int align = 1;    // Example alignment
 
     // Call the function-under-test
-    aom_img_set_rect(&img, x, y, w, h, stride);
+    aom_image_t *allocated_img = aom_img_alloc(img, img_fmt, width, height, align);
 
-    // Free the allocated image
-    aom_img_free(&img);
+    // Check if the image was allocated and free it
+    if (allocated_img != nullptr) {
+        aom_img_free(allocated_img);
+    }
 
     return 0;
 }

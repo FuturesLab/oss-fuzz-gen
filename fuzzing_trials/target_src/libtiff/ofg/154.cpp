@@ -1,47 +1,39 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h> // For close
-#include <cstring>  // For memcpy
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <unistd.h>  // Include this header for the 'close' function
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_154(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint32_t)) {
-        return 0; // Not enough data to extract a tag
-    }
-
-    // Create a temporary file to hold the input data
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // Failed to create a temporary file
+        return 0;
     }
-
-    // Write the input data to the temporary file
     FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
+    if (!file) {
         close(fd);
         return 0;
     }
     fwrite(data, 1, size, file);
     fclose(file);
 
-    // Open the temporary file as a TIFF image
+    // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == nullptr) {
+    if (!tiff) {
         remove(tmpl);
-        return 0; // Failed to open the TIFF file
+        return 0;
     }
 
-    // Extract a tag from the input data
-    uint32_t tag;
-    memcpy(&tag, data, sizeof(uint32_t));
+    // Define a tag to retrieve
+    uint32_t tag = TIFFTAG_IMAGEWIDTH;  // Initialize with a valid tag value
+
+    // Define a buffer to hold the field value
+    uint32_t field_value;  // Allocate memory for the field value
 
     // Call the function-under-test
-    const TIFFField *field = TIFFFieldWithTag(tiff, tag);
+    TIFFGetField(tiff, tag, &field_value);
 
     // Clean up
     TIFFClose(tiff);

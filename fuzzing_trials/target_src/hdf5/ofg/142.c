@@ -1,25 +1,21 @@
 #include <stdint.h>
-#include <stdbool.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t file_id;
-    bool no_attrs_hint;
-
-    // Ensure size is sufficient to extract values
-    if (size < sizeof(hid_t) + sizeof(bool)) {
+    // Check if the data size is sufficient to extract a valid hid_t
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Extract hid_t from the input data
-    file_id = *(const hid_t *)data;
-
-    // Extract bool from the input data
-    no_attrs_hint = *(const bool *)(data + sizeof(hid_t));
+    // Extract a hid_t from the input data
+    hid_t file_id = *((hid_t*)data);
 
     // Call the function-under-test
-    herr_t result = H5Fset_dset_no_attrs_hint(file_id, no_attrs_hint);
+    hssize_t free_space = H5Fget_freespace(file_id);
+
+    // Use the result to prevent compiler optimizations
+    volatile hssize_t result = free_space;
 
     return 0;
 }

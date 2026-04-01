@@ -1,68 +1,64 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
-// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
-// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
-// TIFFSetWriteOffset at tif_write.c:961:6 in tiffio.h
-// TIFFGetStrileOffsetWithErr at tif_dirread.c:8504:10 in tiffio.h
-// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
+// TIFFGetSeekProc at tif_open.c:927:14 in tiffio.h
+// TIFFGetWriteProc at tif_open.c:922:19 in tiffio.h
+// TIFFGetUnmapFileProc at tif_open.c:947:19 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFGetReadProc at tif_open.c:917:19 in tiffio.h
+// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
-#include <tiffio.h>
+#include <sstream>
+#include <string>
+#include <vector>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_51(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 8) return 0; // Ensure there's enough data for meaningful operations
 
-    // Create a dummy TIFF file
-    const char *filename = "./dummy_file.tiff";
-    FILE *file = fopen(filename, "wb");
-    if (!file) {
-        return 0;
-    }
+    // Create a dummy file to simulate file operations
+    FILE *file = fopen("./dummy_file", "wb+");
+    if (!file) return 0;
     fwrite(Data, 1, Size, file);
-    fclose(file);
+    rewind(file);
 
-    TIFF *tif = TIFFOpen(filename, "r+");
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
     if (!tif) {
-        remove(filename);
+        fclose(file);
         return 0;
     }
 
-    // Fuzz TIFFWriteCheck
-    TIFFWriteCheck(tif, 1, "Test");
+    // Fuzz TIFFGetSeekProc
+    TIFFSeekProc seekProc = TIFFGetSeekProc(tif);
 
-    // Fuzz TIFFForceStrileArrayWriting
-    TIFFForceStrileArrayWriting(tif);
+    // Fuzz TIFFGetWriteProc
+    TIFFReadWriteProc writeProc = TIFFGetWriteProc(tif);
 
-    // Fuzz TIFFIsTiled
-    TIFFIsTiled(tif);
+    // Fuzz TIFFGetUnmapFileProc
+    TIFFUnmapFileProc unmapProc = TIFFGetUnmapFileProc(tif);
 
-    // Fuzz TIFFSetWriteOffset
-    if (Size >= sizeof(toff_t)) {
-        toff_t offset;
-        memcpy(&offset, Data, sizeof(toff_t));
-        TIFFSetWriteOffset(tif, offset);
+    // Fuzz TIFFReadDirectory
+    int readDirResult = TIFFReadDirectory(tif);
+
+    // Fuzz TIFFGetReadProc
+    TIFFReadWriteProc readProc = TIFFGetReadProc(tif);
+
+    // Fuzz TIFFSetSubDirectory with some offset
+    if (Size >= sizeof(uint64_t)) {
+        uint64_t offset;
+        memcpy(&offset, Data, sizeof(uint64_t));
+        int setSubDirResult = TIFFSetSubDirectory(tif, offset);
     }
 
-    // Fuzz TIFFGetStrileOffsetWithErr
-    int err = 0;
-    if (Size >= sizeof(uint32_t)) {
-        uint32_t strile;
-        memcpy(&strile, Data, sizeof(uint32_t));
-        TIFFGetStrileOffsetWithErr(tif, strile, &err);
-    }
-
-    // Fuzz TIFFDeferStrileArrayWriting
-    TIFFDeferStrileArrayWriting(tif);
-
+    // Clean up
     TIFFClose(tif);
-    remove(filename);
+    fclose(file);
+    remove("./dummy_file");
 
     return 0;
 }

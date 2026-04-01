@@ -1,45 +1,47 @@
 #include <stdint.h>
-#include <sqlite3.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sqlite3.h>
 
-// Define a dummy callback function to use with sqlite3_trace
-static void trace_callback(void *unused, const char *sql) {
+// Define a callback function to be used with sqlite3_trace
+static void traceCallback(void *unused, const char *sql) {
     (void)unused; // Avoid unused parameter warning
-    (void)sql;    // Avoid unused parameter warning
+    // Just print the SQL statement being traced
+    printf("SQL Trace: %s\n", sql);
 }
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
+    sqlite3 *db;
     int rc;
+    char *errMsg = 0;
 
-    // Initialize SQLite database in memory
+    // Initialize SQLite database in-memory
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0;
+        return 0; // If opening the database fails, exit early
     }
 
-    // Ensure the data is null-terminated before using it as a string
-    char *query = (char *)malloc(size + 1);
-    if (query == NULL) {
+    // Ensure data is null-terminated before using it as a SQL statement
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(query, data, size);
-    query[size] = '\0';
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Call the function under test
-    sqlite3_trace(db, trace_callback, NULL);
+    // Set the trace callback
+    sqlite3_trace(db, traceCallback, NULL);
 
-    // Execute the query to trigger the trace callback
-    char *errMsg = NULL;
-    sqlite3_exec(db, query, NULL, NULL, &errMsg);
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
     // Clean up
-    if (errMsg != NULL) {
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
-    free(query);
+    free(sql);
     sqlite3_close(db);
 
     return 0;

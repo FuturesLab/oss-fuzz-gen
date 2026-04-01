@@ -1,33 +1,42 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <wchar.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_310(const uint8_t *data, size_t size) {
-    // Initialize a cmsHANDLE variable
-    cmsHANDLE dictHandle;
-    
-    // Create a dictionary with a non-NULL handle
-    dictHandle = cmsDictAlloc(NULL);
-    if (dictHandle == NULL) {
-        return 0; // Exit if the dictionary allocation fails
+    // Check if the input size is sufficient for creating a stage
+    if (size < sizeof(cmsUInt32Number) * 2) {
+        return 0; // Not enough data to create a cmsStage object
     }
 
-    // Define keys and values
-    const wchar_t *key1 = L"key1";
-    const wchar_t *value1 = L"value1";
-    const wchar_t *key2 = L"key2";
-    const wchar_t *value2 = L"value2";
+    // Extract input and output channel count from the data
+    cmsUInt32Number inputChannels = data[0];
+    cmsUInt32Number outputChannels = data[1];
 
-    // Add some entries to the dictionary to ensure it is not empty
-    cmsDictAddEntry(dictHandle, key1, value1, NULL, NULL);
-    cmsDictAddEntry(dictHandle, key2, value2, NULL, NULL);
+    // Create a simple identity matrix for the stage
+    cmsFloat64Number identityMatrix[3][3] = {
+        {1.0, 0.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0}
+    };
+
+    // Ensure the number of channels does not exceed the matrix size
+    if (inputChannels > 3 || outputChannels > 3) {
+        return 0; // Invalid number of channels
+    }
+
+    // Create a simple identity matrix stage
+    cmsStage *stage = cmsStageAllocMatrix(NULL, inputChannels, outputChannels, (const cmsFloat64Number*)identityMatrix, NULL);
+    if (stage == NULL) {
+        return 0; // Failed to create the stage
+    }
 
     // Call the function-under-test
-    const cmsDICTentry *entryList = cmsDictGetEntryList(dictHandle);
+    cmsUInt32Number resultInputChannels = cmsStageInputChannels(stage);
 
-    // Clean up the dictionary
-    cmsDictFree(dictHandle);
+    // Clean up
+    cmsStageFree(stage);
 
     return 0;
 }

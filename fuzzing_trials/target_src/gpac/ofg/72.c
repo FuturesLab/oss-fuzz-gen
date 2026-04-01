@@ -1,31 +1,44 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <string.h>
-#include <stdio.h>
-
-// Include the necessary headers for GF_ISOFile and related functions
 #include <gpac/isomedia.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdio.h>  // Include for FILE operations and fopen
 
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    GF_ISOFile *file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_READ, NULL); // Open a dummy file for testing
-    if (!file) {
-        return 0; // Exit if file cannot be opened
+    GF_ISOFile *file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!file) return 0;
+
+    // Ensure the data size is not zero for valid operation
+    if (size == 0) {
+        gf_isom_close(file);
+        return 0;
     }
 
-    Bool root_meta = true; // Set a default boolean value
-    u32 track_num = 1; // Example track number
-    u32 item_id = 1; // Example item ID
-    Bool keep_refs = false; // Set a default boolean value
+    // Create a temporary file for XMLFileName
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        gf_isom_close(file);
+        return 0;
+    }
+    close(fd);
 
-    // Ensure the data is not empty before using it for keep_props
-    const char *keep_props = (size > 0) ? (const char *)data : "default";
+    // Write the fuzz data to the temporary file
+    FILE *xmlFile = fopen(tmpl, "wb");
+    if (xmlFile) {
+        fwrite(data, 1, size, xmlFile);
+        fclose(xmlFile);
+    } else {
+        gf_isom_close(file);
+        return 0;
+    }
 
     // Call the function-under-test
-    gf_isom_remove_meta_item(file, root_meta, track_num, item_id, keep_refs, keep_props);
+    gf_isom_set_meta_xml(file, 1, 1, tmpl, (unsigned char *)data, (u32)size, 0);
 
-    // Clean up and close the file
+    // Clean up
+    unlink(tmpl);
     gf_isom_close(file);
 
     return 0;

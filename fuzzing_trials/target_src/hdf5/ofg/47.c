@@ -4,28 +4,47 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t loc_id = H5I_INVALID_HID; // Use an invalid ID as a placeholder
-    char attr_name[256];
-    hid_t aapl_id = H5P_DEFAULT; // Default attribute access property list
+    hid_t loc_id;
+    const char *name;
+    size_t bufsize;
+    char *buf;
 
-    // Ensure size is sufficient to extract a valid attribute name
-    if (size < 1) {
-        return 0; // Not enough data to proceed
+    // Ensure the input size is large enough to extract required parameters
+    if (size < sizeof(hid_t) + sizeof(size_t) + 1) {
+        return 0;
     }
 
-    // Copy data into attr_name ensuring null-termination
-    size_t attr_name_len = size < sizeof(attr_name) ? size : sizeof(attr_name) - 1;
-    memcpy(attr_name, data, attr_name_len);
-    attr_name[attr_name_len] = '\0';
+    // Initialize loc_id from data
+    memcpy(&loc_id, data, sizeof(hid_t));
+    data += sizeof(hid_t);
+    size -= sizeof(hid_t);
+
+    // Initialize bufsize from data
+    memcpy(&bufsize, data, sizeof(size_t));
+    data += sizeof(size_t);
+    size -= sizeof(size_t);
+
+    // Ensure bufsize is not greater than remaining data size
+    if (bufsize > size - 1) {
+        bufsize = size - 1;
+    }
+
+    // Initialize name from data
+    name = (const char *)data;
+    data += size - bufsize;
+    size -= size - bufsize;
+
+    // Allocate memory for buf
+    buf = (char *)malloc(bufsize + 1);
+    if (buf == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    hid_t attr_id = H5Aopen(loc_id, attr_name, aapl_id);
+    H5Gget_comment(loc_id, name, bufsize, buf);
 
-    // Close the attribute if it was successfully opened
-    if (attr_id >= 0) {
-        H5Aclose(attr_id);
-    }
+    // Free allocated memory
+    free(buf);
 
     return 0;
 }

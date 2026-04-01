@@ -1,44 +1,55 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Declare a sqlite3_mutex pointer
-    sqlite3_mutex *mutex = NULL;
-
-    // Initialize SQLite (this is required before using any SQLite functions)
-    if (sqlite3_initialize() != SQLITE_OK) {
+    // Ensure the input size is sufficient for splitting into two non-null strings
+    if (size < 3) { // Adjusted to ensure both strings have at least one character
         return 0;
     }
 
-    // Create a fast mutex for testing
-    mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_FAST);
-    if (mutex == NULL) {
-        sqlite3_shutdown();
+    // Find a position to split the input data into two strings
+    size_t split_pos = 1 + (size - 2) / 2; // Ensure both parts are non-empty
+
+    // Allocate memory for the URI and the parameter name
+    char *uri = (char *)malloc(split_pos + 1);
+    char *param = (char *)malloc(size - split_pos + 1);
+
+    if (!uri || !param) {
+        free(uri);
+        free(param);
+        return 0; // Return if memory allocation fails
+    }
+
+    // Copy data into uri and param, ensuring null-termination
+    memcpy(uri, data, split_pos);
+    uri[split_pos] = '\0';
+
+    memcpy(param, data + split_pos, size - split_pos);
+    param[size - split_pos] = '\0';
+
+    // Validate URI format to prevent heap-buffer-overflow
+    // Ensure uri starts with "file:" or another valid SQLite URI prefix
+    if (strncmp(uri, "file:", 5) != 0) {
+        free(uri);
+        free(param);
         return 0;
     }
 
-    // Enter the mutex
-    sqlite3_mutex_enter(mutex);
+    // Call the function under test
+    const char *result = sqlite3_uri_parameter(uri, param);
 
-    // Use the input data in some meaningful way
-    // For demonstration, let's assume we are simulating some operation
-    // with the data. In real fuzzing, this should exercise the code paths
-    // you want to test.
-    if (size > 0 && data != NULL) {
-        // Example operation: just a dummy use of data
-        volatile uint8_t dummy = data[0];
-        (void)dummy;
+    // Free allocated memory
+    free(uri);
+    free(param);
+
+    // Use the result in some way to avoid compiler optimizations removing the call
+    if (result != NULL) {
+        volatile size_t result_len = strlen(result);
+        (void)result_len;
     }
-
-    // Leave the mutex
-    sqlite3_mutex_leave(mutex);
-
-    // Free the mutex
-    sqlite3_mutex_free(mutex);
-
-    // Shutdown SQLite
-    sqlite3_shutdown();
 
     return 0;
 }

@@ -11,28 +11,44 @@ extern "C" {
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-  if (size == 0 || data[size - 1] != '\0') {
+  if (size == 0) {
     return 0;
   }
 
-  // Parse the input data to create a cJSON object
-  cJSON *json = cJSON_Parse((const char *)data);
-  if (json == NULL) {
+  // Ensure the input data is null-terminated
+  char *json_data = (char *)malloc(size + 1);
+  if (json_data == NULL) {
+    return 0;
+  }
+  memcpy(json_data, data, size);
+  json_data[size] = '\0';
+
+  // Parse the input data into a cJSON object
+  cJSON *root = cJSON_Parse(json_data);
+  free(json_data);
+
+  if (root == NULL) {
     return 0;
   }
 
-  // Create a dummy item to detach
-  cJSON *item = cJSON_CreateString("dummy");
+  // Create a new item to be detached
+  cJSON *item = cJSON_CreateString("fuzz_item");
+  if (item == NULL) {
+    cJSON_Delete(root);
+    return 0;
+  }
 
-  // Attach the item to the JSON object to ensure it's part of the structure
-  cJSON_AddItemToObject(json, "dummy_key", item);
+  // Add the item to the root
+  cJSON_AddItemToObject(root, "item", item);
 
-  // Detach the item using cJSON_DetachItemViaPointer
-  cJSON *detached_item = cJSON_DetachItemViaPointer(json, item);
+  // Detach the item via pointer
+  cJSON *detached_item = cJSON_DetachItemViaPointer(root, item);
 
   // Clean up
-  cJSON_Delete(json);
-  cJSON_Delete(detached_item);
+  if (detached_item != NULL) {
+    cJSON_Delete(detached_item);
+  }
+  cJSON_Delete(root);
 
   return 0;
 }

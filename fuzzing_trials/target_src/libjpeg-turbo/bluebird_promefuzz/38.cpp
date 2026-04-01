@@ -13,72 +13,73 @@
 #include <cstdio>
 #include <cstring>
 
+static void handleDecompressToYUVPlanes(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < 2) {
+        return;
+    }
+    
+    unsigned char *dstPlanes[3] = {nullptr, nullptr, nullptr};
+    int strides[3] = {0, 0, 0};
+    int width = 100, height = 100, flags = 0;
+    
+    // Allocate memory for YUV planes
+    for (int i = 0; i < 3; i++) {
+        dstPlanes[i] = static_cast<unsigned char*>(malloc(width * height));
+        if (!dstPlanes[i]) {
+                return;
+        }
+    }
+
+    tjDecompressToYUVPlanes(handle, Data, Size, dstPlanes, width, strides, height, flags);
+
+    // Free allocated memory
+    for (int i = 0; i < 3; i++) {
+        free(dstPlanes[i]);
+    }
+}
+
+static void handleSetScalingFactor(tjhandle handle) {
+    int numScalingFactors = 0;
+    tjscalingfactor *scalingFactors = tjGetScalingFactors(&numScalingFactors);
+    if (scalingFactors && numScalingFactors > 0) {
+        tj3SetScalingFactor(handle, scalingFactors[0]);
+    }
+}
+
+static void handleSetCroppingRegion(tjhandle handle) {
+    tjregion croppingRegion = {0, 0, 50, 50};
+    tj3SetCroppingRegion(handle, croppingRegion);
+}
+
+static void handleDecompression(tjhandle handle, const uint8_t *Data, size_t Size) {
+    handleSetScalingFactor(handle);
+    handleSetCroppingRegion(handle);
+    handleDecompressToYUVPlanes(handle, Data, Size);
+}
+
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
-    if (Size < 10) return 0; // Ensure enough data for basic operations
+    if (Size < 2) {
+        return 0;
+    }
 
-    // Fuzz tjBufSizeYUV
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int subsamp = Data[2] % 6; // Subsampling format (0-5)
-    unsigned long yuvSize = tjBufSizeYUV(width, height, subsamp);
+    int initType = TJINIT_DECOMPRESS;
 
-    // Ensure yuvSize is reasonable, avoid excessive allocations
-    if (yuvSize == 0 || yuvSize > 10000000) return 0;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3Init
 
-    // Fuzz tjAlloc
-    unsigned char* buffer = tjAlloc(yuvSize);
-    if (!buffer) return 0;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3Init
+    tjhandle handle = tj3Init(TJFLAG_BOTTOMUP);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Fill the buffer with random data to simulate real image data
-    memcpy(buffer, Data + 5, std::min(Size - 5, yuvSize));
 
-    // Fuzz tjCompress
-    tjhandle handle = tjInitCompress();
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
     if (!handle) {
-        tjFree(buffer);
         return 0;
     }
 
-    unsigned long compressedSize = tjBufSize(width, height, subsamp);
-    unsigned char* compressedBuffer = tjAlloc(compressedSize);
-    if (!compressedBuffer) {
-        tjDestroy(handle);
-        tjFree(buffer);
-        return 0;
-    }
+    handleDecompression(handle, Data, Size);
 
-    int pixelSize = 3; // Assuming RGB
-    int pitch = width * pixelSize;
-    int jpegQual = Data[3] % 101; // Quality (0-100)
-    int flags = Data[4] % 2 ? TJFLAG_FASTDCT : 0;
-
-    tjCompress(handle, buffer, width, pitch, height, TJPF_RGB, compressedBuffer, &compressedSize, subsamp, jpegQual, flags);
-
-    // Fuzz tjDecodeYUVPlanes
-    const unsigned char* srcPlanes[3] = {buffer, buffer + width * height, buffer + 2 * width * height};
-    int strides[3] = {width, width / 2, width / 2};
-    unsigned char* dstBuf = tjAlloc(width * height * pixelSize);
-    if (!dstBuf) {
-        tjFree(compressedBuffer);
-        tjDestroy(handle);
-        tjFree(buffer);
-        return 0;
-    }
-
-    tjDecodeYUVPlanes(handle, srcPlanes, strides, subsamp, dstBuf, width, pitch, height, TJPF_RGB, flags);
-
-    // Fuzz tjDecompressHeader2
-    int jpegWidth, jpegHeight, jpegSubsamp;
-    tjDecompressHeader2(handle, compressedBuffer, compressedSize, &jpegWidth, &jpegHeight, &jpegSubsamp);
-
-    // Fuzz tjDecodeYUV
-    tjDecodeYUV(handle, buffer, 1, subsamp, dstBuf, width, pitch, height, TJPF_RGB, flags);
-
-    // Cleanup
-    tjFree(dstBuf);
-    tjFree(compressedBuffer);
     tjDestroy(handle);
-    tjFree(buffer);
-
     return 0;
 }

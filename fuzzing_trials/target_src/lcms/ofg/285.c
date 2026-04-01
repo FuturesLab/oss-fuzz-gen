@@ -1,35 +1,22 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <string.h>
 #include <lcms2.h>
 
+// Define a simple log error handler function
+void customLogErrorHandler_285(cmsContext contextId, cmsUInt32Number errorCode, const char *text) {
+    // For fuzzing purposes, we can just print the error code and message
+    // In a real application, you might want to log this or handle it differently
+    (void)contextId; // Suppress unused parameter warning
+    (void)errorCode; // Suppress unused parameter warning
+    (void)text;      // Suppress unused parameter warning
+}
+
 int LLVMFuzzerTestOneInput_285(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHANDLE handle = NULL;
-    char key[256];
-    char subkey[256];
+    // Initialize cmsContext
+    cmsContext context = (cmsContext)data; // Use data as a fake context for fuzzing
 
-    // Ensure the input size is large enough to extract necessary data
-    if (size < 2) {
-        return 0;
-    }
-
-    // Initialize key and subkey with some default values
-    snprintf(key, sizeof(key), "Key%02x", data[0]);
-    snprintf(subkey, sizeof(subkey), "SubKey%02x", data[1]);
-
-    // Create a cmsHANDLE using cmsIT8Alloc, assuming the library is initialized
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
-        return 0;
-    }
-
-    // Call the function under test
-    cmsFloat64Number result = cmsIT8GetDataDbl(handle, key, subkey);
-
-    // Clean up
-    cmsIT8Free(handle);
+    // Set the custom log error handler
+    cmsSetLogErrorHandlerTHR(context, customLogErrorHandler_285);
 
     return 0;
 }

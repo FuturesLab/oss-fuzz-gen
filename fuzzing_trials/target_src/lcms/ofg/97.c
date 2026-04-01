@@ -3,14 +3,20 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    // Initialize the context with a non-NULL value
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    
-    // Call the function-under-test
-    cmsUnregisterPluginsTHR(context);
+    cmsHPROFILE hProfile;
+    cmsBool result;
 
-    // Clean up
-    cmsDeleteContext(context);
+    // Create a profile from the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    result = cmsMD5computeID(hProfile);
+
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

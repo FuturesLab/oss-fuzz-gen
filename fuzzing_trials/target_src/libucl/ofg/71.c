@@ -1,45 +1,39 @@
+#include "ucl.h"
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
-#include <ucl.h>
-
-// Dummy context macro handler for testing
-bool dummy_context_macro_handler(struct ucl_parser *parser, const char *macro, void *ud) {
-    // Implement a simple handler that always returns true
-    return true;
-}
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    // Ensure data is not empty
-    if (size == 0) {
-        return 0;
-    }
-
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
-    if (parser == NULL) {
-        return 0;
-    }
-
-    // Convert the input data to a null-terminated string
-    char *macro_name = (char *)malloc(size + 1);
-    if (macro_name == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-    memcpy(macro_name, data, size);
-    macro_name[size] = '\0';
-
-    // Define a dummy user data pointer
-    void *user_data = (void *)0x1;
-
-    // Call the function under test
-    ucl_parser_register_context_macro(parser, macro_name, dummy_context_macro_handler, user_data);
-
-    // Clean up
-    free(macro_name);
-    ucl_parser_free(parser);
-
+  // Ensure size is sufficient to create a non-empty string
+  if (size == 0) {
     return 0;
+  }
+
+  // Create a null-terminated string from the data
+  char *file_name = (char *)malloc(size + 1);
+  if (file_name == NULL) {
+    return 0;
+  }
+  memcpy(file_name, data, size);
+  file_name[size] = '\0';
+
+  // Initialize the parser
+  struct ucl_parser *parser = ucl_parser_new(0);
+  if (parser == NULL) {
+    free(file_name);
+    return 0;
+  }
+
+  // Use a fixed priority for fuzzing
+  unsigned int priority = 1;
+
+  // Call the function under test
+  ucl_parser_add_file_priority(parser, file_name, priority);
+
+  // Clean up
+  ucl_parser_free(parser);
+  free(file_name);
+
+  return 0;
 }

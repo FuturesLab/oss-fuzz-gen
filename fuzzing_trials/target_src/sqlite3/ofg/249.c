@@ -1,25 +1,48 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this header for size_t
 #include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
-// This function is the entry point for the fuzzer.
 int LLVMFuzzerTestOneInput_249(const uint8_t *data, size_t size) {
-    // Initialize a sqlite3 database connection
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;  // If opening the database fails, exit early.
+    sqlite3_stmt *stmt;
+    int rc;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER, value TEXT);"
+                      "INSERT INTO test (id, value) VALUES (1, 'test');"
+                      "SELECT value FROM test WHERE id = 1;";
+    
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Create a SQL statement from the input data
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
-    if (sql) {
-        // Execute the SQL statement
-        char *errMsg = 0;
-        sqlite3_exec(db, sql, 0, 0, &errMsg);
-        sqlite3_free(sql);
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Close the database connection
+    // Prepare the SELECT statement
+    rc = sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = 1", -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Step through the results
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Call the function-under-test
+        const unsigned char *text = sqlite3_column_text(stmt, 0);
+        if (text) {
+            // Use the text in some way, here we just check its length
+            size_t text_len = strlen((const char *)text);
+        }
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

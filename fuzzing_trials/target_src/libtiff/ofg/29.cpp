@@ -1,19 +1,27 @@
 #include <cstdint>
 #include <cstdlib>
-#include <tiffio.h> // Include the necessary header for _TIFFrealloc
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Initialize a non-null pointer with some allocated memory
-    void *ptr = malloc(10); // Allocate an initial block of memory
+    // Initialize the variables
+    void *ptr = nullptr;
+    tmsize_t newSize = static_cast<tmsize_t>(size);
 
-    // Ensure the size is not zero to avoid undefined behavior
-    tmsize_t newSize = (tmsize_t)(size > 0 ? size : 1);
+    // Allocate initial memory
+    ptr = _TIFFmalloc(newSize);
+    if (ptr == nullptr) {
+        return 0; // Allocation failed, exit early
+    }
 
-    // Call the function-under-test
+    // Call the function-under-test with non-null pointer and size
     void *newPtr = _TIFFrealloc(ptr, newSize);
 
-    // Free the allocated memory to prevent memory leaks
-    free(newPtr);
+    // Free the memory if reallocation was successful
+    if (newPtr != nullptr) {
+        _TIFFfree(newPtr);
+    } else {
+        _TIFFfree(ptr); // Free the original memory if reallocation failed
+    }
 
     return 0;
 }

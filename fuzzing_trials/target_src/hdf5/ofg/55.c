@@ -1,25 +1,24 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    hid_t dataset_id;
-    hid_t datatype_id;
+    // Declare and initialize variables for the function-under-test
+    hid_t file_id = H5I_INVALID_HID; // Invalid ID as a starting point
+    hsize_t increment_size = 0;
 
-    // Ensure that size is large enough to extract a valid hid_t
-    if (size < sizeof(hid_t)) {
+    // Check if the size is large enough to extract meaningful data
+    if (size < sizeof(hid_t) + sizeof(hsize_t)) {
         return 0;
     }
 
-    // Extract a hid_t value from the input data
-    dataset_id = *(const hid_t *)data;
+    // Extract values from the input data
+    file_id = *((hid_t*)data);
+    increment_size = *((hsize_t*)(data + sizeof(hid_t)));
 
     // Call the function-under-test
-    datatype_id = H5Dget_type(dataset_id);
+    herr_t result = H5Fincrement_filesize(file_id, increment_size);
 
-    // Close the datatype if it's valid
-    if (datatype_id >= 0) {
-        H5Tclose(datatype_id);
-    }
-
+    // Return 0 to indicate that the fuzzer should continue
     return 0;
 }

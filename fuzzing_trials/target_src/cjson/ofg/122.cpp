@@ -11,37 +11,37 @@ extern "C" {
 int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0;
-    }
+  cJSON *json;
+  char *key;
+  size_t offset = 1;
 
-    // Ensure the data is null-terminated for safe string operations
-    char *key = (char *)malloc(size + 1);
-    if (key == NULL) {
-        return 0;
-    }
-    memcpy(key, data, size);
-    key[size] = '\0';
-
-    // Create a simple JSON object for testing
-    cJSON *json = cJSON_CreateObject();
-    if (json == NULL) {
-        free(key);
-        return 0;
-    }
-
-    // Add some items to the JSON object
-    cJSON_AddStringToObject(json, "example_key", "example_value");
-    cJSON_AddNumberToObject(json, "number_key", 42);
-
-    // Call the function-under-test
-    cJSON_DeleteItemFromObjectCaseSensitive(json, key);
-
-    // Clean up
-    cJSON_Delete(json);
-    free(key);
-
+  if (size <= offset)
     return 0;
+  if (data[size - 1] != '\0')
+    return 0;
+
+  // Parse the input data as a JSON object
+  json = cJSON_Parse((const char *)data);
+  if (json == NULL)
+    return 0;
+
+  // Extract a key from the input data
+  key = (char *)malloc(size - offset + 1);
+  if (key == NULL) {
+    cJSON_Delete(json);
+    return 0;
+  }
+  memcpy(key, data + offset, size - offset);
+  key[size - offset] = '\0';
+
+  // Call the function under test
+  cJSON_DeleteItemFromObjectCaseSensitive(json, key);
+
+  // Clean up
+  free(key);
+  cJSON_Delete(json);
+
+  return 0;
 }
 
 #ifdef __cplusplus

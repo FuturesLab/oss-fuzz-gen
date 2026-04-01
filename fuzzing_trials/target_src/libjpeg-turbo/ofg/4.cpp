@@ -1,28 +1,32 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+
+    // Including the function signature from the library
+    size_t tj3JPEGBufSize(int width, int height, int jpegSubsamp);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);  // Initialize a TurboJPEG handle for compression
-
-    if (handle == NULL) {
-        return 0;  // Exit if the handle initialization failed
+    // Ensure the input data is large enough to extract three integers
+    if (size < 3 * sizeof(int)) {
+        return 0;
     }
 
-    // Call the function-under-test with the initialized handle
-    int errorCode = tj3GetErrorCode(handle);
+    // Extract three integers from the input data
+    int width = *((int*)data);
+    int height = *((int*)(data + sizeof(int)));
+    int jpegSubsamp = *((int*)(data + 2 * sizeof(int)));
 
-    // Use the errorCode in some way to prevent compiler optimizations from removing the call
-    if (errorCode != 0) {
-        // Handle the error code if necessary
-    }
+    // Call the function-under-test with the extracted integers
+    size_t result = tj3JPEGBufSize(width, height, jpegSubsamp);
 
-    tj3Destroy(handle);  // Clean up and destroy the TurboJPEG handle
+    // Use the result in some way (e.g., print it, or just return 0)
+    // For fuzzing, we typically don't need to do anything with the result
+    (void)result; // Suppress unused variable warning
 
     return 0;
 }

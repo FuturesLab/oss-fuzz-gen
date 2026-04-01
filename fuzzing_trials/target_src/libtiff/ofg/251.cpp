@@ -1,26 +1,26 @@
-#include <cstdint>
-#include <cstddef>
-#include <cmath>
+#include <stdint.h>
+#include <stddef.h>
 
-// Assuming that the function LogL16toY is defined elsewhere
-extern "C" double LogL16toY(int value);
+extern "C" {
+    #include <tiffio.h>
+    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for the header where TIFFField is fully defined
+}
 
 extern "C" int LLVMFuzzerTestOneInput_251(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
-        return 0; // Not enough data to form an int
+    if (size < sizeof(TIFFFieldInfo)) {
+        return 0; // Not enough data to form a valid TIFFFieldInfo
     }
 
-    // Convert the first 4 bytes of the data into an int
-    int input_value = 0;
-    for (size_t i = 0; i < sizeof(int); ++i) {
-        input_value |= (data[i] << (i * 8));
-    }
+    // Create a TIFFFieldInfo object from the input data
+    const TIFFFieldInfo *tiffFieldInfo = reinterpret_cast<const TIFFFieldInfo *>(data);
 
     // Call the function-under-test
-    double result = LogL16toY(input_value);
+    int result = TIFFFieldPassCount(reinterpret_cast<const TIFFField *>(tiffFieldInfo));
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    volatile double use_result = result;
+    // Use the result in some way to prevent optimization out
+    if (result < 0) {
+        return 0;
+    }
 
     return 0;
 }

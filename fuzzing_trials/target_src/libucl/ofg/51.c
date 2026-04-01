@@ -1,29 +1,27 @@
 #include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    // Ensure size is not zero to avoid passing a NULL key
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a ucl_object_t object
-    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
-
-    // Use the first part of the data as a key
-    const char *key = (const char *)data;
-    size_t key_len = size;
-
-    // Add a dummy value to the object with the key
-    ucl_object_insert_key(obj, ucl_object_fromstring("dummy_value"), key, key_len, false);
-
-    // Call the function under test
-    bool result = ucl_object_delete_keyl(obj, key, key_len);
-
-    // Clean up
-    ucl_object_unref(obj);
-
+  // Ensure size is sufficient to extract an unsigned int for priority
+  if (size < sizeof(unsigned int)) {
     return 0;
+  }
+
+  // Initialize a ucl_parser object
+  struct ucl_parser *parser = ucl_parser_new(0);
+  if (parser == NULL) {
+    return 0;
+  }
+
+  // Extract an unsigned int from the data for the priority
+  unsigned int priority = *(unsigned int *)data;
+
+  // Call the function under test
+  bool result = ucl_parser_set_default_priority(parser, priority);
+
+  // Clean up
+  ucl_parser_free(parser);
+
+  return 0;
 }

@@ -1,28 +1,30 @@
-#include <cstdint>
-#include <cstddef>
-#include <cinttypes>
-#include <iostream>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
-    // Function-under-test
-    int aom_uleb_decode(const uint8_t *data, size_t size, uint64_t *value, size_t *length);
+    #include <aom/aom_codec.h>
+    #include <aom/aom_decoder.h>
+    #include <aom/aomdx.h> // Include the header where aom_codec_av1_dx is declared
 }
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
+    // Initialize the codec interface for AV1 decoding
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+
+    // Create a codec context
+    aom_codec_ctx_t codec;
+    if (aom_codec_dec_init(&codec, iface, NULL, 0) != AOM_CODEC_OK) {
+        return 0; // If initialization fails, exit early
     }
 
-    // Initialize output variables
-    uint64_t value = 0;
-    size_t length = 0;
+    // Decode the input data
+    if (aom_codec_decode(&codec, data, size, NULL) != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec);
+        return 0; // If decoding fails, clean up and exit
+    }
 
-    // Call the function-under-test
-    int result = aom_uleb_decode(data, size, &value, &length);
-
-    // Optionally print the results for debugging
-    std::cout << "Result: " << result << ", Value: " << value << ", Length: " << length << std::endl;
+    // Clean up and destroy the codec context
+    aom_codec_destroy(&codec);
 
     return 0;
 }

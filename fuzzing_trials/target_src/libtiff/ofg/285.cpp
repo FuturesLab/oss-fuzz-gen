@@ -1,35 +1,59 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <tiffio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include this header for the close() function
 
 extern "C" {
+    // All headers, functions, and code from the libtiff project must be wrapped in extern "C"
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_285(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return 0; // Ensure there is enough data for non-NULL strings
-    }
+    TIFF *tiff;
+    uint32_t strip = 0;
+    void *buffer;
+    tmsize_t bufferSize;
 
-    // Initialize TIFF structure
-    TIFF *tiff = TIFFOpen("/tmp/fuzz.tiff", "w");
-    if (!tiff) {
+    // Create a temporary file to work with TIFF
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb+");
+    if (!file) {
+        close(fd);
         return 0;
     }
 
-    // Prepare non-NULL strings
-    const char *module = reinterpret_cast<const char *>(data);
-    const char *fmt = reinterpret_cast<const char *>(data + 1);
+    // Initialize a TIFF structure
+    tiff = TIFFOpen(tmpl, "w");
+    if (!tiff) {
+        fclose(file);
+        return 0;
+    }
 
-    // Prepare a non-NULL user data pointer
-    void *userData = reinterpret_cast<void *>(const_cast<uint8_t *>(data + 2));
+    // Allocate a buffer and copy the data into it
+    bufferSize = (tmsize_t)size;
+    buffer = malloc(bufferSize);
+    if (!buffer) {
+        TIFFClose(tiff);
+        fclose(file);
+        return 0;
+    }
+    memcpy(buffer, data, size);
 
     // Call the function-under-test
-    TIFFWarningExtR(tiff, module, fmt, userData);
+    TIFFWriteRawStrip(tiff, strip, buffer, bufferSize);
 
-    // Close the TIFF file
+    // Clean up
+    free(buffer);
     TIFFClose(tiff);
+    fclose(file);
+    remove(tmpl);
 
     return 0;
 }

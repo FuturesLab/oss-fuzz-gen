@@ -1,11 +1,25 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
-// ucl_parser_set_filevars at ucl_util.c:1977:6 in ucl.h
-// ucl_parser_get_error_code at ucl_util.c:678:5 in ucl.h
-// ucl_parser_get_default_priority at ucl_parser.c:2851:5 in ucl.h
-// ucl_parser_add_chunk_full at ucl_parser.c:2974:6 in ucl.h
-// ucl_parser_add_fd at ucl_util.c:2115:6 in ucl.h
-// ucl_parser_free at ucl_util.c:599:6 in ucl.h
+// ucl_object_new at ucl_util.c:2980:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
+// ucl_object_new_full at ucl_util.c:2992:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_array_append at ucl_util.c:3131:6 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_array_append at ucl_util.c:3131:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_lookup_path at ucl_util.c:2919:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
+// ucl_object_replace_key at ucl_util.c:2545:6 in ucl.h
+// ucl_object_delete_key at ucl_util.c:2503:6 in ucl.h
+// ucl_object_reserve at ucl_util.c:3026:6 in ucl.h
+// ucl_object_merge at ucl_util.c:2551:6 in ucl.h
+// ucl_object_type at ucl_util.c:3068:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -13,70 +27,68 @@
 #include <stdio.h>
 #include <ucl.h>
 #include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
 
-static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
-    int fd = open("./dummy_file", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd >= 0) {
-        write(fd, Data, Size);
-        close(fd);
+static ucl_object_t *create_dummy_ucl_object() {
+    ucl_object_t *obj = ucl_object_new();
+    if (obj) {
+        ucl_object_insert_key(obj, ucl_object_fromstring("value1"), "key1", 0, false);
+        ucl_object_insert_key(obj, ucl_object_fromstring("value2"), "key2", 0, false);
     }
+    return obj;
+}
+
+static ucl_object_t *create_dummy_ucl_array() {
+    ucl_object_t *arr = ucl_object_new_full(UCL_ARRAY, 0);
+    if (arr) {
+        ucl_array_append(arr, ucl_object_fromstring("elem1"));
+        ucl_array_append(arr, ucl_object_fromstring("elem2"));
+    }
+    return arr;
 }
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) return 0;
+
+    // Create dummy UCL objects
+    ucl_object_t *obj = create_dummy_ucl_object();
+    ucl_object_t *arr = create_dummy_ucl_array();
+
+    if (!obj || !arr) {
+        if (obj) ucl_object_unref(obj);
+        if (arr) ucl_object_unref(arr);
         return 0;
     }
 
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
+    // Prepare a null-terminated string from the input data
+    char path[256];
+    size_t path_len = (Size < sizeof(path) - 1) ? Size : sizeof(path) - 1;
+    memcpy(path, Data, path_len);
+    path[path_len] = '\0';
+
+    // Fuzz ucl_object_lookup_path
+    const ucl_object_t *result = ucl_object_lookup_path(obj, path);
+
+    // Fuzz ucl_object_replace_key
+    ucl_object_t *new_obj = ucl_object_fromstring("new_value");
+    if (new_obj) {
+        ucl_object_replace_key(obj, new_obj, path, path_len, true);
     }
 
-    // Prepare filename
-    char *filename = NULL;
-    if (Size > 1) {
-        filename = (char *)malloc(Size);
-        if (filename) {
-            memcpy(filename, Data, Size - 1);
-            filename[Size - 1] = '\0';
-        }
-    }
+    // Fuzz ucl_object_delete_key
+    ucl_object_delete_key(obj, path);
 
-    // Set file variables in parser
-    bool need_expand = Data[0] % 2 == 0; // Arbitrary choice for need_expand
-    ucl_parser_set_filevars(parser, filename, need_expand);
+    // Fuzz ucl_object_reserve
+    ucl_object_reserve(arr, path_len);
 
-    // Get error code
-    int error_code = ucl_parser_get_error_code(parser);
+    // Fuzz ucl_object_merge
+    ucl_object_merge(obj, arr, true);
 
-    // Get default priority
-    int default_priority = ucl_parser_get_default_priority(parser);
-
-    // Add chunk full
-    if (Size > 0) { // Ensure there's data to add
-        unsigned priority = Data[0] & 0xF; // Use 4 least significant bits
-        enum ucl_duplicate_strategy strat = UCL_DUPLICATE_APPEND;
-        enum ucl_parse_type parse_type = UCL_PARSE_AUTO;
-
-        ucl_parser_add_chunk_full(parser, Data, Size, priority, strat, parse_type);
-    }
-
-    // Write to a dummy file and add via file descriptor
-    write_to_dummy_file(Data, Size);
-    int fd = open("./dummy_file", O_RDONLY);
-    if (fd >= 0) {
-        ucl_parser_add_fd(parser, fd);
-        close(fd);
-    }
+    // Fuzz ucl_object_type
+    ucl_type_t type = ucl_object_type(obj);
 
     // Cleanup
-    ucl_parser_free(parser);
-    free(filename);
+    ucl_object_unref(obj);
+    ucl_object_unref(arr);
 
     return 0;
 }

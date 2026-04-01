@@ -2,47 +2,39 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h> // Include for 'close' and 'mkstemp'
-
-extern "C" {
-    // Wrap the C library headers and functions in extern "C"
-    #include <tiffio.h>
-}
+#include <cstring>
+#include <unistd.h>  // Include this header for close, write, and unlink
 
 extern "C" int LLVMFuzzerTestOneInput_298(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // Could not create a temp file
-    }
-
-    // Write the fuzz data to the file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
         return 0;
     }
 
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
     // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
     if (tiff == nullptr) {
-        remove(tmpl);
+        unlink(tmpl);
         return 0;
     }
 
-    // Use a non-zero offset for toff_t
-    toff_t offset = 8; // Arbitrary non-zero value
+    // Use a non-zero toff_t value for testing
+    toff_t offset = 1;
 
     // Call the function-under-test
     TIFFReadEXIFDirectory(tiff, offset);
 
     // Clean up
     TIFFClose(tiff);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }

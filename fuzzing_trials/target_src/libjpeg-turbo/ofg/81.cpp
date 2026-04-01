@@ -1,37 +1,34 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitDecompress();
-    tjscalingfactor scalingFactor;
+    if (size < 3) {
+        return 0; // Not enough data to form a valid JPEG header
+    }
 
-    // Ensure data size is sufficient for creating a scaling factor
-    if (size < sizeof(int) * 2) {
-        tjDestroy(handle);
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
         return 0;
     }
 
-    // Initialize scaling factor with values from data
-    scalingFactor.num = ((int*)data)[0];
-    scalingFactor.denom = ((int*)data)[1];
-
-    // Ensure denominator is not zero to avoid division by zero
-    if (scalingFactor.denom == 0) {
-        scalingFactor.denom = 1;
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer != NULL) {
+            tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
     }
-
-    // Call the function-under-test
-    int result = tj3SetScalingFactor(handle, scalingFactor);
 
     // Clean up
     tjDestroy(handle);
 
-    return result;
+    return 0;
 }

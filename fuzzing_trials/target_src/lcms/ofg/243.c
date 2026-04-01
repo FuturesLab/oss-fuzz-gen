@@ -2,50 +2,44 @@
 #include <stdlib.h>
 #include <lcms2.h>
 
+// Define a sample cmsSAMPLERFLOAT function
+cmsBool sampleSamplerFloat(const cmsFloat32Number* In, cmsFloat32Number* Out, void* Cargo) {
+    // Sample implementation: Just copy input to output
+    for (int i = 0; i < 3; i++) {
+        Out[i] = In[i];
+    }
+    return TRUE;
+}
+
 int LLVMFuzzerTestOneInput_243(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return 0;
+    if (size < sizeof(cmsUInt32Number)) {
+        return 0; // Not enough data
     }
 
-    // Ensure we have enough data to work with
-    if (size < sizeof(cmsHPROFILE) * 2 + sizeof(cmsUInt32Number) * 4) {
-        cmsDeleteContext(context);
-        return 0;
+    // Extract a cmsUInt32Number from the input data
+    cmsUInt32Number n = *(const cmsUInt32Number*)data;
+    data += sizeof(cmsUInt32Number);
+    size -= sizeof(cmsUInt32Number);
+
+    // Allocate an array of cmsUInt32Number
+    cmsUInt32Number* samplePoints = (cmsUInt32Number*)malloc(n * sizeof(cmsUInt32Number));
+    if (samplePoints == NULL) {
+        return 0; // Memory allocation failed
     }
 
-    // Initialize profiles
-    cmsHPROFILE profiles[2];
-    for (int i = 0; i < 2; i++) {
-        profiles[i] = cmsOpenProfileFromMem(data, size);
-        if (profiles[i] == NULL) {
-            for (int j = 0; j < i; j++) {
-                cmsCloseProfile(profiles[j]);
-            }
-            cmsDeleteContext(context);
-            return 0;
-        }
+    // Initialize samplePoints with some values
+    for (cmsUInt32Number i = 0; i < n; i++) {
+        samplePoints[i] = i + 1; // Simple initialization
     }
 
-    // Extract cmsUInt32Number values from data
-    cmsUInt32Number intent = *(const cmsUInt32Number *)(data + sizeof(cmsHPROFILE) * 2);
-    cmsUInt32Number inputFormat = *(const cmsUInt32Number *)(data + sizeof(cmsHPROFILE) * 2 + sizeof(cmsUInt32Number));
-    cmsUInt32Number outputFormat = *(const cmsUInt32Number *)(data + sizeof(cmsHPROFILE) * 2 + sizeof(cmsUInt32Number) * 2);
-    cmsUInt32Number dwFlags = *(const cmsUInt32Number *)(data + sizeof(cmsHPROFILE) * 2 + sizeof(cmsUInt32Number) * 3);
+    // Arbitrary non-NULL pointer for the void* parameter
+    void* cargo = (void*)1;
 
     // Call the function-under-test
-    cmsHTRANSFORM transform = cmsCreateMultiprofileTransformTHR(context, profiles, 2, inputFormat, outputFormat, intent, dwFlags);
+    cmsBool result = cmsSliceSpaceFloat(n, samplePoints, sampleSamplerFloat, cargo);
 
     // Clean up
-    if (transform != NULL) {
-        cmsDeleteTransform(transform);
-    }
-
-    for (int i = 0; i < 2; i++) {
-        cmsCloseProfile(profiles[i]);
-    }
-
-    cmsDeleteContext(context);
+    free(samplePoints);
 
     return 0;
 }

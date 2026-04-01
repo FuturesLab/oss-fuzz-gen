@@ -1,19 +1,9 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
-// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// _TIFFmemcmp at tif_unix.c:360:5 in tiffio.h
+// _TIFFmemcmp at tif_unix.c:360:5 in tiffio.h
+// _TIFFmemcmp at tif_unix.c:360:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -26,56 +16,40 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstdlib>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 
-static TIFF* createDummyTIFF(const char* filename) {
-    TIFF* tif = TIFFOpen(filename, "w+");
-    if (tif) {
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
-        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-        TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-        uint8_t buffer[1] = {0};
-        TIFFWriteEncodedStrip(tif, 0, buffer, 1);
-    }
-    return tif;
-}
+static const char *dummyFileName = "./dummy_file";
+static const char *dummyMode = "r";
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(tdir_t)) {
-        return 0; // Not enough data to proceed
+    // Step 1: Prepare environment
+    FILE *file = fopen(dummyFileName, "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    TIFF *tif = TIFFOpen(dummyFileName, dummyMode);
+    if (!tif) return 0;
+
+    // Step 2: Invoke TIFFGetField
+    uint32_t tag = 0;
+    int status = TIFFGetField(tif, tag, nullptr);
+
+    // Step 3: Use _TIFFmemcmp
+    if (Size > 1) {
+        _TIFFmemcmp(Data, Data + 1, Size - 1);
+    }
+    if (Size > 2) {
+        _TIFFmemcmp(Data, Data + 2, Size - 2);
+    }
+    if (Size > 3) {
+        _TIFFmemcmp(Data, Data + 3, Size - 3);
     }
 
-    const char* filename = "./dummy_file";
-    TIFF* tif = createDummyTIFF(filename);
-    if (!tif) {
-        return 0; // Failed to create a dummy TIFF
-    }
-
-    // Write the current directory to disk
-    TIFFWriteDirectory(tif);
-
-    // Set the directory using the first bytes of Data as the directory number
-    tdir_t dirn = *reinterpret_cast<const tdir_t*>(Data);
-    TIFFSetDirectory(tif, dirn);
-
-    // Get the current directory offset
-    TIFFCurrentDirOffset(tif);
-
-    // Set the directory again
-    TIFFSetDirectory(tif, dirn);
-
-    // Force strile array writing
-    TIFFForceStrileArrayWriting(tif);
-
-    // Flush data to disk
-    TIFFFlushData(tif);
-
+    // Step 4: Clean up
     TIFFClose(tif);
+
     return 0;
 }

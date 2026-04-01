@@ -1,8 +1,9 @@
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>  // For mkstemp
-#include <unistd.h> // For close
-#include <cstring>  // For memcpy
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
+#include <tiffio.h>
 
 extern "C" {
     #include <tiffio.h>
@@ -10,11 +11,11 @@ extern "C" {
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
     if (size < sizeof(uint32_t)) {
-        return 0; // Not enough data to form a valid strip index
+        return 0; // Ensure there's enough data for the uint32_t parameter
     }
 
-    // Create a temporary TIFF file to work with
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    // Create a temporary TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0; // Failed to create a temporary file
@@ -23,10 +24,10 @@ extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
     FILE *file = fdopen(fd, "wb");
     if (!file) {
         close(fd);
-        return 0; // Failed to open file stream
+        return 0; // Failed to open file descriptor as FILE*
     }
 
-    // Write the fuzz data to the temporary file
+    // Write the data to the file
     fwrite(data, 1, size, file);
     fclose(file);
 
@@ -37,14 +38,14 @@ extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
         return 0; // Failed to open the TIFF file
     }
 
-    // Extract a uint32_t strip index from the input data
+    // Read the uint32_t parameter from the data
     uint32_t stripIndex;
     memcpy(&stripIndex, data, sizeof(uint32_t));
 
     // Call the function-under-test
     uint64_t result = TIFFRawStripSize64(tiff, stripIndex);
 
-    // Close the TIFF file and remove the temporary file
+    // Clean up
     TIFFClose(tiff);
     remove(tmpl);
 

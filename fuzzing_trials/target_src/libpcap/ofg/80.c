@@ -1,25 +1,36 @@
+#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <pcap.h>
 
+// Function to be used by the fuzzer
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
+    FILE *file;
     char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *pcap_handle;
 
-    // Initialize a pcap_t handle with pcap_open_dead for fuzzing
-    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
-    if (pcap_handle == NULL) {
+    // Create a temporary file to write the input data
+    file = tmpfile();
+    if (file == NULL) {
         return 0;
     }
 
-    // If size is greater than 0, use the data for further processing
-    if (size > 0) {
-        // Call the function-under-test
-        int buf_size = pcap_bufsize(pcap_handle);
+    // Write the data to the file
+    if (fwrite(data, 1, size, file) != size) {
+        fclose(file);
+        return 0;
     }
 
+    // Reset the file pointer to the beginning of the file
+    rewind(file);
+
+    // Call the function-under-test
+    pcap_handle = pcap_fopen_offline(file, errbuf);
+
     // Clean up
-    pcap_close(pcap_handle);
+    if (pcap_handle != NULL) {
+        pcap_close(pcap_handle);
+    }
+    fclose(file);
 
     return 0;
 }

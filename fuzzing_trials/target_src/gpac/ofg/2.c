@@ -1,38 +1,32 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include "/src/gpac/src/isomedia/sample_descs.c" // Correct path to include the necessary declarations
+#include <gpac/isomedia.h>
+#include <gpac/constants.h>
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Declare and initialize all necessary variables
-    GF_ISOFile *the_file = (GF_ISOFile *) malloc(sizeof(GF_ISOFile));
-    u32 trackNumber = 1; // Example track number, can be varied
-    GF_AC4Config *cfg = (GF_AC4Config *) malloc(sizeof(GF_AC4Config));
-    char URLname[256];
-    char URNname[256];
-    u32 outDescriptionIndex = 0;
-
-    // Ensure the_file and cfg are not NULL
-    if (the_file == NULL || cfg == NULL) {
-        free(the_file);
-        free(cfg);
+    // Ensure there is enough data to read the required parameters
+    if (size < 3 * sizeof(u32) + 2 * sizeof(s32) + sizeof(Bool)) {
         return 0;
     }
 
-    // Initialize URLname and URNname with data from the fuzzing input
-    size_t copy_size = size < 255 ? size : 255;
-    memcpy(URLname, data, copy_size);
-    URLname[copy_size] = '\0';
-    memcpy(URNname, data, copy_size);
-    URNname[copy_size] = '\0';
+    // Initialize the GF_ISOFile structure
+    GF_ISOFile *movie = gf_isom_open((const char *)data, GF_ISOM_OPEN_READ, NULL);
+    if (!movie) {
+        return 0;
+    }
+
+    // Read parameters from the input data
+    u32 trackNumber = *(u32 *)(data);
+    u32 StreamDescriptionIndex = *(u32 *)(data + sizeof(u32));
+    s32 hSpacing = *(s32 *)(data + 2 * sizeof(u32));
+    s32 vSpacing = *(s32 *)(data + 2 * sizeof(u32) + sizeof(s32));
+    Bool force_par = *(Bool *)(data + 2 * sizeof(u32) + 2 * sizeof(s32));
 
     // Call the function-under-test
-    gf_isom_ac4_config_new(the_file, trackNumber, cfg, (u8 *)URLname, (u8 *)URNname, &outDescriptionIndex);
+    gf_isom_set_pixel_aspect_ratio(movie, trackNumber, StreamDescriptionIndex, hSpacing, vSpacing, force_par);
 
-    // Clean up allocated memory
-    free(the_file);
-    free(cfg);
+    // Clean up
+    gf_isom_close(movie);
 
     return 0;
 }

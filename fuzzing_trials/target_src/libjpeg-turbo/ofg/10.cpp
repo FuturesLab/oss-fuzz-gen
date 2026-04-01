@@ -1,54 +1,51 @@
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Initialize tjhandle
     tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
         return 0;
     }
 
-    // Allocate memory for YUV planes
-    const unsigned char *yuvPlanes[3];
-    int strides[3];
-    int width = 16;  // Example width
-    int height = 16; // Example height
-
-    // Ensure size is large enough for the YUV data
-    if (size < static_cast<size_t>(width * height * 3 / 2)) {
+    // Allocate memory for the YUV buffer
+    // Assuming a maximum image size for fuzzing purposes
+    const int maxWidth = 4096;
+    const int maxHeight = 4096;
+    const int numChannels = 3; // YUV has 3 channels
+    unsigned char *yuvBuffer = (unsigned char *)malloc(maxWidth * maxHeight * numChannels);
+    if (yuvBuffer == nullptr) {
         tjDestroy(handle);
         return 0;
     }
 
-    // Assign data to YUV planes
-    yuvPlanes[0] = data;
-    yuvPlanes[1] = data + width * height;
-    yuvPlanes[2] = data + width * height + (width / 2) * (height / 2);
+    // Set a width and height for the YUV image
+    int width = 128; // Example width
+    int height = 128; // Example height
 
-    strides[0] = width;
-    strides[1] = width / 2;
-    strides[2] = width / 2;
-
-    // Allocate memory for the output buffer
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * 3);
-    if (dstBuf == nullptr) {
+    // Ensure data is not null and has a minimum size
+    if (data == nullptr || size < 2) {
+        free(yuvBuffer);
         tjDestroy(handle);
         return 0;
     }
 
-    // Call the function under test with the correct number of arguments
-    int result = tjDecodeYUVPlanes(handle, yuvPlanes, strides, TJSAMP_420, dstBuf, width, width * tjPixelSize[TJPF_RGB], height, TJPF_RGB, 0);
+    // Call the function-under-test with valid parameters
+    int jpegSubsamp, jpegColorspace;
+    unsigned char *nonConstData = const_cast<unsigned char *>(data);
+    if (tjDecompressHeader2(handle, nonConstData, size, &width, &height, &jpegSubsamp) == 0) {
+        tj3DecompressToYUV8(handle, nonConstData, size, yuvBuffer, 0);
+    }
 
     // Clean up
-    free(dstBuf);
+    free(yuvBuffer);
     tjDestroy(handle);
 
-    return result;
+    return 0;
 }

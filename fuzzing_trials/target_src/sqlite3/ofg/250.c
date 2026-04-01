@@ -1,46 +1,52 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>  // Include this header for memcpy
+#include <stdlib.h>
+#include <string.h>
 
-extern int LLVMFuzzerTestOneInput_250(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to perform meaningful operations
-    if (size < 1) {
+int LLVMFuzzerTestOneInput_250(const uint8_t *data, size_t size) {
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER, value TEXT);"
+                      "INSERT INTO test (id, value) VALUES (1, 'Hello'), (2, 'World');"
+                      "SELECT value FROM test WHERE id = ?;";
+
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    sqlite3 *db;
-    char *errMsg = 0;
-    int rc;
-
-    // Open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        return 0;  // If opening the database fails, return early
-    }
-
-    // Allocate memory for the SQL command
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    // Execute the SQL to create table and insert data
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Copy the input data to the SQL command buffer and null-terminate it
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = ?;", -1, &stmt, 0);
     if (rc != SQLITE_OK) {
-        // If there is an error, free the error message
-        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Free the allocated SQL command buffer
-    free(sql);
+    // Bind the first parameter to the statement
+    int id = (size > 0) ? data[0] % 3 : 0; // Ensure id is 0, 1, or 2
+    sqlite3_bind_int(stmt, 1, id);
 
-    // Close the SQLite database
+    // Execute the statement and call the function-under-test
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const unsigned char *text = sqlite3_column_text(stmt, 0);
+        // Use the text in some way to prevent optimization out
+        if (text) {
+            volatile unsigned char dummy = text[0];
+            (void)dummy;
+        }
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

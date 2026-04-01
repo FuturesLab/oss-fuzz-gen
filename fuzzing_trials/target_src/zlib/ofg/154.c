@@ -3,28 +3,52 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_154(const uint8_t *data, size_t size) {
-    // Initialize z_stream structure
     z_stream stream;
+    int ret;
+    unsigned char outbuffer[32768]; // Buffer to hold decompressed data
+    int have;
+
+    // Initialize the z_stream structure
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
+    stream.avail_in = 0;
+    stream.next_in = Z_NULL;
+    stream.avail_out = sizeof(outbuffer);
+    stream.next_out = outbuffer;
 
-    // Initialize the inflate state
-    if (inflateInit(&stream) != Z_OK) {
+    // Initialize the inflation process
+    ret = inflateInit(&stream);
+    if (ret != Z_OK) {
         return 0;
     }
 
     // Set the input data for the stream
-    stream.next_in = (Bytef *)data;
     stream.avail_in = size;
+    stream.next_in = (Bytef *)data;
 
-    // Create a buffer for the output
-    unsigned char outbuffer[4096];
-    stream.next_out = outbuffer;
-    stream.avail_out = sizeof(outbuffer);
+    // Inflate until output buffer is not full
+    do {
+        stream.avail_out = sizeof(outbuffer);
+        stream.next_out = outbuffer;
 
-    // Call inflateSyncPoint to fuzz it
-    int result = inflateSyncPoint(&stream);
+        ret = inflate(&stream, Z_NO_FLUSH);
+        if (ret == Z_STREAM_ERROR) {
+            // Stream error, break out
+            break;
+        }
+
+        switch (ret) {
+        case Z_NEED_DICT:
+        case Z_DATA_ERROR:
+        case Z_MEM_ERROR:
+            inflateEnd(&stream);
+            return 0;
+        }
+
+        have = sizeof(outbuffer) - stream.avail_out;
+
+    } while (stream.avail_out == 0);
 
     // Clean up
     inflateEnd(&stream);

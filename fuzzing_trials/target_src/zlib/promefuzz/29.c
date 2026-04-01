@@ -1,82 +1,69 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// deflateInit2_ at deflate.c:388:13 in zlib.h
-// deflateEnd at deflate.c:1294:13 in zlib.h
-// deflateSetHeader at deflate.c:715:13 in zlib.h
-// deflateReset at deflate.c:705:13 in zlib.h
-// deflatePending at deflate.c:723:13 in zlib.h
-// deflateUsed at deflate.c:738:13 in zlib.h
-// deflateTune at deflate.c:820:13 in zlib.h
-// deflateCopy at deflate.c:1318:13 in zlib.h
+// gzopen at gzlib.c:288:16 in zlib.h
+// gzclose at gzclose.c:11:13 in zlib.h
+// gzvprintf at gzwrite.c:403:15 in zlib.h
+// gzputs at gzwrite.c:350:13 in zlib.h
+// gzputc at gzwrite.c:307:13 in zlib.h
+// gzprintf at gzwrite.c:487:15 in zlib.h
+// gzerror at gzlib.c:513:22 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <zlib.h>
+#include <stdarg.h>
 
-static void initialize_z_stream(z_streamp strm) {
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
-    deflateInit2(strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
+static gzFile openGzFile() {
+    return gzopen("./dummy_file", "w");
 }
 
-static void cleanup_z_stream(z_streamp strm) {
-    deflateEnd(strm);
+static void closeGzFile(gzFile file) {
+    if (file != NULL) {
+        gzclose(file);
+    }
+}
+
+static void testGzvprintf(gzFile file, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    gzvprintf(file, format, args);
+    va_end(args);
 }
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(gz_header) + 4 * sizeof(int)) {
-        return 0; // Not enough data
+    if (Size == 0) return 0;
+
+    // Prepare a null-terminated string for gzputs
+    char *nullTerminatedString = (char *)malloc(Size + 1);
+    if (nullTerminatedString == NULL) return 0;
+    memcpy(nullTerminatedString, Data, Size);
+    nullTerminatedString[Size] = '\0';
+
+    gzFile file = openGzFile();
+    if (file == NULL) {
+        free(nullTerminatedString);
+        return 0;
     }
 
-    z_stream strm;
-    initialize_z_stream(&strm);
+    // Test gzputs
+    gzputs(file, nullTerminatedString);
 
-    gz_header header;
-    memset(&header, 0, sizeof(gz_header));
+    // Test gzputc
+    gzputc(file, Data[0]);
 
-    // Set header fields using fuzz data
-    header.text = Data[0] % 2;
-    header.time = *(uLong *)(Data + 1);
-    header.xflags = Data[5];
-    header.os = Data[6];
-    header.extra = (Bytef *)(Data + 7);
-    header.extra_len = (Size - 7) > 0 ? (Size - 7) : 0;
+    // Test gzprintf
+    gzprintf(file, "%s", nullTerminatedString);
 
-    // Fuzzing deflateSetHeader
-    deflateSetHeader(&strm, &header);
+    // Test gzvprintf
+    testGzvprintf(file, "%s", nullTerminatedString);
 
-    // Fuzzing deflateReset
-    deflateReset(&strm);
+    // Test gzerror
+    int errnum;
+    gzerror(file, &errnum);
 
-    // Prepare variables for deflatePending
-    unsigned pending;
-    int bits;
-    deflatePending(&strm, &pending, &bits);
+    closeGzFile(file);
+    free(nullTerminatedString);
 
-    // Fuzzing deflateUsed
-    deflateUsed(&strm, &bits);
-
-    // Fuzzing deflateTune
-    if (Size >= 7 + 4 * sizeof(int)) {
-        int good_length = *(int *)(Data + 7);
-        int max_lazy = *(int *)(Data + 7 + sizeof(int));
-        int nice_length = *(int *)(Data + 7 + 2 * sizeof(int));
-        int max_chain = *(int *)(Data + 7 + 3 * sizeof(int));
-
-        deflateTune(&strm, good_length, max_lazy, nice_length, max_chain);
-    }
-
-    // Fuzzing deflateCopy
-    z_stream dest_strm;
-    initialize_z_stream(&dest_strm);
-    deflateCopy(&dest_strm, &strm);
-    cleanup_z_stream(&dest_strm);
-
-    cleanup_z_stream(&strm);
     return 0;
 }

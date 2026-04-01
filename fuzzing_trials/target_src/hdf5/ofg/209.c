@@ -1,16 +1,16 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_209(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < 10) {
+    // Ensure that the data size is sufficient to extract necessary parameters
+    if (size < 7) {
         return 0;
     }
 
-    // Initialize parameters for H5Acreate_async
-    const char *attr_name = "attribute_name";
-    unsigned int flags = (unsigned int)data[0];
+    // Extract parameters from the input data
+    const char *attr_name = "attribute_name";  // Placeholder attribute name
+    unsigned int crt_order_flags = (unsigned int)data[0];
     hid_t loc_id = (hid_t)data[1];
     hid_t type_id = (hid_t)data[2];
     hid_t space_id = (hid_t)data[3];
@@ -21,13 +21,6 @@ int LLVMFuzzerTestOneInput_209(const uint8_t *data, size_t size) {
     // Call the function-under-test
     hid_t result = H5Acreate_async(loc_id, attr_name, type_id, space_id, acpl_id, aapl_id, es_id);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (result < 0) {
-        // Handle error case if needed
-    } else {
-        // Handle success case if needed
-        H5Aclose(result); // Close the attribute if successfully created
-    }
-
+    // Normally, you would check the result here, but for fuzzing purposes, we just return 0
     return 0;
 }

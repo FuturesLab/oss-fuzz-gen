@@ -1,86 +1,70 @@
 // This fuzz driver is generated for library cares, aiming to fuzz the following functions:
-// ares_init_options at ares_init.c:238:5 in ares.h
+// ares_init at ares_init.c:67:5 in ares.h
+// ares_strerror at ares_strerror.c:30:13 in ares.h
 // ares_destroy at ares_destroy.c:32:6 in ares.h
-// ares_init_options at ares_init.c:238:5 in ares.h
-// ares_set_servers_csv at ares_update_servers.c:1304:5 in ares.h
-// ares_set_sortlist at ares_init.c:581:5 in ares.h
-// ares_dup at ares_init.c:455:5 in ares.h
-// ares_destroy at ares_destroy.c:32:6 in ares.h
-// ares_save_options at ares_options.c:83:5 in ares.h
-// ares_destroy_options at ares_options.c:37:6 in ares.h
-// ares_destroy at ares_destroy.c:32:6 in ares.h
-// ares_destroy at ares_destroy.c:32:6 in ares.h
+// ares_fds at ares_fds.c:30:5 in ares.h
+// ares_timeout at ares_timeout.c:135:17 in ares.h
+// ares_cancel at ares_cancel.c:34:6 in ares.h
+// ares_timeout at ares_timeout.c:135:17 in ares.h
+// ares_process at ares_process.c:334:6 in ares.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/select.h>
 #include <ares.h>
 
-static void write_dummy_file(const char *filename, const uint8_t *data, size_t size) {
-    FILE *file = fopen(filename, "wb");
-    if (file) {
-        fwrite(data, 1, size, file);
-        fclose(file);
+static void initialize_channel(ares_channel_t **channel) {
+    int status = ares_init(channel);
+    if (status != ARES_SUCCESS) {
+        fprintf(stderr, "ares_init: %s\n", ares_strerror(status));
+        exit(1);
+    }
+}
+
+static void cleanup_channel(ares_channel_t *channel) {
+    if (channel) {
+        ares_destroy(channel);
     }
 }
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
     ares_channel_t *channel = NULL;
-    ares_channel_t *dup_channel = NULL;
-    struct ares_options options;
-    int optmask = 0;
-    int status;
+    fd_set read_fds, write_fds;
+    struct timeval tv, maxtv;
 
-    // Initialize options with dummy values
-    memset(&options, 0, sizeof(options));
-    options.timeout = 5000;  // 5 seconds timeout
+    // Initialize ares channel
+    initialize_channel(&channel);
 
-    // Write data to dummy file if needed
-    write_dummy_file("./dummy_file", Data, Size);
+    // Set up file descriptor sets
+    FD_ZERO(&read_fds);
+    FD_ZERO(&write_fds);
 
-    // 1. Initialize ares with options
-    status = ares_init_options(&channel, &options, optmask);
-    if (status != ARES_SUCCESS) {
-        return 0;
-    }
+    // Call ares_fds
+    ares_fds(channel, &read_fds, &write_fds);
 
-    // 2. Destroy the initialized channel
-    ares_destroy(channel);
+    // Set up timeout values
+    maxtv.tv_sec = 5;
+    maxtv.tv_usec = 0;
 
-    // 3. Re-initialize ares with options
-    status = ares_init_options(&channel, &options, optmask);
-    if (status != ARES_SUCCESS) {
-        return 0;
-    }
+    // Call ares_timeout
+    ares_timeout(channel, &maxtv, &tv);
 
-    // 4. Set servers using CSV format
-    ares_set_servers_csv(channel, "127.0.0.1:53,8.8.8.8:53");
+    // Call ares_cancel
+    ares_cancel(channel);
 
-    // 5. Set sortlist
-    ares_set_sortlist(channel, "127.0.0.0/8");
+    // Call ares_timeout again
+    ares_timeout(channel, &maxtv, &tv);
 
-    // 6. Duplicate the channel
-    status = ares_dup(&dup_channel, channel);
-    if (status != ARES_SUCCESS) {
-        ares_destroy(channel);
-        return 0;
-    }
+    // Call ares_process
+    ares_process(channel, &read_fds, &write_fds);
 
-    // 7. Save options
-    struct ares_options saved_options;
-    int saved_optmask;
-    status = ares_save_options(channel, &saved_options, &saved_optmask);
-    if (status == ARES_SUCCESS) {
-        // 8. Destroy saved options
-        ares_destroy_options(&saved_options);
-    }
-
-    // 9. Destroy duplicated channel
-    ares_destroy(dup_channel);
-
-    // 10. Destroy original channel
-    ares_destroy(channel);
+    // Cleanup
+    cleanup_channel(channel);
 
     return 0;
 }

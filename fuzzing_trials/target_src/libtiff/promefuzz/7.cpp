@@ -1,18 +1,23 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFFileName at tif_open.c:803:13 in tiffio.h
-// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
-// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
-// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
-// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
-// TIFFTileSize at tif_tile.c:253:10 in tiffio.h
-// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
+// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
 // _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFRGBAImageBegin at tif_getimage.c:310:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
-// TIFFWriteEncodedTile at tif_write.c:414:10 in tiffio.h
 // _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFRGBAImageEnd at tif_getimage.c:253:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
+// TIFFRGBAImageEnd at tif_getimage.c:253:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,67 +27,67 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "tiffio.h"
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure there is enough data to proceed
+    if (Size < 1) return 0;
 
-    // Open a dummy TIFF file
-    FILE *file = fopen("./dummy_file", "wb+");
+    // Write the input data to a dummy file
+    FILE *file = fopen("./dummy_file", "wb");
     if (!file) return 0;
     fwrite(Data, 1, Size, file);
-    rewind(file);
-
-    TIFF *tiff = TIFFOpen("./dummy_file", "r+");
-    if (!tiff) {
-        fclose(file);
-        return 0;
-    }
-
-    // Call TIFFFileName
-    const char *fileName = TIFFFileName(tiff);
-
-    // Call TIFFFieldWithTag multiple times
-    uint32_t tag = 0;
-    const TIFFField *field = TIFFFieldWithTag(tiff, tag++);
-    field = TIFFFieldWithTag(tiff, tag++);
-    field = TIFFFieldWithTag(tiff, tag++);
-    field = TIFFFieldWithTag(tiff, tag++);
-
-    // Call TIFFTileSize
-    tmsize_t tileSize = TIFFTileSize(tiff);
-
-    // Call TIFFFieldWithTag again
-    field = TIFFFieldWithTag(tiff, tag++);
-
-    // Call _TIFFmalloc
-    void *allocatedMemory = _TIFFmalloc(tileSize);
-    if (!allocatedMemory) {
-        TIFFClose(tiff);
-        fclose(file);
-        return 0;
-    }
-
-    // Call TIFFNumberOfTiles
-    uint32_t numberOfTiles = TIFFNumberOfTiles(tiff);
-
-    // Prepare data for TIFFWriteEncodedTile
-    tmsize_t dataSize = tileSize < Size ? tileSize : Size;
-    tmsize_t writtenSize = TIFFWriteEncodedTile(tiff, 0, (void *)Data, dataSize);
-
-    // Prepare data for TIFFWriteScanline
-    int result = TIFFWriteScanline(tiff, (void *)Data, 0, 0);
-    result = TIFFWriteScanline(tiff, (void *)Data, 1, 0);
-
-    // Free allocated memory
-    _TIFFfree(allocatedMemory);
-
-    TIFFClose(tiff);
     fclose(file);
+
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) return 0;
+
+    // 1. Check if the TIFF is tiled
+    int isTiled = TIFFIsTiled(tif);
+
+    // 2. Allocate memory using _TIFFmalloc
+    tmsize_t size1 = 1024; // Example size
+    tmsize_t size2 = 2048; // Example size
+    void *mem1 = _TIFFmalloc(size1);
+    void *mem2 = _TIFFmalloc(size2);
+
+    // 3. Initialize a TIFFRGBAImage
+    TIFFRGBAImage img;
+    char emsg[1024];
+    if (!TIFFRGBAImageBegin(&img, tif, 0, emsg)) {
+        TIFFClose(tif);
+        _TIFFfree(mem1);
+        _TIFFfree(mem2);
+        return 0;
+    }
+
+    // 4. Allocate raster buffer
+    uint32_t width = 100;  // Example width
+    uint32_t height = 100; // Example height
+    uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
+    if (!raster) {
+        TIFFRGBAImageEnd(&img);
+        TIFFClose(tif);
+        _TIFFfree(mem1);
+        _TIFFfree(mem2);
+        return 0;
+    }
+
+    // 5. Get the RGBA image data
+    TIFFRGBAImageGet(&img, raster, width, height);
+
+    // 6. End the RGBA image processing
+    TIFFRGBAImageEnd(&img);
+
+    // Clean up
+    TIFFClose(tif);
+    _TIFFfree(raster);
+    _TIFFfree(mem1);
+    _TIFFfree(mem2);
 
     return 0;
 }

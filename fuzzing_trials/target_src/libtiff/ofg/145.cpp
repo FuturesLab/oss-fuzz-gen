@@ -1,47 +1,31 @@
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
+#include <cstring>
 #include <tiffio.h>
 
 extern "C" {
-    #include <tiffio.h>
+    int TIFFCIELabToRGBInit(TIFFCIELabToRGB *, const TIFFDisplay *, float *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    if (size < sizeof(TIFFDisplay) + 3 * sizeof(float)) {
         return 0;
     }
 
-    // Create a temporary file to write the data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Allocate and initialize TIFFCIELabToRGB structure
+    TIFFCIELabToRGB cielabToRGB;
+    memset(&cielabToRGB, 0, sizeof(TIFFCIELabToRGB));
 
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
+    // Initialize TIFFDisplay structure from the input data
+    TIFFDisplay display;
+    memcpy(&display, data, sizeof(TIFFDisplay));
 
-    // Write the data to the file
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Initialize float array from the input data
+    float xyz[3];
+    memcpy(xyz, data + sizeof(TIFFDisplay), 3 * sizeof(float));
 
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r+");
-    if (tiff) {
-        // Call the function-under-test
-        TIFFCheckpointDirectory(tiff);
-
-        // Close the TIFF file
-        TIFFClose(tiff);
-    }
-
-    // Remove the temporary file
-    remove(tmpl);
+    // Call the function-under-test
+    TIFFCIELabToRGBInit(&cielabToRGB, &display, xyz);
 
     return 0;
 }

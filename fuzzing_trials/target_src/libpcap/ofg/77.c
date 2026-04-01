@@ -1,47 +1,46 @@
-#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <pcap.h>
 #include <string.h>
+#include <unistd.h> // For close() and unlink()
+#include <fcntl.h>  // For mkstemp()
+#include <sys/types.h> // For ssize_t
 
-// Remove the 'extern "C"' as it is not compatible with C
 int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    // Initialize pcap_t and pcap_pkthdr
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet and max packet size
+    // Initialize variables
+    pcap_t *pcap_handle;
     struct pcap_pkthdr header;
-
-    // Ensure that data is not NULL and has a reasonable size
-    if (data == NULL || size == 0) {
-        pcap_close(handle);
-        return 0;
-    }
+    char errbuf[PCAP_ERRBUF_SIZE];
+    const u_char *packet;
 
     // Create a temporary file to store the input data
-    FILE *tempfile = tmpfile();
-    if (tempfile == NULL) {
-        pcap_close(handle);
+    char tmp_filename[] = "/tmp/fuzz_pcap_XXXXXX";
+    int fd = mkstemp(tmp_filename);
+    if (fd == -1) {
         return 0;
     }
 
     // Write the input data to the temporary file
-    fwrite(data, 1, size, tempfile);
-    rewind(tempfile);
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmp_filename);
+        return 0;
+    }
+    close(fd);
 
     // Open the temporary file as a pcap file
-    pcap_t *pcap = pcap_fopen_offline(tempfile, errbuf);
-    if (pcap == NULL) {
-        fclose(tempfile);
-        pcap_close(handle);
+    pcap_handle = pcap_open_offline(tmp_filename, errbuf);
+    if (pcap_handle == NULL) {
+        unlink(tmp_filename);
         return 0;
     }
 
     // Call the function-under-test
-    const u_char *packet = pcap_next(pcap, &header);
+    packet = pcap_next(pcap_handle, &header);
 
     // Clean up
-    pcap_close(pcap);
-    fclose(tempfile);
-    pcap_close(handle);
+    pcap_close(pcap_handle);
+    unlink(tmp_filename);
 
     return 0;
 }

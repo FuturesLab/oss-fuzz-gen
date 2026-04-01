@@ -1,31 +1,22 @@
 #include <cstdint>
-#include <cstdlib>
-#include <aom/aom_image.h>
+#include <cstddef>
+#include <cstdio>
+
+// Assume the function is defined in an external C library
+extern "C" {
+    int aom_uleb_decode(const uint8_t *data, size_t data_size, uint64_t *value, size_t *length);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    aom_image_t img;
-    aom_img_fmt_t fmt = AOM_IMG_FMT_I420; // Use a common format for testing
-    unsigned int d_w = 640; // Width of the image
-    unsigned int d_h = 480; // Height of the image
-    unsigned int stride_align = 1; // Use a simple alignment
-    unsigned char *img_data = nullptr;
-
-    // Check if the input data is sufficient for image data
-    if (size > 0) {
-        img_data = const_cast<unsigned char*>(data);
-    } else {
-        // If no data is provided, allocate some dummy data
-        img_data = new unsigned char[d_w * d_h * 3 / 2]; // Assuming I420 format
-    }
+    // Initialize the required parameters
+    uint64_t decoded_value = 0;
+    size_t decoded_length = 0;
 
     // Call the function-under-test
-    aom_image_t *wrapped_img = aom_img_wrap(&img, fmt, d_w, d_h, stride_align, img_data);
+    int result = aom_uleb_decode(data, size, &decoded_value, &decoded_length);
 
-    // Clean up if necessary
-    if (size == 0) {
-        delete[] img_data;
-    }
+    // Optionally print the result for debugging purposes
+    // printf("Result: %d, Decoded Value: %llu, Decoded Length: %zu\n", result, decoded_value, decoded_length);
 
     return 0;
 }

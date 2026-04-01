@@ -1,53 +1,46 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <sqlite3.h>
-#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_214(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
+    sqlite3 *db = NULL;
     int rc;
-    int columnIndex = 0; // Initialize column index to 0
 
-    // Initialize SQLite database in memory
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table for testing
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER, value TEXT);";
-    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+    // Execute a simple query to initialize the database
+    char *errMsg = 0;
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // Insert some data into the table
-    const char *insertSQL = "INSERT INTO test (id, value) VALUES (1, 'Hello'), (2, 'World');";
-    rc = sqlite3_exec(db, insertSQL, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare a SQL statement
-    const char *selectSQL = "SELECT * FROM test;";
-    rc = sqlite3_prepare_v2(db, selectSQL, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement and call the function-under-test
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        // Ensure column index is within bounds
-        if (columnIndex < sqlite3_column_count(stmt)) {
-            int bytes = sqlite3_column_bytes16(stmt, columnIndex);
+    // Use the input data to insert into the database
+    if (size > 0) {
+        char query[256];
+        snprintf(query, sizeof(query), "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
+        rc = sqlite3_exec(db, query, 0, 0, &errMsg);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(errMsg);
         }
     }
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Call the function-under-test
+    int errcode = sqlite3_extended_errcode(db);
+
+    // Use the errcode in some way to prevent compiler optimizations from removing the call
+    if (errcode != SQLITE_OK) {
+        // Handle the error code, if necessary
+    }
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

@@ -2,18 +2,49 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ares.h"
+#include <ares.h>
+
+static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
+  (void)arg; // Suppress unused parameter warning
+  (void)status; // Suppress unused parameter warning
+  (void)timeouts; // Suppress unused parameter warning
+  (void)abuf; // Suppress unused parameter warning
+  (void)alen; // Suppress unused parameter warning
+  /* Dummy callback function for testing purposes */
+}
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-  struct ares_caa_reply *caa_out = NULL;
+  ares_channel channel;
+  struct ares_options options;
+  int optmask = 0;
 
-  /* Call the function-under-test */
-  ares_parse_caa_reply(data, (int)size, &caa_out);
-
-  /* Free the allocated resources if any */
-  if (caa_out) {
-    ares_free_data(caa_out);
+  // Initialize the ares library
+  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
+    return 0;
   }
+
+  // Initialize the ares channel
+  if (ares_init_options(&channel, &options, optmask) != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
+  }
+
+  // Prepare the query buffer
+  unsigned char *qbuf = (unsigned char *)malloc(size);
+  if (!qbuf) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+  memcpy(qbuf, data, size);
+
+  // Call the function-under-test
+  ares_send(channel, qbuf, (int)size, dummy_callback, NULL);
+
+  // Clean up
+  free(qbuf);
+  ares_destroy(channel);
+  ares_library_cleanup();
 
   return 0;
 }

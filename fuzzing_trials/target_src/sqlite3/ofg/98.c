@@ -3,36 +3,30 @@
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    const char *sql = "SELECT ?";
-
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0; // If the database cannot be opened, return early
+    // Ensure the input data is large enough to extract the required parameters
+    if (size < sizeof(int) + 2 * sizeof(sqlite3_int64) + sizeof(int)) {
+        return 0;
     }
 
-    // Prepare an SQL statement with a single parameter
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0; // If the statement cannot be prepared, return early
-    }
+    // Extract parameters from the input data
+    int op = *(const int *)data;
+    data += sizeof(int);
+    size -= sizeof(int);
 
-    // Bind the input data as a blob to the first parameter
-    if (size > 0) {
-        sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT);
-    }
+    sqlite3_int64 current = *(const sqlite3_int64 *)data;
+    data += sizeof(sqlite3_int64);
+    size -= sizeof(sqlite3_int64);
 
-    // Execute the statement
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        // Retrieve the result as a double
-        double result = sqlite3_column_double(stmt, 0);
-        (void)result; // Suppress unused variable warning
-    }
+    sqlite3_int64 highwater = *(const sqlite3_int64 *)data;
+    data += sizeof(sqlite3_int64);
+    size -= sizeof(sqlite3_int64);
 
-    // Clean up
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
+    int resetFlag = *(const int *)data;
+    data += sizeof(int);
+    size -= sizeof(int);
+
+    // Call the function-under-test
+    sqlite3_status64(op, &current, &highwater, resetFlag);
 
     return 0;
 }

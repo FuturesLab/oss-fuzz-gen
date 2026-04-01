@@ -3,21 +3,22 @@
 #include <stddef.h>
 
 int LLVMFuzzerTestOneInput_215(const uint8_t *data, size_t size) {
-    // Ensure that size is sufficient to extract a ucl_type_t value
-    if (size < sizeof(ucl_type_t)) {
+    // Ensure size is sufficient to extract an unsigned int for priority
+    if (size < sizeof(unsigned int)) {
         return 0;
     }
 
-    // Extract a ucl_type_t value from the input data
-    ucl_type_t type = *(ucl_type_t *)data;
+    // Create a new ucl_object_t
+    ucl_object_t *obj = ucl_object_new();
+
+    // Extract an unsigned int for priority from the input data
+    unsigned int priority = *((unsigned int *)data);
 
     // Call the function-under-test
-    ucl_object_t *obj = ucl_object_typed_new(type);
+    ucl_object_set_priority(obj, priority);
 
-    // Clean up the created object
-    if (obj != NULL) {
-        ucl_object_unref(obj);
-    }
+    // Clean up
+    ucl_object_unref(obj);
 
     return 0;
 }

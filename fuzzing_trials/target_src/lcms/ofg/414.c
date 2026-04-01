@@ -1,32 +1,47 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_414(const uint8_t *data, size_t size) {
-    cmsCIELab lab;
-    double L, a, b, factor;
-
-    // Ensure we have enough data to extract values for L, a, b, and factor
-    if (size < sizeof(double) * 4) {
+    // Initialize variables
+    cmsToneCurve *inputCurve = NULL;
+    cmsToneCurve *reversedCurve = NULL;
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    
+    // Check if size is sufficient to create a tone curve
+    if (size < sizeof(cmsUInt16Number)) {
         return 0;
     }
 
-    // Initialize cmsCIELab structure
-    lab.L = 50.0; // Arbitrary non-zero value
-    lab.a = 0.0;
-    lab.b = 0.0;
+    // Create a tone curve using the input data
+    cmsUInt16Number *curveData = (cmsUInt16Number *)malloc(size);
+    if (curveData == NULL) {
+        return 0;
+    }
 
-    // Extract doubles from the input data
-    L = *((double*)data);
-    a = *((double*)(data + sizeof(double)));
-    b = *((double*)(data + 2 * sizeof(double)));
-    factor = *((double*)(data + 3 * sizeof(double)));
+    for (size_t i = 0; i < size / sizeof(cmsUInt16Number); i++) {
+        curveData[i] = data[i % size];
+    }
 
-    // Call the function under test
-    cmsBool result = cmsDesaturateLab(&lab, L, a, b, factor);
+    inputCurve = cmsBuildTabulatedToneCurve16(context, size / sizeof(cmsUInt16Number), curveData);
 
-    // Use the result to prevent any compiler optimizations
-    (void)result;
+    // Ensure inputCurve is not NULL
+    if (inputCurve != NULL) {
+        // Call the function-under-test
+        reversedCurve = cmsReverseToneCurve(inputCurve);
+        
+        // Free the reversed curve if it was successfully created
+        if (reversedCurve != NULL) {
+            cmsFreeToneCurve(reversedCurve);
+        }
+
+        // Free the input curve
+        cmsFreeToneCurve(inputCurve);
+    }
+
+    // Free allocated resources
+    free(curveData);
+    cmsDeleteContext(context);
 
     return 0;
 }

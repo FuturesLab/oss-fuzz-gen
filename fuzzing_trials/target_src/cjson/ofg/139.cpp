@@ -8,42 +8,55 @@ extern "C" {
 #endif
 
 int LLVMFuzzerTestOneInput_139(const uint8_t *data, size_t size) {
-  if (size < 2) {
-    return 0;
-  }
+    if (size < 2) {
+        return 0;
+    }
 
-  // Split the input data into two parts for key and JSON data
-  size_t key_length = data[0] % (size - 1) + 1; // Ensure key_length is at least 1 and less than size
-  size_t json_data_length = size - key_length; 
+    // Split the input data into two parts for key and value
+    size_t key_size = data[0] % size; // Ensure key_size is within bounds
+    size_t value_size = size - key_size - 1;
 
-  char *key = (char *)malloc(key_length + 1);
-  char *json_data = (char *)malloc(json_data_length + 1);
+    // Create a null-terminated string for the key
+    char *key = (char *)malloc(key_size + 1);
+    if (!key) {
+        return 0;
+    }
+    memcpy(key, data + 1, key_size);
+    key[key_size] = '\0';
 
-  if (!key || !json_data) {
+    // Create a cJSON object to replace
+    cJSON *replacement_item = cJSON_CreateString("replacement");
+    if (!replacement_item) {
+        free(key);
+        return 0;
+    }
+
+    // Create a cJSON object to act as the parent
+    cJSON *parent = cJSON_CreateObject();
+    if (!parent) {
+        cJSON_Delete(replacement_item);
+        free(key);
+        return 0;
+    }
+
+    // Add an initial item to the parent object
+    cJSON *initial_item = cJSON_CreateString("initial");
+    if (!initial_item) {
+        cJSON_Delete(replacement_item);
+        cJSON_Delete(parent);
+        free(key);
+        return 0;
+    }
+    cJSON_AddItemToObject(parent, key, initial_item);
+
+    // Fuzz the cJSON_ReplaceItemInObjectCaseSensitive function
+    cJSON_ReplaceItemInObjectCaseSensitive(parent, key, replacement_item);
+
+    // Clean up
+    cJSON_Delete(parent);
     free(key);
-    free(json_data);
+
     return 0;
-  }
-
-  memcpy(key, data + 1, key_length);
-  key[key_length] = '\0';
-
-  memcpy(json_data, data + 1 + key_length, json_data_length);
-  json_data[json_data_length] = '\0';
-
-  cJSON *object = cJSON_Parse(json_data);
-  cJSON *new_item = cJSON_CreateString("replacement");
-
-  if (object && new_item) {
-    cJSON_ReplaceItemInObjectCaseSensitive(object, key, new_item);
-  }
-
-  cJSON_Delete(object);
-  cJSON_Delete(new_item);
-  free(key);
-  free(json_data);
-
-  return 0;
 }
 
 #ifdef __cplusplus

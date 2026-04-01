@@ -1,65 +1,69 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsBuildTabulatedToneCurve16 at cmsgamma.c:783:25 in lcms2.h
-// cmsGetToneCurveEstimatedTable at cmsgamma.c:774:34 in lcms2.h
-// cmsReverseToneCurve at cmsgamma.c:1137:25 in lcms2.h
-// cmsEvalToneCurve16 at cmsgamma.c:1437:27 in lcms2.h
-// cmsDupToneCurve at cmsgamma.c:968:25 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
-// cmsFreeToneCurveTriple at cmsgamma.c:954:16 in lcms2.h
+// _cmsReadUInt16Number at cmsplugin.c:124:20 in lcms2_plugin.h
+// _cmsReadUInt32Number at cmsplugin.c:156:20 in lcms2_plugin.h
+// _cmsReadAlignment at cmsplugin.c:445:19 in lcms2_plugin.h
+// _cmsWriteAlignment at cmsplugin.c:462:19 in lcms2_plugin.h
+// _cmsIOPrintf at cmsplugin.c:482:19 in lcms2_plugin.h
+// cmsCloseIOhandler at cmsio0.c:510:19 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
+#include "lcms2_plugin.h"
 #include "lcms2.h"
 
-static cmsToneCurve* createToneCurve(cmsContext context, size_t size, const uint8_t *data) {
-    if (size < sizeof(cmsUInt16Number)) return NULL;
+static cmsUInt32Number DummyRead(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count) {
+    return fread(Buffer, size, count, (FILE*)iohandler->stream);
+}
 
-    cmsUInt32Number nEntries = size / sizeof(cmsUInt16Number);
-    if (nEntries == 0) return NULL;
+static cmsBool DummySeek(struct _cms_io_handler* iohandler, cmsUInt32Number offset) {
+    return fseek((FILE*)iohandler->stream, offset, SEEK_SET) == 0;
+}
 
-    cmsUInt16Number* values = (cmsUInt16Number*)data;
-    return cmsBuildTabulatedToneCurve16(context, nEntries, values);
+static cmsBool DummyClose(struct _cms_io_handler* iohandler) {
+    return fclose((FILE*)iohandler->stream) == 0;
+}
+
+static cmsUInt32Number DummyTell(struct _cms_io_handler* iohandler) {
+    return ftell((FILE*)iohandler->stream);
+}
+
+static cmsBool DummyWrite(struct _cms_io_handler* iohandler, cmsUInt32Number size, const void* Buffer) {
+    return fwrite(Buffer, size, 1, (FILE*)iohandler->stream) == 1;
 }
 
 int LLVMFuzzerTestOneInput_92(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt16Number)) return 0;
+    if (Size < 1) return 0;
 
-    cmsContext context = NULL; // Using a NULL context for simplicity
-    cmsToneCurve* curve = createToneCurve(context, Size, Data);
-    if (!curve) return 0;
+    FILE* file = fopen("./dummy_file", "wb+");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    rewind(file);
 
-    // Test cmsGetToneCurveEstimatedTable
-    const cmsUInt16Number* estimatedTable = cmsGetToneCurveEstimatedTable(curve);
-    if (estimatedTable != NULL) {
-        // Do something with estimatedTable, if needed
-    }
+    cmsIOHANDLER iohandler = {
+        .stream = file,
+        .Read = DummyRead,
+        .Seek = DummySeek,
+        .Close = DummyClose,
+        .Tell = DummyTell,
+        .Write = DummyWrite
+    };
 
-    // Test cmsReverseToneCurve
-    cmsToneCurve* reversedCurve = cmsReverseToneCurve(curve);
-    if (reversedCurve) {
-        // Test cmsEvalToneCurve16
-        cmsUInt16Number input = 12345; // Example input value
-        cmsEvalToneCurve16(reversedCurve, input);
+    cmsUInt16Number uint16;
+    cmsUInt32Number uint32;
 
-        // Test cmsDupToneCurve
-        cmsToneCurve* duplicatedCurve = cmsDupToneCurve(reversedCurve);
-        if (duplicatedCurve) {
-            cmsFreeToneCurve(duplicatedCurve);
-        }
+    _cmsReadUInt16Number(&iohandler, &uint16);
+    _cmsReadUInt32Number(&iohandler, &uint32);
+    _cmsReadAlignment(&iohandler);
+    _cmsWriteAlignment(&iohandler);
+    _cmsIOPrintf(&iohandler, "Test, number: %u", uint32);
+    cmsCloseIOhandler(&iohandler);
 
-        cmsFreeToneCurve(reversedCurve);
-    }
-
-    // Prepare a dummy array for cmsFreeToneCurveTriple
-    cmsToneCurve* triple[3] = {curve, NULL, NULL};
-    cmsFreeToneCurveTriple(triple);
-
+    // Remove the fclose(file) to avoid double-free since cmsCloseIOhandler already closes it.
     return 0;
 }

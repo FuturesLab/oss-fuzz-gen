@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_getEmphClasses at compileTranslationTable.c:5070:1 in liblouis.h
-// lou_freeEmphClasses at compileTranslationTable.c:5095:1 in liblouis.h
-// lou_freeTableFile at metadata.c:1089:1 in liblouis.h
-// lou_freeTableInfo at metadata.c:1167:1 in liblouis.h
-// lou_freeTableFiles at compileTranslationTable.c:4933:1 in liblouis.h
-// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
+// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
+// lou_compileString at compileTranslationTable.c:5430:1 in liblouis.h
+// lou_hyphenate at lou_translateString.c:4066:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
+// lou_charSize at compileTranslationTable.c:5425:1 in liblouis.h
+// lou_readCharFromFile at compileTranslationTable.c:4352:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,66 +14,99 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <liblouis.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <liblouis.h>
+#include <fstream>
+
+static void fuzz_lou_translateString(const uint8_t *Data, size_t Size) {
+    if (Size < 2) return;
+
+    const char *tableList = reinterpret_cast<const char*>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen >= Size - 1) return;
+
+    const widechar *inbuf = reinterpret_cast<const widechar*>(Data + tableListLen + 1);
+    int inlen = (Size - tableListLen - 1) / sizeof(widechar);
+    if (inlen <= 0) return;
+
+    widechar outbuf[256];
+    int outlen = 256;
+    formtype *typeform = nullptr;
+    char *spacing = nullptr;
+    int mode = 0;
+
+    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
+}
+
+static void fuzz_lou_compileString(const uint8_t *Data, size_t Size) {
+    if (Size < 2) return;
+
+    const char *tableList = reinterpret_cast<const char*>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen >= Size - 1) return;
+
+    const char *inString = reinterpret_cast<const char*>(Data + tableListLen + 1);
+    size_t inStringLen = strnlen(inString, Size - tableListLen - 1);
+
+    // Ensure inString is null-terminated within its allocated bounds
+    std::vector<char> nullTerminatedInString(inString, inString + inStringLen);
+    nullTerminatedInString.push_back('\0');
+
+    lou_compileString(tableList, nullTerminatedInString.data());
+}
+
+static void fuzz_lou_hyphenate(const uint8_t *Data, size_t Size) {
+    if (Size < 2) return;
+
+    const char *tableList = reinterpret_cast<const char*>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen >= Size - 1) return;
+
+    const widechar *inbuf = reinterpret_cast<const widechar*>(Data + tableListLen + 1);
+    int inlen = (Size - tableListLen - 1) / sizeof(widechar);
+    if (inlen <= 0) return;
+
+    char hyphens[256];
+    int mode = 0;
+
+    lou_hyphenate(tableList, inbuf, inlen, hyphens, mode);
+}
+
+static void fuzz_lou_checkTable(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    const char *tableList = reinterpret_cast<const char*>(Data);
+    if (strnlen(tableList, Size) >= Size) return;
+
+    lou_checkTable(tableList);
+}
+
+static void fuzz_lou_charSize() {
+    lou_charSize();
+}
+
+static void fuzz_lou_readCharFromFile(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    std::ofstream dummyFile("./dummy_file");
+    if (!dummyFile) return;
+
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
+
+    int mode = 0;
+    lou_readCharFromFile("./dummy_file", &mode);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Prepare a dummy file if needed
-    const char *dummyFilePath = "./dummy_file";
-    FILE *dummyFile = fopen(dummyFilePath, "wb");
-    if (dummyFile) {
-        fwrite(Data, 1, Size, dummyFile);
-        fclose(dummyFile);
-    }
-
-    // Allocate memory for testing
-    char *tableFile = static_cast<char *>(malloc(Size + 1));
-    if (tableFile) {
-        memcpy(tableFile, Data, Size);
-        tableFile[Size] = '\0';
-
-        // Test lou_getEmphClasses function
-        const char **emphClasses = lou_getEmphClasses(tableFile);
-        if (emphClasses) {
-            lou_freeEmphClasses(emphClasses);
-        }
-
-        // Test lou_freeTableFile function
-        lou_freeTableFile(tableFile);
-    }
-
-    // Allocate memory for table info
-    char *tableInfo = static_cast<char *>(malloc(Size + 1));
-    if (tableInfo) {
-        memcpy(tableInfo, Data, Size);
-        tableInfo[Size] = '\0';
-
-        // Test lou_freeTableInfo function
-        lou_freeTableInfo(tableInfo);
-    }
-
-    // Allocate memory for table files
-    char **tableFiles = static_cast<char **>(malloc(2 * sizeof(char *)));
-    if (tableFiles) {
-        tableFiles[0] = static_cast<char *>(malloc(Size + 1));
-        tableFiles[1] = nullptr;
-        if (tableFiles[0]) {
-            memcpy(tableFiles[0], Data, Size);
-            tableFiles[0][Size] = '\0';
-
-            // Test lou_freeTableFiles function
-            lou_freeTableFiles(tableFiles);
-        } else {
-            free(tableFiles);
-        }
-    }
-
-    // Test lou_free function
-    lou_free();
+    fuzz_lou_translateString(Data, Size);
+    fuzz_lou_compileString(Data, Size);
+    fuzz_lou_hyphenate(Data, Size);
+    fuzz_lou_checkTable(Data, Size);
+    fuzz_lou_charSize();
+    fuzz_lou_readCharFromFile(Data, Size);
 
     return 0;
 }

@@ -14,45 +14,41 @@
 #include <cstdint>
 #include <cstddef>
 #include <liblouis.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <fstream>
 
-static void customLogCallback(logLevels level, const char *message) {
-    // Custom log callback implementation (can be empty for fuzzing).
-}
-
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    // Register a custom log callback
-    lou_registerLogCallback(customLogCallback);
+    // Prepare environment
+    if (Size < 1) return 0;
 
-    // Prepare a dummy file for table checking
-    const char *dummyFileName = "./dummy_file";
-    std::ofstream dummyFile(dummyFileName);
-    if (!dummyFile) return 0;
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
+    // Register a log callback
+    lou_registerLogCallback(nullptr);
 
-    // Check table using the dummy file path
-    lou_checkTable(dummyFileName);
+    // Prepare a dummy table file
+    std::ofstream dummyFile("./dummy_file");
+    if (dummyFile.is_open()) {
+        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+        dummyFile.close();
+    }
+
+    // Check table
+    lou_checkTable("./dummy_file");
 
     // Free resources
     lou_free();
 
-    // Allocate buffers for back translation
-    widechar inbuf[256] = {0};
-    widechar outbuf[256] = {0};
-    int inlen = Size < 256 ? Size : 256;
-    int outlen = 256;
+    // Prepare input for backTranslateString
+    widechar inbuf[1024];
+    int inlen = std::min(Size / sizeof(widechar), sizeof(inbuf) / sizeof(widechar));
+    std::memcpy(inbuf, Data, inlen * sizeof(widechar));
 
-    // Ensure inlen does not exceed the size of inbuf
-    if (inlen > 256) {
-        inlen = 256;
-    }
-
-    // Copy data to inbuf safely
-    std::memcpy(inbuf, Data, inlen * sizeof(uint8_t));
+    widechar outbuf[1024];
+    int outlen = sizeof(outbuf) / sizeof(widechar);
 
     // Back translate string
-    lou_backTranslateString(dummyFileName, inbuf, &inlen, outbuf, &outlen, nullptr, nullptr, 0);
+    lou_backTranslateString("./dummy_file", inbuf, &inlen, outbuf, &outlen, nullptr, nullptr, 0);
 
     // Free resources again
     lou_free();

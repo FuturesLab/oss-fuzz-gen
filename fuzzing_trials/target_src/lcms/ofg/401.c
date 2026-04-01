@@ -1,27 +1,19 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_401(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to create a tone curve
-    if (size < sizeof(cmsUInt16Number)) {
-        return 0;
-    }
-
-    // Create a tone curve with some default parameters
-    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2);
-    if (toneCurve == NULL) {
+    // Ensure the size is non-zero to avoid passing NULL to the function
+    if (size == 0) {
         return 0;
     }
 
     // Call the function-under-test
-    cmsToneCurve *reversedCurve = cmsReverseToneCurve(toneCurve);
+    cmsHPROFILE profile = cmsOpenProfileFromMem((const void *)data, (cmsUInt32Number)size);
 
-    // Clean up
-    cmsFreeToneCurve(toneCurve);
-    if (reversedCurve != NULL) {
-        cmsFreeToneCurve(reversedCurve);
+    // Check if the profile was opened successfully and close it
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
 
     return 0;

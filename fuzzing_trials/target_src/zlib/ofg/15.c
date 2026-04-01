@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
@@ -7,38 +7,28 @@ int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
     int level, method, windowBits, memLevel, strategy;
     const char *version;
     int stream_size;
-    
-    // Initialize the z_stream structure
+
+    // Initialize z_stream
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
-    stream.avail_in = size;
-    stream.next_in = (Bytef *)data;
 
-    // Define and initialize parameters for deflateInit2_
-    level = Z_DEFAULT_COMPRESSION;  // Compression level
-    method = Z_DEFLATED;            // Compression method
-    windowBits = 15;                // Window size
-    memLevel = 8;                   // Memory level
-    strategy = Z_DEFAULT_STRATEGY;  // Compression strategy
-    version = ZLIB_VERSION;         // Zlib version
-    stream_size = sizeof(z_stream); // Size of the z_stream structure
-
-    // Call the function-under-test
-    if (deflateInit2_(&stream, level, method, windowBits, memLevel, strategy, version, stream_size) != Z_OK) {
+    // Ensure the data size is sufficient to extract parameters
+    if (size < 6) {
         return 0;
     }
 
-    // Allocate output buffer
-    unsigned char outbuffer[4096];
-    stream.avail_out = sizeof(outbuffer);
-    stream.next_out = outbuffer;
+    // Extract parameters from the input data
+    level = data[0] % 10;  // Compression level (0-9)
+    method = Z_DEFLATED;   // Compression method (usually Z_DEFLATED)
+    windowBits = (data[1] % 16) + 8;  // windowBits (8-15)
+    memLevel = (data[2] % 9) + 1;     // memLevel (1-9)
+    strategy = data[3] % 5;           // Strategy (0-4)
+    version = ZLIB_VERSION;           // Use the zlib version
+    stream_size = sizeof(z_stream);   // Size of z_stream structure
 
-    // Perform deflate
-    while (stream.avail_in != 0) {
-        deflate(&stream, Z_NO_FLUSH);
-    }
-    deflate(&stream, Z_FINISH);
+    // Call the function under test
+    int ret = deflateInit2_(&stream, level, method, windowBits, memLevel, strategy, version, stream_size);
 
     // Clean up
     deflateEnd(&stream);

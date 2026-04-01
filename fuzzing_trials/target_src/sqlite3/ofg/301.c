@@ -1,37 +1,44 @@
 #include <stdint.h>
 #include <sqlite3.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdlib.h> // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_301(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = 0;
-    int rc;
+    sqlite3_stmt *stmt;
+    int index = 1; // Bind index, typically starts from 1 in SQLite
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
+    // Open a temporary in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
+    }
+
+    // Prepare a simple SQL statement
+    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    if (sqlite3_exec(db, sql, 0, 0, 0) != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Ensure the data is null-terminated for safe string operations
-    char *funcName = (char *)malloc(size + 1);
-    if (funcName == NULL) {
+    // Prepare an insert statement
+    const char *insert_sql = "INSERT INTO test (value) VALUES (?);";
+    if (sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0) != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(funcName, data, size);
-    funcName[size] = '\0';
 
-    // Use a fixed integer value for the number of arguments
-    int numArgs = 3;
+    // Bind the input data to the SQL statement
+    if (sqlite3_bind_text(stmt, index, (const char *)data, (int)size, SQLITE_TRANSIENT) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Call the function-under-test
-    sqlite3_overload_function(db, funcName, numArgs);
+    // Execute the statement
+    sqlite3_step(stmt);
 
     // Clean up
-    free(funcName);
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

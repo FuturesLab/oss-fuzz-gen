@@ -1,32 +1,27 @@
 #include <cstdint>
-#include <cstddef>
-#include <cstring>
+#include <cstdlib>
+#include <aom/aom_image.h>
 
-// Assuming the function is defined in an external C library
 extern "C" {
-    int aom_uleb_encode(uint64_t value, size_t available, uint8_t *buffer, size_t *encoded_size);
+    void aom_img_remove_metadata(aom_image_t *img);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract a uint64_t and a size_t
-    if (size < sizeof(uint64_t) + sizeof(size_t)) {
-        return 0;
-    }
-
-    // Extract a uint64_t value from the input data
-    uint64_t value;
-    memcpy(&value, data, sizeof(uint64_t));
-
-    // Extract a size_t value from the input data
-    size_t available;
-    memcpy(&available, data + sizeof(uint64_t), sizeof(size_t));
-
-    // Ensure the buffer is not NULL and has some size
-    uint8_t buffer[256]; // Fixed size buffer for simplicity
-    size_t encoded_size = 0;
+    // Initialize an aom_image_t structure
+    aom_image_t img;
+    img.fmt = AOM_IMG_FMT_I420; // Set a valid format
+    img.w = 640;                // Set a width
+    img.h = 480;                // Set a height
+    img.d_w = 640;              // Set display width
+    img.d_h = 480;              // Set display height
+    img.x_chroma_shift = 1;     // Set chroma shift
+    img.y_chroma_shift = 1;     // Set chroma shift
+    img.planes[0] = (uint8_t *)data; // Use the input data as a plane
+    img.stride[0] = 640;        // Set stride
+    img.bps = 8;                // Bits per sample
 
     // Call the function under test
-    aom_uleb_encode(value, available, buffer, &encoded_size);
+    aom_img_remove_metadata(&img);
 
     return 0;
 }

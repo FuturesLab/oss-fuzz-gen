@@ -1,40 +1,53 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Initialize variables for tj3SaveImage16
+    // Initialize tjhandle
     tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (handle == nullptr) {
-        return 0; // Exit if handle initialization fails
+    if (!handle) {
+        return 0;
     }
 
-    const char *filename = "test_output.jpg"; // Output file name
-
-    // Use the data to create a uint16_t array, assuming J16SAMPLE is a uint16_t
-    if (size < sizeof(uint16_t)) {
+    // Ensure the input data is large enough to contain at least one pixel
+    if (size < 3) {
         tj3Destroy(handle);
         return 0;
     }
 
-    const uint16_t *sampleArray = reinterpret_cast<const uint16_t *>(data);
+    // Derive image dimensions from input data
+    int width = data[0] % 256 + 1;  // Width derived from first byte, ensuring minimum width of 1
+    int height = data[1] % 256 + 1; // Height derived from second byte, ensuring minimum height of 1
 
-    // Set arbitrary non-zero dimensions and subsampling
-    int width = 16;
-    int height = 16;
-    int pitch = width * sizeof(uint16_t);
-    int subsamp = TJSAMP_444;
+    // Check if the data size is sufficient for the derived dimensions
+    if (size < width * height * 3) {
+        tj3Destroy(handle);
+        return 0;
+    }
+
+    int pitch = width * 3; // Assuming 3 bytes per pixel for RGB
+    int subsamp = TJSAMP_444; // Using 4:4:4 subsampling
+    int colorspace = TJCS_RGB; // Assuming input data is in RGB colorspace
+
+    // Allocate memory for compressed image
+    unsigned char *compressedImage = NULL;
+    size_t compressedSize = 0;
 
     // Call the function-under-test
-    tj3SaveImage16(handle, filename, sampleArray, width, pitch, height, subsamp);
+    int result = tjCompress2(handle, data, width, pitch, height, colorspace, &compressedImage, &compressedSize, subsamp, 100, TJFLAG_FASTDCT);
 
-    // Clean up
-    tj3Destroy(handle);
+    // Free allocated resources
+    if (compressedImage) {
+        tjFree(compressedImage);
+    }
+    tjDestroy(handle);
 
     return 0;
 }

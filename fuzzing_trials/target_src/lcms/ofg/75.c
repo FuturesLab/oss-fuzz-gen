@@ -3,22 +3,35 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract a cmsUInt16Number
-    if (size < sizeof(cmsUInt16Number)) {
+    // Initialize variables
+    cmsUInt32Number nPoints = 2; // Minimum number of points for a tone curve
+    cmsToneCurve *originalCurve = NULL;
+    cmsToneCurve *reversedCurve = NULL;
+    cmsContext contextID = cmsCreateContext(NULL, NULL);
+
+    // Ensure data is large enough to create a tone curve
+    if (size < sizeof(cmsFloat32Number) * nPoints) {
         return 0;
     }
 
-    // Initialize a cmsToneCurve object
-    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Example gamma value
+    // Create a tone curve using the input data
+    originalCurve = cmsBuildTabulatedToneCurveFloat(contextID, nPoints, (const cmsFloat32Number *)data);
 
-    // Extract a cmsUInt16Number from the input data
-    cmsUInt16Number inputNumber = *(cmsUInt16Number *)data;
+    // Check if the tone curve was created successfully
+    if (originalCurve == NULL) {
+        cmsDeleteContext(contextID);
+        return 0;
+    }
 
     // Call the function-under-test
-    cmsUInt16Number result = cmsEvalToneCurve16(toneCurve, inputNumber);
+    reversedCurve = cmsReverseToneCurveEx(nPoints, originalCurve);
 
     // Clean up
-    cmsFreeToneCurve(toneCurve);
+    if (reversedCurve != NULL) {
+        cmsFreeToneCurve(reversedCurve);
+    }
+    cmsFreeToneCurve(originalCurve);
+    cmsDeleteContext(contextID);
 
     return 0;
 }

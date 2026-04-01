@@ -1,28 +1,25 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_220(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsColorSpaceSignature colorSpaceSignature = cmsSigRgbData; // Example color space
-    cmsFloat64Number limit = 100.0; // Example limit value
-
-    // Ensure the size is sufficient for fuzzing
-    if (size < sizeof(cmsFloat64Number)) {
+    // Ensure that the input data is large enough to populate cmsCIELab
+    if (size < sizeof(cmsCIELab)) {
         return 0;
     }
 
-    // Use the data provided for fuzzing
-    limit = *((cmsFloat64Number*)data);
+    cmsUInt16Number encodedLab[3]; // Array to hold the encoded Lab values
+    cmsCIELab lab;
+
+    // Initialize the cmsCIELab structure from the input data
+    // We assume the input data is large enough to fill a cmsCIELab structure
+    const float *floatData = (const float *)data;
+    lab.L = floatData[0];
+    lab.a = floatData[1];
+    lab.b = floatData[2];
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateInkLimitingDeviceLinkTHR(context, colorSpaceSignature, limit);
-
-    // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-    cmsDeleteContext(context);
+    cmsFloat2LabEncodedV2(encodedLab, &lab);
 
     return 0;
 }

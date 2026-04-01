@@ -1,45 +1,36 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h> // Include this for size_t
+#include <sqlite3.h>
 #include "/src/sqlite3/bld/sqlite3.h"
 
-// Include the necessary header for memory management
-#include <stdlib.h>
-
-// Define SQLITE_TRANSIENT if not defined
-#ifndef SQLITE_TRANSIENT
-#define SQLITE_TRANSIENT ((sqlite3_destructor_type)-1)
-#endif
-
 int LLVMFuzzerTestOneInput_364(const uint8_t *data, size_t size) {
-    // Initialize SQLite database connection
-    sqlite3 *db;
-    sqlite3_open(":memory:", &db);
+    // Since sqlite3ValueNew, sqlite3ValueSetStr, and sqlite3ValueFree do not exist,
+    // we will use a different approach to create and manipulate sqlite3_value objects.
 
-    // Create a statement for testing
-    sqlite3_stmt *stmt;
-    const char *sql = "SELECT ?1, ?2";
-    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-
-    // Ensure data is not empty and bind some data to the statement
     if (size > 0) {
-        sqlite3_bind_text(stmt, 1, (const char*)data, size, SQLITE_TRANSIENT);
-    } else {
-        sqlite3_bind_text(stmt, 1, "default", 7, SQLITE_TRANSIENT);
+        // Create a new SQLite database in memory
+        sqlite3 *db;
+        sqlite3_open(":memory:", &db);
+
+        // Prepare a simple statement
+        sqlite3_stmt *stmt;
+        sqlite3_prepare_v2(db, "SELECT ?1", -1, &stmt, NULL);
+
+        // Bind the input data to the statement
+        sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
+
+        // Execute the statement
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            // Access the result
+            const unsigned char *text = sqlite3_column_text(stmt, 0);
+        }
+
+        // Finalize the statement
+        sqlite3_finalize(stmt);
+
+        // Close the database
+        sqlite3_close(db);
     }
-
-    // Bind a second value to the statement
-    sqlite3_bind_text(stmt, 2, "static", 6, SQLITE_STATIC);
-
-    // Step through the statement to execute
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        // Fetch the results
-        const unsigned char *result1 = sqlite3_column_text(stmt, 0);
-        const unsigned char *result2 = sqlite3_column_text(stmt, 1);
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
 
     return 0;
 }

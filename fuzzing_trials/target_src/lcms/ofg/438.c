@@ -1,51 +1,37 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <lcms2.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
 
 int LLVMFuzzerTestOneInput_438(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    cmsCIExyY whitePoint;
-    cmsCIExyYTRIPLE primaries;
-    cmsToneCurve *toneCurves[3];
-
-    // Calculate the size required for the input data
-    size_t required_size = sizeof(cmsCIExyY) + sizeof(cmsCIExyYTRIPLE) + 3 * sizeof(double);
-
-    // Ensure data is large enough to populate the structures
-    if (size < required_size) {
+    if (size < 9) {
+        // Ensure there is enough data to fill the matrix and offset arrays
         return 0;
     }
 
-    // Populate whitePoint from data
-    memcpy(&whitePoint, data, sizeof(cmsCIExyY));
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsUInt32Number rows = 3; // Example value for rows
+    cmsUInt32Number cols = 3; // Example value for columns
 
-    // Move data pointer forward
-    data += sizeof(cmsCIExyY);
-    size -= sizeof(cmsCIExyY);
+    // Allocate memory for the matrix and offset arrays
+    cmsFloat64Number matrix[rows * cols];
+    cmsFloat64Number offset[rows];
 
-    // Populate primaries from data
-    memcpy(&primaries, data, sizeof(cmsCIExyYTRIPLE));
-
-    // Move data pointer forward
-    data += sizeof(cmsCIExyYTRIPLE);
-    size -= sizeof(cmsCIExyYTRIPLE);
-
-    // Initialize tone curves
-    for (int i = 0; i < 3; i++) {
-        toneCurves[i] = cmsBuildGamma(NULL, 2.2); // Use a fixed gamma value for simplicity
+    // Initialize matrix and offset with values from the input data
+    for (cmsUInt32Number i = 0; i < rows * cols; i++) {
+        matrix[i] = (cmsFloat64Number)(data[i]) / 255.0;
+    }
+    for (cmsUInt32Number i = 0; i < rows; i++) {
+        offset[i] = (cmsFloat64Number)(data[i + rows * cols]) / 255.0;
     }
 
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateRGBProfile(&whitePoint, &primaries, toneCurves);
+    // Call the function under test
+    cmsStage *stage = cmsStageAllocMatrix(context, rows, cols, matrix, offset);
 
     // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
+    if (stage != NULL) {
+        cmsStageFree(stage);
     }
-    for (int i = 0; i < 3; i++) {
-        cmsFreeToneCurve(toneCurves[i]);
-    }
+    cmsDeleteContext(context);
 
     return 0;
 }

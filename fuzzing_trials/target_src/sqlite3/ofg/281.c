@@ -1,37 +1,31 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>  // Include this for malloc and free
-#include <string.h>  // Include this for memcpy
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_281(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the test
-    if (size < 4) {
+    int type;
+    sqlite3_mutex *mutex;
+
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Extract an integer from the data
-    int errCode = *(const int*)data;
+    // Interpret the first 4 bytes of data as an integer for the mutex type
+    type = *(const int*)data;
 
-    // Ensure there is a null-terminated string in the data
-    const char *message = (const char *)(data + 4);
-    size_t messageLength = size - 4;
-
-    // Allocate memory for the null-terminated string
-    char *logMessage = (char *)malloc(messageLength + 1);
-    if (!logMessage) {
+    // Ensure the type is within a valid range for sqlite3_mutex_alloc
+    // SQLite defines several mutex types, we can use a range check
+    if (type < 0 || type > 8) { // Assuming 8 is the max valid type for demonstration
         return 0;
     }
 
-    // Copy the message and ensure it's null-terminated
-    memcpy(logMessage, message, messageLength);
-    logMessage[messageLength] = '\0';
+    // Call the function-under-test
+    mutex = sqlite3_mutex_alloc(type);
 
-    // Call the function under test
-    sqlite3_log(errCode, logMessage, NULL);
-
-    // Free allocated memory
-    free(logMessage);
+    // If a mutex is allocated, free it
+    if (mutex != NULL) {
+        sqlite3_mutex_free(mutex);
+    }
 
     return 0;
 }

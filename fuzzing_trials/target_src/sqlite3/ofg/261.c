@@ -1,32 +1,32 @@
 #include <stdint.h>
-#include <stddef.h> // Include this for size_t
-#include <stdlib.h> // Include this for NULL
+#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_261(const uint8_t *data, size_t size) {
-    // Initialize SQLite3 library
-    sqlite3_initialize();
-
-    // Ensure the data is not NULL and size is greater than 0
-    if (data != NULL && size > 0) {
-        // Create a SQLite3 database in memory
-        sqlite3 *db;
-        if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
-            // Prepare a statement
-            sqlite3_stmt *stmt;
-            if (sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL) == SQLITE_OK) {
-                // Execute the statement
-                sqlite3_step(stmt);
-                // Finalize the statement
-                sqlite3_finalize(stmt);
-            }
-            // Close the database
-            sqlite3_close(db);
-        }
+    // Ensure the input data is not null and has a size
+    if (data == NULL || size == 0) {
+        return 0;
     }
 
-    // Shutdown SQLite3 library
-    sqlite3_shutdown();
+    // Call the function-under-test
+    int keyword_count = sqlite3_keyword_count();
+
+    // Use the input data to determine an index for sqlite3_keyword_name
+    int index = data[0] % keyword_count; // Use the first byte to determine the index
+
+    // Buffer to store the keyword name
+    const char *keyword_name;
+    int keyword_length;
+
+    // Get the keyword name for the given index
+    if (sqlite3_keyword_name(index, &keyword_name, &keyword_length) == SQLITE_OK) {
+        // Do something trivial with the result to ensure it's not optimized away
+        if (keyword_length > 0) {
+            volatile int temp = keyword_length;
+            (void)temp;
+        }
+    }
 
     return 0;
 }

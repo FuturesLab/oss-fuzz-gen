@@ -1,40 +1,23 @@
-#include <tiffio.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <tiffio.h>
 
-extern "C" int LLVMFuzzerTestOneInput_184(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Could not create a temporary file
-    }
+extern "C" {
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) == -1) {
-        close(fd);
-        unlink(tmpl);
-        return 0; // Could not write data to file
-    }
+int LLVMFuzzerTestOneInput_184(const uint8_t *data, size_t size) {
+    // Ensure that the size is sufficient to create meaningful strings
+    if (size < 3) return 0;
 
-    // Ensure the file is ready for reading
-    lseek(fd, 0, SEEK_SET);
+    // Initialize parameters for TIFFWarningExt
+    thandle_t handle = (thandle_t)0x1234; // Arbitrary non-null handle
+    const char *module = reinterpret_cast<const char*>(data);
+    const char *fmt = reinterpret_cast<const char*>(data + 1);
+    void *clientData = reinterpret_cast<void*>(0x5678); // Arbitrary non-null pointer
 
-    // Define the mode for opening the TIFF file
-    const char *mode = "r";
-
-    // Call the function-under-test
-    TIFF *tiff = TIFFFdOpen(fd, tmpl, mode);
-
-    // Clean up
-    if (tiff != nullptr) {
-        TIFFClose(tiff);
-    }
-    close(fd);
-    unlink(tmpl);
+    // Call the function under test
+    TIFFWarningExt(handle, module, fmt, clientData);
 
     return 0;
+}
+
 }

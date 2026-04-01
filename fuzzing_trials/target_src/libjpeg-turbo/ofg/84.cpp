@@ -1,45 +1,30 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Initialize variables required for tjTransform
-    tjhandle handle = tjInitTransform();
+    if (size < 3) {
+        return 0; // Not enough data to form a valid image
+    }
+
+    tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
         return 0;
     }
 
-    // Ensure size is not zero to prevent invalid memory access
-    if (size == 0) {
-        tjDestroy(handle);
-        return 0;
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer != nullptr) {
+            tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
     }
 
-    // Allocate memory for the destination image buffer
-    unsigned char *dstBuffer = nullptr;
-    unsigned long dstSize = 0;
-
-    // Create a transform object
-    tjtransform transform;
-    std::memset(&transform, 0, sizeof(tjtransform)); // Initialize to zero
-
-    // Set the transform options (e.g., no operation)
-    transform.op = TJXOP_NONE;
-
-    // Call the function-under-test
-    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuffer, &dstSize, &transform, 0);
-
-    // Clean up
-    if (dstBuffer != nullptr) {
-        tjFree(dstBuffer);
-    }
-    tjDestroy(handle);
-
-    return 0;
+    int result = tjDestroy(handle);
+    return result;
 }

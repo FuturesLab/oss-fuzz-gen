@@ -1,17 +1,20 @@
 #include <stdint.h>
-#include <stddef.h>    // Include for size_t
-#include <string.h>    // Include for NULL
+#include <stddef.h>
 #include <sqlite3.h>
 
-// Define a dummy callback function
-static void profile_callback(void *arg, const char *sql, sqlite3_uint64 duration) {
-    // Do nothing, just a placeholder
+// Define a dummy callback function to use with sqlite3_profile
+void profile_callback(void *arg, const char *statement, sqlite3_uint64 time) {
+    // This is a placeholder function for demonstration purposes
+    (void)arg;
+    (void)statement;
+    (void)time;
 }
 
 int LLVMFuzzerTestOneInput_356(const uint8_t *data, size_t size) {
+    // Initialize variables
     sqlite3 *db = NULL;
     int rc;
-    char *errMsg = NULL;
+    void *arg = (void *)data; // Use the input data as the argument for the callback
 
     // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
@@ -19,21 +22,8 @@ int LLVMFuzzerTestOneInput_356(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Set the profile callback (optional, for profiling)
-    sqlite3_profile(db, profile_callback, NULL);
-
-    // Prepare the input data as an SQL statement
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
-
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        // If there's an error, free the error message
-        sqlite3_free(errMsg);
-    }
-
-    // Free the SQL statement
-    sqlite3_free(sql);
+    // Call the function-under-test
+    sqlite3_profile(db, profile_callback, arg);
 
     // Close the database
     sqlite3_close(db);

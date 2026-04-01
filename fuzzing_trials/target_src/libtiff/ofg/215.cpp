@@ -1,35 +1,52 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
-
-// Function-under-test declaration
 extern "C" {
-    void TIFFWarning(const char *module, const char *fmt, void *ap);
+#include <tiffio.h>
+#include <unistd.h>
+#include <fcntl.h>
 }
 
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
 extern "C" int LLVMFuzzerTestOneInput_215(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract strings
-    if (size < 2) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Split the data into two strings
-    size_t mid = size / 2;
-    char module[256];
-    char fmt[256];
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
 
-    // Copy data into module and fmt strings ensuring null-termination
-    size_t module_len = (mid < 255) ? mid : 255;
-    size_t fmt_len = (size - mid < 255) ? size - mid : 255;
+    // Close the file descriptor
+    close(fd);
 
-    std::memcpy(module, data, module_len);
-    std::memcpy(fmt, data + mid, fmt_len);
-
-    module[module_len] = '\0';
-    fmt[fmt_len] = '\0';
+    // Open the TIFF file using the temporary file path
+    TIFF* tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        // Clean up the temporary file
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    TIFFWarning(module, fmt, nullptr);
+    const char* filename = TIFFFileName(tiff);
+
+    // Print the filename for debugging purposes
+    if (filename != nullptr) {
+        printf("TIFF File Name: %s\n", filename);
+    }
+
+    // Close the TIFF file
+    TIFFClose(tiff);
+
+    // Clean up the temporary file
+    remove(tmpl);
 
     return 0;
 }

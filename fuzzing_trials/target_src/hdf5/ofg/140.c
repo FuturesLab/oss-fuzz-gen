@@ -1,25 +1,37 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stdbool.h>
 #include <hdf5.h>
 
-// Define a simple scatter function that matches the H5D_scatter_func_t signature
-static herr_t scatter_func(const void *src_buf, size_t src_buf_bytes, void *op_data) {
-    // For the purpose of this fuzzing harness, we do nothing with the data
-    return 0;
-}
-
 int LLVMFuzzerTestOneInput_140(const uint8_t *data, size_t size) {
-    // Initialize variables
-    void *op_data = (void *)data;  // Use the input data as op_data
-    hid_t space_id = H5Screate(H5S_SIMPLE);  // Create a simple dataspace
-    hid_t type_id = H5Tcopy(H5T_NATIVE_INT); // Use a native integer type
+    // Declare and initialize variables
+    hid_t file_id;
+    bool no_attrs_hint;
+    
+    // Ensure size is sufficient to extract a boolean value
+    if (size < 1) {
+        return 0;
+    }
+
+    // Initialize the HDF5 library
+    H5open();
+
+    // Create a new HDF5 file to obtain a valid file identifier
+    file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Extract a boolean value from the input data
+    no_attrs_hint = (data[0] % 2 == 0);
 
     // Call the function-under-test
-    herr_t result = H5Dscatter(scatter_func, op_data, type_id, space_id, op_data);
+    H5Fset_dset_no_attrs_hint(file_id, no_attrs_hint);
 
-    // Clean up resources
-    H5Tclose(type_id);
-    H5Sclose(space_id);
+    // Close the HDF5 file
+    H5Fclose(file_id);
+
+    // Close the HDF5 library
+    H5close();
 
     return 0;
 }

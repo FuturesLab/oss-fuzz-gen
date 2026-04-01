@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFFieldSetGetSize at tif_dirinfo.c:728:5 in tiffio.h
-// TIFFFieldWriteCount at tif_dirinfo.c:962:5 in tiffio.h
-// TIFFFieldSetGetCountSize at tif_dirinfo.c:812:5 in tiffio.h
-// TIFFFieldPassCount at tif_dirinfo.c:958:5 in tiffio.h
-// TIFFFieldReadCount at tif_dirinfo.c:960:5 in tiffio.h
-// TIFFFieldIsAnonymous at tif_dirinfo.c:964:5 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
+// TIFFDataWidth at tif_dirinfo.c:692:5 in tiffio.h
+// TIFFUnsetField at tif_dir.c:1166:5 in tiffio.h
+// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,59 +17,58 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "tiffio.h"
+#include <tiffio.h>
 
-// Since the size of TIFFField is not known, we can't directly use sizeof(TIFFField).
-// We will assume a fixed size for fuzzing purposes, but in a real scenario, we would
-// need the complete definition of TIFFField.
-
-static const size_t ASSUMED_TIFFFIELD_SIZE = 64;
-
-static TIFFField *CreateTIFFField(const uint8_t *Data, size_t Size) {
-    if (Size < ASSUMED_TIFFFIELD_SIZE) {
-        return nullptr;
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-
-    TIFFField *field = (TIFFField *)malloc(ASSUMED_TIFFFIELD_SIZE);
-    if (field) {
-        memcpy(field, Data, ASSUMED_TIFFFIELD_SIZE);
-    }
-    return field;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size < 1) return 0;
+
+    writeDummyFile(Data, Size);
+
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) return 0;
+
+    uint32_t tag = Data[0];
+
+    // Test TIFFGetField
+    int status = TIFFGetField(tif, tag);
+    if (status) {
+        // Handle retrieved value based on tag type
     }
 
-    TIFFField *field = CreateTIFFField(Data, Size);
-    if (!field) {
-        return 0;
+    // Test TIFFFieldWithTag
+    const TIFFField *fieldWithTag = TIFFFieldWithTag(tif, tag);
+    if (fieldWithTag) {
+        // Process the field
     }
 
-    // Fuzzing TIFFFieldSetGetSize
-    int size = TIFFFieldSetGetSize(field);
+    // Test TIFFDataWidth
+    TIFFDataType dataType = static_cast<TIFFDataType>(Data[0] % 13); // Assuming 13 TIFFDataType enums
+    int dataWidth = TIFFDataWidth(dataType);
 
-    // Fuzzing TIFFFieldWriteCount
-    int writeCount = TIFFFieldWriteCount(field);
+    // Test TIFFUnsetField
+    status = TIFFUnsetField(tif, tag);
 
-    // Fuzzing TIFFFieldSetGetCountSize
-    int countSize = TIFFFieldSetGetCountSize(field);
+    // Test TIFFFindField
+    const TIFFField *foundField = TIFFFindField(tif, tag, dataType);
+    if (foundField) {
+        // Process the found field
+    }
 
-    // Fuzzing TIFFFieldPassCount
-    int passCount = TIFFFieldPassCount(field);
+    // Test TIFFReadDirectory
+    status = TIFFReadDirectory(tif);
 
-    // Fuzzing TIFFFieldReadCount
-    int readCount = TIFFFieldReadCount(field);
-
-    // Fuzzing TIFFFieldIsAnonymous
-    int isAnonymous = TIFFFieldIsAnonymous(field);
-
-    // Cleanup
-    free(field);
-
+    TIFFClose(tif);
     return 0;
 }

@@ -1,91 +1,87 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// inflateInit2_ at inflate.c:173:13 in zlib.h
-// inflate at inflate.c:474:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
-// inflateBackInit_ at infback.c:25:13 in zlib.h
-// inflateBack at infback.c:191:13 in zlib.h
-// inflateBackEnd at infback.c:574:13 in zlib.h
-// inflateBackEnd at infback.c:574:13 in zlib.h
+// gzopen at gzlib.c:288:16 in zlib.h
+// gzputc at gzwrite.c:307:13 in zlib.h
+// gzerror at gzlib.c:513:22 in zlib.h
+// gzclose at gzclose.c:11:13 in zlib.h
+// gzputs at gzwrite.c:350:13 in zlib.h
+// gzerror at gzlib.c:513:22 in zlib.h
+// gzprintf at gzwrite.c:487:15 in zlib.h
+// gzerror at gzlib.c:513:22 in zlib.h
+// gzseek at gzlib.c:438:17 in zlib.h
+// gzerror at gzlib.c:513:22 in zlib.h
+// gzclose at gzclose.c:11:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <zlib.h>
 
-#define CHUNK 256
-
-typedef struct {
-    const unsigned char *data;
-    size_t size;
-    size_t offset;
-} InputDesc;
-
-static int dummy_in_func(void *desc, unsigned char **buffer) {
-    InputDesc *input = (InputDesc *)desc;
-    if (input->offset >= input->size) {
-        return 0;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    *buffer = (unsigned char *)&input->data[input->offset];
-    int available = input->size - input->offset;
-    input->offset = input->size; // Move offset to end
-    return available;
-}
-
-static int dummy_out_func(void *desc, unsigned char *buffer, unsigned len) {
-    (void)desc; // Unused
-    (void)buffer; // Unused
-    return len;
 }
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    z_stream strm;
-    memset(&strm, 0, sizeof(z_stream));
-    strm.zalloc = Z_NULL;
-    strm.zfree = Z_NULL;
-    strm.opaque = Z_NULL;
-
-    int ret = inflateInit2_(&strm, 15, ZLIB_VERSION, sizeof(z_stream));
-    if (ret != Z_OK) return 0;
-
-    unsigned char out[CHUNK];
-    strm.avail_in = Size;
-    strm.next_in = (z_const Bytef *)Data;
-    strm.avail_out = CHUNK;
-    strm.next_out = out;
-
-    // Inflate loop
-    while (strm.avail_in > 0) {
-        ret = inflate(&strm, Z_NO_FLUSH);
-        if (ret == Z_STREAM_END) break;
-        if (ret != Z_OK) {
-            inflateEnd(&strm);
-            return 0;
-        }
-    }
-
-    inflateEnd(&strm);
-
-    // InflateBackInit
-    unsigned char window[CHUNK];
-    ret = inflateBackInit_(&strm, 15, window, ZLIB_VERSION, sizeof(z_stream));
-    if (ret != Z_OK) return 0;
-
-    // Prepare input descriptor
-    InputDesc inputDesc = { Data, Size, 0 };
-
-    // InflateBack
-    ret = inflateBack(&strm, dummy_in_func, &inputDesc, dummy_out_func, NULL);
-    if (ret != Z_OK && ret != Z_STREAM_END) {
-        inflateBackEnd(&strm);
+    if (Size < 1) {
         return 0;
     }
 
+    // Write the input data to a dummy file
+    write_dummy_file(Data, Size);
+
+    // Open the file with gzopen
+    gzFile file = gzopen("./dummy_file", "wb");
+    if (!file) {
+        return 0;
+    }
+
+    // Use gzputc to write a character
+    int ret = gzputc(file, Data[0]);
+    if (ret == -1) {
+        int errnum;
+        gzerror(file, &errnum);
+    }
+
+    // Prepare a null-terminated string for gzputs
+    char *str = (char *)malloc(Size + 1);
+    if (!str) {
+        gzclose(file);
+        return 0;
+    }
+    memcpy(str, Data, Size);
+    str[Size] = '\0';
+
+    // Use gzputs to write a string
+    ret = gzputs(file, str);
+    if (ret == -1) {
+        int errnum;
+        gzerror(file, &errnum);
+    }
+
+    // Use gzprintf to write formatted data
+    ret = gzprintf(file, "Formatted number: %d", Data[0]);
+    if (ret < 0) {
+        int errnum;
+        gzerror(file, &errnum);
+    }
+
+    // Use gzseek to change position
+    z_off_t offset = gzseek(file, 0, SEEK_SET);
+    if (offset == -1) {
+        int errnum;
+        gzerror(file, &errnum);
+    }
+
     // Clean up
-    inflateBackEnd(&strm);
+    free(str);
+    gzclose(file);
 
     return 0;
 }

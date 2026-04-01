@@ -1,35 +1,34 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <aom/aom_codec.h>
 
 extern "C" {
+    // Include the necessary header for the function-under-test
     #include <aom/aom_codec.h>
-    #include <aom/aom_image.h>
-    #include <aom/aom_decoder.h>
-    #include <aom/aomdx.h> // Include this header for aom_codec_av1_dx
 }
 
+// Define a valid codec context to be used for fuzzing
+aom_codec_ctx_t valid_codec_ctx;
+
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Declare and initialize the necessary variables
+    // Ensure that the data size is large enough to be meaningful
+    if (size < sizeof(aom_codec_ctx_t)) {
+        return 0;
+    }
+
+    // Initialize a codec context
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iter_t iter = NULL;
-    aom_image_t *img = NULL;
-
-    // Initialize codec context
-    if (aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0) != AOM_CODEC_OK) {
-        return 0; // Exit if initialization fails
-    }
-
-    // Decode the input data
-    if (aom_codec_decode(&codec_ctx, data, size, NULL) != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0; // Exit if decoding fails
-    }
+    memcpy(&codec_ctx, data, sizeof(aom_codec_ctx_t));
 
     // Call the function-under-test
-    img = aom_codec_get_frame(&codec_ctx, &iter);
+    const char *error_detail = aom_codec_error_detail(&codec_ctx);
 
-    // Clean up
-    aom_codec_destroy(&codec_ctx);
+    // Perform additional operations if needed
+    if (error_detail != NULL) {
+        // For example, print the error detail (in a real fuzzing environment, this would be logged)
+        // printf("Error detail: %s\n", error_detail);
+    }
 
     return 0;
 }

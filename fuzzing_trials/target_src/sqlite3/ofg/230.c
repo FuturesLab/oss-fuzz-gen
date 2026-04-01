@@ -1,39 +1,72 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <stdio.h>
+#include <string.h>
 
-// Fuzzing harness for sqlite3_db_handle
+typedef int (*collation_callback)(void*, int, const void*, int, const void*);
+typedef void (*destroy_callback)(void*);
+
+int sample_collation_callback(void* pArg, int len1, const void* str1, int len2, const void* str2) {
+    // A simple collation function that compares strings
+    return sqlite3_strnicmp((const char*)str1, (const char*)str2, len1 < len2 ? len1 : len2);
+}
+
+void sample_destroy_callback(void* pArg) {
+    // Sample destroy callback
+}
+
 int LLVMFuzzerTestOneInput_230(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt = NULL;
-    int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
+    if (size < 2) {
+        return 0; // Not enough data to form two strings
+    }
 
-    // Open a new in-memory SQLite database
+    sqlite3 *db;
+    int rc;
+    const char *collationName = "sample_collation";
+    void *pArg = NULL;
+
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Prepare a simple SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 0;
+    // Create a collation using the sample callback
+    sqlite3_create_collation_v2(
+        db,
+        collationName,
+        SQLITE_UTF8,
+        pArg,
+        sample_collation_callback,
+        sample_destroy_callback
+    );
+
+    // Prepare two strings from the input data
+    int len1 = data[0] % size;
+    int len2 = size - len1 - 1;
+    const char *str1 = (const char*)&data[1];
+    const char *str2 = (const char*)&data[1 + len1];
+
+    // Use the collation function
+    sqlite3_create_collation_v2(
+        db,
+        collationName,
+        SQLITE_UTF8,
+        pArg,
+        sample_collation_callback,
+        sample_destroy_callback
+    );
+
+    // Execute a simple query that uses the collation
+    char *errMsg = 0;
+    char sql[256];
+    snprintf(sql, sizeof(sql), "SELECT 'a' COLLATE %s;", collationName);
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
 
-    // Call the function-under-test with the prepared statement
-    sqlite3 *db_handle = sqlite3_db_handle(stmt);
-
-    // Check if the returned database handle is the same as the original
-    if (db_handle != db) {
-        fprintf(stderr, "Database handle mismatch\n");
-    }
-
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;

@@ -1,10 +1,18 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFSwabDouble at tif_swab.c:201:6 in tiffio.h
-// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFIsBigEndian at tif_open.c:904:5 in tiffio.h
-// TIFFIsByteSwapped at tif_open.c:889:5 in tiffio.h
-// uv_decode at tif_luv.c:997:5 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// _TIFFmemcpy at tif_unix.c:355:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFReverseBits at tif_swab.c:310:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -15,60 +23,78 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <tiffio.h>
-#include <iostream>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_62(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double) * 2 + sizeof(int)) {
+    if (Size < sizeof(tmsize_t) + sizeof(uint32_t)) {
         return 0;
     }
 
-    // Prepare a double for TIFFSwabDouble
-    double swab_double;
-    memcpy(&swab_double, Data, sizeof(double));
-    TIFFSwabDouble(&swab_double);
-
-    // Prepare an array of doubles for TIFFSwabArrayOfDouble
-    double *array_of_doubles = reinterpret_cast<double *>(malloc(Size));
-    if (!array_of_doubles) {
+    // Prepare a dummy TIFF structure
+    TIFF *tif = TIFFOpen("./dummy_file", "w+");
+    if (!tif) {
         return 0;
     }
-    memcpy(array_of_doubles, Data, Size);
-    tmsize_t num_doubles = Size / sizeof(double);
-    TIFFSwabArrayOfDouble(array_of_doubles, num_doubles);
 
-    // Prepare a dummy TIFF structure for TIFFIsBigEndian and TIFFIsByteSwapped
-    TIFF *tiff = TIFFOpen("./dummy_file", "w");
-    if (!tiff) {
-        free(array_of_doubles);
-        return 0;
-    }
-    TIFFIsBigEndian(tiff);
-    TIFFIsByteSwapped(tiff);
-
-    // Prepare data for uv_encode
-    double lat, lon;
-    int precision;
-    memcpy(&lat, Data, sizeof(double));
-    memcpy(&lon, Data + sizeof(double), sizeof(double));
-    memcpy(&precision, Data + sizeof(double) * 2, sizeof(int));
-    uv_encode(lat, lon, precision);
-
-    // Prepare data for uv_decode
-    double *u = reinterpret_cast<double *>(malloc(num_doubles * sizeof(double)));
-    double *v = reinterpret_cast<double *>(malloc(num_doubles * sizeof(double)));
-    if (u && v) {
-        uv_decode(array_of_doubles, u, num_doubles);
+    // Test _TIFFmalloc
+    tmsize_t alloc_size = *(reinterpret_cast<const tmsize_t*>(Data));
+    void *mem = _TIFFmalloc(alloc_size);
+    if (mem) {
+        // Test _TIFFmemcpy if allocation succeeded
+        if (Size > sizeof(tmsize_t) + alloc_size) {
+            _TIFFmemcpy(mem, Data + sizeof(tmsize_t), alloc_size);
+        }
+        _TIFFfree(mem);
     }
 
-    // Cleanup
-    free(array_of_doubles);
-    TIFFClose(tiff);
-    free(u);
-    free(v);
+    // Test TIFFWriteEncodedStrip
+    uint32_t strip = *(reinterpret_cast<const uint32_t*>(Data + sizeof(tmsize_t)));
+    if (Size > sizeof(tmsize_t) + sizeof(uint32_t)) {
+        tmsize_t data_size = Size - sizeof(tmsize_t) - sizeof(uint32_t);
+        // Allocate a separate buffer to avoid overwriting const input
+        void *data_buffer = _TIFFmalloc(data_size);
+        if (data_buffer) {
+            memcpy(data_buffer, Data + sizeof(tmsize_t) + sizeof(uint32_t), data_size);
+            tmsize_t written = TIFFWriteEncodedStrip(tif, strip, data_buffer, data_size);
+            if (written == -1) {
+                // Handle error if necessary
+            }
+            _TIFFfree(data_buffer);
+        }
+    }
 
+    // Test TIFFStripSize
+    tmsize_t strip_size = TIFFStripSize(tif);
+
+    // Test TIFFReverseBits
+    if (Size > sizeof(tmsize_t) + sizeof(uint32_t)) {
+        tmsize_t reverse_size = Size - sizeof(tmsize_t) - sizeof(uint32_t);
+        // Allocate a separate buffer to avoid overwriting const input
+        uint8_t *reverse_buffer = (uint8_t*)_TIFFmalloc(reverse_size);
+        if (reverse_buffer) {
+            memcpy(reverse_buffer, Data + sizeof(tmsize_t) + sizeof(uint32_t), reverse_size);
+            TIFFReverseBits(reverse_buffer, reverse_size);
+            _TIFFfree(reverse_buffer);
+        }
+    }
+
+    // Test TIFFReadEncodedStrip
+    if (Size > sizeof(tmsize_t) + sizeof(uint32_t)) {
+        tmsize_t buf_size = Size - sizeof(tmsize_t) - sizeof(uint32_t);
+        void *buf = _TIFFmalloc(buf_size);
+        if (buf) {
+            tmsize_t read = TIFFReadEncodedStrip(tif, strip, buf, buf_size);
+            if (read == -1) {
+                // Handle error if necessary
+            }
+            _TIFFfree(buf);
+        }
+    }
+
+    TIFFClose(tif);
     return 0;
 }

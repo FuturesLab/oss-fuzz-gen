@@ -1,66 +1,51 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_remove_stream_description at isom_write.c:909:8 in isomedia.h
-// gf_isom_evte_config_new at sample_descs.c:1846:8 in isomedia.h
-// gf_isom_set_sample_cenc_default_group at isom_write.c:7843:8 in isomedia.h
-// gf_isom_remove_sample_group at isom_write.c:7632:8 in isomedia.h
-// gf_isom_set_mpegh_compatible_profiles at isom_write.c:9336:8 in isomedia.h
-// gf_isom_set_last_sample_duration_ex at isom_write.c:1431:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_new_text_sample at tx3g.c:602:16 in isomedia.h
+// gf_isom_text_reset_styles at tx3g.c:612:8 in isomedia.h
+// gf_isom_text_set_highlight_color at tx3g.c:321:8 in isomedia.h
+// gf_isom_text_set_forced at tx3g.c:423:8 in isomedia.h
+// gf_isom_text_reset at tx3g.c:636:8 in isomedia.h
+// gf_isom_text_add_style at tx3g.c:290:8 in isomedia.h
+// gf_isom_text_set_scroll_delay at tx3g.c:358:8 in isomedia.h
+// gf_isom_delete_text_sample at tx3g.c:646:6 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
-
 int LLVMFuzzerTestOneInput_61(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 6) return 0;
+    if (Size < sizeof(u32) + sizeof(Bool) + sizeof(u32)) return 0;
 
-    // Prepare a dummy ISO file
-    write_dummy_file(Data, Size);
+    GF_TextSample *sample = gf_isom_new_text_sample();
+    if (!sample) return 0;
 
-    // Cast data to appropriate types
-    u32 trackNumber = *(u32 *)Data;
-    u32 sampleDescriptionIndex = *((u32 *)Data + 1);
-    u32 grouping_type = *((u32 *)Data + 2);
-    u32 dur_num = *((u32 *)Data + 3);
-    u32 dur_den = *((u32 *)Data + 4);
-    u32 sampleNumber = *((u32 *)Data + 5);
+    u32 color = *(const u32 *)Data;
+    Bool is_forced = *(const Bool *)(Data + sizeof(u32));
+    u32 scroll_delay = *(const u32 *)(Data + sizeof(u32) + sizeof(Bool));
 
-    // Initialize a dummy ISO file structure
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) return 0;
+    // Fuzz gf_isom_text_reset_styles
+    gf_isom_text_reset_styles(sample);
 
-    // Fuzz gf_isom_remove_stream_description
-    gf_isom_remove_stream_description(isom_file, trackNumber, sampleDescriptionIndex);
+    // Fuzz gf_isom_text_set_highlight_color
+    gf_isom_text_set_highlight_color(sample, color);
 
-    // Fuzz gf_isom_evte_config_new
-    u32 outDescriptionIndex;
-    gf_isom_evte_config_new(isom_file, trackNumber, &outDescriptionIndex);
+    // Fuzz gf_isom_text_set_forced
+    gf_isom_text_set_forced(sample, is_forced);
 
-    // Fuzz gf_isom_set_sample_cenc_default_group
-    gf_isom_set_sample_cenc_default_group(isom_file, trackNumber, sampleNumber);
+    // Fuzz gf_isom_text_reset
+    gf_isom_text_reset(sample);
 
-    // Fuzz gf_isom_remove_sample_group
-    gf_isom_remove_sample_group(isom_file, trackNumber, grouping_type);
+    // Fuzz gf_isom_text_add_style
+    GF_StyleRecord *style_record = (GF_StyleRecord *)malloc(sizeof(GF_StyleRecord));
+    if (style_record) {
+        gf_isom_text_add_style(sample, style_record);
+        free(style_record);
+    }
 
-    // Fuzz gf_isom_set_mpegh_compatible_profiles
-    gf_isom_set_mpegh_compatible_profiles(isom_file, trackNumber, sampleDescriptionIndex, NULL, 0);
+    // Fuzz gf_isom_text_set_scroll_delay
+    gf_isom_text_set_scroll_delay(sample, scroll_delay);
 
-    // Fuzz gf_isom_set_last_sample_duration_ex
-    gf_isom_set_last_sample_duration_ex(isom_file, trackNumber, dur_num, dur_den);
-
-    // Close and clean up
-    gf_isom_close(isom_file);
+    gf_isom_delete_text_sample(sample);
 
     return 0;
 }

@@ -1,10 +1,13 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFFieldSetGetSize at tif_dirinfo.c:728:5 in tiffio.h
-// TIFFFieldWriteCount at tif_dirinfo.c:962:5 in tiffio.h
-// TIFFFieldSetGetCountSize at tif_dirinfo.c:812:5 in tiffio.h
-// TIFFFieldPassCount at tif_dirinfo.c:958:5 in tiffio.h
-// TIFFFieldReadCount at tif_dirinfo.c:960:5 in tiffio.h
-// TIFFFieldIsAnonymous at tif_dirinfo.c:964:5 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFSetFileno at tif_open.c:823:5 in tiffio.h
+// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
+// TIFFFileno at tif_open.c:818:5 in tiffio.h
+// TIFFSetupStrips at tif_write.c:553:5 in tiffio.h
+// TIFFGetMode at tif_open.c:848:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,59 +17,56 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "tiffio.h"
+#include <unistd.h>
+#include <fcntl.h>
 
-// Define a mock size for TIFFField since its actual size is unknown due to incomplete type
-#define MOCK_TIFFFIELD_SIZE 64
-
-static TIFFField* createTIFFField(const uint8_t* Data, size_t Size) {
-    if (Size < MOCK_TIFFFIELD_SIZE) {
-        return nullptr;
-    }
-
-    TIFFField* field = static_cast<TIFFField*>(malloc(MOCK_TIFFFIELD_SIZE));
-    if (!field) {
-        return nullptr;
-    }
-
-    memcpy(field, Data, MOCK_TIFFFIELD_SIZE);
-    return field;
-}
-
-static void freeTIFFField(TIFFField* field) {
-    free(field);
-}
-
-extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t* Data, size_t Size) {
-    TIFFField* field = createTIFFField(Data, Size);
-    if (!field) {
+extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Test TIFFFieldSetGetSize
-    int size = TIFFFieldSetGetSize(field);
-    // Test TIFFFieldWriteCount
-    int writeCount = TIFFFieldWriteCount(field);
-    // Test TIFFFieldSetGetCountSize
-    int countSize = TIFFFieldSetGetCountSize(field);
-    // Test TIFFFieldPassCount
-    int passCount = TIFFFieldPassCount(field);
-    // Test TIFFFieldReadCount
-    int readCount = TIFFFieldReadCount(field);
-    // Test TIFFFieldIsAnonymous
-    int isAnonymous = TIFFFieldIsAnonymous(field);
+    // Create a TIFF object using TIFFOpen
+    TIFF *tif = TIFFOpen("./dummy_file", "w+");
+    if (!tif) {
+        return 0;
+    }
 
-    // Use the variables to avoid compiler optimizations
-    (void)size;
-    (void)writeCount;
-    (void)countSize;
-    (void)passCount;
-    (void)readCount;
-    (void)isAnonymous;
+    // Use the first byte of data as the new file descriptor
+    int new_fd = static_cast<int>(Data[0]);
+    
+    // Fuzz TIFFSetFileno
+    int old_fd = TIFFSetFileno(tif, new_fd);
 
-    freeTIFFField(field);
+    // Fuzz TIFFIsMSB2LSB
+    int is_msb2lsb = TIFFIsMSB2LSB(tif);
+
+    // Fuzz TIFFFileno
+    int current_fd = TIFFFileno(tif);
+
+    // Fuzz TIFFSetupStrips
+    int setup_strips = TIFFSetupStrips(tif);
+
+    // Fuzz TIFFGetMode
+    int mode = TIFFGetMode(tif);
+
+    // Allocate a buffer for TIFFReadBufferSetup
+    void *buffer = malloc(1024);
+    if (!buffer) {
+        TIFFClose(tif);
+        return 0;
+    }
+
+    // Fuzz TIFFReadBufferSetup
+    int read_buffer_setup = TIFFReadBufferSetup(tif, buffer, 1024);
+
+    // Clean up
+    free(buffer);
+    TIFFClose(tif);
+
     return 0;
 }

@@ -1,25 +1,35 @@
-#include <cstdint>
-#include <cstddef>
-#include <cstring> // Include this header for std::memcpy
-
-// Assuming the function is defined elsewhere
-extern "C" int LogL10fromY(double, int);
+#include <tiffio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h> // Include for close() and remove()
 
 extern "C" int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-    if (size < sizeof(double) + sizeof(int)) {
-        return 0; // Not enough data to extract both double and int
+    TIFF *tiff = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    
+    if (fd == -1) {
+        return 0;
     }
 
-    // Extract a double from the input data
-    double d;
-    std::memcpy(&d, data, sizeof(double));
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
 
-    // Extract an int from the input data
-    int i;
-    std::memcpy(&i, data + sizeof(double), sizeof(int));
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Call the function-under-test
-    LogL10fromY(d, i);
+    tiff = TIFFOpen(tmpl, "r");
+    if (tiff != NULL) {
+        TIFFCreateEXIFDirectory(tiff);
+        TIFFClose(tiff);
+    }
+
+    remove(tmpl);
 
     return 0;
 }

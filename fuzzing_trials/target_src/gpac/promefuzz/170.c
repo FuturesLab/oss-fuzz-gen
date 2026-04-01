@@ -1,81 +1,61 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_delete_text_sample at tx3g.c:646:6 in isomedia.h
-// gf_isom_text_reset at tx3g.c:636:8 in isomedia.h
-// gf_isom_text_reset_styles at tx3g.c:612:8 in isomedia.h
-// gf_isom_text_add_highlight at tx3g.c:306:8 in isomedia.h
-// gf_isom_text_add_hyperlink at tx3g.c:370:8 in isomedia.h
-// gf_isom_text_add_blink at tx3g.c:399:8 in isomedia.h
-// gf_isom_text_set_karaoke_segment at tx3g.c:345:8 in isomedia.h
-// gf_isom_new_text_sample at tx3g.c:602:16 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_get_y3d_info at isom_read.c:6244:8 in isomedia.h
+// gf_isom_remove_sample_group at isom_write.c:7632:8 in isomedia.h
+// gf_isom_mvc_config_del at avc_ext.c:1823:8 in isomedia.h
+// gf_isom_set_y3d_info at isom_write.c:9065:8 in isomedia.h
+// gf_isom_set_sample_cenc_default_group at isom_write.c:7843:8 in isomedia.h
+// gf_isom_set_track_id at isom_write.c:5076:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include "isomedia.h"
 
-static GF_TextSample* create_text_sample() {
-    GF_TextSample *sample = gf_isom_new_text_sample();
-    return sample;
-}
-
-static void destroy_text_sample(GF_TextSample *sample) {
-    if (sample) {
-        gf_isom_delete_text_sample(sample);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_170(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    GF_TextSample *sample = create_text_sample();
-    if (!sample) return 0;
+    write_dummy_file(Data, Size);
 
-    gf_isom_text_reset(sample);
-    gf_isom_text_reset_styles(sample);
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    if (!isom_file) return 0;
 
-    if (Size >= 4) {
-        u16 start_char = Data[0];
-        u16 end_char = Data[1];
-        gf_isom_text_add_highlight(sample, start_char, end_char);
-    }
+    u32 trackNumber = *((u32 *)Data);
+    u32 sampleDescriptionIndex = *(((u32 *)Data) + 1);
+    u32 grouping_type = *(((u32 *)Data) + 2);
 
-    if (Size >= 6) {
-        size_t url_len = Size - 2 > 256 ? 256 : Size - 2;  // Limit URL length to avoid excessive allocation
-        char *url = (char *)malloc(url_len + 1);
-        if (url) {
-            memcpy(url, &Data[2], url_len);
-            url[url_len] = '\0';  // Null-terminate
+    GF_ISOM_Y3D_Info info;
+    GF_Err err;
 
-            size_t alt_len = Size - 3 > 256 ? 256 : Size - 3;  // Limit altString length
-            char *altString = (char *)malloc(alt_len + 1);
-            if (altString) {
-                memcpy(altString, &Data[3], alt_len);
-                altString[alt_len] = '\0';  // Null-terminate
+    // Test gf_isom_get_y3d_info
+    err = gf_isom_get_y3d_info(isom_file, trackNumber, sampleDescriptionIndex, &info);
 
-                u16 start_char = Data[4];
-                u16 end_char = Data[5];
-                gf_isom_text_add_hyperlink(sample, url, altString, start_char, end_char);
+    // Test gf_isom_remove_sample_group
+    err = gf_isom_remove_sample_group(isom_file, trackNumber, grouping_type);
 
-                free(altString);
-            }
-            free(url);
-        }
-    }
+    // Test gf_isom_mvc_config_del
+    err = gf_isom_mvc_config_del(isom_file, trackNumber, sampleDescriptionIndex);
 
-    if (Size >= 8) {
-        u16 start_char = Data[6];
-        u16 end_char = Data[7];
-        gf_isom_text_add_blink(sample, start_char, end_char);
-    }
+    // Test gf_isom_set_y3d_info
+    err = gf_isom_set_y3d_info(isom_file, trackNumber, sampleDescriptionIndex, &info);
 
-    if (Size >= 12) {
-        u32 end_time = *((u32 *)&Data[8]);
-        u16 start_char = Data[10];
-        u16 end_char = Data[11];
-        gf_isom_text_set_karaoke_segment(sample, end_time, start_char, end_char);
-    }
+    // Test gf_isom_set_sample_cenc_default_group
+    err = gf_isom_set_sample_cenc_default_group(isom_file, trackNumber, sampleDescriptionIndex);
 
-    destroy_text_sample(sample);
+    // Test gf_isom_set_track_id
+    err = gf_isom_set_track_id(isom_file, trackNumber, grouping_type);
+
+    gf_isom_close(isom_file);
+
     return 0;
 }

@@ -1,39 +1,31 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = NULL;
-    u32 trackNumber = 1;
-    u32 sample_description_index = 1;
-    u32 default_sample_group_index = 0;
-    u32 id = 0;
-    u32 independent = 0;
-    Bool full_picture = GF_FALSE;
-    u32 x = 0, y = 0, w = 0, h = 0;
-
-    // Create a temporary file to simulate input for GF_ISOFile
-    char temp_filename[] = "/tmp/fuzz_input.mp4";
-    FILE *temp_file = fopen(temp_filename, "wb");
-    if (!temp_file) {
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
         return 0;
     }
-    fwrite(data, 1, size, temp_file);
-    fclose(temp_file);
 
-    // Open the temporary file as an ISO media file
-    file = gf_isom_open(temp_filename, GF_ISOM_OPEN_READ, NULL);
-    if (!file) {
+    u32 trackNumber = 1; // Assuming track number 1 for fuzzing
+    u8 *sample_data = (u8 *)malloc(size);
+    if (!sample_data) {
+        gf_isom_close(movie);
         return 0;
+    }
+
+    // Copy the input data to sample_data
+    for (size_t i = 0; i < size; ++i) {
+        sample_data[i] = data[i];
     }
 
     // Call the function-under-test
-    gf_isom_get_tile_info(file, trackNumber, sample_description_index, &default_sample_group_index, &id, &independent, &full_picture, &x, &y, &w, &h);
+    gf_isom_append_sample_data(movie, trackNumber, sample_data, (u32)size);
 
     // Clean up
-    gf_isom_close(file);
-    remove(temp_filename);
+    free(sample_data);
+    gf_isom_close(movie);
 
     return 0;
 }

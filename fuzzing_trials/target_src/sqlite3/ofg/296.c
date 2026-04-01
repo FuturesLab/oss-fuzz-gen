@@ -1,36 +1,59 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <stdlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_296(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    int index = 1; // Typically, binding index starts from 1
-    int result;
-
-    // Initialize SQLite in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt1 = NULL;
+    sqlite3_stmt *stmt2 = NULL;
+    int rc;
+    
+    // Open a new in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a simple SQL statement
-    const char *sql = "CREATE TABLE test (id INTEGER); INSERT INTO test (id) VALUES (?);";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+    // Create a dummy table to prepare statements
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Bind the input data as text to the SQL statement
-    result = sqlite3_bind_text(stmt, index, (const char *)data, size, SQLITE_TRANSIENT);
+    // Prepare two statements
+    const char *sql1 = "INSERT INTO test (value) VALUES (?);";
+    const char *sql2 = "INSERT INTO test (value) VALUES (?);";
 
-    // Execute the statement
-    if (result == SQLITE_OK) {
-        sqlite3_step(stmt);
+    rc = sqlite3_prepare_v2(db, sql1, -1, &stmt1, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    rc = sqlite3_prepare_v2(db, sql2, -1, &stmt2, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt1);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Bind the input data to the first statement
+    rc = sqlite3_bind_text(stmt1, 1, (const char *)data, size, SQLITE_TRANSIENT);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt1);
+        sqlite3_finalize(stmt2);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Call the function-under-test
+    sqlite3_transfer_bindings(stmt1, stmt2);
+
+    // Finalize the statements and close the database
+    sqlite3_finalize(stmt1);
+    sqlite3_finalize(stmt2);
     sqlite3_close(db);
 
     return 0;

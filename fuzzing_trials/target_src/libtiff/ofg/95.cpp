@@ -1,33 +1,41 @@
 #include <cstdint>
-#include <cstdlib>
-#include <cstring> // For memcpy
+#include <cstdio>
+#include <cstdlib> // For mkstemp and close
+#include <unistd.h> // For mkstemp and close
 
 extern "C" {
     #include <tiffio.h>
-    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for TIFFField definition
-
-    TIFFDataType TIFFFieldDataType(const TIFFField *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    if (size < sizeof(TIFFField)) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Allocate memory for TIFFField and copy data
-    TIFFField* field = reinterpret_cast<TIFFField*>(malloc(sizeof(TIFFField)));
-    if (field == nullptr) {
+    // Write the fuzz data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == nullptr) {
+        close(fd);
         return 0;
     }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Copy data into field, ensuring not to exceed the size of TIFFField
-    memcpy(field, data, sizeof(TIFFField));
+    // Open the temporary file as a TIFF image
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff != nullptr) {
+        // Call the function-under-test
+        tdir_t dir = TIFFCurrentDirectory(tiff);
 
-    // Call the function-under-test
-    TIFFDataType result = TIFFFieldDataType(field);
+        // Close the TIFF image
+        TIFFClose(tiff);
+    }
 
-    // Free allocated memory
-    free(field);
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }

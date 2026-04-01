@@ -1,31 +1,30 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <aom/aom_codec.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
 
+// Include the necessary header for the function-under-test
 extern "C" {
-    // Include the necessary header for the function-under-test
-    #include <aom/aom_codec.h>
+#include <aom/aom_codec.h>
 }
 
-// LLVMFuzzerTestOneInput function definition
+// Fuzzing harness for aom_codec_error
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to extract a valid aom_codec_err_t value
-    if (size < sizeof(aom_codec_err_t)) {
-        return 0;
-    }
+    // Declare and initialize the aom_codec_ctx_t structure
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx)); // Initialize with zeroes
 
-    // Cast the input data to an aom_codec_err_t type
-    aom_codec_err_t codec_error = *(reinterpret_cast<const aom_codec_err_t*>(data));
+    // Ensure the data is large enough to fill the codec_ctx structure
+    if (size >= sizeof(codec_ctx)) {
+        // Copy data into codec_ctx, ensuring it is not NULL
+        memcpy(&codec_ctx, data, sizeof(codec_ctx));
 
-    // Call the function-under-test
-    const char *error_string = aom_codec_err_to_string(codec_error);
+        // Call the function-under-test
+        const char *error_message = aom_codec_error(&codec_ctx);
 
-    // Use the error_string in some way to prevent compiler optimizations from removing the call
-    if (error_string != NULL) {
-        // Do something trivial with error_string, like checking its length
-        volatile size_t length = 0;
-        while (error_string[length] != '\0') {
-            length++;
+        // Optionally print the error message for debugging
+        if (error_message != NULL) {
+            std::cout << "Error Message: " << error_message << std::endl;
         }
     }
 

@@ -1,13 +1,13 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
-// tj3GetScalingFactors at turbojpeg.c:1959:28 in turbojpeg.h
-// tj3SetScalingFactor at turbojpeg.c:1981:15 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tjDecompressToYUVPlanes at turbojpeg.c:2291:15 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
-// tjCompress at turbojpeg.c:1235:15 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
+// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
+// tj3DecompressHeader at turbojpeg.c:1815:15 in turbojpeg.h
+// tj3GetICCProfile at turbojpeg.c:1926:15 in turbojpeg.h
+// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
+// tjDecompressHeader3 at turbojpeg.c:1874:15 in turbojpeg.h
+// tj3GetErrorCode at turbojpeg.c:643:15 in turbojpeg.h
+// tjDecompressHeader2 at turbojpeg.c:1903:15 in turbojpeg.h
+// tjDecompressHeader at turbojpeg.c:1914:15 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,70 +18,43 @@
 #include <cstdint>
 #include <cstddef>
 #include <turbojpeg.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-
-static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
+#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 1) return 0; // Early exit if no data is provided
 
-    // Initialize TurboJPEG handle for decompression
-    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
-    if (!handle) return 0;
+    tjhandle handle = tjInitDecompress();
+    if (!handle) return 0; // Failed to initialize TurboJPEG handle
 
-    // Get scaling factors
-    int numScalingFactors = 0;
-    tjscalingfactor *scalingFactors = tj3GetScalingFactors(&numScalingFactors);
+    // Variables to store image properties
+    int width, height, jpegSubsamp, jpegColorspace;
+    unsigned char *iccBuf = nullptr;
+    size_t iccSize = 0;
 
-    if (scalingFactors && numScalingFactors > 0) {
-        // Set a scaling factor
-        tj3SetScalingFactor(handle, scalingFactors[0]);
-    }
+    // Call tj3DecompressHeader
+    tj3DecompressHeader(handle, Data, Size);
 
-    // Prepare dummy JPEG data
-    unsigned long jpegSize = Size;
-    unsigned char *jpegBuf = const_cast<unsigned char *>(Data);
+    // Call tj3GetICCProfile
+    tj3GetICCProfile(handle, &iccBuf, &iccSize);
+    if (iccBuf) tj3Free(iccBuf); // Free ICC buffer if allocated
 
-    // Prepare destination buffers for YUV planes
-    int width = 128; // Arbitrary width
-    int height = 128; // Arbitrary height
-    unsigned char *dstPlanes[3];
-    int strides[3] = {width, width / 2, width / 2}; // Example strides for YUV
+    // Call tjDecompressHeader3
+    tjDecompressHeader3(handle, Data, Size, &width, &height, &jpegSubsamp, &jpegColorspace);
 
-    for (int i = 0; i < 3; i++) {
-        dstPlanes[i] = static_cast<unsigned char *>(malloc(strides[i] * height / (i == 0 ? 1 : 2)));
-        if (!dstPlanes[i]) {
-            tj3Destroy(handle);
-            return 0;
-        }
-    }
+    // Call tj3GetErrorCode
+    int errorCode = tj3GetErrorCode(handle);
 
-    // Decompress to YUV planes
-    tjDecompressToYUVPlanes(handle, jpegBuf, jpegSize, dstPlanes, width, strides, height, 0);
+    // Call tjDecompressHeader2
+    tjDecompressHeader2(handle, const_cast<unsigned char*>(Data), Size, &width, &height, &jpegSubsamp);
 
-    // Clean up
-    for (int i = 0; i < 3; i++) {
-        free(dstPlanes[i]);
-    }
-    tj3Destroy(handle);
+    // Call tjDecompressHeader
+    tjDecompressHeader(handle, const_cast<unsigned char*>(Data), Size, &width, &height);
 
-    // Compress using tjCompress
-    tjhandle compressHandle = tj3Init(TJINIT_COMPRESS);
-    if (compressHandle) {
-        unsigned char *compressedBuf = nullptr;
-        unsigned long compressedSize = 0;
-        tjCompress(compressHandle, jpegBuf, width, 0, height, 3, compressedBuf, &compressedSize, TJSAMP_444, 75, 0);
-        tj3Destroy(compressHandle);
-    }
+    // Cleanup
+    tjDestroy(handle);
 
     return 0;
 }

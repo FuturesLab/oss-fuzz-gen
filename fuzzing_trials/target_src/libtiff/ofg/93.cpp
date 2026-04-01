@@ -1,41 +1,43 @@
 #include <cstdint>
 #include <cstdio>
-#include <unistd.h>  // Include for close, write, and mkstemp
-#include <sys/types.h>  // Include for ssize_t
-#include <cstdlib>  // Include for remove
+#include <cstdlib> // For mkstemp and remove
+#include <unistd.h> // For close
+#include <tiffio.h>
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    // Create a temporary file to simulate a TIFF file
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Write the input data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == nullptr) {
         close(fd);
         return 0;
     }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Close the file descriptor
-    close(fd);
-
-    // Open the TIFF file using the temporary file name
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        tdir_t dir = TIFFCurrentDirectory(tiff);
-
-        // Close the TIFF file
-        TIFFClose(tiff);
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r+");
+    if (tiff == nullptr) {
+        remove(tmpl);
+        return 0;
     }
 
-    // Remove the temporary file
+    // Fuzz the TIFFUnlinkDirectory function
+    tdir_t directory = 0; // Use a fixed directory number for fuzzing
+    TIFFUnlinkDirectory(tiff, directory);
+
+    // Clean up
+    TIFFClose(tiff);
     remove(tmpl);
 
     return 0;

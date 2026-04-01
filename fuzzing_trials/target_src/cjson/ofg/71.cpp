@@ -1,42 +1,43 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "../cJSON.h"
+
+int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
     if (size < 2) {
         return 0;
     }
 
-    // Split the input data for index and JSON strings
-    int index = data[0] % 10;  // Limit index to a small number for simplicity
-    const char *json_string = (const char *)(data + 1);
-
-    // Parse the JSON string to create a cJSON array
-    cJSON *json_array = cJSON_Parse(json_string);
+    // Create a JSON array
+    cJSON *json_array = cJSON_CreateArray();
     if (json_array == NULL) {
         return 0;
     }
 
-    // Ensure it's an array
-    if (!cJSON_IsArray(json_array)) {
-        cJSON_Delete(json_array);
-        return 0;
-    }
+    // Add a few items to the array to ensure it has elements
+    cJSON_AddItemToArray(json_array, cJSON_CreateString("item1"));
+    cJSON_AddItemToArray(json_array, cJSON_CreateString("item2"));
+    cJSON_AddItemToArray(json_array, cJSON_CreateString("item3"));
 
-    // Create a new item to replace an existing one in the array
-    cJSON *new_item = cJSON_CreateString("new_item");
+    // Use the first byte of data as the index
+    int index = data[0] % cJSON_GetArraySize(json_array);
+
+    // Parse the remaining data as a new cJSON item
+    cJSON *new_item = cJSON_ParseWithLength((const char *)(data + 1), size - 1);
     if (new_item == NULL) {
         cJSON_Delete(json_array);
         return 0;
     }
 
     // Call the function-under-test
-    cJSON_ReplaceItemInArray(json_array, index, new_item);
+    cJSON_bool result = cJSON_ReplaceItemInArray(json_array, index, new_item);
 
     // Clean up
     cJSON_Delete(json_array);

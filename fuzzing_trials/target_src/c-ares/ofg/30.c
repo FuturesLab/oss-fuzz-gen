@@ -1,24 +1,35 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <limits.h>
-#include <ares.h>
+#include <string.h>
+#include "ares.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-  /* Ensure the size is within the range of an int */
-  if (size > INT_MAX) {
+  if (size < sizeof(ares_dns_rr_key_t) + sizeof(unsigned short)) {
     return 0;
   }
 
-  struct ares_uri_reply *uri_out = NULL;
+  ares_dns_rr_key_t key;
+  unsigned short opt;
+
+  /* Copy data into key and opt ensuring they are properly initialized */
+  memcpy(&key, data, sizeof(ares_dns_rr_key_t));
+  memcpy(&opt, data + sizeof(ares_dns_rr_key_t), sizeof(unsigned short));
 
   /* Call the function-under-test */
-  int result = ares_parse_uri_reply(data, (int)size, &uri_out);
+  char *result = ares_dns_opt_get_name(key, opt);
 
-  /* Free the allocated resources if the function succeeded */
-  if (result == ARES_SUCCESS && uri_out != NULL) {
-    ares_free_data(uri_out);
+  /* Free the result if it's not NULL */
+  if (result) {
+    free(result);
   }
 
   return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

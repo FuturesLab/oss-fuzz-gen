@@ -2,30 +2,29 @@
 #include <stdlib.h>
 #include <pcap.h>
 
-// Define the fuzzing function
 int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
     pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
     int timeout;
 
-    // Ensure data is not empty and has enough bytes to derive a timeout value
+    // Ensure we have enough data to extract an int for timeout
     if (size < sizeof(int)) {
         return 0;
     }
 
-    // Create a fake pcap_t handle for testing
-    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
+    // Initialize timeout from the input data
+    timeout = *((int *)data);
+
+    // Initialize a pcap handle with a dummy device
+    pcap_handle = pcap_create("any", errbuf);
     if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Use the first few bytes of data to set the timeout value
-    timeout = *(int *)data;
+    // Call the function under test
+    int result = pcap_set_timeout(pcap_handle, timeout);
 
-    // Call the function-under-test
-    pcap_set_timeout(pcap_handle, timeout);
-
-    // Clean up
+    // Cleanup
     pcap_close(pcap_handle);
 
     return 0;

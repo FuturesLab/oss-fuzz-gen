@@ -1,33 +1,40 @@
+#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <pcap/pcap.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    // Declare and initialize a pcap_t pointer
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *alldevs;
     pcap_t *handle = NULL;
-
+    pcap_if_t *alldevs, *d;
+    
     // Find all available devices
     if (pcap_findalldevs(&alldevs, errbuf) == -1) {
         return 0;
     }
 
-    // Open the first available device
-    if (alldevs != NULL) {
-        handle = pcap_open_live(alldevs->name, 65536, 1, 1000, errbuf);
+    // Iterate over devices and try to open one
+    for (d = alldevs; d != NULL; d = d->next) {
+        handle = pcap_open_live(d->name, 65536, 1, 1000, errbuf);
+        if (handle != NULL) {
+            break;
+        }
     }
 
-    // Ensure handle is not NULL before calling the function-under-test
-    if (handle != NULL) {
-        // Call the function-under-test
+    // If no device could be opened, clean up and return
+    if (handle == NULL) {
+        pcap_freealldevs(alldevs);
+        return 0;
+    }
+
+    // Call the function-under-test with provided data
+    if (size > 0) {
+        // Assuming the function under test can take the data as input
         int result = pcap_can_set_rfmon(handle);
-
-        // Close the pcap handle
-        pcap_close(handle);
     }
 
-    // Free the device list
+    // Clean up
+    pcap_close(handle);
     pcap_freealldevs(alldevs);
 
     return 0;

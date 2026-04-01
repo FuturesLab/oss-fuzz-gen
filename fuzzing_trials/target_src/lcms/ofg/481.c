@@ -1,27 +1,28 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>  // Include this for memcpy
-#include <lcms2.h>
+#include <string.h>
+#include <stdlib.h>
+#include "lcms2.h" // Assuming this is the correct header for cmsIT8SetTableByLabel
 
 int LLVMFuzzerTestOneInput_481(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for the cmsCIExyY structure
-    if (size < sizeof(cmsCIExyY)) {
-        return 0;
-    }
+    // Ensure the data is not NULL and has a minimum size
+    if (size < 3) return 0; // Adjusted to ensure enough data for meaningful input
 
-    // Initialize variables
-    cmsFloat64Number tempResult;
-    cmsCIExyY whitePoint;
+    // Initialize the parameters for the function-under-test using fuzzer input
+    cmsHANDLE handle;
+    const char *tabName = (const char *)data; // Use part of the data as tabName
+    const char *label = (const char *)(data + 1); // Use another part as label
+    const char *value = (const char *)(data + 2); // Use another part as value
 
-    // Copy data into the cmsCIExyY structure
-    // Assuming data is structured appropriately for cmsCIExyY
-    memcpy(&whitePoint, data, sizeof(cmsCIExyY));
+    // Create a dummy handle for testing
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) return 0;
 
     // Call the function-under-test
-    cmsBool result = cmsTempFromWhitePoint(&tempResult, &whitePoint);
+    int result = cmsIT8SetTableByLabel(handle, tabName, label, value);
 
-    // Use the result to avoid compiler optimizations
-    (void)result;
+    // Clean up the dummy handle
+    cmsIT8Free(handle);
 
     return 0;
 }

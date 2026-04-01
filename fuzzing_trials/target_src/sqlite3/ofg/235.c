@@ -1,31 +1,26 @@
-#include <sqlite3.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <stddef.h>  // Include this header to define size_t
+#include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_235(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to split into meaningful parts
-    if (size < 3) {
+    sqlite3 *db;
+    int rc;
+    void *pArg = (void *)data;  // Use data as a generic pointer argument
+
+    // Open a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare the parameters for sqlite3_open_v2
-    const char *filename = "test.db"; // Use a static filename for simplicity
-    sqlite3 *db = NULL;
-
-    // Use the first byte of data to modify the flags
-    int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
-    flags |= (data[0] & 0x01) ? SQLITE_OPEN_READONLY : 0;
-
-    const char *vfs = NULL; // Use the default VFS
+    // Use a fixed integer for the second argument
+    int op = SQLITE_VTAB_CONSTRAINT_SUPPORT;
 
     // Call the function-under-test
-    int result = sqlite3_open_v2(filename, &db, flags, vfs);
+    sqlite3_vtab_config(db, op, pArg);
 
-    // If the database was opened successfully, close it
-    if (result == SQLITE_OK) {
-        sqlite3_close(db);
-    }
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

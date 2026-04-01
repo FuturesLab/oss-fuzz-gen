@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_131(const uint8_t *data, size_t size) {
@@ -10,8 +10,8 @@ int LLVMFuzzerTestOneInput_131(const uint8_t *data, size_t size) {
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
-    stream.avail_in = size;
     stream.next_in = (Bytef *)data;
+    stream.avail_in = size;
 
     // Initialize inflate state
     ret = inflateInit(&stream);
@@ -19,10 +19,10 @@ int LLVMFuzzerTestOneInput_131(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Allocate a buffer for the decompressed data
+    // Allocate memory for output buffer
     unsigned char outbuffer[32768];
-    stream.avail_out = sizeof(outbuffer);
     stream.next_out = outbuffer;
+    stream.avail_out = sizeof(outbuffer);
 
     // Call the function-under-test
     ret = inflate(&stream, Z_NO_FLUSH);

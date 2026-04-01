@@ -1,7 +1,6 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpenOptionsAlloc at tif_open.c:80:18 in tiffio.h
 // TIFFOpenOptionsSetMaxCumulatedMemAlloc at tif_open.c:106:6 in tiffio.h
-// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
 // TIFFOpenExt at tif_unix.c:237:7 in tiffio.h
 // TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
 // TIFFSetField at tif_dir.c:1152:5 in tiffio.h
@@ -19,51 +18,48 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
+#include <cstddef>
 #include <cstdio>
-#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
     }
 
-    // Step 1: Allocate TIFFOpenOptions
+    TIFF *tif = nullptr;
     TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
-    if (!opts) {
-        return 0;
-    }
+    
+    if (opts) {
+        // Set a random max cumulative memory allocation limit
+        tmsize_t max_mem_alloc = static_cast<tmsize_t>(Data[0]);
+        TIFFOpenOptionsSetMaxCumulatedMemAlloc(opts, max_mem_alloc);
 
-    // Step 2: Set maximum cumulative memory allocation
-    tmsize_t maxMemAlloc = static_cast<tmsize_t>(Data[0]);
-    TIFFOpenOptionsSetMaxCumulatedMemAlloc(opts, maxMemAlloc);
+        // Write data to a dummy file
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file) {
+            fwrite(Data, 1, Size, file);
+            fclose(file);
 
-    // Step 3: Open a TIFF file using TIFFOpenExt
-    FILE *dummyFile = fopen("./dummy_file", "wb");
-    if (!dummyFile) {
+            // Attempt to open the TIFF file with the options
+            tif = TIFFOpenExt("./dummy_file", "r", opts);
+        }
+
         TIFFOpenOptionsFree(opts);
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummyFile);
-    fclose(dummyFile);
-
-    TIFF *tif = TIFFOpenExt("./dummy_file", "r", opts);
-
-    // Free TIFFOpenOptions after use
-    TIFFOpenOptionsFree(opts);
-
-    if (!tif) {
-        return 0;
     }
 
-    // Step 4: Set fields using TIFFSetField
-    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 100);
-    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 100);
+    if (tif) {
+        // Set some fields using TIFFSetField
+        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 256);
+        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 256);
 
-    // Step 5: Write the current directory
-    TIFFWriteDirectory(tif);
+        // Write the directory
+        TIFFWriteDirectory(tif);
 
-    // Step 6: Close the TIFF file
-    TIFFClose(tif);
+        // Close the TIFF file
+        TIFFClose(tif);
+        tif = nullptr;
+    }
 
     return 0;
 }

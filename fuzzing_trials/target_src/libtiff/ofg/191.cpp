@@ -1,29 +1,45 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstddef>
+#include <cstdio>
+#include <unistd.h>  // Include for mkstemp and close
+#include <cstdlib>   // Include for remove
 
-// A simple custom warning handler function
-void customWarningHandler_191(const char* module, const char* fmt, va_list ap) {
-    // Custom warning handling logic can go here
-    // For this example, we'll just print the warning message
-    if (module != nullptr) {
-        fprintf(stderr, "%s: ", module);
-    }
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+extern "C" {
+    #include <tiffio.h>
 }
 
+// Fuzzing harness for TIFFGetStrileOffsetWithErr
 extern "C" int LLVMFuzzerTestOneInput_191(const uint8_t *data, size_t size) {
-    // Ensure the data is not null and has some size
-    if (data == nullptr || size == 0) {
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        remove(tmpl);
         return 0;
     }
 
-    // Set the custom warning handler
-    TIFFErrorHandler previousHandler = TIFFSetWarningHandler(customWarningHandler_191);
+    // Initialize variables for the function call
+    uint32_t strile = 0; // Example value, can be varied
+    int error = 0;
 
-    // Optionally, you can restore the previous handler if needed
-    // TIFFSetWarningHandler(previousHandler);
+    // Call the function-under-test
+    uint64_t offset = TIFFGetStrileOffsetWithErr(tiff, strile, &error);
+
+    // Clean up
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

@@ -1,35 +1,80 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 extern "C" {
-    // Include the necessary headers for the function-under-test
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
-// Define the LLVMFuzzerTestOneInput function
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables needed for tj3SetCroppingRegion
-    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
-    tjregion region;
-
-    // Ensure the handle is not NULL
-    if (!handle) {
-        return 0;
+    if (size < 2) {
+        return 0; // Not enough data to be a valid JPEG
     }
 
-    // Initialize the region with some values
-    region.x = (size > 0) ? data[0] % 256 : 0;
-    region.y = (size > 1) ? data[1] % 256 : 0;
-    region.w = (size > 2) ? data[2] % 256 : 1; // Width should be non-zero
-    region.h = (size > 3) ? data[3] % 256 : 1; // Height should be non-zero
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
+        return 0; // Initialization failed
+    }
 
-    // Call the function-under-test
-    int result = tj3SetCroppingRegion(handle, region);
+    int width, height, jpegSubsamp, jpegColorspace;
+    // Cast away constness for the tjDecompressHeader2 function call
+    if (tjDecompressHeader2(handle, const_cast<unsigned char*>(data), size, &width, &height, &jpegSubsamp) == 0) {
+        // Allocate buffer for decompressed image
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer != NULL) {
+            // Attempt to decompress the image
+            tjDecompress2(handle, const_cast<unsigned char*>(data), size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
+    }
 
-    // Clean up and free resources
-    tj3Destroy(handle);
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressHeader2 to tjCompressFromYUVPlanes
+    tjhandle ret_tj3Init_drcyg = tj3Init(TJXOPT_OPTIMIZE);
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3Alloc
+    void* ret_tj3Alloc_jiszz = tj3Alloc(TJ_NUMXOP);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    if (ret_tj3Alloc_jiszz == NULL){
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Alloc to tj3GetICCProfile
+    size_t pqopefay = 1;
+
+    int ret_tj3GetICCProfile_jyjvu = tj3GetICCProfile(handle, (unsigned char **)&ret_tj3Alloc_jiszz, &pqopefay);
+    if (ret_tj3GetICCProfile_jyjvu < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    unsigned char* ret_tjAlloc_wkyvj = tjAlloc(TJ_NUMERR);
+    if (ret_tjAlloc_wkyvj == NULL){
+    	return 0;
+    }
+    int yerxdsop = 64;
+    tjscalingfactor* ret_tjGetScalingFactors_pkyfj = tjGetScalingFactors(&yerxdsop);
+    if (ret_tjGetScalingFactors_pkyfj == NULL){
+    	return 0;
+    }
+    int oogmukuk = -1;
+    tjscalingfactor* ret_tjGetScalingFactors_jkhnx = tjGetScalingFactors(&oogmukuk);
+    if (ret_tjGetScalingFactors_jkhnx == NULL){
+    	return 0;
+    }
+    const int oszmkoil = size;
+
+    int ret_tjCompressFromYUVPlanes_eaesf = tjCompressFromYUVPlanes(ret_tj3Init_drcyg, (const unsigned char **)&ret_tj3Alloc_jiszz, width, &oszmkoil, TJXOPT_GRAY, 1, &ret_tjAlloc_wkyvj, (unsigned long *)&yerxdsop, oogmukuk, 64);
+    if (ret_tjCompressFromYUVPlanes_eaesf < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    tjDestroy(handle);
     return 0;
 }

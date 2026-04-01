@@ -1,30 +1,56 @@
-#include <zlib.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <zlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
     z_stream stream;
-    Bytef dictionary[1024];
-    uInt dictLength = sizeof(dictionary);
+    const Bytef *dictionary;
+    uInt dictLength;
+    int result;
 
     // Initialize the z_stream structure
-    memset(&stream, 0, sizeof(z_stream));
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    stream.avail_in = 0;
+    stream.next_in = Z_NULL;
 
-    // Initialize the stream for deflation
-    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+    // Initialize inflate state
+    if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
 
-    // Set the input data for the stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = (uInt)size;
+    // Ensure the dictionary is not NULL and has a positive length
+    if (size > 0) {
+        dictionary = data;
+        dictLength = (uInt)size;
+    } else {
+        // Use a default dictionary if size is 0
+        static const Bytef defaultDict[] = {0x01, 0x02, 0x03, 0x04};
+        dictionary = defaultDict;
+        dictLength = sizeof(defaultDict);
+    }
 
     // Call the function-under-test
-    deflateGetDictionary(&stream, dictionary, &dictLength);
+    result = inflateSetDictionary(&stream, dictionary, dictLength);
 
-    // Clean up
-    deflateEnd(&stream);
+    // Check if setting the dictionary was successful
+    if (result == Z_OK) {
+        // Prepare some compressed data to decompress
+        static const Bytef compressedData[] = {0x78, 0x9c, 0x63, 0x60, 0x60, 0x04, 0x00, 0x00, 0x18, 0x00, 0x05};
+        Bytef decompressedData[100];
+        stream.avail_in = sizeof(compressedData);
+        stream.next_in = (Bytef *)compressedData;
+        stream.avail_out = sizeof(decompressedData);
+        stream.next_out = decompressedData;
+
+        // Perform the decompression
+        inflate(&stream, Z_NO_FLUSH);
+    }
+
+    // Clean up and free resources
+    inflateEnd(&stream);
 
     return 0;
 }

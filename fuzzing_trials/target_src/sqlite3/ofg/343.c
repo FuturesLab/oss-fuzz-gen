@@ -1,26 +1,56 @@
 #include <stdint.h>
+#include <sqlite3.h>
 #include <stddef.h>
-#include "sqlite3.h"  // Ensure that the SQLite3 library is included
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h> // Include the standard library for free function
+
+// Define a simple function to be used as a callback
+void sample_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Do nothing for now
+}
+
+// Define a destructor_343 function
+void destructor_343(void *ptr) {
+    // Free the allocated memory
+    free(ptr);
+}
 
 int LLVMFuzzerTestOneInput_343(const uint8_t *data, size_t size) {
-    // Initialize the sqlite3_str structure
-    sqlite3_str *str;
-    sqlite3 *db = NULL;
-    sqlite3_initialize();
+    sqlite3 *db;
+    int rc;
+    const char *func_name = "test_function";
+    int num_args = 1;
+    int text_representation = SQLITE_UTF8;
+    void *user_data = malloc(1); // Allocate some memory for user data
 
-    // Create a new sqlite3_str object
-    str = sqlite3_str_new(db);
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
 
-    // Append the input data to the sqlite3_str object
-    sqlite3_str_append(str, (const char *)data, (int)size);
+    // Call the function-under-test
+    rc = sqlite3_create_function_v2(
+        db, 
+        func_name, 
+        num_args, 
+        text_representation, 
+        user_data, 
+        sample_function, 
+        NULL, 
+        NULL, 
+        destructor_343
+    );
 
-    // Call the function under test
-    sqlite3_str_reset(str);
+    // Check the return code
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to create function: %s\n", sqlite3_errmsg(db));
+    }
 
-    // Free the sqlite3_str object
-    sqlite3_str_finish(str);
+    // Close the database
+    sqlite3_close(db);
 
-    // Clean up
-    sqlite3_shutdown();
     return 0;
 }

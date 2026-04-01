@@ -1,31 +1,56 @@
+extern "C" {
+#include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+}
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-
-extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    // Alternatively, you can use one of the other paths if needed:
-    // #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    // #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-}
+#include <cstring> // Include for memcpy
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitDecompress();
+    // Initialize the parameters for tjEncodeYUV
+    tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
+        return 0; // If initialization fails, exit early
+    }
+
+    // Ensure that the input size is sufficient for at least a small image
+    if (size < 3) {
+        tjDestroy(handle);
         return 0;
     }
 
-    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
-    unsigned long jpegSize = static_cast<unsigned long>(size);
+    // Use the input data to determine image dimensions
+    int width = data[0] % 256 + 1; // Width should be at least 1
+    int height = data[1] % 256 + 1; // Height should be at least 1
+    int pixelFormat = TJPF_RGB; // Assume input is RGB format
+    int padding = 1; // TJ_PAD(1) for no padding
+    int subsampling = TJSAMP_444; // Use a common subsampling format
 
-    int width = 0;
-    int height = 0;
-    int jpegSubsamp = 0;
+    // Allocate memory for the source image and the destination YUV image
+    unsigned char *srcBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, padding, height, subsampling));
+
+    if (srcBuf == nullptr || dstBuf == nullptr) {
+        free(srcBuf);
+        free(dstBuf);
+        tjDestroy(handle);
+        return 0;
+    }
+
+    // Fill the source buffer with input data
+    size_t copySize = width * height * tjPixelSize[pixelFormat];
+    if (copySize > size - 2) {
+        copySize = size - 2;
+    }
+    memcpy(srcBuf, data + 2, copySize);
 
     // Call the function-under-test
-    int result = tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp);
+    tjEncodeYUV(handle, srcBuf, width, padding, height, pixelFormat, dstBuf, subsampling, 0);
 
-    // Clean up the TurboJPEG decompression handle
+    // Clean up
+    free(srcBuf);
+    free(dstBuf);
     tjDestroy(handle);
 
     return 0;

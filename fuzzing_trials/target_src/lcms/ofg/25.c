@@ -1,41 +1,24 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsUInt32Number nEntries = 256; // A reasonable default number of entries
-    cmsFloat32Number *table = (cmsFloat32Number *)malloc(nEntries * sizeof(cmsFloat32Number));
-
-    // Ensure table is not NULL
-    if (table == NULL) {
-        cmsDeleteContext(context);
+    // Ensure the input size is sufficient to fill both cmsCIELab and cmsCIELCh structures
+    if (size < sizeof(cmsCIELab) + sizeof(cmsCIELCh)) {
         return 0;
     }
 
-    // Fill the table with some values derived from the input data
-    for (cmsUInt32Number i = 0; i < nEntries; i++) {
-        table[i] = (i < size) ? (cmsFloat32Number)data[i] / 255.0f : 0.0f;
-    }
+    // Initialize the cmsCIELab structure from the input data
+    cmsCIELab lab;
+    lab.L = ((double)data[0] / 255.0) * 100.0;  // L ranges from 0 to 100
+    lab.a = ((double)data[1] - 128.0);          // a ranges from -128 to 127
+    lab.b = ((double)data[2] - 128.0);          // b ranges from -128 to 127
+
+    // Initialize an empty cmsCIELCh structure
+    cmsCIELCh lch;
 
     // Call the function-under-test
-    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurveFloat(context, nEntries, table);
-
-    // Clean up
-    if (toneCurve != NULL) {
-        cmsFreeToneCurve(toneCurve);
-    }
-    free(table);
-    cmsDeleteContext(context);
+    cmsLab2LCh(&lch, &lab);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

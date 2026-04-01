@@ -2,21 +2,21 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
-#include <fcntl.h>
+#include <unistd.h>  // Include for close() and write()
+#include <fcntl.h>   // Include for mkstemp()
 
 extern "C" int LLVMFuzzerTestOneInput_311(const uint8_t *data, size_t size) {
-    // Temporary file creation
+    TIFF *tiff;
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
+
     if (fd == -1) {
         return 0;
     }
 
     // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
         close(fd);
-        unlink(tmpl);
         return 0;
     }
 
@@ -24,18 +24,22 @@ extern "C" int LLVMFuzzerTestOneInput_311(const uint8_t *data, size_t size) {
     close(fd);
 
     // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == nullptr) {
-        unlink(tmpl);
-        return 0;
+    tiff = TIFFOpen(tmpl, "r");
+    if (tiff != NULL) {
+        // Call the function-under-test
+        TIFFSizeProc sizeProc = TIFFGetSizeProc(tiff);
+
+        // Use the sizeProc if needed (for example, calling it to get size)
+        if (sizeProc != NULL) {
+            sizeProc((thandle_t)tiff);
+        }
+
+        // Close the TIFF file
+        TIFFClose(tiff);
     }
 
-    // Call the function-under-test
-    TIFFSizeProc sizeProc = TIFFGetSizeProc(tiff);
-
-    // Clean up
-    TIFFClose(tiff);
-    unlink(tmpl);
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }

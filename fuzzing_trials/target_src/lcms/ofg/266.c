@@ -1,32 +1,40 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_266(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to work with
-    if (size < 2) return 0;
-
-    // Initialize a cmsHANDLE
-    cmsHANDLE handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) return 0;
-
-    // Use part of the data as a property name
-    size_t propNameLen = size - 1; // Ensure at least 1 character
-    char *propertyName = (char *)malloc(propNameLen + 1);
-    if (propertyName == NULL) {
-        cmsIT8Free(handle);
+    // Ensure the input size is sufficient for two cmsCIELab structures and two cmsFloat64Number values
+    if (size < 2 * sizeof(cmsCIELab) + 2 * sizeof(cmsFloat64Number)) {
         return 0;
     }
-    memcpy(propertyName, data, propNameLen);
-    propertyName[propNameLen] = '\0';
+
+    // Initialize two cmsCIELab structures
+    cmsCIELab lab1;
+    cmsCIELab lab2;
+
+    // Copy data into the cmsCIELab structures
+    size_t offset = 0;
+    memcpy(&lab1, data + offset, sizeof(cmsCIELab));
+    offset += sizeof(cmsCIELab);
+    memcpy(&lab2, data + offset, sizeof(cmsCIELab));
+    offset += sizeof(cmsCIELab);
+
+    // Initialize two cmsFloat64Number values
+    cmsFloat64Number param1;
+    cmsFloat64Number param2;
+
+    // Copy data into the cmsFloat64Number values
+    memcpy(&param1, data + offset, sizeof(cmsFloat64Number));
+    offset += sizeof(cmsFloat64Number);
+    memcpy(&param2, data + offset, sizeof(cmsFloat64Number));
 
     // Call the function-under-test
-    const char *propertyValue = cmsIT8GetProperty(handle, propertyName);
+    cmsFloat64Number result = cmsCMCdeltaE(&lab1, &lab2, param1, param2);
 
-    // Clean up
-    free(propertyName);
-    cmsIT8Free(handle);
+    // Use the result in some way to avoid any compiler optimizations removing the call
+    volatile cmsFloat64Number use_result = result;
+    (void)use_result;
 
     return 0;
 }

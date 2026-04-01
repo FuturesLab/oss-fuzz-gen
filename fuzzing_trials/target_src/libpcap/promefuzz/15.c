@@ -1,20 +1,17 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_dead at pcap.c:4620:1 in pcap.h
-// pcap_compile at gencode.c:1186:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
+// pcap_create at pcap.c:2306:1 in pcap.h
+// pcap_set_immediate_mode at pcap.c:2680:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_setfilter at pcap.c:3872:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_freecode at gencode.c:1371:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_set_timeout at pcap.c:2626:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_freecode at gencode.c:1371:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_dump_open at sf-pcap.c:895:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_activate at pcap.c:2759:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
 // pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_datalink at pcap.c:3002:1 in pcap.h
-// pcap_dump_close at sf-pcap.c:1255:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
@@ -25,69 +22,89 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
-static pcap_t *initialize_pcap() {
+#define DUMMY_FILE "./dummy_file"
+
+static pcap_t *initialize_pcap_handle() {
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (!handle) {
-        fprintf(stderr, "pcap_open_dead failed: %s\n", errbuf);
+    pcap_t *handle = pcap_create("any", errbuf);
+    if (handle == NULL) {
+        return NULL;
     }
     return handle;
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < sizeof(int) * 3) {
+        return 0; // Not enough data
+    }
 
-    pcap_t *handle = initialize_pcap();
-    if (!handle) return 0;
-
-    struct bpf_program fp;
-    char filter_exp[256];
-    if (Size < sizeof(filter_exp)) {
-        memcpy(filter_exp, Data, Size);
-        filter_exp[Size] = '\0';
-    } else {
+    // Prepare environment
+    pcap_t *handle = initialize_pcap_handle();
+    if (handle == NULL) {
         return 0;
     }
 
-    bpf_u_int32 net = 0;
-    int optimize = 1;
+    int immediate_mode = Data[0] % 2; // Just use the first byte for immediate mode
+    int timeout = ((int *)Data)[1];   // Use the next integer for timeout
+    int activate_status = ((int *)Data)[2]; // Use another integer for activate status
 
-    if (pcap_compile(handle, &fp, filter_exp, optimize, net) == -1) {
-        pcap_geterr(handle);
+    // 1. Call pcap_set_immediate_mode
+    int result = pcap_set_immediate_mode(handle, immediate_mode);
+    if (result != 0) {
+        const char *err_str = pcap_statustostr(result);
+        if (err_str) {
+            // Handle error string
+        }
         pcap_close(handle);
         return 0;
     }
 
-    if (pcap_setfilter(handle, &fp) == -1) {
-        pcap_geterr(handle);
-        pcap_freecode(&fp);
+    // 2. Call pcap_statustostr
+    const char *status_str = pcap_statustostr(result);
+    if (status_str) {
+        // Handle status string
+    }
+
+    // 3. Call pcap_set_timeout
+    result = pcap_set_timeout(handle, timeout);
+    if (result != 0) {
+        status_str = pcap_statustostr(result);
+        if (status_str) {
+            // Handle error string
+        }
         pcap_close(handle);
         return 0;
     }
 
-    pcap_freecode(&fp);
-
-    FILE *dummy_file = fopen("./dummy_file", "w");
-    if (!dummy_file) {
-        pcap_close(handle);
-        return 0;
-    }
-    fclose(dummy_file);
-
-    pcap_dumper_t *dumper = pcap_dump_open(handle, "./dummy_file");
-    if (!dumper) {
-        pcap_geterr(handle);
-        pcap_close(handle);
-        return 0;
+    // 4. Call pcap_statustostr again
+    status_str = pcap_statustostr(result);
+    if (status_str) {
+        // Handle status string
     }
 
-    pcap_geterr(handle);
-    pcap_datalink(handle);
+    // 5. Call pcap_activate
+    result = pcap_activate(handle);
+    if (result != activate_status) {
+        status_str = pcap_statustostr(result);
+        if (status_str) {
+            // Handle error string
+        }
+    }
 
-    pcap_dump_close(dumper);
+    // 6. Call pcap_statustostr again
+    status_str = pcap_statustostr(result);
+    if (status_str) {
+        // Handle status string
+    }
+
+    // 7. Call pcap_geterr
+    const char *error_msg = pcap_geterr(handle);
+    if (error_msg) {
+        // Handle error message
+    }
+
+    // Cleanup
     pcap_close(handle);
-
     return 0;
 }

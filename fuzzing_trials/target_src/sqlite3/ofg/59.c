@@ -1,34 +1,42 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Initialize SQLite
-    if (sqlite3_initialize() != SQLITE_OK) {
+    // Ensure that the input size is sufficient to create a valid UTF-16 string
+    if (size < 2) {
         return 0;
     }
 
-    // Create an in-memory database
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
-        return 0;
+    // Calculate the number of UTF-16 characters (each character is 2 bytes)
+    size_t utf16_size = size & ~1; // Ensure it's even
+
+    // Allocate memory for the UTF-16 string
+    uint16_t *utf16_string = (uint16_t *)malloc(utf16_size + 2); // Allocate extra space for null-termination
+    if (!utf16_string) {
+        return 0; // Allocation failed
     }
 
-    // Prepare an SQL statement from the input data
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL) == SQLITE_OK) {
-        // Execute the SQL statement
-        sqlite3_step(stmt);
-        // Finalize the statement
-        sqlite3_finalize(stmt);
+    // Copy the input data to the allocated buffer
+    memcpy(utf16_string, data, utf16_size);
+
+    // Ensure the UTF-16 string is null-terminated
+    utf16_string[utf16_size / 2] = 0;
+
+    sqlite3 *db = NULL;
+
+    // Call the function-under-test
+    int result = sqlite3_open16((const void *)utf16_string, &db);
+
+    // If the database was opened successfully, close it
+    if (result == SQLITE_OK && db != NULL) {
+        sqlite3_close(db);
     }
 
-    // Close the database connection
-    sqlite3_close(db);
-
-    // Shutdown SQLite
-    sqlite3_shutdown();
+    // Free the allocated memory
+    free(utf16_string);
 
     return 0;
 }

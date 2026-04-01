@@ -1,18 +1,28 @@
-#include <cstddef>  // For size_t
-#include <cstdint>  // For uint8_t
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
+
+// Assuming the logcallback is a function pointer type
+typedef void (*logcallback)(const char* message);
+
+// Example log callback function
+void exampleLogCallback_46(const char* message) {
+    printf("Log: %s\n", message);
+}
 
 extern "C" {
-    #include <liblouis/liblouis.h>
+    // Function under test
+    void lou_registerLogCallback(logcallback);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Ensure that the data is not null and has a valid size
-    if (data == nullptr || size == 0) {
+    // Ensure that the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    lou_free();
+    // Register the example log callback
+    lou_registerLogCallback(exampleLogCallback_46);
 
     return 0;
 }

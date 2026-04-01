@@ -3,25 +3,31 @@
 #include <stddef.h>
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
-    // Initialize the parser
-    struct ucl_parser *parser = ucl_parser_new(0);
+    struct ucl_parser *parser;
+    ucl_object_t *obj;
+    unsigned int index = 0; // Initialize index to a valid value
 
-    // Add the input data to the parser
-    if (parser != NULL && size > 0) {
-        ucl_parser_add_chunk(parser, data, size);
+    // Ensure data is not empty
+    if (size == 0) {
+        return 0;
     }
 
-    // Use a non-zero unsigned int value for the function call
-    unsigned int index = 1;
+    // Create a new UCL parser
+    parser = ucl_parser_new(0);
+
+    // Add the input data to the parser
+    ucl_parser_add_string(parser, (const char *)data, size);
 
     // Call the function-under-test
-    ucl_object_t *obj = ucl_parser_get_current_stack_object(parser, index);
+    obj = ucl_parser_get_current_stack_object(parser, index);
 
-    // Clean up
+    // Free the parser
+    ucl_parser_free(parser);
+
+    // Free the object if it was successfully retrieved
     if (obj != NULL) {
         ucl_object_unref(obj);
     }
-    ucl_parser_free(parser);
 
     return 0;
 }

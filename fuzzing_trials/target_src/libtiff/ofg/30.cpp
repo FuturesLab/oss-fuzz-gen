@@ -1,50 +1,41 @@
 #include <cstdint>
-#include <cstddef>
 #include <cstdio>
-#include <cstdlib>  // for mkstemp and remove
-#include <unistd.h> // for close
+#include <cstdlib>
 
 extern "C" {
-    // Include necessary C headers and TIFF library
-    #include <tiffio.h>
+#include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    TIFF *tiff = nullptr;
-    uint32_t tag = 0;
-    // Removed va_list as it was incorrectly used
-
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the data is large enough to extract necessary values
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
-    FILE *file = fdopen(fd, "wb");
+
+    // Write the input data to a temporary file
+    FILE *file = fopen("/tmp/fuzzfile.tiff", "wb");
     if (!file) {
-        close(fd);
         return 0;
     }
     fwrite(data, 1, size, file);
     fclose(file);
 
-    // Open the temporary file with TIFFOpen
-    tiff = TIFFOpen(tmpl, "r");
+    // Initialize variables
+    TIFF *tiff = TIFFOpen("/tmp/fuzzfile.tiff", "r");
     if (tiff == nullptr) {
-        remove(tmpl);
         return 0;
     }
 
-    // Call the function-under-test without va_list
-    // Assuming a valid tag and data type for demonstration purposes
-    uint32_t value;
-    if (TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &value)) {
-        // Successfully retrieved a field
-    }
+    uint32_t tag = *(reinterpret_cast<const uint32_t *>(data));
+    
+    // Prepare a buffer for TIFFVGetField
+    int value; // Assuming the value is of type int for demonstration purposes
+
+    // Call the function-under-test
+    TIFFGetField(tiff, tag, &value);
 
     // Clean up
     TIFFClose(tiff);
-    remove(tmpl);
 
     return 0;
 }

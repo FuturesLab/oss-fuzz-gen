@@ -1,30 +1,35 @@
-#include <cstdint>
-#include <cstddef>
-#include <cmath> // Assuming LogL16toY is related to logarithmic calculations
+#include <stdint.h>
+#include <stddef.h>
+#include <tiffio.h>
+#include <stdarg.h>
 
 extern "C" {
-    // Declaration of the function-under-test
-    double LogL16toY(int);
+    void TIFFOpenOptionsSetWarningHandlerExtR(TIFFOpenOptions *, TIFFErrorHandlerExtR, void *);
+    TIFFOpenOptions *TIFFOpenOptionsAlloc(void);
+    void TIFFOpenOptionsFree(TIFFOpenOptions *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_252(const uint8_t *data, size_t size) {
-    // Ensure that size is sufficient to extract an integer
-    if (size < sizeof(int)) {
+    // Initialize the TIFFOpenOptions structure
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    if (options == NULL) {
+        return 0; // Exit if allocation fails
+    }
+
+    // Define a simple warning handler
+    auto warningHandler = [](TIFF *tif, void *context, const char *module, const char *fmt, va_list ap) -> int {
+        // Simple custom warning handler, does nothing
         return 0;
-    }
+    };
 
-    // Extract an integer from the input data
-    int input_value = 0;
-    for (size_t i = 0; i < sizeof(int); ++i) {
-        input_value |= (data[i] << (i * 8));
-    }
+    // Use the data pointer as a dummy context for the handler
+    void *handlerContext = (void *)data;
 
-    // Call the function-under-test with the extracted integer
-    double result = LogL16toY(input_value);
+    // Call the function-under-test
+    TIFFOpenOptionsSetWarningHandlerExtR(options, warningHandler, handlerContext);
 
-    // Use the result in some way to avoid compiler optimizations
-    volatile double use_result = result;
-    (void)use_result;
+    // Clean up
+    TIFFOpenOptionsFree(options);
 
     return 0;
 }

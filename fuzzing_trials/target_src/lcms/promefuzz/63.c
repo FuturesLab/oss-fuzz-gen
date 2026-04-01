@@ -1,74 +1,94 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsCreateBCHSWabstractProfile at cmsvirt.c:946:32 in lcms2.h
-// cmsCreateExtendedTransform at cmsxform.c:1123:25 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsTransform2DeviceLink at cmsvirt.c:1194:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsSetProfileVersion at cmsio0.c:1139:17 in lcms2.h
-// cmsSetAdaptationState at cmsxform.c:77:28 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
-// cmsCreateBCHSWabstractProfileTHR at cmsvirt.c:861:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
+// cmsCreateContext at cmsplugin.c:824:22 in lcms2.h
+// cmsAllocProfileSequenceDescription at cmsnamed.c:985:19 in lcms2.h
+// cmsFreeProfileSequenceDescription at cmsnamed.c:1017:16 in lcms2.h
+// _cmsMalloc at cmserr.c:265:17 in lcms2_plugin.h
+// _cmsRealloc at cmserr.c:286:17 in lcms2_plugin.h
+// _cmsFree at cmserr.c:293:16 in lcms2_plugin.h
+// _cmsFree at cmserr.c:293:16 in lcms2_plugin.h
+// _cmsMalloc at cmserr.c:265:17 in lcms2_plugin.h
+// _cmsFree at cmserr.c:293:16 in lcms2_plugin.h
+// _cmsMallocZero at cmserr.c:272:17 in lcms2_plugin.h
+// _cmsFree at cmserr.c:293:16 in lcms2_plugin.h
+// _cmsCalloc at cmserr.c:279:17 in lcms2_plugin.h
+// _cmsFree at cmserr.c:293:16 in lcms2_plugin.h
+// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <lcms2.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "lcms2.h"
+#include "lcms2_plugin.h"
 
-static cmsHPROFILE createDummyProfile() {
-    return cmsCreateBCHSWabstractProfile(33, 1.0, 1.0, 1.0, 1.0, 6500, 6500);
+static cmsContext createContext() {
+    return cmsCreateContext(NULL, NULL);
 }
 
-static cmsHTRANSFORM createDummyTransform(cmsContext ContextID, cmsHPROFILE hProfile) {
-    cmsHPROFILE profiles[1] = {hProfile};
-    cmsUInt32Number intents[1] = {INTENT_PERCEPTUAL};
-    cmsBool BPC[1] = {FALSE};
-    cmsFloat64Number adaptationStates[1] = {1.0};
+static void fuzz_cmsAllocProfileSequenceDescription(cmsContext context, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    cmsUInt32Number n = Data[0] % 256; // Ensure n is between 0 and 255
+    cmsSEQ* seq = cmsAllocProfileSequenceDescription(context, n);
+    if (seq) {
+        // Free the allocated sequence
+        cmsFreeProfileSequenceDescription(seq);
+    }
+}
 
-    return cmsCreateExtendedTransform(ContextID, 1, profiles, BPC, intents, adaptationStates, NULL, 0, TYPE_RGB_8, TYPE_RGB_8, 0);
+static void fuzz__cmsRealloc(cmsContext context, const uint8_t *Data, size_t Size) {
+    if (Size < 4) return;
+    cmsUInt32Number newSize = *(cmsUInt32Number*)Data;
+    void* ptr = _cmsMalloc(context, 10); // Initial allocation
+    void* newPtr = _cmsRealloc(context, ptr, newSize);
+    if (newPtr) {
+        _cmsFree(context, newPtr);
+    } else {
+        _cmsFree(context, ptr);
+    }
+}
+
+static void fuzz__cmsMalloc(cmsContext context, const uint8_t *Data, size_t Size) {
+    if (Size < 4) return;
+    cmsUInt32Number size = *(cmsUInt32Number*)Data;
+    void* ptr = _cmsMalloc(context, size);
+    if (ptr) {
+        _cmsFree(context, ptr);
+    }
+}
+
+static void fuzz__cmsMallocZero(cmsContext context, const uint8_t *Data, size_t Size) {
+    if (Size < 4) return;
+    cmsUInt32Number size = *(cmsUInt32Number*)Data;
+    void* ptr = _cmsMallocZero(context, size);
+    if (ptr) {
+        _cmsFree(context, ptr);
+    }
+}
+
+static void fuzz__cmsCalloc(cmsContext context, const uint8_t *Data, size_t Size) {
+    if (Size < 8) return;
+    cmsUInt32Number num = *(cmsUInt32Number*)Data;
+    cmsUInt32Number size = *(cmsUInt32Number*)(Data + 4);
+    void* ptr = _cmsCalloc(context, num, size);
+    if (ptr) {
+        _cmsFree(context, ptr);
+    }
 }
 
 int LLVMFuzzerTestOneInput_63(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number) + sizeof(cmsUInt32Number)) {
-        return 0;
-    }
+    cmsContext context = createContext();
+    if (!context) return 0;
 
-    cmsContext ContextID = NULL;
-    cmsHPROFILE hProfile = createDummyProfile();
-    if (!hProfile) {
-        return 0;
-    }
+    fuzz_cmsAllocProfileSequenceDescription(context, Data, Size);
+    fuzz__cmsRealloc(context, Data, Size);
+    fuzz__cmsMalloc(context, Data, Size);
+    fuzz__cmsMallocZero(context, Data, Size);
+    fuzz__cmsCalloc(context, Data, Size);
 
-    cmsHTRANSFORM hTransform = createDummyTransform(ContextID, hProfile);
-    if (!hTransform) {
-        cmsCloseProfile(hProfile);
-        return 0;
-    }
-
-    cmsFloat64Number version = *((cmsFloat64Number*)Data);
-    cmsUInt32Number flags = *((cmsUInt32Number*)(Data + sizeof(cmsFloat64Number)));
-
-    cmsHPROFILE deviceLinkProfile = cmsTransform2DeviceLink(hTransform, version, flags);
-    if (deviceLinkProfile) {
-        cmsCloseProfile(deviceLinkProfile);
-    }
-
-    cmsSetProfileVersion(hProfile, version);
-
-    cmsSetAdaptationState(version);
-
-    cmsCloseProfile(hProfile);
-    cmsDeleteTransform(hTransform);
-
-    cmsHPROFILE abstractProfileTHR = cmsCreateBCHSWabstractProfileTHR(ContextID, 33, 1.0, 1.0, 1.0, 1.0, 6500, 6500);
-    if (abstractProfileTHR) {
-        cmsCloseProfile(abstractProfileTHR);
-    }
-
+    cmsDeleteContext(context);
     return 0;
 }

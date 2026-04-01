@@ -1,32 +1,33 @@
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
+    if (size < 4) {
+        return 0; // Not enough data to be a valid JPEG header
+    }
+
     tjhandle handle = tjInitDecompress();
-    if (!handle) {
+    if (handle == nullptr) {
         return 0;
     }
 
-    unsigned long jpegSize = static_cast<unsigned long>(size);
-    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
-
-    int width = 100;  // Example width
-    int height = 100; // Example height
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int flags = 0; // No flags set
-
-    unsigned char *dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
-
-    int result = tjDecompress2(handle, jpegBuf, jpegSize, dstBuf, width, 0, height, pixelFormat, flags);
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        // Allocate buffer for decompressed image
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer != nullptr) {
+            // Attempt to decompress the image
+            int pitch = width * tjPixelSize[TJPF_RGB];
+            tjDecompress2(handle, data, size, buffer, width, pitch, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
+    }
 
     tjDestroy(handle);
-    delete[] dstBuf;
-
-    return result;
+    return 0;
 }

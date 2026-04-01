@@ -1,45 +1,31 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
-#include <string.h> // For memcpy
 
 int LLVMFuzzerTestOneInput_439(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsCreateRGBProfile
-    cmsCIExyY whitePoint;
-    cmsCIExyYTRIPLE primaries;
-    cmsToneCurve *toneCurves[3];
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsUInt32Number rows = 2; // Example value, adjust as needed
+    cmsUInt32Number cols = 2; // Example value, adjust as needed
 
-    // Ensure data is large enough to populate our structures
-    if (size < sizeof(cmsCIExyY) + sizeof(cmsCIExyYTRIPLE) + 3 * sizeof(float)) {
+    // Ensure that the size of data is sufficient for the matrix and offset arrays
+    if (size < (rows * cols + cols) * sizeof(cmsFloat64Number)) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Populate whitePoint and primaries using data
-    const uint8_t *ptr = data;
-    memcpy(&whitePoint, ptr, sizeof(cmsCIExyY));
-    ptr += sizeof(cmsCIExyY);
+    // Allocate and initialize matrix and offset arrays
+    const cmsFloat64Number* matrix = (const cmsFloat64Number*) data;
+    const cmsFloat64Number* offset = (const cmsFloat64Number*) (data + rows * cols * sizeof(cmsFloat64Number));
 
-    memcpy(&primaries, ptr, sizeof(cmsCIExyYTRIPLE));
-    ptr += sizeof(cmsCIExyYTRIPLE);
-
-    // Initialize tone curves
-    for (int i = 0; i < 3; i++) {
-        toneCurves[i] = cmsBuildGamma(NULL, 2.2); // Using a standard gamma value for simplicity
-    }
-
-    // Call the function under test
-    cmsHPROFILE profile = cmsCreateRGBProfile(&whitePoint, &primaries, toneCurves);
+    // Call the function-under-test
+    cmsStage* stage = cmsStageAllocMatrix(context, rows, cols, matrix, offset);
 
     // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
+    if (stage != NULL) {
+        cmsStageFree(stage);
     }
-
-    for (int i = 0; i < 3; i++) {
-        if (toneCurves[i] != NULL) {
-            cmsFreeToneCurve(toneCurves[i]);
-        }
-    }
+    cmsDeleteContext(context);
 
     return 0;
 }

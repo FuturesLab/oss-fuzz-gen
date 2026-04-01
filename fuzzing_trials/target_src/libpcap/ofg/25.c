@@ -1,51 +1,46 @@
 #include <stdint.h>
+#include <pcap.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <pcap.h>
+#include <string.h>
 
+// Corrected the C++ linkage specification for C code
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
+    char filename[] = "tempfile.pcap";
     pcap_t *pcap;
     pcap_dumper_t *dumper;
     char errbuf[PCAP_ERRBUF_SIZE];
-    FILE *tempfile;
+    FILE *file;
 
-    // Create a temporary file to use with the dumper
-    tempfile = tmpfile();
-    if (tempfile == NULL) {
+    // Create a temporary file to use with pcap_dump_open
+    file = fopen(filename, "wb");
+    if (file == NULL) {
         return 0;
     }
+    fclose(file);
 
-    // Open a pcap handle on the provided data
+    // Open the temporary file as a pcap file
     pcap = pcap_open_dead(DLT_EN10MB, 65535);
     if (pcap == NULL) {
-        fclose(tempfile);
+        remove(filename);
         return 0;
     }
 
-    // Open a dumper using the temporary file
-    dumper = pcap_dump_fopen(pcap, tempfile);
+    // Open the dumper
+    dumper = pcap_dump_open(pcap, filename);
     if (dumper == NULL) {
         pcap_close(pcap);
-        fclose(tempfile);
+        remove(filename);
         return 0;
     }
 
-    // Write the input data to the dumper
-    struct pcap_pkthdr header;
-    header.ts.tv_sec = 0;
-    header.ts.tv_usec = 0;
-    header.caplen = size;
-    header.len = size;
-    pcap_dump((u_char *)dumper, &header, data);
-
     // Call the function-under-test
-    int64_t offset = pcap_dump_ftell64(dumper);
+    int64_t position = pcap_dump_ftell64(dumper);
 
     // Clean up
     pcap_dump_close(dumper);
     pcap_close(pcap);
-    fclose(tempfile);
+    remove(filename);
 
     return 0;
 }

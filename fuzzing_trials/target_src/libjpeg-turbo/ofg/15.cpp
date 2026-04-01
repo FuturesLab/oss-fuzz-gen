@@ -1,22 +1,39 @@
-#include <cstdint>
-#include <cstddef> // Include this for size_t
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Assuming the function is part of a library, include the necessary header
 extern "C" {
-    int tj3YUVPlaneWidth(int componentID, int width, int subsamp);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    int componentID = 0; // Typically, component IDs range from 0 to 2 for Y, U, and V
-    int width = 1; // Width of the image, must be greater than 0
-    int subsamp = 0; // Subsampling type, often 0 (no subsampling), 1 (4:2:2), or 2 (4:2:0)
+    if (size < 3) {
+        return 0; // Ensure there's enough data for a minimal JPEG header
+    }
 
-    // Call the function-under-test
-    int result = tj3YUVPlaneWidth(componentID, width, subsamp);
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
+    if (handle == NULL) {
+        return 0; // If initialization fails, exit early
+    }
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    // Attempt to decompress the input data
+    int width, height, jpegSubsamp, jpegColorspace;
+    unsigned char *decompressedImage = NULL;
+    int flags = 0;
+
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        // Allocate memory for the decompressed image
+        decompressedImage = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (decompressedImage != NULL) {
+            // Decompress the image
+            tjDecompress2(handle, data, size, decompressedImage, width, 0, height, TJPF_RGB, flags);
+            free(decompressedImage);
+        }
+    }
+
+    // Clean up resources
+    tjDestroy(handle);
 
     return 0;
 }

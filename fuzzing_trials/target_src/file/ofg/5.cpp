@@ -1,43 +1,36 @@
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <magic.h>
+
+// Ensure C linkage for the function-under-test
 extern "C" {
     #include <magic.h>
-    #include <stddef.h>
-    #include <stdint.h>
 }
 
-#include <cstring> // Include the necessary header for memcpy
-
+// Fuzzing harness for magic_compile function
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Initialize variables
-    struct magic_set *magic = NULL;
-    const char *filename = NULL;
-
-    // Ensure the size is sufficient to create a valid string
-    if (size == 0) {
-        return 0;
+    // Initialize a magic_set structure
+    struct magic_set *ms = magic_open(MAGIC_NONE);
+    if (ms == NULL) {
+        return 0; // If initialization fails, exit early
     }
 
-    // Allocate memory for the filename and ensure it's null-terminated
-    char *fileBuffer = new char[size + 1];
-    if (fileBuffer == NULL) {
-        return 0;
+    // Ensure the data is null-terminated for use as a string
+    char *file_data = (char *)malloc(size + 1);
+    if (file_data == NULL) {
+        magic_close(ms);
+        return 0; // If memory allocation fails, exit early
     }
-    memcpy(fileBuffer, data, size);
-    fileBuffer[size] = '\0';  // Null-terminate the string
-    filename = fileBuffer;
-
-    // Create a magic set
-    magic = magic_open(MAGIC_NONE);
-    if (magic == NULL) {
-        delete[] fileBuffer;
-        return 0;
-    }
+    memcpy(file_data, data, size);
+    file_data[size] = '\0';
 
     // Call the function-under-test
-    magic_compile(magic, filename);
+    magic_compile(ms, file_data);
 
-    // Clean up
-    magic_close(magic);
-    delete[] fileBuffer;
+    // Clean up resources
+    free(file_data);
+    magic_close(ms);
 
     return 0;
 }

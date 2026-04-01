@@ -1,32 +1,34 @@
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>  // Include for NULL
+#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
 
+// Fuzzing harness for sqlite3_overload_function
 int LLVMFuzzerTestOneInput_307(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    int onoff;
-
-    // Open a new in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Initialize a SQLite database connection
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure that the input size is at least the size of an int
-    if (size < sizeof(int)) {
+    // Ensure the data is not empty and can be used as a function name
+    if (size == 0) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Use the first bytes of data to determine the onoff parameter
-    onoff = *(int *)data;
+    // Copy the data to a null-terminated string for the function name
+    char func_name[size + 1];
+    memcpy(func_name, data, size);
+    func_name[size] = '\0';
+
+    // Use a fixed number of arguments for the function
+    int num_args = 1;
 
     // Call the function-under-test
-    sqlite3_enable_load_extension(db, onoff);
+    sqlite3_overload_function(db, func_name, num_args);
 
-    // Close the database connection
+    // Clean up and close the SQLite database connection
     sqlite3_close(db);
 
     return 0;

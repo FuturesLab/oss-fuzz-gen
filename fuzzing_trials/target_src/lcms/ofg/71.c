@@ -3,28 +3,25 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsCIEXYZ blackPoint;
-    cmsHPROFILE hProfile;
-    cmsUInt32Number intent = 0; // Set to a valid rendering intent
-    cmsUInt32Number flags = 0;  // Set to a valid flag value
+    cmsToneCurve *toneCurve = NULL;
 
-    // Ensure data is not empty and large enough to create a profile
-    if (size < sizeof(cmsHPROFILE)) {
+    // Ensure there is enough data to create a tone curve
+    if (size < sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Create a profile from the data
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
-        return 0;
+    // Create a tone curve from the input data
+    // Use the first part of the data as the number of segments
+    cmsFloat32Number gamma = *((cmsFloat32Number *)data);
+    toneCurve = cmsBuildGamma(NULL, gamma);
+
+    if (toneCurve != NULL) {
+        // Call the function under test
+        cmsBool result = cmsIsToneCurveDescending(toneCurve);
+
+        // Clean up
+        cmsFreeToneCurve(toneCurve);
     }
-
-    // Call the function-under-test
-    cmsBool result = cmsDetectDestinationBlackPoint(&blackPoint, hProfile, intent, flags);
-
-    // Clean up
-    cmsCloseProfile(hProfile);
 
     return 0;
 }

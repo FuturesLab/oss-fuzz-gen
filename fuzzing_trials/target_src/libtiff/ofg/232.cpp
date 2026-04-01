@@ -1,20 +1,21 @@
 #include <cstdint>
 #include <cstddef>
-#include <cstring> // Include for memcpy
+#include <cstring>  // Include the C string library for memcpy
 
 extern "C" {
-    #include <tiffio.h>
+    #include <tiffio.h>  // Ensure the libtiff library is included
 }
 
 extern "C" int LLVMFuzzerTestOneInput_232(const uint8_t *data, size_t size) {
-    // Ensure that the size is at least the size of a uint64_t
+    // Ensure there's enough data to form a uint64_t
     if (size < sizeof(uint64_t)) {
         return 0;
     }
 
-    // Initialize a uint64_t variable and copy data into it
+    // Initialize a uint64_t variable with data from the input
     uint64_t value;
-    std::memcpy(&value, data, sizeof(uint64_t));
+    // Copy the first 8 bytes from the input data to the value
+    memcpy(&value, data, sizeof(uint64_t));
 
     // Call the function-under-test
     TIFFSwabLong8(&value);

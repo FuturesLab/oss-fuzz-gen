@@ -1,18 +1,25 @@
-#include <tiffio.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <tiffio.h>
+
+extern "C" {
+    void TIFFReverseBits(uint8_t *, tmsize_t);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_322(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
-
-    // Perform operations with the options if necessary
-    // For this specific function, there might not be much to do since it just allocates and returns a structure
-
-    // Clean up if needed
-    if (options != NULL) {
-        TIFFOpenOptionsFree(options);
+    // Allocate a buffer to copy the input data.
+    uint8_t *buffer = new uint8_t[size];
+    
+    // Copy the input data to the buffer.
+    for (size_t i = 0; i < size; ++i) {
+        buffer[i] = data[i];
     }
-
+    
+    // Call the function-under-test.
+    TIFFReverseBits(buffer, (tmsize_t)size);
+    
+    // Clean up.
+    delete[] buffer;
+    
     return 0;
 }

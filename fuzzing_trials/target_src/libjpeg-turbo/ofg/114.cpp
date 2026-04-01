@@ -1,30 +1,28 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Return if initialization fails
+    // Ensure that the input size is sufficient to extract three integers
+    if (size < 3 * sizeof(int)) {
+        return 0;
     }
 
-    // Define image dimensions and allocate buffer for decompressed image
-    int width = 100;  // Example width
-    int height = 100; // Example height
-    uint16_t *dstBuf = new uint16_t[width * height * 3]; // Assuming RGB format
+    // Extract three integers from the input data
+    int componentID = *((int*)data);
+    int width = *((int*)(data + sizeof(int)));
+    int subsamp = *((int*)(data + 2 * sizeof(int)));
 
-    // Call the function-under-test
-    int result = tj3Decompress16(handle, data, size, dstBuf, width, height);
+    // Call the function-under-test with the extracted integers
+    int result = tjPlaneWidth(componentID, width, subsamp);
 
-    // Clean up
-    delete[] dstBuf;
-    tjDestroy(handle);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }

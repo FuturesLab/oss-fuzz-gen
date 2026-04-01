@@ -3,31 +3,39 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ares.h>
-#include <arpa/nameser.h>  // Include for C_IN and T_A
 
-// Declare the dummy_callback function as static since it is only used within this file
-static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-  (void)arg;     // Explicitly mark parameters as unused
-  (void)status;  // to avoid compiler warnings
-  (void)timeouts;
-  (void)abuf;
-  (void)alen;
-  /* A simple dummy callback function */
+// Define a different name for the callback function to avoid conflict
+void my_ares_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
+  // Handle the callback, for fuzzing purposes we do nothing
 }
 
-// Declare the prototype for the fuzzer function as static
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-  if (size == 0) return 0; // Ensure non-null input
-
-  ares_channel channel;
-  ares_library_init(ARES_LIB_INIT_ALL);
-  if (ares_init(&channel) != ARES_SUCCESS) {
+  ares_channel channel; // Corrected from ares_channel_t to ares_channel
+  int status = ares_library_init(ARES_LIB_INIT_ALL);
+  if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  // Using ares_query instead of ares_search_dnsrec for proper function usage
-  ares_query(channel, (const char *)data, C_IN, T_A, dummy_callback, NULL);
+  status = ares_init(&channel);
+  if (status != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
+  }
 
+  // Create a copy of the input data to use as the query buffer
+  unsigned char *qbuf = (unsigned char *)malloc(size);
+  if (qbuf == NULL) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+  memcpy(qbuf, data, size);
+
+  // Call ares_send with the provided data
+  ares_send(channel, qbuf, (int)size, my_ares_callback, NULL);
+
+  // Clean up
+  free(qbuf);
   ares_destroy(channel);
   ares_library_cleanup();
 

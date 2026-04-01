@@ -1,27 +1,35 @@
+#include <tiffio.h>
+#include <cstdio>
 #include <cstdint>
-#include <cstddef>
-#include <tiffio.h> // Ensure that the TIFF library is included
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
 
-extern "C" {
-
-void TIFFReverseBits(uint8_t *, tmsize_t);
-
-int LLVMFuzzerTestOneInput_320(const uint8_t *data, size_t size) {
-    // Allocate a buffer to hold the input data
-    uint8_t *buffer = new uint8_t[size];
-    
-    // Copy the input data into the buffer
-    for (size_t i = 0; i < size; ++i) {
-        buffer[i] = data[i];
+extern "C" int LLVMFuzzerTestOneInput_320(const uint8_t *data, size_t size) {
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Call the function-under-test
-    TIFFReverseBits(buffer, static_cast<tmsize_t>(size));
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
 
-    // Clean up the allocated buffer
-    delete[] buffer;
+    // Open the temporary file with TIFFOpen
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff != nullptr) {
+        // Perform operations on the TIFF file if needed
+        TIFFClose(tiff);
+    }
+
+    // Clean up: remove the temporary file
+    unlink(tmpl);
 
     return 0;
-}
-
 }

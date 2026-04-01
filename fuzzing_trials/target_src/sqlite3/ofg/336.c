@@ -1,44 +1,74 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_336(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to split into meaningful parts
-    if (size < 2) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    const char *sql_create = "CREATE TABLE IF NOT EXISTS test (id INTEGER, value TEXT);";
+    const char *sql_insert = "INSERT INTO test (id, value) VALUES (?, ?);";
+    const char *text;
+    int text_len;
+
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Initialize SQLite3 context
-    sqlite3 *db;
-    sqlite3_open(":memory:", &db);
-
-    // Use a portion of the data as the string for the pointer type
-    size_t string_length = size - 1;
-    char *pointer_type = (char *)malloc(string_length + 1);
-    if (pointer_type == NULL) {
+    // Execute the CREATE TABLE statement
+    rc = sqlite3_exec(db, sql_create, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(pointer_type, data, string_length);
-    pointer_type[string_length] = '\0';
 
-    // Create a new value using an existing SQLite function
-    sqlite3_stmt *stmt;
-    sqlite3_prepare_v2(db, "SELECT ?", -1, &stmt, NULL);
-    sqlite3_bind_text(stmt, 1, pointer_type, -1, SQLITE_TRANSIENT);
-    sqlite3_step(stmt);
+    // Prepare the INSERT statement
+    rc = sqlite3_prepare_v2(db, sql_insert, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Get the value from the prepared statement
-    sqlite3_value *value = sqlite3_column_value(stmt, 0);
+    // Bind the integer value
+    rc = sqlite3_bind_int(stmt, 1, 1);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Call the function-under-test
-    void *result = sqlite3_value_pointer(value, pointer_type);
+    // Ensure the data is not NULL and has a size
+    if (size > 0) {
+        text_len = size < 100 ? size : 100; // Limit the text length to 100 characters
+        text = (const char *)data;
 
-    // Clean up
-    free(pointer_type);
+        // Bind the text value
+        rc = sqlite3_bind_text(stmt, 2, text, text_len, SQLITE_TRANSIENT);
+        if (rc != SQLITE_OK) {
+            sqlite3_finalize(stmt);
+            sqlite3_close(db);
+            return 0;
+        }
+    } else {
+        // If size is 0, bind an empty string
+        rc = sqlite3_bind_text(stmt, 2, "", -1, SQLITE_TRANSIENT);
+        if (rc != SQLITE_OK) {
+            sqlite3_finalize(stmt);
+            sqlite3_close(db);
+            return 0;
+        }
+    }
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+
+    // Finalize the statement
     sqlite3_finalize(stmt);
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

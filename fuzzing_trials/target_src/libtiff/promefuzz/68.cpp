@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
-// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFReadFromUserBuffer at tif_read.c:1555:5 in tiffio.h
-// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
-// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
+// TIFFClientOpen at tif_open.c:289:7 in tiffio.h
+// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
+// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
+// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
+// TIFFGetVersion at tif_version.c:28:13 in tiffio.h
+// TIFFReadGPSDirectory at tif_dirread.c:5564:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -17,72 +16,49 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <fcntl.h>
-#include <unistd.h>
 
-static TIFF* openDummyTIFF(const uint8_t *Data, size_t Size) {
-    FILE *file = std::fopen("./dummy_file", "wb");
-    if (!file) {
-        return nullptr;
-    }
-    std::fwrite(Data, 1, Size, file);
-    std::fclose(file);
+static TIFF* createDummyTIFF() {
+    FILE* file = fopen("./dummy_file", "wb+");
+    if (!file) return nullptr;
 
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    return tif;
+    TIFF* tiff = TIFFClientOpen("dummy", "w+", (thandle_t)file,
+                                [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t { return fread(buf, 1, size, (FILE*)fd); },
+                                [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t { return fwrite(buf, 1, size, (FILE*)fd); },
+                                [](thandle_t fd, toff_t off, int whence) -> toff_t { return fseek((FILE*)fd, off, whence); },
+                                [](thandle_t fd) -> int { return fclose((FILE*)fd); },
+                                [](thandle_t fd) -> toff_t { fseek((FILE*)fd, 0, SEEK_END); return ftell((FILE*)fd); },
+                                nullptr, nullptr);
+
+    if (!tiff) fclose(file);
+    return tiff;
 }
 
-extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t* Data, size_t Size) {
+    if (Size < sizeof(toff_t)) return 0;
 
-    TIFF *tif = openDummyTIFF(Data, Size);
-    if (!tif) {
-        return 0;
-    }
+    TIFF* tiff = createDummyTIFF();
+    if (!tiff) return 0;
 
-    // Fuzz TIFFScanlineSize
-    tmsize_t scanlineSize = TIFFScanlineSize(tif);
+    // Fuzz TIFFCreateEXIFDirectory
+    TIFFCreateEXIFDirectory(tiff);
 
-    // Fuzz TIFFStripSize
-    tmsize_t stripSize = TIFFStripSize(tif);
+    // Fuzz TIFFCreateGPSDirectory
+    TIFFCreateGPSDirectory(tiff);
 
-    // Prepare buffers for TIFFReadFromUserBuffer, TIFFReadEncodedTile, and TIFFReadEncodedStrip
-    uint32_t strile = 0;
-    tmsize_t bufferSize = 1024;
-    void *inbuf = std::malloc(bufferSize);
-    void *outbuf = std::malloc(bufferSize);
-    if (!inbuf || !outbuf) {
-        TIFFClose(tif);
-        std::free(inbuf);
-        std::free(outbuf);
-        return 0;
-    }
+    // Fuzz TIFFReadEXIFDirectory
+    toff_t exifOffset;
+    memcpy(&exifOffset, Data, sizeof(toff_t));
+    TIFFReadEXIFDirectory(tiff, exifOffset);
 
-    // Fuzz TIFFReadFromUserBuffer
-    TIFFReadFromUserBuffer(tif, strile, inbuf, bufferSize, outbuf, bufferSize);
+    // Fuzz TIFFGetVersion
+    const char* version = TIFFGetVersion();
+    (void)version;  // Suppress unused variable warning
 
-    // Fuzz TIFFReadEncodedTile
-    TIFFReadEncodedTile(tif, strile, outbuf, bufferSize);
+    // Fuzz TIFFReadGPSDirectory
+    toff_t gpsOffset;
+    memcpy(&gpsOffset, Data, sizeof(toff_t));
+    TIFFReadGPSDirectory(tiff, gpsOffset);
 
-    // Fuzz TIFFReadEncodedStrip
-    TIFFReadEncodedStrip(tif, strile, outbuf, bufferSize);
-
-    // Fuzz TIFFPrintDirectory
-    FILE *dummyFile = std::fopen("./dummy_output", "w");
-    if (dummyFile) {
-        TIFFPrintDirectory(tif, dummyFile, 0);
-        std::fclose(dummyFile);
-    }
-
-    TIFFClose(tif);
-    std::free(inbuf);
-    std::free(outbuf);
-
+    TIFFClose(tiff);
     return 0;
 }

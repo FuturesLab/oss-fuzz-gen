@@ -1,70 +1,84 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_sample_get_subsamples_buffer at isom_read.c:4866:5 in isomedia.h
-// gf_isom_get_brand_info at isom_read.c:2631:8 in isomedia.h
-// gf_isom_add_uuid at isom_write.c:6258:8 in isomedia.h
-// gf_isom_text_get_encoded_tx3g at tx3g.c:950:8 in isomedia.h
-// gf_isom_cenc_get_sample_aux_info at drm_sample.c:1645:8 in isomedia.h
-// gf_isom_get_mpegh_compatible_profiles at isom_read.c:6215:11 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_ismacryp_delete_sample at drm_sample.c:39:6 in isomedia.h
+// gf_isom_get_ismacryp_sample at drm_sample.c:159:16 in isomedia.h
+// gf_isom_ismacryp_delete_sample at drm_sample.c:39:6 in isomedia.h
+// gf_isom_ismacryp_sample_from_data at drm_sample.c:48:16 in isomedia.h
+// gf_isom_ismacryp_delete_sample at drm_sample.c:39:6 in isomedia.h
+// gf_isom_set_ismacryp_protection at drm_sample.c:559:8 in isomedia.h
+// gf_isom_is_ismacryp_media at drm_sample.c:218:6 in isomedia.h
+// gf_isom_ismacryp_new_sample at drm_sample.c:31:16 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static void fuzz_gf_isom_ismacryp_delete_sample() {
+    GF_ISMASample *sample = gf_isom_ismacryp_new_sample();
+    if (sample) {
+        sample->dataLength = 0; // Set to 0 to retain buffer
+        gf_isom_ismacryp_delete_sample(sample);
     }
 }
 
+static void fuzz_gf_isom_get_ismacryp_sample(GF_ISOFile *isom_file) {
+    GF_ISOSample samp;
+    memset(&samp, 0, sizeof(GF_ISOSample));
+    u32 trackNumber = 1;
+    u32 sampleDescriptionIndex = 1;
+
+    GF_ISMASample *sample = gf_isom_get_ismacryp_sample(isom_file, trackNumber, &samp, sampleDescriptionIndex);
+    if (sample) {
+        gf_isom_ismacryp_delete_sample(sample);
+    }
+}
+
+static void fuzz_gf_isom_ismacryp_sample_from_data(const uint8_t *Data, size_t Size) {
+    Bool use_selective_encryption = GF_FALSE;
+    u8 KI_length = 0;
+    u8 IV_length = 0;
+
+    GF_ISMASample *sample = gf_isom_ismacryp_sample_from_data((u8 *)Data, (u32)Size, use_selective_encryption, KI_length, IV_length);
+    if (sample) {
+        gf_isom_ismacryp_delete_sample(sample);
+    }
+}
+
+static void fuzz_gf_isom_set_ismacryp_protection(GF_ISOFile *isom_file) {
+    u32 trackNumber = 1;
+    u32 sampleDescriptionIndex = 1;
+    u32 scheme_type = GF_ISOM_ISMACRYP_SCHEME;
+    u32 scheme_version = 1;
+    char scheme_uri[] = "http://example.com/scheme";
+    char kms_URI[] = "http://example.com/kms";
+    Bool selective_encryption = GF_FALSE;
+    u32 KI_length = 0;
+    u32 IV_length = 0;
+
+    gf_isom_set_ismacryp_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, scheme_uri, kms_URI, selective_encryption, KI_length, IV_length);
+}
+
+static void fuzz_gf_isom_is_ismacryp_media(GF_ISOFile *isom_file) {
+    u32 trackNumber = 1;
+    u32 sampleDescriptionIndex = 1;
+
+    gf_isom_is_ismacryp_media(isom_file, trackNumber, sampleDescriptionIndex);
+}
+
 int LLVMFuzzerTestOneInput_225(const uint8_t *Data, size_t Size) {
-    // Initialize a dummy ISO file
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    // Allocate memory for GF_ISOFile as a generic block of memory
+    GF_ISOFile *isom_file = (GF_ISOFile *)malloc(1024); // Use a placeholder size
     if (!isom_file) return 0;
 
-    // Initialize variables for API functions
-    u32 trackNumber = 1;
-    u32 sampleNumber = 1;
-    u32 osize = 0;
-    u32 brand = 0;
-    u32 minorVersion = 0;
-    u32 AlternateBrandsCount = 0;
-    bin128 UUID = {0};
-    u8 *buffer = NULL;
-    u8 *tx3g = NULL;
-    u32 tx3g_size = 0;
-    u32 container_type = 0;
-    u32 nb_compatible_profiles = 0;
+    memset(isom_file, 0, 1024); // Use the same placeholder size
 
-    // Call gf_isom_sample_get_subsamples_buffer
-    buffer = gf_isom_sample_get_subsamples_buffer(isom_file, trackNumber, sampleNumber, &osize);
-    free(buffer);
+    fuzz_gf_isom_ismacryp_delete_sample();
+    fuzz_gf_isom_get_ismacryp_sample(isom_file);
+    fuzz_gf_isom_ismacryp_sample_from_data(Data, Size);
+    fuzz_gf_isom_set_ismacryp_protection(isom_file);
+    fuzz_gf_isom_is_ismacryp_media(isom_file);
 
-    // Call gf_isom_get_brand_info
-    gf_isom_get_brand_info(isom_file, &brand, &minorVersion, &AlternateBrandsCount);
-
-    // Call gf_isom_add_uuid
-    gf_isom_add_uuid(isom_file, trackNumber, UUID, Data, Size);
-
-    // Call gf_isom_text_get_encoded_tx3g
-    gf_isom_text_get_encoded_tx3g(isom_file, trackNumber, 1, 0, &tx3g, &tx3g_size);
-    free(tx3g);
-
-    // Call gf_isom_cenc_get_sample_aux_info
-    gf_isom_cenc_get_sample_aux_info(isom_file, trackNumber, sampleNumber, 1, &container_type, &buffer, &osize);
-    free(buffer);
-
-    // Call gf_isom_get_mpegh_compatible_profiles
-    const u8 *profiles = gf_isom_get_mpegh_compatible_profiles(isom_file, trackNumber, 1, &nb_compatible_profiles);
-    (void)profiles; // To avoid unused variable warning
-
-    // Cleanup
-    gf_isom_close(isom_file);
-
+    free(isom_file);
     return 0;
 }

@@ -12,20 +12,22 @@ int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size); /* required by
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
   cJSON *json;
-  cJSON_bool is_null;
-  
+
+  // Ensure the input data is null-terminated
   if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }
 
+  // Parse the input data into a cJSON object
   json = cJSON_Parse((const char *)data);
-
   if (json == NULL) {
     return 0;
   }
 
-  is_null = cJSON_IsNull(json);
+  // Call the function-under-test
+  cJSON_bool is_null = cJSON_IsNull(json);
 
+  // Clean up
   cJSON_Delete(json);
 
   return 0;

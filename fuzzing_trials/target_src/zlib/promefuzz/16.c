@@ -1,62 +1,58 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// gzopen64 at gzlib.c:293:16 in zlib.h
-// gzread at gzread.c:392:13 in zlib.h
-// gztell64 at gzlib.c:446:19 in zlib.h
-// gzseek64 at gzlib.c:367:19 in zlib.h
-// gzoffset at gzlib.c:490:17 in zlib.h
-// gzoffset64 at gzlib.c:469:19 in zlib.h
-// gzseek64 at gzlib.c:367:19 in zlib.h
-// gzclose at gzclose.c:11:13 in zlib.h
+// inflateInit2_ at inflate.c:173:13 in zlib.h
+// inflateReset at inflate.c:125:13 in zlib.h
+// inflateReset2 at inflate.c:136:13 in zlib.h
+// inflateResetKeep at inflate.c:100:13 in zlib.h
+// deflateResetKeep at deflate.c:645:13 in zlib.h
+// inflateGetHeader at inflate.c:1219:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <zlib.h>
-#include <string.h>
 
-static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file != NULL) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void initialize_z_stream(z_stream *strm) {
+    memset(strm, 0, sizeof(z_stream));
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
+}
+
+static void initialize_gz_header(gz_header *header) {
+    memset(header, 0, sizeof(gz_header));
+    header->extra = Z_NULL;
+    header->name = Z_NULL;
+    header->comment = Z_NULL;
 }
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return 0;
+    if (Size < 1) return 0;
+
+    z_stream strm;
+    initialize_z_stream(&strm);
+
+    int windowBits = (Data[0] % 16) - 8; // Window size from -8 to 7
+    const char *version = ZLIB_VERSION;
+    int stream_size = sizeof(z_stream);
+
+    int ret = inflateInit2_(&strm, windowBits, version, stream_size);
+    if (ret == Z_OK) {
+        inflateReset(&strm);
+        inflateReset2(&strm, windowBits);
+        inflateResetKeep(&strm);
+        deflateResetKeep(&strm);
+
+        gz_header header;
+        initialize_gz_header(&header);
+        inflateGetHeader(&strm, &header);
+
+        inflateEnd(&strm);
     }
 
-    char mode[2] = { 'r', '\0' };
-    if (Size > 2) {
-        mode[0] = Data[0] % 2 ? 'w' : 'r';
-    }
-
-    prepare_dummy_file(Data + 1, Size - 1);
-
-    gzFile file = gzopen64("./dummy_file", mode);
-    if (file == NULL) {
-        return 0;
-    }
-
-    unsigned char buffer[1024];
-    int bytesRead = gzread(file, buffer, sizeof(buffer));
-
-    z_off64_t pos = gztell64(file);
-    gzseek64(file, pos, SEEK_SET);
-
-    z_off_t offset = gzoffset(file);
-    z_off64_t offset64 = gzoffset64(file);
-
-    if (bytesRead != -1) {
-        gzseek64(file, 0, SEEK_SET);
-    }
-
-    gzclose(file);
     return 0;
 }

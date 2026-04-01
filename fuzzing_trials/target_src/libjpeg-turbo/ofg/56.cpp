@@ -2,27 +2,28 @@
 #include <cstdlib>
 
 extern "C" {
-    // Declare the function-under-test
-    int tjPlaneHeight(int componentID, int height, int subsamp);
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract three integers
-    if (size < 3) {
+    // Ensure the data is large enough to extract three integers
+    if (size < sizeof(int) * 3) {
         return 0;
     }
 
     // Extract three integers from the input data
-    int componentID = static_cast<int>(data[0]);
-    int height = static_cast<int>(data[1]);
-    int subsamp = static_cast<int>(data[2]);
+    int width = *(reinterpret_cast<const int*>(data));
+    int height = *(reinterpret_cast<const int*>(data + sizeof(int)));
+    int subsamp = *(reinterpret_cast<const int*>(data + 2 * sizeof(int)));
 
     // Call the function-under-test
-    int result = tjPlaneHeight(componentID, height, subsamp);
+    unsigned long bufferSize = TJBUFSIZEYUV(width, height, subsamp);
 
     // Use the result in some way to avoid compiler optimizations removing the call
-    volatile int use_result = result;
-    (void)use_result;
+    volatile unsigned long result = bufferSize;
+    (void)result;
 
     return 0;
 }

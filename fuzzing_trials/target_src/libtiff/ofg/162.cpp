@@ -1,37 +1,32 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h>  // Include for close and write functions
-#include <sys/types.h>  // Include for ssize_t
+#include <cstddef>
+#include <cmath>
+#include <iostream>
+
+extern "C" {
+    // Declare the function-under-test
+    int LogL10fromY(double, int);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_162(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure there is enough data to extract a double and an int
+    if (size < sizeof(double) + sizeof(int)) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
+    // Extract a double from the input data
+    double inputDouble;
+    std::memcpy(&inputDouble, data, sizeof(double));
 
-    // Open the temporary file as a TIFF file
-    TIFF* tif = TIFFOpen(tmpl, "r");
-    if (tif != nullptr) {
-        // Call the function-under-test
-        uint32_t numStrips = TIFFNumberOfStrips(tif);
+    // Extract an int from the input data
+    int inputInt;
+    std::memcpy(&inputInt, data + sizeof(double), sizeof(int));
 
-        // Clean up
-        TIFFClose(tif);
-    }
+    // Call the function-under-test
+    int result = LogL10fromY(inputDouble, inputInt);
 
-    // Remove the temporary file
-    remove(tmpl);
+    // Print the result for debugging purposes (optional)
+    std::cout << "LogL10fromY(" << inputDouble << ", " << inputInt << ") = " << result << std::endl;
 
     return 0;
 }

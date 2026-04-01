@@ -1,8 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFScanlineSize64 at tif_strip.c:257:10 in tiffio.h
+// TIFFTileSize64 at tif_tile.c:249:10 in tiffio.h
+// TIFFSwabLong8 at tif_swab.c:60:6 in tiffio.h
+// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,54 +16,52 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <tiffio.h>
+
+static TIFF* initializeTIFF(const uint8_t* Data, size_t Size) {
+    FILE* file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    TIFF* tif = TIFFOpen("./dummy_file", "r");
+    return tif;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_124(const uint8_t *Data, size_t Size) {
-    // Ensure that the input is large enough to extract required data
-    if (Size < sizeof(float) * 3 + sizeof(uint32_t)) {
-        return 0;
-    }
+    if (Size < sizeof(uint64_t)) return 0;
 
-    // Prepare data for LogLuv32fromXYZ and LogLuv24fromXYZ
-    float xyz[3];
-    memcpy(xyz, Data, sizeof(float) * 3);
-    int numComponents = 3;
+    TIFF* tif = initializeTIFF(Data, Size);
+    if (!tif) return 0;
 
-    // Test LogLuv32fromXYZ
-    uint32_t logLuv32 = LogLuv32fromXYZ(xyz, numComponents);
+    // Test TIFFCurrentDirOffset
+    uint64_t dirOffset = TIFFCurrentDirOffset(tif);
 
-    // Test LogLuv24fromXYZ
-    uint32_t logLuv24 = LogLuv24fromXYZ(xyz, numComponents);
+    // Test TIFFReadDirectory
+    int readDirResult = TIFFReadDirectory(tif);
 
-    // Prepare data for LogLuv24toXYZ and LogLuv32toXYZ
-    float outputXYZ[3] = {0.0f, 0.0f, 0.0f};
-    uint32_t logLuvValue;
-    memcpy(&logLuvValue, Data + sizeof(float) * 3, sizeof(uint32_t));
+    // Test TIFFScanlineSize64
+    uint64_t scanlineSize = TIFFScanlineSize64(tif);
 
-    // Test LogLuv24toXYZ
-    LogLuv24toXYZ(logLuv24, outputXYZ);
+    // Test TIFFTileSize64
+    uint64_t tileSize = TIFFTileSize64(tif);
 
-    // Test LogLuv32toXYZ
-    LogLuv32toXYZ(logLuv32, outputXYZ);
+    // Test TIFFSwabLong8
+    uint64_t value;
+    memcpy(&value, Data, sizeof(uint64_t));
+    TIFFSwabLong8(&value);
 
-    // Prepare data for TIFFSwabArrayOfFloat
-    float floatArray[3];
-    memcpy(floatArray, Data, sizeof(float) * 3);
-    tmsize_t n = 3;
+    // Test TIFFSetSubDirectory
+    uint64_t subDirOffset;
+    memcpy(&subDirOffset, Data, sizeof(uint64_t));
+    int setSubDirResult = TIFFSetSubDirectory(tif, subDirOffset);
 
-    // Test TIFFSwabArrayOfFloat
-    TIFFSwabArrayOfFloat(floatArray, n);
-
-    // Prepare data for TIFFSwabLong
-    uint32_t longValue;
-    memcpy(&longValue, Data, sizeof(uint32_t));
-
-    // Test TIFFSwabLong
-    TIFFSwabLong(&longValue);
-
+    // Cleanup
+    TIFFClose(tif);
     return 0;
 }

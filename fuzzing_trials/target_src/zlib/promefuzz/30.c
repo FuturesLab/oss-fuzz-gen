@@ -1,65 +1,81 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// gzopen at gzlib.c:288:16 in zlib.h
-// gzwrite at gzwrite.c:255:13 in zlib.h
-// gzsetparams at gzwrite.c:630:13 in zlib.h
-// gzclose at gzclose.c:11:13 in zlib.h
-// gzfread at gzread.c:435:18 in zlib.h
-// gzclearerr at gzlib.c:531:14 in zlib.h
-// gzclose at gzclose.c:11:13 in zlib.h
-// gzopen at gzlib.c:288:16 in zlib.h
+// inflateBackInit_ at infback.c:25:13 in zlib.h
+// inflateBack at infback.c:191:13 in zlib.h
+// inflateBackEnd at infback.c:574:13 in zlib.h
+// inflateInit2_ at inflate.c:173:13 in zlib.h
+// inflate at inflate.c:474:13 in zlib.h
+// inflateSyncPoint at inflate.c:1320:13 in zlib.h
+// inflateSetDictionary at inflate.c:1187:13 in zlib.h
+// inflateEnd at inflate.c:1155:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <zlib.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include "zlib.h"
 
-static gzFile initialize_gzfile_for_write() {
-    return gzopen("./dummy_file", "wb");
+static unsigned int dummy_in_func(void *in_desc, unsigned char **buf) {
+    *buf = (unsigned char *)in_desc;
+    return 1; // Return 1 byte to process
 }
 
-static gzFile initialize_gzfile_for_read() {
-    return gzopen("./dummy_file", "rb");
+static int dummy_out_func(void *out_desc, unsigned char *buf, unsigned len) {
+    (void)out_desc;
+    (void)buf;
+    (void)len;
+    return Z_OK;
 }
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return 0; // Ensure there's enough data to access Data[0] and Data[1]
+    if (Size < 1) return 0;
+
+    z_stream strm;
+    memset(&strm, 0, sizeof(z_stream));
+
+    unsigned char window[32768]; // 32K window size for inflateBackInit_
+
+    // Initialize inflateBack
+    if (inflateBackInit_(&strm, 15, window, ZLIB_VERSION, sizeof(z_stream)) != Z_OK) {
+        return 0;
     }
 
-    // Prepare a buffer for reading and writing
-    char buffer[1024];
-    size_t buffer_size = sizeof(buffer) < Size ? sizeof(buffer) : Size;
+    // Test inflateBack
+    inflateBack(&strm, dummy_in_func, (void *)Data, dummy_out_func, NULL);
 
-    // Initialize gzFile for writing
-    gzFile gzfile_write = initialize_gzfile_for_write();
-    if (gzfile_write == NULL) {
-        return 0; // Early exit if file cannot be opened for writing
+    // Cleanup
+    inflateBackEnd(&strm);
+
+    // Reinitialize for inflate
+    if (inflateInit2_(&strm, 15, ZLIB_VERSION, sizeof(z_stream)) != Z_OK) {
+        return 0;
     }
 
-    // Fuzz gzwrite
-    gzwrite(gzfile_write, Data, buffer_size);
+    // Set input data
+    strm.next_in = Data;
+    strm.avail_in = Size;
 
-    // Fuzz gzsetparams with random level and strategy
-    gzsetparams(gzfile_write, Data[0] % 10, Data[1] % 4);
+    // Prepare output buffer
+    unsigned char out_buffer[32768];
+    strm.next_out = out_buffer;
+    strm.avail_out = sizeof(out_buffer);
 
-    // Close the write file
-    gzclose(gzfile_write);
+    // Test inflate
+    inflate(&strm, Z_NO_FLUSH);
 
-    // Initialize gzFile for reading
-    gzFile gzfile_read = initialize_gzfile_for_read();
-    if (gzfile_read == NULL) {
-        return 0; // Early exit if file cannot be opened for reading
+    // Check sync point
+    inflateSyncPoint(&strm);
+
+    // Set dictionary if possible
+    if (Size > 2) {
+        inflateSetDictionary(&strm, Data, 2);
     }
 
-    // Fuzz gzfread
-    gzfread(buffer, 1, buffer_size, gzfile_read);
-
-    // Fuzz gzclearerr
-    gzclearerr(gzfile_read);
-
-    // Close the read file
-    gzclose(gzfile_read);
+    // Cleanup
+    inflateEnd(&strm);
 
     return 0;
 }

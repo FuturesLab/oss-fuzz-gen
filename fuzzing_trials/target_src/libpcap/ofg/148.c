@@ -1,27 +1,34 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <pcap.h>
-#include <sys/time.h>  // Include this for the timeval structure
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
-    // Initialize variables
-    u_char *user = (u_char *)malloc(1);  // Allocate a dummy user pointer
+    // Declare and initialize variables
+    u_char *user;
     struct pcap_pkthdr header;
-    const u_char *packet_data = data;
+    const u_char *packet_data;
 
-    // Ensure that the size is sufficient to simulate a packet
-    if (size < sizeof(struct pcap_pkthdr)) {
-        free(user);
+    // Ensure size is large enough to split into meaningful parts
+    if (size < sizeof(struct pcap_pkthdr) + 1) {
         return 0;
     }
 
-    // Initialize the packet header with some values
-    header.ts.tv_sec = 0;
-    header.ts.tv_usec = 0;
-    header.caplen = (uint32_t)size;
-    header.len = (uint32_t)size;
+    // Allocate memory for user data and packet data
+    user = (u_char *)malloc(size);
+    if (user == NULL) {
+        return 0;
+    }
+    memcpy(user, data, size);
 
-    // Call the function under test
+    // Initialize the pcap_pkthdr structure
+    memcpy(&header, data, sizeof(struct pcap_pkthdr));
+
+    // Point packet_data to the remaining part of data
+    packet_data = data + sizeof(struct pcap_pkthdr);
+
+    // Call the function-under-test
     pcap_dump(user, &header, packet_data);
 
     // Clean up

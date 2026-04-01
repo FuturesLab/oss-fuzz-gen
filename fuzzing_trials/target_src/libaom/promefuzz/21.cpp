@@ -1,10 +1,14 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC at aomcx.h:2374:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE at aomcx.h:2173:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC at aomcx.h:2326:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_SUPERBLOCK_SIZE at aomcx.h:2031:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES at aomcx.h:2167:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE at aomcx.h:2043:1 in aomcx.h
+// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,78 +18,89 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+extern "C" {
+#include <aom/aom.h>
+#include <aom/aom_codec.h>
+#include <aom/aom_encoder.h>
+#include <aom/aomcx.h>
+#include <aom/aom_decoder.h>
+#include <aom/aomdx.h>
+#include <aom/aom_image.h>
+#include <aom/aom_integer.h>
+#include <aom/aom_frame_buffer.h>
+#include <aom/aom_external_partition.h>
+}
+
 #include <cstdint>
-#include <cstdlib>
+#include <cstdio>
 #include <cstring>
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aomdx.h"
-#include "aom_decoder.h"
-#include "aom_encoder.h"
-#include "aom_integer.h"
-#include "aom_codec.h"
-#include "aom_image.h"
-#include "aom.h"
-#include "aomcx.h"
+
+static aom_codec_ctx_t *initialize_codec() {
+    aom_codec_ctx_t *codec = new aom_codec_ctx_t;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+    
+    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
+        delete codec;
+        return nullptr;
+    }
+    
+    if (aom_codec_enc_init(codec, iface, &cfg, 0)) {
+        delete codec;
+        return nullptr;
+    }
+    
+    return codec;
+}
+
+static void cleanup_codec(aom_codec_ctx_t *codec) {
+    if (codec) {
+        aom_codec_destroy(codec);
+        delete codec;
+    }
+}
+
+static void fuzz_codec_control_functions(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (!codec || !Data || Size < 1) return;
+
+    // Example for AV1E_SET_POSTENCODE_DROP_RTC
+    int drop_rtc = Data[0] % 2;
+    aom_codec_control(codec, AV1E_SET_POSTENCODE_DROP_RTC, drop_rtc);
+
+    // Example for AV1E_SET_PARTITION_INFO_PATH
+    const char *partition_info_path = "./dummy_file";
+    FILE *file = fopen(partition_info_path, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+    aom_codec_control(codec, AV1E_SET_PARTITION_INFO_PATH, partition_info_path);
+
+    // Example for AV1E_GET_TARGET_SEQ_LEVEL_IDX
+    int seq_level_idx;
+    aom_codec_control(codec, AV1E_GET_TARGET_SEQ_LEVEL_IDX, &seq_level_idx);
+
+    // Example for AV1E_SET_TARGET_SEQ_LEVEL_IDX
+    int target_seq_level_idx = Data[0] % 24; // Assuming 24 possible levels
+    aom_codec_control(codec, AV1E_SET_TARGET_SEQ_LEVEL_IDX, target_seq_level_idx);
+
+    // Example for AV1E_SET_RATE_DISTRIBUTION_INFO
+    if (Size > 0) {
+        std::vector<char> rate_distribution_info(Data, Data + Size);
+        rate_distribution_info.push_back('\0'); // Ensure null-termination
+        aom_codec_control(codec, AV1E_SET_RATE_DISTRIBUTION_INFO, rate_distribution_info.data());
+    }
+
+    // Example for AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC
+    int high_motion_content_screen_rtc;
+    aom_codec_control(codec, AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC, &high_motion_content_screen_rtc);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) * 2) {
-        return 0;
+    aom_codec_ctx_t *codec = initialize_codec();
+    if (codec) {
+        fuzz_codec_control_functions(codec, Data, Size);
+        cleanup_codec(codec);
     }
-
-    aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-
-    int control_value = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
-
-    int control_id = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC
-    aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC(&codec_ctx, control_id, control_value);
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE
-    if (Size >= sizeof(int)) {
-        int enable_palette = *reinterpret_cast<const int*>(Data);
-        aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE(&codec_ctx, control_id, enable_palette);
-        Data += sizeof(int);
-        Size -= sizeof(int);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC
-    if (Size >= sizeof(int)) {
-        int rtc_external_rc = *reinterpret_cast<const int*>(Data);
-        aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC(&codec_ctx, control_id, rtc_external_rc);
-        Data += sizeof(int);
-        Size -= sizeof(int);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_SUPERBLOCK_SIZE
-    if (Size >= sizeof(unsigned int)) {
-        unsigned int superblock_size = *reinterpret_cast<const unsigned int*>(Data);
-        aom_codec_control_typechecked_AV1E_SET_SUPERBLOCK_SIZE(&codec_ctx, control_id, superblock_size);
-        Data += sizeof(unsigned int);
-        Size -= sizeof(unsigned int);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES
-    if (Size >= sizeof(int)) {
-        int enable_superres = *reinterpret_cast<const int*>(Data);
-        aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES(&codec_ctx, control_id, enable_superres);
-        Data += sizeof(int);
-        Size -= sizeof(int);
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE
-    if (Size >= sizeof(int)) {
-        int force_video_mode = *reinterpret_cast<const int*>(Data);
-        aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE(&codec_ctx, control_id, force_video_mode);
-    }
-
     return 0;
 }

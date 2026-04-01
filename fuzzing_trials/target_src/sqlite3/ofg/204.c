@@ -1,28 +1,42 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
 
-typedef int (*SubroutineType)(void*);
-
-int dummy_subroutine_204(void* arg) {
-    // A dummy subroutine that does nothing and returns 0
-    return 0;
+// Dummy comparison function
+static int dummy_compare(void *unused, int len1, const void *str1, int len2, const void *str2) {
+    (void)unused; // Unused parameter
+    return strncmp((const char *)str1, (const char *)str2, len1 < len2 ? len1 : len2);
 }
 
 int LLVMFuzzerTestOneInput_204(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    void *pArg = (void*)data; // Using the input data as an argument
-    SubroutineType xCallback = dummy_subroutine_204;
-    SubroutineType xCallback2 = dummy_subroutine_204;
-    
-    // Initialize the SQLite database
-    if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
-        // Call the function-under-test
-        sqlite3_autovacuum_pages(db, xCallback, pArg, xCallback2);
+    sqlite3 *db;
+    int rc;
 
-        // Close the SQLite database
-        sqlite3_close(db);
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
+
+    // Ensure the data is not empty and has a valid size for a collation name
+    if (size == 0 || size > 255) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Use the input data as the collation name
+    // Ensure null-termination for the collation name
+    char collationName[256];
+    memcpy(collationName, data, size);
+    collationName[size] = '\0';
+
+    int textEncoding = SQLITE_UTF16;
+
+    // Call the function-under-test
+    rc = sqlite3_create_collation16(db, collationName, textEncoding, NULL, dummy_compare);
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

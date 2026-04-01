@@ -1,28 +1,24 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <zlib.h> // Assuming the function is part of zlib or a similar library
-#include <sys/types.h> // Include for off_t type
+#include <zlib.h>  // Assuming the function is part of zlib or a similar library
 
-// Declare the function if it's not declared in the included headers
-uLong crc32_combine_gen(off_t offset);
-
+// Remove 'extern "C"' since this is C code, not C++
 int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    // Ensure the data size is at least the size of an off_t type
-    if (size < sizeof(off_t)) {
-        return 0;
-    }
-
-    // Interpret the first sizeof(off_t) bytes of data as an off_t value
+    // Declare and initialize the parameter for the function-under-test
     off_t offset = 0;
-    for (size_t i = 0; i < sizeof(off_t); i++) {
-        offset |= ((off_t)data[i]) << (i * 8);
+
+    // Ensure the offset is within a reasonable range based on the input size
+    if (size >= sizeof(off_t)) {
+        offset = *((off_t *)data);
+    } else if (size > 0) {
+        offset = (off_t)data[0];
     }
 
     // Call the function-under-test
     uLong result = crc32_combine_gen(offset);
 
     // Use the result in some way to avoid compiler optimizations removing the call
-    // For fuzzing purposes, we don't need to do anything with the result
+    // For fuzzing purposes, we typically don't need to do anything with the result
     (void)result;
 
     return 0;

@@ -1,30 +1,28 @@
-#include <stddef.h>  // Include this header for size_t
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
 
-// Define a dummy callback function to use with sqlite3_profile
+// Define a dummy callback function to be used with sqlite3_profile
 static void profile_callback(void *arg, const char *sql, sqlite3_uint64 time) {
-    // This is a simple callback that does nothing
-    (void)arg;
-    (void)sql;
-    (void)time;
+    // Do nothing, just a placeholder
 }
 
+// Define a dummy DW_TAG_subroutine_typeInfinite_loop type
+typedef void (*DW_TAG_subroutine_typeInfinite_loop)(void *, const char *, sqlite3_uint64);
+
 int LLVMFuzzerTestOneInput_357(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
+    // Initialize variables
+    sqlite3 *db = NULL;
+    DW_TAG_subroutine_typeInfinite_loop callback = profile_callback;
+    void *arg = (void *)data; // Use data as the argument
 
     // Open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // If opening the database fails, exit early
     }
 
-    // Use the first part of the data as a pointer argument
-    void *arg = (void *)(uintptr_t)(size > 0 ? data[0] : 1);
-
-    // Call the function-under-test with the database, callback, and argument
-    sqlite3_profile(db, profile_callback, arg);
+    // Call the sqlite3_profile function
+    sqlite3_profile(db, callback, arg);
 
     // Close the database
     sqlite3_close(db);

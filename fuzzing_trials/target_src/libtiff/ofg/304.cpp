@@ -1,32 +1,51 @@
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring> // Include this header for memcpy
+#include <unistd.h> // Include for 'close'
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_304(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create a TIFFCodec object
-    if (size < sizeof(TIFFCodec)) {
-        return 0;
+    if (size < sizeof(uint32_t) + sizeof(int)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Allocate memory for a TIFFCodec object
-    TIFFCodec *codec = (TIFFCodec *)malloc(sizeof(TIFFCodec));
-    if (codec == NULL) {
-        return 0;
+    // Create a temporary TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX.tif";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Failed to create a temporary file
     }
 
-    // Initialize the TIFFCodec object with data
-    // Copy data into the codec object, ensuring it doesn't exceed the size
-    memcpy(codec, data, sizeof(TIFFCodec));
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0; // Failed to open file stream
+    }
 
-    // Call the function-under-test with the initialized codec
-    TIFFUnRegisterCODEC(codec);
+    // Write the data to the temporary file
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Free the allocated memory for the codec
-    free(codec);
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        remove(tmpl);
+        return 0; // Failed to open TIFF file
+    }
+
+    // Extract a uint32_t and an int from the input data
+    uint32_t strile = *(reinterpret_cast<const uint32_t*>(data));
+    int error = 0;
+
+    // Call the function-under-test
+    uint64_t byteCount = TIFFGetStrileByteCountWithErr(tiff, strile, &error);
+
+    // Clean up
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

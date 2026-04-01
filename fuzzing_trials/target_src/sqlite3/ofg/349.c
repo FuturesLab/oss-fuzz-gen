@@ -3,19 +3,27 @@
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_349(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract an integer and a pointer
-    if (size < sizeof(int) + sizeof(void*)) {
+    int control_option;
+    void *test_data;
+
+    // Ensure the size is sufficient to extract an integer for control_option
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Extract an integer from the data
-    int controlType = *((int*)data);
+    // Extract an integer from the data for the control_option
+    control_option = *((int *)data);
 
-    // Extract a pointer from the data
-    void *pArg = (void*)(data + sizeof(int));
+    // Point test_data to the remaining data, if any
+    if (size > sizeof(int)) {
+        test_data = (void *)(data + sizeof(int));
+    } else {
+        // If no remaining data, point to a non-NULL memory location
+        test_data = (void *)data;
+    }
 
     // Call the function-under-test
-    sqlite3_test_control(controlType, pArg);
+    sqlite3_test_control(control_option, test_data);
 
     return 0;
 }

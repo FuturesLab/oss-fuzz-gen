@@ -1,9 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC at aomcx.h:2371:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH at aomcx.h:2356:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT at aomcx.h:1992:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES at aomcx.h:2167:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_COLOR_RANGE at aomcx.h:2019:1 in aomcx.h
+// aom_uleb_size_in_bytes at aom_integer.c:23:8 in aom_integer.h
+// aom_uleb_encode at aom_integer.c:58:5 in aom_integer.h
+// aom_uleb_encode_fixed_size at aom_integer.c:79:5 in aom_integer.h
+// aom_img_add_metadata at aom_image.c:380:5 in aom_image.h
+// aom_img_num_metadata at aom_image.c:429:8 in aom_image.h
+// aom_uleb_decode at aom_integer.c:31:5 in aom_integer.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,56 +14,103 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aomdx.h"
-#include "aom_external_partition.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include "aom_integer.h"
 #include "aom_image.h"
-#include "aom.h"
-#include "aom_encoder.h"
 #include "aom_codec.h"
 #include "aom_frame_buffer.h"
-#include "aom_integer.h"
-#include "aom_decoder.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
+#include "aom.h"
 #include "aomcx.h"
+#include "aom_decoder.h"
+#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t)) return 0;
+    if (Size < sizeof(uint64_t)) return 0;
 
-    aom_codec_ctx_t ctx;
-    memset(&ctx, 0, sizeof(ctx));
+    // Test aom_uleb_encode
+    {
+        uint64_t value;
+        memcpy(&value, Data, sizeof(uint64_t));
+        size_t available = Size - sizeof(uint64_t);
+        uint8_t *coded_value = new uint8_t[available];
+        size_t coded_size = 0;
 
-    // Initialize the codec context (dummy initialization for fuzzing)
-    ctx.name = "fuzzing_context";
-    ctx.iface = nullptr; // Normally this would be set to a valid interface
-    ctx.init_flags = 0;
-
-    // Fuzzing control commands
-    int control_id = Data[0] % 10; // Random control ID based on input data
-    int param = Data[1] % 8; // Example parameter for control commands
-
-    // Fuzzing calls to the target functions
-    switch (control_id) {
-        case 0:
-            aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC(&ctx, 0, &param);
-            break;
-        case 1:
-            aom_codec_control_typechecked_AV1E_GET_LUMA_CDEF_STRENGTH(&ctx, 0, &param);
-            break;
-        case 2:
-            aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT(&ctx, 0, param); // Assuming 0 is a valid tune content
-            break;
-        case 3:
-            aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES(&ctx, 0, param); // Assuming 0 is to enable/disable
-            break;
-        case 4:
-            aom_codec_control_typechecked_AV1E_SET_COLOR_RANGE(&ctx, 0, param); // Assuming 0 is a valid color range
-            break;
-        default:
-            break;
+        int result = aom_uleb_encode(value, available, coded_value, &coded_size);
+        if (result == 0) {
+            // Successfully encoded
+        } else {
+            // Encoding failed
+        }
+        delete[] coded_value;
     }
 
-    // Cleanup and handle return values
-    if (ctx.err != AOM_CODEC_OK) {
-        // Handle error if needed
+    // Test aom_uleb_encode_fixed_size
+    {
+        uint64_t value;
+        memcpy(&value, Data, sizeof(uint64_t));
+        size_t available = Size - sizeof(uint64_t);
+        size_t pad_to_size = available > 0 ? available : 1; // Ensure non-zero pad size
+        uint8_t *coded_value = new uint8_t[pad_to_size];
+        size_t coded_size = 0;
+
+        int result = aom_uleb_encode_fixed_size(value, available, pad_to_size, coded_value, &coded_size);
+        if (result == 0) {
+            // Successfully encoded
+        } else {
+            // Encoding failed
+        }
+        delete[] coded_value;
+    }
+
+    // Test aom_img_add_metadata
+    {
+        aom_image_t img;
+        memset(&img, 0, sizeof(img));
+        uint32_t type = 0;
+        const uint8_t *data = Data;
+        size_t sz = Size;
+        aom_metadata_insert_flags_t insert_flag = AOM_MIF_ANY_FRAME;
+
+        int result = aom_img_add_metadata(&img, type, data, sz, insert_flag);
+        if (result == 0) {
+            // Metadata successfully added
+        } else {
+            // Failed to add metadata
+        }
+    }
+
+    // Test aom_img_num_metadata
+    {
+        aom_image_t img;
+        memset(&img, 0, sizeof(img));
+
+        size_t num_metadata = aom_img_num_metadata(&img);
+        // Use num_metadata for further logic
+    }
+
+    // Test aom_uleb_decode
+    {
+        uint64_t decoded_value = 0;
+        size_t length = 0;
+        int result = aom_uleb_decode(Data, Size, &decoded_value, &length);
+        if (result == 0) {
+            // Successfully decoded
+        } else {
+            // Decoding failed
+        }
+    }
+
+    // Test aom_uleb_size_in_bytes
+    {
+        uint64_t value;
+        memcpy(&value, Data, sizeof(uint64_t));
+        size_t size_in_bytes = aom_uleb_size_in_bytes(value);
+        // Use size_in_bytes for further logic
     }
 
     return 0;

@@ -1,42 +1,25 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_403(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create two non-null strings
-    if (size < 2) {
-        return 0;
+    if (size < sizeof(int)) {
+        return 0; // Not enough data to form an integer
     }
 
-    // Split the input data into two parts for two strings
-    size_t mid = size / 2;
+    // Use the first few bytes of data to determine the operation code
+    int op = *(const int *)data; // Interpret the first bytes as an integer
+    op = op % 2; // Assume there are at least two valid op codes (0 and 1)
 
-    // Allocate memory for the two strings and ensure null-termination
-    char *str1 = (char *)malloc(mid + 1);
-    char *str2 = (char *)malloc(size - mid + 1);
-
-    if (str1 == NULL || str2 == NULL) {
-        // Handle memory allocation failure
-        free(str1);
-        free(str2);
-        return 0;
-    }
-
-    // Copy data into the strings and null-terminate them
-    memcpy(str1, data, mid);
-    str1[mid] = '\0';
-
-    memcpy(str2, data + mid, size - mid);
-    str2[size - mid] = '\0';
+    int current = 0;
+    int highwater = 0;
+    int resetFlag = 0; // Initialize to a valid reset flag
 
     // Call the function-under-test
-    int result = sqlite3_stricmp(str1, str2);
+    int result = sqlite3_status(op, &current, &highwater, resetFlag);
 
-    // Clean up allocated memory
-    free(str1);
-    free(str2);
+    // Use the result in some way to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }

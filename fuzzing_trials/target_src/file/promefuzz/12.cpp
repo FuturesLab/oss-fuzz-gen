@@ -1,12 +1,11 @@
 // This fuzz driver is generated for library file, aiming to fuzz the following functions:
 // magic_open at magic.c:267:1 in magic.h
-// magic_load at magic.c:317:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
-// magic_close at magic.c:306:1 in magic.h
-// magic_file at magic.c:414:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
-// magic_descriptor at magic.c:403:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
+// magic_compile at magic.c:340:1 in magic.h
+// magic_errno at magic.c:577:1 in magic.h
+// magic_setflags at magic.c:594:1 in magic.h
+// magic_getparam at magic.c:656:1 in magic.h
+// magic_load_buffers at magic.c:329:1 in magic.h
+// magic_setparam at magic.c:613:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
@@ -17,69 +16,65 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
-#include <fcntl.h>
-#include <unistd.h>
 #include <magic.h>
-#include <cstdio>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <cerrno>
+#include <iostream>
+#include <fstream>
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    std::ofstream file("./dummy_file", std::ios::binary);
+    if (file.is_open()) {
+        file.write(reinterpret_cast<const char*>(Data), Size);
+        file.close();
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < sizeof(int)) return 0; // Ensure there is enough data to read an int
 
-    // Create a dummy file and write the input data to it
-    const char *dummy_file = "./dummy_file";
-    int fd = open(dummy_file, O_CREAT | O_WRONLY | O_TRUNC, 0644);
-    if (fd == -1) return 0;
-    if (write(fd, Data, Size) != ssize_t(Size)) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
-
-    // Initialize magic library
-    magic_t magic = magic_open(MAGIC_NONE);
-    if (magic == nullptr) {
+    // Initialize magic_t structure
+    magic_t magic_cookie = magic_open(MAGIC_NONE);
+    if (magic_cookie == nullptr) {
         return 0;
     }
 
-    // Load the default magic database
-    if (magic_load(magic, nullptr) == -1) {
-        const char *error = magic_error(magic);
-        if (error) {
-            fprintf(stderr, "Error loading magic database: %s\n", error);
-        }
-        magic_close(magic);
-        return 0;
+    // Write data to a dummy file
+    write_dummy_file(Data, Size);
+
+    // Use magic_compile with the dummy file
+    magic_compile(magic_cookie, "./dummy_file");
+
+    // Check for errors using magic_errno
+    int err = magic_errno(magic_cookie);
+    if (err != 0) {
+        std::cerr << "Error: " << err << std::endl;
     }
 
-    // Test magic_file function
-    const char *file_type = magic_file(magic, dummy_file);
-    if (file_type == nullptr) {
-        const char *error = magic_error(magic);
-        if (error) {
-            fprintf(stderr, "Error identifying file type: %s\n", error);
-        }
+    // Set flags using magic_setflags
+    int flags = *reinterpret_cast<const int*>(Data) % 0xFFFF; // Use some part of Data as flags
+    magic_setflags(magic_cookie, flags);
+
+    // Get parameters using magic_getparam
+    if (Size >= sizeof(int) * 2) { // Ensure there is enough data to read another int
+        int param_type = *reinterpret_cast<const int*>(Data + sizeof(int)) % 0xFFFF; // Use some part of Data as param type
+        size_t param_value;
+        magic_getparam(magic_cookie, param_type, &param_value);
     }
 
-    // Test magic_descriptor function
-    fd = open(dummy_file, O_RDONLY);
-    if (fd != -1) {
-        const char *desc = magic_descriptor(magic, fd);
-        if (desc == nullptr) {
-            const char *error = magic_error(magic);
-            if (error) {
-                fprintf(stderr, "Error in magic_descriptor: %s\n", error);
-            }
-        }
-        close(fd);
+    // Load buffers using magic_load_buffers
+    void *buffers[1] = { (void*)Data };
+    size_t buffer_sizes[1] = { Size };
+    magic_load_buffers(magic_cookie, buffers, buffer_sizes, 1);
+
+    // Set parameters using magic_setparam
+    if (Size >= sizeof(size_t)) { // Ensure there is enough data to read a size_t
+        size_t new_param_value = Size; // Use Size as the new parameter value
+        magic_setparam(magic_cookie, 0, &new_param_value); // Use 0 as default param type
     }
 
-    // Clean up
-    magic_close(magic);
-    unlink(dummy_file);
-
+    // Cleanup
+    magic_close(magic_cookie);
     return 0;
 }

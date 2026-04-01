@@ -1,30 +1,38 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>  // Include this header for size_t
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated to be used as a string
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == NULL) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Copy the input data and null-terminate it
-    memcpy(inputString, data, size);
-    inputString[size] = '\0';
-
-    // Call a function-under-test
-    // Assuming a function like sqlite3_open is intended for testing
-    sqlite3 *db;
-    int rc = sqlite3_open(inputString, &db);
-    if (rc == SQLITE_OK) {
+    // Create a simple table for testing
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
+        return 0;
     }
 
+    // Prepare a statement using the input data
+    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Call the function-under-test
+    int result = sqlite3_stmt_isexplain(stmt);
+
     // Clean up
-    free(inputString);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

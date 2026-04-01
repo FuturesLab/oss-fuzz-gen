@@ -1,27 +1,22 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <lcms2.h>
-#include "/src/lcms/include/lcms2.h"
 
 int LLVMFuzzerTestOneInput_366(const uint8_t *data, size_t size) {
-    // Check if size is sufficient for processing
-    if (size < sizeof(cmsFloat32Number)) {
-        return 0;
-    }
+    cmsHANDLE handle;
+    char **properties = NULL;
 
-    // Initialize a cmsStage object
-    cmsStage *stage = cmsStageAllocIdentity(NULL, 1);
-
-    // Ensure the stage is not NULL
-    if (stage == NULL) {
-        return 0;
+    // Initialize the handle with a non-NULL value
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
+        return 0; // If allocation fails, just return
     }
 
     // Call the function-under-test
-    cmsStageSignature result = cmsStageType(stage);
+    cmsUInt32Number result = cmsIT8EnumProperties(handle, &properties);
 
     // Clean up
-    cmsStageFree(stage);
+    cmsIT8Free(handle);
 
     return 0;
 }

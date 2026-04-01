@@ -1,28 +1,41 @@
 #include <cstdint>
 #include <cstdlib>
-#include <tiffio.h>
+#include <cstring> // Added for memcpy
 
 extern "C" {
-    void* _TIFFcalloc(tmsize_t nmemb, tmsize_t size);
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_174(const uint8_t *data, size_t size) {
-    // Ensure that we have enough data to extract two tmsize_t values
-    if (size < 2 * sizeof(tmsize_t)) {
+    if (size < sizeof(uint32_t) + sizeof(tmsize_t)) {
+        // Not enough data to initialize all parameters
         return 0;
     }
 
-    // Extract two tmsize_t values from the input data
-    tmsize_t nmemb = *reinterpret_cast<const tmsize_t*>(data);
-    tmsize_t elem_size = *reinterpret_cast<const tmsize_t*>(data + sizeof(tmsize_t));
-
-    // Call the function under test
-    void* result = _TIFFcalloc(nmemb, elem_size);
-
-    // Free the allocated memory if allocation was successful
-    if (result != NULL) {
-        _TIFFfree(result);
+    // Initialize TIFF structure
+    TIFF *tiff = TIFFOpen("/tmp/fuzz.tiff", "w");
+    if (tiff == NULL) {
+        return 0;
     }
+
+    // Initialize other parameters
+    uint32_t strip = 0; // Example value, can be varied
+    void *buf = malloc(size);
+    if (buf == NULL) {
+        TIFFClose(tiff);
+        return 0;
+    }
+    tmsize_t bufsize = static_cast<tmsize_t>(size);
+
+    // Copy data to buffer
+    memcpy(buf, data, size);
+
+    // Call the function-under-test
+    tmsize_t result = TIFFReadRawStrip(tiff, strip, buf, bufsize);
+
+    // Clean up
+    free(buf);
+    TIFFClose(tiff);
 
     return 0;
 }

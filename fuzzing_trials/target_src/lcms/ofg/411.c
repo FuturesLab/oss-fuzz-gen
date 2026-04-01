@@ -1,31 +1,43 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_411(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for cmsIsTag
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
-    cmsTagSignature tagSignature;
+    cmsPipeline *pipeline = NULL;
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Check if the profile was opened successfully
-    if (hProfile == NULL) {
-        return 0;
+    // Create a dummy pipeline with at least one stage for testing
+    if (context != NULL) {
+        pipeline = cmsPipelineAlloc(context, 3, 3);
+        if (pipeline != NULL) {
+            cmsStage *stage = cmsStageAllocIdentity(context, 3);
+            if (stage != NULL) {
+                cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
+            }
+        }
     }
 
-    // Ensure the size is large enough to extract a cmsTagSignature
-    if (size < sizeof(cmsTagSignature)) {
-        cmsCloseProfile(hProfile);
-        return 0;
+    if (pipeline != NULL && size >= 3 * sizeof(cmsFloat32Number)) {
+        // Prepare input data for the pipeline
+        cmsFloat32Number input[3];
+        for (int i = 0; i < 3; ++i) {
+            input[i] = ((cmsFloat32Number*)data)[i];
+        }
+
+        // Prepare output buffer
+        cmsFloat32Number output[3];
+
+        // Call the function under test with the input data
+        cmsPipelineEvalFloat(input, output, pipeline);
+        
+        // Use the output variable to prevent compiler optimization
+        (void)output;
+
+        // Clean up
+        cmsPipelineFree(pipeline);
     }
 
-    // Extract the cmsTagSignature from the input data
-    tagSignature = *(cmsTagSignature*)data;
-
-    // Call the function-under-test
-    cmsBool result = cmsIsTag(hProfile, tagSignature);
-
-    // Close the profile
-    cmsCloseProfile(hProfile);
+    cmsDeleteContext(context);
 
     return 0;
 }

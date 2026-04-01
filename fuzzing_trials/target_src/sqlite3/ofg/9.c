@@ -1,40 +1,33 @@
 #include <stdint.h>
-#include <string.h>
 #include <sqlite3.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Ensure data is not null and size is greater than zero
-    if (data != NULL && size > 0) {
-        // Create a buffer to hold the input data
-        char *buffer = (char *)sqlite3_malloc(size + 1);
-        if (buffer != NULL) {
-            // Copy input data to buffer
-            memcpy(buffer, data, size);
-            buffer[size] = '\0'; // Null-terminate the string
+    sqlite3 *db;
+    sqlite3_stmt *stmt = NULL;
+    const void *tail = NULL;
 
-            // Prepare an SQLite statement to use the buffer
-            sqlite3 *db;
-            sqlite3_stmt *stmt;
-            if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
-                // Create a dummy table
-                sqlite3_exec(db, "CREATE TABLE fuzz (data TEXT);", 0, 0, 0);
-                // Prepare an insert statement
-                if (sqlite3_prepare_v2(db, "INSERT INTO fuzz (data) VALUES (?);", -1, &stmt, 0) == SQLITE_OK) {
-                    // Bind the buffer as a text value
-                    sqlite3_bind_text(stmt, 1, buffer, -1, SQLITE_STATIC);
-                    // Execute the statement
-                    sqlite3_step(stmt);
-                    // Finalize the statement
-                    sqlite3_finalize(stmt);
-                }
-                // Close the database
-                sqlite3_close(db);
-            }
-
-            // Free the buffer
-            sqlite3_free(buffer);
-        }
+    // Open an in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
     }
+
+    // Ensure the input data is not empty and is a valid UTF-16 string
+    if (size < 2 || size % 2 != 0) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare the SQL statement
+    int rc = sqlite3_prepare16(db, data, size, &stmt, &tail);
+
+    // Finalize the statement if it was prepared successfully
+    if (rc == SQLITE_OK && stmt != NULL) {
+        sqlite3_finalize(stmt);
+    }
+
+    // Close the database connection
+    sqlite3_close(db);
 
     return 0;
 }

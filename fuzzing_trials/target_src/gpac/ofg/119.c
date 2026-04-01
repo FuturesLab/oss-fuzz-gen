@@ -1,36 +1,38 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient to initialize the parameters
-    if (size < sizeof(GF_ISOTrackID) + sizeof(s32) + sizeof(u32)) {
+    GF_ISOFile *file = NULL;
+    Bool root_meta = 1; // Initialize with a non-zero value
+    u32 track_num = 1; // Initialize with a non-zero value
+    char outName[] = "output.xml"; // Output file name
+    Bool is_binary = 0; // Initialize with a zero value
+
+    // Create a temporary file to simulate an ISO media file
+    char tempFileName[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tempFileName);
+    if (fd == -1) {
         return 0;
     }
+    write(fd, data, size);
+    close(fd);
 
-    // Initialize the parameters
-    GF_ISOFile *movie = gf_isom_open("test.mp4", GF_ISOM_OPEN_WRITE, NULL); // Create a temporary ISO file
-    if (!movie) {
+    // Open the ISO media file
+    file = gf_isom_open(tempFileName, GF_ISOM_OPEN_READ, NULL);
+    if (!file) {
+        remove(tempFileName);
         return 0;
     }
-
-    GF_ISOTrackID TrackID = (GF_ISOTrackID)data[0]; // Use the first byte for TrackID
-    s32 refID = (s32)data[1]; // Use the second byte for refID
-    u32 nb_refs = (u32)data[2]; // Use the third byte for nb_refs
-
-    // Ensure there is enough data for the refs array
-    if (size < 3 + nb_refs * sizeof(s32)) {
-        gf_isom_close(movie);
-        return 0;
-    }
-
-    s32 *refs = (s32 *)(data + 3); // Use the remaining data for refs
 
     // Call the function-under-test
-    gf_isom_fragment_add_sample_references(movie, TrackID, refID, nb_refs, refs);
+    gf_isom_extract_meta_xml(file, root_meta, track_num, outName, &is_binary);
 
     // Clean up
-    gf_isom_close(movie);
+    gf_isom_close(file);
+    remove(tempFileName);
 
     return 0;
 }

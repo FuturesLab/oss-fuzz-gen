@@ -1,32 +1,50 @@
 #include <cstdint>
-#include <cstddef>
-#include <tiffio.h>  // Include the TIFF library header
+#include <cstdio>
+#include <unistd.h> // Include for mkstemp, close, and write
+#include <sys/types.h> // Include for ssize_t
+#include <sys/stat.h> // Include for file mode constants
+#include <fcntl.h> // Include for file control options
+#include <cstdlib> // Include for remove
 
 extern "C" {
-    // Declare the function-under-test
-    const unsigned char * TIFFGetBitRevTable(int);
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract an integer
-    if (size < sizeof(int)) {
+    TIFF *tiff = nullptr;
+    uint32_t tag = 0;
+
+    // Create a temporary file to hold the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract an integer from the input data
-    int input_value = 0;
-    for (size_t i = 0; i < sizeof(int); ++i) {
-        input_value |= (data[i] << (i * 8));
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
+        close(fd);
+        remove(tmpl);
+        return 0;
     }
+    close(fd);
+
+    // Open the temporary file with libtiff
+    tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        remove(tmpl);
+        return 0;
+    }
+
+    // Use a non-zero tag value for testing
+    tag = 1;
 
     // Call the function-under-test
-    const unsigned char *result = TIFFGetBitRevTable(input_value);
+    const TIFFField *field = TIFFFieldWithTag(tiff, tag);
 
-    // Use the result in some way to prevent it from being optimized away
-    if (result != nullptr) {
-        volatile unsigned char temp = result[0];
-        (void)temp; // Prevent unused variable warning
-    }
+    // Clean up
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

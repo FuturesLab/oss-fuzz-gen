@@ -1,15 +1,15 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// deflateInit_ at deflate.c:380:13 in zlib.h
-// deflateEnd at deflate.c:1294:13 in zlib.h
 // inflateInit_ at inflate.c:214:13 in zlib.h
-// deflateReset at deflate.c:705:13 in zlib.h
+// inflatePrime at inflate.c:219:13 in zlib.h
+// inflateSync at inflate.c:1264:13 in zlib.h
+// inflate at inflate.c:474:13 in zlib.h
+// inflateSync at inflate.c:1264:13 in zlib.h
+// inflateSyncPoint at inflate.c:1320:13 in zlib.h
+// inflateCopy at inflate.c:1328:13 in zlib.h
+// inflateUndermine at inflate.c:1370:13 in zlib.h
+// inflateMark at inflate.c:1397:14 in zlib.h
 // inflateEnd at inflate.c:1155:13 in zlib.h
-// inflateReset at inflate.c:125:13 in zlib.h
 // inflateEnd at inflate.c:1155:13 in zlib.h
-// deflateReset at deflate.c:705:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
-// inflateEnd at inflate.c:1155:13 in zlib.h
-// deflateEnd at deflate.c:1294:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -17,17 +17,16 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <zlib.h>
 
-static int initialize_stream(z_streamp strm) {
+static void initialize_stream(z_streamp strm) {
+    memset(strm, 0, sizeof(z_stream));
     strm->zalloc = Z_NULL;
     strm->zfree = Z_NULL;
     strm->opaque = Z_NULL;
-    strm->avail_in = 0;
-    strm->next_in = Z_NULL;
-    strm->avail_out = 0;
-    strm->next_out = Z_NULL;
-    return 0;
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
@@ -35,51 +34,48 @@ int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
 
     z_stream strm;
     initialize_stream(&strm);
+    int ret = inflateInit(&strm);
+    if (ret != Z_OK) return 0;
 
-    // deflateInit_
-    if (deflateInit_(&strm, Z_DEFAULT_COMPRESSION, ZLIB_VERSION, sizeof(z_stream)) != Z_OK) {
-        return 0;
-    }
+    z_stream strm_copy;
+    initialize_stream(&strm_copy);
 
-    // deflateEnd
-    if (deflateEnd(&strm) != Z_OK) {
-        return 0;
-    }
+    uint8_t dummy_out[256];
+    strm.next_in = (Bytef *)Data;
+    strm.avail_in = (uInt)Size;
+    strm.next_out = dummy_out;
+    strm.avail_out = sizeof(dummy_out);
 
-    initialize_stream(&strm);
+    int bits = Data[0] & 0x1F; // Use first byte for bits
+    int value = Data[0] >> 5;  // Use remaining bits for value
 
-    // inflateInit_
-    if (inflateInit_(&strm, ZLIB_VERSION, sizeof(z_stream)) != Z_OK) {
-        return 0;
-    }
+    // Call inflatePrime
+    inflatePrime(&strm, bits, value);
 
-    // deflateReset
-    if (deflateReset(&strm) != Z_OK) {
-        inflateEnd(&strm);
-        return 0;
-    }
+    // Call inflateSync
+    inflateSync(&strm);
 
-    // inflateReset
-    if (inflateReset(&strm) != Z_OK) {
-        inflateEnd(&strm);
-        return 0;
-    }
+    // Call inflate
+    inflate(&strm, Z_NO_FLUSH);
 
-    // deflateReset
-    if (deflateReset(&strm) != Z_OK) {
-        inflateEnd(&strm);
-        return 0;
-    }
+    // Call inflateSync again
+    inflateSync(&strm);
 
-    // inflateEnd
-    if (inflateEnd(&strm) != Z_OK) {
-        return 0;
-    }
+    // Call inflateSyncPoint
+    inflateSyncPoint(&strm);
 
-    // deflateEnd
-    if (deflateEnd(&strm) != Z_OK) {
-        return 0;
-    }
+    // Call inflateCopy
+    inflateCopy(&strm_copy, &strm);
+
+    // Call inflateUndermine
+    inflateUndermine(&strm, 1);
+
+    // Call inflateMark
+    inflateMark(&strm);
+
+    // Call inflateEnd
+    inflateEnd(&strm);
+    inflateEnd(&strm_copy);
 
     return 0;
 }

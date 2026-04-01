@@ -1,28 +1,48 @@
-#include <cstddef>
-#include <cstdint>
-
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-
-    // Function signature from the task
-    size_t tj3YUVPlaneSize(int, int, int, int, int);
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    int width = 1;  // Minimum valid width
-    int height = 1; // Minimum valid height
-    int subsamp = TJSAMP_420; // Common subsampling option
-    int align = 1; // Minimum alignment
-    int plane = 0; // Plane index, assuming 0 is valid
+    // Initialize the TurboJPEG decompressor
+    tjhandle decompressor = tjInitDecompress();
+    if (decompressor == nullptr) {
+        return 0;
+    }
 
-    // Call the function-under-test with the initialized parameters
-    size_t yuvPlaneSize = tj3YUVPlaneSize(width, height, subsamp, align, plane);
+    // Set up parameters for the function call
+    unsigned long jpegSize = static_cast<unsigned long>(size);
+    int width = 128;  // Example width, adjust as needed
+    int height = 128; // Example height, adjust as needed
+    int subsamp, colorspace;
 
-    // Use the result to avoid compiler optimizations that remove the call
-    (void)yuvPlaneSize;
+    // Allocate memory for YUV planes
+    unsigned char *yuvPlanes[3];
+    int strides[3] = { width, width / 2, width / 2 }; // Assuming 4:2:0 subsampling
+    for (int i = 0; i < 3; i++) {
+        yuvPlanes[i] = static_cast<unsigned char *>(malloc(strides[i] * height / (i == 0 ? 1 : 2)));
+        if (yuvPlanes[i] == nullptr) {
+            for (int j = 0; j < i; j++) {
+                free(yuvPlanes[j]);
+            }
+            tjDestroy(decompressor);
+            return 0;
+        }
+    }
 
-    return 0;
+    // Call the function-under-test
+    int result = tjDecompressToYUVPlanes(decompressor, data, jpegSize, yuvPlanes, width, strides, height, 0);
+
+    // Clean up
+    for (int i = 0; i < 3; i++) {
+        free(yuvPlanes[i]);
+    }
+    tjDestroy(decompressor);
+
+    return result;
 }

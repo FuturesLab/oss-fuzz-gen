@@ -1,51 +1,51 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
+#include <wchar.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Not enough data to proceed
-    }
+    cmsHANDLE originalDict = NULL;
+    cmsHANDLE duplicatedDict = NULL;
+    cmsMLU *name = NULL;
+    cmsMLU *value = NULL;
+    cmsMLU *displayName = NULL;
+    cmsMLU *displayValue = NULL;
 
-    cmsNAMEDCOLORLIST *namedColorList = NULL;
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    // Create a sample dictionary with some entries if possible
+    originalDict = cmsDictAlloc(NULL);
+    if (originalDict != NULL) {
+        name = cmsMLUalloc(NULL, 1);
+        value = cmsMLUalloc(NULL, 1);
+        displayName = cmsMLUalloc(NULL, 1);
+        displayValue = cmsMLUalloc(NULL, 1);
 
-    // Create a named color list with at least one color to avoid NULL
-    namedColorList = cmsAllocNamedColorList(context, 1, 0, "Prefix", "Suffix");
-    if (namedColorList != NULL) {
-        // Use the input data to create a color name
-        char colorName[256];
-        size_t colorNameLength = size < 255 ? size : 255;
-        memcpy(colorName, data, colorNameLength);
-        colorName[colorNameLength] = '\0'; // Ensure null termination
-
-        // Append a named color using the input data
-        cmsUInt16Number ColorXYZ[3] = {32768, 32768, 32768}; // Example color value in 16-bit
-        cmsUInt16Number PCSXYZ[3] = {19660, 19660, 19660};   // Example PCS value in 16-bit
-
-        // Attempt to append the named color
-        if (cmsAppendNamedColor(namedColorList, colorName, PCSXYZ, ColorXYZ)) {
-            // Additional operations to increase code coverage
-            // Retrieve the color index
-            int colorIndex = cmsNamedColorIndex(namedColorList, colorName);
-            if (colorIndex != -1) {
-                // Retrieve the color value
-                cmsUInt16Number retrievedPCSXYZ[3];
-                cmsUInt16Number retrievedColorant[3];
-                if (cmsNamedColorInfo(namedColorList, colorIndex, colorName, NULL, NULL, retrievedPCSXYZ, retrievedColorant)) {
-                    // Further operations can be performed if needed
-                }
-            }
+        if (name != NULL && value != NULL && displayName != NULL && displayValue != NULL) {
+            cmsDictAddEntry(originalDict, L"SampleName", L"SampleValue", displayName, displayValue);
         }
     }
 
-    // Call the function under test
-    cmsFreeNamedColorList(namedColorList);
+    // Call the function-under-test
+    duplicatedDict = cmsDictDup(originalDict);
 
-    // Clean up the context
-    cmsDeleteContext(context);
+    // Clean up
+    if (originalDict != NULL) {
+        cmsDictFree(originalDict);
+    }
+    if (duplicatedDict != NULL) {
+        cmsDictFree(duplicatedDict);
+    }
+    if (name != NULL) {
+        cmsMLUfree(name);
+    }
+    if (value != NULL) {
+        cmsMLUfree(value);
+    }
+    if (displayName != NULL) {
+        cmsMLUfree(displayName);
+    }
+    if (displayValue != NULL) {
+        cmsMLUfree(displayValue);
+    }
 
     return 0;
 }

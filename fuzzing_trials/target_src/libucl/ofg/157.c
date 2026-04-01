@@ -1,30 +1,30 @@
 #include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-  // Create a ucl_parser object
+  // Create a new UCL parser
   struct ucl_parser *parser = ucl_parser_new(0);
   if (parser == NULL) {
     return 0;
   }
 
   // Add the input data to the parser
-  if (size > 0) {
-    ucl_parser_add_chunk(parser, data, size);
-  }
+  ucl_parser_add_chunk(parser, data, size);
 
-  // Get the root object from the parser
+  // Get the root object
   const ucl_object_t *obj = ucl_parser_get_object(parser);
-
-  // Call the function-under-test
   if (obj != NULL) {
+    // Call the function-under-test
     const char *str = ucl_object_tostring(obj);
+
+    // Use the result (str) in some way to avoid compiler optimizations
     if (str != NULL) {
-      // Do something with the resulting string if needed
-      // For now, just suppress unused variable warning
-      (void)str;
+      size_t len = strlen(str);
+      volatile char dummy = str[len > 0 ? len - 1 : 0];
+      (void)dummy;
     }
   }
 

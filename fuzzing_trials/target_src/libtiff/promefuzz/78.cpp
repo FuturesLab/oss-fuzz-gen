@@ -1,0 +1,67 @@
+// This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFRGBAImageOK at tif_getimage.c:83:5 in tiffio.h
+// TIFFErrorExt at tif_error.c:63:6 in tiffio.h
+// TIFFWarningExtR at tif_warning.c:80:6 in tiffio.h
+// TIFFErrorExtR at tif_error.c:107:6 in tiffio.h
+// TIFFOpenExt at tif_unix.c:237:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdint>
+#include <cstddef>
+#include <tiffio.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstdio>
+#include <cstdarg>
+#include <cstring>
+
+static TIFF* openDummyTIFFFile(const char* mode) {
+    FILE* file = fopen("./dummy_file", mode);
+    if (file == nullptr) {
+        return nullptr;
+    }
+    fclose(file);
+    return TIFFOpen("./dummy_file", mode);
+}
+
+static void customErrorHandler(const char* module, const char* fmt, va_list ap) {
+    vfprintf(stderr, fmt, ap);
+}
+
+static void customWarningHandler(const char* module, const char* fmt, va_list ap) {
+    vfprintf(stderr, fmt, ap);
+}
+
+extern "C" int LLVMFuzzerTestOneInput_78(const uint8_t* Data, size_t Size) {
+    if (Size < 1) return 0;
+
+    TIFF* tiff = openDummyTIFFFile("r");
+    if (!tiff) return 0;
+
+    char emsg[1024];
+    TIFFRGBAImageOK(tiff, emsg);
+
+    TIFFErrorExt(nullptr, "module", "Error message: %s", "Sample error");
+    TIFFWarningExtR(tiff, "module", "Warning message: %s", "Sample warning");
+
+    TIFFErrorExtR(tiff, "module", "Error message R: %s", "Sample error R");
+
+    TIFF* tiffExt = TIFFOpenExt("./dummy_file", "r", nullptr);
+    if (tiffExt) {
+        TIFFClose(tiffExt);
+    }
+
+    TIFFWriteCheck(tiff, 1, "WriteCheck");
+
+    TIFFClose(tiff);
+    return 0;
+}

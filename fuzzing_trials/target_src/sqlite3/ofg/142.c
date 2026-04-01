@@ -1,43 +1,23 @@
 #include <stdint.h>
-#include <sqlite3.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    sqlite3 *src_db = NULL;
-    sqlite3 *dest_db = NULL;
-    sqlite3_backup *backup = NULL;
-    int rc;
-
-    // Open source and destination databases in memory
-    rc = sqlite3_open(":memory:", &src_db);
-    if (rc != SQLITE_OK) {
-        return 0;
+    // Ensure the input data is null-terminated
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Allocation failed, return early
     }
-
-    rc = sqlite3_open(":memory:", &dest_db);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(src_db);
-        return 0;
-    }
-
-    // Create a backup object
-    backup = sqlite3_backup_init(dest_db, "main", src_db, "main");
-    if (backup == NULL) {
-        sqlite3_close(src_db);
-        sqlite3_close(dest_db);
-        return 0;
-    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
     // Call the function-under-test
-    int remaining_pages = sqlite3_backup_remaining(backup);
+    int result = sqlite3_compileoption_used(null_terminated_data);
 
-    // Perform a step to progress the backup
-    sqlite3_backup_step(backup, 1);
-
-    // Clean up
-    sqlite3_backup_finish(backup);
-    sqlite3_close(src_db);
-    sqlite3_close(dest_db);
+    // Free allocated memory
+    free(null_terminated_data);
 
     return 0;
 }

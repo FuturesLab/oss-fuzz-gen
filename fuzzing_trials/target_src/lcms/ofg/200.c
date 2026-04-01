@@ -3,33 +3,28 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_200(const uint8_t *data, size_t size) {
-    if (size < 3 * sizeof(float)) {
-        return 0; // Not enough data to proceed
+    cmsToneCurve *toneCurve = NULL;
+    cmsFloat32Number inputValue = 0.5f;  // Initialize with a non-zero value
+
+    // Check if the size is sufficient to create a tone curve
+    if (size >= sizeof(cmsUInt16Number)) {
+        // Create a tone curve using the data provided
+        cmsUInt16Number curvePoints = *(cmsUInt16Number *)data;
+        toneCurve = cmsBuildGamma(NULL, curvePoints);
+
+        if (toneCurve != NULL) {
+            // Use the rest of the data to determine the input value
+            if (size >= sizeof(cmsUInt16Number) + sizeof(cmsFloat32Number)) {
+                inputValue = *(cmsFloat32Number *)(data + sizeof(cmsUInt16Number));
+            }
+
+            // Call the function-under-test
+            cmsFloat32Number result = cmsEvalToneCurveFloat(toneCurve, inputValue);
+
+            // Clean up the tone curve
+            cmsFreeToneCurve(toneCurve);
+        }
     }
-
-    // Initialize a memory context
-    cmsContext context = cmsCreateContext(NULL, NULL);
-
-    // Create a pipeline with a specific number of stages
-    cmsPipeline *pipeline = cmsPipelineAlloc(context, 3, 3);
-
-    // Add a dummy stage to the pipeline for testing
-    cmsStage *stage = cmsStageAllocIdentity(context, 3);
-    cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
-
-    // Call the function-under-test
-    cmsStage *lastStage = cmsPipelineGetPtrToLastStage(pipeline);
-
-    // Use the input data to simulate some processing
-    float input[3];
-    for (int i = 0; i < 3; i++) {
-        input[i] = ((float *)data)[i];
-    }
-    cmsPipelineEvalFloat(input, input, pipeline);
-
-    // Clean up
-    cmsPipelineFree(pipeline);
-    cmsDeleteContext(context);
 
     return 0;
 }

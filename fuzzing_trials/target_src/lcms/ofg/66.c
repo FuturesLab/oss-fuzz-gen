@@ -1,27 +1,30 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    cmsToneCurve *toneCurve = NULL;
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    // Declare and initialize variables
+    cmsHPROFILE hProfile;
+    cmsColorSpaceSignature colorSpace;
 
-    // Create a tone curve with a single segment using the input data
-    if (size >= sizeof(double)) {
-        double gamma;
-        memcpy(&gamma, data, sizeof(double));
-        toneCurve = cmsBuildGamma(context, gamma);
+    // Ensure that size is sufficient to extract necessary data
+    if (size < sizeof(cmsColorSpaceSignature)) {
+        return 0;
     }
 
-    // Ensure toneCurve is not NULL
-    if (toneCurve != NULL) {
-        // Call the function-under-test
-        cmsBool result = cmsIsToneCurveDescending(toneCurve);
-
-        // Clean up
-        cmsFreeToneCurve(toneCurve);
+    // Create a profile using a built-in profile to ensure it's not NULL
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
     }
 
-    cmsDeleteContext(context);
+    // Extract colorSpace from the input data
+    colorSpace = *(cmsColorSpaceSignature*)data;
+
+    // Call the function-under-test
+    cmsSetPCS(hProfile, colorSpace);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
+
     return 0;
 }

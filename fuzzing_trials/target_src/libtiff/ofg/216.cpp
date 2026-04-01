@@ -1,36 +1,27 @@
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
-#include <cstdio>
-
-extern "C" {
-    // Forward declaration of the function-under-test
-    void TIFFWarning(const char *module, const char *fmt, void *dummy);
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_216(const uint8_t *data, size_t size) {
-    // Ensure the data size is large enough to split into meaningful strings
-    if (size < 2) {
+    // Ensure that the input data is large enough to extract necessary parameters
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Split the input data into two parts for the module and fmt strings
-    size_t mid = size / 2;
-    char module[mid + 1];
-    char fmt[size - mid + 1];
+    // Initialize TIFF structure
+    TIFF *tiff = TIFFOpen("dummy.tif", "w");
+    if (tiff == nullptr) {
+        return 0;
+    }
 
-    // Copy the data into the module and fmt strings, ensuring null termination
-    std::memcpy(module, data, mid);
-    module[mid] = '\0';
-
-    std::memcpy(fmt, data + mid, size - mid);
-    fmt[size - mid] = '\0';
-
-    // Dummy pointer, can be used for additional context if needed
-    void *dummy = reinterpret_cast<void *>(0x1);
+    // Extract an integer mode from the input data
+    int mode = *((int *)data);
 
     // Call the function-under-test
-    TIFFWarning(module, fmt, dummy);
+    TIFFSetMode(tiff, mode);
+
+    // Close the TIFF file
+    TIFFClose(tiff);
 
     return 0;
 }

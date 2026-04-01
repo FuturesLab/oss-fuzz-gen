@@ -1,25 +1,39 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <aom/aom_codec.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+#include <iostream>
+
+extern "C" {
+    // Include the necessary header for the function-under-test
+    #include "aom/aom_integer.h" // Assuming this is where the function is declared
+    int aom_uleb_encode_fixed_size(uint64_t value, size_t available, size_t pad_to_size, uint8_t *coded_value, size_t *coded_size);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Declare and initialize aom_codec_ctx_t object
-    aom_codec_ctx_t codec_ctx;
-    
-    // Initialize the codec context with some non-null values
-    codec_ctx.name = "test_codec";
-    codec_ctx.priv = (aom_codec_priv_t *)data; // Just using data as a placeholder
-    codec_ctx.iface = (aom_codec_iface_t *)data; // Just using data as a placeholder
-    codec_ctx.err = AOM_CODEC_OK;
-    codec_ctx.err_detail = "No error";
+    // Initialize variables for the function call
+    uint64_t value = 0;
+    size_t available = 0;
+    size_t pad_to_size = 0;
+    size_t coded_size = 0;
+
+    // Ensure the data size is sufficient to extract values for the function parameters
+    if (size < sizeof(uint64_t) + 2 * sizeof(size_t)) {
+        return 0;
+    }
+
+    // Extract values from data for the function parameters
+    std::memcpy(&value, data, sizeof(uint64_t));
+    std::memcpy(&available, data + sizeof(uint64_t), sizeof(size_t));
+    std::memcpy(&pad_to_size, data + sizeof(uint64_t) + sizeof(size_t), sizeof(size_t));
+
+    // Allocate memory for coded_value based on available size, ensuring it's not NULL
+    uint8_t *coded_value = new uint8_t[available];
 
     // Call the function-under-test
-    const char *error_detail = aom_codec_error_detail(&codec_ctx);
+    int result = aom_uleb_encode_fixed_size(value, available, pad_to_size, coded_value, &coded_size);
 
-    // Use the result to avoid compiler optimizations removing the call
-    if (error_detail != nullptr) {
-        // Normally, you might log or process the error detail here
-    }
+    // Clean up allocated memory
+    delete[] coded_value;
 
     return 0;
 }

@@ -1,29 +1,36 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <zlib.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Initialize z_stream structure
     z_stream stream;
-    Bytef dictionary[256]; // Example size, adjust as needed
-    uInt dictLength = sizeof(dictionary);
+    memset(&stream, 0, sizeof(z_stream));
 
-    // Initialize the z_stream structure
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = size;
-
-    // Initialize the deflate stream
+    // Initialize the stream for deflate
     if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
         return 0;
     }
 
+    // Set input data for the stream
+    stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
+
+    // Allocate memory for the dictionary
+    uInt dictLength = 1024; // Initial dictionary length
+    Bytef *dictionary = (Bytef *)malloc(dictLength);
+    if (dictionary == NULL) {
+        deflateEnd(&stream);
+        return 0;
+    }
+
     // Call the function-under-test
-    deflateGetDictionary(&stream, dictionary, &dictLength);
+    int result = deflateGetDictionary(&stream, dictionary, &dictLength);
 
     // Clean up
+    free(dictionary);
     deflateEnd(&stream);
 
     return 0;

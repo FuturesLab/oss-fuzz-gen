@@ -1,30 +1,41 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include for size_t
+#include <stdlib.h>  // Include for NULL
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_294(const uint8_t *data, size_t size) {
-    void *ptr = NULL;
-    sqlite3_uint64 newSize;
+    // Declare and initialize a sqlite3_mutex object
+    sqlite3_mutex *mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_FAST);
 
-    // Ensure the size is at least 8 bytes to safely extract a sqlite3_uint64
-    if (size < sizeof(sqlite3_uint64)) {
+    // Ensure the mutex is not NULL before proceeding
+    if (mutex == NULL) {
         return 0;
     }
 
-    // Extract a sqlite3_uint64 from the input data
-    newSize = *((sqlite3_uint64 *)data);
+    // Lock the mutex
+    sqlite3_mutex_enter(mutex);
 
-    // Allocate initial memory block
-    ptr = sqlite3_malloc(64);  // Start with an arbitrary non-zero size
-    if (ptr == NULL) {
-        return 0;
+    // Perform operations while the mutex is locked
+    // Use the input data to simulate some operation
+    // For example, we can iterate over the data
+    for (size_t i = 0; i < size; i++) {
+        // Perform some dummy operation with the data
+        volatile uint8_t temp = data[i];
+        (void)temp; // Prevent unused variable warning
     }
 
-    // Call the function under test
-    ptr = sqlite3_realloc64(ptr, newSize);
+    // Check if the mutex is held
+    int isHeld = sqlite3_mutex_held(mutex);
 
-    // Free the allocated memory
-    sqlite3_free(ptr);
+    // Unlock the mutex
+    sqlite3_mutex_leave(mutex);
 
-    return 0;
+    // Check if the mutex is not held
+    int notHeld = sqlite3_mutex_notheld(mutex);
+
+    // Free the allocated mutex
+    sqlite3_mutex_free(mutex);
+
+    // Return a value based on the operations to ensure the function is used
+    return isHeld && notHeld;
 }

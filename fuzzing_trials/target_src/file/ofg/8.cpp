@@ -1,44 +1,36 @@
-#include <cstddef>  // For size_t
-#include <cstdint>  // For uint8_t
-#include <cstdlib>  // For NULL
-#include <cstdio>   // For printf
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>  // Include for malloc and free
+#include <magic.h>
 
 extern "C" {
-    #include <magic.h>
+    // Forward declaration of the function-under-test
+    int magic_check(struct magic_set *, const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // If the input size is zero, return immediately as there's nothing to process
-    if (size == 0) {
-        return 0;
+    // Ensure the input data is null-terminated for string operations
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit early if memory allocation fails
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Initialize a magic_set structure
+    // Initialize a magic_set object
     struct magic_set *magic = magic_open(MAGIC_NONE);
-    
-    // Check if magic_open was successful
     if (magic == NULL) {
-        return 0; // Exit if magic_open failed
+        free(null_terminated_data);
+        return 0; // Exit early if magic_open fails
     }
 
-    // Load the default magic database
-    if (magic_load(magic, NULL) != 0) {
-        magic_close(magic);
-        return 0; // Exit if magic_load failed
-    }
+    // Call the function-under-test
+    magic_check(magic, null_terminated_data);
 
-    // Use magic_buffer to analyze the input data
-    const char *result = magic_buffer(magic, data, size);
-    if (result != NULL) {
-        // Print the result for debugging purposes
-        printf("Magic result: %s\n", result);
-    } else {
-        // Print an error message if magic_buffer returns NULL
-        printf("Magic buffer returned NULL: %s\n", magic_error(magic));
-    }
-
-    // Clean up
+    // Clean up resources
     magic_close(magic);
+    free(null_terminated_data);
 
     return 0;
 }

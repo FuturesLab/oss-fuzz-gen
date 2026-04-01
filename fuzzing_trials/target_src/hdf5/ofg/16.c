@@ -1,23 +1,27 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <hdf5.h>
 
-int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure the data size is large enough to extract required parameters
-    if (size < 2) {
+extern int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
+    // Ensure the input size is sufficient for our needs
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Initialize parameters for H5Fflush_async
-    const char *app_file = "testfile.h5"; // Example file name
-    const char *app_func = "testFunction"; // Example function name
-    unsigned int app_line = (unsigned int)data[0]; // Use first byte for app_line
-    hid_t obj_id = (hid_t)data[1]; // Use second byte for obj_id
-    H5F_scope_t scope = H5F_SCOPE_GLOBAL; // Use a valid H5F_scope_t value
-    hid_t es_id = H5ES_NONE; // Use a valid event set identifier
+    // Extract a hid_t value from the input data
+    hid_t file_id = *((hid_t *)data);
 
-    // Call the function-under-test with the correct number of arguments
-    herr_t result = H5Fflush_async(obj_id, scope, es_id);
+    // Open a file to obtain a valid hid_t if needed
+    // This is a placeholder to ensure file_id is valid; adjust as necessary
+    hid_t valid_file_id = H5Fopen("dummy.h5", H5F_ACC_RDWR, H5P_DEFAULT);
+    if (valid_file_id < 0) {
+        return 0; // Failed to open a file, cannot proceed
+    }
+
+    // Call the function-under-test with a valid hid_t
+    herr_t result = H5Fstop_mdc_logging(valid_file_id);
+
+    // Clean up by closing the file
+    H5Fclose(valid_file_id);
 
     return 0;
 }

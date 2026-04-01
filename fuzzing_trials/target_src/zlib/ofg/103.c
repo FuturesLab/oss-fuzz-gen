@@ -1,26 +1,36 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Initialize variables for the crc32_combine function
-    uLong crc1 = 0xFFFFFFFF; // A typical initial value for CRC calculations
-    uLong crc2 = 0xFFFFFFFF; // Another typical initial value for CRC calculations
-    off_t len2 = 0; // Length of the second data block
+    gzFile gz_file;
+    char buffer[1024];
+    int length;
 
-    // Ensure that the size of the input data is sufficient to derive values for crc1, crc2, and len2
-    if (size >= sizeof(uLong) * 2 + sizeof(off_t)) {
-        // Extract values from the input data
-        crc1 = *(const uLong *)(data);
-        crc2 = *(const uLong *)(data + sizeof(uLong));
-        len2 = *(const off_t *)(data + sizeof(uLong) * 2);
+    // Open a temporary gzipped file for writing
+    gz_file = gzopen("temp.gz", "wb");
+    if (gz_file == NULL) {
+        return 0;
     }
 
-    // Call the function-under-test
-    uLong result = crc32_combine(crc1, crc2, len2);
+    // Write the input data to the gzipped file
+    gzwrite(gz_file, data, size);
+    gzclose(gz_file);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    // Reopen the gzipped file for reading
+    gz_file = gzopen("temp.gz", "rb");
+    if (gz_file == NULL) {
+        return 0;
+    }
+
+    // Set a fixed length for the buffer
+    length = sizeof(buffer) - 1;
+
+    // Call the function-under-test
+    gzgets(gz_file, buffer, length);
+
+    // Close the gzipped file
+    gzclose(gz_file);
 
     return 0;
 }

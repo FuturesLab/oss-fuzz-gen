@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
-// lou_freeTableFile at metadata.c:1089:1 in liblouis.h
-// lou_freeTableInfo at metadata.c:1167:1 in liblouis.h
-// lou_freeEmphClasses at compileTranslationTable.c:5095:1 in liblouis.h
-// lou_getEmphClasses at compileTranslationTable.c:5070:1 in liblouis.h
-// lou_freeTableFiles at compileTranslationTable.c:4933:1 in liblouis.h
+// lou_logPrint at logging.c:213:1 in liblouis.h
+// lou_registerLogCallback at logging.c:86:1 in liblouis.h
+// lou_indexTables at metadata.c:945:1 in liblouis.h
+// lou_logEnd at logging.c:229:1 in liblouis.h
+// lou_setLogLevel at logging.c:143:1 in liblouis.h
+// lou_logFile at logging.c:196:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,78 +14,44 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <liblouis.h>
+#include "liblouis.h"
 
-static void fuzzLouFree() {
-    lou_free();
-}
-
-static void fuzzLouFreeTableFile(char *data) {
-    lou_freeTableFile(data);
-}
-
-static void fuzzLouFreeTableInfo(char *data) {
-    lou_freeTableInfo(data);
-}
-
-static void fuzzLouFreeEmphClasses(char const **data) {
-    lou_freeEmphClasses(data);
-}
-
-static char const **fuzzLouGetEmphClasses(const char *tableList) {
-    return lou_getEmphClasses(tableList);
-}
-
-static void fuzzLouFreeTableFiles(char **data) {
-    lou_freeTableFiles(data);
+static void dummyLogCallback(logLevels level, const char *message) {
+    // Dummy callback function for logging
 }
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
     if (Size == 0) return 0;
 
-    // Create a mutable copy of the input data
-    char *mutableData = static_cast<char *>(malloc(Size + 1));
-    if (!mutableData) return 0;
-    memcpy(mutableData, Data, Size);
-    mutableData[Size] = '\0';
-
-    // Fuzz various functions
-    fuzzLouFree();
-
-    // Ensure we don't free the same data twice
-    char *tableFileCopy = static_cast<char *>(malloc(Size + 1));
-    if (tableFileCopy) {
-        memcpy(tableFileCopy, Data, Size);
-        tableFileCopy[Size] = '\0';
-        fuzzLouFreeTableFile(tableFileCopy);
-        // No need to free tableFileCopy since lou_freeTableFile already frees it
+    // Create a dummy file for logging
+    FILE *dummyFile = fopen("./dummy_file", "w");
+    if (dummyFile) {
+        fclose(dummyFile);
     }
 
-    char *tableInfoCopy = static_cast<char *>(malloc(Size + 1));
-    if (tableInfoCopy) {
-        memcpy(tableInfoCopy, Data, Size);
-        tableInfoCopy[Size] = '\0';
-        fuzzLouFreeTableInfo(tableInfoCopy);
-        // No need to free tableInfoCopy since lou_freeTableInfo already frees it
-    }
+    // Test lou_logPrint with a format string and additional arguments
+    lou_logPrint("Fuzzing message: %.*s", Size, Data);
 
-    char const **emphClasses = fuzzLouGetEmphClasses(mutableData);
-    if (emphClasses) {
-        fuzzLouFreeEmphClasses(emphClasses);
-    }
+    // Register a dummy log callback
+    lou_registerLogCallback(dummyLogCallback);
 
-    char **tableFiles = reinterpret_cast<char **>(malloc(sizeof(char *) * 2));
-    if (tableFiles) {
-        tableFiles[0] = mutableData;
-        tableFiles[1] = nullptr;
-        fuzzLouFreeTableFiles(tableFiles);
-        // No need to free tableFiles here, as it is freed in fuzzLouFreeTableFiles
-    } else {
-        free(mutableData);
-    }
+    // Prepare an array of C-style strings for lou_indexTables
+    const char *tables[] = {"table1", "table2", NULL};
+    lou_indexTables(tables);
+
+    // Close the log file if open
+    lou_logEnd();
+
+    // Set the log level using the first byte of data
+    logLevels level = static_cast<logLevels>(Data[0] % 5); // Assuming 5 log levels
+    lou_setLogLevel(level);
+
+    // Direct logs to a dummy file
+    lou_logFile("./dummy_file");
 
     return 0;
 }

@@ -1,18 +1,13 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
-// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
-// TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
-// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
-// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
-// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
-// TIFFIsBigEndian at tif_open.c:904:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFWriteCustomDirectory at tif_dirwrite.c:303:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -25,44 +20,68 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(uint32_t) * 50) {
+        return 0;
+    }
 
-    // Write the input data to a dummy file
+    // Create a dummy TIFF file
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
+    if (!file) {
+        return 0;
+    }
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the dummy file as a TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) return 0;
-
-    // Invoke the functions in the specified order
-    TIFFCurrentDirOffset(tif);
-
-    if (TIFFSetDirectory(tif, 0)) {
-        TIFFCurrentDirOffset(tif);
-        TIFFReadDirectory(tif);
-        TIFFCurrentDirOffset(tif);
-
-        TIFFSetDirectory(tif, 0);
-        TIFFSetDirectory(tif, 1);
-        TIFFSetDirectory(tif, 2);
-
-        TIFFSetSubDirectory(tif, 0);
-        TIFFSetSubDirectory(tif, 1);
-        TIFFSetSubDirectory(tif, 2);
-        TIFFSetSubDirectory(tif, 3);
-
-        TIFFIsBigEndian(tif);
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    if (!tif) {
+        return 0;
     }
 
-    // Clean up and close the TIFF file
+    // Prepare variables for the fuzzing
+    uint32_t tags[50];
+    memcpy(tags, Data, sizeof(tags));
+
+    // Invoke TIFFSetField multiple times
+    for (int i = 0; i < 20; ++i) {
+        TIFFSetField(tif, tags[i], tags[i + 1]);
+    }
+
+    // Use TIFFFindField
+    const TIFFField *field = TIFFFindField(tif, tags[20], TIFF_NOTYPE);
+
+    // Continue invoking TIFFSetField
+    for (int i = 21; i < 30; ++i) {
+        TIFFSetField(tif, tags[i], tags[i + 1]);
+    }
+
+    // Prepare a buffer for TIFFWriteScanline
+    void *buf = malloc(TIFFScanlineSize(tif));
+    if (buf) {
+        TIFFWriteScanline(tif, buf, tags[30], 0);
+        free(buf);
+    }
+
+    // Write the directory
+    TIFFWriteDirectory(tif);
+
+    // Create a GPS directory
+    TIFFCreateGPSDirectory(tif);
+
+    // Continue invoking TIFFSetField
+    for (int i = 31; i < 40; ++i) {
+        TIFFSetField(tif, tags[i], tags[i + 1]);
+    }
+
+    // Write a custom directory
+    uint64_t offset;
+    TIFFWriteCustomDirectory(tif, &offset);
+
     TIFFClose(tif);
     return 0;
 }

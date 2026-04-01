@@ -1,27 +1,43 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Initialize the parameters for H5Gget_objinfo
-    hid_t loc_id = H5I_INVALID_HID; // Invalid ID for initial testing
-    const char *name = "test_object"; // Non-NULL string for object name
-    hbool_t follow_link = 1; // Use hbool_t for follow_link as per HDF5 API
-    H5G_stat_t statbuf; // Structure to store object information
+    // Initialize the HDF5 library
+    H5open();
 
-    // Simulate different inputs by using the data and size
-    if (size > 0) {
-        // Use the first byte of data to determine follow_link
-        follow_link = data[0] % 2;
+    // Create a file to work with
+    hid_t file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
     }
 
-    // Call the function-under-test
-    herr_t result = H5Gget_objinfo(loc_id, name, follow_link, &statbuf);
-
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (result < 0) {
-        // Handle error case if needed
+    // Create a group in the file
+    hid_t group_id = H5Gcreate(file_id, "group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
     }
 
-    return 0; // Return 0 to indicate successful execution
+    // Ensure data is null-terminated for use as a string
+    char *mount_point = (char *)malloc(size + 1);
+    if (mount_point == NULL) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+    memcpy(mount_point, data, size);
+    mount_point[size] = '\0';
+
+    // Call the function under test
+    herr_t status = H5Funmount(group_id, mount_point);
+
+    // Clean up
+    free(mount_point);
+    H5Gclose(group_id);
+    H5Fclose(file_id);
+    H5close();
+
+    return 0;
 }

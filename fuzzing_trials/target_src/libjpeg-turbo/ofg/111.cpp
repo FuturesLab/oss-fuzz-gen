@@ -1,53 +1,42 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    // Initialize the TurboJPEG decompressor handle
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Exit if initialization fails
+    if (size < 1) return 0; // Ensure there's at least some data to process
+
+    // Initialize TurboJPEG decompressor
+    tjhandle decompressor = tjInitDecompress();
+    if (decompressor == nullptr) {
+        return 0; // If initialization fails, return
     }
 
-    // Allocate memory for the YUV planes
-    unsigned char *yuvPlanes[3];
-    int yuvStrides[3] = {0, 0, 0}; // Initialize strides to zero
+    // Define some parameters for decompression
+    int width = 100;  // Example width
+    int height = 100; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pitch = 0; // Auto-calculate the pitch
+    int flags = 0; // No flags
 
-    // Assume a maximum image width and height for testing purposes
-    const int maxWidth = 1920;
-    const int maxHeight = 1080;
-
-    // Calculate the size of each YUV plane
-    int yuvSizes[3];
-    yuvSizes[0] = maxWidth * maxHeight; // Y plane
-    yuvSizes[1] = maxWidth * maxHeight / 4; // U plane
-    yuvSizes[2] = maxWidth * maxHeight / 4; // V plane
-
-    // Allocate memory for each YUV plane
-    for (int i = 0; i < 3; ++i) {
-        yuvPlanes[i] = static_cast<unsigned char *>(malloc(yuvSizes[i]));
-        if (yuvPlanes[i] == nullptr) {
-            tjDestroy(handle);
-            return 0; // Exit if memory allocation fails
-        }
+    // Allocate memory for the decompressed image
+    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
+    if (dstBuf == nullptr) {
+        tjDestroy(decompressor);
+        return 0; // If memory allocation fails, return
     }
 
     // Call the function-under-test
-    int result = tj3DecompressToYUVPlanes8(handle, data, size, yuvPlanes, yuvStrides);
+    int result = tjDecompress2(decompressor, data, (unsigned long)size, dstBuf, width, pitch, height, pixelFormat, flags);
 
-    // Free allocated memory
-    for (int i = 0; i < 3; ++i) {
-        free(yuvPlanes[i]);
-    }
-
-    // Clean up the TurboJPEG handle
-    tjDestroy(handle);
+    // Clean up
+    free(dstBuf);
+    tjDestroy(decompressor);
 
     return 0;
 }

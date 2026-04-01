@@ -1,45 +1,29 @@
-#include <tiffio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include for close() and write()
+#include <cstdint>
+#include <cstddef>
 
+// Assuming the function is defined in an external C library
 extern "C" {
-    #include <tiffio.h>
+    int uv_decode(double *u, double *v, int flag);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a TIFF file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure there is enough data to extract two doubles and an int
+    if (size < sizeof(double) * 2 + sizeof(int)) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
-    }
+    // Initialize the parameters
+    double u = 0.0;
+    double v = 0.0;
+    int flag = 0;
 
-    // Close the file descriptor so TIFFOpen can open it
-    close(fd);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == NULL) {
-        remove(tmpl);
-        return 0;
-    }
+    // Copy data into the variables
+    u = *reinterpret_cast<const double*>(data);
+    v = *reinterpret_cast<const double*>(data + sizeof(double));
+    flag = *reinterpret_cast<const int*>(data + sizeof(double) * 2);
 
     // Call the function-under-test
-    TIFFReadWriteProc writeProc = TIFFGetWriteProc(tiff);
-
-    // Clean up
-    TIFFClose(tiff);
-    remove(tmpl);
+    uv_decode(&u, &v, flag);
 
     return 0;
 }

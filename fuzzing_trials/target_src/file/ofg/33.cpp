@@ -1,42 +1,28 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>  // Include this for stderr
-
-extern "C" {
-    #include <magic.h>
-}
+#include <magic.h>
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Initialize a magic_set structure
     struct magic_set *magic = magic_open(MAGIC_NONE);
+    const char *error_message;
+
     if (magic == NULL) {
-        fprintf(stderr, "Failed to initialize magic\n");
-        return 0; // If initialization fails, exit early
+        return 0;
     }
 
-    // Load a magic database to ensure the magic_set is properly initialized
-    // You may specify a path to a magic database file if available
+    // Load a magic database, this is necessary before using magic functions
     if (magic_load(magic, NULL) != 0) {
-        fprintf(stderr, "Failed to load magic database: %s\n", magic_error(magic));
         magic_close(magic);
-        return 0; // If loading fails, exit early
+        return 0;
     }
 
-    // Ensure the input data is not null and has a reasonable size
-    if (size > 0 && data != NULL) {
-        // Use the data provided by the fuzzer as input to the magic_buffer function
-        const char *result = magic_buffer(magic, data, size);
-        if (result != NULL) {
-            // Print the result to ensure the function is being utilized
-            // This can help in debugging and understanding what the function returns
-            fprintf(stderr, "Magic result: %s\n", result);
-        } else {
-            // Print an error message if magic_buffer fails to process the input
-            fprintf(stderr, "Magic buffer failed to process the input: %s\n", magic_error(magic));
-        }
-    } else {
-        // Log a message if the input data is not suitable
-        fprintf(stderr, "Invalid input data\n");
+    // Call the function-under-test
+    error_message = magic_error(magic);
+
+    // Use error_message in some way to ensure it's not optimized away
+    if (error_message != NULL) {
+        // For fuzzing purposes, we don't need to do anything with the error_message
+        // Just ensure the call is made
     }
 
     // Clean up

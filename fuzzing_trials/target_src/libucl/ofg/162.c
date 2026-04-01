@@ -1,26 +1,35 @@
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <ucl.h>
 
 int LLVMFuzzerTestOneInput_162(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser;
-    unsigned int priority = 1; // Arbitrary non-zero priority
-    enum ucl_duplicate_strategy duplicate_strategy = UCL_DUPLICATE_APPEND; // Example strategy
-    enum ucl_parse_type parse_type = UCL_PARSE_UCL; // Example parse type
-
-    // Initialize UCL parser
-    parser = ucl_parser_new(0);
+    // Initialize ucl_parser
+    struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
-        return 0; // Exit if parser creation fails
+        return 0;
     }
 
-    // Call the function-under-test
-    if (size > 0) {
-        ucl_parser_add_chunk_full(parser, data, size, priority, duplicate_strategy, parse_type);
+    // Create a UCL object from the input data
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
+        return 0;
     }
+
+    const ucl_object_t *ucl_obj = ucl_parser_get_object(parser);
+    if (ucl_obj == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Define a non-NULL path and delimiter for testing
+    const char *path = "test.path";
+    char delimiter = '.';
+
+    // Call the function under test
+    const ucl_object_t *result = ucl_object_lookup_path_char(ucl_obj, path, delimiter);
 
     // Clean up
+    ucl_object_unref(ucl_obj);
     ucl_parser_free(parser);
 
     return 0;

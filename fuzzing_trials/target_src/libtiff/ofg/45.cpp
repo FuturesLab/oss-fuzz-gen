@@ -1,40 +1,50 @@
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <tiffio.h>
+#include <unistd.h>
+#include <cstring>
+
+extern "C" {
+    #include <tiffio.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to proceed
-    if (size < sizeof(int)) {
-        return 0;
+    if (size < sizeof(toff_t)) {
+        return 0; // Not enough data to extract a toff_t value
     }
 
-    // Create a temporary file to simulate a TIFF file
-    FILE *tempFile = tmpfile();
-    if (!tempFile) {
-        return 0;
+    // Create a temporary TIFF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Unable to create a temporary file
     }
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0; // Unable to open the file descriptor as a FILE*
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Write the fuzz data to the temporary file
-    fwrite(data, 1, size, tempFile);
-    fflush(tempFile);
-    rewind(tempFile);
-
-    // Open the TIFF file using libtiff
-    TIFF *tiff = TIFFFdOpen(fileno(tempFile), "temp", "r");
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r+");
     if (!tiff) {
-        fclose(tempFile);
-        return 0;
+        remove(tmpl); // Clean up the temporary file
+        return 0; // Unable to open the TIFF file
     }
 
-    // Extract an integer from the data to use as the file descriptor
-    int fileDescriptor = *(reinterpret_cast<const int*>(data));
+    // Extract a toff_t value from the data
+    toff_t offset;
+    memcpy(&offset, data, sizeof(toff_t));
 
     // Call the function-under-test
-    TIFFSetFileno(tiff, fileDescriptor);
+    TIFFSetWriteOffset(tiff, offset);
 
     // Clean up
     TIFFClose(tiff);
-    fclose(tempFile);
+    remove(tmpl);
 
     return 0;
 }

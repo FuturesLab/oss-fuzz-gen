@@ -1,63 +1,42 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <hdf5.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_187(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract at least one character for each string
-    if (size < 3) {
-        return 0;
-    }
+    // Ensure there is enough data to work with
+    if (size < 3) return 0;
 
-    // Initialize HDF5 library
-    H5open();
+    // Split the input data into parts for the parameters
+    size_t id_size = sizeof(hid_t);
+    size_t name_size = (size - id_size) / 2;
+    size_t comment_size = size - id_size - name_size;
 
-    // Create a temporary file to work with
-    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
-    }
+    // Extract hid_t from data
+    hid_t id;
+    memcpy(&id, data, id_size);
 
-    // Create a group in the file
-    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (group_id < 0) {
-        H5Fclose(file_id);
-        return 0;
-    }
+    // Extract name from data
+    char *name = (char *)malloc(name_size + 1);
+    if (!name) return 0;
+    memcpy(name, data + id_size, name_size);
+    name[name_size] = '\0';
 
-    // Extract strings from the input data
-    size_t str1_len = (size - 1) / 2;
-    size_t str2_len = size - 1 - str1_len;
-
-    char *name = (char *)malloc(str1_len + 1);
-    char *comment = (char *)malloc(str2_len + 1);
-
-    if (name == NULL || comment == NULL) {
-        H5Gclose(group_id);
-        H5Fclose(file_id);
+    // Extract comment from data
+    char *comment = (char *)malloc(comment_size + 1);
+    if (!comment) {
         free(name);
-        free(comment);
         return 0;
     }
+    memcpy(comment, data + id_size + name_size, comment_size);
+    comment[comment_size] = '\0';
 
-    memcpy(name, data, str1_len);
-    name[str1_len] = '\0';
+    // Call the function under test
+    H5Gset_comment(id, name, comment);
 
-    memcpy(comment, data + str1_len, str2_len);
-    comment[str2_len] = '\0';
-
-    // Call the function-under-test
-    H5Gset_comment(group_id, name, comment);
-
-    // Clean up
+    // Free allocated memory
     free(name);
     free(comment);
-    H5Gclose(group_id);
-    H5Fclose(file_id);
-
-    // Close the HDF5 library
-    H5close();
 
     return 0;
 }

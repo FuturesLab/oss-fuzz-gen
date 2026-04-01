@@ -1,25 +1,24 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <ucl.h>
+#include <ucl.h>  // Assuming the necessary header for ucl_object_t and ucl_object_keys_sort_flags
 
-int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Initialize a ucl_object_t
-    ucl_object_t *obj = ucl_object_new();
+extern int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
+    // Declare and initialize variables
+    ucl_object_t *obj = ucl_object_new_full(UCL_OBJECT, 0); // Fixed: use 0 as priority instead of NULL
+    enum ucl_object_keys_sort_flags sort_flags = (enum ucl_object_keys_sort_flags)(size % 3); // Fixed: use 'enum' tag
 
-    // Check if the object was created successfully
+    // Check if the object is successfully created
     if (obj == NULL) {
         return 0;
     }
 
-    // Add some dummy data to the ucl_object_t
+    // Populate the ucl_object_t with some data
     ucl_object_insert_key(obj, ucl_object_fromstring("value1"), "key1", 0, false);
     ucl_object_insert_key(obj, ucl_object_fromstring("value2"), "key2", 0, false);
-
-    // Define a ucl_object_t sort flag
-    enum ucl_object_keys_sort_flags sort_flag = UCL_SORT_KEYS_DEFAULT;
+    ucl_object_insert_key(obj, ucl_object_fromstring("value3"), "key3", 0, false);
 
     // Call the function-under-test
-    ucl_object_sort_keys(obj, sort_flag);
+    ucl_object_sort_keys(obj, sort_flags);
 
     // Clean up
     ucl_object_unref(obj);

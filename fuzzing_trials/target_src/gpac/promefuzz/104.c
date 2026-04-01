@@ -1,72 +1,116 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_get_track_matrix at isom_read.c:4107:8 in isomedia.h
-// gf_isom_set_track_reference at isom_write.c:4967:8 in isomedia.h
-// gf_isom_get_original_format_type at drm_sample.c:649:8 in isomedia.h
-// gf_isom_sdp_clean_track at hint_track.c:790:8 in isomedia.h
-// gf_isom_get_audio_info at isom_read.c:3880:8 in isomedia.h
-// gf_isom_rtp_set_time_offset at hint_track.c:259:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_release_segment at isom_read.c:3459:8 in isomedia.h
+// gf_isom_remove_root_od at isom_write.c:165:8 in isomedia.h
+// gf_isom_flush_fragments at movie_fragments.c:1468:8 in isomedia.h
+// gf_isom_set_storage_mode at isom_write.c:2636:8 in isomedia.h
+// gf_isom_set_removed_bytes at isom_read.c:3185:8 in isomedia.h
+// gf_isom_sdp_clean at hint_track.c:884:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+// Dummy definition of GF_ISOFile since the actual structure is not available
+struct __tag_isom {
+    GF_Err LastError;
+    GF_ISOOpenMode openMode;
+    u8 storageMode;
+    u64 next_flush_chunk_time;
+    s64 read_byte_offset;
+    u64 bytes_removed;
+    GF_ISOCompressMode compress_mode;
+    u32 compress_flags;
+    u32 pad_cmov;
+    void (*progress_cbk)(void *udta, u64 nb_done, u64 nb_total);
+    void *progress_cbk_udta;
+    u64 current_top_box_start;
+    Bool signal_frag_bounds;
+    Bool sample_groups_in_traf;
+    u32 FragmentsFlags;
+    u32 NextMoofNumber;
+    Bool use_segments, moof_first, append_segment, force_moof_base_offset;
+    u32 write_styp;
+    Bool in_sidx_write;
+    Bool is_index_segment;
+    Bool single_moof_mode;
+    u32 single_moof_state;
+    Bool force_sidx_v1;
+    Bool store_traf_map;
+    u64 root_sidx_start_offset, root_sidx_end_offset;
+    u64 sidx_start_offset, sidx_end_offset;
+    u64 styp_start_offset;
+    u64 mdat_end_offset;
+    u32 sidx_pts_store_alloc, sidx_pts_store_count;
+    u64 *sidx_pts_store, *sidx_pts_next_store;
+    u64 main_sidx_end_pos;
+    Bool has_pssh_moof;
+    s32 es_id_default_sync;
+    Bool is_smooth;
+    GF_Err (*on_block_out)(void *usr_data, u8 *block, u32 block_size, void *cbk_data, u32 cbk_magic);
+    GF_Err (*on_block_patch)(void *usr_data, u8 *block, u32 block_size, u64 block_offset, Bool is_insert);
+    void (*on_last_block_start)(void *usr_data);
+    void *on_block_out_usr_data;
+    u32 on_block_out_block_size;
+    u64 fragmented_file_pos;
+    u8 *block_buffer;
+    u32 block_buffer_size;
+    Bool blocks_sent;
+    u32 nb_box_init_seg;
+    Bool no_inplace_rewrite;
+    u32 padding;
+    u64 original_moov_offset, original_meta_offset, first_data_toplevel_offset, first_data_toplevel_size;
+};
+
+static GF_ISOFile* create_dummy_isofile() {
+    GF_ISOFile *isofile = (GF_ISOFile *)malloc(sizeof(struct __tag_isom));
+    if (!isofile) return NULL;
+    memset(isofile, 0, sizeof(struct __tag_isom));
+    isofile->FragmentsFlags = 0; // Ensure valid flag for testing
+    return isofile;
+}
+
+static void destroy_dummy_isofile(GF_ISOFile *isofile) {
+    if (isofile) {
+        free(isofile);
     }
 }
 
-static GF_ISOFile* create_dummy_isofile() {
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return isom_file;
-}
-
 int LLVMFuzzerTestOneInput_104(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Write data to a dummy file
-    write_dummy_file(Data, Size);
+    GF_ISOFile *isofile = create_dummy_isofile();
+    if (!isofile) return 0;
 
-    // Create a dummy ISO file structure
-    GF_ISOFile *isom_file = create_dummy_isofile();
-    if (!isom_file) return 0;
+    // Fuzz gf_isom_flush_fragments
+    Bool last_segment = Data[0] % 2;
+    gf_isom_flush_fragments(isofile, last_segment);
 
-    // Variables for API function calls
-    u32 trackNumber = 1;
-    u32 matrix[9] = {0};
-    u32 referenceType = 0x72656631; // 'ref1'
-    GF_ISOTrackID ReferencedTrackID = 2;
-    u32 sampleDescriptionIndex = 1;
-    u32 outOriginalFormat = 0;
-    u32 SampleRate = 0, Channels = 0, bitsPerSample = 0;
-    u32 HintDescriptionIndex = 1;
-    u32 TimeOffset = 0;
+    // Fuzz gf_isom_set_storage_mode
+    if (Size > 1) {
+        GF_ISOStorageMode storage_mode = (GF_ISOStorageMode)Data[1];
+        gf_isom_set_storage_mode(isofile, storage_mode);
+    }
 
-    // Call gf_isom_get_track_matrix
-    gf_isom_get_track_matrix(isom_file, trackNumber, matrix);
+    // Fuzz gf_isom_set_removed_bytes
+    if (Size > 9) {
+        u64 bytes_removed;
+        memcpy(&bytes_removed, &Data[2], sizeof(u64));
+        gf_isom_set_removed_bytes(isofile, bytes_removed);
+    }
 
-    // Call gf_isom_set_track_reference
-    gf_isom_set_track_reference(isom_file, trackNumber, referenceType, ReferencedTrackID);
+    // Fuzz gf_isom_sdp_clean
+    gf_isom_sdp_clean(isofile);
 
-    // Call gf_isom_get_original_format_type
-    gf_isom_get_original_format_type(isom_file, trackNumber, sampleDescriptionIndex, &outOriginalFormat);
+    // Fuzz gf_isom_release_segment
+    if (Size > 10) {
+        Bool reset_tables = Data[10] % 2;
+        gf_isom_release_segment(isofile, reset_tables);
+    }
 
-    // Call gf_isom_sdp_clean_track
-    gf_isom_sdp_clean_track(isom_file, trackNumber);
+    // Fuzz gf_isom_remove_root_od
+    gf_isom_remove_root_od(isofile);
 
-    // Call gf_isom_get_audio_info
-    gf_isom_get_audio_info(isom_file, trackNumber, sampleDescriptionIndex, &SampleRate, &Channels, &bitsPerSample);
-
-    // Call gf_isom_rtp_set_time_offset
-    gf_isom_rtp_set_time_offset(isom_file, trackNumber, HintDescriptionIndex, TimeOffset);
-
-    // Cleanup
-    gf_isom_close(isom_file);
+    destroy_dummy_isofile(isofile);
     return 0;
 }

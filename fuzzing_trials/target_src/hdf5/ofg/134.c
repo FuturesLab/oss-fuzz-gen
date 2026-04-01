@@ -1,27 +1,32 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    hid_t dataset_id = H5I_INVALID_HID; // Use a valid dataset ID
-    hid_t type_id = H5T_NATIVE_INT;     // Use a valid datatype ID
-    hid_t space_id = H5S_SIMPLE;        // Use a valid dataspace ID
-    hsize_t buf_size = 0;               // Buffer size to be determined by the function
+    // Initialize HDF5 library
+    H5open();
 
-    // Create a dataspace with a single dimension
-    hsize_t dims[1] = {size};
-    space_id = H5Screate_simple(1, dims, NULL);
+    // Create a file in memory
+    hid_t file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Allocate a buffer to hold the file image
+    void *buffer = malloc(size);
+    if (buffer == NULL) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
     // Call the function-under-test
-    herr_t result = H5Dvlen_get_buf_size(dataset_id, type_id, space_id, &buf_size);
+    ssize_t result = H5Fget_file_image(file_id, buffer, size);
 
-    // Ensure the result is used to prevent compiler optimizations
-    (void)result;
-    (void)buf_size;
-
-    // Close the dataspace
-    H5Sclose(space_id);
+    // Clean up
+    free(buffer);
+    H5Fclose(file_id);
+    H5close();
 
     return 0;
 }

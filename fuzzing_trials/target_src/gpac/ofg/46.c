@@ -1,36 +1,45 @@
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    GF_ISOFile *the_file = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (the_file == NULL) {
+    GF_ISOFile *file = gf_isom_open("test.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!file) {
         return 0;
     }
 
-    u32 trackNumber = 1;  // Arbitrary non-zero track number
-    char URLname[256];
-    char URNname[256];
-    u32 format = 1;  // Arbitrary format value
-    u32 peak_rate = 1000;  // Arbitrary peak rate
-    u32 outDescriptionIndex = 0;
+    Bool root_meta = 1; // Assuming true for root_meta
+    u32 track_num = 1; // Assuming a valid track number
+    const char *item_name = "test_item";
+    u32 item_id = 0; // Initialize item_id
+    u32 item_type = 1; // Assuming a valid item type
+    const char *mime_type = "application/octet-stream";
+    const char *content_encoding = "identity";
 
-    // Ensure URLname and URNname are null-terminated strings
-    size_t url_len = size < 255 ? size : 255;
-    memcpy(URLname, data, url_len);
-    URLname[url_len] = '\0';
+    GF_ImageItemProperties image_props;
+    memset(&image_props, 0, sizeof(GF_ImageItemProperties)); // Zero-initialize
 
-    size_t urn_len = size < 255 ? size : 255;
-    memcpy(URNname, data, urn_len);
-    URNname[urn_len] = '\0';
+    char *data_copy = (char *)malloc(size);
+    if (data_copy == NULL) {
+        gf_isom_close(file);
+        return 0;
+    }
+    memcpy(data_copy, data, size);
 
-    // Call the function-under-test
-    gf_isom_truehd_config_new(the_file, trackNumber, URLname, URNname, format, peak_rate, &outDescriptionIndex);
+    GF_List *item_extent_refs = gf_list_new();
+    if (item_extent_refs == NULL) {
+        free(data_copy);
+        gf_isom_close(file);
+        return 0;
+    }
 
-    // Clean up
-    gf_isom_close(the_file);
+    gf_isom_add_meta_item_memory(file, root_meta, track_num, item_name, &item_id, item_type, mime_type, content_encoding, &image_props, data_copy, (u32)size, item_extent_refs);
+
+    gf_list_del(item_extent_refs);
+    free(data_copy);
+    gf_isom_close(file);
 
     return 0;
 }

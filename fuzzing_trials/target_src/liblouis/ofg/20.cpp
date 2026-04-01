@@ -3,34 +3,35 @@
 #include <cstring>
 #include <iostream>
 
-// Assuming widechar and formtype are defined somewhere in the project
-typedef uint32_t widechar; // Example definition
-typedef int formtype;      // Example definition
-
+// Include the correct header file path for liblouis
 extern "C" {
-    // Function under test
-    int lou_translatePrehyphenated(const char *, const widechar *, int *, widechar *, int *, formtype *, char *, int *, int *, int *, char *, char *, int);
+    #include "/src/liblouis/liblouis/liblouis.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Ensure that the input size is large enough to initialize all parameters
-    if (size < 50) return 0;
+    // Declare and initialize the parameters for lou_translatePrehyphenated
+    const char *inbuf = reinterpret_cast<const char *>(data);
+    widechar wideInput[256] = {0};
+    int inlen = size < 256 ? size : 255; // Limit to 255 to prevent overflow
+    int wideInputLen = inlen;
+    int outlen = 256;
+    widechar wideOutput[256] = {0};
+    int wideOutputLen = outlen;
+    formtype typeforms[256] = {0};
+    char outbuf[256] = {0};
+    int cursorpos = 0;
+    int *cursorposPtr = &cursorpos;
+    int *inpos = &inlen;
+    int *outpos = &wideOutputLen;
+    char typeform[256] = {0};
+    char spacing[256] = {0};
+    int mode = 0;
 
-    // Initialize parameters
-    const char *inputString = reinterpret_cast<const char *>(data);
-    const widechar *inputWidechar = reinterpret_cast<const widechar *>(data + 10);
-    int intValue1 = 1;
-    int intValue2 = 2;
-    int intValue3 = 3;
-    int intValue4 = 4;
-    widechar outputWidechar[10];
-    formtype formValue = 0;
-    char charArray1[10];
-    char charArray2[10];
-    char charArray3[10];
-
-    // Call the function under test
-    lou_translatePrehyphenated(inputString, inputWidechar, &intValue1, outputWidechar, &intValue2, &formValue, charArray1, &intValue3, &intValue4, &intValue1, charArray2, charArray3, static_cast<int>(size));
+    // Call the function-under-test
+    int result = lou_translatePrehyphenated(
+        inbuf, wideInput, inpos, wideOutput, outpos, typeforms, outbuf, cursorposPtr,
+        inpos, outpos, typeform, spacing, mode
+    );
 
     return 0;
 }

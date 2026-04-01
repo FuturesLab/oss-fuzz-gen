@@ -1,29 +1,28 @@
-#include <pcap/pcap.h>
+#include <pcap.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_152(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for our needs
-    if (size < 10) {
+    // Ensure the size is sufficient to extract necessary parameters
+    if (size < 5) {
         return 0;
     }
 
     // Prepare the parameters for pcap_open_live
-    char dev[6];
-    int snaplen = (int)data[0];
-    int promisc = (int)data[1];
-    int to_ms = (int)data[2];
-    char errbuf[PCAP_ERRBUF_SIZE];
+    const char *device = "eth0";  // Example device, typically non-NULL
+    int snaplen = (int)data[0];   // Extract snaplen from data
+    int promisc = (int)data[1];   // Extract promisc from data
+    int to_ms = (int)data[2];     // Extract to_ms from data
 
-    // Copy the device name from the data
-    memcpy(dev, data + 3, 5);
-    dev[5] = '\0'; // Null-terminate the device name
+    // Prepare the error buffer
+    char errbuf[PCAP_ERRBUF_SIZE];
+    memset(errbuf, 0, sizeof(errbuf));
 
     // Call the function-under-test
-    pcap_t *handle = pcap_open_live(dev, snaplen, promisc, to_ms, errbuf);
+    pcap_t *handle = pcap_open_live(device, snaplen, promisc, to_ms, errbuf);
 
-    // If the handle is valid, close it
+    // Clean up if handle is not NULL
     if (handle != NULL) {
         pcap_close(handle);
     }

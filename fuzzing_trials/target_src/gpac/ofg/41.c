@@ -1,38 +1,26 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    GF_ISOFile *the_file = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!the_file) {
-        return 0; // Exit if file creation fails
+    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
+        return 0;
     }
 
-    u32 trackNumber = 1; // Example track number
-    u32 desc_index = 1;  // Example descriptor index
-    u32 scheme_type = 0x63656E63; // 'cenc' in hex
-    u32 scheme_version = 1; // Example scheme version
-    Bool is_selective_enc = GF_TRUE; // Example boolean value
-
-    // Ensure metadata is not NULL and has a valid length
-    char *metadata = (char *)malloc(size + 1);
-    if (!metadata) {
-        gf_isom_close(the_file);
-        return 0; // Exit if memory allocation fails
+    // Ensure that the size is sufficient to extract values for trackNumber and StreamDescriptionIndex
+    if (size < 8) {
+        gf_isom_close(movie);
+        return 0;
     }
-    memcpy(metadata, data, size);
-    metadata[size] = '\0'; // Null-terminate the metadata
 
-    u32 len = size;
+    u32 trackNumber = *((u32 *)data);
+    u32 StreamDescriptionIndex = *((u32 *)(data + 4));
+    Bool remove = (size > 8) ? (Bool)(data[8] % 2) : GF_FALSE;
 
-    // Call the function-under-test
-    gf_isom_set_adobe_protection(the_file, trackNumber, desc_index, scheme_type, scheme_version, is_selective_enc, metadata, len);
+    // Call the function under test
+    gf_isom_set_image_sequence_alpha(movie, trackNumber, StreamDescriptionIndex, remove);
 
-    // Clean up
-    free(metadata);
-    gf_isom_close(the_file);
-
+    gf_isom_close(movie);
     return 0;
 }

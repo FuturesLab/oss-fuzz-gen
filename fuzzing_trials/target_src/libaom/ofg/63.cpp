@@ -1,27 +1,27 @@
 #include <cstdint>
-#include <cstddef>
-#include <aom/aom_integer.h>
+#include <cstdlib>
+#include <cstring> // Include the header for strlen
 
 extern "C" {
-    // Include the necessary header for the function-under-test
-    #include "aom/aom_codec.h"
-    #include "aom/aom_encoder.h"
+    #include <aom/aom_codec.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-    // Initialize parameters for aom_uleb_encode
-    uint64_t value = 0; // Initialize with a default value
-    size_t available = size; // Use the size of the input data
-    uint8_t buffer[10]; // A buffer to hold the encoded data
-    size_t encoded_size = 0; // To hold the size of the encoded data
+    // Ensure the size is sufficient for aom_codec_ctx_t
+    if (size < sizeof(aom_codec_ctx_t)) {
+        return 0;
+    }
 
-    // Ensure the buffer is not NULL and has a valid size
-    if (available > 0) {
-        // Call the function-under-test
-        int result = aom_uleb_encode(value, available, buffer, &encoded_size);
+    // Cast the input data to aom_codec_ctx_t
+    const aom_codec_ctx_t *codec_ctx = reinterpret_cast<const aom_codec_ctx_t *>(data);
 
-        // Optional: Use the result or encoded_size for further processing
-        // For fuzzing, we generally don't need to do anything with the result
+    // Call the function-under-test
+    const char *error_message = aom_codec_error(codec_ctx);
+
+    // Use the result in some way to avoid compiler optimizations
+    if (error_message != nullptr) {
+        // Print the error message length
+        volatile size_t length = strlen(error_message);
     }
 
     return 0;

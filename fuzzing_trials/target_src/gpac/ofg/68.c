@@ -1,49 +1,58 @@
+#include <gpac/isomedia.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // Include for mkstemp, write, close, and unlink
-#include <gpac/isomedia.h> // Assuming this is the correct header for GF_ISOFile
+#include <stdio.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <fcntl.h>
 
+// The LLVMFuzzerTestOneInput function is the entry point for the fuzzer.
 int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *file = NULL;
-    u32 track = 0;
+    // Check if size is sufficient to create a file and read metadata
+    if (size < 1) return 0;
 
-    // Check if size is sufficient to perform operations
-    if (size < sizeof(u32)) {
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) return 0;
+
+    // Write the data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        remove(tmpl);
         return 0;
     }
-
-    // Instead of using gf_isom_open_memory, we use a different approach to create an ISO file
-    // For demonstration, assume we have a function gf_isom_open that takes a file path
-    // Since we don't have a real file, we simulate this by creating a temporary file
-    char tmp_filename[] = "/tmp/fuzz_input.XXXXXX";
-    int fd = mkstemp(tmp_filename);
-    if (fd == -1) {
-        return 0;
-    }
-    write(fd, data, size);
     close(fd);
 
-    // Open the temporary file as an ISO file
-    // Provide the system's temporary directory as the third argument
-    file = gf_isom_open(tmp_filename, GF_ISOM_OPEN_READ, "/tmp");
+    // Open the file using GF_ISOFile
+    GF_ISOFile *file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
     if (!file) {
-        unlink(tmp_filename);
+        remove(tmpl);
         return 0;
     }
 
-    // Ensure track is within a reasonable range
-    if (size >= sizeof(u32)) {
-        track = *((u32 *)data);
-    }
+    // Initialize variables for the function call
+    Bool root_meta = true;
+    u32 track_num = 1;
+    u32 item_num = 1;
+    u32 itemID = 0;
+    u32 type = 0;
+    u32 protection_scheme = 0;
+    u32 protection_scheme_version = 0;
+    Bool is_self_reference = false;
+    const char *item_name = NULL;
+    const char *item_mime_type = NULL;
+    const char *item_encoding = NULL;
+    const char *item_url = NULL;
+    const char *item_urn = NULL;
 
     // Call the function-under-test
-    gf_isom_update_edit_list_duration(file, track);
+    gf_isom_get_meta_item_info(file, root_meta, track_num, item_num, &itemID, &type, &protection_scheme, &protection_scheme_version, &is_self_reference, &item_name, &item_mime_type, &item_encoding, &item_url, &item_urn);
 
-    // Clean up
+    // Close the file and remove the temporary file
     gf_isom_close(file);
-    unlink(tmp_filename);
+    remove(tmpl);
 
     return 0;
 }

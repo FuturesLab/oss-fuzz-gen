@@ -1,27 +1,34 @@
 #include <pcap.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    pcap_if_t *alldevs = NULL;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    
-    // Ensure errbuf is null-terminated
-    memset(errbuf, 0, PCAP_ERRBUF_SIZE);
-
-    // Use the input data to affect the behavior of the function under test
-    // For demonstration, let's assume we are using the data to decide whether to call the function
-    if (size > 0 && data[0] % 2 == 0) {
-        // Call the function-under-test
-        int result = pcap_findalldevs(&alldevs, errbuf);
+    // Ensure the input data is large enough to split into two non-empty strings
+    if (size < 2) {
+        return 0;
     }
 
-    // Clean up resources if necessary
-    if (alldevs != NULL) {
-        pcap_freealldevs(alldevs);
+    // Split the input data into two parts for the two string parameters
+    size_t first_len = size / 2;
+    size_t second_len = size - first_len;
+
+    // Allocate memory for the strings and ensure they are null-terminated
+    char first_param[first_len + 1];
+    char second_param[second_len + 1];
+
+    memcpy(first_param, data, first_len);
+    memcpy(second_param, data + first_len, second_len);
+
+    first_param[first_len] = '\0';
+    second_param[second_len] = '\0';
+
+    // Call the function-under-test
+    pcap_t *handle = pcap_create(first_param, second_param);
+
+    // Normally, you would do something with 'handle', but for fuzzing purposes, we just ensure it is not NULL
+    if (handle != NULL) {
+        pcap_close(handle);
     }
 
     return 0;

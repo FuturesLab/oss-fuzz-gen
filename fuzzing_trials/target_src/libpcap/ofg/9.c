@@ -1,25 +1,28 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <pcap.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
     pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    // Use the data as a pcap file in memory
-    pcap_handle = pcap_open_offline_with_tstamp_precision((const char *)data, PCAP_TSTAMP_PRECISION_MICRO, errbuf);
+    // Ensure that the errbuf is initialized to avoid undefined behavior
+    memset(errbuf, 0, PCAP_ERRBUF_SIZE);
 
+    // Create a fake pcap handle using pcap_open_dead for testing purposes
+    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
     if (pcap_handle == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    char *error_message = pcap_geterr(pcap_handle);
+    char *error = pcap_geterr(pcap_handle);
 
-    // Use the error message in some way to prevent compiler optimization
-    if (error_message != NULL) {
-        // Print the error message (or handle it in a way that makes sense for fuzzing)
-        (void)error_message; // Suppress unused variable warning
+    // Check if the error message is not NULL and do something with it
+    if (error != NULL) {
+        // For example, print the error message (this is just for demonstration)
+        // printf("Error: %s\n", error);
     }
 
     // Close the pcap handle

@@ -1,53 +1,57 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include "../cJSON.h"
+
+int LLVMFuzzerTestOneInput_138(const uint8_t *data, size_t size);
+
 int LLVMFuzzerTestOneInput_138(const uint8_t *data, size_t size) {
-    if (size < 2) return 0;
+    if (size < 3) return 0; // Ensure there's enough data for non-empty strings
 
-    // Create a root JSON object
-    cJSON *root = cJSON_CreateObject();
-    if (root == NULL) return 0;
+    // Split the input data into three parts for object, key, and value
+    size_t part_size = size / 3;
+    const char *object_data = (const char *)data;
+    const char *key_data = (const char *)(data + part_size);
+    const char *value_data = (const char *)(data + 2 * part_size);
 
-    // Split the input data into two parts for key and value
-    size_t key_len = data[0] % size; // Ensure key_len is within bounds
-    size_t value_len = size - key_len - 1; // Ensure there's space for the value
+    // Ensure the strings are null-terminated
+    char *object_str = (char *)malloc(part_size + 1);
+    char *key_str = (char *)malloc(part_size + 1);
+    char *value_str = (char *)malloc(part_size + 1);
 
-    if (key_len == 0 || value_len == 0) {
-        cJSON_Delete(root);
+    if (!object_str || !key_str || !value_str) {
+        free(object_str);
+        free(key_str);
+        free(value_str);
         return 0;
     }
 
-    // Allocate memory for key and value
-    char *key = (char *)malloc(key_len + 1);
-    char *value = (char *)malloc(value_len + 1);
+    memcpy(object_str, object_data, part_size);
+    object_str[part_size] = '\0';
+    memcpy(key_str, key_data, part_size);
+    key_str[part_size] = '\0';
+    memcpy(value_str, value_data, part_size);
+    value_str[part_size] = '\0';
 
-    if (key == NULL || value == NULL) {
-        free(key);
-        free(value);
-        cJSON_Delete(root);
-        return 0;
+    // Create a cJSON object
+    cJSON *json_object = cJSON_Parse(object_str);
+    if (json_object == NULL) {
+        json_object = cJSON_CreateObject();
     }
-
-    // Copy data into key and value
-    memcpy(key, data + 1, key_len);
-    key[key_len] = '\0'; // Null-terminate the key
-
-    memcpy(value, data + 1 + key_len, value_len);
-    value[value_len] = '\0'; // Null-terminate the value
 
     // Call the function-under-test
-    cJSON *result = cJSON_AddStringToObject(root, key, value);
+    cJSON *result = cJSON_AddStringToObject(json_object, key_str, value_str);
 
     // Clean up
-    free(key);
-    free(value);
-    cJSON_Delete(root);
+    cJSON_Delete(json_object);
+    free(object_str);
+    free(key_str);
+    free(value_str);
 
     return 0;
 }

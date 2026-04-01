@@ -3,30 +3,25 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_236(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsHPROFILE hProfile;
-    cmsFloat64Number gammaValue;
-    cmsFloat64Number result;
-
-    // Ensure size is sufficient to extract a cmsFloat64Number
-    if (size < sizeof(cmsFloat64Number)) {
+    // Ensure the input size is sufficient for a cmsCIELab structure
+    if (size < sizeof(cmsCIELab)) {
         return 0;
     }
 
-    // Create a profile from memory using the input data
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
-        return 0;
-    }
+    // Initialize the cmsCIELab structure from the input data
+    cmsCIELab lab;
+    const cmsCIELab *labPtr = (const cmsCIELab *)data;
 
-    // Extract a cmsFloat64Number from the input data
-    gammaValue = *((cmsFloat64Number *)data);
+    // Copy data into lab structure
+    lab.L = labPtr->L;
+    lab.a = labPtr->a;
+    lab.b = labPtr->b;
+
+    // Initialize cmsUInt16Number array
+    cmsUInt16Number encoded[3] = {0};
 
     // Call the function-under-test
-    result = cmsDetectRGBProfileGamma(hProfile, gammaValue);
-
-    // Close the profile
-    cmsCloseProfile(hProfile);
+    cmsFloat2LabEncoded(encoded, &lab);
 
     return 0;
 }

@@ -1,70 +1,62 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsIT8Alloc at cmscgats.c:1454:22 in lcms2.h
-// cmsIT8SetSheetType at cmscgats.c:1513:19 in lcms2.h
-// cmsIT8Free at cmscgats.c:1170:16 in lcms2.h
-// cmsIT8SetIndexColumn at cmscgats.c:3025:19 in lcms2.h
-// cmsstrcasecmp at cmserr.c:39:15 in lcms2.h
-// cmsIT8GetPatchByName at cmscgats.c:2974:15 in lcms2.h
-// cmsIT8FindDataFormat at cmscgats.c:2805:15 in lcms2.h
-// cmsIT8SetSheetType at cmscgats.c:1513:19 in lcms2.h
+// cmsMLUalloc at cmsnamed.c:33:19 in lcms2.h
+// cmsMLUdup at cmsnamed.c:430:19 in lcms2.h
+// cmsMLUfree at cmsnamed.c:476:16 in lcms2.h
+// cmsMLUtranslationsCount at cmsnamed.c:689:27 in lcms2.h
+// cmsMLUgetASCII at cmsnamed.c:542:27 in lcms2.h
+// cmsMLUgetUTF8 at cmsnamed.c:590:27 in lcms2.h
+// cmsMLUfree at cmsnamed.c:476:16 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <lcms2.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "lcms2.h"
 
-static cmsHANDLE create_dummy_it8_handle() {
-    // Properly simulate an IT8 handle structure
-    cmsHANDLE hIT8 = cmsIT8Alloc(NULL);
-    if (hIT8) {
-        cmsIT8SetSheetType(hIT8, "DUMMY");
-    }
-    return hIT8;
-}
-
-static void free_dummy_it8_handle(cmsHANDLE hIT8) {
-    if (hIT8) {
-        cmsIT8Free(hIT8);
+static void WriteDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_128(const uint8_t *Data, size_t Size) {
-    if (Size < 2) return 0; // Ensure there's enough data
+    if (Size < sizeof(cmsUInt32Number)) return 0;
 
-    char* sampleName = (char*)malloc(Size + 1);
-    if (!sampleName) return 0; // Check allocation success
-    memcpy(sampleName, Data, Size);
-    sampleName[Size] = '\0';
+    cmsContext context = NULL;
+    cmsUInt32Number nItems = *((cmsUInt32Number *)Data);
+    Data += sizeof(cmsUInt32Number);
+    Size -= sizeof(cmsUInt32Number);
 
-    cmsHANDLE hIT8 = create_dummy_it8_handle();
-    if (!hIT8) {
-        free(sampleName);
-        return 0;
+    cmsMLU *mlu = cmsMLUalloc(context, nItems);
+    if (mlu == NULL) return 0;
+
+    // Fuzz cmsMLUdup
+    cmsMLU *mluDup = cmsMLUdup(mlu);
+    if (mluDup != NULL) {
+        cmsMLUfree(mluDup);
     }
 
-    // Fuzz cmsIT8SetIndexColumn
-    cmsIT8SetIndexColumn(hIT8, sampleName);
+    // Fuzz cmsMLUtranslationsCount
+    cmsUInt32Number translationsCount = cmsMLUtranslationsCount(mlu);
 
-    // Fuzz cmsstrcasecmp
-    if (Size >= 2) {
-        cmsstrcasecmp(sampleName, sampleName + 1);
-    }
+    // Fuzz cmsMLUgetASCII
+    char languageCode[3] = "en";
+    char countryCode[3] = "US";
+    char buffer[256];
+    cmsMLUgetASCII(mlu, languageCode, countryCode, buffer, sizeof(buffer));
 
-    // Fuzz cmsIT8GetPatchByName
-    cmsIT8GetPatchByName(hIT8, sampleName);
+    // Fuzz cmsMLUgetUTF8
+    cmsMLUgetUTF8(mlu, languageCode, countryCode, buffer, sizeof(buffer));
 
-    // Fuzz cmsIT8FindDataFormat
-    cmsIT8FindDataFormat(hIT8, sampleName);
+    // Write data to a dummy file if needed
+    WriteDummyFile(Data, Size);
 
-    // Fuzz cmsNamedColorIndex
-    // Since we cannot directly create a cmsNAMEDCOLORLIST, we will skip fuzzing cmsNamedColorIndex
-
-    // Fuzz cmsIT8SetSheetType
-    cmsIT8SetSheetType(hIT8, sampleName);
-
-    free_dummy_it8_handle(hIT8);
-    free(sampleName);
+    cmsMLUfree(mlu);
 
     return 0;
 }

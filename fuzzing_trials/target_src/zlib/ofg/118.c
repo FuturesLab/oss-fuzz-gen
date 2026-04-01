@@ -1,36 +1,30 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    gzFile file;
-    int result;
+    // Initialize a buffer with the input data
     char filename[] = "/tmp/fuzz_input.gz";
-
-    // Create a temporary file and write the input data to it
-    FILE *temp_file = fopen(filename, "wb");
-    if (temp_file == NULL) {
-        return 0;
-    }
-
-    if (fwrite(data, 1, size, temp_file) != size) {
-        fclose(temp_file);
-        return 0;
-    }
-    fclose(temp_file);
-
-    // Open the file with gzopen
-    file = gzopen(filename, "rb");
+    FILE *file = fopen(filename, "wb");
     if (file == NULL) {
         return 0;
     }
 
+    // Write the input data to a file
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the file with gzopen
+    gzFile gzfile = gzopen(filename, "rb");
+    if (gzfile == NULL) {
+        return 0;
+    }
+
     // Call the function-under-test
-    result = gzdirect(file);
+    int result = gzdirect(gzfile);
 
     // Close the gzFile
-    gzclose(file);
+    gzclose(gzfile);
 
     return 0;
 }

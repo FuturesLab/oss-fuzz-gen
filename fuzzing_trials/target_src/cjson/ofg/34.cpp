@@ -8,19 +8,30 @@ extern "C" {
 
 #include "../cJSON.h"
 
+int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size); /* required by C89 */
+
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-  // Ensure the data is null-terminated and not empty
-  if (size == 0 || data[size - 1] != '\0') {
+  char *input_string;
+  cJSON *json_string;
+
+  if (size == 0)
     return 0;
-  }
 
-  // Create a cJSON string using the input data
-  cJSON *json_string = cJSON_CreateString((const char *)data);
+  // Ensure the input is null-terminated
+  input_string = (char *)malloc(size + 1);
+  if (input_string == NULL)
+    return 0;
+  memcpy(input_string, data, size);
+  input_string[size] = '\0';
 
-  // Clean up the cJSON object
+  // Call the function-under-test
+  json_string = cJSON_CreateString(input_string);
+
+  // Clean up
   if (json_string != NULL) {
     cJSON_Delete(json_string);
   }
+  free(input_string);
 
   return 0;
 }

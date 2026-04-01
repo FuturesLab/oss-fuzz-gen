@@ -1,38 +1,34 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstdio>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitCompress();
-    const unsigned char *srcBuf = data;
-    int width = 16;  // Example width
-    int height = 16; // Example height
-    int strides = width; // Assuming strides as width for simplicity
-    int subsamp = TJSAMP_444; // Example subsampling
-    unsigned char *jpegBuf = nullptr; // Output buffer
-    unsigned long jpegSize = 0; // Output size
-    int jpegQual = 75; // Example JPEG quality
-    int flags = 0; // Example flags
+    // Declare and initialize input variables for tjPlaneSizeYUV
+    int width = 1;  // Width of the image, must be > 0
+    int height = 1; // Height of the image, must be > 0
+    int subsamp = TJSAMP_444; // Subsampling option, using a valid constant from turbojpeg
+    int align = 1;  // Alignment, typically 1, 2, 4, or 8
 
-    // Ensure the handle is initialized
-    if (handle == nullptr) {
-        return 0;
+    // Ensure data is not empty to extract meaningful values
+    if (size >= 5) {
+        // Extract values from data to vary the inputs
+        width = data[0] + 1;  // Avoid zero
+        height = data[1] + 1; // Avoid zero
+        subsamp = data[2] % 6; // Valid subsampling values are 0-5
+        align = (data[3] % 4) + 1; // Valid alignments are 1, 2, 3, 4
     }
 
     // Call the function-under-test
-    int result = tjCompressFromYUV(handle, srcBuf, width, strides, height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
+    unsigned long result = tjPlaneSizeYUV(0, width, height, subsamp, align);
 
-    // Clean up
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
-    tjDestroy(handle);
+    // Print the result (optional, for debugging purposes)
+    printf("Result: %lu\n", result);
 
     return 0;
 }

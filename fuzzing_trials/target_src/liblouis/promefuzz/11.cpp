@@ -1,10 +1,13 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_translate at lou_translateString.c:1135:1 in liblouis.h
-// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
-// lou_dotsToChar at lou_translateString.c:4150:1 in liblouis.h
-// lou_backTranslate at lou_backTranslateString.c:159:1 in liblouis.h
-// lou_backTranslateString at lou_backTranslateString.c:152:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
+// lou_logPrint at logging.c:213:1 in liblouis.h
+// lou_registerLogCallback at logging.c:86:1 in liblouis.h
+// lou_registerLogCallback at logging.c:86:1 in liblouis.h
+// lou_indexTables at metadata.c:945:1 in liblouis.h
+// lou_logEnd at logging.c:229:1 in liblouis.h
+// lou_setLogLevel at logging.c:143:1 in liblouis.h
+// lou_logFile at logging.c:196:1 in liblouis.h
+// lou_logFile at logging.c:196:1 in liblouis.h
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -13,132 +16,53 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <liblouis.h>
+#include <cstdarg>
 #include <cstdint>
-#include <cstring>
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include "liblouis.h"
 
-static void fuzz_lou_dotsToChar(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(char *) + sizeof(widechar) * 2 + sizeof(int)) return;
-
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    size_t tableListSize = strnlen(tableList, Size);
-    if (tableListSize + 1 + sizeof(widechar) * 2 + sizeof(int) > Size) return;
-
-    widechar *inbuf = reinterpret_cast<widechar *>(const_cast<uint8_t *>(Data + tableListSize + 1));
-    int length = (Size - tableListSize - 1) / sizeof(widechar);
-    widechar *outbuf = new widechar[length];
-    int mode = *reinterpret_cast<const int *>(Data + tableListSize + 1 + sizeof(widechar) * 2);
-
-    lou_dotsToChar(tableList, inbuf, outbuf, length, mode);
-
-    delete[] outbuf;
-}
-
-static void fuzz_lou_backTranslate(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(char *) + sizeof(widechar) * 2 + sizeof(int) * 5) return;
-
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    size_t tableListSize = strnlen(tableList, Size);
-    if (tableListSize + 1 + sizeof(widechar) * 2 + sizeof(int) * 5 > Size) return;
-
-    widechar *inbuf = reinterpret_cast<widechar *>(const_cast<uint8_t *>(Data + tableListSize + 1));
-    int inlen = (Size - tableListSize - 1) / sizeof(widechar);
-    widechar *outbuf = new widechar[inlen];
-    int outlen = inlen;
-    formtype *typeform = nullptr;
-    char *spacing = nullptr;
-    int *outputPos = new int[inlen];
-    int *inputPos = new int[outlen];
-    int cursorPos = 0;
-    int mode = *reinterpret_cast<const int *>(Data + tableListSize + 1 + sizeof(widechar) * 2);
-
-    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
-
-    delete[] outbuf;
-    delete[] outputPos;
-    delete[] inputPos;
-}
-
-static void fuzz_lou_backTranslateString(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(char *) + sizeof(widechar) * 2 + sizeof(int) * 4) return;
-
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    size_t tableListSize = strnlen(tableList, Size);
-    if (tableListSize + 1 + sizeof(widechar) * 2 + sizeof(int) * 4 > Size) return;
-
-    widechar *inbuf = reinterpret_cast<widechar *>(const_cast<uint8_t *>(Data + tableListSize + 1));
-    int inlen = (Size - tableListSize - 1) / sizeof(widechar);
-    widechar *outbuf = new widechar[inlen];
-    int outlen = inlen;
-    formtype *typeform = nullptr;
-    char *spacing = nullptr;
-    int mode = *reinterpret_cast<const int *>(Data + tableListSize + 1 + sizeof(widechar) * 2);
-
-    lou_backTranslateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
-
-    delete[] outbuf;
-}
-
-static void fuzz_lou_checkTable(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    std::string tableList(reinterpret_cast<const char *>(Data), strnlen(reinterpret_cast<const char *>(Data), Size));
-    lou_checkTable(tableList.c_str());
-}
-
-static void fuzz_lou_translate(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(char *) + sizeof(widechar) * 2 + sizeof(int) * 5) return;
-
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    size_t tableListSize = strnlen(tableList, Size);
-    if (tableListSize + 1 + sizeof(widechar) * 2 + sizeof(int) * 5 > Size) return;
-
-    widechar *inbuf = reinterpret_cast<widechar *>(const_cast<uint8_t *>(Data + tableListSize + 1));
-    int inlen = (Size - tableListSize - 1) / sizeof(widechar);
-    widechar *outbuf = new widechar[inlen];
-    int outlen = inlen;
-    formtype *typeform = nullptr;
-    char *spacing = nullptr;
-    int *outputPos = new int[inlen];
-    int *inputPos = new int[outlen];
-    int cursorPos = 0;
-    int mode = *reinterpret_cast<const int *>(Data + tableListSize + 1 + sizeof(widechar) * 2);
-
-    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
-
-    delete[] outbuf;
-    delete[] outputPos;
-    delete[] inputPos;
-}
-
-static void fuzz_lou_translateString(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(char *) + sizeof(widechar) * 2 + sizeof(int) * 4) return;
-
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    size_t tableListSize = strnlen(tableList, Size);
-    if (tableListSize + 1 + sizeof(widechar) * 2 + sizeof(int) * 4 > Size) return;
-
-    widechar *inbuf = reinterpret_cast<widechar *>(const_cast<uint8_t *>(Data + tableListSize + 1));
-    int inlen = (Size - tableListSize - 1) / sizeof(widechar);
-    widechar *outbuf = new widechar[inlen];
-    int outlen = inlen;
-    formtype *typeform = nullptr;
-    char *spacing = nullptr;
-    int mode = *reinterpret_cast<const int *>(Data + tableListSize + 1 + sizeof(widechar) * 2);
-
-    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
-
-    delete[] outbuf;
+static void customLogCallback(logLevels level, const char *message) {
+    // Custom log callback that does nothing for now
 }
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    fuzz_lou_dotsToChar(Data, Size);
-    fuzz_lou_backTranslate(Data, Size);
-    fuzz_lou_backTranslateString(Data, Size);
-    fuzz_lou_checkTable(Data, Size);
-    fuzz_lou_translate(Data, Size);
-    fuzz_lou_translateString(Data, Size);
+    if (Size == 0) return 0;
+
+    // Prepare a dummy file for lou_logFile
+    FILE *dummyFile = fopen("./dummy_file", "w");
+    if (dummyFile) fclose(dummyFile);
+
+    // 1. Fuzz lou_logPrint
+    lou_logPrint("Fuzzing lou_logPrint with input size: %zu\n", Size);
+
+    // 2. Fuzz lou_registerLogCallback
+    lou_registerLogCallback(customLogCallback);
+    lou_registerLogCallback(NULL);
+
+    // 3. Fuzz lou_indexTables
+    // Ensure that the input is null-terminated to avoid buffer overflow
+    std::vector<char> nullTerminatedData(Data, Data + Size);
+    nullTerminatedData.push_back('\0');  // Ensure null-termination
+    const char *tables[] = { nullTerminatedData.data(), NULL };
+    lou_indexTables(tables);
+
+    // 4. Fuzz lou_logEnd
+    lou_logEnd();
+
+    // 5. Fuzz lou_setLogLevel
+    if (Size >= sizeof(logLevels)) {
+        logLevels level = *reinterpret_cast<const logLevels*>(Data);
+        lou_setLogLevel(level);
+    }
+
+    // 6. Fuzz lou_logFile
+    // Ensure the input is null-terminated to avoid reading out of bounds
+    std::vector<char> fileName(Data, Data + Size);
+    fileName.push_back('\0');  // Ensure null-termination
+    lou_logFile("./dummy_file");
+    lou_logFile(fileName.data());
+
     return 0;
 }

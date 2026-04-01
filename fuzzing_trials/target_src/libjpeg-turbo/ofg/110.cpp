@@ -1,35 +1,38 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Initialize the TurboJPEG decompressor handle
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Initialization failed, exit early
-    }
+    if (size < 1) return 0;
 
-    // Allocate a buffer for the YUV data
-    int width = 640;  // Example width
-    int height = 480; // Example height
-    int yuvSize = tjBufSizeYUV2(width, 4, height, TJ_420);
-    unsigned char *yuvBuffer = static_cast<unsigned char *>(malloc(yuvSize));
-    if (yuvBuffer == nullptr) {
+    tjhandle handle = tjInitDecompress();
+    if (!handle) return 0;
+
+    // Define some parameters for the decompression
+    int width = 100;  // Example width
+    int height = 100; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int flags = 0; // No flags
+    int pitch = width * tjPixelSize[pixelFormat]; // Calculate pitch
+
+    // Allocate buffer for decompressed image
+    unsigned char* destBuf = (unsigned char*)malloc(width * height * tjPixelSize[pixelFormat]);
+    if (!destBuf) {
         tjDestroy(handle);
-        return 0; // Memory allocation failed, exit early
+        return 0;
     }
 
     // Call the function-under-test
-    int result = tj3DecompressToYUV8(handle, data, size, yuvBuffer, 0);
+    int result = tjDecompress2(handle, data, (unsigned long)size, destBuf, width, pitch, height, pixelFormat, flags);
 
     // Clean up
-    free(yuvBuffer);
+    free(destBuf);
     tjDestroy(handle);
 
     return 0;

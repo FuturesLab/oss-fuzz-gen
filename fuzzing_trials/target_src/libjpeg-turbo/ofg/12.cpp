@@ -1,39 +1,30 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Initialize variables for tjCompress2
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
+    // Initialize tjhandle
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
+        return 0;  // If initialization fails, exit early
+    }
+
+    // Ensure size is sufficient for the test
+    if (size < sizeof(int)) {
+        tjDestroy(handle);
         return 0;
     }
 
-    const unsigned char *srcBuf = data;
-    int width = 100; // Example width
-    int pitch = 0; // Setting pitch to 0 means it will be calculated as width * pixelSize
-    int height = 100; // Example height
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    int jpegSubsamp = TJSAMP_444; // Example subsampling
-    int jpegQual = 75; // Example quality
-    int flags = 0; // Example flags
+    // Extract an integer from the data
+    int param = *(reinterpret_cast<const int*>(data));
 
     // Call the function-under-test
-    int result = tjCompress2(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
+    int result = tj3Get(handle, param);
 
-    // Free the JPEG buffer if it was allocated
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
-
-    // Destroy the TurboJPEG compressor handle
+    // Clean up
     tjDestroy(handle);
 
     return 0;

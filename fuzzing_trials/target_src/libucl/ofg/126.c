@@ -1,45 +1,27 @@
 #include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-  // Initialize a ucl_parser and parse the input data
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+    // Create a new UCL object
+    ucl_object_t *ucl_array = ucl_object_typed_new(UCL_ARRAY);
 
-  // Ensure the data is null-terminated for parsing
-  char *null_terminated_data = (char *)malloc(size + 1);
-  if (null_terminated_data == NULL) {
-    ucl_parser_free(parser);
-    return 0;
-  }
-  memcpy(null_terminated_data, data, size);
-  null_terminated_data[size] = '\0';
-
-  // Parse the data
-  ucl_parser_add_string(parser, null_terminated_data, size);
-  free(null_terminated_data);
-
-  // Retrieve the root object
-  ucl_object_t *root_obj = ucl_parser_get_object(parser);
-  if (root_obj != NULL) {
-    // Call the function-under-test
-    ucl_object_t *popped_obj = ucl_array_pop_last(root_obj);
-    
-    // Free the popped object if it is not NULL
-    if (popped_obj != NULL) {
-      ucl_object_unref(popped_obj);
+    // Add some elements to the UCL array
+    for (size_t i = 0; i < size; ++i) {
+        ucl_object_t *obj = ucl_object_fromint((int64_t)data[i]);
+        ucl_array_append(ucl_array, obj);
     }
 
-    // Unref the root object
-    ucl_object_unref(root_obj);
-  }
+    // Call the function-under-test
+    ucl_object_t *popped_obj = ucl_array_pop_last(ucl_array);
 
-  // Free the parser
-  ucl_parser_free(parser);
+    // Free the popped object if it is not NULL
+    if (popped_obj != NULL) {
+        ucl_object_unref(popped_obj);
+    }
 
-  return 0;
+    // Free the UCL array
+    ucl_object_unref(ucl_array);
+
+    return 0;
 }

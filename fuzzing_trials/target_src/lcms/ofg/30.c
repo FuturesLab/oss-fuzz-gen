@@ -1,24 +1,19 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <lcms2.h> // Include the Little CMS library header
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsContext context;
-    void *userData;
+    cmsStage *stage = NULL;
 
-    // Ensure the data size is sufficient to create a context
-    if (size < sizeof(cmsContext)) {
-        return 0;
+    // Initialize the stage with a non-NULL value
+    if (size > 0) {
+        stage = cmsStageAllocIdentity(NULL, size);
     }
 
-    // Initialize the context with some non-NULL value
-    context = (cmsContext)data; // Cast the data to cmsContext for testing
+    // Ensure stage is not NULL before calling the function-under-test
+    if (stage != NULL) {
+        cmsStageFree(stage);
+    }
 
-    // Call the function-under-test
-    userData = cmsGetContextUserData(context);
-
-    // Optionally, you can add checks or further processing on userData
-
-    return 0; // Return 0 to indicate successful execution
+    return 0;
 }

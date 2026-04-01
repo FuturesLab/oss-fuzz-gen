@@ -1,61 +1,53 @@
 #include <cstdint>
-#include <cstdlib>
+#include <cstddef>
 #include <cstdio>
-#include <unistd.h>  // For close()
-#include <cstring>   // For memcpy()
+#include <cstdlib>
+#include <unistd.h>
+#include <cstring>
+#include <fcntl.h>
 
 extern "C" {
 #include <tiffio.h>
+#include <stdarg.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to proceed with fuzzing
-    if (size < sizeof(uint32_t) + sizeof(tmsize_t)) {
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Create a temporary file to act as a TIFF file
+    // Create a temporary file to write the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Open the temporary file as a TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "w");
-    if (!tiff) {
+    // Write data to the temporary file
+    if (write(fd, data, size) != ssize_t(size)) {
         close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        unlink(tmpl);
         return 0;
     }
 
-    // Extract parameters from the input data
-    uint32_t tileIndex = *(reinterpret_cast<const uint32_t*>(data));
-    tmsize_t bufferSize = *(reinterpret_cast<const tmsize_t*>(data + sizeof(uint32_t)));
-
-    // Ensure bufferSize does not exceed the remaining data size
-    if (bufferSize > size - sizeof(uint32_t) - sizeof(tmsize_t)) {
-        bufferSize = size - sizeof(uint32_t) - sizeof(tmsize_t);
-    }
-
-    // Allocate buffer for tile data
-    void *buffer = malloc(bufferSize);
-    if (!buffer) {
-        TIFFClose(tiff);
-        close(fd);
-        return 0;
-    }
-
-    // Copy data into the buffer
-    memcpy(buffer, data + sizeof(uint32_t) + sizeof(tmsize_t), bufferSize);
+    // Prepare the tag and va_list for TIFFVGetField
+    uint32_t tag;
+    memcpy(&tag, data, sizeof(uint32_t));
 
     // Call the function-under-test
-    TIFFWriteEncodedTile(tiff, tileIndex, buffer, bufferSize);
+    TIFFVGetField(tiff, tag, nullptr);
 
     // Clean up
-    free(buffer);
     TIFFClose(tiff);
-    close(fd);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }

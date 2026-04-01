@@ -1,46 +1,42 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <ucl.h>
-
-// Include the UCL library header for UCL_TYPE_MAX
-#include <ucl.h>
-
-// Define UCL_TYPE_MAX if not defined
-#ifndef UCL_TYPE_MAX
-#define UCL_TYPE_MAX UCL_OBJECT // Assuming UCL_OBJECT is the last valid type
-#endif
 
 int LLVMFuzzerTestOneInput_185(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to create two ucl_object_t pointers
-    if (size < 2 * sizeof(ucl_object_t)) {
+    // Ensure that the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for two ucl_object_t objects
-    ucl_object_t *obj1 = (ucl_object_t *)malloc(sizeof(ucl_object_t));
-    ucl_object_t *obj2 = (ucl_object_t *)malloc(sizeof(ucl_object_t));
-
-    if (obj1 == NULL || obj2 == NULL) {
-        free(obj1);
-        free(obj2);
+    // Initialize the UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
-    // Initialize the objects with some data from the input
-    // Correct the constant to a valid maximum type value
-    obj1->type = (ucl_type_t)(data[0] % UCL_TYPE_MAX);
-    obj2->type = (ucl_type_t)(data[1] % UCL_TYPE_MAX);
+    // Parse the input data as a UCL object
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-    // Create pointers to the objects
-    const ucl_object_t *obj_ptr1 = obj1;
-    const ucl_object_t *obj_ptr2 = obj2;
+    // Get the root object from the parser
+    const ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-    // Call the function under test
-    int result = ucl_object_compare_qsort(&obj_ptr1, &obj_ptr2);
+    // Define a sample key and a void pointer for lookup
+    const char *key = "sample_key";
+    void *user_data = (void *)0x1; // Example non-NULL void pointer
+
+    // Call the function-under-test
+    const ucl_object_t *result = ucl_object_lookup_any(root, key, user_data);
 
     // Clean up
-    free(obj1);
-    free(obj2);
+    ucl_object_unref(root);
+    ucl_parser_free(parser);
 
     return 0;
 }

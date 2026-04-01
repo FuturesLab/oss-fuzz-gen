@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_offline_with_tstamp_precision at savefile.c:335:1 in pcap.h
-// pcap_get_tstamp_precision at pcap.c:2753:1 in pcap.h
-// pcap_snapshot at pcap.c:3520:1 in pcap.h
-// pcap_bufsize at pcap.c:3552:1 in pcap.h
-// pcap_dump_open at sf-pcap.c:895:1 in pcap.h
-// pcap_dump_close at sf-pcap.c:1255:1 in pcap.h
-// pcap_dispatch at pcap.c:2957:1 in pcap.h
+// pcap_open_offline at savefile.c:388:1 in pcap.h
+// pcap_datalink at pcap.c:3002:1 in pcap.h
+// pcap_datalink_val_to_description at pcap.c:3441:1 in pcap.h
+// pcap_datalink_val_to_description_or_dlt at pcap.c:3453:1 in pcap.h
+// pcap_datalink_val_to_name at pcap.c:3429:1 in pcap.h
+// pcap_tstamp_type_val_to_name at pcap.c:3496:1 in pcap.h
+// pcap_datalink_name_to_val at pcap.c:3417:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
@@ -18,47 +18,47 @@
 #include <string.h>
 #include <stdio.h>
 
-static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Dummy packet handler
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
+    // Dummy file preparation
+    write_dummy_file(Data, Size);
+
+    // Initialize pcap handle
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap_handle = NULL;
-    pcap_dumper_t *dumper = NULL;
+    pcap_t *handle = pcap_open_offline("./dummy_file", errbuf);
+    if (handle) {
+        // Test pcap_datalink
+        int dlt = pcap_datalink(handle);
 
-    // Prepare a dummy file for pcap_dump_open
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) return 0;
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+        // Test pcap_datalink_val_to_description
+        const char *dlt_description = pcap_datalink_val_to_description(dlt);
 
-    // Use pcap_open_offline_with_tstamp_precision
-    pcap_handle = pcap_open_offline_with_tstamp_precision("./dummy_file", PCAP_TSTAMP_PRECISION_MICRO, errbuf);
-    if (!pcap_handle) return 0;
+        // Test pcap_datalink_val_to_description_or_dlt
+        const char *dlt_description_or_dlt = pcap_datalink_val_to_description_or_dlt(dlt);
 
-    // Fuzz pcap_get_tstamp_precision
-    int tstamp_precision = pcap_get_tstamp_precision(pcap_handle);
+        // Test pcap_datalink_val_to_name
+        const char *dlt_name = pcap_datalink_val_to_name(dlt);
 
-    // Fuzz pcap_snapshot
-    int snapshot_length = pcap_snapshot(pcap_handle);
+        // Test pcap_tstamp_type_val_to_name
+        int tstamp_type = (Size > 1) ? Data[1] : 0;
+        const char *tstamp_name = pcap_tstamp_type_val_to_name(tstamp_type);
 
-    // Fuzz pcap_bufsize
-    int buffer_size = pcap_bufsize(pcap_handle);
+        // Test pcap_datalink_name_to_val
+        if (dlt_name) {
+            int name_to_val = pcap_datalink_name_to_val(dlt_name);
+        }
 
-    // Fuzz pcap_dump_open
-    dumper = pcap_dump_open(pcap_handle, "./dummy_file");
-    if (dumper) {
-        pcap_dump_close(dumper);
+        pcap_close(handle);
     }
-
-    // Fuzz pcap_dispatch
-    pcap_dispatch(pcap_handle, -1, dummy_packet_handler, NULL);
-
-    // Cleanup
-    pcap_close(pcap_handle);
 
     return 0;
 }

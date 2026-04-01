@@ -2,31 +2,33 @@
 #include <stdlib.h>
 #include <pcap.h>
 
-// Function to be used by the fuzzer
+// Remove the extern "C" linkage specification as it is not needed in a C file
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    // Ensure there is enough data for the headers
+    // Ensure the input size is sufficient for our needs
     if (size < sizeof(struct bpf_program) + sizeof(struct pcap_pkthdr)) {
         return 0;
     }
 
     // Initialize bpf_program
     struct bpf_program bpf_prog;
-    bpf_prog.bf_len = 1; // Set a non-zero length
-    struct bpf_insn insn = { 0 }; // Initialize a bpf instruction
-    bpf_prog.bf_insns = &insn; // Point to the instruction
+    // For fuzzing purposes, we will assume a simple filter with one instruction
+    struct bpf_insn insns[] = {
+        BPF_STMT(BPF_RET | BPF_K, 0) // Return 0 (drop packet)
+    };
+    bpf_prog.bf_len = 1;
+    bpf_prog.bf_insns = insns;
 
     // Initialize pcap_pkthdr
     struct pcap_pkthdr pkthdr;
     pkthdr.caplen = size - sizeof(struct bpf_program) - sizeof(struct pcap_pkthdr);
-    pkthdr.len = pkthdr.caplen; // Set the packet length to the captured length
+    pkthdr.len = pkthdr.caplen;
 
-    // Initialize packet data
+    // Set the packet data to the remaining part of the input data
     const u_char *packet_data = data + sizeof(struct bpf_program) + sizeof(struct pcap_pkthdr);
 
-    // Call the function under test
+    // Call the function-under-test
     int result = pcap_offline_filter(&bpf_prog, &pkthdr, packet_data);
 
-    (void)result; // Suppress unused variable warning
-
-    return 0;
+    // Return the result
+    return result;
 }

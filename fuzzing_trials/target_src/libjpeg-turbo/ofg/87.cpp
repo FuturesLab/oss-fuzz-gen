@@ -1,36 +1,45 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    // Initialize variables for the function call
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Exit if the handle initialization fails
+    if (size < 2) {
+        return 0;
     }
 
-    unsigned char* jpegBuf = const_cast<unsigned char*>(data);
-    unsigned long jpegSize = static_cast<unsigned long>(size);
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0;
+    }
 
-    // Allocate memory for the YUV buffer
-    // Assuming a maximum size for YUV buffer, this should be adjusted according to specific needs
-    int width = 640; // Example width
-    int height = 480; // Example height
-    int yuvSize = tjBufSizeYUV2(width, 4, height, TJSAMP_420);
-    unsigned char* yuvBuf = (unsigned char*)malloc(yuvSize);
+    // Allocate memory for a dummy JPEG header
+    unsigned char *jpegHeader = (unsigned char *)malloc(size);
+    if (jpegHeader == nullptr) {
+        tjDestroy(handle);
+        return 0;
+    }
+    memcpy(jpegHeader, data, size);
 
-    // Call the function-under-test
-    if (yuvBuf != nullptr) {
-        tjDecompressToYUV(handle, jpegBuf, jpegSize, yuvBuf, 4); // 4 is the pitch (width step)
-        free(yuvBuf);
+    unsigned char *iccProfile = nullptr;
+    size_t iccProfileSize = 0;
+
+    // Attempt to decompress the JPEG header to trigger code paths
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, jpegHeader, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        // Call the function-under-test
+        tj3GetICCProfile(handle, &iccProfile, &iccProfileSize);
     }
 
     // Clean up
+    free(jpegHeader);
+    if (iccProfile != nullptr) {
+        tjFree(iccProfile);
+    }
     tjDestroy(handle);
 
     return 0;

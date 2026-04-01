@@ -1,53 +1,56 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
-extern "C" {
-    #include <vpx/vpx_decoder.h>
-    #include <vpx/vpx_codec.h>
-    #include <vpx/vp8dx.h> // Include the header for vpx_codec_vp8_dx
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <vpx/vpx_decoder.h>
+#include <vpx/vp8dx.h>
 
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Check if the input data is large enough to be meaningful
-    if (size < 10) { // Adjusted to ensure there's enough data for a valid frame
+    if (size == 0) {
         return 0;
     }
 
-    // Declare and initialize the necessary structures
     vpx_codec_ctx_t codec_ctx;
     vpx_codec_stream_info_t stream_info;
+    vpx_codec_err_t res;
 
-    // Initialize the stream_info structure with default values
-    memset(&stream_info, 0, sizeof(vpx_codec_stream_info_t));
-    stream_info.sz = sizeof(vpx_codec_stream_info_t);
+    // Initialize codec context
+    vpx_codec_dec_cfg_t cfg = {0};
+    cfg.threads = 1; // Use a single thread
 
-    // Peek into the stream to check if it's a valid VPX stream
-    if (vpx_codec_peek_stream_info(vpx_codec_vp8_dx(), data, size, &stream_info) != VPX_CODEC_OK) {
-        return 0; // If not a valid stream, exit early
-    }
-
-    // Initialize the codec context
-    vpx_codec_err_t init_result = vpx_codec_dec_init(&codec_ctx, vpx_codec_vp8_dx(), NULL, 0);
-    if (init_result != VPX_CODEC_OK) {
+    res = vpx_codec_dec_init(&codec_ctx, vpx_codec_vp8_dx(), &cfg, 0);
+    if (res != VPX_CODEC_OK) {
         return 0;
     }
 
-    // Decode the input data
-    vpx_codec_err_t decode_result = vpx_codec_decode(&codec_ctx, data, size, NULL, 0);
-    if (decode_result == VPX_CODEC_OK) {
-        // Try to retrieve a frame to ensure the input is being processed
-        vpx_codec_iter_t iter = NULL;
-        vpx_image_t *img = NULL;
+    // Initialize stream_info with some default values
+    stream_info.sz = sizeof(vpx_codec_stream_info_t);
+    stream_info.w = 640; // Default width
+    stream_info.h = 480; // Default height
 
-        while ((img = vpx_codec_get_frame(&codec_ctx, &iter)) != NULL) {
-            // Process the image/frame if needed
-            // For fuzzing purposes, we just retrieve the frame to ensure processing
-        }
+    // Feed the decoder with the input data
+    res = vpx_codec_decode(&codec_ctx, data, size, NULL, 0);
+    if (res != VPX_CODEC_OK) {
+        vpx_codec_destroy(&codec_ctx);
+        return 0;
     }
 
-    // Retrieve the stream information after decoding
-    vpx_codec_err_t result = vpx_codec_get_stream_info(&codec_ctx, &stream_info);
+    // Retrieve frame to ensure the decoder processes the input
+    vpx_codec_iter_t iter = NULL;
+    vpx_image_t *img = NULL;
+    while ((img = vpx_codec_get_frame(&codec_ctx, &iter)) != NULL) {
+        // Process the image if needed
+        // For example, access image properties to simulate processing
+        int width = img->d_w;
+        int height = img->d_h;
+        int stride = img->stride[0];
+        // Simulate some processing on the image data to increase code coverage
+        for (int y = 0; y < height; ++y) {
+            const uint8_t *row = img->planes[0] + y * stride;
+            for (int x = 0; x < width; ++x) {
+                uint8_t pixel = row[x];
+                (void)pixel; // Use pixel value to avoid unused variable warnings
+            }
+        }
+    }
 
     // Cleanup
     vpx_codec_destroy(&codec_ctx);

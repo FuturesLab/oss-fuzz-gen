@@ -1,25 +1,41 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
-    // Assuming the function is declared in a header file related to the library
-    int tj3YUVPlaneWidth(int componentID, int width, int subsampling);
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract three integers
-    if (size < 3 * sizeof(int)) {
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
+
+    if (handle == NULL) {
         return 0;
     }
 
-    // Extract three integers from the input data
-    int componentID = static_cast<int>(data[0]); // Using first byte for componentID
-    int width = static_cast<int>(data[1]);       // Using second byte for width
-    int subsampling = static_cast<int>(data[2]); // Using third byte for subsampling
+    if (size < 4) { // Ensure there's enough data for a minimal JPEG header
+        tj3Destroy(handle);
+        return 0;
+    }
 
-    // Call the function under test
-    int result = tj3YUVPlaneWidth(componentID, width, subsampling);
+    // Attempt to decompress the data
+    int width, height, jpegSubsamp, jpegColorspace;
+    int result = tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace);
 
-    // Return 0 to indicate successful execution
+    if (result == 0) {
+        // Allocate buffer for decompressed image
+        unsigned char *buffer = new unsigned char[width * height * tjPixelSize[TJPF_RGB]];
+
+        // Decompress the image
+        result = tjDecompress2(handle, data, size, buffer, width, 0 /* pitch */, height, TJPF_RGB, 0);
+
+        // Free the buffer
+        delete[] buffer;
+    }
+
+    // Clean up
+    tj3Destroy(handle);
+
     return 0;
 }

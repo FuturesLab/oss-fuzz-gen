@@ -1,24 +1,31 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <hdf5.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_208(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for our needs
-    if (size < 7) return 0; // Adjusted to match the number of bytes used
+    // Declare and initialize variables
+    hid_t loc_id = H5I_INVALID_HID;  // Initialize to an invalid ID
+    char attr_name[256] = {0};       // Buffer for attribute name
 
-    // Prepare the parameters for H5Acreate_async
-    const char *attr_name = "attribute_name"; // Non-NULL attribute name
-    unsigned int crt_order_flags = (unsigned int)data[0]; // Use first byte for flags
-    hid_t loc_id = (hid_t)data[1];            // Use second byte for loc_id
-    hid_t type_id = (hid_t)data[2];           // Use third byte for type_id
-    hid_t space_id = (hid_t)data[3];          // Use fourth byte for space_id
-    hid_t acpl_id = (hid_t)data[4];           // Use fifth byte for acpl_id
-    hid_t aapl_id = (hid_t)data[5];           // Use sixth byte for aapl_id
-    hid_t es_id = (hid_t)data[6];             // Use seventh byte for es_id
+    // Ensure the data size is sufficient for a meaningful attribute name
+    if (size < 1) {
+        return 0;
+    }
 
-    // Call the function under test with the correct number of arguments
-    hid_t result = H5Acreate_async(loc_id, attr_name, type_id, space_id, acpl_id, aapl_id, es_id);
+    // Copy data to attr_name, ensuring null-termination
+    size_t copy_size = size < sizeof(attr_name) - 1 ? size : sizeof(attr_name) - 1;
+    memcpy(attr_name, data, copy_size);
+    attr_name[copy_size] = '\0';
 
-    // Return 0 to indicate the fuzzer can continue
+    // Call the function-under-test
+    hid_t attr_id = H5Aopen_name(loc_id, attr_name);
+
+    // Normally, we would do something with attr_id, like checking if it's valid
+    // Close the attribute if it was successfully opened
+    if (attr_id >= 0) {
+        H5Aclose(attr_id);
+    }
+
     return 0;
 }

@@ -1,40 +1,44 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // For write, close, unlink
-
 extern "C" {
     #include <tiffio.h>
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <unistd.h> // Include this for close() and write()
 }
 
 extern "C" int LLVMFuzzerTestOneInput_225(const uint8_t *data, size_t size) {
-    // Create temporary file for fuzzing
+    if (size == 0) {
+        return 0;
+    }
+
+    // Create a temporary file to hold the TIFF data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write fuzz data to the temporary file
+    // Write the input data to the temporary file
     if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
         return 0;
     }
+
+    // Close the file descriptor
     close(fd);
 
-    // Define mode for opening the TIFF file
-    const char *mode = "r"; // Open for reading
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(tmpl, "r+");
+    if (tif == NULL) {
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    TIFF *tiff = TIFFOpen(tmpl, mode);
+    TIFFFlushData(tif);
 
     // Clean up
-    if (tiff != NULL) {
-        TIFFClose(tiff);
-    }
-    unlink(tmpl); // Delete the temporary file
+    TIFFClose(tif);
+    remove(tmpl);
 
     return 0;
 }

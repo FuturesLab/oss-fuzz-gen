@@ -1,33 +1,27 @@
+#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <ucl.h>
-
-// Dummy destructor function
-void dummy_dtor(void *data) {
-    // Do nothing
-}
-
-// Dummy emitter function
-void dummy_emitter(void *data) {
-    // Do nothing
-}
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure that the data is not NULL
-    if (data == NULL || size == 0) {
-        return 0;
-    }
-
-    // Use the first byte of data as a dummy pointer value
-    void *user_data = (void *)(uintptr_t)data[0];
-
-    // Call the function-under-test
-    ucl_object_t *obj = ucl_object_new_userdata(dummy_dtor, dummy_emitter, user_data);
-
-    // Clean up
-    if (obj != NULL) {
-        ucl_object_unref(obj);
-    }
-
+  // Ensure that we have enough data to extract a ucl_type_t value
+  if (size < sizeof(ucl_type_t)) {
     return 0;
+  }
+
+  // Extract a ucl_type_t value from the input data
+  ucl_type_t type = *(const ucl_type_t *)data;
+
+  // Call the function-under-test
+  const char *result = ucl_object_type_to_string(type);
+
+  // Use the result in some way to prevent compiler optimizations from removing the call
+  if (result != NULL) {
+    // For example, we can check the length of the result string
+    size_t len = 0;
+    while (result[len] != '\0') {
+      len++;
+    }
+  }
+
+  return 0;
 }

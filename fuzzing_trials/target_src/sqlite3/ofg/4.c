@@ -1,46 +1,45 @@
 #include <stdint.h>
-#include <string.h>  // Include this for strlen
+#include <stddef.h>
 #include <sqlite3.h>
+
+// Dummy destructor_4 function to satisfy the function signature
+void dummy_destructor_4(void *ptr) {
+    // No operation performed
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
     sqlite3 *db;
     sqlite3_stmt *stmt;
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    const char *text = "sample text";
-    sqlite3_uint64 text_len = (sqlite3_uint64)strlen(text);
-    unsigned char encoding = SQLITE_UTF8;
-    int index = 1;
     int rc;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (data BLOB);";
 
-    // Open a new in-memory database connection
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a table
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    // Prepare a SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare an insert statement
-    const char *insert_sql = "INSERT INTO test (value) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Bind the input data as a blob to the SQL statement
+    rc = sqlite3_bind_blob64(stmt, 1, (const void *)data, (sqlite3_uint64)size, dummy_destructor_4);
 
-    // Call the function-under-test
-    sqlite3_bind_text64(stmt, index, text, text_len, SQLITE_STATIC, encoding);
-
-    // Finalize the statement
+    // Finalize the statement and close the database
     sqlite3_finalize(stmt);
-
-    // Close the database connection
     sqlite3_close(db);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

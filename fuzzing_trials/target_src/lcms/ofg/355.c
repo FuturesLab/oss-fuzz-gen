@@ -1,31 +1,33 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_355(const uint8_t *data, size_t size) {
+    // Initialize variables
     cmsHANDLE handle;
-    char **properties = NULL;
-    cmsUInt32Number result;
-    
-    // Initialize the handle with a default context
-    handle = cmsIT8LoadFromMem(NULL, data, size);
+    int row, col;
+    cmsFloat64Number result;
+
+    // Ensure the size is sufficient to extract row and col
+    if (size < sizeof(int) * 2) {
+        return 0;
+    }
+
+    // Initialize handle
+    handle = cmsIT8Alloc(NULL);
     if (handle == NULL) {
         return 0;
     }
 
+    // Extract row and col from data
+    row = *((int*)data);
+    col = *((int*)(data + sizeof(int)));
+
     // Call the function-under-test
-    result = cmsIT8EnumProperties(handle, &properties);
+    result = cmsIT8GetDataRowColDbl(handle, row, col);
 
     // Clean up
-    if (properties != NULL) {
-        for (cmsUInt32Number i = 0; i < result; i++) {
-            if (properties[i] != NULL) {
-                free(properties[i]);
-            }
-        }
-        free(properties);
-    }
     cmsIT8Free(handle);
 
     return 0;

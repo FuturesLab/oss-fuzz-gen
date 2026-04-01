@@ -1,22 +1,30 @@
 #include <cstdint>
-#include <cstddef>
-#include <cstring> // Include this for memcpy
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <cstdlib>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    if (size < sizeof(double)) {
-        return 0; // Ensure there is enough data for a double
+    // Ensure the input size is sufficient to create a TIFFFieldInfo
+    if (size < sizeof(TIFFFieldInfo)) {
+        return 0;
     }
 
-    double value;
-    // Copy the data into the double variable
-    memcpy(&value, data, sizeof(double));
+    // Initialize TIFF structure
+    TIFF *tiff = TIFFOpen("dummy.tif", "w");
+    if (tiff == nullptr) {
+        return 0;
+    }
 
-    // Call the function to fuzz
-    TIFFSwabDouble(&value);
+    // Use part of the input data to create a TIFFFieldInfo
+    const TIFFFieldInfo *fieldInfo = reinterpret_cast<const TIFFFieldInfo *>(data);
+
+    // Use the remaining data size as the count parameter
+    uint32_t count = static_cast<uint32_t>((size - sizeof(TIFFFieldInfo)) / sizeof(TIFFFieldInfo));
+
+    // Call the function-under-test
+    TIFFMergeFieldInfo(tiff, fieldInfo, count);
+
+    // Clean up
+    TIFFClose(tiff);
 
     return 0;
 }

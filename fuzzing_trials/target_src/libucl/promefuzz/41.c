@@ -1,79 +1,106 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_lookup at ucl_util.c:2673:1 in ucl.h
-// ucl_object_lookup at ucl_util.c:2673:1 in ucl.h
-// ucl_comments_add at ucl_util.c:3961:6 in ucl.h
-// ucl_comments_find at ucl_util.c:3925:1 in ucl.h
-// ucl_comments_find at ucl_util.c:3925:1 in ucl.h
-// ucl_comments_move at ucl_util.c:3936:6 in ucl.h
-#include <stdint.h>
+// ucl_object_emit at ucl_emitter.c:661:1 in ucl.h
+// ucl_object_tostring_safe at ucl_util.c:3507:6 in ucl.h
+// ucl_object_emit_len at ucl_emitter.c:667:1 in ucl.h
+// ucl_object_tolstring_safe at ucl_util.c:3546:6 in ucl.h
+// ucl_object_tostring at ucl_util.c:3527:1 in ucl.h
+// ucl_object_emit_full at ucl_emitter.c:694:6 in ucl.h
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
+#include <ucl.h>
 #include <stddef.h>
-#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include "ucl.h"
 
-static ucl_object_t* create_ucl_object(uint16_t type, const char *key, const char *value) {
+static ucl_object_t *create_dummy_ucl_object(const uint8_t *Data, size_t Size) {
     ucl_object_t *obj = malloc(sizeof(ucl_object_t));
-    if (obj == NULL) return NULL;
-    
-    obj->type = type;
-    obj->key = key;
-    obj->keylen = key ? strlen(key) : 0;
-    obj->value.sv = value;
-    obj->next = NULL;
-    obj->prev = NULL;
-    obj->len = 0;
-    obj->ref = 0;
-    obj->flags = 0;
-    obj->trash_stack[0] = NULL;
-    obj->trash_stack[1] = NULL;
-    
+    if (obj == NULL) {
+        return NULL;
+    }
+
+    obj->value.sv = (const char *)Data;
+    obj->len = (uint32_t)Size;
+    obj->type = UCL_STRING; // Assuming the data is a string for simplicity
+
     return obj;
 }
 
-static void destroy_ucl_object(ucl_object_t *obj) {
-    if (obj) {
-        free(obj);
-    }
+static int ucl_emitter_append_character(unsigned char c, size_t nchars, void *ud) {
+    return 0; // Dummy implementation
+}
+
+static int ucl_emitter_append_len(const unsigned char *str, size_t len, void *ud) {
+    return 0; // Dummy implementation
+}
+
+static int ucl_emitter_append_int(int64_t elt, void *ud) {
+    return 0; // Dummy implementation
+}
+
+static int ucl_emitter_append_double(double elt, void *ud) {
+    return 0; // Dummy implementation
+}
+
+static void ucl_emitter_free_func(void *ud) {
+    // Dummy implementation
 }
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create dummy UCL objects for testing
-    ucl_object_t *root = create_ucl_object(UCL_OBJECT, "root", NULL);
-    ucl_object_t *key1 = create_ucl_object(UCL_OBJECT, "key1", NULL);
-    ucl_object_t *key2 = create_ucl_object(UCL_OBJECT, "key2", NULL);
-
-    if (!root || !key1 || !key2) {
-        destroy_ucl_object(root);
-        destroy_ucl_object(key1);
-        destroy_ucl_object(key2);
+    if (Size == 0) {
         return 0;
     }
 
-    // Perform ucl_object_lookup
-    const ucl_object_t *lookup1 = ucl_object_lookup(root, "key1");
-    const ucl_object_t *lookup2 = ucl_object_lookup(root, "key2");
+    ucl_object_t *obj = create_dummy_ucl_object(Data, Size);
+    if (obj == NULL) {
+        return 0;
+    }
 
-    // Perform ucl_comments_add
-    ucl_comments_add(root, key1, "This is a comment for key1");
+    // Ensure the object is valid before using it
+    if (obj->value.sv == NULL || obj->len == 0) {
+        free(obj);
+        return 0;
+    }
 
-    // Perform ucl_comments_find
-    const ucl_object_t *comment1 = ucl_comments_find(root, key1);
-    const ucl_object_t *comment2 = ucl_comments_find(root, key2);
+    // Test ucl_object_emit
+    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
+    if (json_output != NULL) {
+        free(json_output);
+    }
 
-    // Perform ucl_comments_move
-    bool move_result = ucl_comments_move(root, key1, key2);
+    // Test ucl_object_tostring_safe
+    const char *safe_str = NULL;
+    ucl_object_tostring_safe(obj, &safe_str);
 
-    // Cleanup
-    destroy_ucl_object(root);
-    destroy_ucl_object(key1);
-    destroy_ucl_object(key2);
+    // Test ucl_object_emit_len
+    size_t len = 0;
+    unsigned char *json_output_len = ucl_object_emit_len(obj, UCL_EMIT_JSON, &len);
+    if (json_output_len != NULL) {
+        free(json_output_len);
+    }
 
+    // Test ucl_object_tolstring_safe
+    const char *tolstring_str = NULL;
+    size_t tolstring_len = 0;
+    ucl_object_tolstring_safe(obj, &tolstring_str, &tolstring_len);
+
+    // Test ucl_object_tostring
+    const char *unsafe_str = ucl_object_tostring(obj);
+
+    // Test ucl_object_emit_full
+    struct ucl_emitter_functions emitter = {
+        .ucl_emitter_append_character = ucl_emitter_append_character,
+        .ucl_emitter_append_len = ucl_emitter_append_len,
+        .ucl_emitter_append_int = ucl_emitter_append_int,
+        .ucl_emitter_append_double = ucl_emitter_append_double,
+        .ucl_emitter_free_func = ucl_emitter_free_func,
+        .ud = NULL
+    };
+
+    ucl_object_emit_full(obj, UCL_EMIT_JSON, &emitter, NULL);
+
+    free(obj);
     return 0;
 }

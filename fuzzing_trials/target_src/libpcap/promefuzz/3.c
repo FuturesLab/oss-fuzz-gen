@@ -1,18 +1,19 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_dead at pcap.c:4620:1 in pcap.h
-// pcap_setfilter at pcap.c:3872:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_create at pcap.c:2306:1 in pcap.h
+// pcap_set_timeout at pcap.c:2626:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_set_buffer_size at pcap.c:2689:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
+// pcap_activate at pcap.c:2759:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
 // pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_get_selectable_fd at pcap.c:3595:1 in pcap.h
-// pcap_get_required_select_timeout at pcap.c:3601:1 in pcap.h
-// pcap_setnonblock at pcap.c:3664:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_get_required_select_timeout at pcap.c:3601:1 in pcap.h
-// pcap_dispatch at pcap.c:2957:1 in pcap.h
-// pcap_get_required_select_timeout at pcap.c:3601:1 in pcap.h
-// pcap_dispatch at pcap.c:2957:1 in pcap.h
-// pcap_dispatch at pcap.c:2957:1 in pcap.h
+// pcap_statustostr at pcap.c:3719:1 in pcap.h
 // pcap_geterr at pcap.c:3614:1 in pcap.h
+// pcap_open at pcap-new.c:550:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_open_live at pcap.c:2813:1 in pcap.h
+// pcap_close at pcap.c:4247:1 in pcap.h
 // pcap_close at pcap.c:4247:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
@@ -20,75 +21,83 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/time.h>
 
-static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Dummy packet handler for pcap_dispatch
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file != NULL) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(struct bpf_program)) {
-        return 0;
-    }
+    if (Size < 1) return 0; // Ensure we have at least one byte for meaningful input
 
-    // Prepare a dummy pcap_t handle
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
-        return 0;
-    }
-
-    // Prepare a dummy bpf_program
-    struct bpf_program fp;
-    fp.bf_len = 0;
-    fp.bf_insns = NULL;
-
-    // Invoke pcap_setfilter
-    int res = pcap_setfilter(handle, &fp);
-    if (res != 0) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Invoke pcap_geterr
-    char *err = pcap_geterr(handle);
-
-    // Invoke pcap_get_selectable_fd
-    int fd = pcap_get_selectable_fd(handle);
-
-    // Invoke pcap_get_required_select_timeout
-    const struct timeval *timeout = pcap_get_required_select_timeout(handle);
-
-    // Invoke pcap_setnonblock
     char errbuf[PCAP_ERRBUF_SIZE];
-    res = pcap_setnonblock(handle, 1, errbuf);
-    if (res != 0) {
+    pcap_t *handle = NULL;
+    int status = 0;
+
+    // Write data to dummy file if needed
+    write_dummy_file(Data, Size);
+
+    // Step 1: pcap_statustostr
+    const char *status_str = pcap_statustostr(Data[0]);
+    (void)status_str; // Use the status string
+
+    // Step 2: pcap_set_timeout
+    handle = pcap_create("any", errbuf);
+    if (handle != NULL) {
+        status = pcap_set_timeout(handle, (int)Data[0]);
+
+        // Step 3: pcap_statustostr
+        status_str = pcap_statustostr(status);
+        (void)status_str;
+
+        // Step 4: pcap_set_buffer_size
+        status = pcap_set_buffer_size(handle, (int)Data[0]);
+
+        // Step 5: pcap_statustostr
+        status_str = pcap_statustostr(status);
+        (void)status_str;
+
+        // Step 6: pcap_activate
+        status = pcap_activate(handle);
+
+        // Step 7: pcap_statustostr
+        status_str = pcap_statustostr(status);
+        (void)status_str;
+
+        // Step 8: pcap_geterr
+        char *error_msg = pcap_geterr(handle);
+        (void)error_msg;
+
+        // Step 9: pcap_statustostr
+        status_str = pcap_statustostr(status);
+        (void)status_str;
+
+        // Step 10: pcap_geterr
+        error_msg = pcap_geterr(handle);
+        (void)error_msg;
+
+        // Step 11: pcap_open
+        pcap_t *open_handle = pcap_open("./dummy_file", 65535, PCAP_OPENFLAG_PROMISCUOUS, 1000, NULL, errbuf);
+        if (open_handle) {
+            pcap_close(open_handle);
+        }
+
+        // Step 12: pcap_open_live
+        open_handle = pcap_open_live("any", 65535, 1, 1000, errbuf);
+        if (open_handle) {
+            pcap_close(open_handle);
+        }
+
+        // Cleanup
         pcap_close(handle);
-        return 0;
     }
-
-    // Re-invoke pcap_get_required_select_timeout
-    timeout = pcap_get_required_select_timeout(handle);
-
-    // Invoke pcap_dispatch
-    res = pcap_dispatch(handle, 10, dummy_packet_handler, NULL);
-
-    // Re-invoke pcap_get_required_select_timeout
-    timeout = pcap_get_required_select_timeout(handle);
-
-    // Re-invoke pcap_dispatch
-    res = pcap_dispatch(handle, 10, dummy_packet_handler, NULL);
-
-    // Re-invoke pcap_dispatch
-    res = pcap_dispatch(handle, 10, dummy_packet_handler, NULL);
-
-    // Re-invoke pcap_geterr
-    err = pcap_geterr(handle);
-
-    // Cleanup
-    pcap_close(handle);
 
     return 0;
 }

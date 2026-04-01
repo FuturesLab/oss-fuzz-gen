@@ -1,28 +1,40 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    // Ensure that size is large enough to extract an int
-    if (size < sizeof(int)) {
+    pcap_t *pcap_handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    struct bpf_program fp;
+    struct pcap_pkthdr header;
+    const u_char *packet;
+
+    // Initialize the pcap handle with a dummy device and error buffer
+    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
+    if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Extract an int from the data
-    int dlt_value = 0;
-    for (size_t i = 0; i < sizeof(int); i++) {
-        dlt_value |= data[i] << (i * 8);
+    // Compile a dummy filter
+    if (pcap_compile(pcap_handle, &fp, "tcp", 0, PCAP_NETMASK_UNKNOWN) == -1) {
+        pcap_close(pcap_handle);
+        return 0;
     }
+
+    // Apply the filter to the input data
+    packet = data;
+    header.len = size;
+    header.caplen = size;
+    pcap_offline_filter(&fp, &header, packet);
+
+    // Free the compiled filter
+    pcap_freecode(&fp);
 
     // Call the function-under-test
-    const char *description = pcap_datalink_val_to_description_or_dlt(dlt_value);
+    pcap_breakloop(pcap_handle);
 
-    // Use the description in some way to prevent compiler optimization issues
-    if (description != NULL) {
-        // For example, just check the first character
-        volatile char first_char = description[0];
-        (void)first_char;  // Prevent unused variable warning
-    }
+    // Clean up
+    pcap_close(pcap_handle);
 
     return 0;
 }

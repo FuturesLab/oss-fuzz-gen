@@ -1,35 +1,41 @@
 #include <stdint.h>
-#include <stddef.h> // Include this for size_t
+#include <stddef.h>  // Include for size_t and NULL
 #include <sqlite3.h>
 
-extern int LLVMFuzzerTestOneInput_386(const uint8_t *data, size_t size) {
-    // Initialize SQLite
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0;
-    }
-
-    // Create an in-memory SQLite database
+int LLVMFuzzerTestOneInput_386(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
+    sqlite3_stmt *stmt;
+    int rc;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER); INSERT INTO test (id) VALUES (?);";
+
+    // Open a new in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a SQL statement using the fuzzed data
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL) == SQLITE_OK) {
-        // Execute the statement
-        sqlite3_step(stmt);
-        // Finalize the statement
-        sqlite3_finalize(stmt);
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Close the database
+    // Extract an integer from the input data to use as a parameter
+    int param_value = 0;
+    if (size >= sizeof(int)) {
+        param_value = *((int *)data);
+    }
+
+    // Bind the integer parameter to the SQL statement
+    sqlite3_bind_int(stmt, 1, param_value);
+
+    // Execute the SQL statement
+    sqlite3_step(stmt);
+
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
-    // Shutdown SQLite
-    int result = sqlite3_shutdown();
-
-    // Use result in some way if needed, here we just return it
-    return result;
+    return 0;
 }

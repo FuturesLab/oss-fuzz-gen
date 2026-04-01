@@ -1,71 +1,100 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
+// gf_isom_setup_track_fragment at movie_fragments.c:262:8 in isomedia.h
+// gf_isom_rtp_packet_set_flags at hint_track.c:579:8 in isomedia.h
+// gf_isom_hint_sample_data at hint_track.c:469:8 in isomedia.h
+// gf_isom_hint_direct_data at hint_track.c:441:8 in isomedia.h
+// gf_isom_hint_blank_data at hint_track.c:414:8 in isomedia.h
+// gf_isom_add_user_data_boxes at isom_write.c:3856:8 in isomedia.h
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_modify_edit at isom_write.c:2894:8 in isomedia.h
-// gf_isom_patch_last_sample_duration at isom_write.c:1425:8 in isomedia.h
-// gf_isom_get_edit at isom_read.c:2560:8 in isomedia.h
-// gf_isom_set_traf_mss_timeext at movie_fragments.c:2563:8 in isomedia.h
-// gf_isom_set_media_creation_time at isom_write.c:242:8 in isomedia.h
-// gf_isom_get_chunk_info at isom_read.c:6325:8 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
-#include <stdint.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
+#define DUMMY_FILE_PATH "./dummy_file"
+
+// Function prototypes for helper functions
+static GF_ISOFile* initialize_iso_file();
+static void cleanup_iso_file(GF_ISOFile* isom_file);
+static void write_dummy_data_to_file(const char* filepath, const uint8_t* data, size_t size);
 
 int LLVMFuzzerTestOneInput_255(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3 + sizeof(u64) * 9) {
+    if (Size < 18) {
         return 0;
     }
 
-    write_dummy_file(Data, Size);
-
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    // Initialize the ISO file
+    GF_ISOFile* isom_file = initialize_iso_file();
     if (!isom_file) {
         return 0;
     }
 
-    u32 trackNumber = *(u32 *)Data;
-    u32 edit_index = *(u32 *)(Data + sizeof(u32));
-    u64 EditDuration = *(u64 *)(Data + sizeof(u32) * 2);
-    u64 MediaTime = *(u64 *)(Data + sizeof(u32) * 2 + sizeof(u64));
-    GF_ISOEditType EditMode = *(GF_ISOEditType *)(Data + sizeof(u32) * 2 + sizeof(u64) * 2);
+    // Write dummy data to file
+    write_dummy_data_to_file(DUMMY_FILE_PATH, Data, Size);
 
-    gf_isom_modify_edit(isom_file, trackNumber, edit_index, EditDuration, MediaTime, EditMode);
+    // Prepare dummy values for the API functions
+    GF_ISOTrackID track_id = Data[0];
+    u32 default_sample_description_index = Data[1];
+    u32 default_sample_duration = Data[2];
+    u32 default_sample_size = Data[3];
+    u8 default_sample_sync_flags = Data[4];
+    u8 default_sample_padding = Data[5];
+    u16 default_degradation_priority = Data[6];
+    Bool force_traf_flags = Data[7] % 2;
 
-    u64 next_dts = *(u64 *)(Data + sizeof(u32) * 2 + sizeof(u64) * 3);
-    gf_isom_patch_last_sample_duration(isom_file, trackNumber, next_dts);
+    u32 track_number = Data[8];
+    u8 packing_bit = Data[9] % 2;
+    u8 extension_bit = Data[10] % 2;
+    u8 marker_bit = Data[11] % 2;
+    u8 disposable_packet = Data[12] % 2;
+    u8 is_repeated_packet = Data[13] % 2;
 
-    u64 EditTime, SegmentDuration, MediaTimeOut;
-    GF_ISOEditType EditModeOut;
-    gf_isom_get_edit(isom_file, trackNumber, edit_index, &EditTime, &SegmentDuration, &MediaTimeOut, &EditModeOut);
+    u32 sample_number = Data[14];
+    u16 data_length = Data[15];
+    u32 offset_in_sample = Data[16];
+    u8 at_begin = Data[17] % 2;
 
-    GF_ISOTrackID reference_track_ID = *(GF_ISOTrackID *)(Data + sizeof(u32) * 2 + sizeof(u64) * 4);
-    u64 decode_traf_time = *(u64 *)(Data + sizeof(u32) * 2 + sizeof(u64) * 5);
-    u64 traf_duration = *(u64 *)(Data + sizeof(u32) * 2 + sizeof(u64) * 6);
-    gf_isom_set_traf_mss_timeext(isom_file, reference_track_ID, decode_traf_time, traf_duration);
+    u8 extra_data[14];
+    size_t extra_data_size = (Size > 32) ? 14 : Size - 18;
+    memcpy(extra_data, Data + 18, extra_data_size);
 
-    u64 create_time = *(u64 *)(Data + sizeof(u32) * 2 + sizeof(u64) * 7);
-    u64 modif_time = *(u64 *)(Data + sizeof(u32) * 2 + sizeof(u64) * 8);
-    gf_isom_set_media_creation_time(isom_file, trackNumber, create_time, modif_time);
+    // Call the target API functions with diverse inputs
+    gf_isom_setup_track_fragment(isom_file, track_id, default_sample_description_index, default_sample_duration, default_sample_size, default_sample_sync_flags, default_sample_padding, default_degradation_priority, force_traf_flags);
 
-    if (Size >= sizeof(u32) * 4 + sizeof(u64) * 9) {
-        u32 chunkNumber = *(u32 *)(Data + sizeof(u32) * 3 + sizeof(u64) * 9);
-        u64 chunk_offset;
-        u32 first_sample_num, sample_per_chunk, sample_desc_idx, cache_1 = 0, cache_2 = 0;
-        gf_isom_get_chunk_info(isom_file, trackNumber, chunkNumber, &chunk_offset, &first_sample_num, &sample_per_chunk, &sample_desc_idx, &cache_1, &cache_2);
-    }
+    gf_isom_rtp_packet_set_flags(isom_file, track_number, packing_bit, extension_bit, marker_bit, disposable_packet, is_repeated_packet);
 
-    gf_isom_close(isom_file);
+    gf_isom_hint_sample_data(isom_file, track_number, track_id, sample_number, data_length, offset_in_sample, extra_data, at_begin);
+
+    gf_isom_hint_direct_data(isom_file, track_number, extra_data, extra_data_size, at_begin);
+
+    gf_isom_hint_blank_data(isom_file, track_number, at_begin);
+
+    gf_isom_add_user_data_boxes(isom_file, track_number, extra_data, extra_data_size);
+
+    // Cleanup
+    cleanup_iso_file(isom_file);
+
     return 0;
+}
+
+static GF_ISOFile* initialize_iso_file() {
+    GF_ISOFile* isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_WRITE, NULL);
+    return isom_file;
+}
+
+static void cleanup_iso_file(GF_ISOFile* isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
+    }
+}
+
+static void write_dummy_data_to_file(const char* filepath, const uint8_t* data, size_t size) {
+    FILE* file = fopen(filepath, "wb");
+    if (file) {
+        fwrite(data, 1, size, file);
+        fclose(file);
+    }
 }

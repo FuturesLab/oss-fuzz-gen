@@ -1,60 +1,34 @@
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
 #include <sqlite3.h>
+#include <stdlib.h>
+
+// Forward declaration of a function to create a valid sqlite3_stmt object
+sqlite3_stmt* create_valid_stmt_107();
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    sqlite3 *src_db = NULL;
-    sqlite3 *dest_db = NULL;
-    sqlite3_backup *backup = NULL;
-    int pages = -1; // Use -1 to copy all pages
-    int rc;
-    char *errMsg = NULL;
+    sqlite3_stmt *stmt = create_valid_stmt_107();
+    
+    if (stmt != NULL) {
+        // Call the function-under-test
+        int result = sqlite3_expired(stmt);
 
-    // Open source and destination databases in memory
-    rc = sqlite3_open(":memory:", &src_db);
-    if (rc != SQLITE_OK) {
-        return 0;
+        // Clean up
+        sqlite3_finalize(stmt);
     }
-
-    rc = sqlite3_open(":memory:", &dest_db);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(src_db);
-        return 0;
-    }
-
-    // Create a table and insert some data into the source database
-    rc = sqlite3_exec(src_db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(src_db);
-        sqlite3_close(dest_db);
-        return 0;
-    }
-
-    // Insert data into the table
-    rc = sqlite3_exec(src_db, "INSERT INTO test (value) VALUES ('Hello, World!');", NULL, NULL, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(src_db);
-        sqlite3_close(dest_db);
-        return 0;
-    }
-
-    // Create a backup object
-    backup = sqlite3_backup_init(dest_db, "main", src_db, "main");
-    if (backup == NULL) {
-        sqlite3_close(src_db);
-        sqlite3_close(dest_db);
-        return 0;
-    }
-
-    // Call the function-under-test
-    sqlite3_backup_step(backup, pages);
-
-    // Cleanup
-    sqlite3_backup_finish(backup);
-    sqlite3_close(src_db);
-    sqlite3_close(dest_db);
 
     return 0;
+}
+
+// Example implementation of create_valid_stmt_107
+sqlite3_stmt* create_valid_stmt_107() {
+    sqlite3 *db;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql = "SELECT 1";
+
+    if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
+        sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    }
+
+    // We don't close the database here because the statement needs to be valid
+    return stmt;
 }

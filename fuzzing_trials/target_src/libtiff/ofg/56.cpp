@@ -1,14 +1,12 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h>  // Include this for the 'close' function
-
 extern "C" {
     #include <tiffio.h>
+    #include <unistd.h>
+    #include <fcntl.h>
+    #include <stdlib.h> // Include this for mkstemp
 }
 
 extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the data
+    // Create a temporary file to hold the TIFF data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
@@ -16,26 +14,26 @@ extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
     }
 
     // Write the input data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
+    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
         close(fd);
+        unlink(tmpl);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    close(fd);
 
-    // Open the temporary file as a TIFF image
+    // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        uint64_t result = TIFFRasterScanlineSize64(tiff);
-
-        // Close the TIFF file
-        TIFFClose(tiff);
+    if (tiff == nullptr) {
+        unlink(tmpl);
+        return 0;
     }
 
-    // Remove the temporary file
-    remove(tmpl);
+    // Call the function-under-test
+    uint32_t tile = TIFFCurrentTile(tiff);
+
+    // Clean up
+    TIFFClose(tiff);
+    unlink(tmpl);
 
     return 0;
 }

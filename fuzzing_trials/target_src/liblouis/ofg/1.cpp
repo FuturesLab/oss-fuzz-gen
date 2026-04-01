@@ -6,9 +6,9 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Since lou_logEnd() does not take any parameters and does not return any value,
-    // we simply call the function to fuzz it.
+    // The function lou_logEnd does not take any parameters and does not return a value.
+    // It is a simple function call.
     lou_logEnd();
-    
+
     return 0;
 }

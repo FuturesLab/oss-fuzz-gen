@@ -1,28 +1,31 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include <gpac/isomedia.h>
+#include <stdlib.h>
+
+// Assuming the function returns an integer and takes a uint32_t as a parameter
+int gf_isom_get_supported_box_type(uint32_t idx);
 
 int LLVMFuzzerTestOneInput_146(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    u32 trackNumber = 1; // Assume a valid track number
-    const char *xmlnamespace = "urn:example:namespace";
-    const char *xml_schema_loc = "http://example.com/schema.xsd";
-    const char *mimes = "application/xml";
-    u32 outDescriptionIndex = 0;
-
-    // Ensure the movie is not NULL
-    if (movie == NULL) {
+    // Ensure there is enough data to read an index
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Call the function under test
-    gf_isom_new_xml_subtitle_description(movie, trackNumber, xmlnamespace, xml_schema_loc, mimes, &outDescriptionIndex);
+    // Extract the index from the input data
+    uint32_t idx;
+    memcpy(&idx, data, sizeof(uint32_t));
 
-    // Clean up
-    gf_isom_close(movie);
+    // Ensure the index is within a valid range if applicable
+    // Assuming there is a maximum index value, e.g., MAX_INDEX
+    // Define MAX_INDEX based on the expected range of idx
+    const uint32_t MAX_INDEX = 1000; // Example value, adjust as needed
+    if (idx > MAX_INDEX) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    gf_isom_get_supported_box_type(idx);
 
     return 0;
 }

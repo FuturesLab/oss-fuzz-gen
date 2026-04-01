@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_set_generic_protection at drm_sample.c:626:8 in isomedia.h
-// gf_isom_get_ismacryp_info at drm_sample.c:257:8 in isomedia.h
-// gf_isom_sdp_get at hint_track.c:909:8 in isomedia.h
-// gf_isom_new_external_track at isom_write.c:869:5 in isomedia.h
-// gf_isom_get_xml_metadata_description at sample_descs.c:1166:8 in isomedia.h
-// gf_isom_probe_file at isom_read.c:189:5 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_get_webvtt_config at sample_descs.c:1577:13 in isomedia.h
+// gf_isom_apply_box_patch at isom_write.c:8665:8 in isomedia.h
+// gf_isom_set_ismacryp_protection at drm_sample.c:559:8 in isomedia.h
+// gf_isom_get_payt_info at hint_track.c:994:13 in isomedia.h
+// gf_isom_get_track_kind at isom_read.c:1157:8 in isomedia.h
+// gf_isom_is_external_track at isom_read.c:6656:6 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -14,63 +14,70 @@
 #include <stdio.h>
 #include "isomedia.h"
 
+static GF_ISOFile* create_dummy_iso_file() {
+    // Allocate memory for the GF_ISOFile using a generic pointer
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isom_file;
+}
+
+static void cleanup_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
+    }
+}
+
 int LLVMFuzzerTestOneInput_55(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure there's enough data for operations
+    GF_ISOFile *isom_file = create_dummy_iso_file();
+    if (!isom_file) return 0;
 
-    // Create a dummy GF_ISOFile object
-    GF_ISOFile* iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    if (!iso_file) return 0;
+    // Dummy track number and description index
+    u32 trackNumber = 1;
+    u32 sampleDescriptionIndex = 1;
 
-    // Prepare dummy variables for function calls
-    u32 trackNumber = Data[0];
-    u32 sampleDescriptionIndex = Data[1];
-    u32 scheme_type = Data[2];
-    u32 scheme_version = Data[3];
-    char scheme_uri[256];
-    char kms_URI[256];
-    snprintf(scheme_uri, sizeof(scheme_uri), "http://example.com/scheme/%d", Data[0]);
-    snprintf(kms_URI, sizeof(kms_URI), "http://example.com/kms/%d", Data[1]);
-
-    // Call gf_isom_set_generic_protection
-    gf_isom_set_generic_protection(iso_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, scheme_uri, kms_URI);
-
-    // Prepare output variables for gf_isom_get_ismacryp_info
-    u32 outOriginalFormat, outSchemeType, outSchemeVersion, outIVLength, outKeyIndicationLength;
-    const char *outSchemeURI, *outKMS_URI;
-    Bool outSelectiveEncryption;
-
-    // Call gf_isom_get_ismacryp_info
-    gf_isom_get_ismacryp_info(iso_file, trackNumber, sampleDescriptionIndex, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outSchemeURI, &outKMS_URI, &outSelectiveEncryption, &outIVLength, &outKeyIndicationLength);
-
-    // Prepare output variables for gf_isom_sdp_get
-    const char *sdp;
-    u32 length;
-
-    // Call gf_isom_sdp_get
-    gf_isom_sdp_get(iso_file, &sdp, &length);
-
-    // Call gf_isom_new_external_track
-    gf_isom_new_external_track(iso_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, scheme_uri);
-
-    // Prepare output variables for gf_isom_get_xml_metadata_description
-    const char *xmlnamespace, *schema_loc, *content_encoding;
-
-    // Call gf_isom_get_xml_metadata_description
-    gf_isom_get_xml_metadata_description(iso_file, trackNumber, sampleDescriptionIndex, &xmlnamespace, &schema_loc, &content_encoding);
-
-    // Prepare dummy file name for gf_isom_probe_file
-    const char* fileName = "./dummy_file";
-    FILE *file = fopen(fileName, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    // Fuzzing gf_isom_get_webvtt_config
+    const char *webvtt_config = gf_isom_get_webvtt_config(isom_file, trackNumber, sampleDescriptionIndex);
+    if (webvtt_config) {
+        // Normally process the config string
     }
 
-    // Call gf_isom_probe_file
-    gf_isom_probe_file(fileName);
+    // Fuzzing gf_isom_apply_box_patch
+    FILE *patch_file = fopen("./dummy_file", "wb");
+    if (patch_file) {
+        fwrite(Data, 1, Size, patch_file);
+        fclose(patch_file);
+    }
+    GF_Err apply_box_patch_err = gf_isom_apply_box_patch(isom_file, trackNumber, "./dummy_file", 0);
 
-    // Cleanup
-    gf_isom_close(iso_file);
+    // Fuzzing gf_isom_set_ismacryp_protection
+    u32 scheme_type = 0x69614543; // 'iAEC' for ISMACryp
+    u32 scheme_version = 1;
+    char *scheme_uri = "http://example.com/scheme";
+    char *kms_URI = "http://example.com/kms";
+    Bool selective_encryption = 1;
+    u32 KI_length = 16;
+    u32 IV_length = 16;
+    GF_Err ismacryp_protection_err = gf_isom_set_ismacryp_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, scheme_uri, kms_URI, selective_encryption, KI_length, IV_length);
 
+    // Fuzzing gf_isom_get_payt_info
+    u32 payID;
+    const char *payt_info = gf_isom_get_payt_info(isom_file, trackNumber, 1, &payID);
+    if (payt_info) {
+        // Normally process the payt info string
+    }
+
+    // Fuzzing gf_isom_get_track_kind
+    char *scheme = NULL;
+    char *value = NULL;
+    GF_Err track_kind_err = gf_isom_get_track_kind(isom_file, trackNumber, 1, &scheme, &value);
+    if (scheme) free(scheme);
+    if (value) free(value);
+
+    // Fuzzing gf_isom_is_external_track
+    GF_ISOTrackID tkid;
+    u32 type, flags;
+    const char *location;
+    Bool is_external = gf_isom_is_external_track(isom_file, trackNumber, &tkid, &type, &flags, &location);
+
+    cleanup_iso_file(isom_file);
     return 0;
 }

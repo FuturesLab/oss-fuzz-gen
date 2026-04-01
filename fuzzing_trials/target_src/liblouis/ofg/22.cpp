@@ -1,27 +1,24 @@
-extern "C" {
-    #include <stddef.h>
-    #include <stdint.h>
-    #include <stdlib.h>
-    #include <string.h> // Include string.h for memcpy
-    #include "/src/liblouis/liblouis/liblouis.h" // Correct path for the header file
-}
+#include <cstdint>
+#include <cstdlib>
+
+// Assuming logLevels is an enum or a similar type
+typedef int logLevels;
+
+// Function prototype for the function-under-test
+extern "C" void lou_setLogLevel(logLevels level);
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated for safe string operations
-    char *inputData = (char *)malloc(size + 1);
-    if (inputData == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(inputData, data, size);
-    inputData[size] = '\0'; // Null-terminate the input data
+    // Declare and initialize logLevel variable
+    logLevels level = 0;
 
-    int resultValue = 0; // Initialize the integer pointer
+    // Make sure the size is large enough to extract a log level
+    if (size >= sizeof(logLevels)) {
+        // Copy the data into the logLevels variable
+        level = *reinterpret_cast<const logLevels*>(data);
+    }
 
     // Call the function-under-test
-    int result = lou_readCharFromFile(inputData, &resultValue);
+    lou_setLogLevel(level);
 
-    // Clean up allocated memory
-    free(inputData);
-
-    return 0; // Return 0 to indicate successful execution
+    return 0;
 }

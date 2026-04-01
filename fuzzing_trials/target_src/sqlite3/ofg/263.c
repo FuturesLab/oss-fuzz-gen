@@ -1,33 +1,37 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <sqlite3.h>
 
-// Fuzzing harness for the function sqlite3_changes
-#ifdef __cplusplus
-extern "C" {
-#endif
-    int LLVMFuzzerTestOneInput_263(const uint8_t *data, size_t size) {
-        sqlite3 *db = NULL;
-        int rc;
-        
-        // Open an in-memory SQLite database
-        rc = sqlite3_open(":memory:", &db);
-        if (rc != SQLITE_OK) {
-            return 0;
-        }
-        
-        // Execute a simple SQL statement to ensure the database is in a valid state
-        const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-        sqlite3_exec(db, sql, 0, 0, 0);
-        
-        // Call the function-under-test
-        int changes = sqlite3_changes(db);
-        
-        // Close the database connection
-        sqlite3_close(db);
-        
+int LLVMFuzzerTestOneInput_263(const uint8_t *data, size_t size) {
+    // Declare and initialize variables
+    double double_value = 0.0;
+
+    // Ensure that the size is sufficient to extract a double value
+    if (size < sizeof(double)) {
         return 0;
     }
-#ifdef __cplusplus
+
+    // Copy the data to the double_value
+    double_value = *(double*)data;
+
+    // Initialize a SQLite database connection
+    sqlite3 *db;
+    sqlite3_open(":memory:", &db);
+
+    // Prepare a dummy SQL statement to obtain a valid sqlite3_context
+    sqlite3_stmt *stmt;
+    sqlite3_prepare_v2(db, "SELECT ?", -1, &stmt, NULL);
+
+    // Bind the double value to the SQL statement
+    sqlite3_bind_double(stmt, 1, double_value);
+
+    // Execute the statement
+    sqlite3_step(stmt);
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
+    return 0;
 }
-#endif

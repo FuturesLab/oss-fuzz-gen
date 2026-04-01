@@ -1,23 +1,21 @@
 #include "ucl.h"
+#include <stdint.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-  // Avoid calling with size 0
-  if (size == 0) {
+  // Ensure the size is sufficient to extract an integer
+  if (size < sizeof(int)) {
     return 0;
   }
 
-  // Use the first byte of data to determine the integer parameter
-  int param = (int)data[0];
+  // Extract an integer from the data
+  int option = *(const int *)data;
 
   // Call the function-under-test
-  struct ucl_parser *parser = ucl_parser_new(param);
+  struct ucl_parser *parser = ucl_parser_new(option);
 
-  // Check if parser is not NULL
+  // Clean up by freeing the parser if it was successfully created
   if (parser != NULL) {
-    // Perform additional operations if needed
-    // ...
-
-    // Free the parser
     ucl_parser_free(parser);
   }
 

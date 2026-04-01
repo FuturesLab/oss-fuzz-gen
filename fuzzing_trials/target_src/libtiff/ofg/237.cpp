@@ -1,39 +1,33 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <unistd.h> // Include for close
+#include <tiffio.h>
 
 extern "C" {
-    #include <tiffio.h>
+    void TIFFXYZToRGB(TIFFCIELabToRGB *, float, float, float, uint32_t *, uint32_t *, uint32_t *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_237(const uint8_t *data, size_t size) {
-    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    if (size < sizeof(float) * 3 + sizeof(TIFFCIELabToRGB)) {
         return 0;
     }
 
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
+    // Initialize the TIFFCIELabToRGB structure
+    TIFFCIELabToRGB cielab;
+    cielab.range = 255; // Example initialization, adjust as needed
+    cielab.Y0 = 100.0f; // Example initialization, adjust as needed
+    cielab.X0 = 95.047f; // Example initialization, adjust as needed
+    cielab.Z0 = 108.883f; // Example initialization, adjust as needed
 
-    if (fwrite(data, 1, size, file) != size) {
-        fclose(file);
-        return 0;
-    }
-    fclose(file);
+    // Extract float values from the data
+    float X = *reinterpret_cast<const float*>(data);
+    float Y = *reinterpret_cast<const float*>(data + sizeof(float));
+    float Z = *reinterpret_cast<const float*>(data + 2 * sizeof(float));
 
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff) {
-        TIFFFlush(tiff);
-        TIFFClose(tiff);
-    }
+    // Initialize the output RGB values
+    uint32_t R, G, B;
 
-    remove(tmpl);
+    // Call the function-under-test
+    TIFFXYZToRGB(&cielab, X, Y, Z, &R, &G, &B);
+
     return 0;
 }

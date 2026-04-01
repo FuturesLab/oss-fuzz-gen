@@ -1,57 +1,59 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <tiffio.h>
-#include <unistd.h>  // For close
-#include <cstring>   // For memcpy
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include for 'write', 'close', 'unlink'
 
 extern "C" {
-    #include <tiffio.h>
+    // Include necessary C headers, source files, functions, and code here.
 }
 
 extern "C" int LLVMFuzzerTestOneInput_346(const uint8_t *data, size_t size) {
     TIFF *tiff;
-    uint32_t tileIndex = 0;
-    void *buffer;
-    tmsize_t bufferSize;
-
-    // Create a temporary file to use with TIFF
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
-    if (fd == -1) {
+
+    if (fd < 0) {
         return 0;
     }
-    FILE *file = fdopen(fd, "wb+");
-    if (!file) {
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
+        unlink(tmpl);  // Use 'unlink' instead of 'remove' for file removal
         return 0;
     }
 
-    // Initialize TIFF structure
-    tiff = TIFFOpen(tmpl, "w");
-    if (!tiff) {
-        fclose(file);
+    // Close the file descriptor
+    close(fd);
+
+    // Open the TIFF file
+    tiff = TIFFOpen(tmpl, "r+");
+    if (tiff == NULL) {
+        unlink(tmpl);
         return 0;
     }
 
-    // Ensure the buffer is not NULL and has a valid size
-    if (size > 0) {
-        bufferSize = static_cast<tmsize_t>(size);
-        buffer = malloc(bufferSize);
-        if (buffer) {
-            memcpy(buffer, data, size);
-
-            // Call the function-under-test
-            TIFFWriteRawTile(tiff, tileIndex, buffer, bufferSize);
-
-            free(buffer);
-        }
+    // Prepare parameters for TIFFWriteRawTile
+    uint32_t tile = 0; // Assuming the first tile for fuzzing
+    void *buf = malloc(size);
+    if (buf == NULL) {
+        TIFFClose(tiff);
+        unlink(tmpl);
+        return 0;
     }
+    memcpy(buf, data, size);
+    tmsize_t bufsize = (tmsize_t)size;
+
+    // Call the function-under-test
+    TIFFWriteRawTile(tiff, tile, buf, bufsize);
 
     // Cleanup
+    free(buf);
     TIFFClose(tiff);
-    fclose(file);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }

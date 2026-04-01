@@ -1,36 +1,35 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsHANDLE handle;
-    char *propertyName;
-    cmsFloat64Number result;
+    // Define the number of input and output channels
+    const int numChannels = 3;
 
-    // Ensure size is sufficient for a null-terminated string
-    if (size < 1) return 0;
+    // Allocate memory for input and output arrays
+    cmsFloat32Number input[numChannels];
+    cmsFloat32Number output[numChannels];
 
-    // Create a dummy handle for testing
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) return 0;
-
-    // Allocate memory for the property name and ensure it's null-terminated
-    propertyName = (char *)malloc(size + 1);
-    if (propertyName == NULL) {
-        cmsIT8Free(handle);
-        return 0;
+    // Initialize input array with data from the fuzzer
+    for (int i = 0; i < numChannels; i++) {
+        if (i * sizeof(cmsFloat32Number) < size) {
+            input[i] = ((cmsFloat32Number *)data)[i];
+        } else {
+            input[i] = 0.0f; // Default value if not enough data
+        }
     }
-    memcpy(propertyName, data, size);
-    propertyName[size] = '\0';
+
+    // Create a dummy cmsPipeline for testing
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, numChannels, numChannels);
+    if (pipeline == NULL) {
+        return 0; // Exit if pipeline allocation fails
+    }
 
     // Call the function-under-test
-    result = cmsIT8GetPropertyDbl(handle, propertyName);
+    cmsPipelineEvalFloat(input, output, pipeline);
 
-    // Clean up
-    free(propertyName);
-    cmsIT8Free(handle);
+    // Free the allocated pipeline
+    cmsPipelineFree(pipeline);
 
     return 0;
 }

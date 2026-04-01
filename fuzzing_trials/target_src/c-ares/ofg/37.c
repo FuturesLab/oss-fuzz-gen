@@ -5,24 +5,27 @@
 #include <ares.h>
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-  /* Ensure that the data is large enough to fill ares_options */
-  if (size < sizeof(struct ares_options)) {
+  ares_channel channel; // Corrected type from ares_channel_t to ares_channel
+  int status = ares_init(&channel);
+  if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  /* Allocate memory for ares_options and copy data into it */
-  struct ares_options *options = (struct ares_options *)malloc(sizeof(struct ares_options));
-  if (options == NULL) {
+  /* Ensure the input data is null-terminated for use as a string */
+  char *csv = (char *)malloc(size + 1);
+  if (!csv) {
+    ares_destroy(channel);
     return 0;
   }
-  
-  memcpy(options, data, sizeof(struct ares_options));
+  memcpy(csv, data, size);
+  csv[size] = '\0';
 
-  /* Call the function under test */
-  ares_destroy_options(options);
+  // Call the function-under-test
+  ares_set_servers_ports_csv(channel, csv); // Corrected the parameter from &channel to channel
 
-  /* Free the allocated memory */
-  free(options);
+  // Clean up
+  free(csv);
+  ares_destroy(channel);
 
   return 0;
 }

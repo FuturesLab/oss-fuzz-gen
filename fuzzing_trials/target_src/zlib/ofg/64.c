@@ -1,43 +1,41 @@
 #include <stdint.h>
-#include <zlib.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <zlib.h>
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    gzFile file;
-    z_off64_t offset;
-    int whence;
-
-    // Ensure the size is sufficient to extract necessary parameters
-    if (size < sizeof(z_off64_t) + sizeof(int)) {
+    // Ensure the data size is sufficient for the test
+    if (size < sizeof(z_off_t) + sizeof(int)) {
         return 0;
     }
 
-    // Open a temporary gzipped file for writing
-    file = gzopen("temp.gz", "wb");
-    if (file == NULL) {
+    // Create a temporary file to be used as a gzFile
+    FILE *tempFile = tmpfile();
+    if (tempFile == NULL) {
         return 0;
     }
 
-    // Write data to the temporary gzipped file
-    gzwrite(file, data, size);
-    gzclose(file);
+    // Write data to the temporary file
+    fwrite(data, 1, size, tempFile);
+    rewind(tempFile);
 
-    // Reopen the file for reading
-    file = gzopen("temp.gz", "rb");
-    if (file == NULL) {
+    // Open the temporary file with gzopen
+    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
+    if (gzfile == NULL) {
+        fclose(tempFile);
         return 0;
     }
 
-    // Extract offset and whence from data
-    offset = *(z_off64_t *)(data);
-    whence = *(int *)(data + sizeof(z_off64_t));
+    // Extract z_off_t and int from the input data
+    z_off_t offset = *((z_off_t *)data);
+    int whence = *((int *)(data + sizeof(z_off_t)));
 
     // Call the function-under-test
-    gzseek(file, offset, whence);
+    z_off_t result = gzseek(gzfile, offset, whence);
 
-    // Close the file
-    gzclose(file);
+    // Clean up
+    gzclose(gzfile);
+    fclose(tempFile);
 
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }

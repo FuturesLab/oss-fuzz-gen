@@ -3,23 +3,25 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t file_id;
-    haddr_t eoa;
-
-    // Ensure that the size is sufficient for creating a file
-    if (size < 1) {
+    // Ensure we have enough data to extract a valid hid_t
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Create a new file using the core driver with a unique name
-    file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Extract a hid_t from the input data
+    hid_t file_id = *(const hid_t *)data;
 
-    // Call the function-under-test
-    herr_t status = H5Fget_eoa(file_id, &eoa);
+    // Initialize haddr_t variable
+    haddr_t address = 0;
 
-    // Close the file
-    H5Fclose(file_id);
+    // Call the function under test
+    herr_t result = H5Fget_eoa(file_id, &address);
+
+    // Use the result and address in some way to avoid compiler optimizations
+    // that might remove the call. Here, we just check if the result is negative.
+    if (result < 0) {
+        // Handle error case if needed
+    }
 
     return 0;
 }

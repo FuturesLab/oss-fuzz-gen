@@ -1,44 +1,43 @@
-#include <stdint.h>
 #include <zlib.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    gzFile file;
-    voidp buffer;
-    unsigned int len;
-    char filename[] = "/tmp/fuzz_gzread.gz";
-
-    // Create a temporary file with the input data
-    FILE *tempFile = fopen(filename, "wb");
+    // Create a temporary file to write the input data
+    FILE *tempFile = tmpfile();
     if (tempFile == NULL) {
         return 0;
     }
-    fwrite(data, 1, size, tempFile);
-    fclose(tempFile);
 
-    // Open the temporary file with gzopen
-    file = gzopen(filename, "rb");
-    if (file == NULL) {
+    // Write the input data to the temporary file
+    fwrite(data, 1, size, tempFile);
+    rewind(tempFile);
+
+    // Open the temporary file as a gzFile
+    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
+    if (gzfile == NULL) {
+        fclose(tempFile);
         return 0;
     }
 
-    // Allocate a buffer for reading
-    len = 1024;  // Example buffer size
-    buffer = malloc(len);
+    // Allocate a buffer to read data into
+    unsigned int bufferSize = 1024;
+    void *buffer = malloc(bufferSize);
     if (buffer == NULL) {
-        gzclose(file);
+        gzclose(gzfile);
+        fclose(tempFile);
         return 0;
     }
 
     // Call the function-under-test
-    gzread(file, buffer, len);
+    gzread(gzfile, buffer, bufferSize);
 
     // Clean up
     free(buffer);
-    gzclose(file);
-    remove(filename);
+    gzclose(gzfile);
+    fclose(tempFile);
 
     return 0;
 }

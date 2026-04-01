@@ -3,36 +3,33 @@
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
+    // Initialize the SQLite database connection and statement
     sqlite3 *db;
     sqlite3_stmt *stmt;
     int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER); INSERT INTO test (id) VALUES (NULL);";
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO test (value) VALUES (?);";
 
-    // Open an in-memory database
+    // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Execute the SQL statement to create the table
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare a statement to insert a NULL value
-    rc = sqlite3_prepare_v2(db, "INSERT INTO test (id) VALUES (?);", -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Ensure the index is within a valid range
+    int index = 1; // For this SQL, the first parameter index is 1
 
-    // Use the data to determine the index for binding
-    int index = size > 0 ? data[0] % 10 : 1;  // Ensure index is within a reasonable range
+    // Bind the input data as a text to the SQL statement
+    rc = sqlite3_bind_text(stmt, index, (const char *)data, size, SQLITE_TRANSIENT);
 
-    // Call the function-under-test
-    sqlite3_bind_null(stmt, index);
+    // Execute the SQL statement
+    rc = sqlite3_step(stmt);
 
     // Finalize the statement and close the database
     sqlite3_finalize(stmt);

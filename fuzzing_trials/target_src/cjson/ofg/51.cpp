@@ -12,32 +12,31 @@ int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size); /* required by 
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
   cJSON *json;
-  cJSON *item;
+  cJSON *array_item;
+  size_t offset = 4;
   int index;
 
-  if (size < 1) {
+  if (size <= offset)
+    return 0;
+  if (data[size - 1] != '\0')
+    return 0;
+
+  // Parse the input data as JSON
+  json = cJSON_ParseWithOpts((const char *)data + offset, NULL, 1);
+  if (json == NULL)
+    return 0;
+
+  // Ensure the JSON object is an array
+  if (!cJSON_IsArray(json)) {
+    cJSON_Delete(json);
     return 0;
   }
 
-  // Ensure the data is null-terminated for cJSON_Parse
-  unsigned char *null_terminated_data = (unsigned char *)malloc(size + 1);
-  if (null_terminated_data == NULL) {
-    return 0;
-  }
-  memcpy(null_terminated_data, data, size);
-  null_terminated_data[size] = '\0';
+  // Use the first 4 bytes of data to determine the index
+  index = (int)(data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24));
 
-  json = cJSON_Parse((const char *)null_terminated_data);
-  free(null_terminated_data);
-
-  if (json == NULL) {
-    return 0;
-  }
-
-  // Use the first byte of data to determine the index
-  index = (int)data[0];
-
-  item = cJSON_GetArrayItem(json, index);
+  // Get the array item at the specified index
+  array_item = cJSON_GetArrayItem(json, index);
 
   // Clean up
   cJSON_Delete(json);

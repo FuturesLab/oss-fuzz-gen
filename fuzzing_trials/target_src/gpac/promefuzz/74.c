@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_get_sidx_duration at isom_read.c:6196:8 in isomedia.h
-// gf_isom_append_edit at isom_write.c:2849:8 in isomedia.h
-// gf_isom_force_track_duration at isom_write.c:896:8 in isomedia.h
-// gf_isom_patch_last_sample_duration at isom_write.c:1425:8 in isomedia.h
-// gf_isom_set_media_timescale at isom_write.c:5276:8 in isomedia.h
-// gf_isom_set_traf_base_media_decode_time at movie_fragments.c:3443:8 in isomedia.h
+// gf_isom_reset_alt_brands_ex at isom_write.c:3646:8 in isomedia.h
+// gf_isom_remove_meta_item at meta.c:1879:8 in isomedia.h
+// gf_isom_disable_brand_rewrite at isom_write.c:3512:8 in isomedia.h
+// gf_isom_force_64bit_chunk_offset at isom_write.c:2669:8 in isomedia.h
+// gf_isom_reset_alt_brands at isom_write.c:3682:8 in isomedia.h
+// gf_isom_reset_track_switch_parameter at isom_write.c:6989:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -14,55 +14,54 @@
 #include <string.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE "./dummy_file"
-
-static GF_ISOFile* create_dummy_iso_file() {
-    // As we cannot allocate GF_ISOFile directly, assume a function exists to create it
-    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE, GF_ISOM_OPEN_WRITE, NULL);
-    return isom_file;
+static GF_ISOFile* create_dummy_isofile() {
+    // Assuming the third argument is a temporary directory, we pass NULL for default behavior.
+    GF_ISOFile* isofile = gf_isom_open("./dummy_file", GF_ISOM_WRITE_EDIT, NULL);
+    if (!isofile) return NULL;
+    return isofile;
 }
 
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
+static void cleanup_isofile(GF_ISOFile* isofile) {
+    if (isofile) {
+        // Assuming the library provides a function to close or free the ISO file
+        gf_isom_close(isofile);
     }
 }
 
 int LLVMFuzzerTestOneInput_74(const uint8_t *Data, size_t Size) {
-    // Create a dummy file to work with
-    FILE *file = fopen(DUMMY_FILE, "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    if (Size < 1) return 0;
 
-    GF_ISOFile *isom_file = create_dummy_iso_file();
-    if (!isom_file) return 0;
+    GF_ISOFile* isofile = create_dummy_isofile();
+    if (!isofile) return 0;
 
-    u64 sidx_dur;
-    u32 sidx_timescale;
-    gf_isom_get_sidx_duration(isom_file, &sidx_dur, &sidx_timescale);
+    // Fuzz gf_isom_reset_alt_brands_ex
+    Bool leave_empty = Data[0] % 2;
+    gf_isom_reset_alt_brands_ex(isofile, leave_empty);
 
-    u32 trackNumber = (Size > 4) ? *(u32 *)Data : 1;
-    u64 EditDuration = (Size > 12) ? *(u64 *)(Data + 4) : 1000;
-    u64 MediaTime = (Size > 20) ? *(u64 *)(Data + 12) : 0;
-    GF_ISOEditType EditMode = (Size > 24) ? *(GF_ISOEditType *)(Data + 20) : 0;
-    gf_isom_append_edit(isom_file, trackNumber, EditDuration, MediaTime, EditMode);
+    // Fuzz gf_isom_remove_meta_item
+    Bool root_meta = Data[0] % 2;
+    u32 track_num = (Size > 1) ? Data[1] : 0;
+    u32 item_num = (Size > 2) ? Data[2] : 0;
+    Bool keep_refs = (Size > 3) ? Data[3] % 2 : 0;
+    const char *keep_props = (Size > 4) ? (const char*)&Data[4] : NULL;
+    gf_isom_remove_meta_item(isofile, root_meta, track_num, item_num, keep_refs, keep_props);
 
-    u64 duration = (Size > 28) ? *(u64 *)(Data + 24) : 2000;
-    gf_isom_force_track_duration(isom_file, trackNumber, duration);
+    // Fuzz gf_isom_disable_brand_rewrite
+    Bool do_disable = Data[0] % 2;
+    gf_isom_disable_brand_rewrite(isofile, do_disable);
 
-    u64 next_dts = (Size > 36) ? *(u64 *)(Data + 32) : 3000;
-    gf_isom_patch_last_sample_duration(isom_file, trackNumber, next_dts);
+    // Fuzz gf_isom_force_64bit_chunk_offset
+    Bool set_on = Data[0] % 2;
+    gf_isom_force_64bit_chunk_offset(isofile, set_on);
 
-    u32 new_timescale = (Size > 40) ? *(u32 *)(Data + 36) : 600;
-    u32 new_tsinc = (Size > 44) ? *(u32 *)(Data + 40) : 0;
-    u32 force_rescale_type = (Size > 48) ? *(u32 *)(Data + 44) : 0;
-    gf_isom_set_media_timescale(isom_file, trackNumber, new_timescale, new_tsinc, force_rescale_type);
+    // Fuzz gf_isom_reset_alt_brands
+    gf_isom_reset_alt_brands(isofile);
 
-    GF_ISOTrackID TrackID = (Size > 52) ? *(GF_ISOTrackID *)(Data + 48) : 1;
-    u64 decode_time = (Size > 60) ? *(u64 *)(Data + 52) : 4000;
-    gf_isom_set_traf_base_media_decode_time(isom_file, TrackID, decode_time);
+    // Fuzz gf_isom_reset_track_switch_parameter
+    u32 trackNumber = (Size > 1) ? Data[1] : 0;
+    Bool reset_all_group = (Size > 2) ? Data[2] % 2 : 0;
+    gf_isom_reset_track_switch_parameter(isofile, trackNumber, reset_all_group);
 
-    cleanup_iso_file(isom_file);
+    cleanup_isofile(isofile);
     return 0;
 }

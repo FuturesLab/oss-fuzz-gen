@@ -1,37 +1,47 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitCompress();
-    const unsigned char *srcBuf = data;
-    int width = 16;  // Example width, must be a multiple of 8
-    int height = 16; // Example height, must be a multiple of 8
-    int strides = width; // Assuming strides equal to width for simplicity
-    int subsamp = TJSAMP_420; // Example subsampling
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    int jpegQual = 75; // Example JPEG quality
-    int flags = 0; // No flags
+    // Call the function-under-test
+    tjhandle handle = tjInitDecompress();
 
-    // Check if the handle was created successfully
+    // Check if the handle was successfully created
     if (handle == nullptr) {
+        return 0; // If initialization failed, return immediately
+    }
+
+    // Check if the input size is sufficient for a minimal JPEG header
+    if (size < 2) {
+        tjDestroy(handle);
         return 0;
     }
 
-    // Call the function-under-test
-    int result = tjCompressFromYUV(handle, srcBuf, width, strides, height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
+    // Variables to store decompressed image properties
+    int width, height, jpegSubsamp;
 
-    // Clean up resources
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
+    // Attempt to read the JPEG header
+    int headerResult = tjDecompressHeader2(handle, const_cast<unsigned char*>(data), size, &width, &height, &jpegSubsamp);
+
+    // If the header is valid, proceed with decompression
+    if (headerResult == 0) {
+        // Allocate buffer for decompressed image
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+
+        // Decompress the JPEG image
+        if (buffer != nullptr) {
+            tjDecompress2(handle, const_cast<unsigned char*>(data), size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
     }
+
+    // Clean up and free the decompression handle
     tjDestroy(handle);
 
     return 0;

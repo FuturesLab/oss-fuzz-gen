@@ -1,35 +1,54 @@
 #include <pcap.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <unistd.h> // For close()
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
+    // Initialize variables
+    pcap_t *pcap_handle = NULL;
+    FILE *file = NULL;
+    pcap_dumper_t *dumper = NULL;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = NULL;
-    struct bpf_program fp;
-    char filter_exp[] = "tcp"; // Example filter expression
+    char tmp_filename[] = "tempfileXXXXXX";
 
-    // Initialize the pcap handle
-    handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
+    // Create a temporary file
+    int fd = mkstemp(tmp_filename);
+    if (fd == -1) {
+        return 0;
+    }
+    file = fdopen(fd, "wb+");
+    if (file == NULL) {
+        close(fd);
         return 0;
     }
 
-    // Initialize the bpf_program structure
-    memset(&fp, 0, sizeof(fp));
+    // Write the input data to the temporary file
+    if (fwrite(data, 1, size, file) != size) {
+        fclose(file);
+        remove(tmp_filename);
+        return 0;
+    }
+    rewind(file);
 
-    // Compile the filter expression
-    if (pcap_compile(handle, &fp, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == -1) {
-        pcap_close(handle);
+    // Initialize pcap handle with dummy values
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (pcap_handle == NULL) {
+        fclose(file);
+        remove(tmp_filename);
         return 0;
     }
 
-    // Call the function-under-test
-    int result = pcap_setfilter(handle, &fp);
+    // Call the function under test
+    dumper = pcap_dump_fopen(pcap_handle, file);
 
     // Clean up
-    pcap_freecode(&fp);
-    pcap_close(handle);
+    if (dumper != NULL) {
+        pcap_dump_close(dumper);
+    }
+    pcap_close(pcap_handle);
+    fclose(file);
+    remove(tmp_filename);
 
     return 0;
 }

@@ -1,35 +1,60 @@
-#include <stdint.h>
 #include <sqlite3.h>
-#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_272(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
+    double result;
 
     // Initialize SQLite database in memory
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Execute a simple SQL statement to ensure there are changes
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);"
-                      "INSERT INTO test (value) VALUES ('sample');";
-    char *errMsg = NULL;
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Create a simple table
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER, value REAL);";
+    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // Call the function-under-test
-    int total_changes = sqlite3_total_changes(db);
-    printf("Total changes: %d\n", total_changes);
+    // Insert a row into the table
+    const char *insert_sql = "INSERT INTO test (id, value) VALUES (1, 3.14);";
+    rc = sqlite3_exec(db, insert_sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Clean up and close the database
+    // Prepare a statement to select the value
+    const char *select_sql = "SELECT value FROM test WHERE id = ?;";
+    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Bind the id parameter from the fuzzing input
+    if (size > 0) {
+        int id = data[0] % 256; // Use the first byte of data as the id
+        sqlite3_bind_int(stmt, 1, id);
+    }
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        // Call the function-under-test
+        result = sqlite3_column_double(stmt, 0);
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

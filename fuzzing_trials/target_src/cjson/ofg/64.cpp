@@ -1,46 +1,38 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../cJSON.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size); /* required by C89 */
+#include "../cJSON.h"
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-  cJSON *json;
-  char *buffer;
-  int buffer_size;
-  cJSON_bool formatted;
-
-  // Ensure the input is large enough to contain at least one character for JSON parsing
-  if (size < 2) {
-    return 0;
+  if (size < 4) {
+    return 0; // Ensure there's enough data for the parameters
   }
 
   // Parse the input data as a JSON object
-  json = cJSON_ParseWithLength((const char *)data, size);
+  cJSON *json = cJSON_ParseWithLength((const char *)data, size);
   if (json == NULL) {
-    return 0;
+    return 0; // Return if parsing fails
   }
 
-  // Set the buffer size to a reasonable value
-  buffer_size = (int)size + 1; // +1 for null termination
-
-  // Allocate memory for the buffer
-  buffer = (char *)malloc(buffer_size);
+  // Allocate a buffer for the output
+  int buffer_size = 256; // Example buffer size
+  char *buffer = (char *)malloc(buffer_size);
   if (buffer == NULL) {
     cJSON_Delete(json);
-    return 0;
+    return 0; // Return if memory allocation fails
   }
 
-  // Set the formatted flag based on the first byte of the input data
-  formatted = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
+  // Extract parameters from the input data
+  cJSON_bool formatted = (data[0] % 2 == 0) ? true : false; // Use first byte to determine formatting
 
   // Call the function-under-test
-  cJSON_PrintPreallocated(json, buffer, buffer_size, formatted);
+  cJSON_bool result = cJSON_PrintPreallocated(json, buffer, buffer_size, formatted);
 
   // Clean up
   free(buffer);

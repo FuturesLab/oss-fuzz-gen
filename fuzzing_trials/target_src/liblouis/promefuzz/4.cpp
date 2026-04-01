@@ -1,9 +1,9 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_setLogLevel at logging.c:143:1 in liblouis.h
-// lou_indexTables at metadata.c:945:1 in liblouis.h
-// lou_findTable at metadata.c:1063:1 in liblouis.h
-// lou_findTable at metadata.c:1063:1 in liblouis.h
-// lou_findTables at metadata.c:1110:1 in liblouis.h
+// lou_registerLogCallback at logging.c:86:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
+// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
+// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
+// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
 // lou_free at compileTranslationTable.c:5363:1 in liblouis.h
 #include <iostream>
 #include <sstream>
@@ -15,14 +15,13 @@
 #include <cstdint>
 #include <cstddef>
 #include <liblouis.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <fstream>
+#include <iostream>
 
-static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    std::ofstream file("./dummy_file", std::ios::binary);
-    file.write(reinterpret_cast<const char*>(Data), Size);
+static void customLogCallback(logLevels level, const char *message) {
+    std::cerr << "Log level: " << level << ", Message: " << message << std::endl;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
@@ -30,44 +29,49 @@ extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Set log level (assuming 0-3 as possible log levels for demonstration purposes)
-    logLevels level = static_cast<logLevels>(Data[0] % 4);
-    lou_setLogLevel(level);
+    // Ensure null-terminated tableList
+    char *tableList = new char[Size + 1];
+    memcpy(tableList, Data, Size);
+    tableList[Size] = '\0';
 
-    // Prepare dummy tables for indexing
-    const char *tables[] = { "./dummy_file", nullptr };
-    writeDummyFile(Data, Size);
-    lou_indexTables(tables);
+    widechar *inbuf = new widechar[Size];
+    int inlen = static_cast<int>(Size);
+    widechar *outbuf = new widechar[Size];
+    int outlen = static_cast<int>(Size);
+    formtype *typeform = new formtype[Size];
+    char *spacing = new char[Size];
 
-    // Use the rest of the data as a query string
-    char *query = new char[Size + 1];
-    memcpy(query, Data, Size);
-    query[Size] = '\0';
-
-    // Find table based on query
-    char *tableName = lou_findTable(query);
-    if (tableName) {
-        free(tableName);
+    // Initialize buffers with data
+    for (size_t i = 0; i < Size; ++i) {
+        inbuf[i] = static_cast<widechar>(Data[i]);
+        typeform[i] = static_cast<formtype>(Data[i] % 4); // Random typeform
+        spacing[i] = static_cast<char>(Data[i] % 2);      // Random spacing
     }
 
-    // Find table again to explore different states
-    tableName = lou_findTable(query);
-    if (tableName) {
-        free(tableName);
-    }
+    // Register a custom log callback
+    lou_registerLogCallback(customLogCallback);
 
-    // Find tables based on query
-    char **tableNames = lou_findTables(query);
-    if (tableNames) {
-        for (char **name = tableNames; *name != nullptr; ++name) {
-            free(*name);
-        }
-        free(tableNames);
-    }
+    // Check the table
+    lou_checkTable(tableList);
 
-    // Cleanup
+    // Free memory
     lou_free();
-    delete[] query;
+
+    // Free memory again to check for improper use
+    lou_free();
+
+    // Translate string
+    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, 0);
+
+    // Free memory
+    lou_free();
+
+    // Clean up
+    delete[] tableList;
+    delete[] inbuf;
+    delete[] outbuf;
+    delete[] typeform;
+    delete[] spacing;
 
     return 0;
 }

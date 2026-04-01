@@ -1,181 +1,103 @@
 // This fuzz driver is generated for library lcms, aiming to fuzz the following functions:
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreateMultiprofileTransform at cmsxform.c:1316:25 in lcms2.h
-// cmsDoTransformStride at cmsxform.c:211:16 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreateMultiprofileTransform at cmsxform.c:1316:25 in lcms2.h
-// cmsGetTransformOutputFormat at cmsxform.c:1437:27 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreate_sRGBProfile at cmsvirt.c:680:23 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreateMultiprofileTransform at cmsxform.c:1316:25 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreateProofingTransform at cmsxform.c:1398:25 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreateMultiprofileTransform at cmsxform.c:1316:25 in lcms2.h
-// cmsGetTransformInputFormat at cmsxform.c:1429:27 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCloseProfile at cmsio0.c:1585:20 in lcms2.h
-// cmsCreateMultiprofileTransform at cmsxform.c:1316:25 in lcms2.h
-// cmsDoTransform at cmsxform.c:192:16 in lcms2.h
-// cmsDeleteTransform at cmsxform.c:147:16 in lcms2.h
+// cmsCreateContext at cmsplugin.c:824:22 in lcms2.h
+// cmsBuildSegmentedToneCurve at cmsgamma.c:797:25 in lcms2.h
+// cmsBuildTabulatedToneCurve16 at cmsgamma.c:783:25 in lcms2.h
+// cmsBuildTabulatedToneCurveFloat at cmsgamma.c:832:25 in lcms2.h
+// cmsJoinToneCurve at cmsgamma.c:980:25 in lcms2.h
+// cmsReverseToneCurveEx at cmsgamma.c:1070:25 in lcms2.h
+// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
+// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
+// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
+// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
+// cmsFreeToneCurve at cmsgamma.c:916:16 in lcms2.h
+// cmsDeleteContext at cmsplugin.c:963:16 in lcms2.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
-#include "lcms2.h"
+#include <lcms2.h>
 
-static cmsHPROFILE createDummyProfile() {
-    // Create a dummy profile for testing
-    return cmsCreate_sRGBProfile();
+static cmsContext createContext() {
+    return cmsCreateContext(NULL, NULL);
 }
 
-static void fuzz_cmsCreateMultiprofileTransform(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    cmsUInt32Number nProfiles = Data[0] % 256; // 1 to 255 profiles
-    cmsHPROFILE hProfiles[255];
-    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
-        hProfiles[i] = createDummyProfile();
+static cmsCurveSegment* createCurveSegments(size_t nSegments) {
+    cmsCurveSegment* segments = (cmsCurveSegment*)malloc(nSegments * sizeof(cmsCurveSegment));
+    if (!segments) return NULL;
+    // Initialize segments with dummy data
+    for (size_t i = 0; i < nSegments; i++) {
+        segments[i].Type = 0; // Example type
+        segments[i].Params[0] = 1.0; // Example parameter
     }
-
-    cmsUInt32Number InputFormat = (Size > 1) ? Data[1] : 0;
-    cmsUInt32Number OutputFormat = (Size > 2) ? Data[2] : 0;
-    cmsUInt32Number Intent = (Size > 3) ? Data[3] : 0;
-    cmsUInt32Number dwFlags = (Size > 4) ? Data[4] : 0;
-
-    cmsHTRANSFORM transform = cmsCreateMultiprofileTransform(hProfiles, nProfiles, InputFormat, OutputFormat, Intent, dwFlags);
-
-    if (transform) {
-        cmsDeleteTransform(transform);
-    }
-
-    for (cmsUInt32Number i = 0; i < nProfiles; i++) {
-        cmsCloseProfile(hProfiles[i]);
-    }
+    return segments;
 }
 
-static void fuzz_cmsCreateProofingTransform(const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-
-    cmsHPROFILE Input = createDummyProfile();
-    cmsHPROFILE Output = createDummyProfile();
-    cmsHPROFILE Proofing = createDummyProfile();
-
-    cmsUInt32Number InputFormat = Data[0];
-    cmsUInt32Number OutputFormat = Data[1];
-    cmsUInt32Number Intent = Data[2];
-    cmsUInt32Number ProofingIntent = (Size > 3) ? Data[3] : 0;
-    cmsUInt32Number dwFlags = (Size > 4) ? Data[4] : 0;
-
-    cmsHTRANSFORM transform = cmsCreateProofingTransform(Input, InputFormat, Output, OutputFormat, Proofing, Intent, ProofingIntent, dwFlags);
-
-    if (transform) {
-        cmsDeleteTransform(transform);
-    }
-
-    cmsCloseProfile(Input);
-    cmsCloseProfile(Output);
-    cmsCloseProfile(Proofing);
+static cmsToneCurve* buildSegmentedToneCurve(cmsContext context, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt32Number)) return NULL;
+    cmsUInt32Number nSegments = *(cmsUInt32Number*)Data;
+    cmsCurveSegment* segments = createCurveSegments(nSegments);
+    if (!segments) return NULL;
+    cmsToneCurve* curve = cmsBuildSegmentedToneCurve(context, nSegments, segments);
+    free(segments);
+    return curve;
 }
 
-static void fuzz_cmsGetTransformInputFormat(const uint8_t *Data, size_t Size) {
-    if (Size < 5) return;
-
-    cmsHPROFILE hProfiles[2];
-    hProfiles[0] = createDummyProfile();
-    hProfiles[1] = createDummyProfile();
-
-    cmsHTRANSFORM transform = cmsCreateMultiprofileTransform(hProfiles, 2, Data[0], Data[1], Data[2], Data[3]);
-
-    if (transform) {
-        cmsUInt32Number inputFormat = cmsGetTransformInputFormat(transform);
-        (void)inputFormat; // Suppress unused variable warning
-        cmsDeleteTransform(transform);
-    }
-
-    cmsCloseProfile(hProfiles[0]);
-    cmsCloseProfile(hProfiles[1]);
+static cmsToneCurve* buildTabulatedToneCurve16(cmsContext context, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt32Number)) return NULL;
+    cmsUInt32Number nEntries = *(cmsUInt32Number*)Data;
+    if (Size < sizeof(cmsUInt32Number) + nEntries * sizeof(cmsUInt16Number)) return NULL;
+    const cmsUInt16Number* values = (const cmsUInt16Number*)(Data + sizeof(cmsUInt32Number));
+    return cmsBuildTabulatedToneCurve16(context, nEntries, values);
 }
 
-static void fuzz_cmsDoTransform(const uint8_t *Data, size_t Size) {
-    if (Size < 6) return;
-
-    cmsHPROFILE hProfiles[2];
-    hProfiles[0] = createDummyProfile();
-    hProfiles[1] = createDummyProfile();
-
-    cmsHTRANSFORM transform = cmsCreateMultiprofileTransform(hProfiles, 2, Data[0], Data[1], Data[2], Data[3]);
-
-    if (transform) {
-        uint8_t inputBuffer[256] = {0};
-        uint8_t outputBuffer[256] = {0};
-        cmsDoTransform(transform, inputBuffer, outputBuffer, Size > 5 ? Data[5] : 0);
-        cmsDeleteTransform(transform);
-    }
-
-    cmsCloseProfile(hProfiles[0]);
-    cmsCloseProfile(hProfiles[1]);
+static cmsToneCurve* buildTabulatedToneCurveFloat(cmsContext context, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt32Number)) return NULL;
+    cmsUInt32Number nEntries = *(cmsUInt32Number*)Data;
+    if (Size < sizeof(cmsUInt32Number) + nEntries * sizeof(cmsFloat32Number)) return NULL;
+    const cmsFloat32Number* values = (const cmsFloat32Number*)(Data + sizeof(cmsUInt32Number));
+    return cmsBuildTabulatedToneCurveFloat(context, nEntries, values);
 }
 
-static void fuzz_cmsDoTransformStride(const uint8_t *Data, size_t Size) {
-    if (Size < 7) return;
-
-    cmsHPROFILE hProfiles[2];
-    hProfiles[0] = createDummyProfile();
-    hProfiles[1] = createDummyProfile();
-
-    cmsHTRANSFORM transform = cmsCreateMultiprofileTransform(hProfiles, 2, Data[0], Data[1], Data[2], Data[3]);
-
-    if (transform) {
-        uint8_t inputBuffer[256] = {0};
-        uint8_t outputBuffer[256] = {0};
-        cmsDoTransformStride(transform, inputBuffer, outputBuffer, Size > 5 ? Data[5] : 0, Size > 6 ? Data[6] : 0);
-        cmsDeleteTransform(transform);
-    }
-
-    cmsCloseProfile(hProfiles[0]);
-    cmsCloseProfile(hProfiles[1]);
+static cmsToneCurve* joinToneCurve(cmsContext context, cmsToneCurve* X, cmsToneCurve* Y, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(cmsUInt32Number)) return NULL;
+    cmsUInt32Number nPoints = *(cmsUInt32Number*)Data;
+    return cmsJoinToneCurve(context, X, Y, nPoints);
 }
 
-static void fuzz_cmsGetTransformOutputFormat(const uint8_t *Data, size_t Size) {
-    if (Size < 5) return;
+static cmsToneCurve* reverseToneCurveEx(cmsUInt32Number nResultSamples, cmsToneCurve* InGamma) {
+    return cmsReverseToneCurveEx(nResultSamples, InGamma);
+}
 
-    cmsHPROFILE hProfiles[2];
-    hProfiles[0] = createDummyProfile();
-    hProfiles[1] = createDummyProfile();
+static void fuzzToneCurves(cmsContext context, const uint8_t *Data, size_t Size) {
+    cmsToneCurve* curve1 = buildSegmentedToneCurve(context, Data, Size);
+    cmsToneCurve* curve2 = buildTabulatedToneCurve16(context, Data, Size);
+    cmsToneCurve* curve3 = buildTabulatedToneCurveFloat(context, Data, Size);
 
-    cmsHTRANSFORM transform = cmsCreateMultiprofileTransform(hProfiles, 2, Data[0], Data[1], Data[2], Data[3]);
-
-    if (transform) {
-        cmsUInt32Number outputFormat = cmsGetTransformOutputFormat(transform);
-        (void)outputFormat; // Suppress unused variable warning
-        cmsDeleteTransform(transform);
+    if (curve1 && curve2) {
+        cmsToneCurve* joinedCurve = joinToneCurve(context, curve1, curve2, Data, Size);
+        if (joinedCurve) cmsFreeToneCurve(joinedCurve);
     }
 
-    cmsCloseProfile(hProfiles[0]);
-    cmsCloseProfile(hProfiles[1]);
+    if (curve3) {
+        cmsToneCurve* reversedCurve = reverseToneCurveEx(256, curve3);
+        if (reversedCurve) cmsFreeToneCurve(reversedCurve);
+    }
+
+    if (curve1) cmsFreeToneCurve(curve1);
+    if (curve2) cmsFreeToneCurve(curve2);
+    if (curve3) cmsFreeToneCurve(curve3);
 }
 
 int LLVMFuzzerTestOneInput_146(const uint8_t *Data, size_t Size) {
-    fuzz_cmsCreateMultiprofileTransform(Data, Size);
-    fuzz_cmsCreateProofingTransform(Data, Size);
-    fuzz_cmsGetTransformInputFormat(Data, Size);
-    fuzz_cmsDoTransform(Data, Size);
-    fuzz_cmsDoTransformStride(Data, Size);
-    fuzz_cmsGetTransformOutputFormat(Data, Size);
+    cmsContext context = createContext();
+    if (!context) return 0;
+
+    fuzzToneCurves(context, Data, Size);
+
+    cmsDeleteContext(context);
     return 0;
 }

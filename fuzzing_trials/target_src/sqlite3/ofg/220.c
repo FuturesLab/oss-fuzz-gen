@@ -3,27 +3,48 @@
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_220(const uint8_t *data, size_t size) {
-    int errorCode;
-
-    // Ensure that the size is at least the size of an int
-    if (size < sizeof(int)) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);"
+                      "INSERT INTO test (value) VALUES ('example');"
+                      "SELECT * FROM test;";
+    
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Copy the first 4 bytes of data into errorCode
-    errorCode = *(const int *)data;
+    // Execute SQL to create table and insert data
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Call the function-under-test
-    const char *errorStr = sqlite3_errstr(errorCode);
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, "SELECT * FROM test;", -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Use the result to avoid any compiler optimizations that might remove the call
-    if (errorStr) {
-        // Do something trivial with errorStr, like checking its length
-        volatile size_t len = 0;
-        while (errorStr[len] != '\0') {
-            len++;
+    // Step through the result set and call the function-under-test
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Use data from the fuzzer to determine the column index
+        int column_index = (size > 0) ? (data[0] % sqlite3_column_count(stmt)) : 0;
+        sqlite3_value *value = sqlite3_column_value(stmt, column_index);
+
+        // Use the value in some way (in this case, just ensure it's not NULL)
+        if (value != NULL) {
+            // This is just to demonstrate the call, no actual operation is performed on `value`
         }
     }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

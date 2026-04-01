@@ -1,43 +1,28 @@
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>  // Include for NULL
+#include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>  // Include for memcpy
+
+// Dummy function to match the expected function pointer type
+int dummy_extension_function_67(void) {
+    return SQLITE_OK;
+}
 
 int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    
-    // Initialize a new in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Ensure the data is large enough to be meaningful
+    if (size < sizeof(void*)) {
         return 0;
     }
 
-    // Prepare a SQL statement from the input data
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
+    // Cast the dummy function to the expected function pointer type
+    int (*extension_func)(void) = (int (*)(void))dummy_extension_function_67;
+
+    // Call the function under test
+    int result = sqlite3_auto_extension(extension_func);
+
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (result != SQLITE_OK) {
+        // Handle the error or log it
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';  // Null-terminate the SQL statement
-
-    // Execute the SQL statement
-    char *errMsg = NULL;
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    // Free the allocated memory for SQL
-    free(sql);
-
-    // Call the function-under-test
-    int autocommit = sqlite3_get_autocommit(db);
-
-    // Ensure the database is closed
-    sqlite3_close(db);
 
     return 0;
 }

@@ -1,41 +1,50 @@
 #include <cstdint>
-#include <cstdlib>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <tiffio.h>
+#include <cstdio>
+#include <unistd.h>   // For close, write, and mkstemp
+#include <sys/types.h> // For ssize_t
+#include <cstdlib>    // For remove
+
+extern "C" {
+    #include <tiffio.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_267(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
+    TIFF *tiff = nullptr;
+    uint64_t diroff = 0;
+
+    // Create a temporary file to store the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the data to the file
-    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
-        unlink(tmpl);
+        remove(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Open the temporary file with TIFF library
+    tiff = TIFFOpen(tmpl, "r");
+    if (tiff == nullptr) {
+        remove(tmpl);
         return 0;
     }
 
-    // Close the file descriptor
-    close(fd);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        int result = TIFFIsBigEndian(tiff);
-
-        // Close the TIFF file
-        TIFFClose(tiff);
+    // Use the first 8 bytes of data as the directory offset
+    if (size >= sizeof(uint64_t)) {
+        diroff = *reinterpret_cast<const uint64_t*>(data);
     }
 
-    // Clean up the temporary file
-    unlink(tmpl);
+    // Call the function-under-test
+    TIFFSetSubDirectory(tiff, diroff);
+
+    // Cleanup
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }

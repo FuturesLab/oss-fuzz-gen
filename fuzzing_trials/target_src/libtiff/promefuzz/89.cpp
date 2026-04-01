@@ -1,12 +1,18 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFClientOpen at tif_open.c:289:7 in tiffio.h
-// TIFFGetReadProc at tif_open.c:917:19 in tiffio.h
-// TIFFGetSeekProc at tif_open.c:927:14 in tiffio.h
-// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
-// TIFFGetWriteProc at tif_open.c:922:19 in tiffio.h
-// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
-// TIFFGetUnmapFileProc at tif_open.c:947:19 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFWriteCustomDirectory at tif_dirwrite.c:303:5 in tiffio.h
+// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFRewriteDirectory at tif_dirwrite.c:483:5 in tiffio.h
+// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,74 +28,58 @@
 #include <cstdlib>
 #include <cstring>
 
+static TIFF* initializeTIFF(const char* filename) {
+    TIFF* tif = TIFFOpen(filename, "w");
+    if (!tif) return nullptr;
+
+    // Setup basic TIFF fields (example setup, may vary based on requirements)
+    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
+    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
+    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
+    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
+    TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+    TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
+
+    return tif;
+}
+
+static void cleanupTIFF(TIFF* tif) {
+    if (tif) {
+        TIFFClose(tif);
+    }
+}
+
 extern "C" int LLVMFuzzerTestOneInput_89(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint64_t)) {
-        return 0; // Not enough data to perform meaningful operations
-    }
+    if (Size < 1) return 0;  // Not enough data to process
 
-    TIFF *tif = nullptr;
-    FILE *dummyFile = fopen("./dummy_file", "wb+");
-    if (!dummyFile) {
-        return 0; // Cannot create dummy file
-    }
+    // Step 1: Prepare a dummy file
+    const char* filename = "./dummy_file";
+    FILE* file = fopen(filename, "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    size_t written = fwrite(Data, 1, Size, dummyFile);
-    if (written != Size) {
-        fclose(dummyFile);
-        return 0; // Failed to write all data
-    }
+    // Step 2: Initialize TIFF structure
+    TIFF* tif = initializeTIFF(filename);
+    if (!tif) return 0;
 
-    rewind(dummyFile);
+    uint64_t dir_offset;
 
-    tif = TIFFClientOpen("dummy", "r", (thandle_t)dummyFile,
-                         [](thandle_t fd, void *buf, tmsize_t size) -> tmsize_t {
-                             return fread(buf, 1, size, (FILE *)fd);
-                         },
-                         [](thandle_t fd, void *buf, tmsize_t size) -> tmsize_t {
-                             return fwrite(buf, 1, size, (FILE *)fd);
-                         },
-                         [](thandle_t fd, toff_t off, int whence) -> toff_t {
-                             return fseek((FILE *)fd, off, whence);
-                         },
-                         [](thandle_t fd) -> int {
-                             return fclose((FILE *)fd);
-                         },
-                         [](thandle_t fd) -> toff_t {
-                             fseek((FILE *)fd, 0, SEEK_END);
-                             return ftell((FILE *)fd);
-                         },
-                         [](thandle_t fd, void **pbase, toff_t *psize) -> int {
-                             return 0; // No mmap support
-                         },
-                         [](thandle_t fd, void *base, toff_t size) -> void {
-                             // No unmap support
-                         });
+    // Step 3: Invoke target functions with diverse inputs
+    TIFFWriteCustomDirectory(tif, &dir_offset);
+    TIFFCheckpointDirectory(tif);
+    TIFFWriteDirectory(tif);
+    TIFFRewriteDirectory(tif);
 
-    if (!tif) {
-        fclose(dummyFile);
-        return 0; // Failed to open TIFF
-    }
+    // Prepare buffer for TIFFWriteScanline
+    uint8_t buf[1] = {0};  // Minimal buffer for testing
+    TIFFWriteScanline(tif, buf, 0, 0);
 
-    // Call TIFFGetReadProc
-    TIFFReadWriteProc readProc = TIFFGetReadProc(tif);
+    TIFFDeferStrileArrayWriting(tif);
 
-    // Call TIFFGetSeekProc
-    TIFFSeekProc seekProc = TIFFGetSeekProc(tif);
+    // Step 4: Cleanup
+    cleanupTIFF(tif);
 
-    // Call TIFFSetSubDirectory
-    uint64_t offset;
-    memcpy(&offset, Data, sizeof(uint64_t));
-    TIFFSetSubDirectory(tif, offset);
-
-    // Call TIFFGetWriteProc
-    TIFFReadWriteProc writeProc = TIFFGetWriteProc(tif);
-
-    // Call TIFFReadDirectory
-    TIFFReadDirectory(tif);
-
-    // Call TIFFGetUnmapFileProc
-    TIFFUnmapFileProc unmapProc = TIFFGetUnmapFileProc(tif);
-
-    TIFFClose(tif);
     return 0;
 }

@@ -1,24 +1,27 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <lcms2.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+extern long cmsfilelength(FILE *);
 
 int LLVMFuzzerTestOneInput_442(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
-    cmsUInt32Number maxLen = 256; // Example value for maxLen
-    char code1[256] = "en"; // Example language code
-    char code2[256] = "US"; // Example country code
-
-    // Ensure mlu is not NULL
-    if (mlu == NULL) {
-        return 0;
+    // Create a temporary file to write the input data to
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
+        return 0; // If the file can't be created, return early
     }
 
-    // Call the function-under-test
-    cmsBool result = cmsMLUtranslationsCodes(mlu, maxLen, code1, code2);
+    // Write the input data to the temporary file
+    fwrite(data, 1, size, temp_file);
 
-    // Clean up
-    cmsMLUfree(mlu);
+    // Rewind the file to the beginning for reading
+    rewind(temp_file);
+
+    // Call the function-under-test
+    long length = cmsfilelength(temp_file);
+
+    // Close the temporary file
+    fclose(temp_file);
 
     return 0;
 }

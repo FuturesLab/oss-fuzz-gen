@@ -1,24 +1,39 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_108(const uint8_t *data, size_t size) {
-    // Declare and initialize the parameters for the function-under-test
-    GF_ISOFile *movie = gf_isom_open("test.mp4", GF_ISOM_OPEN_WRITE, NULL); // Open a test movie file
-    if (!movie) return 0;
+    // Declare and initialize variables
+    GF_ISOFile *file = NULL;
+    u32 track = 1;  // Initialize track with a non-zero value
 
-    u32 track = 1; // Assume a valid track ID
-    u32 grouping_type = 1; // Some arbitrary grouping type
-    void *data_ptr = (void *)data; // Use the input data as the data parameter
-    u32 data_size = (u32)size; // Size of the input data
-    Bool is_default = GF_FALSE; // Arbitrary choice of default flag
-    u32 sampleGroupDescriptionIndex = 0; // Initialize the index
+    // Check if the size is sufficient to create a valid ISO file
+    if (size > 0) {
+        // Create a temporary file to store the input data
+        char tmpl[] = "/tmp/fuzzfileXXXXXX";
+        int fd = mkstemp(tmpl);
+        if (fd != -1) {
+            // Write data to the temporary file
+            write(fd, data, size);
+            close(fd);
 
-    // Call the function-under-test
-    gf_isom_add_sample_group_info(movie, track, grouping_type, data_ptr, data_size, is_default, &sampleGroupDescriptionIndex);
+            // Open the file as an ISO file
+            file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+            if (file != NULL) {
+                // Call the function-under-test
+                gf_isom_find_od_id_for_track(file, track);
 
-    // Cleanup
-    gf_isom_close(movie);
+                // Close the ISO file
+                gf_isom_close(file);
+            }
+
+            // Remove the temporary file
+            unlink(tmpl);
+        }
+    }
 
     return 0;
 }

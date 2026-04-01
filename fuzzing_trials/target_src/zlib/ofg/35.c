@@ -3,11 +3,8 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
+    // Initialize the z_stream structure
     z_stream stream;
-    Bytef dictionary[32];
-    uInt dictLength = sizeof(dictionary);
-
-    // Initialize z_stream structure
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
@@ -17,15 +14,16 @@ int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Ensure the dictionary is not NULL and has data
-    for (uInt i = 0; i < dictLength; i++) {
-        dictionary[i] = (Bytef)(i % 256);
+    // Ensure that the data size is non-zero for the dictionary
+    if (size == 0) {
+        inflateEnd(&stream);
+        return 0;
     }
 
-    // Call the function under test
-    inflateSetDictionary(&stream, dictionary, dictLength);
+    // Call the function-under-test with the data as the dictionary
+    int result = inflateSetDictionary(&stream, data, (uInt)size);
 
-    // Clean up the inflate state
+    // Clean up
     inflateEnd(&stream);
 
     return 0;

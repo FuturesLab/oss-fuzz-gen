@@ -3,31 +3,24 @@
 #include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-  // Ensure that size is sufficient to create a valid ucl_object_t
-  if (size == 0) {
+  // Allocate memory for ucl_object_t
+  ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
+  
+  // Ensure the object is not NULL
+  if (obj == NULL) {
     return 0;
   }
 
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+  // Initialize the object with some data
+  // Using the input data to set a property of ucl_object_t
+  obj->type = UCL_BOOLEAN;
+  obj->value.iv = (size > 0) ? data[0] % 2 : 0; // Use the first byte to set a boolean value
 
-  // Add the input data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
+  // Call the function under test
+  bool result = ucl_object_toboolean(obj);
 
-  // Get the parsed object
-  const ucl_object_t *obj = ucl_parser_get_object(parser);
-
-  // If the object is valid, call the function under test
-  if (obj != NULL) {
-    bool result = ucl_object_toboolean(obj);
-  }
-
-  // Free the parser and the parsed object
-  ucl_object_unref(obj);
-  ucl_parser_free(parser);
+  // Free the allocated memory
+  free(obj);
 
   return 0;
 }

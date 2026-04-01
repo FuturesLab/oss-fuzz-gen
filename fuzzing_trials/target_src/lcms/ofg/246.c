@@ -1,46 +1,43 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_246(const uint8_t *data, size_t size) {
-    // Initialize variables for the function call
+    // Declare and initialize variables
     cmsHANDLE handle;
-    int row, col;
-    const char *text;
+    char *propertyName;
+    cmsUInt32Number value;
 
-    // Ensure the size is sufficient to extract meaningful data
-    if (size < sizeof(int) * 2 + 1) {
+    // Ensure size is sufficient for extracting the necessary values
+    if (size < sizeof(cmsUInt32Number) + 1) {
         return 0;
     }
 
-    // Allocate a cmsHANDLE object (for simplicity, using a dummy allocation)
+    // Initialize handle
     handle = cmsIT8Alloc(NULL);
     if (handle == NULL) {
         return 0;
     }
 
-    // Extract row and col from the input data
-    row = *((int *)data);
-    col = *((int *)(data + sizeof(int)));
-
-    // Extract text from the remaining data
-    text = (const char *)(data + sizeof(int) * 2);
-
-    // Ensure text is null-terminated
-    char *nullTerminatedText = (char *)malloc(size - sizeof(int) * 2 + 1);
-    if (nullTerminatedText == NULL) {
+    // Extract a string for propertyName from the data
+    propertyName = (char *)malloc(size - sizeof(cmsUInt32Number) + 1);
+    if (propertyName == NULL) {
         cmsIT8Free(handle);
         return 0;
     }
-    memcpy(nullTerminatedText, text, size - sizeof(int) * 2);
-    nullTerminatedText[size - sizeof(int) * 2] = '\0';
+    memcpy(propertyName, data, size - sizeof(cmsUInt32Number));
+    propertyName[size - sizeof(cmsUInt32Number)] = '\0'; // Null-terminate the string
 
-    // Call the function-under-test
-    cmsIT8SetDataRowCol(handle, row, col, nullTerminatedText);
+    // Extract cmsUInt32Number value from the data
+    memcpy(&value, data + size - sizeof(cmsUInt32Number), sizeof(cmsUInt32Number));
 
-    // Free allocated resources
-    free(nullTerminatedText);
+    // Call the function under test
+    cmsIT8SetPropertyHex(handle, propertyName, value);
+
+    // Clean up
+    free(propertyName);
     cmsIT8Free(handle);
 
     return 0;

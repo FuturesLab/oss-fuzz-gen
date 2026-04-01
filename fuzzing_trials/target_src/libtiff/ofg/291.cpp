@@ -1,29 +1,70 @@
-#include <cstdint>
-#include <cstdio>
 #include <tiffio.h>
+#include <cstdio>
+#include <cstring>
+#include <unistd.h>  // For mkstemp, write, and close
+#include <fcntl.h>   // For file control options
+#include <cstdint>   // For uint8_t
+#include <cstdlib>   // For remove
 
-extern "C" int LLVMFuzzerTestOneInput_291(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint32_t) * 3 + sizeof(uint16_t)) {
-        return 0; // Not enough data to extract required parameters
-    }
+extern "C" {
 
-    // Initialize TIFF structure
-    TIFF *tiff = TIFFOpen("temp.tiff", "w");
-    if (!tiff) {
+TIFF *TIFFClientOpenExt(const char *, const char *, thandle_t, TIFFReadWriteProc, TIFFReadWriteProc, TIFFSeekProc, TIFFCloseProc, TIFFSizeProc, TIFFMapFileProc, TIFFUnmapFileProc, TIFFOpenOptions *);
+
+static tmsize_t readProc(thandle_t, void *buf, tmsize_t size) {
+    memset(buf, 0, size);
+    return size;
+}
+
+static tmsize_t writeProc(thandle_t, void *buf, tmsize_t size) {
+    return size;
+}
+
+static toff_t seekProc(thandle_t, toff_t off, int whence) {
+    return off;
+}
+
+static int closeProc(thandle_t) {
+    return 0;
+}
+
+static toff_t sizeProc(thandle_t) {
+    return 1024;
+}
+
+static int mapProc(thandle_t, void **base, toff_t *size) {
+    *base = nullptr;
+    *size = 0;
+    return 0;
+}
+
+static void unmapProc(thandle_t, void *base, toff_t size) {
+}
+
+int LLVMFuzzerTestOneInput_291(const uint8_t *data, size_t size) {
+    if (size < 2) {
         return 0;
     }
 
-    // Extract parameters from the input data
-    uint32_t x = *(reinterpret_cast<const uint32_t*>(data));
-    uint32_t y = *(reinterpret_cast<const uint32_t*>(data + sizeof(uint32_t)));
-    uint32_t z = *(reinterpret_cast<const uint32_t*>(data + 2 * sizeof(uint32_t)));
-    uint16_t s = *(reinterpret_cast<const uint16_t*>(data + 3 * sizeof(uint32_t)));
+    const char *mode = "r";
+    char filename[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(filename);
+    if (fd == -1) {
+        return 0;
+    }
+    write(fd, data, size);
+    close(fd);
 
-    // Call the function-under-test
-    uint32_t tile = TIFFComputeTile(tiff, x, y, z, s);
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    TIFF *tif = TIFFClientOpenExt(filename, mode, (thandle_t)(intptr_t)fd, readProc, writeProc, seekProc, closeProc, sizeProc, mapProc, unmapProc, options);
 
-    // Clean up
-    TIFFClose(tiff);
+    if (tif) {
+        TIFFClose(tif);
+    }
+
+    TIFFOpenOptionsFree(options);
+    remove(filename);
 
     return 0;
+}
+
 }

@@ -1,68 +1,86 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// crc32 at crc32.c:945:15 in zlib.h
-// crc32 at crc32.c:945:15 in zlib.h
-// crc32_combine_gen at crc32.c:963:15 in zlib.h
-// crc32_combine_op at crc32.c:968:15 in zlib.h
-// crc32_combine at crc32.c:980:15 in zlib.h
-// crc32_combine64 at crc32.c:975:15 in zlib.h
-// crc32_combine_gen64 at crc32.c:953:15 in zlib.h
+// deflateInit_ at deflate.c:380:13 in zlib.h
+// deflateParams at deflate.c:775:13 in zlib.h
+// deflateTune at deflate.c:820:13 in zlib.h
+// deflateReset at deflate.c:705:13 in zlib.h
+// deflateInit_ at deflate.c:380:13 in zlib.h
+// deflateEnd at deflate.c:1294:13 in zlib.h
+// deflateCopy at deflate.c:1318:13 in zlib.h
+// deflate at deflate.c:982:13 in zlib.h
+// deflateEnd at deflate.c:1294:13 in zlib.h
+// deflateEnd at deflate.c:1294:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <zlib.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 
-static void fuzz_crc32(const uint8_t *Data, size_t Size) {
-    uLong crc = crc32(0L, Z_NULL, 0);
-    crc = crc32(crc, Data, (uInt)Size);
-}
-
-static void fuzz_crc32_combine_gen(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(z_off_t)) return;
-    z_off_t len2 = *(z_off_t *)Data;
-    crc32_combine_gen(len2);
-}
-
-static void fuzz_crc32_combine_op(const uint8_t *Data, size_t Size) {
-    if (Size < 3 * sizeof(uLong)) return;
-    uLong crc1 = *(uLong *)Data;
-    uLong crc2 = *(uLong *)(Data + sizeof(uLong));
-    uLong op = *(uLong *)(Data + 2 * sizeof(uLong));
-    crc32_combine_op(crc1, crc2, op);
-}
-
-static void fuzz_crc32_combine(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(z_off_t) + 2 * sizeof(uLong)) return;
-    uLong crc1 = *(uLong *)Data;
-    uLong crc2 = *(uLong *)(Data + sizeof(uLong));
-    z_off_t len2 = *(z_off_t *)(Data + 2 * sizeof(uLong));
-    crc32_combine(crc1, crc2, len2);
-}
-
-static void fuzz_crc32_combine64(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(z_off64_t) + 2 * sizeof(uLong)) return;
-    uLong crc1 = *(uLong *)Data;
-    uLong crc2 = *(uLong *)(Data + sizeof(uLong));
-    z_off64_t len2 = *(z_off64_t *)(Data + 2 * sizeof(uLong));
-    crc32_combine64(crc1, crc2, len2);
-}
-
-static void fuzz_crc32_combine_gen64(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(z_off64_t)) return;
-    z_off64_t len2 = *(z_off64_t *)Data;
-    crc32_combine_gen64(len2);
+static void setup_stream(z_streamp strm) {
+    memset(strm, 0, sizeof(z_stream));
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
 }
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    fuzz_crc32(Data, Size);
-    fuzz_crc32_combine_gen(Data, Size);
-    fuzz_crc32_combine_op(Data, Size);
-    fuzz_crc32_combine(Data, Size);
-    fuzz_crc32_combine64(Data, Size);
-    fuzz_crc32_combine_gen64(Data, Size);
+    if (Size < 1) return 0;
+
+    z_stream strm;
+    setup_stream(&strm);
+
+    int level = Data[0] % 10; // Compression level [0-9]
+    int strategy = Data[0] % 5; // Strategy [0-4]
+    const char *version = ZLIB_VERSION;
+    int stream_size = (int)sizeof(z_stream);
+
+    // Initialize the stream
+    if (deflateInit_(&strm, level, version, stream_size) != Z_OK) {
+        return 0;
+    }
+
+    // Adjust compression parameters
+    if (Size > 1) {
+        deflateParams(&strm, Data[1] % 10, Data[1] % 5);
+    }
+
+    // Tune compression parameters
+    if (Size > 5) {
+        deflateTune(&strm, Data[2], Data[3], Data[4], Data[5]);
+    }
+
+    // Reset the stream
+    deflateReset(&strm);
+
+    // Prepare a second stream for copying
+    z_stream dest;
+    setup_stream(&dest);
+    if (deflateInit_(&dest, level, version, stream_size) != Z_OK) {
+        deflateEnd(&strm);
+        return 0;
+    }
+
+    // Copy the stream
+    deflateCopy(&dest, &strm);
+
+    // Set up input and output buffers
+    Bytef input[1024];
+    Bytef output[1024];
+    strm.next_in = input;
+    strm.avail_in = 0;
+    strm.next_out = output;
+    strm.avail_out = sizeof(output);
+
+    // Compress data
+    if (Size > 6) {
+        strm.next_in = (Bytef *)Data;
+        strm.avail_in = Size;
+        deflate(&strm, Z_FINISH);
+    }
+
+    // Clean up
+    deflateEnd(&strm);
+    deflateEnd(&dest);
+
     return 0;
 }

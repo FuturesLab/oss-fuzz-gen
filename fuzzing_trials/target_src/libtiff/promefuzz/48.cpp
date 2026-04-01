@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
-// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
-// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
-// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
-// TIFFIsBigTIFF at tif_open.c:912:5 in tiffio.h
-// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFUnRegisterCODEC at tif_compress.c:234:6 in tiffio.h
+// TIFFGetConfiguredCODECs at tif_compress.c:263:12 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFFindCODEC at tif_compress.c:192:18 in tiffio.h
+// TIFFRegisterCODEC at tif_compress.c:206:12 in tiffio.h
+// TIFFIsCODECConfigured at tif_codec.c:146:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,61 +15,60 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
+#include <cstring>
 #include <cstdlib>
-#include <fcntl.h>
-#include <unistd.h>
+#include <cstdio>
 
-static TIFF* openDummyFile(const char* mode) {
-    int fd = open("./dummy_file", O_RDWR | O_CREAT, 0666);
-    if (fd == -1) {
-        return nullptr;
+static void FuzzTIFFUnRegisterCODEC(TIFFCodec *codec) {
+    TIFFUnRegisterCODEC(codec);
+}
+
+static void FuzzTIFFGetConfiguredCODECs() {
+    TIFFCodec *codecs = TIFFGetConfiguredCODECs();
+    if (codecs) {
+        // Iterate through the codecs if needed
+        _TIFFfree(codecs);
     }
-    return TIFFFdOpen(fd, "./dummy_file", mode);
+}
+
+static void FuzzTIFFFindCODEC(uint16_t scheme) {
+    const TIFFCodec *codec = TIFFFindCODEC(scheme);
+    // Use codec if needed
+}
+
+static TIFFCodec *FuzzTIFFRegisterCODEC(uint16_t scheme, const char *name, TIFFInitMethod init) {
+    return TIFFRegisterCODEC(scheme, name, init);
+}
+
+static void FuzzTIFFIsCODECConfigured(uint16_t scheme) {
+    int configured = TIFFIsCODECConfigured(scheme);
+    // Use configured if needed
 }
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 2) return 0; // Ensure there's enough data for a 16-bit scheme
 
-    // Prepare a dummy file for testing
-    FILE* file = fopen("./dummy_file", "wb");
+    // Prepare a dummy file for TIFFReadEncodedStrip if required
+    FILE *file = fopen("./dummy_file", "wb");
     if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the dummy file using TIFFFdOpen
-    TIFF* tif = openDummyFile("r+");
-    if (!tif) return 0;
+    // Example of using the first two bytes as a scheme
+    uint16_t scheme = *reinterpret_cast<const uint16_t *>(Data);
 
-    // Test TIFFSetSubDirectory
-    if (Size >= sizeof(uint64_t)) {
-        uint64_t subdirOffset;
-        memcpy(&subdirOffset, Data, sizeof(uint64_t));
-        TIFFSetSubDirectory(tif, subdirOffset);
+    // Fuzz each function
+    FuzzTIFFGetConfiguredCODECs();
+    FuzzTIFFFindCODEC(scheme);
+    FuzzTIFFIsCODECConfigured(scheme);
+
+    // Register and unregister a codec
+    TIFFCodec *codec = FuzzTIFFRegisterCODEC(scheme, "dummy_codec", nullptr);
+    if (codec) {
+        FuzzTIFFUnRegisterCODEC(codec);
     }
-
-    // Test TIFFWriteCheck
-    TIFFWriteCheck(tif, 1, "test");
-
-    // Test TIFFReadDirectory
-    TIFFReadDirectory(tif);
-
-    // Test TIFFIsBigTIFF
-    TIFFIsBigTIFF(tif);
-
-    // Test TIFFReadScanline
-    uint32_t row = 0;
-    uint16_t sample = 0;
-    void* buf = malloc(TIFFScanlineSize(tif));
-    if (buf) {
-        TIFFReadScanline(tif, buf, row, sample);
-        free(buf);
-    }
-
-    // Cleanup
-    TIFFClose(tif);
-    unlink("./dummy_file");
 
     return 0;
 }

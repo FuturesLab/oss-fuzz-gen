@@ -2,53 +2,48 @@
 #include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjInitDecompress with tjInitTransform
-    tjhandle handle = tjInitTransform();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (handle == NULL) {
+    // Initialize variables for tjDecompressToYUV2
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
         return 0;
     }
 
     const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = size;
+    unsigned long jpegSize = (unsigned long)size;
 
-    int width = 100;  // Example width, should be set according to actual needs
-    int height = 100; // Example height, should be set according to actual needs
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int flags = 0; // Example flags
-    int pitch = 0; // Example pitch, can be set to 0 for default
+    // Allocate memory for the YUV buffer
+    int width = 640;  // Example width
+    int height = 480; // Example height
+    int subsamp = TJSAMP_420; // Example subsampling
+    int flags = 0; // No flags
 
-    // Allocate buffer for decompressed image
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (dstBuf == NULL) {
-        tjDestroy(handle);
+    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
+    if (yuvBuf == nullptr) {
+
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjDestroy with tj3GetErrorCode
+        tj3GetErrorCode(handle);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
         return 0;
     }
 
-    // Fuzz the function tjDecompress2
+    // Call the function-under-test
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 8 of tjDecompress2
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of tjDecompress2
-    tjDecompress2(handle, jpegBuf, jpegSize, dstBuf, TJXOPT_CROP, pitch, height, pixelFormat, TJFLAG_BOTTOMUP);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjDecompressToYUV2
+    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, size);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
 
-    // Clean up
-    free(dstBuf);
+    // Cleanup
+    free(yuvBuf);
     tjDestroy(handle);
 
     return 0;

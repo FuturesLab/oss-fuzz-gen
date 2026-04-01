@@ -1,84 +1,91 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_copy_key_trash at ucl_util.c:494:1 in ucl.h
-// ucl_object_pop_keyl at ucl_util.c:2509:1 in ucl.h
-// ucl_object_lookup_len at ucl_util.c:2656:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
 // ucl_object_replace_key at ucl_util.c:2545:6 in ucl.h
-// ucl_object_keyl at ucl_util.c:3581:1 in ucl.h
-// ucl_object_key at ucl_util.c:3575:1 in ucl.h
+// ucl_object_delete_key at ucl_util.c:2503:6 in ucl.h
+// ucl_object_lookup at ucl_util.c:2673:1 in ucl.h
+// ucl_object_insert_key_merged at ucl_util.c:2539:6 in ucl.h
+// ucl_object_pop_key at ucl_util.c:2528:1 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdbool.h>
-#include <string.h>
 #include "ucl.h"
 
-static ucl_object_t* create_dummy_ucl_object(const uint8_t *Data, size_t Size) {
+static ucl_object_t *create_random_ucl_object() {
     ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
-    if (obj == NULL) {
-        return NULL;
+    if (obj) {
+        memset(obj, 0, sizeof(ucl_object_t));
+        obj->type = UCL_OBJECT;
     }
-    memset(obj, 0, sizeof(ucl_object_t));
-    obj->key = (const char *)Data;
-    obj->keylen = (uint32_t)Size;
-    obj->type = UCL_OBJECT; // Assuming UCL_OBJECT is some defined type
-    obj->value.ov = NULL; // Assuming a valid object or hash table is set here
     return obj;
 }
 
-static void cleanup_ucl_object(ucl_object_t *obj) {
+static void free_ucl_object(ucl_object_t *obj) {
     if (obj) {
         free(obj);
     }
 }
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) return 0;
+
+    // Prepare dummy UCL objects
+    ucl_object_t *top = create_random_ucl_object();
+    ucl_object_t *elt = create_random_ucl_object();
+    ucl_object_t *replace_elt = create_random_ucl_object();
+    ucl_object_t *merged_elt = create_random_ucl_object();
+
+    if (!top || !elt || !replace_elt || !merged_elt) {
+        free_ucl_object(top);
+        free_ucl_object(elt);
+        free_ucl_object(replace_elt);
+        free_ucl_object(merged_elt);
         return 0;
     }
 
-    // Create a dummy UCL object
-    ucl_object_t *obj = create_dummy_ucl_object(Data, Size);
-    if (!obj) {
+    // Prepare a key
+    char *key = (char *)malloc(Size + 1);
+    if (!key) {
+        free_ucl_object(top);
+        free_ucl_object(elt);
+        free_ucl_object(replace_elt);
+        free_ucl_object(merged_elt);
         return 0;
     }
+    memcpy(key, Data, Size);
+    key[Size] = '\0'; // Ensure null-termination
+    size_t keylen = Size;
+    bool copy_key = Data[0] % 2 == 0;
 
-    // Test ucl_copy_key_trash
-    char *copied_key = ucl_copy_key_trash(obj);
-    if (copied_key) {
-        free(copied_key); // Assuming we need to free the copied key
-    }
-
-    // Test ucl_object_pop_keyl
-    ucl_object_t *popped_obj = ucl_object_pop_keyl(obj, (const char *)Data, Size);
-    if (popped_obj) {
-        cleanup_ucl_object(popped_obj); // Assuming we need to manage memory
-    }
-
-    // Test ucl_object_lookup_len
-    const ucl_object_t *looked_up_obj = ucl_object_lookup_len(obj, (const char *)Data, Size);
+    // Test ucl_object_insert_key
+    ucl_object_insert_key(top, elt, key, keylen, copy_key);
 
     // Test ucl_object_replace_key
-    ucl_object_t *new_obj = create_dummy_ucl_object(Data, Size);
-    if (new_obj) {
-        bool replaced = ucl_object_replace_key(obj, new_obj, (const char *)Data, Size, true);
-        if (!replaced) {
-            cleanup_ucl_object(new_obj);
-        }
+    ucl_object_replace_key(top, replace_elt, key, keylen, copy_key);
+
+    // Test ucl_object_delete_key
+    ucl_object_delete_key(top, key);
+
+    // Test ucl_object_lookup
+    ucl_object_lookup(top, key);
+
+    // Test ucl_object_insert_key_merged
+    ucl_object_insert_key_merged(top, merged_elt, key, keylen, copy_key);
+
+    // Test ucl_object_pop_key
+    ucl_object_t *popped = ucl_object_pop_key(top, key);
+    if (popped && popped != elt && popped != replace_elt && popped != merged_elt) {
+        free_ucl_object(popped);
     }
 
-    // Test ucl_object_keyl
-    size_t key_length;
-    const char *key_l = ucl_object_keyl(obj, &key_length);
-
-    // Test ucl_object_key
-    const char *key = ucl_object_key(obj);
-
     // Cleanup
-    cleanup_ucl_object(obj);
+    free(key);
+    free_ucl_object(top);
+    free_ucl_object(elt);
+    free_ucl_object(replace_elt);
+    free_ucl_object(merged_elt);
 
     return 0;
 }

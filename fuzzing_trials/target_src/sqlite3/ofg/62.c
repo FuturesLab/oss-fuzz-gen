@@ -1,43 +1,51 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Ensure the data size is non-zero to avoid passing NULL to sqlite3_exec
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a null-terminated string from the input data
-    char *sql = sqlite3_malloc(size + 1);
-    if (sql == NULL) {
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';  // Null-terminate the string
-
-    // Open an in-memory SQLite database
+    // Initialize SQLite
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_free(sql);
-        return 0;
+    sqlite3_open(":memory:", &db);
+
+    // Create a dummy table
+    sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, 0);
+
+    // Prepare an SQLite statement
+    sqlite3_stmt *stmt;
+    sqlite3_prepare_v2(db, "INSERT INTO test (value) VALUES (?);", -1, &stmt, 0);
+
+    // Bind the input data to the statement
+    sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
+
+    // Execute the statement
+    sqlite3_step(stmt);
+
+    // Reset the statement to reuse it
+    sqlite3_reset(stmt);
+
+    // Prepare a statement to retrieve the value
+    sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = 1;", -1, &stmt, 0);
+
+    // Execute the statement
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Get the value as an sqlite3_value
+        sqlite3_value *value = sqlite3_column_value(stmt, 0);
+
+        // Call the function-under-test
+        const unsigned char *text = sqlite3_value_text(value);
+
+        // Use the text value to prevent unused variable warning
+        if (text) {
+            // Do something with text, e.g., print it
+            // printf("%s\n", text); // Uncomment for debugging
+        }
     }
 
-    // Execute the SQL command
-    char *errMsg = NULL;
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free the error message if it was allocated
-    if (errMsg != NULL) {
-        sqlite3_free(errMsg);
-    }
+    // Finalize the statement
+    sqlite3_finalize(stmt);
 
     // Close the database
     sqlite3_close(db);
-
-    // Free the allocated memory for the SQL command
-    sqlite3_free(sql);
 
     return 0;
 }

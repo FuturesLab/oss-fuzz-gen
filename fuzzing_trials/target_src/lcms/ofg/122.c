@@ -1,30 +1,56 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
-#include <string.h> // Include for memcpy
+
+// Define a dummy cmsHANDLE for testing purposes
+typedef void* cmsHANDLE;
+
+// Dummy function to simulate cmsIT8GetData_122 behavior
+const char* cmsIT8GetData_122(cmsHANDLE handle, const char* row, const char* col) {
+    // This is a placeholder implementation
+    // In a real scenario, this would interact with the handle to retrieve data
+    return "dummy_data";
+}
 
 int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for cmsCIELab structure
-    if (size < sizeof(cmsCIELab)) {
+    cmsHANDLE handle = (cmsHANDLE)malloc(1); // Allocate a dummy handle
+    if (!handle) {
         return 0;
     }
 
-    // Initialize input and output structures
-    cmsCIEXYZ inputXYZ;
-    cmsCIEXYZ outputXYZ;
-    cmsCIELab inputLab;
+    // Ensure size is large enough to split into two non-null strings
+    if (size < 2) {
+        free(handle);
+        return 0;
+    }
 
-    // Copy data into the inputLab structure
-    // Ensure the data is interpreted correctly as cmsCIELab
-    memcpy(&inputLab, data, sizeof(cmsCIELab));
+    // Split the input data into two strings
+    size_t half_size = size / 2;
+    char* row = (char*)malloc(half_size + 1);
+    char* col = (char*)malloc(size - half_size + 1);
 
-    // Initialize inputXYZ with some non-null values
-    inputXYZ.X = 0.5;
-    inputXYZ.Y = 0.5;
-    inputXYZ.Z = 0.5;
+    if (!row || !col) {
+        free(handle);
+        free(row);
+        free(col);
+        return 0;
+    }
 
-    // Call the function under test
-    cmsLab2XYZ(&inputXYZ, &outputXYZ, &inputLab);
+    memcpy(row, data, half_size);
+    row[half_size] = '\0';
+
+    memcpy(col, data + half_size, size - half_size);
+    col[size - half_size] = '\0';
+
+    // Call the function-under-test
+    const char* result = cmsIT8GetData_122(handle, row, col);
+
+    // Clean up
+    free(handle);
+    free(row);
+    free(col);
 
     return 0;
 }

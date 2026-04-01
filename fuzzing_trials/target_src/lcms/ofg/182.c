@@ -1,24 +1,38 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include "lcms2_plugin.h" // Ensure this header is available and correct
+#include <lcms2.h>
 
-// Remove the extern "C" linkage specification for C++ compatibility
 int LLVMFuzzerTestOneInput_182(const uint8_t *data, size_t size) {
-    // Initialize a cmsDICTentry object
-    cmsDICTentry entry;
-    entry.Next = NULL; // Assuming Next is a pointer to the next entry
+    if (size < sizeof(cmsCIExyY) + sizeof(double)) {
+        return 0;
+    }
+
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsCIExyY whitePoint;
+    cmsToneCurve *toneCurve;
+
+    // Use the input data to initialize cmsCIExyY structure
+    whitePoint.x = ((double*)data)[0];
+    whitePoint.y = ((double*)data)[1];
+    whitePoint.Y = ((double*)data)[2];
+
+    // Create a tone curve with a gamma value derived from input data
+    double gamma = ((double*)data)[3];
+    toneCurve = cmsBuildGamma(context, gamma);
+    if (toneCurve == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
 
     // Call the function-under-test
-    const cmsDICTentry *nextEntry = cmsDictNextEntry(&entry);
+    cmsHPROFILE profile = cmsCreateGrayProfileTHR(context, &whitePoint, toneCurve);
 
-    // Check the result (for demonstration purposes, we will print the result)
-    if (nextEntry != NULL) {
-        printf("Next entry is not NULL\n");
-    } else {
-        printf("Next entry is NULL\n");
+    // Clean up
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
+    cmsFreeToneCurve(toneCurve);
+    cmsDeleteContext(context);
 
     return 0;
 }

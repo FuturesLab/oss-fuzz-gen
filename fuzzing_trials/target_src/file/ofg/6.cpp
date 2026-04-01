@@ -4,33 +4,35 @@
 #include <string.h>
 #include <magic.h>
 
-extern "C" {
-    // Include the function-under-test
-    int magic_check(struct magic_set *, const char *);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Initialize the magic_set structure
+    // Ensure the input size is sufficient to create a null-terminated string
+    if (size == 0) {
+        return 0;
+    }
+
+    // Allocate memory for the null-terminated string
+    char *file_path = (char *)malloc(size + 1);
+    if (file_path == NULL) {
+        return 0;
+    }
+
+    // Copy the data to the string and null-terminate it
+    memcpy(file_path, data, size);
+    file_path[size] = '\0';
+
+    // Create a magic_set object
     struct magic_set *magic = magic_open(MAGIC_NONE);
     if (magic == NULL) {
-        return 0; // If initialization fails, return immediately
+        free(file_path);
+        return 0;
     }
-
-    // Ensure the input data is null-terminated
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        magic_close(magic);
-        return 0; // If memory allocation fails, return immediately
-    }
-    memcpy(input, data, size);
-    input[size] = '\0';
 
     // Call the function-under-test
-    magic_check(magic, input);
+    magic_compile(magic, file_path);
 
     // Clean up
-    free(input);
     magic_close(magic);
+    free(file_path);
 
     return 0;
 }

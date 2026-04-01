@@ -1,34 +1,27 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sqlite3.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Ensure the input is null-terminated and non-empty
-    if (size == 0) {
-        return 0;
-    }
+    sqlite3_str *str;
+    char *result;
 
-    // Create a buffer for the null-terminated string
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        return 0;
-    }
+    // Initialize a new sqlite3_str object
+    str = sqlite3_str_new(NULL);
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(filename, data, size);
-    filename[size] = '\0';
+    // Ensure that the data is not empty before appending
+    if (size > 0) {
+        // Append the input data to the sqlite3_str object
+        sqlite3_str_append(str, (const char *)data, size);
+    }
 
     // Call the function-under-test
-    sqlite3 *db;
-    int rc = sqlite3_open(filename, &db);
-    if (rc == SQLITE_OK) {
-        sqlite3_close(db);
-    }
+    result = sqlite3_str_finish(str);
 
-    // Free the allocated memory
-    free(filename);
+    // Free the result if it's not NULL
+    if (result != NULL) {
+        sqlite3_free(result);
+    }
 
     return 0;
 }

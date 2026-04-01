@@ -1,47 +1,34 @@
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h>  // Include for close() and write()
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <tiffio.h>
+
+// Define a simple TIFFInitMethod function for testing purposes
+int dummyTIFFInitMethod(TIFF *tif, int scheme) {
+    // This is a dummy implementation. In a real scenario, this function would
+    // initialize the TIFF codec with the appropriate scheme.
+    return 1; // Return success
+}
 
 extern "C" int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a TIFF file.
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure there is enough data to extract a uint16_t and a string
+    if (size < 3) {
         return 0;
     }
 
-    // Write the input data to the temporary file.
-    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
+    // Extract a uint16_t value from the input data
+    uint16_t scheme = (data[0] << 8) | data[1];
 
-    // Open the temporary file as a TIFF image.
-    TIFF* tiff = TIFFOpen(tmpl, "r+");
-    if (tiff == nullptr) {
-        remove(tmpl);
-        return 0;
-    }
+    // Extract a string from the remaining input data
+    const char *name = reinterpret_cast<const char *>(data + 2);
 
-    // Prepare a uint32_t tag value for testing.
-    uint32_t tag = 0;
-    if (size >= sizeof(uint32_t)) {
-        memcpy(&tag, data, sizeof(uint32_t));
-    }
+    // Register the codec using the extracted scheme, name, and dummy init method
+    TIFFCodec *codec = TIFFRegisterCODEC(scheme, name, dummyTIFFInitMethod);
 
-    // Call the function-under-test.
-    TIFFUnsetField(tiff, tag);
+    // Optionally, perform some operations with the codec if needed
+    // ...
 
-    // Clean up.
-    TIFFClose(tiff);
-    remove(tmpl);
+    // Since the function signature does not specify how to clean up or free the codec,
+    // we assume that the TIFF library manages the codec's lifecycle.
 
     return 0;
 }

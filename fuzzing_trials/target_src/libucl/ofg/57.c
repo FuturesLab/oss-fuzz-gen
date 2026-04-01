@@ -1,20 +1,23 @@
 #include "ucl.h"
+#include <inttypes.h>
 #include <stddef.h>
-#include <stdint.h>
+#include <string.h> // Include for memcpy
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-  // Ensure that the data is not NULL and size is greater than 0
-  if (data == NULL || size == 0) {
+  // Ensure that we have enough data to form an int64_t
+  if (size < sizeof(int64_t)) {
     return 0;
   }
 
-  // Call the function-under-test
-  ucl_object_t *obj = ucl_object_fromlstring((const char *)data, size);
+  // Extract an int64_t value from the input data
+  int64_t value;
+  memcpy(&value, data, sizeof(int64_t));
 
-  // Clean up the object if it was created successfully
-  if (obj != NULL) {
-    ucl_object_unref(obj);
-  }
+  // Call the function-under-test
+  ucl_object_t *obj = ucl_object_fromint(value);
+
+  // Free the created object to avoid memory leaks
+  ucl_object_unref(obj);
 
   return 0;
 }

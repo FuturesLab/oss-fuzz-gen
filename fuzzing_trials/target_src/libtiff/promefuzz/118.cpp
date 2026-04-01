@@ -1,8 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
+// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// LogL16toY at tif_luv.c:801:5 in tiffio.h
+// LogL10toY at tif_luv.c:883:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,53 +14,58 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
+#include <cmath>
 #include <cstdlib>
-#include <cstring>
-#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_118(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure there is enough data for a uint32_t
+    if (Size < sizeof(double) + sizeof(int)) return 0;
 
-    // Prepare data for LogLuv32fromXYZ and LogLuv24fromXYZ
-    float xyz[3] = {0};
-    int numComponents = 3;
-    
-    if (Size >= 12) {
-        memcpy(xyz, Data, 12);
+    // Prepare data for LogL10fromY
+    double Y = *reinterpret_cast<const double*>(Data);
+    int param = *reinterpret_cast<const int*>(Data + sizeof(double));
+
+    // Fuzz LogL10fromY
+    if (Y > 0) {
+        int logL10Result = LogL10fromY(Y, param);
+        (void)logL10Result; // Suppress unused variable warning
     }
 
-    // Fuzz LogLuv32fromXYZ
-    uint32_t logluv32 = LogLuv32fromXYZ(xyz, numComponents);
+    // Prepare TIFF object for TIFFFlushData and TIFFForceStrileArrayWriting
+    TIFF *tif = TIFFOpen("./dummy_file", "w+");
+    if (tif) {
+        // Fuzz TIFFFlushData
+        int flushResult = TIFFFlushData(tif);
+        (void)flushResult; // Suppress unused variable warning
 
-    // Fuzz LogLuv24fromXYZ
-    uint32_t logluv24 = LogLuv24fromXYZ(xyz, numComponents);
+        // Fuzz TIFFForceStrileArrayWriting
+        int forceStrileResult = TIFFForceStrileArrayWriting(tif);
+        (void)forceStrileResult; // Suppress unused variable warning
 
-    // Prepare data for LogLuv24toXYZ and LogLuv32toXYZ
-    float xyzOutput[3] = {0};
-
-    // Fuzz LogLuv24toXYZ
-    LogLuv24toXYZ(logluv24, xyzOutput);
-
-    // Fuzz LogLuv32toXYZ
-    LogLuv32toXYZ(logluv32, xyzOutput);
-
-    // Prepare data for TIFFSwabArrayOfFloat
-    tmsize_t n = Size / sizeof(float);
-    if (n > 0) {
-        float* floatArray = (float*)malloc(n * sizeof(float));
-        if (floatArray) {
-            memcpy(floatArray, Data, n * sizeof(float));
-            TIFFSwabArrayOfFloat(floatArray, n);
-            free(floatArray);
-        }
+        TIFFClose(tif);
     }
 
-    // Fuzz TIFFSwabLong
-    uint32_t longValue;
-    memcpy(&longValue, Data, sizeof(uint32_t));
-    TIFFSwabLong(&longValue);
+    // Prepare data for LogL16toY
+    if (Size >= sizeof(int)) {
+        int logL16 = *reinterpret_cast<const int*>(Data);
+        double logL16toYResult = LogL16toY(logL16);
+        (void)logL16toYResult; // Suppress unused variable warning
+    }
+
+    // Prepare data for LogL16fromY
+    if (Size >= sizeof(double) + sizeof(int)) {
+        int logL16fromYResult = LogL16fromY(Y, param);
+        (void)logL16fromYResult; // Suppress unused variable warning
+    }
+
+    // Prepare data for LogL10toY
+    if (Size >= sizeof(int)) {
+        int logL10 = *reinterpret_cast<const int*>(Data);
+        double logL10toYResult = LogL10toY(logL10);
+        (void)logL10toYResult; // Suppress unused variable warning
+    }
 
     return 0;
 }

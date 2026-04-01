@@ -1,41 +1,35 @@
-#include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_267(const uint8_t *data, size_t size) {
+    // Initialize SQLite
+    if (sqlite3_initialize() != SQLITE_OK) {
+        return 0;
+    }
+
+    // Create an in-memory database
     sqlite3 *db;
-    char *errMsg = 0;
-    char **result;
-    int rows, columns;
-    
-    // Initialize SQLite database in memory
     if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        sqlite3_shutdown();
         return 0;
     }
 
-    // Ensure the input data is null-terminated for use as a SQL query
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
+    // Prepare an SQL statement from the input data
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL) == SQLITE_OK) {
+        // Execute the prepared statement
+        sqlite3_step(stmt);
+        // Finalize the statement
+        sqlite3_finalize(stmt);
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Call the function-under-test
-    int rc = sqlite3_get_table(db, sql, &result, &rows, &columns, &errMsg);
-
-    // Free resources
-    if (result) {
-        sqlite3_free_table(result);
-    }
-    if (errMsg) {
-        sqlite3_free(errMsg);
-    }
-    free(sql);
+    // Close the database connection
     sqlite3_close(db);
 
+    // Shutdown SQLite
+    sqlite3_shutdown();
+
+    // Return 0 to indicate the fuzzer function completed
     return 0;
 }

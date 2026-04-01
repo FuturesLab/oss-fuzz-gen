@@ -3,21 +3,25 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_171(const uint8_t *data, size_t size) {
-    cmsHANDLE handle = NULL;
-    cmsContext context = cmsCreateContext(NULL, NULL);
-
-    if (context != NULL) {
-        handle = cmsIT8Alloc(context);
-        if (handle != NULL) {
-            // Example operation: use the input data if possible
-            if (size > 0) {
-                double sampleValue = (double)data[0] / 255.0; // Normalize first byte to a double
-                cmsIT8SetPropertyDbl(handle, "SAMPLE", sampleValue);
-            }
-            cmsIT8Free(handle);
-        }
-        cmsDeleteContext(context);
+    // Ensure size is sufficient to extract a cmsTagSignature
+    if (size < sizeof(cmsTagSignature)) {
+        return 0;
     }
+
+    // Initialize a cmsHPROFILE
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0; // If profile creation fails, exit early
+    }
+
+    // Extract a cmsTagSignature from the input data
+    cmsTagSignature tagSignature = *(cmsTagSignature *)data;
+
+    // Call the function-under-test
+    cmsTagSignature result = cmsTagLinkedTo(hProfile, tagSignature);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

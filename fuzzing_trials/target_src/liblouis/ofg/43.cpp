@@ -1,34 +1,33 @@
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include <cstdlib>
+
+// Assuming widechar and formtype are defined in the library headers
+typedef uint32_t widechar; // Example definition, adjust as needed
+typedef int formtype;      // Example definition, adjust as needed
 
 extern "C" {
-#include "/src/liblouis/liblouis/liblouis.h"
+    // Include the necessary library headers here
+    // #include "library_header.h"
+
+    // Declare the function-under-test
+    int lou_translateString(const char *, const widechar *, int *, widechar *, int *, formtype *, char *, int);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Ensure we have enough data for each parameter
-    if (size < 20) {
-        return 0;
-    }
-
-    // Initialize parameters
+    // Define and initialize parameters for lou_translateString
     const char *inputString = reinterpret_cast<const char *>(data);
-    const widechar *tableList = reinterpret_cast<const widechar *>(data + 1);
-    int inputLength = static_cast<int>(size - 10);
-    widechar outputBuffer[256];
-    int outputLength = 256;
-    formtype form = static_cast<formtype>(data[2]);
-    char spacingBuffer[256];
-    int spacingLength = 256;
+    widechar inputWidechar[] = {0x0041, 0x0042, 0x0043, 0}; // Example widechar array (ABC)
+    int inputInt = 1;
+    widechar outputWidechar[256]; // Buffer for output
+    int outputInt = 0;
+    formtype form = 0; // Example formtype
+    char outputChar[256]; // Buffer for output
+    int outputCharSize = 256;
 
     // Call the function-under-test
-    int result = lou_translateString(inputString, tableList, &inputLength, outputBuffer, &outputLength, &form, spacingBuffer, spacingLength);
-
-    // Optionally, print the result for debugging purposes
-    std::cout << "Result: " << result << std::endl;
+    lou_translateString(inputString, inputWidechar, &inputInt, outputWidechar, &outputInt, &form, outputChar, outputCharSize);
 
     return 0;
 }

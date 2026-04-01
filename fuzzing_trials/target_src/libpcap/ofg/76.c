@@ -1,32 +1,39 @@
+#include <pcap.h>
 #include <stdint.h>
-#include <pcap/pcap.h>
-#include <stddef.h> // Include for size_t
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h> // Include this for the FILE type and related functions
 
 int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
+    // Initialize variables
     pcap_t *pcap_handle;
+    struct pcap_pkthdr header;
     char errbuf[PCAP_ERRBUF_SIZE];
-    int immediate_mode;
 
-    // Initialize pcap handle with a non-null value
-    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    // Create a temporary file to store the input data
+    FILE *tempfile = tmpfile();
+    if (tempfile == NULL) {
+        return 0;
+    }
+
+    // Write the fuzzing data to the temporary file
+    fwrite(data, 1, size, tempfile);
+    fflush(tempfile);
+    fseek(tempfile, 0, SEEK_SET);
+
+    // Open the temporary file as a pcap file
+    pcap_handle = pcap_fopen_offline(tempfile, errbuf);
     if (pcap_handle == NULL) {
+        fclose(tempfile);
         return 0;
     }
-
-    // Ensure there's enough data to extract an integer for immediate_mode
-    if (size < sizeof(int)) {
-        pcap_close(pcap_handle);
-        return 0;
-    }
-
-    // Extracting an integer from the data
-    immediate_mode = *(const int *)data;
 
     // Call the function-under-test
-    pcap_set_immediate_mode(pcap_handle, immediate_mode);
+    const u_char *packet_data = pcap_next(pcap_handle, &header);
 
     // Clean up
     pcap_close(pcap_handle);
+    fclose(tempfile);
 
     return 0;
 }

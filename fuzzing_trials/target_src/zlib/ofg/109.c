@@ -1,24 +1,32 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <zlib.h>
 
-// Remove the 'extern "C"' as this is C code, not C++
 int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    voidpc buffer = (voidpc)data;
-    z_size_t size1 = size > 0 ? size : 1; // Ensure size1 is not zero
-    z_size_t size2 = 1; // Setting size2 to 1 for simplicity
+    z_stream stream;
+    const char *version = ZLIB_VERSION;
+    int stream_size = sizeof(z_stream);
 
-    // Create a temporary gzFile for writing
-    gzFile gzfile = gzopen("/dev/null", "wb");
-    if (gzfile == NULL) {
-        return 0; // If gzopen fails, exit early
-    }
+    // Initialize the z_stream structure
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    stream.avail_in = size;
+    stream.next_in = (Bytef *)data;
+
+    // Initialize the output buffer
+    unsigned char outbuffer[4096];
+    stream.avail_out = sizeof(outbuffer);
+    stream.next_out = outbuffer;
 
     // Call the function-under-test
-    gzfwrite(buffer, size1, size2, gzfile);
+    int result = inflateInit_(&stream, version, stream_size);
+    if (result == Z_OK) {
+        inflate(&stream, Z_NO_FLUSH);
+    }
 
-    // Close the gzFile
-    gzclose(gzfile);
+    // Clean up
+    inflateEnd(&stream);
 
     return 0;
 }

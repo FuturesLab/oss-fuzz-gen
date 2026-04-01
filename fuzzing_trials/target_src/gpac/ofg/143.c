@@ -3,26 +3,25 @@
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    // Initialize the GF_ISOFile structure
-    GF_ISOFile *the_file = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!the_file) {
-        return 0;
-    }
+    // Declare and initialize the variables
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    GF_ISOTrackID trakID = 1; // Assuming a valid track ID
+    u32 MediaType = GF_ISOM_MEDIA_VISUAL; // Assuming a valid media type
+    u32 TimeScale = 1000; // A common time scale value
 
-    // Ensure the data size is sufficient to extract a track number
-    if (size < sizeof(uint32_t)) {
-        gf_isom_close(the_file);
-        return 0;
+    // Ensure that the input data is used in some meaningful way
+    if (size > 0 && movie != NULL) {
+        // Here you might want to use `data` and `size` to modify or add to the movie
+        // For example, you could use the data to set specific properties or add sample data
     }
-
-    // Extract the track number from the input data
-    uint32_t trackNumber = *((uint32_t*)data);
 
     // Call the function under test
-    gf_isom_cenc_allocate_storage(the_file, trackNumber);
+    gf_isom_new_track(movie, trakID, MediaType, TimeScale);
 
-    // Clean up
-    gf_isom_close(the_file);
+    // Clean up resources
+    if (movie != NULL) {
+        gf_isom_close(movie);
+    }
 
     return 0;
 }

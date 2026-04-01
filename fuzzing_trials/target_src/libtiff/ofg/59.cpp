@@ -1,40 +1,33 @@
-#include <stdint.h>
-#include <cstdio>
-#include <unistd.h>  // For mkstemp, close, write
-#include <fcntl.h>   // For open
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <cstdlib>   // For remove
+#include <cstdint>
+#include <cstddef>
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    TIFF *tiff;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
+    // Since TIFF is an opaque structure, we cannot use sizeof(TIFF).
+    // Instead, we just ensure there's some data to work with.
+    if (size == 0) {
+        return 0;
+    }
 
-    // Write the fuzz data to the temporary file
-    if (fd != -1) {
-        write(fd, data, size);
-        close(fd);
+    // Create a TIFF object from the input data
+    TIFF *tiff = TIFFClientOpen("MemTIFF", "r", (thandle_t)data,
+                                [](thandle_t fd, tdata_t buf, tsize_t size) -> tsize_t { return size; },
+                                [](thandle_t fd, tdata_t buf, tsize_t size) -> tsize_t { return size; },
+                                [](thandle_t fd, toff_t off, int whence) -> toff_t { return off; },
+                                [](thandle_t fd) -> int { return 0; },
+                                [](thandle_t fd) -> toff_t { return 0; },
+                                [](thandle_t fd, tdata_t* pbase, toff_t* psize) -> int { return 0; },
+                                [](thandle_t fd, tdata_t base, toff_t size) -> void {});
 
-        // Open the TIFF file
-        tiff = TIFFOpen(tmpl, "r");
-        if (tiff != NULL) {
-            // Call the function-under-test
-            uint64_t scanlineSize = TIFFScanlineSize64(tiff);
+    if (tiff != nullptr) {
+        // Call the function under test
+        uint64_t scanlineSize = TIFFScanlineSize64(tiff);
 
-            // For demonstration purposes, print the scanline size
-            printf("Scanline Size: %lu\n", (unsigned long)scanlineSize);
-
-            // Close the TIFF file
-            TIFFClose(tiff);
-        }
-
-        // Remove the temporary file
-        remove(tmpl);
+        // Clean up
+        TIFFClose(tiff);
     }
 
     return 0;

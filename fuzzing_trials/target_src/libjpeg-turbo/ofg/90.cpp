@@ -1,44 +1,28 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
-#include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-#include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-#include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (!handle) {
-        return 0; // If initialization fails, exit early
+    // Initialize the TurboJPEG decompressor
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // If initialization fails, return early
     }
 
-    // Ensure size is sufficient for at least one pixel
-    if (size < sizeof(uint16_t)) {
-        tj3Destroy(handle);
-        return 0;
-    }
-
-    // Prepare input image buffer
-    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data);
-    int width = 1;  // Minimal width
-    int height = static_cast<int>(size / (width * sizeof(uint16_t)));  // Calculate height based on available size
-    int pitch = width * sizeof(uint16_t);
-    int pixelFormat = TJPF_RGBX;  // Example pixel format
-
-    // Prepare output buffer
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
+    // Prepare the output parameters
+    int width = 0, height = 0, jpegSubsamp = 0, jpegColorspace = 0;
 
     // Call the function-under-test
-    int result = tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
+    int result = tjDecompressHeader3(handle, data, (unsigned long)size, &width, &height, &jpegSubsamp, &jpegColorspace);
 
-    // Clean up
-    if (jpegBuf) {
-        tj3Free(jpegBuf);
-    }
-    tj3Destroy(handle);
+    // Clean up the TurboJPEG decompressor
+    tjDestroy(handle);
 
-    return 0;
+    return 0; // Always return 0 from the fuzzer function
 }

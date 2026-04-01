@@ -1,32 +1,23 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>  // For memcpy
-
 extern "C" {
     #include <tiffio.h>
-    #include "/src/libtiff/libtiff/tif_dir.h"  // Correct path for TIFFField definition
+    #include <tiff.h> // Include this to access the definition of TIFFField
+    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for tif_dir.h
 }
 
 extern "C" int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a TIFFField object
+    // Ensure the size is large enough to create a TIFFField object
     if (size < sizeof(TIFFField)) {
         return 0;
     }
 
-    // Allocate memory for a TIFFField object
-    TIFFField *field = static_cast<TIFFField *>(malloc(sizeof(TIFFField)));
-    if (field == nullptr) {
-        return 0;
-    }
-
-    // Copy data into the TIFFField object
-    memcpy(field, data, sizeof(TIFFField));
+    // Create a TIFFField object from the input data
+    const TIFFField *field = reinterpret_cast<const TIFFField*>(data);
 
     // Call the function-under-test
     TIFFDataType dataType = TIFFFieldDataType(field);
 
-    // Clean up
-    free(field);
+    // Use the result in some way to prevent optimizations
+    (void)dataType;
 
     return 0;
 }

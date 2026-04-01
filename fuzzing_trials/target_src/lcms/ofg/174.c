@@ -3,35 +3,26 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_174(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsContext context = (cmsContext)1; // Using a non-NULL dummy context
-    cmsCIExyY whitePoint;
-    cmsToneCurve *toneCurve = NULL;
-    cmsHPROFILE profile;
+    // Declare and initialize variables
+    cmsUInt16Number input[3] = {0, 0, 0};  // Example input array for 3 channels
+    cmsUInt16Number output[3] = {0, 0, 0}; // Example output array for 3 channels
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3); // Allocate a pipeline with 3 input and 3 output channels
 
-    // Ensure the size is sufficient to extract data for whitePoint
-    if (size < 3) {
+    // Check if pipeline allocation was successful
+    if (pipeline == NULL) {
         return 0;
     }
 
-    // Initialize whitePoint
-    whitePoint.x = ((double)data[0] / 255.0);
-    whitePoint.y = ((double)data[1] / 255.0);
-    whitePoint.Y = ((double)data[2] / 255.0);
-
-    // Create a tone curve using a fixed gamma value
-    toneCurve = cmsBuildGamma(context, 2.2); // A simple gamma curve
+    // Populate input array with data from the fuzzer
+    for (size_t i = 0; i < 3 && i < size / 2; i++) {
+        input[i] = (cmsUInt16Number)((data[i * 2] << 8) | data[i * 2 + 1]);
+    }
 
     // Call the function-under-test
-    profile = cmsCreateGrayProfileTHR(context, &whitePoint, toneCurve);
+    cmsPipelineEval16(input, output, pipeline);
 
-    // Clean up
-    if (toneCurve != NULL) {
-        cmsFreeToneCurve(toneCurve);
-    }
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
+    // Free the pipeline after use
+    cmsPipelineFree(pipeline);
 
     return 0;
 }

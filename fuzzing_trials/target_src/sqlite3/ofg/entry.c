@@ -1,4 +1,4 @@
-// This is the entry of 404 fuzz drivers:
+// This is the entry of 407 fuzz drivers:
 // 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 2
 // 3, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 4
 // 3, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 6
@@ -22,7 +22,8 @@
 // , 343, 344, 345, 346, 347, 348, 349, 350, 351, 352, 353, 354, 355, 356, 357, 358
 // , 359, 360, 361, 362, 363, 364, 365, 366, 367, 368, 369, 370, 371, 372, 373, 374
 // , 375, 376, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 387, 388, 389, 390
-// , 391, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402, 403, 404
+// , 391, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402, 403, 404, 405, 406
+// , 407
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -437,6 +438,9 @@ int LLVMFuzzerTestOneInput_401(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_402(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_403(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_404(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_405(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_406(const uint8_t *Data, size_t Size);
+int LLVMFuzzerTestOneInput_407(const uint8_t *Data, size_t Size);
 
 // Entry function
 int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
@@ -456,7 +460,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     }
 
     // Select driver
-    switch (driverIndex % 404) {
+    switch (driverIndex % 407) {
         case 0:
             return LLVMFuzzerTestOneInput_1(remainData, remainSize);
         case 1:
@@ -1265,6 +1269,12 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
             return LLVMFuzzerTestOneInput_403(remainData, remainSize);
         case 403:
             return LLVMFuzzerTestOneInput_404(remainData, remainSize);
+        case 404:
+            return LLVMFuzzerTestOneInput_405(remainData, remainSize);
+        case 405:
+            return LLVMFuzzerTestOneInput_406(remainData, remainSize);
+        case 406:
+            return LLVMFuzzerTestOneInput_407(remainData, remainSize);
         default:
             return 0;
     }

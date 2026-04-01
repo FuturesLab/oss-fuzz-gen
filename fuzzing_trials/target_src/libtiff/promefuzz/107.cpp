@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
-// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
-// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
-// TIFFFieldName at tif_dirinfo.c:954:13 in tiffio.h
-// TIFFFieldDataType at tif_dirinfo.c:956:14 in tiffio.h
-// TIFFFieldTag at tif_dirinfo.c:952:10 in tiffio.h
+// TIFFWriteBufferSetup at tif_write.c:677:5 in tiffio.h
+// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
+// TIFFSetMode at tif_open.c:853:5 in tiffio.h
+// TIFFFlush at tif_flush.c:30:5 in tiffio.h
+// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
+// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -18,56 +18,45 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio>
+
+static TIFF* createDummyTIFF() {
+    FILE* dummyFile = fopen("./dummy_file", "w+b");
+    if (!dummyFile) return nullptr;
+    fclose(dummyFile);
+    return TIFFOpen("./dummy_file", "w+");
+}
 
 extern "C" int LLVMFuzzerTestOneInput_107(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) return 0;
+    if (Size < 1) return 0;
 
-    // Create a dummy TIFF structure
-    TIFF *tif = TIFFOpen("./dummy_file", "w");
+    TIFF *tif = createDummyTIFF();
     if (!tif) return 0;
 
-    // Prepare a dummy TIFFField structure
-    // Since TIFFField is an incomplete type, we can't instantiate it directly.
-    // Instead, we will use the functions that take TIFFField* as arguments.
+    // Prepare buffer for TIFFWriteBufferSetup and TIFFReadBufferSetup
+    void *buffer = nullptr;
+    tmsize_t bufferSize = static_cast<tmsize_t>(Size);
 
-    uint32_t dummyTag = *(reinterpret_cast<const uint32_t*>(Data));
-    TIFFDataType dummyType = static_cast<TIFFDataType>(Data[0] % 12); // Assuming 12 types
+    // 1. Test TIFFWriteBufferSetup
+    TIFFWriteBufferSetup(tif, buffer, bufferSize);
 
-    // Test TIFFFieldWithName
-    const TIFFField *fieldWithName = TIFFFieldWithName(tif, "DummyField");
-    if (fieldWithName) {
-        printf("Field with name found.\n");
-    }
+    // 2. Test TIFFCheckpointDirectory
+    TIFFCheckpointDirectory(tif);
 
-    // Test TIFFFindField
-    const TIFFField *foundField = TIFFFindField(tif, dummyTag, dummyType);
-    if (foundField) {
-        printf("Field found.\n");
-    }
+    // 3. Test TIFFSetMode
+    int mode = Data[0] % 3; // Assuming 3 modes for simplicity
+    TIFFSetMode(tif, mode);
 
-    // Test TIFFFieldWithTag
-    const TIFFField *fieldWithTag = TIFFFieldWithTag(tif, dummyTag);
-    if (fieldWithTag) {
-        printf("Field with tag found.\n");
-    }
+    // 4. Test TIFFFlush
+    TIFFFlush(tif);
 
-    // We cannot directly test TIFFFieldName, TIFFFieldDataType, or TIFFFieldTag
-    // without a valid TIFFField instance, which we can't create due to the incomplete type.
-    // However, if we have a valid field pointer from the above functions, we can use them.
+    // 5. Test TIFFReadBufferSetup
+    TIFFReadBufferSetup(tif, buffer, bufferSize);
 
-    if (foundField) {
-        const char *fieldName = TIFFFieldName(foundField);
-        printf("Field name: %s\n", fieldName);
-
-        TIFFDataType dataType = TIFFFieldDataType(foundField);
-        printf("Field data type: %d\n", dataType);
-
-        uint32_t fieldTag = TIFFFieldTag(foundField);
-        printf("Field tag: %u\n", fieldTag);
-    }
+    // 6. Test TIFFDeferStrileArrayWriting
+    TIFFDeferStrileArrayWriting(tif);
 
     TIFFClose(tif);
     return 0;

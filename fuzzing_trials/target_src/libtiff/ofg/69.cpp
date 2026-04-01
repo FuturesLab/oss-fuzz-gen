@@ -1,48 +1,46 @@
 #include <tiffio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include for 'close' and 'write' functions
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>  // Include for the close function
+
+extern "C" {
+    #include <tiffio.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the TIFF data
+    if (size == 0) {
+        return 0;
+    }
+
+    // Create a temporary file to store the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) { // Cast size to ssize_t for comparison
+    // Write the data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == nullptr) {
         close(fd);
         return 0;
     }
-    close(fd);
+
+    fwrite(data, 1, size, file);
+    fclose(file);
 
     // Open the TIFF file
-    TIFF *tif = TIFFOpen(tmpl, "r");
-    if (tif == NULL) {
-        remove(tmpl);
-        return 0;
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff != nullptr) {
+        // Call the function-under-test
+        int mode = TIFFGetMode(tiff);
+
+        // Clean up
+        TIFFClose(tiff);
     }
 
-    // Prepare the buffer for reading raw tile data
-    tmsize_t buffer_size = 1024; // Arbitrary buffer size
-    void *buffer = malloc(buffer_size);
-    if (buffer == NULL) {
-        TIFFClose(tif);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Call the function-under-test
-    uint32_t tile = 0; // Start with the first tile
-    tmsize_t result = TIFFReadRawTile(tif, tile, buffer, buffer_size);
-
-    // Clean up
-    free(buffer);
-    TIFFClose(tif);
+    // Remove the temporary file
     remove(tmpl);
 
     return 0;

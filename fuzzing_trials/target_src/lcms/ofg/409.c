@@ -1,34 +1,36 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_409(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    char *comment;
-    cmsBool result;
+    cmsPipeline *pipeline = NULL;
+    cmsStage *stage = NULL;
 
-    // Initialize a valid cmsHANDLE
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
-        return 0; // Early exit if handle allocation fails
+    // Initialize a memory context
+    cmsContext contextID = cmsCreateContext(NULL, NULL);
+
+    // Create a cmsPipeline object with at least one stage to avoid NULL
+    pipeline = cmsPipelineAlloc(contextID, 3, 3);
+    if (pipeline == NULL) {
+        cmsDeleteContext(contextID);
+        return 0;
     }
 
-    // Ensure the comment is null-terminated and non-NULL
-    comment = (char *)malloc(size + 1);
-    if (comment == NULL) {
-        cmsIT8Free(handle);
-        return 0; // Early exit if memory allocation fails
+    // Add a dummy stage to the pipeline
+    cmsStage *identityStage = cmsStageAllocIdentity(contextID, 3);
+    if (identityStage == NULL) {
+        cmsPipelineFree(pipeline);
+        cmsDeleteContext(contextID);
+        return 0;
     }
-    memcpy(comment, data, size);
-    comment[size] = '\0'; // Null-terminate the comment
+    cmsPipelineInsertStage(pipeline, cmsAT_END, identityStage);
 
-    // Call the function under test
-    result = cmsIT8SetComment(handle, comment);
+    // Call the function-under-test
+    stage = cmsPipelineGetPtrToFirstStage(pipeline);
 
     // Clean up
-    free(comment);
-    cmsIT8Free(handle);
+    cmsPipelineFree(pipeline);
+    cmsDeleteContext(contextID);
 
     return 0;
 }

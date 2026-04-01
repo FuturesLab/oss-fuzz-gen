@@ -15,15 +15,16 @@ int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
     return 0;
   }
 
-  int num_doubles = size / sizeof(double);
-  double *double_array = (double *)malloc(num_doubles * sizeof(double));
+  int array_size = size / sizeof(double);
+  double *double_array = (double *)malloc(array_size * sizeof(double));
+
   if (double_array == NULL) {
     return 0;
   }
 
-  memcpy(double_array, data, num_doubles * sizeof(double));
+  memcpy(double_array, data, array_size * sizeof(double));
 
-  cJSON *json_array = cJSON_CreateDoubleArray(double_array, num_doubles);
+  cJSON *json_array = cJSON_CreateDoubleArray(double_array, array_size);
 
   if (json_array != NULL) {
     cJSON_Delete(json_array);

@@ -1,24 +1,13 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFmemset at tif_unix.c:353:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// _TIFFcalloc at tif_unix.c:341:7 in tiffio.h
-// _TIFFmemset at tif_unix.c:353:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFrealloc at tif_unix.c:351:7 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFmemcpy at tif_unix.c:355:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFTileSize at tif_tile.c:253:10 in tiffio.h
+// TIFFReadTile at tif_read.c:950:10 in tiffio.h
+// TIFFComputeTile at tif_tile.c:35:10 in tiffio.h
+// TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
+// TIFFCurrentTile at tif_open.c:884:10 in tiffio.h
+// TIFFDefaultTileSize at tif_tile.c:267:6 in tiffio.h
+// TIFFComputeStrip at tif_strip.c:35:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFmemcpy at tif_unix.c:355:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFmemset at tif_unix.c:353:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -28,81 +17,54 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdlib>
-#include <cstdio>
 #include <cstring>
-#include <tiffio.h>
+#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 4) return 0; // Not enough data to perform meaningful operations
 
-    // Fuzz _TIFFmalloc
-    tmsize_t malloc_size = static_cast<tmsize_t>(Data[0]);
-    void *malloc_ptr = _TIFFmalloc(malloc_size);
-    if (malloc_ptr) {
-        _TIFFmemset(malloc_ptr, 0, malloc_size);
-        _TIFFfree(malloc_ptr);
+    // Create a dummy file to work with
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) return 0;
+
+    // Prepare buffers and variables for function calls
+    uint32_t x = 0, y = 0, z = 0;
+    uint16_t s = 0;
+    uint32_t tileWidth, tileHeight;
+    tmsize_t tileSize = TIFFTileSize(tif);
+    void *buf = malloc(tileSize);
+
+    // Fuzz TIFFReadTile
+    if (buf) {
+        TIFFReadTile(tif, buf, x, y, z, s);
+        free(buf);
     }
 
-    // Fuzz _TIFFcalloc
-    if (Size >= 2) {
-        tmsize_t nmemb = static_cast<tmsize_t>(Data[1]);
-        tmsize_t siz = static_cast<tmsize_t>(Data[0]);
-        void *calloc_ptr = _TIFFcalloc(nmemb, siz);
-        if (calloc_ptr) {
-            _TIFFmemset(calloc_ptr, 0, nmemb * siz);
-            _TIFFfree(calloc_ptr);
-        }
-    }
+    // Fuzz TIFFComputeTile
+    TIFFComputeTile(tif, x, y, z, s);
 
-    // Fuzz _TIFFrealloc
-    if (Size >= 3) {
-        tmsize_t realloc_size = static_cast<tmsize_t>(Data[2]);
-        void *realloc_ptr = _TIFFmalloc(malloc_size);
-        if (realloc_ptr) {
-            void *new_realloc_ptr = _TIFFrealloc(realloc_ptr, realloc_size);
-            if (new_realloc_ptr != nullptr) {
-                _TIFFfree(new_realloc_ptr);
-            }
-        }
-    }
+    // Fuzz TIFFNumberOfTiles
+    TIFFNumberOfTiles(tif);
 
-    // Fuzz TIFFWriteScanline
-    TIFF* tif = TIFFOpen("./dummy_file", "w");
-    if (tif) {
-        void *buf = _TIFFmalloc(Size);
-        if (buf) {
-            _TIFFmemcpy(buf, Data, Size);
-            TIFFWriteScanline(tif, buf, 0, 0);
-            _TIFFfree(buf);
-        }
-        TIFFClose(tif);
-    }
+    // Fuzz TIFFCurrentTile
+    TIFFCurrentTile(tif);
 
-    // Fuzz _TIFFmemcpy
-    if (Size >= 4) {
-        tmsize_t copy_size = static_cast<tmsize_t>(Data[3]);
-        if (copy_size > 0 && copy_size <= Size) {
-            void *dest = _TIFFmalloc(copy_size);
-            if (dest) {
-                _TIFFmemcpy(dest, Data, copy_size);
-                _TIFFfree(dest);
-            }
-        }
-    }
+    // Fuzz TIFFDefaultTileSize
+    TIFFDefaultTileSize(tif, &tileWidth, &tileHeight);
 
-    // Fuzz _TIFFmemset
-    if (Size >= 5) {
-        tmsize_t memset_size = static_cast<tmsize_t>(Data[4]);
-        if (memset_size > 0) {
-            void *memset_ptr = _TIFFmalloc(memset_size);
-            if (memset_ptr) {
-                _TIFFmemset(memset_ptr, Data[0], memset_size);
-                _TIFFfree(memset_ptr);
-            }
-        }
-    }
+    // Fuzz TIFFComputeStrip
+    TIFFComputeStrip(tif, y, s);
 
+    // Clean up
+    TIFFClose(tif);
     return 0;
 }

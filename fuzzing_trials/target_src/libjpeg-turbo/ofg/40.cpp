@@ -1,25 +1,26 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 
-// Assuming the function is part of a C library
+// Assuming tj3YUVPlaneWidth is defined in an external C library
 extern "C" {
-    size_t tj3YUVPlaneSize(int componentID, int width, int stride, int height, int subsamp);
+    int tj3YUVPlaneWidth(int componentID, int width, int subsampling);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    int componentID = 0;
-    int width = 1;
-    int stride = 1;
-    int height = 1;
-    int subsamp = 0;
+    if (size < 3) {
+        return 0; // Ensure there is enough data to extract three integers
+    }
 
-    // Call the function-under-test with the initialized parameters
-    size_t result = tj3YUVPlaneSize(componentID, width, stride, height, subsamp);
+    // Extract three integers from the input data
+    int componentID = static_cast<int>(data[0]);
+    int width = static_cast<int>(data[1]);
+    int subsampling = static_cast<int>(data[2]);
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    // Call the function-under-test
+    int result = tj3YUVPlaneWidth(componentID, width, subsampling);
+
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result; // In this case, we simply cast to void
 
     return 0;
 }

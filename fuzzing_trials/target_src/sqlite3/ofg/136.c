@@ -1,32 +1,32 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
+    // Declare and initialize variables
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
+    sqlite3_stmt *stmt = NULL;
+    int index = 0;
+    void *pointer = (void *)0x1; // Non-NULL arbitrary pointer
+    const char *type = "example_type";
     const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY);";
-    const char *pointer_type = "example_pointer_type";
-    void *pointer = (void *)0x12345678; // Example non-NULL pointer
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
     // Prepare a simple SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Bind the pointer to the statement
-    rc = sqlite3_bind_pointer(stmt, 1, pointer, pointer_type, NULL);
+    // Call the function-under-test
+    sqlite3_bind_pointer(stmt, index, pointer, type, NULL);
 
-    // Finalize the statement and close the database
+    // Clean up
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 

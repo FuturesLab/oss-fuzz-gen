@@ -1,36 +1,56 @@
+#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>  // Include for memcpy
+#include <cstring>
+#include <unistd.h> // Include for 'close' and 'mkstemp'
 
 extern "C" {
     #include <tiffio.h>
-    #include "/src/libtiff/libtiff/tif_dir.h"  // Corrected path for the definition of TIFFField
 }
 
 extern "C" int LLVMFuzzerTestOneInput_227(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a TIFFField object
-    if (size < sizeof(TIFFField)) {
-        return 0;
+    if (size < 2) {
+        return 0; // Not enough data to form a filename and mode
     }
 
-    // Allocate memory for a TIFFField object
-    TIFFField *field = (TIFFField *)malloc(sizeof(TIFFField));
-    if (field == nullptr) {
-        return 0;
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Failed to create temporary file
     }
 
-    // Copy data into the TIFFField object
-    memcpy(field, data, sizeof(TIFFField));
+    // Write the fuzz data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Prepare mode string
+    char mode[3] = {0};
+    mode[0] = (char)data[0];
+    mode[1] = (char)data[1];
+    mode[2] = '\0';
+
+    // Initialize TIFFOpenOptions
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    if (!options) {
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    uint32_t tag = TIFFFieldTag(field);
+    TIFF *tiff = TIFFOpenExt(tmpl, mode, options);
 
-    // Use the tag value in some way to avoid compiler optimizations
-    volatile uint32_t use_tag = tag;
-    (void)use_tag;
-
-    // Free the allocated memory
-    free(field);
+    // Clean up
+    if (tiff) {
+        TIFFClose(tiff);
+    }
+    TIFFOpenOptionsFree(options);
+    remove(tmpl);
 
     return 0;
 }

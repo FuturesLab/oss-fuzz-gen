@@ -1,61 +1,38 @@
 #include <stdint.h>
 #include <sqlite3.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_186(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    char *errMsg = 0;
-    char *sql;
-    sqlite3_int64 result;
-    int columnIndex;
+    const char *dbName = ":memory:"; // Use in-memory database for testing
+    const char *zDbName = "main"; // Default database name in SQLite
+    const char *zTableName = "test_table";
+    const char *zColumnName = "test_column";
+    const char *pzDataType;
+    const char *pzCollSeq;
+    int notNull;
+    int primaryKey;
+    int autoInc;
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open a new database connection
+    if (sqlite3_open(dbName, &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table for testing
-    sql = "CREATE TABLE test (id INTEGER, value INTEGER);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Create a test table to ensure the column metadata can be fetched
+    const char *createTableSQL = "CREATE TABLE test_table (test_column TEXT);";
+    if (sqlite3_exec(db, createTableSQL, 0, 0, 0) != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Insert some test data
-    sql = "INSERT INTO test (id, value) VALUES (1, 100), (2, 200), (3, 300);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
+    // Call the function-under-test
+    sqlite3_table_column_metadata(db, zDbName, zTableName, zColumnName, &pzDataType, &pzCollSeq, &notNull, &primaryKey, &autoInc);
 
-    // Prepare a SQL statement
-    sql = "SELECT value FROM test WHERE id = 1;";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Use the provided data to determine the column index
-        columnIndex = (size > 0) ? data[0] % sqlite3_column_count(stmt) : 0;
-
-        // Call the function-under-test
-        result = sqlite3_column_int64(stmt, columnIndex);
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

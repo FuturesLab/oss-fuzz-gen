@@ -1,30 +1,63 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    sqlite3_str *str;
-    const char *text;
-    int length;
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    char *errMsg = 0;
+    const char *sqlCreateTable = "CREATE TABLE IF NOT EXISTS FuzzTest (id INT, data TEXT);";
+    const char *sqlInsert = "INSERT INTO FuzzTest (id, data) VALUES (1, 'SampleData');";
+    const char *sqlSelect = "SELECT * FROM FuzzTest;";
 
-    // Initialize sqlite3_str object
-    str = sqlite3_str_new(NULL); // Use default memory allocator
-
-    // Ensure data is not NULL and has a size
-    if (size > 0) {
-        text = (const char *)data;
-        length = (int)size;
-    } else {
-        text = "default"; // Fallback to a default string
-        length = 7; // Length of "default"
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
 
-    // Call the function-under-test
-    sqlite3_str_append(str, text, length);
+    // Create table
+    rc = sqlite3_exec(db, sqlCreateTable, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Insert data
+    rc = sqlite3_exec(db, sqlInsert, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare select statement
+    rc = sqlite3_prepare_v2(db, sqlSelect, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the statement and call sqlite3_column_type
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        int columnCount = sqlite3_column_count(stmt);
+        for (int i = 0; i < columnCount; i++) {
+            int columnType = sqlite3_column_type(stmt, i);
+            // Use columnType for further processing if needed
+        }
+    }
 
     // Clean up
-    sqlite3_str_finish(str);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

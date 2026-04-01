@@ -1,26 +1,27 @@
 #include <stdint.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <zlib.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
     gzFile file;
-    const char *filename = "/dev/null"; // Use a null device for safe writing
-    unsigned int len;
+    const char *filename = "fuzz_output.gz";
+    unsigned int len = size > 0 ? size : 1; // Ensure len is not zero
 
-    // Open the file for writing in binary mode
+    // Open a gzip file for writing
     file = gzopen(filename, "wb");
     if (file == NULL) {
-        return 0; // Exit if file cannot be opened
+        return 0;
     }
-
-    // Ensure the length does not exceed the size
-    len = (unsigned int)(size > UINT_MAX ? UINT_MAX : size);
 
     // Call the function-under-test
     gzwrite(file, (const void *)data, len);
 
-    // Close the file
+    // Close the gzip file
     gzclose(file);
+
+    // Remove the file after writing to avoid clutter
+    remove(filename);
 
     return 0;
 }

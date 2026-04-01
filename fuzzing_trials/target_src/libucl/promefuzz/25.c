@@ -1,9 +1,9 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
+// ucl_object_frombool at ucl_util.c:3118:1 in ucl.h
 // ucl_object_todouble at ucl_util.c:3446:1 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
 // ucl_object_frombool at ucl_util.c:3118:1 in ucl.h
-// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
+// ucl_object_frombool at ucl_util.c:3118:1 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
 // ucl_object_insert_key at ucl_util.c:2533:6 in ucl.h
 // ucl_object_unref at ucl_util.c:3697:6 in ucl.h
@@ -14,49 +14,44 @@
 #include <stdio.h>
 #include <ucl.h>
 #include <stdbool.h>
-
-static ucl_object_t *create_dummy_ucl_object() {
-    ucl_object_t *obj = ucl_object_typed_new(UCL_FLOAT);
-    if (obj) {
-        obj->value.dv = 42.0; // Set a default double value
-        obj->ref = 1; // Initialize reference count
-    }
-    return obj;
-}
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    // Step 1: Prepare the environment
-    ucl_object_t *obj = create_dummy_ucl_object();
-    if (obj == NULL) {
-        return 0; // Memory allocation failed, exit early
+    if (Size < 1) return 0; // Ensure there's at least 1 byte to read
+
+    // Create a boolean UCL object
+    bool bool_value = Data[0] % 2;
+    ucl_object_t *bool_obj = ucl_object_frombool(bool_value);
+    if (!bool_obj) return 0;
+
+    // Convert the boolean UCL object to a double
+    double double_value = ucl_object_todouble(bool_obj);
+
+    // Unreference the boolean UCL object
+    ucl_object_unref(bool_obj);
+
+    // Create a new UCL object to use as a top-level object
+    ucl_object_t *top_obj = ucl_object_frombool(false); // Just to have a valid object
+    if (!top_obj) return 0;
+
+    // Create another UCL object to insert
+    ucl_object_t *insert_obj = ucl_object_frombool(true);
+    if (!insert_obj) {
+        ucl_object_unref(top_obj);
+        return 0;
     }
 
-    // Step 2: Invoke `ucl_object_todouble`
-    double result = ucl_object_todouble(obj);
+    // Use a key from the input data
+    const char *key = (const char *)Data;
+    size_t keylen = Size;
 
-    // Step 3: Cleanup using `ucl_object_unref`
-    ucl_object_unref(obj);
+    // Insert the object with the key into the top-level object
+    bool result = ucl_object_insert_key(top_obj, insert_obj, key, keylen, true);
 
-    // Step 4: Use `ucl_object_frombool`
-    bool bool_val = (Size > 0 && Data[0] % 2 == 0);
-    ucl_object_t *bool_obj = ucl_object_frombool(bool_val);
-    if (bool_obj == NULL) {
-        return 0; // Failed to create boolean object, exit early
-    }
-
-    // Step 5: Use `ucl_object_insert_key`
-    const char *key = "example_key";
-    size_t keylen = strlen(key);
-    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
-    if (top == NULL) {
-        ucl_object_unref(bool_obj);
-        return 0; // Memory allocation failed, exit early
-    }
-
-    bool insert_result = ucl_object_insert_key(top, bool_obj, key, keylen, true);
-
-    // Step 6: Cleanup
-    ucl_object_unref(top); // This will also unref bool_obj if inserted successfully
+    // Cleanup
+    ucl_object_unref(top_obj); // This will also unref insert_obj if insertion was successful
 
     return 0;
 }

@@ -1,31 +1,31 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include this header for memcpy
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
 
 extern "C" {
     #include <tiffio.h>
+    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for the definition of TIFFField
+
+    int TIFFFieldReadCount(const TIFFField *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_295(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint32_t)) {
-        return 0; // Not enough data to extract uint32_t
+    if (size < sizeof(TIFFField)) {
+        return 0; // Not enough data to create a valid TIFFField
     }
 
-    // Initialize TIFF structure
-    TIFF *tif = TIFFOpen("dummy.tif", "w");
-    if (!tif) {
-        return 0; // Failed to open TIFF
+    // Create a TIFFField object from the input data
+    TIFFField field;
+    // Copy data into the TIFFField object, ensuring we don't exceed bounds
+    memcpy(&field, data, sizeof(TIFFField));
+
+    // Fuzz the TIFFFieldReadCount function
+    int readCount = TIFFFieldReadCount(&field);
+
+    // Use the readCount in some way to avoid compiler optimizations
+    if (readCount < 0) {
+        // Handle error case
     }
-
-    // Extract a uint32_t value from the input data
-    uint32_t sampleValue;
-    memcpy(&sampleValue, data, sizeof(uint32_t));
-
-    // Call the function-under-test
-    tmsize_t tileSize = TIFFVTileSize(tif, sampleValue);
-
-    // Clean up
-    TIFFClose(tif);
 
     return 0;
 }

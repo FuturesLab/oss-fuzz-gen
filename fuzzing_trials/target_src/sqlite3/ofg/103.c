@@ -1,46 +1,22 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
-
-// Dummy function to initialize an SQLite statement for demonstration purposes
-sqlite3_stmt* initialize_statement(sqlite3 **db) {
-    sqlite3_stmt *stmt;
-    const char *sql = "SELECT * FROM example_table";
-
-    // Open a connection to an in-memory database
-    if (sqlite3_open(":memory:", db) != SQLITE_OK) {
-        return NULL;
-    }
-
-    // Prepare the SQL statement
-    if (sqlite3_prepare_v2(*db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(*db);
-        return NULL;
-    }
-
-    // Return the prepared statement
-    return stmt;
-}
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = initialize_statement(&db);
-    if (!stmt) {
-        return 0;
-    }
+    // Declare and initialize the parameter for sqlite3_soft_heap_limit64
+    sqlite3_int64 heap_limit = 0;
 
-    // Ensure the index is within a reasonable range
-    int index = 0;
-    if (size > 0) {
-        index = data[0] % 10; // Limiting index to a small range for safety
+    // Ensure that the size of the input data is sufficient to extract a sqlite3_int64 value
+    if (size >= sizeof(sqlite3_int64)) {
+        // Copy bytes from data to heap_limit to form a valid sqlite3_int64 value
+        heap_limit = *(const sqlite3_int64 *)data;
     }
 
     // Call the function-under-test
-    const void *result = sqlite3_column_text16(stmt, index);
+    sqlite3_int64 result = sqlite3_soft_heap_limit64(heap_limit);
 
-    // Clean up
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }

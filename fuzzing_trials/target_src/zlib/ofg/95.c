@@ -1,35 +1,28 @@
 #include <stdint.h>
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    gzFile file;
-    int flush_value;
-    char filename[] = "fuzz_test.gz";
-
-    // Write the data to a temporary file
-    FILE *temp_file = fopen(filename, "wb");
-    if (temp_file == NULL) {
-        return 0;
-    }
-    fwrite(data, 1, size, temp_file);
-    fclose(temp_file);
-
-    // Open the temporary file as a gzFile
-    file = gzopen(filename, "rb");
-    if (file == NULL) {
-        return 0;
+    // Initialize all variables
+    Bytef *dest;
+    uLongf destLen;
+    const Bytef *source = data;
+    uLong sourceLen = size;
+    
+    // Allocate memory for the destination buffer
+    // Assume a maximum compression ratio of 4:1 for this example
+    destLen = size * 4;
+    dest = (Bytef *)malloc(destLen);
+    if (dest == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Try different flush values
-    for (flush_value = 0; flush_value <= Z_FINISH; flush_value++) {
-        gzflush(file, flush_value);
-    }
+    // Call the function-under-test
+    uncompress(dest, &destLen, source, sourceLen);
 
-    gzclose(file);
-
-    // Clean up the temporary file
-    remove(filename);
+    // Free allocated memory
+    free(dest);
 
     return 0;
 }

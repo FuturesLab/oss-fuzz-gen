@@ -1,63 +1,43 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_276(const uint8_t *data, size_t size) {
-    // Initialize variables
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
+    sqlite3 *db = NULL;
     int rc;
     char *errMsg = 0;
 
-    // Open an in-memory database
+    // Open a database connection in memory
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
     // Create a simple table
-    const char *sqlCreateTable = "CREATE TABLE test (id INTEGER PRIMARY KEY, value INTEGER);";
-    rc = sqlite3_exec(db, sqlCreateTable, 0, 0, &errMsg);
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
         sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
     }
 
-    // Prepare an insert statement
-    const char *sqlInsert = "INSERT INTO test (id, value) VALUES (?, ?);";
-    rc = sqlite3_prepare_v2(db, sqlInsert, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Insert some data into the table using the fuzzer input
+    if (size > 0) {
+        char insertSQL[256];
+        snprintf(insertSQL, sizeof(insertSQL), "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
+        rc = sqlite3_exec(db, insertSQL, 0, 0, &errMsg);
+        if (rc != SQLITE_OK) {
+            fprintf(stderr, "SQL error: %s\n", errMsg);
+            sqlite3_free(errMsg);
+        }
     }
 
-    // Ensure data is large enough to extract an int
-    if (size < sizeof(int)) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
+    // Call the function-under-test
+    int changes = sqlite3_total_changes(db);
+    printf("Total changes: %d\n", changes);
 
-    // Extract an integer from the input data
-    int index = *((int *)data);
-    sqlite_int64 value = (sqlite_int64)(size); // Use size as a value for fuzzing
-
-    // Bind the integer to the statement
-    sqlite3_bind_int64(stmt, 1, index);
-    sqlite3_bind_int64(stmt, 2, value);
-
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

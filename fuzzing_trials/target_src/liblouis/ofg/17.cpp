@@ -1,22 +1,27 @@
-#include <cstdint>
-#include <cstddef>
+#include <cstddef>  // For size_t
+#include <cstdint>  // For uint8_t
 
-// Hypothetical function signature assumed for the task
 extern "C" {
-    void lou_registerTableResolver(void (*resolver)(void));
+    #include "/src/liblouis/liblouis/liblouis.h"
 }
 
-// A dummy resolver function to be registered
-void dummyResolver_17() {
-    // This function could do something meaningful in a real scenario
+// Define a dummy resolver function to pass as a parameter
+extern "C" char **tableResolver(const char *tableList, const char *tablePath) {
+    // Dummy implementation
+    return nullptr;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Register the dummy resolver function
-    lou_registerTableResolver(dummyResolver_17);
+    // Call the function under test
+    lou_registerTableResolver(tableResolver);
 
-    // The function doesn't use `data` or `size`, but they are required by the fuzzer interface
-    // In a real scenario, you might want to use `data` to influence the behavior of the resolver
+    // Ensure the data is not null and has a size greater than 0
+    if (data != nullptr && size > 0) {
+        // Use the data in some meaningful way with the liblouis functions
+        // For example, you could call another liblouis function that uses the data
+        // This is a placeholder for actual function usage
+        // lou_translateString(...); // Example placeholder
+    }
 
     return 0;
 }

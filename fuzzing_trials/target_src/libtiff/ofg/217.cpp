@@ -1,42 +1,27 @@
+#include <stdint.h>
+#include <stddef.h>
 #include <tiffio.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h> // Include for the 'close' function
-
-extern "C" {
-    #include <tiffio.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_217(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // If file creation fails, exit
-    }
-
-    // Write the input data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
+    // Ensure size is sufficient to extract an integer for mode
+    if (size < sizeof(int)) {
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r+");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        TIFFRewriteDirectory(tiff);
-
-        // Close the TIFF file
-        TIFFClose(tiff);
+    // Initialize TIFF structure
+    TIFF *tiff = TIFFOpen("/tmp/fuzzfileXXXXXX", "w");
+    if (tiff == NULL) {
+        return 0;
     }
 
-    // Clean up the temporary file
-    remove(tmpl);
+    // Extract an integer from the input data for the mode parameter
+    int mode = *(reinterpret_cast<const int*>(data));
+
+    // Call the function-under-test
+    TIFFSetMode(tiff, mode);
+
+    // Clean up
+    TIFFClose(tiff);
 
     return 0;
 }

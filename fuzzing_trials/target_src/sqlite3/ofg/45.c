@@ -1,32 +1,57 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdlib.h>  // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Initialize a sqlite3_str object
-    sqlite3_str *str = sqlite3_str_new(NULL);
-    
-    // Ensure the data is not empty
-    if (size > 0) {
-        // Use the data as a string input
-        const char *input = (const char *)data;
-        
-        // Ensure the string is null-terminated
-        char *null_terminated_input = (char *)malloc(size + 1);
-        memcpy(null_terminated_input, input, size);
-        null_terminated_input[size] = '\0';
-        
-        // Call the function-under-test
-        sqlite3_str_append(str, null_terminated_input, (int)size);
-        
-        // Free the allocated memory
-        free(null_terminated_input);
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
-    
-    // Free the sqlite3_str object
-    sqlite3_str_finish(str);
-    
+
+    // Prepare a dummy SQL statement
+    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare an INSERT statement
+    sql = "INSERT INTO test (value) VALUES (?);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Bind the fuzzing data to the statement
+    if (size > 0) {
+        sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
+    }
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Reset the statement to use it again
+    sqlite3_reset(stmt);
+
+    // Call the function-under-test
+    int data_count = sqlite3_data_count(stmt);
+
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
     return 0;
 }

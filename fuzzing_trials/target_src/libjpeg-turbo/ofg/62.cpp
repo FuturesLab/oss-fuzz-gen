@@ -1,44 +1,45 @@
-#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring> // Include this for memcpy
+#include <unistd.h>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    // Alternatively, you can use one of the other paths if needed:
-    // #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    // #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0; // Early exit if handle initialization fails
-    }
-
-    // Ensure the data is not NULL and size is greater than zero
-    if (data == nullptr || size == 0) {
-        tjDestroy(handle);
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-
-    // Allocate memory for ICC profile
-    unsigned char *iccProfile = (unsigned char *)malloc(size);
-    if (iccProfile == nullptr) {
-        tjDestroy(handle);
-        return 0; // Early exit if memory allocation fails
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
     }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Copy data to iccProfile
-    memcpy(iccProfile, data, size);
-
+    // Initialize variables
+    tjhandle handle = tjInitDecompress();
+    int width = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB;
+    
     // Call the function-under-test
-    int result = tj3SetICCProfile(handle, iccProfile, size);
+    int flags = 0; // Assuming no flags for simplicity
+    unsigned char *image = tjLoadImage(tmpl, &width, 1, &height, &pixelFormat, flags);
 
     // Clean up
-    free(iccProfile);
     tjDestroy(handle);
+    if (image) {
+        tjFree(image);
+    }
+    remove(tmpl);
 
     return 0;
 }

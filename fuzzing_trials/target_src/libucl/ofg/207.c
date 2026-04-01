@@ -3,31 +3,26 @@
 #include <stddef.h>
 
 int LLVMFuzzerTestOneInput_207(const uint8_t *data, size_t size) {
-  // Ensure the input data is null-terminated for the function to process it as a string
-  if (size == 0) {
+    // If size is 0 we need a null-terminated string.
+    // We don't null-terminate the string and by the design
+    // of the API passing 0 as size with non null-terminated string
+    // gives undefined behavior.
+    if (size == 0) {
+        return 0;
+    }
+
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    ucl_parser_add_string(parser, (char *)data, size);
+
+    if (ucl_parser_get_error(parser) == NULL) {
+        // Call the function under test
+        unsigned char result = ucl_parser_chunk_peek(parser);
+    }
+
+    ucl_parser_free(parser);
     return 0;
-  }
-
-  // Allocate a buffer with an extra byte for the null terminator
-  char *input = (char *)malloc(size + 1);
-  if (input == NULL) {
-    return 0;
-  }
-
-  // Copy the data into the buffer and null-terminate it
-  memcpy(input, data, size);
-  input[size] = '\0';
-
-  // Call the function under test
-  ucl_object_t *obj = ucl_object_fromstring(input);
-
-  // Free the allocated object if it's not NULL
-  if (obj != NULL) {
-    ucl_object_unref(obj);
-  }
-
-  // Free the input buffer
-  free(input);
-
-  return 0;
 }

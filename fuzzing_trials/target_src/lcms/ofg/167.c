@@ -3,26 +3,27 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_167(const uint8_t *data, size_t size) {
-    // Initialize cmsContext
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return 0;
+    cmsHPROFILE hProfile;
+    cmsUInt32Number dwFlags;
+    cmsBool bInput;
+
+    // Initialize variables with non-NULL values
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0; // If profile creation fails, exit early
     }
 
-    // Ensure there's at least enough data to create a non-NULL pointer
-    if (size < sizeof(void *)) {
-        cmsDeleteContext(context);
-        return 0;
-    }
+    // Use the first byte of data for dwFlags if size permits, otherwise default to 0
+    dwFlags = (size > 0) ? data[0] : 0;
 
-    // Use the data as a pointer
-    void *pluginData = (void *)data;
+    // Use the second byte of data for bInput if size permits, otherwise default to TRUE
+    bInput = (size > 1) ? (data[1] % 2 == 0) : TRUE;
 
-    // Call the function-under-test
-    cmsBool result = cmsPluginTHR(context, pluginData);
+    // Call the function under test
+    cmsUInt32Number result = cmsFormatterForColorspaceOfProfile(hProfile, dwFlags, bInput);
 
     // Clean up
-    cmsDeleteContext(context);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

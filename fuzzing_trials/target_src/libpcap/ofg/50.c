@@ -1,35 +1,26 @@
-#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pcap.h>
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    pcap_t *pcap;
-    char errbuf[PCAP_ERRBUF_SIZE];
-
-    // Ensure the data size is sufficient to create a pcap file
-    if (size < 24) { // Minimum size for a pcap file header
+    // Ensure the size is sufficient to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Use pcap_open_offline to create a pcap_t structure from the input data
-    FILE *temp_file = fmemopen((void *)data, size, "rb");
-    if (temp_file == NULL) {
-        return 0;
+    // Extract an integer from the input data
+    int val = *(const int *)data;
+
+    // Call the function-under-test
+    const char *description = pcap_datalink_val_to_description(val);
+
+    // Use the description in some way to avoid compiler optimizations
+    if (description != NULL) {
+        // For example, just check the length of the string
+        volatile size_t len = strlen(description);
+        (void)len; // Suppress unused variable warning
     }
-
-    pcap = pcap_fopen_offline(temp_file, errbuf);
-    if (pcap == NULL) {
-        fclose(temp_file);
-        return 0;
-    }
-
-    // Call the function under test
-    int result = pcap_datalink(pcap);
-
-    // Clean up
-    pcap_close(pcap);
-    fclose(temp_file);
 
     return 0;
 }

@@ -1,74 +1,86 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
-// deflateBound_z at deflate.c:857:18 in zlib.h
-// compressBound_z at compress.c:87:18 in zlib.h
-// compress2_z at compress.c:24:13 in zlib.h
-// compressBound_z at compress.c:87:18 in zlib.h
-// compress_z at compress.c:73:13 in zlib.h
-// deflateBound at deflate.c:930:15 in zlib.h
-// compressBound_z at compress.c:87:18 in zlib.h
-// compressBound at compress.c:92:15 in zlib.h
+// deflateInit_ at deflate.c:380:13 in zlib.h
+// deflate at deflate.c:982:13 in zlib.h
+// deflateParams at deflate.c:775:13 in zlib.h
+// deflate at deflate.c:982:13 in zlib.h
+// deflateParams at deflate.c:775:13 in zlib.h
+// deflate at deflate.c:982:13 in zlib.h
+// deflate at deflate.c:982:13 in zlib.h
+// deflateEnd at deflate.c:1294:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
 
-static void test_deflateBound_z(z_streamp strm, z_size_t sourceLen) {
-    z_size_t bound = deflateBound_z(strm, sourceLen);
-    (void)bound; // Suppress unused variable warning
-}
+#define CHUNK 256
 
-static void test_compress2_z(const Bytef *source, z_size_t sourceLen, int level) {
-    z_size_t destLen = compressBound_z(sourceLen);
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (dest == NULL) return;
-
-    int result = compress2_z(dest, &destLen, source, sourceLen, level);
-    (void)result; // Suppress unused variable warning
-    free(dest);
-}
-
-static void test_compress_z(const Bytef *source, z_size_t sourceLen) {
-    z_size_t destLen = compressBound_z(sourceLen);
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (dest == NULL) return;
-
-    int result = compress_z(dest, &destLen, source, sourceLen);
-    (void)result; // Suppress unused variable warning
-    free(dest);
-}
-
-static void test_deflateBound(z_streamp strm, uLong sourceLen) {
-    uLong bound = deflateBound(strm, sourceLen);
-    (void)bound; // Suppress unused variable warning
-}
-
-static void test_compressBound_z(z_size_t sourceLen) {
-    z_size_t bound = compressBound_z(sourceLen);
-    (void)bound; // Suppress unused variable warning
-}
-
-static void test_compressBound(uLong sourceLen) {
-    uLong bound = compressBound(sourceLen);
-    (void)bound; // Suppress unused variable warning
+static void write_dummy_file(const uint8_t *data, size_t size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(data, 1, size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 3) return 0;
 
     z_stream strm;
     memset(&strm, 0, sizeof(z_stream));
 
-    test_deflateBound_z(&strm, Size);
-    test_compress2_z(Data, Size, Z_DEFAULT_COMPRESSION);
-    test_compress_z(Data, Size);
-    test_deflateBound(&strm, Size);
-    test_compressBound_z(Size);
-    test_compressBound(Size);
+    uint8_t out[CHUNK];
+    int ret;
 
+    // Initialize the deflate stream
+    ret = deflateInit_(&strm, Z_DEFAULT_COMPRESSION, ZLIB_VERSION, sizeof(z_stream));
+    if (ret != Z_OK) return 0;
+
+    // Prepare input data
+    strm.next_in = Data;
+    strm.avail_in = Size;
+
+    // Prepare output buffer
+    strm.next_out = out;
+    strm.avail_out = CHUNK;
+
+    // First deflate call
+    ret = deflate(&strm, Z_NO_FLUSH);
+    if (ret != Z_OK && ret != Z_BUF_ERROR) goto cleanup;
+
+    // Change deflate parameters
+    int level = Data[0] % 10; // Compression level 0-9
+    int strategy = Data[1] % 4; // Strategy 0-3
+
+    ret = deflateParams(&strm, level, strategy);
+    if (ret != Z_OK) goto cleanup;
+
+    // Second deflate call
+    ret = deflate(&strm, Z_SYNC_FLUSH);
+    if (ret != Z_OK && ret != Z_BUF_ERROR) goto cleanup;
+
+    // Change deflate parameters again
+    level = Data[2] % 10; // Compression level 0-9
+    strategy = Data[2] % 4; // Strategy 0-3
+
+    ret = deflateParams(&strm, level, strategy);
+    if (ret != Z_OK) goto cleanup;
+
+    // Third deflate call
+    ret = deflate(&strm, Z_PARTIAL_FLUSH);
+    if (ret != Z_OK && ret != Z_BUF_ERROR) goto cleanup;
+
+    // Fourth deflate call
+    ret = deflate(&strm, Z_FINISH);
+    if (ret != Z_STREAM_END && ret != Z_BUF_ERROR) goto cleanup;
+
+cleanup:
+    // Clean up and release resources
+    deflateEnd(&strm);
     return 0;
 }

@@ -1,48 +1,44 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>  // Include for mkstemp and close
-#include <unistd.h> // Include for mkstemp and close
+#include <tiffio.h>
+#include <unistd.h>  // For close, unlink, write, mkstemp
+#include <fcntl.h>   // For open, O_RDWR
+#include <cstdint>   // For uint8_t
+#include <cstdlib>   // For size_t
 
 extern "C" {
-    #include <tiffio.h>
+    // Include necessary C headers, source files, functions, and code here.
 }
 
 extern "C" int LLVMFuzzerTestOneInput_265(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    // Create a temporary file to hold the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0;
+        return 0; // If file creation fails, exit the fuzzing function
     }
 
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
-        return 0;
+        unlink(tmpl);
+        return 0; // If writing fails, clean up and exit
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
-    // Open the TIFF file
+    // Close the file descriptor as TIFFOpen will open it again
+    close(fd);
+
+    // Open the TIFF file using the temporary file path
     TIFF *tiff = TIFFOpen(tmpl, "r");
     if (tiff == nullptr) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Use the first 8 bytes of the data as the directory offset
-    uint64_t directoryOffset = 0;
-    if (size >= sizeof(directoryOffset)) {
-        directoryOffset = *reinterpret_cast<const uint64_t *>(data);
+        unlink(tmpl);
+        return 0; // If TIFFOpen fails, clean up and exit
     }
 
     // Call the function-under-test
-    TIFFSetSubDirectory(tiff, directoryOffset);
+    TIFFMapFileProc mapFileProc = TIFFGetMapFileProc(tiff);
 
     // Clean up
     TIFFClose(tiff);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }

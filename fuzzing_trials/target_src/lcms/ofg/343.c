@@ -1,41 +1,27 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_343(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    int index;
-    char patchName[256]; // Assuming a reasonable size for the patch name
-    const char *result;
+    cmsHANDLE it8Handle = NULL;
+    cmsUInt32Number tableCount;
 
-    // Initialize handle with a valid cmsHANDLE
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Use some data from the input to set the index
-    if (size > 0) {
-        index = data[0] % 256; // Example to limit the index to a reasonable range
-    } else {
-        index = 0; // Default index if no data is available
-    }
-
-    // Initialize patchName with some data
-    if (size > 1) {
-        strncpy(patchName, (const char *)data + 1, sizeof(patchName) - 1);
-        patchName[sizeof(patchName) - 1] = '\0'; // Ensure null-termination
-    } else {
-        strcpy(patchName, "default_patch_name");
+    // Initialize the IT8 handle with the data
+    it8Handle = cmsIT8LoadFromMem(NULL, data, size);  // Pass NULL for the cmsContext
+    if (it8Handle == NULL) {
+        return 0;
     }
 
     // Call the function-under-test
-    result = cmsIT8GetPatchName(handle, index, patchName);
+    tableCount = cmsIT8TableCount(it8Handle);
 
-    // Clean up
-    cmsIT8Free(handle);
+    // Clean up the IT8 handle
+    cmsIT8Free(it8Handle);
 
     return 0;
 }

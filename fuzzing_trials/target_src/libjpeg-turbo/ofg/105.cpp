@@ -1,32 +1,55 @@
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib> // for std::malloc and std::free
+#include <algorithm> // for std::min
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Ensure the size is not zero to prevent tjAlloc from allocating zero bytes
-    if (size == 0) {
-        return 0;
+    if (size < 3) {
+        return 0; // Not enough data to proceed
     }
 
-    // Convert size to an integer, ensuring it is within a reasonable range
-    int allocSize = static_cast<int>(size % 1024) + 1; // Limit size to a maximum of 1024 bytes
+    // Initialize the TurboJPEG decompressor
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // Failed to initialize
+    }
+
+    // Dynamically determine width and height based on input size
+    int width = std::min(static_cast<int>(size / 3), 256); // Limit to 256 for practical reasons
+    int height = std::min(static_cast<int>(size / 3), 256);
+
+    // Prepare YUV planes
+    const unsigned char *yuvPlanes[3];
+    int planeSizes[3];
+
+    // Calculate plane sizes and assign data
+    planeSizes[0] = width * height; // Y plane size
+    planeSizes[1] = width * height / 4; // U plane size
+    planeSizes[2] = width * height / 4; // V plane size
+
+    if (size < static_cast<size_t>(planeSizes[0] + planeSizes[1] + planeSizes[2])) {
+        tjDestroy(handle);
+        return 0; // Not enough data for YUV planes
+    }
+
+    yuvPlanes[0] = data; // Y plane
+    yuvPlanes[1] = data + planeSizes[0]; // U plane
+    yuvPlanes[2] = data + planeSizes[0] + planeSizes[1]; // V plane
+
+    // Prepare the destination buffer
+    int pixelFormat = TJPF_RGB; // Output pixel format
+    unsigned char *dstBuffer = new unsigned char[width * height * tjPixelSize[pixelFormat]];
 
     // Call the function-under-test
-    unsigned char *allocatedMemory = tjAlloc(allocSize);
+    tj3DecodeYUVPlanes8(handle, yuvPlanes, planeSizes, dstBuffer, width, 0, height, pixelFormat);
 
-    // Check if the allocation was successful
-    if (allocatedMemory != nullptr) {
-        // Use the allocated memory in some way, if necessary
-        // For fuzzing, we don't need to use it, just ensure it's not NULL
-
-        // Free the allocated memory
-        tjFree(allocatedMemory);
-    }
+    // Clean up
+    delete[] dstBuffer;
+    tjDestroy(handle);
 
     return 0;
 }

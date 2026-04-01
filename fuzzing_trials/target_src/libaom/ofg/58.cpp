@@ -1,34 +1,27 @@
 #include <cstdint>
 #include <cstdlib>
-#include <aom/aom_image.h>
+#include <cstring> // Include this for std::memcpy
 
 extern "C" {
-    #include <aom/aom_image.h>
+    #include <aom/aom_image.h> // Wrap C library includes in extern "C"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to initialize an aom_image_t structure
+    // Ensure the size is sufficient to create an aom_image_t structure
     if (size < sizeof(aom_image_t)) {
         return 0;
     }
 
-    // Create and initialize an aom_image_t structure
+    // Create an aom_image_t structure and initialize it with the input data
     aom_image_t img;
-    img.fmt = AOM_IMG_FMT_I420; // Example format
-    img.w = 640; // Example width
-    img.h = 480; // Example height
-    img.d_w = 640; // Displayed width
-    img.d_h = 480; // Displayed height
-    img.x_chroma_shift = 1;
-    img.y_chroma_shift = 1;
-    img.bit_depth = 8;
-    img.img_data = (uint8_t *)data; // Use the input data as image data
-    img.img_data_owner = 0;
-    img.self_allocd = 0;
-    img.fb_priv = nullptr;
+    std::memcpy(&img, data, sizeof(aom_image_t));
 
-    // Call the function under test
-    aom_img_remove_metadata(&img);
+    // Call the function-under-test
+    size_t num_metadata = aom_img_num_metadata(&img);
+
+    // Use the result in some way to avoid compiler optimizations
+    volatile size_t result = num_metadata;
+    (void)result;
 
     return 0;
 }

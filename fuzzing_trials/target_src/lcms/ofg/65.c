@@ -1,24 +1,31 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Ensure the data size is large enough to create a tone curve
-    if (size < sizeof(uint16_t)) {
+    // Declare and initialize variables
+    cmsHPROFILE hProfile;
+    cmsColorSpaceSignature colorSpace;
+
+    // Ensure the size is sufficient to extract values
+    if (size < sizeof(cmsColorSpaceSignature)) {
         return 0;
     }
 
-    // Create a tone curve using the provided data
-    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurve16(NULL, size / sizeof(uint16_t), (const uint16_t*)data);
-    if (toneCurve == NULL) {
+    // Initialize the profile using a built-in profile for demonstration
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
         return 0;
     }
+
+    // Extract the cmsColorSpaceSignature from the input data
+    colorSpace = *(cmsColorSpaceSignature*)data;
 
     // Call the function-under-test
-    cmsBool result = cmsIsToneCurveDescending(toneCurve);
+    cmsSetPCS(hProfile, colorSpace);
 
     // Clean up
-    cmsFreeToneCurve(toneCurve);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }

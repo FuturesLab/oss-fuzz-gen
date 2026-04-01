@@ -1,51 +1,45 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include "unistd.h" // For mkstemp, close, write, remove
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    if (size < 10) return 0; // Ensure there's enough data for basic operation
-
-    // Initialize the TurboJPEG compressor
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) return 0;
-
-    // Prepare input parameters
-    unsigned char *srcBuf = (unsigned char *)malloc(size);
-    if (srcBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
+    // Define and initialize all necessary variables
+    if (size < 128 * 128 * 3) {
+        return 0; // Ensure there is enough data for a 128x128 RGB image
     }
-    memcpy(srcBuf, data, size);
 
-    int width = 100; // Example width
-    int height = 100; // Example height
+    char tmpl[] = "/tmp/fuzzimageXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If file creation fails, exit early
+    }
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0; // If writing fails, exit early
+    }
+    close(fd);
+
+    // Initialize parameters for tjSaveImage
+    unsigned char *imageBuffer = const_cast<unsigned char *>(data);
+    int width = 128;  // Example width
+    int height = 128; // Example height
+    int pitch = width * 3; // Assuming 3 bytes per pixel for RGB
     int pixelFormat = TJPF_RGB; // Example pixel format
-    int quality = 75; // Example quality
     int flags = 0; // Example flags
 
-    // Prepare output parameters
-    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSize(width, height, TJSAMP_444));
-    if (dstBuf == nullptr) {
-        free(srcBuf);
-        tjDestroy(handle);
-        return 0;
-    }
-    unsigned long dstSize = tjBufSize(width, height, TJSAMP_444);
-
     // Call the function-under-test
-    int result = tjCompress(handle, srcBuf, width, 0, height, pixelFormat, dstBuf, &dstSize, TJSAMP_444, quality, flags);
+    tjSaveImage(tmpl, imageBuffer, width, pitch, height, pixelFormat, flags);
 
-    // Clean up
-    free(dstBuf);
-    free(srcBuf);
-    tjDestroy(handle);
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }

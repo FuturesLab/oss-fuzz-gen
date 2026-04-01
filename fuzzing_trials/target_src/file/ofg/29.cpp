@@ -1,35 +1,31 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 #include <magic.h>
-#include <cstring>
+
+extern "C" {
+    // Include the necessary headers if any.
+}
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    struct magic_set *ms = magic_open(MAGIC_NONE);
-
-    // Ensure magic_set is created successfully
-    if (ms == NULL) {
+    // Ensure size is sufficient for extracting an integer flag
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Check if data size is sufficient to perform meaningful operations
-    if (size > 0) {
-        // Set flags based on input data
-        int flags = static_cast<int>(data[0] % 8); // Use the first byte to determine flags
-        magic_setflags(ms, flags);
-
-        // Use the remaining data as a buffer to test magic_buffer
-        const char *result = magic_buffer(ms, data, size);
-        
-        // Check if result is not NULL to ensure the function was invoked correctly
-        if (result != NULL) {
-            // Optionally, you can print or log the result for debugging purposes
-            // printf("Magic result: %s\n", result);
-        }
+    // Initialize a magic_set object
+    struct magic_set *mset = magic_open(MAGIC_NONE);
+    if (mset == NULL) {
+        return 0;
     }
 
+    // Extract an integer flag from the input data
+    int flag = *(reinterpret_cast<const int*>(data));
+
+    // Call the function-under-test
+    int result = magic_setflags(mset, flag);
+
     // Clean up
-    magic_close(ms);
+    magic_close(mset);
 
     return 0;
 }

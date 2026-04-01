@@ -1,9 +1,12 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_sourceid at sqlite3.c:252248:24 in sqlite3.h
-// sqlite3_compileoption_get at sqlite3.c:176189:24 in sqlite3.h
-// sqlite3_sleep at sqlite3.c:175133:16 in sqlite3.h
+// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_trace at sqlite3.c:173266:18 in sqlite3.h
+// sqlite3_mprintf at sqlite3.c:19329:18 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
 // sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,56 +15,50 @@
 #include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static void fuzz_sqlite3_sourceid() {
-    const char *source_id = sqlite3_sourceid();
-    if (source_id) {
-        // Use the source_id string for further operations if needed
-    }
-}
-
-static void fuzz_sqlite3_compileoption_get(int index) {
-    const char *option = sqlite3_compileoption_get(index);
-    if (option) {
-        // Use the option string for further operations if needed
-    }
-}
-
-static void fuzz_sqlite3_sleep(int ms) {
-    int slept_ms = sqlite3_sleep(ms);
-    // Use slept_ms for further operations if needed
-}
-
-static void fuzz_sqlite3_free(void *ptr) {
-    sqlite3_free(ptr);
+static void trace_callback(void *unused, const char *sql) {
+    (void)unused; // Unused parameter
+    (void)sql;    // Unused parameter, just a placeholder for tracing
 }
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) * 2) {
-        return 0;
+    if (Size < 1) return 0;
+
+    sqlite3 *db = NULL;
+    char *errMsg = NULL;
+    char *sql = NULL;
+    int rc;
+
+    // Open database
+    rc = sqlite3_open("./dummy_file", &db);
+    if (rc != SQLITE_OK) {
+        return 0; // Cannot open database, exit
     }
 
-    // Extract two integers from input data
-    int index = *((int*)Data);
-    int ms = *((int*)(Data + sizeof(int)));
+    // Set trace
+    sqlite3_trace(db, trace_callback, NULL);
 
-    // Fuzz sqlite3_sourceid
-    fuzz_sqlite3_sourceid();
-
-    // Fuzz sqlite3_compileoption_get with extracted index
-    fuzz_sqlite3_compileoption_get(index);
-
-    // Fuzz sqlite3_sleep with extracted milliseconds
-    fuzz_sqlite3_sleep(ms);
-
-    // Allocate some memory and fuzz sqlite3_free
-    void *memory = sqlite3_malloc(100);
-    if (memory) {
-        // Optionally use the memory
-        memset(memory, 0, 100);
+    // Create a formatted string
+    sql = sqlite3_mprintf("CREATE TABLE IF NOT EXISTS fuzz(id INTEGER PRIMARY KEY, data TEXT); INSERT INTO fuzz(data) VALUES('%.*s');", (int)Size, Data);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0; // Memory allocation failed
     }
-    fuzz_sqlite3_free(memory);
+
+    // Execute SQL statement
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+    }
+
+    // Free the SQL string
+    sqlite3_free(sql);
+
+    // Close the database connection
+    sqlite3_close(db);
 
     return 0;
 }

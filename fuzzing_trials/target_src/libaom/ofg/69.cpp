@@ -1,64 +1,28 @@
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <aom/aom_image.h>
+#include <cstddef>
+#include <cstring> // Include this for strlen
 
 extern "C" {
-    void aom_img_flip(aom_image_t *);
+    #include <aom/aom_codec.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Initialize an aom_image_t structure
-    aom_image_t img;
-    memset(&img, 0, sizeof(aom_image_t));
-
-    // Ensure the data size is sufficient for setting up the image
-    if (size < sizeof(aom_image_t)) {
+    // Ensure the size is sufficient for an aom_codec_err_t type
+    if (size < sizeof(aom_codec_err_t)) {
         return 0;
     }
 
-    // Example initialization of aom_image_t fields
-    img.fmt = AOM_IMG_FMT_I420; // Common format
-    img.w = 640; // Example width
-    img.h = 480; // Example height
-    img.d_w = img.w;
-    img.d_h = img.h;
-    img.x_chroma_shift = 1;
-    img.y_chroma_shift = 1;
+    // Cast the input data to aom_codec_err_t
+    aom_codec_err_t codec_err = *(reinterpret_cast<const aom_codec_err_t *>(data));
 
-    // Allocate image data
-    img.stride[0] = img.w;
-    img.stride[1] = img.w / 2;
-    img.stride[2] = img.w / 2;
-    img.planes[0] = (uint8_t *)malloc(img.h * img.stride[0]);
-    img.planes[1] = (uint8_t *)malloc((img.h / 2) * img.stride[1]);
-    img.planes[2] = (uint8_t *)malloc((img.h / 2) * img.stride[2]);
+    // Call the function-under-test
+    const char *error_string = aom_codec_err_to_string(codec_err);
 
-    // Check if memory allocation was successful
-    if (!img.planes[0] || !img.planes[1] || !img.planes[2]) {
-        free(img.planes[0]);
-        free(img.planes[1]);
-        free(img.planes[2]);
-        return 0;
+    // Use the result in some way (e.g., print, log, etc.)
+    // Here, we just ensure it is not null by checking its length
+    if (error_string != nullptr) {
+        volatile size_t length = strlen(error_string); // Use volatile to prevent optimization
     }
-
-    // Fill the image planes with data from the input
-    size_t plane_size = img.h * img.stride[0];
-    memcpy(img.planes[0], data, plane_size < size ? plane_size : size);
-
-    plane_size = (img.h / 2) * img.stride[1];
-    memcpy(img.planes[1], data, plane_size < size ? plane_size : size);
-
-    plane_size = (img.h / 2) * img.stride[2];
-    memcpy(img.planes[2], data, plane_size < size ? plane_size : size);
-
-    // Call the function under test
-    aom_img_flip(&img);
-
-    // Clean up allocated memory
-    free(img.planes[0]);
-    free(img.planes[1]);
-    free(img.planes[2]);
 
     return 0;
 }

@@ -1,55 +1,53 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include "unistd.h"
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjInitDecompress with tjInitTransform
-    tjhandle handle = tjInitTransform();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (handle == NULL) {
-        return 0;
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Failed to create temp file
     }
 
-    const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = size;
-
-    int width = 100;  // Example width, should be set according to actual needs
-    int height = 100; // Example height, should be set according to actual needs
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int flags = 0; // Example flags
-    int pitch = 0; // Example pitch, can be set to 0 for default
-
-    // Allocate buffer for decompressed image
-    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-    if (dstBuf == NULL) {
-        tjDestroy(handle);
-        return 0;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0; // Failed to write data
     }
+    close(fd);
 
-    // Fuzz the function tjDecompress2
+    // Initialize the parameters for tjLoadImage
+    int width = 0;
+    int height = 0;
+    int subsamp = 0;
+    int colorspace = 0;
+    int flags = 0;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 8 of tjDecompress2
+    // Call the function-under-test
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjDecompress2
-    tjDecompress2(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, TJ_NUMXOP, -1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of tjLoadImage
+    int pxakmwbd = size;
+    unsigned char *image = tjLoadImage(tmpl, &width, 1, &height, &pxakmwbd, flags);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
 
     // Clean up
-    free(dstBuf);
-    tjDestroy(handle);
+    if (image != NULL) {
+        tjFree(image);
+    }
+    unlink(tmpl); // Remove the temporary file
 
     return 0;
 }

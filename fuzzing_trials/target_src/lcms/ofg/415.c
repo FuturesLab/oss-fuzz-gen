@@ -1,29 +1,27 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-
-// Assuming cmsStage is a struct defined somewhere in the library
-typedef struct {
-    int dummy; // Placeholder for actual members
-} cmsStage;
-
-// Function prototype for the function-under-test
-void *cmsStageData(const cmsStage *stage);
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_415(const uint8_t *data, size_t size) {
-    cmsStage stage;
-    void *result;
+    if (size < sizeof(float)) {
+        return 0; // Not enough data to create a tone curve
+    }
 
-    // Initialize the cmsStage structure with non-NULL values
-    stage.dummy = 0; // Example initialization, adjust based on actual structure
+    // Create a tone curve with at least one segment
+    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurve16(NULL, 2, (const uint16_t *)data);
+
+    if (toneCurve == NULL) {
+        return 0; // Failed to create a tone curve
+    }
 
     // Call the function-under-test
-    result = cmsStageData(&stage);
+    cmsToneCurve *reversedCurve = cmsReverseToneCurve(toneCurve);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (result != NULL) {
-        // Do something with result, e.g., print or log
+    // Clean up
+    if (reversedCurve != NULL) {
+        cmsFreeToneCurve(reversedCurve);
     }
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }

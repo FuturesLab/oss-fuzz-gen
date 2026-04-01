@@ -1,102 +1,94 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
     #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    tjhandle handle = tjInitTransform();
+    // Initialize variables for tjDecompressToYUV2
+    tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
-        return 0; // Handle initialization failure
+        return 0;
     }
 
-    unsigned char *jpegBuf = nullptr; // This will be allocated by tj3Transform
-    size_t jpegSize = 0;
-    int n = 1; // Number of transforms
-    tjtransform transform;
-    memset(&transform, 0, sizeof(tjtransform)); // Initialize transform with zeros
+    const unsigned char *jpegBuf = data;
+    unsigned long jpegSize = (unsigned long)size;
+
+    // Allocate memory for the YUV buffer
+    int width = 640;  // Example width
+    int height = 480; // Example height
+    int subsamp = TJSAMP_420; // Example subsampling
+    int flags = 0; // No flags
+
+    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
+    if (yuvBuf == nullptr) {
+        tjDestroy(handle);
+        return 0;
+    }
 
     // Call the function-under-test
+    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, flags);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of tj3Transform
-    int result = tj3Transform(handle, (const unsigned char *)data, size, n, &jpegBuf, &jpegSize, &transform);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Cleanup
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tj3DecompressToYUVPlanes8
+    tjhandle ret_tj3Init_qmago = tj3Init(TJFLAG_NOREALLOC);
 
-
-    // Clean up
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Transform to tjPlaneSizeYUV
-    int xvfaspvl = -1;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3GetScalingFactors
-    tjscalingfactor* ret_tj3GetScalingFactors_cxido = tj3GetScalingFactors(NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_tj3GetScalingFactors_cxido == NULL){
-    	return 0;
-    }
-    int plalzfyo = 0;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3GetScalingFactors to tj3EncodeYUVPlanes8
-    tjhandle ret_tj3Init_zecsk = tj3Init(TJFLAG_FORCESSE3);
-    unsigned char* ret_tjAlloc_ezmmo = tjAlloc(TJFLAG_FASTDCT);
-    if (ret_tjAlloc_ezmmo == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tj3DecompressHeader
+    int clwwsjoo = 1;
+    tjscalingfactor* ret_tj3GetScalingFactors_xvkia = tj3GetScalingFactors(&clwwsjoo);
+    if (ret_tj3GetScalingFactors_xvkia == NULL){
     	return 0;
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjAlloc to tj3DecompressToYUV8
-    tjhandle ret_tj3Init_tbkad = tj3Init(TJFLAG_BOTTOMUP);
-    void* ret_tj3Alloc_uiwgb = tj3Alloc(TJFLAG_FORCESSE2);
-    if (ret_tj3Alloc_uiwgb == NULL){
-    	return 0;
-    }
-
-    int ret_tj3DecompressToYUV8_wrqmk = tj3DecompressToYUV8(ret_tj3Init_tbkad, ret_tjAlloc_ezmmo, TJXOPT_CROP, (unsigned char *)ret_tj3Alloc_uiwgb, TJFLAG_LIMITSCANS);
-    if (ret_tj3DecompressToYUV8_wrqmk < 0){
+    int ret_tj3DecompressHeader_kspkz = tj3DecompressHeader(ret_tj3Init_qmago, (const unsigned char *)data, (size_t )clwwsjoo);
+    if (ret_tj3DecompressHeader_kspkz < 0){
     	return 0;
     }
 
     // End mutation: Producer.APPEND_MUTATOR
 
-    tjscalingfactor* ret_tjGetScalingFactors_gnzkt = tjGetScalingFactors(&xvfaspvl);
-    if (ret_tjGetScalingFactors_gnzkt == NULL){
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3DecompressHeader to tjDecompressHeader
+    tjhandle ret_tj3Init_liwrj = tj3Init(TJXOPT_PERFECT);
+    tj3Free((void *)yuvBuf);
+    tjscalingfactor* ret_tj3GetScalingFactors_norzn = tj3GetScalingFactors(&ret_tj3DecompressHeader_kspkz);
+    if (ret_tj3GetScalingFactors_norzn == NULL){
     	return 0;
     }
-    unsigned char* ret_tjAlloc_ynhkx = tjAlloc(TJ_YUV);
-    if (ret_tjAlloc_ynhkx == NULL){
-    	return 0;
-    }
-
-    int ret_tj3EncodeYUVPlanes8_yjpex = tj3EncodeYUVPlanes8(ret_tj3Init_zecsk, ret_tjAlloc_ezmmo, xvfaspvl, TJXOPT_COPYNONE, TJFLAG_BOTTOMUP, TJFLAG_STOPONWARNING, &ret_tjAlloc_ynhkx, &xvfaspvl);
-    if (ret_tj3EncodeYUVPlanes8_yjpex < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    tjscalingfactor* ret_tj3GetScalingFactors_pxltf = tj3GetScalingFactors(&plalzfyo);
-    if (ret_tj3GetScalingFactors_pxltf == NULL){
+    int ret_tjGetErrorCode_fdvfp = tjGetErrorCode(0);
+    if (ret_tjGetErrorCode_fdvfp < 0){
     	return 0;
     }
 
-    unsigned long ret_tjPlaneSizeYUV_ogmhr = tjPlaneSizeYUV(xvfaspvl, TJ_NUMINIT, 1, result, plalzfyo);
-    if (ret_tjPlaneSizeYUV_ogmhr < 0){
+    int ret_tjDecompressHeader_kxiun = tjDecompressHeader(ret_tj3Init_liwrj, yuvBuf, (unsigned long )ret_tj3DecompressHeader_kspkz, &ret_tj3DecompressHeader_kspkz, &ret_tjGetErrorCode_fdvfp);
+    if (ret_tjDecompressHeader_kxiun < 0){
     	return 0;
     }
 
     // End mutation: Producer.APPEND_MUTATOR
 
+    unsigned char* ret_tjAlloc_gpltq = tjAlloc(TJFLAG_FASTDCT);
+    if (ret_tjAlloc_gpltq == NULL){
+    	return 0;
+    }
+    int hguubqjt = size;
+    tjscalingfactor* ret_tj3GetScalingFactors_rsshh = tj3GetScalingFactors(&hguubqjt);
+    if (ret_tj3GetScalingFactors_rsshh == NULL){
+    	return 0;
+    }
+
+    int ret_tj3DecompressToYUVPlanes8_gexau = tj3DecompressToYUVPlanes8(ret_tj3Init_qmago, yuvBuf, TJ_NUMINIT, &ret_tjAlloc_gpltq, &hguubqjt);
+    if (ret_tj3DecompressToYUVPlanes8_gexau < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    free(yuvBuf);
     tjDestroy(handle);
 
     return 0;

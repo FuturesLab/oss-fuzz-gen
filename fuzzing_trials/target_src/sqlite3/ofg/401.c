@@ -1,24 +1,29 @@
 #include <stdint.h>
-#include <stddef.h> // Include this for size_t
+#include <stddef.h>
 #include <sqlite3.h>
 
+// The dummy implementations of sqlite3_open and sqlite3_close are removed
+// We will use the actual implementations from the SQLite library
+
 int LLVMFuzzerTestOneInput_401(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for sqlite3_status parameters
-    int op = 0; // Default operation code
-    int current = 0;
-    int highwater = 0;
-    int resetFlag = 0; // Default reset flag
+    sqlite3 *db;
+    const char *zDbName = "main"; // Example database name
+    int op = 0; // Example operation code
+    void *pArg = (void *)data; // Use data as the argument
 
-    // Use input data to set op and resetFlag if size is sufficient
-    if (size > 0) {
-        op = data[0] % 10; // Example: use the first byte for op, modulo to limit range
-    }
-    if (size > 1) {
-        resetFlag = data[1] % 2; // Example: use the second byte for resetFlag, modulo to limit range
+    // Open a database connection
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
     }
 
-    // Call the function-under-test
-    sqlite3_status(op, &current, &highwater, resetFlag);
+    // Ensure data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Call the function-under-test
+        sqlite3_file_control(db, zDbName, op, pArg);
+    }
+
+    // Close the database connection
+    sqlite3_close(db);
 
     return 0;
 }

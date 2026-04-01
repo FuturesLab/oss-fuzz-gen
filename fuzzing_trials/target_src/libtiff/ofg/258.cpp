@@ -1,41 +1,32 @@
 #include <cstdint>
+#include <cstddef>
 #include <cstdio>
-#include <unistd.h> // For close, write, and mkstemp
-#include <cstdlib>  // For remove
 
+// Assuming the function LogLuv32toXYZ is defined in a C library
 extern "C" {
-#include <tiffio.h>
+    void LogLuv32toXYZ(uint32_t value, float *output);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_258(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure that the input size is sufficient to extract a uint32_t value
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
-        close(fd);
-        return 0;
+    // Extract a uint32_t value from the input data
+    uint32_t value = 0;
+    for (size_t i = 0; i < sizeof(uint32_t); ++i) {
+        value |= static_cast<uint32_t>(data[i]) << (i * 8);
     }
 
-    // Close the file descriptor
-    close(fd);
+    // Initialize a float array to store the output
+    float output[3] = {0.0f, 0.0f, 0.0f};
 
-    // Open the TIFF file using the temporary file
-    TIFF* tif = TIFFOpen(tmpl, "r");
-    if (tif != nullptr) {
-        // Call the function-under-test
-        uint32_t numTiles = TIFFNumberOfTiles(tif);
+    // Call the function-under-test
+    LogLuv32toXYZ(value, output);
 
-        // Clean up by closing the TIFF file
-        TIFFClose(tif);
-    }
-
-    // Remove the temporary file
-    remove(tmpl);
+    // Optionally, print the output for debugging purposes
+    printf("Output: [%f, %f, %f]\n", output[0], output[1], output[2]);
 
     return 0;
 }

@@ -1,23 +1,26 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_108(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read from
-    if (size < sizeof(cmsCIEXYZ)) {
+    // Ensure that the size is large enough to extract a cmsUInt32Number
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Allocate and initialize variables
-    cmsUInt16Number encoded[3]; // Array to hold the encoded XYZ values
-    cmsCIEXYZ inputXYZ;
-
-    // Copy data to inputXYZ, ensuring we don't read beyond size
-    memcpy(&inputXYZ, data, sizeof(cmsCIEXYZ));
+    // Initialize variables
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsUInt32Number channels = *(cmsUInt32Number *)data;
 
     // Call the function-under-test
-    cmsFloat2XYZEncoded(encoded, &inputXYZ);
+    cmsStage *stage = cmsStageAllocIdentity(context, channels);
+
+    // Clean up
+    if (stage != NULL) {
+        cmsStageFree(stage);
+    }
+
+    cmsDeleteContext(context);
 
     return 0;
 }

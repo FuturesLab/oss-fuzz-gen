@@ -2,19 +2,16 @@
 #include <stdlib.h>
 #include <zlib.h>
 
-// Remove the 'extern "C"' linkage specification for C++
-// This code is intended to be compiled as C, not C++
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
+    // Initialize a z_stream structure
     z_stream stream;
-    unsigned long result;
-
-    // Initialize the z_stream structure
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
 
-    // Initialize the stream for inflation
-    if (inflateInit(&stream) != Z_OK) {
+    // Initialize the stream for decompression
+    int ret = inflateInit(&stream);
+    if (ret != Z_OK) {
         return 0;
     }
 
@@ -22,10 +19,21 @@ int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
     stream.next_in = (Bytef *)data;
     stream.avail_in = (uInt)size;
 
-    // Call the function-under-test
-    result = inflateCodesUsed(&stream);
+    // Allocate some output buffer
+    unsigned char out[1024];
+    stream.next_out = out;
+    stream.avail_out = sizeof(out);
 
-    // Clean up
+    // Call the function-under-test
+    int inflateRet;
+    do {
+        inflateRet = inflate(&stream, Z_NO_FLUSH);
+        if (inflateRet == Z_STREAM_ERROR || inflateRet == Z_DATA_ERROR || inflateRet == Z_MEM_ERROR) {
+            break;
+        }
+    } while (stream.avail_out == 0);
+
+    // Clean up and end the decompression
     inflateEnd(&stream);
 
     return 0;

@@ -1,58 +1,64 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_set_media_type at isom_write.c:6188:8 in isomedia.h
-// gf_isom_set_audio_layout at isom_write.c:2582:8 in isomedia.h
-// gf_isom_set_media_subtype at isom_write.c:6197:8 in isomedia.h
-// gf_isom_set_mpegh_compatible_profiles at isom_write.c:9336:8 in isomedia.h
-// gf_isom_rewrite_track_dependencies at isom_write.c:5120:8 in isomedia.h
-// gf_isom_get_audio_layout at isom_read.c:3919:8 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_get_media_original_duration at isom_read.c:1448:5 in isomedia.h
+// gf_isom_get_duration at isom_read.c:971:5 in isomedia.h
+// gf_isom_get_media_duration at isom_read.c:1426:5 in isomedia.h
+// gf_isom_get_track_duration_orig at isom_read.c:1092:5 in isomedia.h
+// gf_isom_get_original_duration at isom_read.c:986:5 in isomedia.h
+// gf_isom_get_fragmented_duration at isom_read.c:5409:5 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *data, size_t size) {
+static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
+    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly
+    // Here we assume a function or method exists to create or open an ISO file
+    GF_ISOFile *isoFile = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    if (!isoFile) return NULL;
+
+    // Write the data to a dummy file
     FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(data, 1, size, file);
-        fclose(file);
+    if (!file) {
+        gf_isom_close(isoFile);
+        return NULL;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    return isoFile;
+}
+
+static void cleanup_iso_file(GF_ISOFile *isoFile) {
+    if (isoFile) {
+        // Remove the dummy file
+        remove("./dummy_file");
+        gf_isom_close(isoFile);
     }
 }
 
 int LLVMFuzzerTestOneInput_186(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 4) return 0;
+    if (Size < sizeof(u32)) return 0;
 
-    u32 trackNumber = *(u32 *)Data;
-    u32 new_type = *((u32 *)Data + 1);
-    u32 sampleDescriptionIndex = *((u32 *)Data + 2);
-    u32 nb_compatible_profiles = *((u32 *)Data + 3);
+    GF_ISOFile *isoFile = initialize_iso_file(Data, Size);
+    if (!isoFile) return 0;
 
-    const u32 *profiles = (Size >= sizeof(u32) * 5) ? (const u32 *)(Data + sizeof(u32) * 4) : NULL;
-    GF_AudioChannelLayout layout = {0};
+    u32 trackNumber = *((u32*)Data);
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) {
-        write_dummy_file(Data, Size);
-        isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    }
-    
-    if (isom_file) {
-        gf_isom_set_media_type(isom_file, trackNumber, new_type);
-        gf_isom_set_audio_layout(isom_file, trackNumber, sampleDescriptionIndex, &layout);
-        gf_isom_set_media_subtype(isom_file, trackNumber, sampleDescriptionIndex, new_type);
-        gf_isom_set_mpegh_compatible_profiles(isom_file, trackNumber, sampleDescriptionIndex, profiles, nb_compatible_profiles);
-        gf_isom_rewrite_track_dependencies(isom_file, trackNumber);
-        gf_isom_get_audio_layout(isom_file, trackNumber, sampleDescriptionIndex, &layout);
+    // Invoke the target functions
+    u64 duration1 = gf_isom_get_media_original_duration(isoFile, trackNumber);
+    u64 duration2 = gf_isom_get_duration(isoFile);
+    u64 duration3 = gf_isom_get_media_duration(isoFile, trackNumber);
+    u64 duration4 = gf_isom_get_track_duration_orig(isoFile, trackNumber);
+    u64 duration5 = gf_isom_get_original_duration(isoFile);
+    u64 duration6 = gf_isom_get_fragmented_duration(isoFile);
 
-        gf_isom_close(isom_file);
-    }
+    // Handle the return values if necessary, e.g., logging or assertions
+    // For this fuzz driver, we simply call the functions
 
+    cleanup_iso_file(isoFile);
     return 0;
 }

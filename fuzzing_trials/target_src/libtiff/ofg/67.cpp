@@ -1,32 +1,27 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include the necessary header for memcpy
-#include <tiffio.h> // Ensure you have the necessary TIFF library
-
 extern "C" {
-    #include <tiffio.h> // Include TIFF library within extern "C" to handle C linkage
+    #include <tiffio.h>
+    #include <stdint.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    // Ensure size is a multiple of 3 for "triples"
+    // Ensure there is at least one triple (3 bytes) to process
     if (size < 3) {
         return 0;
     }
 
-    // Allocate memory for the input data
-    uint8_t *triples = (uint8_t *)malloc(size);
-    if (triples == nullptr) {
-        return 0;
+    // Allocate memory for the input array
+    uint8_t *triples = new uint8_t[size];
+    
+    // Copy the input data to the allocated memory
+    for (size_t i = 0; i < size; ++i) {
+        triples[i] = data[i];
     }
 
-    // Copy the input data into the allocated memory
-    memcpy(triples, data, size);
-
     // Call the function-under-test
-    TIFFSwabArrayOfTriples(triples, (tmsize_t)size / 3);
+    TIFFSwabArrayOfTriples(triples, (tmsize_t)(size / 3));
 
-    // Free the allocated memory
-    free(triples);
+    // Clean up allocated memory
+    delete[] triples;
 
     return 0;
 }

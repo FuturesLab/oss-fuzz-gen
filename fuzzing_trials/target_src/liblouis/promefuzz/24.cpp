@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
 // lou_backTranslate at lou_backTranslateString.c:159:1 in liblouis.h
-// lou_translatePrehyphenated at lou_translateString.c:1410:1 in liblouis.h
 // lou_translate at lou_translateString.c:1135:1 in liblouis.h
 // lou_translateString at lou_translateString.c:1128:1 in liblouis.h
+// lou_translatePrehyphenated at lou_translateString.c:1410:1 in liblouis.h
 // lou_hyphenate at lou_translateString.c:4066:1 in liblouis.h
-// lou_charToDots at lou_translateString.c:4173:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -19,68 +19,76 @@
 #include <cstring>
 #include <fstream>
 
-static void writeDummyFile() {
-    std::ofstream file("./dummy_file");
-    if (file.is_open()) {
-        file << "dummy content";
-        file.close();
+static void writeDummyFile(const char *data, size_t size) {
+    std::ofstream outFile("./dummy_file", std::ios::binary);
+    if (outFile.is_open()) {
+        outFile.write(data, size);
+        outFile.close();
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size < 2) return 0; // Ensure there is enough data
+    if (Size < 1) return 0;
 
-    writeDummyFile();
+    // Prepare table list from input data
+    const char *tableList = reinterpret_cast<const char*>(Data);
+    size_t tableListSize = strnlen(tableList, Size);
+    if (tableListSize >= Size) return 0;
 
-    const char *tableList = "./dummy_file";
-    const widechar *inbuf = reinterpret_cast<const widechar *>(Data);
+    // Prepare buffers and lengths
     int inlen = Size / sizeof(widechar);
-    int outlen = inlen * 2; // Assume output buffer can be larger
-    widechar outbuf[outlen];
-    formtype typeform[inlen];
-    char spacing[inlen];
-    int outputPos[inlen];
-    int inputPos[outlen];
+    int outlen = Size / sizeof(widechar);
+    widechar *inbuf = new widechar[inlen];
+    widechar *outbuf = new widechar[outlen];
+    std::memcpy(inbuf, Data, inlen * sizeof(widechar));
+
+    // Prepare additional parameters
+    formtype *typeform = new formtype[inlen];
+    char *spacing = new char[inlen];
+    int *outputPos = new int[inlen];
+    int *inputPos = new int[outlen];
     int cursorPos = 0;
-    char inputHyphens[inlen];
-    char outputHyphens[outlen];
     int mode = 0;
 
-    // Initialize typeform and spacing with zero
-    std::memset(typeform, 0, sizeof(typeform));
-    std::memset(spacing, 0, sizeof(spacing));
-    std::memset(inputHyphens, 0, sizeof(inputHyphens));
-    std::memset(outputHyphens, 0, sizeof(outputHyphens));
-
-    // Test lou_backTranslate
+    // Call lou_backTranslate
     lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
-    // Reset buffer lengths for next function
+    // Reset lengths for next function
     inlen = Size / sizeof(widechar);
-    outlen = inlen * 2;
+    outlen = Size / sizeof(widechar);
 
-    // Test lou_translatePrehyphenated
-    lou_translatePrehyphenated(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, inputHyphens, outputHyphens, mode);
-
-    // Reset buffer lengths for next function
-    inlen = Size / sizeof(widechar);
-    outlen = inlen * 2;
-
-    // Test lou_translate
+    // Call lou_translate
     lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
-    // Reset buffer lengths for next function
+    // Reset lengths for next function
     inlen = Size / sizeof(widechar);
-    outlen = inlen * 2;
+    outlen = Size / sizeof(widechar);
 
-    // Test lou_translateString
+    // Call lou_translateString
     lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
 
-    // Test lou_hyphenate
-    lou_hyphenate(tableList, inbuf, inlen, inputHyphens, mode);
+    // Call lou_translatePrehyphenated
+    char *inputHyphens = new char[inlen];
+    char *outputHyphens = new char[outlen];
+    lou_translatePrehyphenated(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, inputHyphens, outputHyphens, mode);
 
-    // Test lou_charToDots
-    lou_charToDots(tableList, inbuf, outbuf, outlen, mode);
+    // Call lou_hyphenate
+    char *hyphens = new char[inlen];
+    lou_hyphenate(tableList, inbuf, inlen, hyphens, mode);
+
+    // Call lou_checkTable
+    lou_checkTable(tableList);
+
+    // Cleanup
+    delete[] inbuf;
+    delete[] outbuf;
+    delete[] typeform;
+    delete[] spacing;
+    delete[] outputPos;
+    delete[] inputPos;
+    delete[] inputHyphens;
+    delete[] outputHyphens;
+    delete[] hyphens;
 
     return 0;
 }

@@ -1,36 +1,23 @@
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
+#include <stddef.h> // Include this for size_t
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_361(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    uint64_t n = 0;
-
-    // Ensure the size is large enough to extract a uint64_t value
-    if (size < sizeof(uint64_t)) {
+    // Ensure that size is sufficient to create a mutex
+    if (size < sizeof(sqlite3_mutex *)) { // Use pointer size instead of incomplete type
         return 0;
     }
 
-    // Extract a uint64_t value from the input data
-    n = *(const uint64_t *)data;
+    // Create a mutex
+    sqlite3_mutex *mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_FAST);
 
-    // Open an in-memory SQLite database
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+    // Check if the mutex is held
+    if (mutex != NULL) { // Ensure the mutex is not NULL before using it
+        int result = sqlite3_mutex_held(mutex);
+
+        // Free the mutex
+        sqlite3_mutex_free(mutex);
     }
-
-    // Create a zeroblob of size n in the database
-    sqlite3_stmt *stmt;
-    const char *sql = "SELECT zeroblob(?)";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
-        sqlite3_bind_int64(stmt, 1, n);
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
-    }
-
-    // Close the database
-    sqlite3_close(db);
 
     return 0;
 }

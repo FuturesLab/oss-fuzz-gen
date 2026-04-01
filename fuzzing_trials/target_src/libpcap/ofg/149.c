@@ -1,40 +1,41 @@
+#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <pcap.h>
+#include <string.h>
 
+// Remove the 'extern "C"' linkage specification for C++ as this code is intended to be compiled as C
 int LLVMFuzzerTestOneInput_149(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    int linktype = DLT_EN10MB; // Ethernet
-    int snaplen = 65535; // Maximum capture length
+    // Declare and initialize variables
+    u_char *user;
+    struct pcap_pkthdr pkthdr;
+    const u_char *packet_data;
+
+    // Ensure size is sufficient to populate pcap_pkthdr and packet_data
+    if (size < sizeof(struct pcap_pkthdr) + 1) {
+        return 0;
+    }
+
+    // Allocate memory for user and packet_data
+    user = (u_char *)malloc(size);
+    if (user == NULL) {
+        return 0;
+    }
+    memcpy(user, data, size);
+
+    // Initialize pkthdr with some values
+    pkthdr.ts.tv_sec = 0;
+    pkthdr.ts.tv_usec = 0;
+    pkthdr.caplen = size - sizeof(struct pcap_pkthdr);
+    pkthdr.len = pkthdr.caplen;
+
+    // Point packet_data to the correct location in the data buffer
+    packet_data = data + sizeof(struct pcap_pkthdr);
 
     // Call the function-under-test
-    pcap_t *pcap_handle = pcap_open_dead(linktype, snaplen);
+    pcap_dump(user, &pkthdr, packet_data);
 
-    // Check if the pcap_open_dead returned a valid pointer
-    if (pcap_handle != NULL) {
-        // Create a temporary file to simulate a pcap file
-        char filename[] = "/tmp/fuzz_pcap_XXXXXX";
-        int fd = mkstemp(filename);
-        if (fd != -1) {
-            // Write the fuzzing data to the temporary file
-            write(fd, data, size);
-            close(fd);
-
-            // Open the temporary file with pcap
-            char errbuf[PCAP_ERRBUF_SIZE];
-            pcap_t *offline_handle = pcap_open_offline(filename, errbuf);
-            if (offline_handle != NULL) {
-                // Process the packets if needed
-                pcap_close(offline_handle);
-            }
-
-            // Remove the temporary file
-            remove(filename);
-        }
-
-        // Close the pcap handle to avoid memory leaks
-        pcap_close(pcap_handle);
-    }
+    // Free allocated memory
+    free(user);
 
     return 0;
 }

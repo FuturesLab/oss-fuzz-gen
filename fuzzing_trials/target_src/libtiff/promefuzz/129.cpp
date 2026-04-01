@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetClientdata at tif_open.c:838:11 in tiffio.h
-// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
-// TIFFClientdata at tif_open.c:833:11 in tiffio.h
-// TIFFSetClientInfo at tif_extension.c:78:6 in tiffio.h
-// TIFFGetClientInfo at tif_extension.c:64:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
+// TIFFCreateDirectory at tif_dir.c:1699:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFFreeDirectory at tif_dir.c:1629:6 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,53 +16,55 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+static TIFF* initializeTIFF(const char* filename, const char* mode) {
+    TIFF* tif = TIFFOpen(filename, mode);
+    if (!tif) {
+        fprintf(stderr, "Could not open file %s\n", filename);
+        return nullptr;
+    }
+    return tif;
+}
+
+static void performCleanup(TIFF* tif) {
+    if (tif) {
+        TIFFClose(tif);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_129(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Create a dummy TIFF file
-    const char *dummyFileName = "./dummy_file";
-    FILE *dummyFile = fopen(dummyFileName, "wb");
-    if (!dummyFile) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummyFile);
-    fclose(dummyFile);
+    // Create a dummy file with the input data
+    FILE* file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen(dummyFileName, "r+");
-    if (!tif) {
-        return 0;
-    }
+    TIFF* tif = initializeTIFF("./dummy_file", "r+b");
+    if (!tif) return 0;
 
-    // Prepare test data
-    thandle_t clientData = const_cast<uint8_t*>(Data);
+    // Fuzzing TIFFCheckpointDirectory
+    TIFFCheckpointDirectory(tif);
 
-    // Ensure null-termination for fieldName
-    std::string fieldName(reinterpret_cast<const char*>(Data), Size);
-    fieldName.push_back('\0');
+    // Fuzzing TIFFCreateDirectory
+    TIFFCreateDirectory(tif);
 
-    void *clientInfoData = const_cast<uint8_t*>(Data);
-    
-    // Test TIFFSetClientdata
-    thandle_t previousClientData = TIFFSetClientdata(tif, clientData);
+    // Fuzzing TIFFWriteDirectory
+    TIFFWriteDirectory(tif);
 
-    // Test TIFFFieldWithName
-    const TIFFField *field = TIFFFieldWithName(tif, fieldName.c_str());
+    // Fuzzing TIFFFreeDirectory
+    TIFFFreeDirectory(tif);
 
-    // Test TIFFClientdata
-    thandle_t retrievedClientData = TIFFClientdata(tif);
+    // Fuzzing TIFFSetDirectory with a random directory number
+    tdir_t dirNum = static_cast<tdir_t>(Data[0]); // Use the first byte for directory number
+    TIFFSetDirectory(tif, dirNum);
 
-    // Test TIFFSetClientInfo
-    TIFFSetClientInfo(tif, clientInfoData, fieldName.c_str());
-
-    // Test TIFFGetClientInfo
-    void *retrievedClientInfo = TIFFGetClientInfo(tif, fieldName.c_str());
-
-    // Close the TIFF file before cleanup to avoid use-after-free
-    TIFFClose(tif);
-
+    // Cleanup
+    performCleanup(tif);
     return 0;
 }

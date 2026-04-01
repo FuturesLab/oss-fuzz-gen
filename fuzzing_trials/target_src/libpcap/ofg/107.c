@@ -3,22 +3,28 @@
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
+    // Create a pcap_t instance using pcap_open_dead
+    int linktype = DLT_EN10MB; // Ethernet
+    int snaplen = 65535; // Maximum capture length
+    pcap_t *pcap_handle = pcap_open_dead(linktype, snaplen);
 
-    // Open a fake pcap handle using pcap_open_dead, which is suitable for fuzzing
-    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
+    // Check if pcap_handle is not NULL
     if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Ensure the input data is not null and has a valid size for further processing
-    if (data != NULL && size > 0) {
-        // Call the function-under-test
-        pcap_breakloop(pcap_handle);
-    }
+    // Create a pcap_pkthdr to simulate a packet header
+    struct pcap_pkthdr header;
+    header.caplen = size;
+    header.len = size;
 
-    // Close the pcap handle
+    // Simulate a packet capture
+    const u_char *packet = data;
+
+    // Call the function-under-test
+    pcap_breakloop(pcap_handle);
+
+    // Clean up
     pcap_close(pcap_handle);
 
     return 0;
