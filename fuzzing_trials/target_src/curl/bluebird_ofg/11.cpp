@@ -1,71 +1,55 @@
+#include "curl/curl.h"
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "curl/curl.h"
+#include <stdio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    CURLU *url;
-    CURLU *dup_url;
-    CURLUcode result;
-    
-    // Initialize a CURLU handle
-    url = curl_url();
-    if (!url) {
-        return 0;
-    }
+    CURL *curl;
+    CURLcode res;
+    CURLINFO info;
+    char *url = "http://example.com";
+    long response_code;
+    double total_time;
+    char *content_type;
 
-    // Convert the input data to a null-terminated string
-    char *url_string = (char *)malloc(size + 1);
-    if (!url_string) {
-        curl_url_cleanup(url);
-        return 0;
-    }
-    memcpy(url_string, data, size);
-    url_string[size] = '\0';
+    // Initialize CURL
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
 
-    // Set the URL in the CURLU handle
-    result = curl_url_set(url, CURLUPART_URL, url_string, 0);
-    free(url_string);
+    if(curl) {
+        // Set URL
+        curl_easy_setopt(curl, CURLOPT_URL, url);
 
-    if (result == CURLUE_OK) {
-        // Duplicate the CURLU handle
-        dup_url = curl_url_dup(url);
-        if (dup_url) {
-            // Cleanup the duplicated URL
-            curl_url_cleanup(dup_url);
-        }
-    }
+        // Perform the request
+        res = curl_easy_perform(curl);
 
-    // Cleanup the original URL
+        if(res == CURLE_OK) {
+            // Fuzz different CURLINFO options
+            info = CURLINFO_RESPONSE_CODE;
+            res = curl_easy_getinfo(curl, info, &response_code);
+            if(res == CURLE_OK) {
+                printf("Response code: %ld\n", response_code);
+            }
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_dup to curl_easy_send
-        CURL* ret_curl_easy_init_uuplp = curl_easy_init();
-        if (ret_curl_easy_init_uuplp == NULL){
-        	return 0;
-        }
-        size_t piszssya = 1;
+            info = CURLINFO_TOTAL_TIME;
+            res = curl_easy_getinfo(curl, info, &total_time);
+            if(res == CURLE_OK) {
+                printf("Total time: %.2f\n", total_time);
+            }
 
-        CURLcode ret_curl_easy_send_pwrts = curl_easy_send(ret_curl_easy_init_uuplp, (const void *)dup_url, CURL_HTTPPOST_LARGE, &piszssya);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_send to curl_multi_perform
-        CURLM* ret_curl_multi_init_eoekf = curl_multi_init();
-        if (ret_curl_multi_init_eoekf == NULL){
-        	return 0;
+            info = CURLINFO_CONTENT_TYPE;
+            res = curl_easy_getinfo(curl, info, &content_type);
+            if(res == CURLE_OK && content_type) {
+                printf("Content type: %s\n", content_type);
+            }
         }
 
+        // Cleanup
+        curl_easy_cleanup(curl);
+    }
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_multi_perform with curl_multi_socket_all
-        CURLMcode ret_curl_multi_perform_ssffd = curl_multi_socket_all(ret_curl_multi_init_eoekf, (int *)&piszssya);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    curl_url_cleanup(url);
-
+    curl_global_cleanup();
     return 0;
 }

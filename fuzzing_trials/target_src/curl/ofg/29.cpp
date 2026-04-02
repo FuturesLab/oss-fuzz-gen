@@ -1,43 +1,31 @@
+#include <cstddef>
+#include <cstdint>
+#include <ctime>
+#include <cstdlib>
+#include <cstring>
 #include <curl/curl.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+
+extern "C" {
+    #include <curl/curl.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    size_t bytes_sent = 0;
-
-    // Initialize a CURL session
-    curl = curl_easy_init();
-    if(curl) {
-        // Set the URL, for example, to a local server or a test server
-        curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8080");
-
-        // Set the CURLOPT_CONNECT_ONLY option to 1L to tell libcurl to only connect to the server
-        curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
-
-        // Perform the connection
-        res = curl_easy_perform(curl);
-
-        if(res == CURLE_OK) {
-            // Send data using curl_easy_send
-            res = curl_easy_send(curl, data, size, &bytes_sent);
-
-            // Check the result of the send operation
-            if(res != CURLE_OK) {
-                fprintf(stderr, "curl_easy_send() failed: %s\n", curl_easy_strerror(res));
-            } else {
-                printf("Sent %zu bytes\n", bytes_sent);
-            }
-        } else {
-            fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-        }
-
-        // Cleanup the CURL session
-        curl_easy_cleanup(curl);
+    // Ensure the data is null-terminated to be used as a C-string
+    char *date_string = (char *)malloc(size + 1);
+    if (date_string == NULL) {
+        return 0;
     }
+    memcpy(date_string, data, size);
+    date_string[size] = '\0';
+
+    // Initialize a non-null time_t value
+    time_t now = time(NULL);
+
+    // Call the function-under-test
+    time_t result = curl_getdate(date_string, &now);
+
+    // Clean up
+    free(date_string);
 
     return 0;
 }

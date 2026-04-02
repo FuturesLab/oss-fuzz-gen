@@ -1,53 +1,53 @@
-#include "curl/curl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
+#include "curl/curl.h"
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    CURL *curl;
-    char *escaped_string;
+    CURLSH *share;
+    CURLSHcode result;
 
-    // Initialize a CURL handle
-    curl = curl_easy_init();
-    if(!curl) {
+    // Initialize a CURL share handle
+    share = curl_share_init();
+    if (!share) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_easy_header
-    const char fwftokyb[1024] = "zfdjh";
-    struct curl_header *dbgedppq;
-    memset(&dbgedppq, 0, sizeof(dbgedppq));
-
-    CURLHcode ret_curl_easy_header_lwabi = curl_easy_header(curl, fwftokyb, CURL_CHUNK_BGN_FUNC_OK, CURL_TRAILERFUNC_ABORT, CURL_VERSION_CONV, &dbgedppq);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_header to curl_easy_pause
-
-    CURLcode ret_curl_easy_pause_hgpzz = curl_easy_pause(curl, CURL_ERROR_SIZE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char *input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
-        curl_easy_cleanup(curl);
+    // Ensure the data size is sufficient for our needs
+    if (size < 1) {
+        curl_share_cleanup(share);
         return 0;
     }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
 
-    // Call the function-under-test
-    escaped_string = curl_easy_escape(curl, input_string, (int)size);
+    // Use the first byte of data to determine the CURLSHoption
+    CURLSHoption option = static_cast<CURLSHoption>(data[0] % CURLSHOPT_LAST);
 
-    // Cleanup
-    if (escaped_string) {
-        curl_free(escaped_string);
+    // Call the function-under-test with different options
+    switch (option) {
+        case CURLSHOPT_SHARE:
+        case CURLSHOPT_UNSHARE:
+            // For these options, a CURL_LOCK_DATA value is needed
+            if (size > 1) {
+                curl_lock_data data_option = static_cast<curl_lock_data>(data[1] % CURL_LOCK_DATA_LAST);
+                result = curl_share_setopt(share, option, (void *)(intptr_t)data_option);
+            }
+            break;
+        case CURLSHOPT_LOCKFUNC:
+        case CURLSHOPT_UNLOCKFUNC:
+            // For these options, a function pointer is needed
+            result = curl_share_setopt(share, option, NULL);
+            break;
+        case CURLSHOPT_USERDATA:
+            // For this option, a user data pointer is needed
+            result = curl_share_setopt(share, option, (void *)(intptr_t)data);
+            break;
+        default:
+            // Handle any other options that might be added in the future
+            result = curl_share_setopt(share, option, NULL);
+            break;
     }
-    free(input_string);
-    curl_easy_cleanup(curl);
+
+    // Cleanup the CURL share handle
+    curl_share_cleanup(share);
 
     return 0;
 }

@@ -1,51 +1,50 @@
 #include <cstddef>
 #include <cstdint>
-#include <curl/curl.h>
 #include <cstring>
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
+    // Initialize the CURL library
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    // Create a CURL mime handle
+    CURL *curl = curl_easy_init();
+    if (!curl) {
         return 0;
     }
 
-    // Initialize a CURLU object
-    CURLU *url = curl_url();
-    if (!url) {
+    // Create a mime part
+    curl_mime *mime = curl_mime_init(curl);
+    if (!mime) {
+        curl_easy_cleanup(curl);
         return 0;
     }
 
-    // Convert the data to a null-terminated string
-    char *url_part = new char[size + 1];
-    memcpy(url_part, data, size);
-    url_part[size] = '\0';
-
-    // Try different CURLUParts
-    CURLUPart parts[] = {
-        CURLUPART_SCHEME,
-        CURLUPART_USER,
-        CURLUPART_PASSWORD,
-        CURLUPART_OPTIONS,
-        CURLUPART_HOST,
-        CURLUPART_PORT,
-        CURLUPART_PATH,
-        CURLUPART_QUERY,
-        CURLUPART_FRAGMENT,
-        CURLUPART_ZONEID
-    };
-
-    // Iterate over all parts and fuzz the function
-    for (CURLUPart part : parts) {
-        // Use a fixed option for simplicity
-        unsigned int flags = CURLU_NON_SUPPORT_SCHEME;
-
-        // Call the function-under-test
-        curl_url_set(url, part, url_part, flags);
+    curl_mimepart *part = curl_mime_addpart(mime);
+    if (!part) {
+        curl_mime_free(mime);
+        curl_easy_cleanup(curl);
+        return 0;
     }
+
+    // Ensure the data is null-terminated for string safety
+    char *encoder = nullptr;
+    if (size > 0) {
+        encoder = new char[size + 1];
+        memcpy(encoder, data, size);
+        encoder[size] = '\0';
+    } else {
+        encoder = new char[1];
+        encoder[0] = '\0';
+    }
+
+    // Call the function-under-test
+    CURLcode result = curl_mime_encoder(part, encoder);
 
     // Clean up
-    delete[] url_part;
-    curl_url_cleanup(url);
+    delete[] encoder;
+    curl_mime_free(mime);
+    curl_easy_cleanup(curl);
 
     return 0;
 }

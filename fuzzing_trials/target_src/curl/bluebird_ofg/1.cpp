@@ -1,70 +1,79 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
 #include "curl/curl.h"
-
-extern "C" {
-    // Hypothetical function under test
-    CURLcode curl_easy_setopt(CURL *handle, CURLoption option, ...);
-}
+#include <cstring>
+#include <string>
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Exit if input size is too small to be meaningful
-    }
+    // Initialize a CURLSH handle
+    CURLSH *share_handle = curl_share_init();
+    
+    // Check if the share handle was successfully created
+    if (share_handle != NULL) {
+        // Use some of the input data to set options on the share handle
+        if (size > 0) {
+            // Use the first byte of data to decide which option to set
+            switch (data[0] % 3) {
+                case 0:
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *ptr = static_cast<char*>(malloc(size + 1));
-    if (ptr == nullptr) {
-        return 0; // Exit if memory allocation fails
-    }
+                    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_share_setopt
+                    curl_share_setopt(NULL, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+                    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Copy the input data to the allocated memory
-    memcpy(ptr, data, size);
-    ptr[size] = '\0'; // Null-terminate the string
 
-    // Initialize a CURL handle
-    CURL *curl = curl_easy_init();
-    if(curl) {
-        // Use the input data in a call to a function under test
-        // Set URL option
-        CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, ptr);
-        
-        // Check if setting the URL was successful
-        if (res == CURLE_OK) {
-            // Set additional options to increase code coverage
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
-
-            // Perform the request to increase code coverage
-            curl_easy_perform(curl);
+                    break;
+                case 1:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+                    break;
+                case 2:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+                    break;
+            }
         }
+        
+        // Create a CURL handle to perform operations
+        CURL *curl = curl_easy_init();
+        if (curl) {
+            // Set the share handle to the CURL handle
+            curl_easy_setopt(curl, CURLOPT_SHARE, share_handle);
 
-        // Clean up the CURL handle
-        curl_easy_cleanup(curl);
+            // Perform a simple operation, such as setting a URL
+            if (size > 1) {
+                // Use the rest of the data to form a URL
+                std::string url = "http://example.com/";
+                url.append(reinterpret_cast<const char*>(data + 1), size - 1);
+                curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+                // Perform the request
+                curl_easy_perform(curl);
+            }
+
+            // Cleanup the CURL handle
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_easy_ssls_import
+
+            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_easy_upkeep with curl_easy_perform
+            CURLcode ret_curl_easy_upkeep_yrbib = curl_easy_perform(curl);
+            // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+            char jiluhdnp[1024] = "ylppw";
+            curl_mime* ret_curl_mime_init_jmgks = curl_mime_init(jiluhdnp);
+            if (ret_curl_mime_init_jmgks == NULL){
+            	return 0;
+            }
+            const char gmdnwqbc[1024] = "sxqub";
+
+            CURLcode ret_curl_easy_ssls_import_skgmj = curl_easy_ssls_import(curl, gmdnwqbc, (const unsigned char *)curl, CURL_VERSION_ALTSVC, (const unsigned char *)jiluhdnp, CURL_POLL_INOUT);
+
+            // End mutation: Producer.APPEND_MUTATOR
+
+            curl_easy_cleanup(curl);
+        }
+        
+        // Cleanup the share handle after use
+        curl_share_cleanup(share_handle);
     }
 
-    // Free the allocated memory
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_ws_send
-    CURL* ret_curl_easy_duphandle_erpoc = curl_easy_duphandle(NULL);
-    if (ret_curl_easy_duphandle_erpoc == NULL){
-    	return 0;
-    }
-    size_t wmqytnsb = 64;
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of curl_ws_send
-    CURLcode ret_curl_ws_send_wvncz = curl_ws_send(ret_curl_easy_duphandle_erpoc, (const void *)curl, CURL_VERSION_SPNEGO, &wmqytnsb, 0, -1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(ptr);
-
-    // Return 0 to indicate successful execution
     return 0;
 }

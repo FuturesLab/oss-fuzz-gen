@@ -1,34 +1,45 @@
+#include <curl/curl.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <curl/curl.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
     CURLM *multi_handle;
-    curl_socket_t sockfd;
-    void *sockptr;
+    long timeout;
+    CURLMcode result;
 
-    // Initialize libcurl
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-
-    // Create a multi handle
+    // Initialize a CURLM handle
     multi_handle = curl_multi_init();
     if (!multi_handle) {
-        curl_global_cleanup();
         return 0;
     }
 
-    // For fuzzing, use the first few bytes of data as the socket descriptor and pointer
-    if (size >= sizeof(curl_socket_t) + sizeof(void *)) {
-        sockfd = *(reinterpret_cast<const curl_socket_t *>(data));
-        sockptr = *(reinterpret_cast<void *const *>(data + sizeof(curl_socket_t)));
-
-        // Call the function-under-test
-        curl_multi_assign(multi_handle, sockfd, sockptr);
+    // Create a new easy handle
+    CURL *easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0;
     }
 
-    // Cleanup
+    // Set a URL for the easy handle using the input data
+    char url[256];
+    snprintf(url, sizeof(url), "http://example.com/%.*s", (int)size, data);
+    curl_easy_setopt(easy_handle, CURLOPT_URL, url);
+
+    // Add the easy handle to the multi handle
+    curl_multi_add_handle(multi_handle, easy_handle);
+
+    // Call the function-under-test
+    result = curl_multi_timeout(multi_handle, &timeout);
+
+    // Perform multi handle operations
+    int still_running;
+    curl_multi_perform(multi_handle, &still_running);
+
+    // Clean up the CURLM handle
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
     curl_multi_cleanup(multi_handle);
-    curl_global_cleanup();
 
     return 0;
 }

@@ -1,44 +1,64 @@
-#include "curl/curl.h"
 #include <stdint.h>
-#include <stddef.h>
-
-// Callback function for reading data
-size_t read_callback(char *buffer, size_t size, size_t nitems, void *instream) {
-    // Fill the buffer with some data
-    for (size_t i = 0; i < size * nitems; ++i) {
-        buffer[i] = 'A'; // Example data
-    }
-    return size * nitems;
-}
-
-// Callback function for seeking
-int seek_callback(void *instream, curl_off_t offset, int origin) {
-    // Example seek implementation
-    return CURL_SEEKFUNC_OK;
-}
-
-// Callback function for freeing resources
-void free_callback(void *ptr) {
-    // Example free implementation
-}
+#include <stdlib.h>
+#include <string.h>
+#include "curl/curl.h"
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    CURL *curl = curl_easy_init();
-    if (!curl) {
+    // Initialize CURLU pointer
+    CURLU *original_url = curl_url();
+    if (!original_url) {
         return 0;
     }
 
-    curl_mime *mime = curl_mime_init(curl);
-    curl_mimepart *part = curl_mime_addpart(mime);
+    // Ensure data is null-terminated for use with curl_url_set
+    char *url_data = (char *)malloc(size + 1);
+    if (!url_data) {
+        curl_url_cleanup(original_url);
+        return 0;
+    }
+    memcpy(url_data, data, size);
+    url_data[size] = '\0';
 
-    curl_off_t datasize = (curl_off_t)size; // Use size as the data size
+    // Set the URL in the original CURLU object
 
-    // Call the function-under-test
-    CURLcode result = curl_mime_data_cb(part, datasize, read_callback, seek_callback, free_callback, NULL);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_set
+    CURLUcode set_result = curl_url_set(original_url, CURLUPART_URL, url_data, CURL_POLL_REMOVE);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Cleanup
-    curl_mime_free(mime);
-    curl_easy_cleanup(curl);
+
+    free(url_data);
+
+    // Only proceed if the URL was set successfully
+    if (set_result == CURLUE_OK) {
+        // Call the function-under-test
+        CURLU *duplicated_url = curl_url_dup(original_url);
+
+        // Cleanup the duplicated URL
+        if (duplicated_url) {
+            curl_url_cleanup(duplicated_url);
+        }
+    }
+
+    // Cleanup the original URL
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_cleanup to curl_easy_unescape
+    int pcnmrnbr = -1;
+
+    char* ret_curl_easy_unescape_tdqxw = curl_easy_unescape((void *)original_url, (const char *)"r", CURLFINFOFLAG_KNOWN_FILENAME, &pcnmrnbr);
+    if (ret_curl_easy_unescape_tdqxw == NULL){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_cleanup to curl_share_cleanup
+
+    CURLSHcode ret_curl_share_cleanup_okuuk = curl_share_cleanup((void *)original_url);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    curl_url_cleanup(original_url);
 
     return 0;
 }

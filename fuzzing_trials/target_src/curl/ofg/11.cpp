@@ -1,46 +1,47 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstddef>
+#include <cstdint>
 #include <curl/curl.h>
-
-// Define a mock structure for curl_pushheaders
-struct curl_pushheaders {
-    // Add necessary fields if needed for testing
-};
-
-// Mock implementation of curl_pushheader_byname_11
-extern "C" char *curl_pushheader_byname_11(struct curl_pushheaders *h, const char *header) {
-    // This is a mock implementation. The real implementation would be provided by the library.
-    // For demonstration purposes, we'll just return a copy of the header.
-    if (h == NULL || header == NULL) {
-        return NULL;
-    }
-    return strdup(header);
-}
+#include <cstring>
+#include <cstdlib> // Include for malloc and free
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Initialize the curl_pushheaders structure
-    struct curl_pushheaders headers;
-    
-    // Ensure the input data is null-terminated
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
+    CURL *curl = curl_easy_init();
+    if (!curl) {
         return 0;
     }
-    memcpy(input, data, size);
-    input[size] = '\0';
 
-    // Call the function-under-test
-    char *result = curl_pushheader_byname_11(&headers, input);
-
-    // Free the result if it was allocated
-    if (result != NULL) {
-        free(result);
+    // Create a mime structure
+    curl_mime *mime = curl_mime_init(curl);
+    if (!mime) {
+        curl_easy_cleanup(curl);
+        return 0;
     }
 
-    // Free the allocated input
-    free(input);
+    // Create a mime part
+    curl_mimepart *part = curl_mime_addpart(mime);
+    if (!part) {
+        curl_mime_free(mime);
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+
+    // Ensure the data is null-terminated for safety
+    char *data_copy = static_cast<char *>(malloc(size + 1));
+    if (!data_copy) {
+        curl_mime_free(mime);
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+    memcpy(data_copy, data, size);
+    data_copy[size] = '\0';
+
+    // Call the function-under-test
+    CURLcode result = curl_mime_data(part, data_copy, CURL_ZERO_TERMINATED);
+
+    // Clean up
+    free(data_copy);
+    curl_mime_free(mime);
+    curl_easy_cleanup(curl);
 
     return 0;
 }

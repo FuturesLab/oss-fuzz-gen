@@ -4,70 +4,53 @@
 #include <string.h>
 #include <stdlib.h>
 
-extern "C" {
-    #include "curl/curl.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Initialize a CURLSH handle
-    CURLSH *share_handle = curl_share_init();
-    if (share_handle == NULL) {
+    // Initialize libcurl
+    CURLM *multi_handle = curl_multi_init();
+    if (!multi_handle) {
         return 0; // Return if initialization fails
     }
 
-    // Set up some options to better utilize the share handle
-    CURLSHcode share_result;
-    share_result = curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
-    if (share_result != CURLSHE_OK) {
-        curl_share_cleanup(share_handle);
-        return 0;
+    // Create a CURL easy handle
+    CURL *easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0; // Return if initialization fails
     }
 
-    // Use the data as a dummy input to simulate real usage
-    if (size > 0) {
-        // Use the input data to set a dummy option
-        char *dummy_data = (char *)malloc(size + 1);
-        if (dummy_data) {
-            memcpy(dummy_data, data, size);
-            dummy_data[size] = '\0'; // Null-terminate the string
+    // Convert the input data to a string and set it as a URL
+    char *url = (char *)malloc(size + 1);
+    if (!url) {
 
-            // Set a dummy option using the input data
-            share_result = curl_share_setopt(share_handle, CURLSHOPT_USERDATA, dummy_data);
-            if (share_result != CURLSHE_OK) {
-                free(dummy_data);
-                curl_share_cleanup(share_handle);
-                return 0;
-            }
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_easy_cleanup
+        char bmnovfgc[1024] = "nazkw";
+        curl_easy_cleanup(bmnovfgc);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-            // Attempt to use the share handle in a meaningful way
-            // For example, we could simulate a scenario where the share handle is used
-            // with a CURL easy handle to see how it behaves
 
-            CURL *easy_handle = curl_easy_init();
-            if (easy_handle) {
-                // Set the share handle to the easy handle
-                curl_easy_setopt(easy_handle, CURLOPT_SHARE, share_handle);
-
-                // Perform a dummy operation
-                curl_easy_setopt(easy_handle, CURLOPT_URL, "http://example.com");
-                curl_easy_perform(easy_handle);
-
-                // Cleanup the easy handle
-                curl_easy_cleanup(easy_handle);
-            }
-
-            // Clean up the dummy data
-            free(dummy_data);
-        }
+        curl_multi_cleanup(multi_handle);
+        return 0; // Return if memory allocation fails
     }
+    memcpy(url, data, size);
+    url[size] = '\0'; // Null-terminate the string
+
+    // Set the URL for the easy handle
+    curl_easy_setopt(easy_handle, CURLOPT_URL, url);
+
+    // Add the easy handle to the multi handle
+    curl_multi_add_handle(multi_handle, easy_handle);
+
+    // We need a valid integer pointer for the second argument
+    int still_running = 0;
 
     // Call the function-under-test
-    CURLSHcode result = curl_share_cleanup(share_handle);
+    CURLMcode result = curl_multi_socket_all(multi_handle, &still_running);
 
-    // Use the result to prevent compiler optimizations from removing the call
-    if (result != CURLSHE_OK) {
-        // Handle the error case (although in a fuzzing context, we might not need to do much)
-    }
+    // Clean up
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
+    curl_multi_cleanup(multi_handle);
+    free(url);
 
     return 0;
 }

@@ -1,50 +1,28 @@
+#include <curl/curl.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <curl/curl.h>
-#include <string.h>
-#include <stdlib.h> // Include for malloc and free
-
-extern "C" {
-    #include <curl/curl.h> // Ensure C linkage for the curl library
-}
+#include <string.h> // Include for memcpy
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
+    // Initialize CURL
     CURL *curl = curl_easy_init();
-    if (!curl || size == 0) {
+    if (!curl) {
         return 0;
     }
 
-    // Initialize a curl_mime structure
-    curl_mime *mime = curl_mime_init(curl);
-    if (!mime) {
-        curl_easy_cleanup(curl);
-        return 0;
-    }
+    // Set some basic options to ensure the CURL handle is valid
+    // Use data to set a URL, but ensure it's null-terminated
+    char url[256];
+    size_t url_size = (size < 255) ? size : 255;
+    memcpy(url, data, url_size);
+    url[url_size] = '\0'; // Ensure null-termination
 
-    // Create a new mime part
-    curl_mimepart *part = curl_mime_addpart(mime);
-    if (!part) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
-        return 0;
-    }
+    curl_easy_setopt(curl, CURLOPT_URL, url);
 
-    // Ensure the data is null-terminated for safe string operations
-    char *mime_type = (char *)malloc(size + 1);
-    if (!mime_type) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-    memcpy(mime_type, data, size);
-    mime_type[size] = '\0';
+    // Perform the upkeep operation
+    CURLcode res = curl_easy_upkeep(curl);
 
-    // Call the function-under-test
-    curl_mime_type(part, mime_type);
-
-    // Clean up
-    free(mime_type);
-    curl_mime_free(mime);
+    // Cleanup
     curl_easy_cleanup(curl);
 
     return 0;

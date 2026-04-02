@@ -1,40 +1,48 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include for memcpy
 #include "curl/curl.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Initialize CURLU pointer
-    CURLU *url = curl_url();
-    if (url == NULL) {
+    // Initialize a CURL mime handle
+    CURL *curl = curl_easy_init();
+    if (!curl) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *url_str = (char *)malloc(size + 1);
-    if (url_str == NULL) {
-        curl_url_cleanup(url);
-        return 0;
-    }
-    memcpy(url_str, data, size);
-    url_str[size] = '\0';
-
-    // Set the URL in the CURLU object
-    if (curl_url_set(url, CURLUPART_URL, url_str, 0) != CURLUE_OK) {
-        free(url_str);
-        curl_url_cleanup(url);
+    // Initialize a CURL mime part
+    curl_mime *mime = curl_mime_init(curl);
+    if (!mime) {
+        curl_easy_cleanup(curl);
         return 0;
     }
 
-    // Duplicate the CURLU object
-    CURLU *url_dup = curl_url_dup(url);
-
-    // Cleanup
-    free(url_str);
-    curl_url_cleanup(url);
-    if (url_dup != NULL) {
-        curl_url_cleanup(url_dup);
+    curl_mimepart *part = curl_mime_addpart(mime);
+    if (!part) {
+        curl_mime_free(mime);
+        curl_easy_cleanup(curl);
+        return 0;
     }
+
+    // Ensure the filename is null-terminated
+    char *filename = (char *)malloc(size + 1);
+    if (!filename) {
+        curl_mime_free(mime);
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+    memcpy(filename, data, size);
+    filename[size] = '\0';
+
+    // Call the function-under-test
+    CURLcode result = curl_mime_filename(part, filename);
+
+    // Clean up
+    free(filename);
+    curl_mime_free(mime);
+    curl_easy_cleanup(curl);
 
     return 0;
 }

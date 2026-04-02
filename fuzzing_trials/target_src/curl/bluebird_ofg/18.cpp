@@ -1,74 +1,56 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include "curl/curl.h"
-
-extern "C" {
-    // Hypothetical function under test
-    CURLcode curl_easy_setopt(CURL *handle, CURLoption option, ...);
-}
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Exit if input size is too small to be meaningful
-    }
+    CURL *curl;
+    CURLcode result;
+    struct curl_slist *headers = NULL;
+    char *header_value = NULL;
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *ptr = static_cast<char*>(malloc(size + 1));
-    if (ptr == nullptr) {
-        return 0; // Exit if memory allocation fails
-    }
-
-    // Copy the input data to the allocated memory
-    memcpy(ptr, data, size);
-    ptr[size] = '\0'; // Null-terminate the string
-
-    // Initialize a CURL handle
-    CURL *curl = curl_easy_init();
+    // Initialize CURL
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
     if(curl) {
-        // Use the input data in a call to a function under test
-        // Set URL option
-        CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, ptr);
-        
-        // Check if setting the URL was successful
-        if (res == CURLE_OK) {
-            // Set additional options to increase code coverage
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+        // Ensure data is not NULL and has a reasonable size
+        if (size > 0 && data != NULL) {
+            // Allocate memory for header value and copy data into it
+            header_value = (char *)malloc(size + 1);
+            if (header_value) {
+                memcpy(header_value, data, size);
+                header_value[size] = '\0'; // Null-terminate the string
 
-            // Perform the request to increase code coverage
-            curl_easy_perform(curl);
+                // Set the custom header
+                headers = curl_slist_append(headers, header_value);
+                if (headers) {
+                    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+                    // Perform the request (this is just a placeholder URL)
+                    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+
+                    // Call the function under test
+                    result = curl_easy_perform(curl);
+
+                    // You might want to perform some checks or operations with 'result' here
+                }
+
+                // Free the allocated header value
+                free(header_value);
+            }
         }
 
-        // Clean up the CURL handle
+        // Clean up the headers if they were set
+        if (headers) {
+            curl_slist_free_all(headers);
+        }
+
+        // Clean up CURL
         curl_easy_cleanup(curl);
     }
 
-    // Free the allocated memory
+    curl_global_cleanup();
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_multi_assign
-    CURLM* ret_curl_multi_init_ejjyb = curl_multi_init();
-    if (ret_curl_multi_init_ejjyb == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_multi_init to curl_multi_wait
-    struct curl_waitfd iewbneml;
-    memset(&iewbneml, 0, sizeof(iewbneml));
-    int gstxevkn = -1;
-
-    CURLMcode ret_curl_multi_wait_igqew = curl_multi_wait(ret_curl_multi_init_ejjyb, &iewbneml, CURLWS_TEXT, CURL_PUSH_ERROROUT, &gstxevkn);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    CURLMcode ret_curl_multi_assign_brssh = curl_multi_assign(ret_curl_multi_init_ejjyb, CURL_TRAILERFUNC_ABORT, (void *)curl);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(ptr);
-
-    // Return 0 to indicate successful execution
     return 0;
 }

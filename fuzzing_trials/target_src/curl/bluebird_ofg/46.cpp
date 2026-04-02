@@ -4,74 +4,60 @@
 #include <cstring>
 #include "curl/curl.h"
 
-extern "C" {
-    // Hypothetical function under test
-    CURLcode curl_easy_setopt(CURL *handle, CURLoption option, ...);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Exit if input size is too small to be meaningful
+    // Initialize CURLU handle
+    CURLU *url_handle = curl_url();
+    if (!url_handle) {
+        return 0;
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *ptr = static_cast<char*>(malloc(size + 1));
-    if (ptr == nullptr) {
-        return 0; // Exit if memory allocation fails
+    // Ensure the input data is not empty
+    if (size == 0) {
+        curl_url_cleanup(url_handle);
+        return 0;
     }
 
-    // Copy the input data to the allocated memory
-    memcpy(ptr, data, size);
-    ptr[size] = '\0'; // Null-terminate the string
+    // Create a null-terminated string from the input data
+    char *url_data = (char *)malloc(size + 1);
+    if (!url_data) {
+        curl_url_cleanup(url_handle);
+        return 0;
+    }
+    memcpy(url_data, data, size);
+    url_data[size] = '\0';
 
-    // Initialize a CURL handle
-    CURL *curl = curl_easy_init();
-    if(curl) {
-        // Use the input data in a call to a function under test
-        // Set URL option
-        CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, ptr);
-        
-        // Check if setting the URL was successful
-        if (res == CURLE_OK) {
-            // Set additional options to increase code coverage
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_easy_perform
-
-            CURLcode ret_curl_easy_perform_omutp = curl_easy_perform(curl);
-
-            // End mutation: Producer.APPEND_MUTATOR
-
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
-
-            // Perform the request to increase code coverage
-
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_easy_perform with curl_easy_upkeep
-            curl_easy_upkeep(curl);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        }
-
-        // Clean up the CURL handle
-        curl_easy_cleanup(curl);
+    // Set the URL to the CURLU handle
+    CURLUcode set_result = curl_url_set(url_handle, CURLUPART_URL, url_data, 0);
+    if (set_result != CURLUE_OK) {
+        free(url_data);
+        curl_url_cleanup(url_handle);
+        return 0;
     }
 
-    // Free the allocated memory
+    // Define a variable for the output
+    char *output = NULL;
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_ws_send
-    CURL* ret_curl_easy_duphandle_erpoc = curl_easy_duphandle(NULL);
-    if (ret_curl_easy_duphandle_erpoc == NULL){
-    	return 0;
-    }
-    size_t wmqytnsb = 64;
+    // Define a CURLUPart to be extracted, using CURLUPART_HOST as an example
+    CURLUPart part = CURLUPART_HOST;
 
-    CURLcode ret_curl_ws_send_wvncz = curl_ws_send(ret_curl_easy_duphandle_erpoc, (const void *)curl, CURLPAUSE_RECV_CONT, &wmqytnsb, 0, -1);
+    // Call the function-under-test
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_set to curl_easy_ssls_export
+
+    CURLcode ret_curl_easy_ssls_export_nggtm = curl_easy_ssls_export((void *)url_handle, NULL, (void *)url_handle);
 
     // End mutation: Producer.APPEND_MUTATOR
 
-    free(ptr);
+    CURLUcode result = curl_url_get(url_handle, part, &output, 0);
 
-    // Return 0 to indicate successful execution
+    // Free the output if it was allocated
+    if (output) {
+        curl_free(output);
+    }
+
+    // Clean up
+    free(url_data);
+    curl_url_cleanup(url_handle);
+
     return 0;
 }

@@ -1,54 +1,69 @@
-#include "curl/curl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include "curl/curl.h"
 #include <string.h>
-
-extern "C" {
-    struct curl_header * curl_easy_nextheader(CURL *, unsigned int, int, struct curl_header *);
-}
+#include <stdlib.h>
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    CURL *curl;
-    struct curl_header *header = NULL;
-    unsigned int origin = 0; // Example value, can be varied
-    int partial = 0; // Example value, can be varied
-
-    // Initialize a CURL easy handle
-    curl = curl_easy_init();
-    if (!curl) {
-        return 0;
+    // Initialize libcurl
+    CURLM *multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        return 0; // Return if initialization fails
     }
 
-    // Convert the fuzz data into a string URL
+    // Create a CURL easy handle
+    CURL *easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0; // Return if initialization fails
+    }
+
+    // Convert the input data to a string and set it as a URL
     char *url = (char *)malloc(size + 1);
     if (!url) {
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-    memcpy(url, data, size);
-    url[size] = '\0';
 
-    // Set a URL for the CURL handle
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-
-    // Perform a request to ensure the function under test is invoked
-    CURLcode res = curl_easy_perform(curl);
-    if (res != CURLE_OK) {
-        // If the request fails, we still want to invoke the function under test
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of curl_easy_nextheader
-        header = curl_easy_nextheader(curl, origin, CURL_SOCKET_BAD, header);
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_easy_cleanup
+        char bmnovfgc[1024] = "nazkw";
+        curl_easy_cleanup(bmnovfgc);
         // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
-    } else {
-        // If the request succeeds, also invoke the function under test
-        header = curl_easy_nextheader(curl, origin, partial, header);
+        curl_multi_cleanup(multi_handle);
+        return 0; // Return if memory allocation fails
     }
+    memcpy(url, data, size);
+    url[size] = '\0'; // Null-terminate the string
 
-    // Cleanup
+    // Set the URL for the easy handle
+    curl_easy_setopt(easy_handle, CURLOPT_URL, url);
+
+    // Add the easy handle to the multi handle
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_easy_header
+    CURL** ret_curl_multi_get_handles_ulrjt = curl_multi_get_handles((void *)easy_handle);
+    if (ret_curl_multi_get_handles_ulrjt == NULL){
+    	return 0;
+    }
+    struct curl_header *uzpawjsh;
+    memset(&uzpawjsh, 0, sizeof(uzpawjsh));
+
+    CURLHcode ret_curl_easy_header_nqogk = curl_easy_header((void *)easy_handle, (const char *)easy_handle, CURLU_DEFAULT_SCHEME, CURLWS_CLOSE, CURLU_NO_DEFAULT_PORT, &uzpawjsh);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    curl_multi_add_handle(multi_handle, easy_handle);
+
+    // We need a valid integer pointer for the second argument
+    int still_running = 0;
+
+    // Call the function-under-test
+    CURLMcode result = curl_multi_socket_all(multi_handle, &still_running);
+
+    // Clean up
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
+    curl_multi_cleanup(multi_handle);
     free(url);
-    curl_easy_cleanup(curl);
 
     return 0;
 }

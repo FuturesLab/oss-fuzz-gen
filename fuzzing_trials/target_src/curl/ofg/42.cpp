@@ -1,60 +1,55 @@
-#include <curl/curl.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // For mkstemp and close
+#include <curl/curl.h>
+#include <cstring>
+#include <string>
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    curl_mime *mime;
-    curl_mimepart *part;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
+    // Initialize a CURLSH handle
+    CURLSH *share_handle = curl_share_init();
+    
+    // Check if the share handle was successfully created
+    if (share_handle != NULL) {
+        // Use some of the input data to set options on the share handle
+        if (size > 0) {
+            // Use the first byte of data to decide which option to set
+            switch (data[0] % 3) {
+                case 0:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+                    break;
+                case 1:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+                    break;
+                case 2:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+                    break;
+            }
+        }
+        
+        // Create a CURL handle to perform operations
+        CURL *curl = curl_easy_init();
+        if (curl) {
+            // Set the share handle to the CURL handle
+            curl_easy_setopt(curl, CURLOPT_SHARE, share_handle);
 
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_ALL);
-    curl = curl_easy_init();
-    if (!curl) {
-        curl_global_cleanup();
-        return 0;
+            // Perform a simple operation, such as setting a URL
+            if (size > 1) {
+                // Use the rest of the data to form a URL
+                std::string url = "http://example.com/";
+                url.append(reinterpret_cast<const char*>(data + 1), size - 1);
+                curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+                // Perform the request
+                curl_easy_perform(curl);
+            }
+
+            // Cleanup the CURL handle
+            curl_easy_cleanup(curl);
+        }
+        
+        // Cleanup the share handle after use
+        curl_share_cleanup(share_handle);
     }
-
-    // Create a temporary file to hold the fuzz data
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        curl_easy_cleanup(curl);
-        curl_global_cleanup();
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        curl_easy_cleanup(curl);
-        curl_global_cleanup();
-        return 0;
-    }
-
-    // Write the fuzz data to the temporary file
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Create a mime structure and add a part
-    mime = curl_mime_init(curl);
-    part = curl_mime_addpart(mime);
-
-    // Call the function-under-test with the file path
-    res = curl_mime_filedata(part, tmpl);
-
-    // Clean up
-    curl_mime_free(mime);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
-
-    // Remove the temporary file
-    remove(tmpl);
 
     return 0;
 }

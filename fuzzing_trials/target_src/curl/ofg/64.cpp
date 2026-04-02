@@ -1,41 +1,37 @@
 #include <curl/curl.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    CURL *easy_handle = curl_easy_init();
-    if (!easy_handle) {
+    CURL *curl;
+    CURLcode res;
+
+    // Initialize CURL
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if (curl == NULL) {
+        curl_global_cleanup();
         return 0;
     }
 
-    // Initialize curl_mime and curl_mimepart
-    curl_mime *mime = curl_mime_init(easy_handle);
-    if (!mime) {
-        curl_easy_cleanup(easy_handle);
+    // Ensure the size is sufficient for extracting option and value
+    if (size < sizeof(CURLoption) + 1) {
+        curl_easy_cleanup(curl);
+        curl_global_cleanup();
         return 0;
     }
 
-    curl_mimepart *part = curl_mime_addpart(mime);
-    if (!part) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(easy_handle);
-        return 0;
-    }
+    // Extract CURLoption and value from the input data
+    CURLoption option = static_cast<CURLoption>(data[0]);
+    void *value = (void *)(data + sizeof(CURLoption));
 
-    // Create a subpart mime object
-    curl_mime *sub_mime = curl_mime_init(easy_handle);
-    if (!sub_mime) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(easy_handle);
-        return 0;
-    }
-
-    // Fuzz the function-under-test
-    CURLcode result = curl_mime_subparts(part, sub_mime);
+    // Call the function-under-test
+    res = curl_easy_setopt(curl, option, value);
 
     // Clean up
-    curl_mime_free(mime); // This will also free sub_mime
-    curl_easy_cleanup(easy_handle);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
 
     return 0;
 }

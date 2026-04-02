@@ -1,41 +1,54 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <cstdio>
+#include <stdint.h>
+#include <stddef.h>
+#include <curl/curl.h>
+#include <string>
+#include <iostream>
 
 extern "C" {
-    // Include the necessary header for curl_strnequal
-    #include <curl/curl.h>
+    // Ensure that the correct CURL WebSocket header is included if available.
+    // This is a placeholder as the actual header file might differ based on CURL's version or configuration.
+    // #include <curl/curl_ws.h> // Uncomment if such a header exists in your CURL version.
+
+    // Declare the function if it's not automatically included by the headers.
+    const struct curl_ws_frame *curl_ws_meta(CURL *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to split into two strings and a size_t
-    if (size < 3) return 0;
+    CURL *curl = curl_easy_init();
+    if (curl == NULL) {
+        return 0;
+    }
 
-    // Calculate the length for each string
-    size_t str1_len = size / 2;
-    size_t str2_len = size - str1_len;
+    // Set some basic options to ensure the CURL handle is properly initialized.
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
-    // Create buffers for the two strings
-    char *str1 = new char[str1_len + 1];
-    char *str2 = new char[str2_len + 1];
+    // Use the input data to set WebSocket options, if applicable.
+    // For example, if the input data can be converted to a string, use it as a WebSocket URL or protocol.
+    if (size > 0) {
+        std::string url(reinterpret_cast<const char*>(data), size);
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    } else {
+        curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+    }
 
-    // Copy data into the strings and null-terminate them
-    memcpy(str1, data, str1_len);
-    str1[str1_len] = '\0';
-
-    memcpy(str2, data + str1_len, str2_len);
-    str2[str2_len] = '\0';
-
-    // Use a small size_t value for comparison
-    size_t compare_len = size % (str1_len + 1);
+    // Attempt to perform the request, which might involve WebSocket operations.
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        curl_easy_cleanup(curl);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = curl_strnequal(str1, str2, compare_len);
+    const struct curl_ws_frame *frame = curl_ws_meta(curl);
+
+    // Perform some operations on the frame if needed to ensure code coverage
+    if (frame != NULL) {
+        // Example operation: check frame properties
+        std::cout << "Frame flags: " << frame->flags << std::endl; // Access a member to increase coverage
+    }
 
     // Clean up
-    delete[] str1;
-    delete[] str2;
+    curl_easy_cleanup(curl);
 
     return 0;
 }

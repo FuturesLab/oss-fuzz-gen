@@ -1,42 +1,20 @@
+#include <curl/curl.h>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
-#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Initialize CURL
-    CURL *curl = curl_easy_init();
-    if (!curl) {
-        return 0;
-    }
-
-    // Create a mime structure
-    curl_mime *mime = curl_mime_init(curl);
-    if (!mime) {
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-
-    // Create a mime part
-    curl_mimepart *part = curl_mime_addpart(mime);
-    if (!part) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-
-    // Ensure that the data is null-terminated for string operations
-    char *name = new char[size + 1];
-    memcpy(name, data, size);
-    name[size] = '\0';
+    // Ensure the data is null-terminated
+    char *input = new char[size + 1];
+    memcpy(input, data, size);
+    input[size] = '\0';
 
     // Call the function-under-test
-    curl_mime_name(part, name);
+    CURLcode result = curl_global_trace(input);
 
     // Clean up
-    delete[] name;
-    curl_mime_free(mime);
-    curl_easy_cleanup(curl);
+    delete[] input;
 
     return 0;
 }

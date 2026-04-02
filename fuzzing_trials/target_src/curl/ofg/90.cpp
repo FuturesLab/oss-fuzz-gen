@@ -1,35 +1,36 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include this for memcpy
+#include <cstdint>
 #include <curl/curl.h>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    CURL *curl_handle;
-
-    // Initialize a CURL session
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl_handle = curl_easy_init();
-
-    if(curl_handle) {
-        // Set some options for the CURL session
-        // Here we use the data as a URL, but ensure it's null-terminated
-        char url[256];
-        size_t url_length = size < 255 ? size : 255;
-        memcpy(url, data, url_length);
-        url[url_length] = '\0';
-
-        // Set the URL option
-        curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-
-        // Perform the upkeep operation
-        curl_easy_upkeep(curl_handle);
-
-        // Cleanup the CURL session
-        curl_easy_cleanup(curl_handle);
+    // Initialize CURLM handle
+    CURLM *multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        return 0;
     }
 
-    // Cleanup global CURL resources
-    curl_global_cleanup();
+    // Ensure the data size is sufficient for our needs
+    if (size < sizeof(CURLMoption) + sizeof(long)) {
+        curl_multi_cleanup(multi_handle);
+        return 0;
+    }
+
+    // Extract CURLMoption from the data
+    CURLMoption option = static_cast<CURLMoption>(data[0]);
+
+    // Prepare a buffer to hold the option value
+    char option_value[256];
+    memset(option_value, 0, sizeof(option_value));
+
+    // Copy data into option_value, ensuring we don't exceed the buffer size
+    size_t copy_size = size - 1 < sizeof(option_value) ? size - 1 : sizeof(option_value) - 1;
+    memcpy(option_value, data + 1, copy_size);
+
+    // Call the function-under-test
+    curl_multi_setopt(multi_handle, option, static_cast<void *>(option_value));
+
+    // Clean up
+    curl_multi_cleanup(multi_handle);
 
     return 0;
 }

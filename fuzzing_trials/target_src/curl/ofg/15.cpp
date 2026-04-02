@@ -1,29 +1,31 @@
-#include <curl/curl.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h> // Include for memcpy
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Initialize CURLM handle
-    CURLM *multi_handle = curl_multi_init();
-    if (!multi_handle) {
+    CURLU *urlp = curl_url();
+    if (urlp == NULL) {
         return 0;
     }
 
-    // Create a CURL easy handle and add it to the multi handle
-    CURL *easy_handle = curl_easy_init();
-    if (easy_handle) {
-        curl_multi_add_handle(multi_handle, easy_handle);
+    // Attempt to set the URL from the input data
+    char *url = (char *)malloc(size + 1);
+    if (url == NULL) {
+        curl_url_cleanup(urlp);
+        return 0;
     }
 
-    // Call the function-under-test
-    CURL **handles = curl_multi_get_handles(multi_handle);
+    memcpy(url, data, size);
+    url[size] = '\0'; // Null-terminate the URL string
+
+    // Set the URL in the CURLU object
+    curl_url_set(urlp, CURLUPART_URL, url, 0);
 
     // Clean up
-    if (easy_handle) {
-        curl_multi_remove_handle(multi_handle, easy_handle);
-        curl_easy_cleanup(easy_handle);
-    }
-    curl_multi_cleanup(multi_handle);
+    curl_url_cleanup(urlp);
+    free(url);
 
     return 0;
 }

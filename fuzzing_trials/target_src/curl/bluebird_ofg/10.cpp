@@ -1,27 +1,39 @@
 #include "curl/curl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Ensure size is non-zero and data is not NULL
-    if (size == 0 || data == NULL) {
-        return 0;
+    if (size == 0) {
+        return 0; // Avoid processing empty inputs
     }
 
-    // Allocate memory for the input string and ensure it's null-terminated
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
-        return 0;
+    CURL *curl;
+    CURLcode res;
+    size_t sent_bytes = 0;
+    curl_off_t offset = 0;
+    unsigned int flags = 0;
+
+    // Initialize CURL
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if(curl) {
+        // Set up CURL options
+        curl_easy_setopt(curl, CURLOPT_URL, "ws://example.com"); // Example WebSocket URL
+        curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L); // Prepare for WebSocket connection
+
+        // Perform the connection
+        res = curl_easy_perform(curl);
+        if (res == CURLE_OK) {
+            // Call the function-under-test with valid WebSocket context
+            res = curl_ws_send(curl, data, size, &sent_bytes, offset, flags);
+        }
+
+        // Clean up
+        curl_easy_cleanup(curl);
     }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';  // Null-terminate the string
 
-    // Call the function-under-test
-    curl_global_trace(input_str);
-
-    // Clean up
-    free(input_str);
+    curl_global_cleanup();
 
     return 0;
 }

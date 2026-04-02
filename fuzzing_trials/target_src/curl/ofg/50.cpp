@@ -1,38 +1,19 @@
-#include <curl/curl.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    char *url = (char *)malloc(size + 1);
-
-    if (url == NULL) {
+    CURL *curl = curl_easy_init();
+    if (curl == NULL) {
         return 0;
     }
 
-    // Ensure the URL is null-terminated
-    memcpy(url, data, size);
-    url[size] = '\0';
+    // Initialize a curl_mime structure using the curl handle
+    curl_mime *mime = curl_mime_init(curl);
 
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-
-    if(curl) {
-        // Set the URL from the fuzzing input
-        curl_easy_setopt(curl, CURLOPT_URL, url);
-
-        // Perform the request, this will increase code coverage
-        res = curl_easy_perform(curl);
-
-        // Clean up
-        curl_easy_cleanup(curl);
-    }
-
-    free(url);
-    curl_global_cleanup();
+    // Clean up
+    curl_mime_free(mime);
+    curl_easy_cleanup(curl);
 
     return 0;
 }

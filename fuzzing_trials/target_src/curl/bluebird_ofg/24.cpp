@@ -1,33 +1,31 @@
 #include "curl/curl.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Initialize the CURL library
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    CURL *curl;
+    CURLcode res;
+    size_t sent_bytes = 0;
 
-    // Declare and initialize variables
-    curl_sslbackend backend = CURLSSLBACKEND_NONE;
-    const char *str = NULL;
-    const curl_ssl_backend **backends = NULL;
+    // Initialize a CURL session
+    curl = curl_easy_init();
+    if(curl) {
+        // Set CURL options for sending data
+        curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+        curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
 
-    // Ensure size is large enough to extract meaningful data
-    if (size > 0) {
-        // Use the first byte to determine the backend
-        backend = static_cast<curl_sslbackend>(data[0]);
-
-        // Use the rest of the data as a string
-        if (size > 1) {
-            str = reinterpret_cast<const char*>(data + 1);
+        // Perform the connection
+        res = curl_easy_perform(curl);
+        if(res == CURLE_OK) {
+            // Attempt to send data using curl_easy_send
+            res = curl_easy_send(curl, data, size, &sent_bytes);
         }
+
+        // Cleanup CURL session
+        curl_easy_cleanup(curl);
     }
-
-    // Call the function under test
-    CURLsslset result = curl_global_sslset(backend, str, &backends);
-
-    // Clean up
-    curl_global_cleanup();
 
     return 0;
 }

@@ -1,41 +1,31 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    CURL *curl;
-    char *unescaped;
-    int outlength;
-
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (!curl) {
-        curl_global_cleanup();
-        return 0;
-    }
-
-    // Ensure the input data is null-terminated
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        curl_easy_cleanup(curl);
-        curl_global_cleanup();
-        return 0;
-    }
-    memcpy(input, data, size);
-    input[size] = '\0';
-
     // Call the function-under-test
-    unescaped = curl_easy_unescape(curl, input, (int)size, &outlength);
+    CURLU *url_handle = curl_url();
 
-    // Clean up
-    if (unescaped) {
-        curl_free(unescaped);
+    // Check if the URL handle was created successfully
+    if (url_handle != NULL) {
+        // Ensure the input data is null-terminated to be used as a string
+        char *url = (char *)malloc(size + 1);
+        if (url != NULL) {
+            memcpy(url, data, size);
+            url[size] = '\0';
+
+            // Set the URL using the provided data
+            curl_url_set(url_handle, CURLUPART_URL, url, 0);
+
+            // Clean up the allocated URL string
+            free(url);
+        }
+
+        // Clean up the URL handle
+        curl_url_cleanup(url_handle);
     }
-    free(input);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
 
     return 0;
 }

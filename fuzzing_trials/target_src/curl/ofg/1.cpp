@@ -1,33 +1,30 @@
 #include <curl/curl.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Initialize CURL
-    CURL *curl = curl_easy_init();
-    if (!curl) {
+    // Initialize CURLM handle
+    CURLM *multi_handle = curl_multi_init();
+    if (!multi_handle) {
         return 0;
     }
-
-    // Ensure the input data is null-terminated for use as a string
-    char *inputData = (char *)malloc(size + 1);
-    if (!inputData) {
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-    memcpy(inputData, data, size);
-    inputData[size] = '\0';
 
     // Call the function-under-test
-    char *escapedString = curl_easy_escape(curl, inputData, (int)size);
+    CURL **handles = curl_multi_get_handles(multi_handle);
+
+    // Check if handles is not NULL and do something with it if needed
+    if (handles) {
+        // For fuzzing purposes, we can iterate over the handles
+        // and perform operations, but here we just demonstrate access
+        for (size_t i = 0; handles[i] != NULL; ++i) {
+            // Example operation: retrieve information from each handle
+            char *url;
+            curl_easy_getinfo(handles[i], CURLINFO_EFFECTIVE_URL, &url);
+        }
+    }
 
     // Cleanup
-    if (escapedString) {
-        curl_free(escapedString);
-    }
-    free(inputData);
-    curl_easy_cleanup(curl);
+    curl_multi_cleanup(multi_handle);
 
     return 0;
 }

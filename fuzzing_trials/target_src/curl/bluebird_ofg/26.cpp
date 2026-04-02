@@ -1,53 +1,58 @@
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "curl/curl.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>  // Include this header for strlen and memcpy
 
-extern "C" {
-
-// Custom memory allocation callbacks
-void* custom_malloc(size_t size) {
-    return malloc(size);
-}
-
-void custom_free(void* ptr) {
-    free(ptr);
-}
-
-void* custom_realloc(void* ptr, size_t size) {
-    return realloc(ptr, size);
-}
-
-char* custom_strdup(const char* str) {
-    size_t len = strlen(str) + 1;
-    char* copy = (char*)malloc(len);
-    if (copy) {
-        memcpy(copy, str, len);
-    }
-    return copy;
-}
-
-void* custom_calloc(size_t nmemb, size_t size) {
-    return calloc(nmemb, size);
-}
-
-int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Convert data to a long value for the first parameter
-    long flags = 0;
-    if (size >= sizeof(long)) {
-        flags = *(const long*)data;
+extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
+    // Initialize CURLU object
+    CURLU *urlp = curl_url();
+    if (!urlp) {
+        return 0;
     }
 
-    // Call the function-under-test
-    CURLcode result = curl_global_init_mem(flags, custom_malloc, custom_free, custom_realloc, custom_strdup, custom_calloc);
-
-    // Cleanup if necessary
-    if (result == CURLE_OK) {
-        curl_global_cleanup();
+    // Prepare a null-terminated string from the input data
+    char *url = (char *)malloc(size + 1);
+    if (!url) {
+        curl_url_cleanup(urlp);
+        return 0;
     }
+    memcpy(url, data, size);
+    url[size] = '\0';
+
+    // Set the URL in the CURLU object
+    CURLUcode result = curl_url_set(urlp, CURLUPART_URL, url, 0);
+    free(url);
+
+    if (result != CURLUE_OK) {
+        curl_url_cleanup(urlp);
+        return 0;
+    }
+
+    // Prepare to get different parts of the URL
+    char *output = nullptr;
+    CURLUPart parts[] = {CURLUPART_SCHEME, CURLUPART_HOST, CURLUPART_PATH, CURLUPART_QUERY, CURLUPART_FRAGMENT};
+    unsigned int flags = 0;
+
+    // Attempt to get each part of the URL
+    for (CURLUPart part : parts) {
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_get
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_get
+        result = curl_url_get(urlp, part, &output, size);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        if (result == CURLUE_OK && output) {
+            curl_free(output);
+        }
+    }
+
+    // Cleanup
+    curl_url_cleanup(urlp);
 
     return 0;
-}
-
 }

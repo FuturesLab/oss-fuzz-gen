@@ -1,58 +1,57 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include "curl/curl.h"
+#include <cstring> // Include the header for memcpy
 
 extern "C" {
-    // Hypothetical function under test
-    CURLcode curl_easy_setopt(CURL *handle, CURLoption option, ...);
+    #include "curl/curl.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Exit if input size is too small to be meaningful
+    // Ensure the data is null-terminated to prevent buffer overflow when used as a string
+    char *ptr = (char *)malloc(size + 1); // Allocate extra byte for null terminator
+    if (ptr == NULL) {
+        return 0; // Allocation failed, exit early
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *ptr = static_cast<char*>(malloc(size + 1));
-    if (ptr == nullptr) {
-        return 0; // Exit if memory allocation fails
-    }
-
-    // Copy the input data to the allocated memory
+    // Copy the input data into the allocated memory and null-terminate it
     memcpy(ptr, data, size);
     ptr[size] = '\0'; // Null-terminate the string
 
     // Initialize a CURL handle
     CURL *curl = curl_easy_init();
     if(curl) {
-        // Use the input data in a call to a function under test
-        // Set URL option
-        CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, ptr);
+        // Use the input data as a URL for testing
+        curl_easy_setopt(curl, CURLOPT_URL, ptr);
         
-        // Check if setting the URL was successful
-        if (res == CURLE_OK) {
-            // Set additional options to increase code coverage
+        // Perform the request, ignoring the result
+        curl_easy_perform(curl);
 
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_easy_setopt
-            curl_easy_setopt(NULL, CURLOPT_FOLLOWLOCATION, 1L);
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
-
-            // Perform the request to increase code coverage
-            curl_easy_perform(curl);
-        }
-
-        // Clean up the CURL handle
+        // Cleanup
         curl_easy_cleanup(curl);
     }
 
     // Free the allocated memory
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_cleanup to curl_strnequal
+        const char kjubhpim[1024] = "aongh";
+
+        int ret_curl_strnequal_uewaf = curl_strnequal(kjubhpim, (const char *)curl, CURLPAUSE_RECV_CONT);
+        if (ret_curl_strnequal_uewaf < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_cleanup to curl_multi_waitfds
+        unsigned int ijnvelyz = 64;
+
+        CURLMcode ret_curl_multi_waitfds_byyfw = curl_multi_waitfds((void *)curl, NULL, CURL_VERSION_NTLM_WB, &ijnvelyz);
+
+        // End mutation: Producer.APPEND_MUTATOR
+
     free(ptr);
 
-    // Return 0 to indicate successful execution
     return 0;
 }

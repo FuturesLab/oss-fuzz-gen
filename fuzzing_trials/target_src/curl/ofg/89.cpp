@@ -1,38 +1,34 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <curl/curl.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" int LLVMFuzzerTestOneInput_89(const uint8_t *data, size_t size) {
-    // Initialize CURLU object
-    CURLU *url = curl_url();
-    if (url == NULL) {
-        return 0; // If initialization fails, exit early
+    CURLM *multi_handle;
+    CURLMcode result;
+
+    // Initialize CURL multi handle
+    multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        return 0; // If initialization fails, return early
     }
 
-    // Ensure the input data is null-terminated to be used as a string
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        curl_url_cleanup(url);
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(input, data, size);
-    input[size] = '\0';
-
-    // Use curl_url_set to set the URL from the input data
-    CURLUcode uc = curl_url_set(url, CURLUPART_URL, input, 0);
-    if (uc != CURLUE_OK) {
-        // If setting the URL fails, clean up and exit
-        free(input);
-        curl_url_cleanup(url);
+    // Ensure there is enough data to extract a CURLMoption and a void* pointer
+    if (size < sizeof(CURLMoption) + sizeof(void*)) {
+        curl_multi_cleanup(multi_handle);
         return 0;
     }
 
-    // Perform additional operations with the CURLU object if needed
+    // Extract a CURLMoption from the data
+    CURLMoption option = *(CURLMoption *)data;
+
+    // Extract a void* pointer from the data
+    void *ptr = (void *)(data + sizeof(CURLMoption));
+
+    // Call curl_multi_setopt with extracted option and pointer
+    result = curl_multi_setopt(multi_handle, option, ptr);
 
     // Clean up
-    free(input);
-    curl_url_cleanup(url);
+    curl_multi_cleanup(multi_handle);
 
     return 0;
 }

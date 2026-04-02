@@ -1,55 +1,54 @@
+#include "curl/curl.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include "curl/curl.h"
+#include <string.h> // Include for memcpy
 
-extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    CURLU *url;
-    CURLU *dup_url;
-    CURLUcode result;
-    
-    // Initialize a CURLU handle
-    url = curl_url();
-    if (!url) {
-        return 0;
-    }
+extern "C" {
+    int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
+        CURLM *multi_handle = NULL;
+        CURL *easy_handle = NULL;
+        CURLMcode result;
 
-    // Convert the input data to a null-terminated string
-    char *url_string = (char *)malloc(size + 1);
-    if (!url_string) {
-        curl_url_cleanup(url);
-        return 0;
-    }
-    memcpy(url_string, data, size);
-    url_string[size] = '\0';
-
-    // Set the URL in the CURLU handle
-    result = curl_url_set(url, CURLUPART_URL, url_string, 0);
-    free(url_string);
-
-    if (result == CURLUE_OK) {
-        // Duplicate the CURLU handle
-        dup_url = curl_url_dup(url);
-        if (dup_url) {
-            // Cleanup the duplicated URL
-            curl_url_cleanup(dup_url);
-        }
-    }
-
-    // Cleanup the original URL
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_dup to curl_easy_send
-        char amqmbeuq[1024] = "jrdcx";
-        CURL** ret_curl_multi_get_handles_aotln = curl_multi_get_handles(amqmbeuq);
-        if (ret_curl_multi_get_handles_aotln == NULL){
-        	return 0;
+        // Initialize CURLM and CURL handles
+        multi_handle = curl_multi_init();
+        if (!multi_handle) {
+            return 0;
         }
 
-        CURLcode ret_curl_easy_send_edeeu = curl_easy_send(*ret_curl_multi_get_handles_aotln, (const void *)dup_url, CURL_VERSION_SSL, NULL);
+        easy_handle = curl_easy_init();
+        if (!easy_handle) {
+            curl_multi_cleanup(multi_handle);
+            return 0;
+        }
 
-        // End mutation: Producer.APPEND_MUTATOR
+        // Set a URL for the easy handle, using data as a dummy URL
+        // Ensure the URL is null-terminated and non-empty
+        if (size > 0) {
+            char *url = (char *)malloc(size + 1);
+            if (url) {
+                memcpy(url, data, size);
+                url[size] = '\0'; // Null-terminate the string
+                curl_easy_setopt(easy_handle, CURLOPT_URL, url);
+                free(url);
+            }
+        } else {
+            curl_easy_setopt(easy_handle, CURLOPT_URL, "http://example.com");
+        }
 
-    curl_url_cleanup(url);
+        // Add the easy handle to the multi handle
+        result = curl_multi_add_handle(multi_handle, easy_handle);
 
-    return 0;
+        // Perform the request
+        int still_running;
+        do {
+            result = curl_multi_perform(multi_handle, &still_running);
+        } while (result == CURLM_OK && still_running);
+
+        // Cleanup
+        curl_multi_remove_handle(multi_handle, easy_handle);
+        curl_easy_cleanup(easy_handle);
+        curl_multi_cleanup(multi_handle);
+
+        return 0;
+    }
 }

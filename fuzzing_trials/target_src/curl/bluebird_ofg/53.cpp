@@ -1,47 +1,84 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "curl/curl.h"
-#include <stdint.h> // Include for uint8_t
+#include <cstring>
+#include <string>
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    CURLM *multi_handle;
-    CURL *easy_handle;
-
-    // Initialize CURL globally
-    if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
-        return 0;
-    }
-
-    // Initialize a multi handle
-    multi_handle = curl_multi_init();
-    if (!multi_handle) {
-        curl_global_cleanup();
-        return 0;
-    }
-
-    // Initialize an easy handle
-    easy_handle = curl_easy_init();
-    if (!easy_handle) {
-        curl_multi_cleanup(multi_handle);
-        curl_global_cleanup();
-        return 0;
-    }
-
-    // Set options for the easy handle
-    curl_easy_setopt(easy_handle, CURLOPT_URL, "http://example.com");
+    // Initialize a CURLSH handle
+    CURLSH *share_handle = curl_share_init();
     
-    // Add the easy handle to the multi handle
-    curl_multi_add_handle(multi_handle, easy_handle);
+    // Check if the share handle was successfully created
+    if (share_handle != NULL) {
+        // Use some of the input data to set options on the share handle
+        if (size > 0) {
+            // Use the first byte of data to decide which option to set
+            switch (data[0] % 3) {
+                case 0:
 
-    // Perform the request, this is where fuzzing can be applied
-    int still_running;
-    curl_multi_perform(multi_handle, &still_running);
+                    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_share_setopt
+                    curl_share_setopt(NULL, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+                    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Clean up
-    curl_multi_remove_handle(multi_handle, easy_handle);
-    curl_easy_cleanup(easy_handle);
-    curl_multi_cleanup(multi_handle);
-    curl_global_cleanup();
+
+                    break;
+                case 1:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+                    break;
+                case 2:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+                    break;
+            }
+        }
+        
+        // Create a CURL handle to perform operations
+        CURL *curl = curl_easy_init();
+        if (curl) {
+            // Set the share handle to the CURL handle
+            curl_easy_setopt(curl, CURLOPT_SHARE, share_handle);
+
+            // Perform a simple operation, such as setting a URL
+            if (size > 1) {
+                // Use the rest of the data to form a URL
+                std::string url = "http://example.com/";
+                url.append(reinterpret_cast<const char*>(data + 1), size - 1);
+                curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+                // Perform the request
+                curl_easy_perform(curl);
+            }
+
+            // Cleanup the CURL handle
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_easy_ssls_import
+
+            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_easy_upkeep
+            CURLcode ret_curl_easy_upkeep_yrbib = curl_easy_upkeep(NULL);
+            // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+            char jiluhdnp[1024] = "ylppw";
+            curl_mime* ret_curl_mime_init_jmgks = curl_mime_init(jiluhdnp);
+            if (ret_curl_mime_init_jmgks == NULL){
+            	return 0;
+            }
+            const char gmdnwqbc[1024] = "sxqub";
+
+            CURLcode ret_curl_easy_ssls_import_skgmj = curl_easy_ssls_import(curl, gmdnwqbc, (const unsigned char *)curl, CURL_VERSION_ALTSVC, (const unsigned char *)jiluhdnp, CURL_POLL_INOUT);
+
+            // End mutation: Producer.APPEND_MUTATOR
+
+
+            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_easy_cleanup
+            curl_easy_cleanup(NULL);
+            // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        }
+        
+        // Cleanup the share handle after use
+        curl_share_cleanup(share_handle);
+    }
 
     return 0;
 }

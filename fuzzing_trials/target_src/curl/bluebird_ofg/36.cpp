@@ -1,60 +1,55 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include "curl/curl.h"
+#include <cstring>
+#include <string>
 
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    CURLU *url;
-    CURLUcode result;
-    char *output = NULL;
-
-    // Initialize a CURLU handle
-    url = curl_url();
-    if (!url) {
-        return 0;
-    }
-
-    // Convert the input data to a null-terminated string
-    char *url_string = (char *)malloc(size + 1);
-    if (!url_string) {
-        curl_url_cleanup(url);
-        return 0;
-    }
-    memcpy(url_string, data, size);
-    url_string[size] = '\0';
-
-    // Set the URL string to the CURLU handle
-    curl_url_set(url, CURLUPART_URL, url_string, 0);
-
-    // Fuzz different CURLUPart values
-    CURLUPart parts[] = {
-        CURLUPART_SCHEME,
-        CURLUPART_HOST,
-        CURLUPART_PORT,
-        CURLUPART_PATH,
-        CURLUPART_QUERY,
-        CURLUPART_FRAGMENT,
-        CURLUPART_USER,
-        CURLUPART_PASSWORD,
-        CURLUPART_OPTIONS,
-        CURLUPART_ZONEID
-    };
-
-    size_t num_parts = sizeof(parts) / sizeof(parts[0]);
-    for (size_t i = 0; i < num_parts; ++i) {
-        // Call the function-under-test
-        result = curl_url_get(url, parts[i], &output, 0);
-
-        // Free the output if it was allocated
-        if (output) {
-            curl_free(output);
-            output = NULL;
+    // Initialize a CURLSH handle
+    CURLSH *share_handle = curl_share_init();
+    
+    // Check if the share handle was successfully created
+    if (share_handle != NULL) {
+        // Use some of the input data to set options on the share handle
+        if (size > 0) {
+            // Use the first byte of data to decide which option to set
+            switch (data[0] % 3) {
+                case 0:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+                    break;
+                case 1:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+                    break;
+                case 2:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+                    break;
+            }
         }
-    }
+        
+        // Create a CURL handle to perform operations
+        CURL *curl = curl_easy_init();
+        if (curl) {
+            // Set the share handle to the CURL handle
+            curl_easy_setopt(curl, CURLOPT_SHARE, share_handle);
 
-    // Clean up
-    free(url_string);
-    curl_url_cleanup(url);
+            // Perform a simple operation, such as setting a URL
+            if (size > 1) {
+                // Use the rest of the data to form a URL
+                std::string url = "http://example.com/";
+                url.append(reinterpret_cast<const char*>(data + 1), size - 1);
+                curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+                // Perform the request
+                curl_easy_perform(curl);
+            }
+
+            // Cleanup the CURL handle
+            curl_easy_cleanup(curl);
+        }
+        
+        // Cleanup the share handle after use
+        curl_share_cleanup(share_handle);
+    }
 
     return 0;
 }

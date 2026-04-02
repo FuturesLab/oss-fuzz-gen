@@ -1,70 +1,48 @@
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
+#include <cstdlib>
 #include "curl/curl.h"
 
 extern "C" {
-    // Hypothetical function under test
-    CURLcode curl_easy_setopt(CURL *handle, CURLoption option, ...);
+    // Include necessary headers for the function-under-test
+    #include "/src/curl/include/curl/easy.h"  // This header is needed for CURL related types and functions
+
+    // Declare the function-under-test
+    char * curl_pushheader_bynum(struct curl_pushheaders *, size_t);
+
+    // Forward declare the curl_pushheaders struct if not defined in the included headers
+    struct curl_pushheaders {
+        // Assuming the structure has some fields, but since we don't know them,
+        // we leave this empty. This may need to be adjusted based on actual definition.
+        // For now, we will add a dummy field to avoid undefined behavior
+        void *dummy;
+    };
 }
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Exit if input size is too small to be meaningful
+    // Define and initialize the parameters for curl_pushheader_bynum
+    struct curl_pushheaders pushheaders;
+    size_t index;
+
+    // Ensure data is not empty and large enough to extract necessary information
+    if (size < sizeof(size_t)) {
+        return 0;
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *ptr = static_cast<char*>(malloc(size + 1));
-    if (ptr == nullptr) {
-        return 0; // Exit if memory allocation fails
+    // Initialize the curl_pushheaders structure to avoid NULL
+    memset(&pushheaders, 0, sizeof(pushheaders));
+
+    // Extract an index from the input data
+    memcpy(&index, data, sizeof(size_t));
+
+    // Call the function-under-test
+    char *result = curl_pushheader_bynum(&pushheaders, index);
+
+    // Free the result if it's not NULL
+    if (result != NULL) {
+        free(result);
     }
 
-    // Copy the input data to the allocated memory
-    memcpy(ptr, data, size);
-    ptr[size] = '\0'; // Null-terminate the string
-
-    // Initialize a CURL handle
-    CURL *curl = curl_easy_init();
-    if(curl) {
-        // Use the input data in a call to a function under test
-        // Set URL option
-        CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, ptr);
-        
-        // Check if setting the URL was successful
-        if (res == CURLE_OK) {
-            // Set additional options to increase code coverage
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
-
-            // Perform the request to increase code coverage
-            curl_easy_perform(curl);
-        }
-
-        // Clean up the CURL handle
-        curl_easy_cleanup(curl);
-    }
-
-    // Free the allocated memory
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_ws_send
-    CURL* ret_curl_easy_duphandle_erpoc = curl_easy_duphandle(NULL);
-    if (ret_curl_easy_duphandle_erpoc == NULL){
-    	return 0;
-    }
-    size_t wmqytnsb = 64;
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of curl_ws_send
-    CURLcode ret_curl_ws_send_wvncz = curl_ws_send(ret_curl_easy_duphandle_erpoc, (const void *)curl, CURLFINFOFLAG_KNOWN_FILENAME, &wmqytnsb, 0, -1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(ptr);
-
-    // Return 0 to indicate successful execution
     return 0;
 }

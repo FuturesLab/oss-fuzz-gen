@@ -1,29 +1,42 @@
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <curl/curl.h>
+#include <cstring>
+#include <cstdlib> // Include for malloc and free
 
 extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Ensure the input data is not empty
-    if (size == 0) {
+    CURL *curl;
+    char *unescaped;
+    int outlength;
+
+    // Initialize CURL
+    curl = curl_easy_init();
+    if(curl == NULL) {
         return 0;
     }
 
-    // Allocate memory for the input string, ensuring it's null-terminated
-    char *input = new char[size + 1];
+    // Ensure that the input data is null-terminated before passing it to the function
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        curl_easy_cleanup(curl);
+        return 0;
+    }
     memcpy(input, data, size);
     input[size] = '\0';
 
     // Call the function-under-test
-    char *result = curl_unescape(input, static_cast<int>(size));
+    unescaped = curl_easy_unescape(curl, input, (int)size, &outlength);
 
-    // Free the result if it is not NULL
-    if (result != nullptr) {
-        curl_free(result);
+    // Free the allocated memory for unescaped string if it was allocated
+    if(unescaped != NULL) {
+        curl_free(unescaped);
     }
 
-    // Clean up
-    delete[] input;
+    // Free the input memory
+    free(input);
+
+    // Cleanup CURL
+    curl_easy_cleanup(curl);
 
     return 0;
 }

@@ -1,53 +1,48 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>  // Include this for uint8_t
 #include <curl/curl.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
-extern "C" {
-    // Wrap the function with extern "C" to ensure C linkage
-    int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-        CURLU *url;
-        CURLUcode result;
-        char *url_part = NULL;
-
-        // Initialize a CURLU handle
-        url = curl_url();
-        if (url == NULL) {
-            return 0;
-        }
-
-        // Make sure the data is null-terminated before using it as a URL
-        char *url_data = (char *)malloc(size + 1);
-        if (url_data == NULL) {
-            curl_url_cleanup(url);
-            return 0;
-        }
-        memcpy(url_data, data, size);
-        url_data[size] = '\0';
-
-        // Set the URL in the CURLU handle
-        result = curl_url_set(url, CURLUPART_URL, url_data, 0);
-        if (result != CURLUE_OK) {
-            free(url_data);
-            curl_url_cleanup(url);
-            return 0;
-        }
-
-        // Attempt to get various parts of the URL
-        CURLUPart parts[] = {CURLUPART_SCHEME, CURLUPART_HOST, CURLUPART_PATH, CURLUPART_QUERY, CURLUPART_FRAGMENT};
-        for (size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); ++i) {
-            result = curl_url_get(url, parts[i], &url_part, 0);
-            if (result == CURLUE_OK && url_part != NULL) {
-                // Normally, you'd use the url_part here
-                curl_free(url_part);
-            }
-        }
-
-        // Clean up
-        free(url_data);
-        curl_url_cleanup(url);
-
+extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
+    // Initialize a CURL mime handle
+    CURL *curl = curl_easy_init();
+    if (!curl) {
         return 0;
     }
+
+    // Initialize a CURL mime part
+    curl_mime *mime = curl_mime_init(curl);
+    if (!mime) {
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+
+    curl_mimepart *part = curl_mime_addpart(mime);
+    if (!part) {
+        curl_mime_free(mime);
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+
+    // Ensure the filename is null-terminated
+    char *filename = (char *)malloc(size + 1);
+    if (!filename) {
+        curl_mime_free(mime);
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+    memcpy(filename, data, size);
+    filename[size] = '\0';
+
+    // Call the function-under-test
+    CURLcode result = curl_mime_filename(part, filename);
+
+    // Clean up
+    free(filename);
+    curl_mime_free(mime);
+    curl_easy_cleanup(curl);
+
+    return 0;
 }

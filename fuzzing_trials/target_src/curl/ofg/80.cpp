@@ -1,36 +1,26 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-#include <curl/curl.h>
+    #include <curl/curl.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Initialize libcurl globally
-    CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
-    if (res != CURLE_OK) {
-        return 0; // Initialization failed, exit early
+    if (size == 0) {
+        return 0;
     }
 
-    // Initialize a CURL handle
-    CURL *curl = curl_easy_init();
-    if (curl) {
-        // Convert the input data to a string
-        std::string url(data, data + size);
-
-        // Set the URL option
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-
-        // Perform the request
-        curl_easy_perform(curl);
-
-        // Cleanup the CURL handle
-        curl_easy_cleanup(curl);
+    // Allocate memory and copy the input data into it
+    void *memory = malloc(size);
+    if (memory == nullptr) {
+        return 0;
     }
+    memcpy(memory, data, size);
 
-    // Cleanup libcurl globally
-    curl_global_cleanup();
+    // Call the function-under-test
+    curl_free(memory);
 
     return 0;
 }

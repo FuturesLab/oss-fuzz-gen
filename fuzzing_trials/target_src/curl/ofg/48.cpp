@@ -1,26 +1,21 @@
-#include <curl/curl.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    // Initialize CURL
-    CURL *curl = curl_easy_init();
-    if (!curl) {
-        return 0; // Return if CURL initialization fails
-    }
-
-    // Ensure that the size is sufficient to extract an integer for the second parameter
-    int pause_option = 0;
-    if (size >= sizeof(int)) {
-        // Copy bytes from data to pause_option
-        pause_option = *(reinterpret_cast<const int*>(data));
+    // Initialize CURLSH handle
+    CURLSH *share_handle = curl_share_init();
+    if (share_handle == NULL) {
+        return 0; // Return if initialization fails
     }
 
     // Call the function-under-test
-    CURLcode result = curl_easy_pause(curl, pause_option);
+    CURLSHcode result = curl_share_cleanup(share_handle);
 
-    // Clean up CURL
-    curl_easy_cleanup(curl);
+    // Check the result (optional, as we are mainly interested in calling the function)
+    if (result != CURLSHE_OK) {
+        // Handle error (optional)
+    }
 
     return 0;
 }

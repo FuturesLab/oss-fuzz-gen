@@ -1,45 +1,23 @@
-#include <curl/curl.h>
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    CURL *curl = NULL;
-    CURLcode result;
-
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (!curl) {
-        curl_global_cleanup();
+    // Ensure that the size is at least the size of a long
+    if (size < sizeof(long)) {
         return 0;
     }
 
-    // Ensure data is null-terminated for string operations
-    char *header_name = (char *)malloc(size + 1);
-    if (!header_name) {
-        curl_easy_cleanup(curl);
-        curl_global_cleanup();
-        return 0;
+    // Interpret the first bytes of data as a long
+    long init_flags = 0;
+    for (size_t i = 0; i < sizeof(long); ++i) {
+        init_flags |= ((long)data[i] << (i * 8));
     }
-    memcpy(header_name, data, size);
-    header_name[size] = '\0';
-
-    // Set some options for the CURL handle to prevent real network operations
-    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
-    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L); // We don't need body data
 
     // Call the function-under-test
-    result = curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, NULL);
-    result = curl_easy_setopt(curl, CURLOPT_HEADERDATA, NULL);
-    result = curl_easy_perform(curl);
+    CURLcode result = curl_global_init(init_flags);
 
-    // Clean up
-    free(header_name);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
+    // Optionally, handle the result or perform additional operations
 
     return 0;
 }

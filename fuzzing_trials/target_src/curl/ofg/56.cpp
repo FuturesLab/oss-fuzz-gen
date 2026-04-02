@@ -1,34 +1,22 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <cstdlib>
-
-extern "C" {
-    #include <curl/curl.h>
-}
+#include <stdint.h>
+#include <stdlib.h>
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Ensure that the input data is null-terminated and not empty
-    if (size == 0) return 0;
+    CURLM *multi_handle;
+    long timeout;
 
-    // Allocate memory for the null-terminated string
-    char *env_var = static_cast<char*>(malloc(size + 1));
-    if (!env_var) return 0;
-
-    // Copy the input data and null-terminate it
-    memcpy(env_var, data, size);
-    env_var[size] = '\0';
-
-    // Call the function-under-test
-    char *result = curl_getenv(env_var);
-
-    // Free the result if it is not NULL
-    if (result) {
-        free(result);
+    // Initialize a CURLM handle
+    multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        return 0; // Exit if initialization fails
     }
 
-    // Free the allocated memory for env_var
-    free(env_var);
+    // Call the function-under-test
+    CURLMcode result = curl_multi_timeout(multi_handle, &timeout);
+
+    // Clean up
+    curl_multi_cleanup(multi_handle);
 
     return 0;
 }

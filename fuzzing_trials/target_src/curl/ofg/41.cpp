@@ -1,40 +1,25 @@
-#include <curl/curl.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    
-    // Initialize a CURL session
-    curl = curl_easy_init();
-    if(curl) {
-        // Convert the input data to a string URL
-        // Ensure the data is null-terminated
-        char *url = (char *)malloc(size + 1);
-        if (url == NULL) {
-            curl_easy_cleanup(curl);
-            return 0;
+    CURL *handle = curl_easy_init();
+    CURL *duphandle = NULL;
+
+    if (handle != NULL) {
+        // Setting some options to ensure the handle is not NULL and is usable
+        curl_easy_setopt(handle, CURLOPT_URL, "http://example.com");
+        curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
+
+        // Now, fuzz the curl_easy_duphandle function
+        duphandle = curl_easy_duphandle(handle);
+
+        // Cleanup
+        if (duphandle != NULL) {
+            curl_easy_cleanup(duphandle);
         }
-        memcpy(url, data, size);
-        url[size] = '\0';
-
-        // Set the URL that is about to receive our GET request
-        curl_easy_setopt(curl, CURLOPT_URL, url);
-
-        // Perform the request, res will get the return code
-        res = curl_easy_perform(curl);
-
-        // Check for errors
-        if(res != CURLE_OK) {
-            fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-        }
-
-        // Always cleanup
-        curl_easy_cleanup(curl);
-        free(url);
+        curl_easy_cleanup(handle);
     }
+
     return 0;
 }

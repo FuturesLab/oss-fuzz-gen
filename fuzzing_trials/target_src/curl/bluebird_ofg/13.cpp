@@ -1,67 +1,50 @@
-#include "curl/curl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include "curl/curl.h"
 #include <string.h>
+#include <stdlib.h>
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    CURL *curl;
-    char *escaped_string;
-
-    // Initialize a CURL handle
-    curl = curl_easy_init();
-    if(!curl) {
-        return 0;
+    // Initialize libcurl
+    CURLM *multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        return 0; // Return if initialization fails
     }
 
-    // Ensure the input data is null-terminated
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_ws_send
-    curl_easy_reset(curl);
-    size_t odswblbl = -1;
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_reset to curl_formget
-    struct curl_httppost huotnymm;
-    memset(&huotnymm, 0, sizeof(huotnymm));
-
-    int ret_curl_formget_gfkvd = curl_formget(&huotnymm, (void *)curl, NULL);
-    if (ret_curl_formget_gfkvd < 0){
-    	return 0;
+    // Create a CURL easy handle
+    CURL *easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0; // Return if initialization fails
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    CURLcode ret_curl_ws_send_wjfzv = curl_ws_send(curl, (const void *)curl, CURLWS_PING, &odswblbl, 0, CURL_PUSH_ERROROUT);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char *input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
-        curl_easy_cleanup(curl);
-        return 0;
+    // Convert the input data to a string and set it as a URL
+    char *url = (char *)malloc(size + 1);
+    if (!url) {
+        curl_easy_cleanup(easy_handle);
+        curl_multi_cleanup(multi_handle);
+        return 0; // Return if memory allocation fails
     }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
+    memcpy(url, data, size);
+    url[size] = '\0'; // Null-terminate the string
+
+    // Set the URL for the easy handle
+    curl_easy_setopt(easy_handle, CURLOPT_URL, url);
+
+    // Add the easy handle to the multi handle
+    curl_multi_add_handle(multi_handle, easy_handle);
+
+    // We need a valid integer pointer for the second argument
+    int still_running = 0;
 
     // Call the function-under-test
-    escaped_string = curl_easy_escape(curl, input_string, (int)size);
+    CURLMcode result = curl_multi_socket_all(multi_handle, &still_running);
 
-    // Cleanup
-    if (escaped_string) {
-        curl_free(escaped_string);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_escape to curl_mime_init
-
-    curl_mime* ret_curl_mime_init_cmupj = curl_mime_init((void *)curl);
-    if (ret_curl_mime_init_cmupj == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(input_string);
-    curl_easy_cleanup(curl);
+    // Clean up
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
+    curl_multi_cleanup(multi_handle);
+    free(url);
 
     return 0;
 }

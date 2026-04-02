@@ -1,59 +1,84 @@
-#include "curl/curl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
+#include "curl/curl.h"
+#include <cstring>
+#include <string>
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    CURL *curl;
-    char *escaped_string;
+    // Initialize a CURLSH handle
+    CURLSH *share_handle = curl_share_init();
+    
+    // Check if the share handle was successfully created
+    if (share_handle != NULL) {
+        // Use some of the input data to set options on the share handle
+        if (size > 0) {
+            // Use the first byte of data to decide which option to set
+            switch (data[0] % 3) {
+                case 0:
 
-    // Initialize a CURL handle
-    curl = curl_easy_init();
-    if(!curl) {
-        return 0;
-    }
-
-    // Ensure the input data is null-terminated
-    char *input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
-
-    // Call the function-under-test
-    escaped_string = curl_easy_escape(curl, input_string, (int)size);
-
-    // Cleanup
-    if (escaped_string) {
-        curl_free(escaped_string);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_escape to curl_mime_filename
+                    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_share_setopt
+                    curl_share_setopt(NULL, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+                    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_mime_filename with curl_mime_type
-    CURLcode ret_curl_mime_filename_jvrat = curl_mime_type(NULL, escaped_string);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(input_string);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_cleanup to curl_multi_add_handle
-        CURLM* ret_curl_multi_init_gwwgp = curl_multi_init();
-        if (ret_curl_multi_init_gwwgp == NULL){
-        	return 0;
+                    break;
+                case 1:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+                    break;
+                case 2:
+                    curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+                    break;
+            }
         }
+        
+        // Create a CURL handle to perform operations
+        CURL *curl = curl_easy_init();
+        if (curl) {
+            // Set the share handle to the CURL handle
+            curl_easy_setopt(curl, CURLOPT_SHARE, share_handle);
 
-        CURLMcode ret_curl_multi_add_handle_xezjk = curl_multi_add_handle(ret_curl_multi_init_gwwgp, curl);
+            // Perform a simple operation, such as setting a URL
+            if (size > 1) {
+                // Use the rest of the data to form a URL
+                std::string url = "http://example.com/";
+                url.append(reinterpret_cast<const char*>(data + 1), size - 1);
+                curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 
-        // End mutation: Producer.APPEND_MUTATOR
+                // Perform the request
+                curl_easy_perform(curl);
+            }
 
-    curl_easy_cleanup(curl);
+            // Cleanup the CURL handle
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_easy_ssls_import
+            CURLcode ret_curl_easy_upkeep_yrbib = curl_easy_upkeep(curl);
+            char jiluhdnp[1024] = "ylppw";
+            curl_mime* ret_curl_mime_init_jmgks = curl_mime_init(jiluhdnp);
+            if (ret_curl_mime_init_jmgks == NULL){
+            	return 0;
+            }
+            const char gmdnwqbc[1024] = "sxqub";
+
+            CURLcode ret_curl_easy_ssls_import_skgmj = curl_easy_ssls_import(curl, gmdnwqbc, (const unsigned char *)curl, CURL_VERSION_ALTSVC, (const unsigned char *)jiluhdnp, CURL_POLL_INOUT);
+
+            // End mutation: Producer.APPEND_MUTATOR
+
+            curl_easy_cleanup(curl);
+        }
+        
+        // Cleanup the share handle after use
+
+                    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_share_setopt to curl_pushheader_byname
+
+                    char* ret_curl_pushheader_byname_fognc = curl_pushheader_byname(NULL, (const char *)share_handle);
+                    if (ret_curl_pushheader_byname_fognc == NULL){
+                    	return 0;
+                    }
+
+                    // End mutation: Producer.APPEND_MUTATOR
+
+        curl_share_cleanup(share_handle);
+    }
 
     return 0;
 }

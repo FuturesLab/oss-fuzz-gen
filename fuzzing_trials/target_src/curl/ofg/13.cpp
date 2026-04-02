@@ -1,40 +1,42 @@
-#include <curl/curl.h>
-#include <cstddef>
 #include <cstdint>
+#include <cstddef>
+#include <curl/curl.h>
 #include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    // Initialize a curl_mimepart structure
-    CURL *easy = curl_easy_init();
-    if (!easy) {
+    // Initialize CURL
+    CURL *curl = curl_easy_init();
+    if (!curl) {
         return 0;
     }
 
-    curl_mime *mime = curl_mime_init(easy);
+    // Create a mime handle
+    curl_mime *mime = curl_mime_init(curl);
     if (!mime) {
-        curl_easy_cleanup(easy);
+        curl_easy_cleanup(curl);
         return 0;
     }
 
+    // Create a mime part
     curl_mimepart *part = curl_mime_addpart(mime);
     if (!part) {
         curl_mime_free(mime);
-        curl_easy_cleanup(easy);
+        curl_easy_cleanup(curl);
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a string
-    char *filename = new char[size + 1];
-    memcpy(filename, data, size);
-    filename[size] = '\0';
+    // Ensure the input data is null-terminated for use as a string
+    char *name = new char[size + 1];
+    memcpy(name, data, size);
+    name[size] = '\0';
 
-    // Call the function-under-test
-    curl_mime_filename(part, filename);
+    // Fuzz the function
+    curl_mime_name(part, name);
 
     // Clean up
-    delete[] filename;
+    delete[] name;
     curl_mime_free(mime);
-    curl_easy_cleanup(easy);
+    curl_easy_cleanup(curl);
 
     return 0;
 }

@@ -26,7 +26,7 @@ if [ "$SANITIZER" = "address" ]; then
   export CFLAGS="$CFLAGS -O0"
   export CXXFLAGS="$CXXFLAGS -O0"
 fi
-sed -i 's|cmake --build . --target "${TARGET}" ${CMAKE_VERBOSE_FLAG}|cmake --build . --target "${TARGET}" ${CMAKE_VERBOSE_FLAG} -- -j4|' ./scripts/compile_target.sh
+
 ./ossfuzz.sh
 
 $CXX $CXXFLAGS /src/synthesized_driver/*.c* -I$SRC/curl/include -I$SRC/curl/include/curl \

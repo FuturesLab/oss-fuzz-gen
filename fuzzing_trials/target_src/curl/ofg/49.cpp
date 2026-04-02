@@ -1,37 +1,39 @@
-#include <cstddef>
-#include <cstdint>
+#include <stdint.h>
+#include <stddef.h>
 #include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    size_t bytes_received = 0;
-
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-
-    if(curl) {
-        // Set a dummy URL
-        curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
-
-        // Perform the request, this is just to initialize the connection
-        res = curl_easy_perform(curl);
-
-        if(res == CURLE_OK) {
-            // Attempt to receive data using the fuzzed input
-            res = curl_easy_recv(curl, (void *)data, size, &bytes_received);
-
-            // Check if the operation was successful
-            if(res == CURLE_OK) {
-                // Successfully received data
-            }
-        }
-
-        // Cleanup
-        curl_easy_cleanup(curl);
+    // Initialize a CURLSH handle
+    CURLSH *share_handle = curl_share_init();
+    
+    if (share_handle == NULL) {
+        return 0; // If initialization fails, exit early
     }
 
-    curl_global_cleanup();
+    // Use fuzzing input to set options dynamically
+    if (size > 0) {
+        // Use the first byte of data to decide which CURLSHOPT_* option to use
+        int option = data[0] % 3; // We have three options to choose from
+        switch (option) {
+            case 0:
+                curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+                break;
+            case 1:
+                curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+                break;
+            case 2:
+                curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+                break;
+            default:
+                break;
+        }
+    }
+
+    // Call the function-under-test
+    CURLSHcode result = curl_share_cleanup(share_handle);
+
+    // The result can be checked if needed, but for fuzzing, we mainly focus on calling the function
+    (void)result; // Suppress unused variable warning
+
     return 0;
 }

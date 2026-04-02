@@ -1,54 +1,73 @@
-#include "curl/curl.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include the header for memcpy
+
+extern "C" {
+    #include "curl/curl.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    CURL *curl;
-    char *escaped_string;
+    // Ensure the data is null-terminated to prevent buffer overflow when used as a string
+    char *ptr = (char *)malloc(size + 1); // Allocate extra byte for null terminator
+    if (ptr == NULL) {
+        return 0; // Allocation failed, exit early
+    }
+
+    // Copy the input data into the allocated memory and null-terminate it
+    memcpy(ptr, data, size);
+    ptr[size] = '\0'; // Null-terminate the string
 
     // Initialize a CURL handle
-    curl = curl_easy_init();
-    if(!curl) {
-        return 0;
-    }
+    CURL *curl = curl_easy_init();
+    if(curl) {
+        // Use the input data as a URL for testing
+        curl_easy_setopt(curl, CURLOPT_URL, ptr);
+        
+        // Perform the request, ignoring the result
+        curl_easy_perform(curl);
 
-    // Ensure the input data is null-terminated
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_ws_send
-    size_t odswblbl = 1;
-
-    CURLcode ret_curl_ws_send_wsrlu = curl_ws_send(curl, NULL, CURL_VERSION_HTTP3, &odswblbl, 0, CURLH_PSEUDO);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char *input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
+        // Cleanup
         curl_easy_cleanup(curl);
-        return 0;
-    }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
-
-    // Call the function-under-test
-    escaped_string = curl_easy_escape(curl, input_string, (int)size);
-
-    // Cleanup
-    if (escaped_string) {
-        curl_free(escaped_string);
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_escape to curl_mime_init
+    // Free the allocated memory
 
-    curl_mime* ret_curl_mime_init_cmupj = curl_mime_init((void *)curl);
-    if (ret_curl_mime_init_cmupj == NULL){
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_cleanup to curl_strnequal
+        const char kjubhpim[1024] = "aongh";
+
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of curl_strnequal
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_easy_escape
+    CURL* ret_curl_easy_duphandle_mqhbl = curl_easy_duphandle(NULL);
+    if (ret_curl_easy_duphandle_mqhbl == NULL){
+    	return 0;
+    }
+
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of curl_easy_escape
+    char* ret_curl_easy_escape_mzdid = curl_easy_escape(curl, (const char *)ret_curl_easy_duphandle_mqhbl, CURL_VERSION_KERBEROS5);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    if (ret_curl_easy_escape_mzdid == NULL){
     	return 0;
     }
 
     // End mutation: Producer.APPEND_MUTATOR
 
-    free(input_string);
-    curl_easy_cleanup(curl);
+        int ret_curl_strnequal_uewaf = curl_strnequal(kjubhpim, (const char *)data, CURLPAUSE_RECV_CONT);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        if (ret_curl_strnequal_uewaf < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+    free(ptr);
 
     return 0;
 }

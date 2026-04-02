@@ -1,22 +1,27 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // Initialize a CURL handle
-    CURL *curl_handle = curl_easy_init();
-    if (curl_handle == NULL) {
-        return 0; // Return if initialization fails
+    // Ensure the data is not empty and the size is within a reasonable range
+    if (size == 0 || size > 1000) {
+        return 0;
     }
+
+    // Allocate memory for a null-terminated string
+    char *input = new char[size + 1];
+    std::memcpy(input, data, size);
+    input[size] = '\0';  // Null-terminate the string
 
     // Call the function-under-test
-    curl_mime *mime = curl_mime_init(curl_handle);
+    char *escaped = curl_escape(input, static_cast<int>(size));
 
     // Clean up
-    if (mime != NULL) {
-        curl_mime_free(mime);
+    if (escaped != nullptr) {
+        curl_free(escaped);
     }
-    curl_easy_cleanup(curl_handle);
+    delete[] input;
 
     return 0;
 }

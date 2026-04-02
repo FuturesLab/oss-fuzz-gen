@@ -1,33 +1,38 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <string.h>  // Include for memcpy
 #include <curl/curl.h>
-#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    CURLU *url_handle = curl_url();  // Initialize a CURLU handle
-
-    // Ensure that the CURLU handle is not NULL
-    if (url_handle == NULL) {
-        return 0;
+    // Initialize a CURL handle
+    CURL *curl_handle = curl_easy_init();
+    
+    if (curl_handle == NULL) {
+        return 0; // If initialization fails, exit early
     }
 
-    // Use the input data to set a URL in the CURLU handle
-    // Ensure that the data is null-terminated for safety
-    char *url = (char *)malloc(size + 1);
-    if (url == NULL) {
-        curl_url_cleanup(url_handle);
-        return 0;
+    // Use the data to set some options if possible
+    if (size > 0) {
+        // Example: Set a URL option if the data size is sufficient
+        char url[256];
+        size_t url_length = size < 255 ? size : 255; // Ensure no buffer overflow
+        memcpy(url, data, url_length);
+        url[url_length] = '\0'; // Null-terminate the URL string
+
+        // Set the URL option (this is just an example, URL might not be valid)
+        curl_easy_setopt(curl_handle, CURLOPT_URL, url);
     }
 
-    memcpy(url, data, size);
-    url[size] = '\0';  // Null-terminate the string
+    // Perform the operation to ensure the function-under-test is invoked
+    CURLcode res = curl_easy_perform(curl_handle);
 
-    // Set the URL in the CURLU handle
-    curl_url_set(url_handle, CURLUPART_URL, url, 0);
+    // Check for errors
+    if(res != CURLE_OK) {
+        // Handle the error if needed
+    }
 
-    // Clean up
-    free(url);
-    curl_url_cleanup(url_handle);
+    // Clean up the CURL handle
+    curl_easy_cleanup(curl_handle);
 
     return 0;
 }

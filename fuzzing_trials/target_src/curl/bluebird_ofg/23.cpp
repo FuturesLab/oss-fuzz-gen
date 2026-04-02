@@ -1,42 +1,51 @@
 #include "curl/curl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
-extern "C" {
+extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
+    CURLM *multi_handle;
+    CURL *easy_handle;
+    struct curl_waitfd waitfd;
+    int numfds;
+    CURLMcode res;
 
-// Callback function for CURLOPT_WRITEFUNCTION
-size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
-    // For fuzzing purposes, the callback can just return the number of bytes processed
-    return size * nmemb;
-}
-
-int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    CURL *curl_handle;
-    CURLcode result;
-    void *user_data = (void *)data; // Use the fuzzing input data as user data
-
-    // Initialize a CURL easy session
-    curl_handle = curl_easy_init();
-    if (!curl_handle) {
+    // Initialize a CURLM handle
+    multi_handle = curl_multi_init();
+    if (!multi_handle) {
         return 0;
     }
 
-    // Set the URL option, assuming data contains a valid URL
-    result = curl_easy_setopt(curl_handle, CURLOPT_URL, "http://example.com");
+    // Initialize a CURL easy handle
+    easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0;
+    }
 
-    // Set the write callback function
-    result = curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback);
+    // Set a URL to fetch, using the input data as part of the URL
+    // Ensure the data is null-terminated for safety
+    char url[256] = "http://example.com/";
+    strncat(url, reinterpret_cast<const char*>(data), size < 245 ? size : 245);
 
-    // Set the user data for the callback
-    result = curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, user_data);
+    curl_easy_setopt(easy_handle, CURLOPT_URL, url);
+    curl_easy_setopt(easy_handle, CURLOPT_WRITEFUNCTION, NULL); // Discard output
 
-    // Perform the request, result will get the return code
-    result = curl_easy_perform(curl_handle);
+    // Add the easy handle to the multi handle
+    curl_multi_add_handle(multi_handle, easy_handle);
 
-    // Cleanup CURL easy session
-    curl_easy_cleanup(curl_handle);
+    // Initialize the curl_waitfd structure
+    waitfd.fd = 0; // File descriptor, 0 is standard input
+    waitfd.events = CURL_WAIT_POLLIN; // Wait for incoming data
+    waitfd.revents = 0; // Will be set by curl_multi_wait
+
+    // Perform the multi interface operation
+    res = curl_multi_wait(multi_handle, &waitfd, 1, 1000, &numfds);
+
+    // Clean up
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
+    curl_multi_cleanup(multi_handle);
 
     return 0;
-}
-
 }

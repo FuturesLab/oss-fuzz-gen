@@ -1,19 +1,41 @@
-#include <stdint.h>
-#include <stddef.h>
 #include <curl/curl.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    CURLSH *share_handle = curl_share_init();
+    CURL *curl;
+    CURLcode res;
+    size_t received_bytes = 0;
+    void *buffer;
 
-    // Normally, you would perform operations on the share_handle here,
-    // but since curl_share_init does not take any parameters nor does it
-    // operate on input data directly, there's nothing to do with `data` and `size`.
+    // Initialize CURL
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
 
-    // Clean up the CURL share handle
-    if (share_handle != NULL) {
-        curl_share_cleanup(share_handle);
+    if(curl) {
+        // Set a dummy URL, as we are not actually performing a real transfer
+        curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+
+        // Allocate a buffer to receive data
+        buffer = malloc(size);
+        if (buffer == NULL) {
+            curl_easy_cleanup(curl);
+            curl_global_cleanup();
+            return 0;
+        }
+
+        // Copy data to buffer
+        memcpy(buffer, data, size);
+
+        // Call the function-under-test
+        res = curl_easy_recv(curl, buffer, size, &received_bytes);
+
+        // Clean up
+        free(buffer);
+        curl_easy_cleanup(curl);
     }
 
+    curl_global_cleanup();
     return 0;
 }

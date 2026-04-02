@@ -1,53 +1,37 @@
 #include <curl/curl.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
     CURL *curl;
     CURLcode res;
-    curl_mime *mime;
-    curl_mimepart *part;
-    struct curl_slist *slist = NULL;
 
-    // Initialize curl
+    // Initialize CURL
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
-    if (!curl) {
-        curl_global_cleanup();
-        return 0;
-    }
 
-    // Initialize mime
-    mime = curl_mime_init(curl);
-    if (!mime) {
+    if(curl) {
+        // Set the URL to a valid endpoint, e.g., a local server
+        curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8080");
+
+        // Set the data to be sent as POST fields
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, size);
+
+        // Call the function-under-test
+        res = curl_easy_perform(curl);
+
+        // Check the result
+        if(res != CURLE_OK) {
+            // Handle error if needed
+        }
+
+        // Clean up
         curl_easy_cleanup(curl);
-        curl_global_cleanup();
-        return 0;
     }
 
-    // Initialize mime part
-    part = curl_mime_addpart(mime);
-    if (!part) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
-        curl_global_cleanup();
-        return 0;
-    }
-
-    // Add some headers to slist
-    slist = curl_slist_append(slist, "Content-Type: text/plain");
-    slist = curl_slist_append(slist, "X-Custom-Header: Fuzzing");
-
-    // Fuzz the function-under-test
-    int take_ownership = size % 2; // Use size to decide ownership
-    res = curl_mime_headers(part, slist, take_ownership);
-
-    // Clean up
-    if (!take_ownership) {
-        curl_slist_free_all(slist);
-    }
-    curl_mime_free(mime);
-    curl_easy_cleanup(curl);
+    // Clean up CURL global environment
     curl_global_cleanup();
 
     return 0;

@@ -1,60 +1,57 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include <curl/curl.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    CURLU *url;
-    CURLUcode result;
-    char *output = NULL;
+    CURL *curl;
+    CURLcode res;
+    curl_mime *mime;
+    curl_mimepart *part;
+    char filename[256];
 
-    // Initialize a CURLU handle
-    url = curl_url();
-    if (!url) {
+    if (size == 0) {
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
-    char *url_string = (char *)malloc(size + 1);
-    if (!url_string) {
-        curl_url_cleanup(url);
+    // Initialize CURL
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if (!curl) {
+        curl_global_cleanup();
         return 0;
     }
-    memcpy(url_string, data, size);
-    url_string[size] = '\0';
 
-    // Set the URL string to the CURLU handle
-    curl_url_set(url, CURLUPART_URL, url_string, 0);
-
-    // Fuzz different CURLUPart values
-    CURLUPart parts[] = {
-        CURLUPART_SCHEME,
-        CURLUPART_HOST,
-        CURLUPART_PORT,
-        CURLUPART_PATH,
-        CURLUPART_QUERY,
-        CURLUPART_FRAGMENT,
-        CURLUPART_USER,
-        CURLUPART_PASSWORD,
-        CURLUPART_OPTIONS,
-        CURLUPART_ZONEID
-    };
-
-    size_t num_parts = sizeof(parts) / sizeof(parts[0]);
-    for (size_t i = 0; i < num_parts; ++i) {
-        // Call the function-under-test
-        result = curl_url_get(url, parts[i], &output, 0);
-
-        // Free the output if it was allocated
-        if (output) {
-            curl_free(output);
-            output = NULL;
-        }
+    // Initialize MIME
+    mime = curl_mime_init(curl);
+    if (!mime) {
+        curl_easy_cleanup(curl);
+        curl_global_cleanup();
+        return 0;
     }
 
-    // Clean up
-    free(url_string);
-    curl_url_cleanup(url);
+    // Add a part to the MIME
+    part = curl_mime_addpart(mime);
+    if (!part) {
+        curl_mime_free(mime);
+        curl_easy_cleanup(curl);
+        curl_global_cleanup();
+        return 0;
+    }
+
+    // Copy data to filename buffer ensuring null-termination
+    size_t filename_len = size < sizeof(filename) - 1 ? size : sizeof(filename) - 1;
+    memcpy(filename, data, filename_len);
+    filename[filename_len] = '\0';
+
+    // Call the function-under-test
+    res = curl_mime_filename(part, filename);
+
+    // Cleanup
+    curl_mime_free(mime);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
 
     return 0;
 }

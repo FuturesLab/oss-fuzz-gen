@@ -1,40 +1,32 @@
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <cstdlib>
-#include <cstring> // Include for memcpy
-#include <curl/curl.h>
+
+extern "C" {
+    #include <curl/curl.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Initialize CURLU pointer
-    CURLU *url = curl_url();
-    if (url == NULL) {
+    // Ensure the data is null-terminated to form a valid C-string
+    char *env_var_name = (char *)malloc(size + 1);
+    if (env_var_name == NULL) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *url_str = (char *)malloc(size + 1);
-    if (url_str == NULL) {
-        curl_url_cleanup(url);
-        return 0;
-    }
-    memcpy(url_str, data, size);
-    url_str[size] = '\0';
+    memcpy(env_var_name, data, size);
+    env_var_name[size] = '\0';
 
-    // Set the URL in the CURLU object
-    if (curl_url_set(url, CURLUPART_URL, url_str, 0) != CURLUE_OK) {
-        free(url_str);
-        curl_url_cleanup(url);
-        return 0;
+    // Call the function-under-test
+    char *result = curl_getenv(env_var_name);
+
+    // Free the result if it is not NULL
+    if (result != NULL) {
+        free(result);
     }
 
-    // Duplicate the CURLU object
-    CURLU *url_dup = curl_url_dup(url);
-
-    // Cleanup
-    free(url_str);
-    curl_url_cleanup(url);
-    if (url_dup != NULL) {
-        curl_url_cleanup(url_dup);
-    }
+    // Free the allocated memory for the env_var_name
+    free(env_var_name);
 
     return 0;
 }

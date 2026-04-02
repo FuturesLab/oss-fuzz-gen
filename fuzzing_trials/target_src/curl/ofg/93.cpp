@@ -1,29 +1,41 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    CURL *original_handle;
-    CURL *duplicate_handle;
-
-    // Initialize a CURL session
-    original_handle = curl_easy_init();
-    if (!original_handle) {
+    // Initialize CURLU pointer
+    CURLU *original_url = curl_url();
+    if (!original_url) {
         return 0;
     }
 
-    // Set some options on the original handle to ensure it's not NULL
-    curl_easy_setopt(original_handle, CURLOPT_URL, "http://example.com");
-    curl_easy_setopt(original_handle, CURLOPT_FOLLOWLOCATION, 1L);
-
-    // Call the function-under-test
-    duplicate_handle = curl_easy_duphandle(original_handle);
-
-    // Clean up
-    if (duplicate_handle) {
-        curl_easy_cleanup(duplicate_handle);
+    // Ensure data is null-terminated for use with curl_url_set
+    char *url_data = (char *)malloc(size + 1);
+    if (!url_data) {
+        curl_url_cleanup(original_url);
+        return 0;
     }
-    curl_easy_cleanup(original_handle);
+    memcpy(url_data, data, size);
+    url_data[size] = '\0';
+
+    // Set the URL in the original CURLU object
+    CURLUcode set_result = curl_url_set(original_url, CURLUPART_URL, url_data, 0);
+    free(url_data);
+
+    // Only proceed if the URL was set successfully
+    if (set_result == CURLUE_OK) {
+        // Call the function-under-test
+        CURLU *duplicated_url = curl_url_dup(original_url);
+
+        // Cleanup the duplicated URL
+        if (duplicated_url) {
+            curl_url_cleanup(duplicated_url);
+        }
+    }
+
+    // Cleanup the original URL
+    curl_url_cleanup(original_url);
 
     return 0;
 }

@@ -1,43 +1,54 @@
-#include "curl/curl.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include the header for memcpy
+
+extern "C" {
+    #include "curl/curl.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    size_t bytes_sent = 0;
+    // Ensure the data is null-terminated to prevent buffer overflow when used as a string
+    char *ptr = (char *)malloc(size + 1); // Allocate extra byte for null terminator
+    if (ptr == NULL) {
+        return 0; // Allocation failed, exit early
+    }
 
-    // Initialize a CURL session
-    curl = curl_easy_init();
+    // Copy the input data into the allocated memory and null-terminate it
+    memcpy(ptr, data, size);
+    ptr[size] = '\0'; // Null-terminate the string
+
+    // Initialize a CURL handle
+    CURL *curl = curl_easy_init();
     if(curl) {
-        // Set the URL, for example, to a local server or a test server
-        curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8080");
+        // Use the input data as a URL for testing
+        curl_easy_setopt(curl, CURLOPT_URL, ptr);
+        
+        // Perform the request, ignoring the result
+        curl_easy_perform(curl);
 
-        // Set the CURLOPT_CONNECT_ONLY option to 1L to tell libcurl to only connect to the server
-        curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
-
-        // Perform the connection
-        res = curl_easy_perform(curl);
-
-        if(res == CURLE_OK) {
-            // Send data using curl_easy_send
-            res = curl_easy_send(curl, data, size, &bytes_sent);
-
-            // Check the result of the send operation
-            if(res != CURLE_OK) {
-                fprintf(stderr, "curl_easy_send() failed: %s\n", curl_easy_strerror(res));
-            } else {
-                printf("Sent %zu bytes\n", bytes_sent);
-            }
-        } else {
-            fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-        }
-
-        // Cleanup the CURL session
+        // Cleanup
         curl_easy_cleanup(curl);
     }
+
+    // Free the allocated memory
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_cleanup to curl_strnequal
+        const char kjubhpim[1024] = "aongh";
+
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of curl_strnequal
+        int ret_curl_strnequal_uewaf = curl_strnequal(kjubhpim, NULL, CURLPAUSE_RECV_CONT);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        if (ret_curl_strnequal_uewaf < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+    free(ptr);
 
     return 0;
 }

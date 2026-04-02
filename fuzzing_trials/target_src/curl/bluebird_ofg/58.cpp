@@ -1,56 +1,47 @@
 #include "curl/curl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    CURL *curl;
-    char *escaped_string;
+    CURLM *multi_handle;
+    CURL *easy_handle;
+    int running_handles;
 
-    // Initialize a CURL handle
-    curl = curl_easy_init();
-    if(!curl) {
-        return 0;
+    // Initialize the CURL multi handle
+    multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        return 0; // If initialization fails, return early
     }
 
-    // Ensure the input data is null-terminated
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_ws_send
-    char yimtxmmt[1024] = "rwjai";
-    CURLSHcode ret_curl_share_cleanup_cuqyx = curl_share_cleanup(yimtxmmt);
-    size_t odswblbl = 0;
-
-    CURLcode ret_curl_ws_send_ytafc = curl_ws_send(curl, (const void *)yimtxmmt, CURLPAUSE_SEND, &odswblbl, 0, CURL_POLL_IN);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char *input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
-        curl_easy_cleanup(curl);
-        return 0;
+    // Initialize a CURL easy handle
+    easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0; // If initialization fails, return early
     }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
+
+    // Set a URL option for the easy handle
+    // Convert the fuzz input data to a string and use it as a URL
+    char url[256];
+    snprintf(url, sizeof(url), "http://example.com/%.*s", (int)size, data);
+    curl_easy_setopt(easy_handle, CURLOPT_URL, url);
+
+    // Add the easy handle to the multi handle
+    curl_multi_add_handle(multi_handle, easy_handle);
 
     // Call the function-under-test
-    escaped_string = curl_easy_escape(curl, input_string, (int)size);
+    CURLMcode result = curl_multi_socket_all(multi_handle, &running_handles);
 
-    // Cleanup
-    if (escaped_string) {
-        curl_free(escaped_string);
-    }
+    // Clean up
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_escape to curl_mime_init
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_multi_remove_handle with curl_multi_add_handle
+    curl_multi_add_handle(multi_handle, easy_handle);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-    curl_mime* ret_curl_mime_init_cmupj = curl_mime_init((void *)curl);
-    if (ret_curl_mime_init_cmupj == NULL){
-    	return 0;
-    }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(input_string);
-    curl_easy_cleanup(curl);
+    curl_easy_cleanup(easy_handle);
+    curl_multi_cleanup(multi_handle);
 
     return 0;
 }

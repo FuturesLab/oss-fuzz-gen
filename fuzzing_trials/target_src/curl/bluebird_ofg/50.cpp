@@ -1,65 +1,27 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include "curl/curl.h"
+#include <stdint.h>
+#include <stddef.h>
+
+extern "C" const struct curl_ws_frame *curl_ws_meta(CURL *);
 
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    CURLU *url;
-    CURLU *dup_url;
-    CURLUcode result;
-    
-    // Initialize a CURLU handle
-    url = curl_url();
-    if (!url) {
+    CURL *curl = curl_easy_init();
+    if (!curl) {
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
-    char *url_string = (char *)malloc(size + 1);
-    if (!url_string) {
-        curl_url_cleanup(url);
-        return 0;
-    }
-    memcpy(url_string, data, size);
-    url_string[size] = '\0';
+    // Set some options to ensure the CURL handle is valid and initialized
+    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
-    // Set the URL in the CURLU handle
+    // Call the function-under-test
+    const struct curl_ws_frame *ws_frame = curl_ws_meta(curl);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_set
-    result = curl_url_set(url, CURLUPART_URL, url_string, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Normally, you would use ws_frame here, but since this is a fuzzing harness,
+    // we are mainly interested in calling the function to check for memory issues.
 
-
-    free(url_string);
-
-    if (result == CURLUE_OK) {
-        // Duplicate the CURLU handle
-        dup_url = curl_url_dup(url);
-        if (dup_url) {
-            // Cleanup the duplicated URL
-            curl_url_cleanup(dup_url);
-        }
-    }
-
-    // Cleanup the original URL
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_dup to curl_easy_send
-        CURL* ret_curl_easy_init_uuplp = curl_easy_init();
-        if (ret_curl_easy_init_uuplp == NULL){
-        	return 0;
-        }
-        size_t piszssya = 1;
-
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of curl_easy_send
-        CURLcode ret_curl_easy_send_pwrts = curl_easy_send(ret_curl_easy_init_uuplp, (const void *)dup_url, 0, &piszssya);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    curl_url_cleanup(url);
+    // Clean up CURL handle
+    curl_easy_cleanup(curl);
 
     return 0;
 }

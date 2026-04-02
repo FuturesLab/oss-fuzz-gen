@@ -1,42 +1,46 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "curl/curl.h"
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    CURL *curl = curl_easy_init();
-    if (curl == NULL) {
+    // Initialize CURLU pointer
+    CURLU *original_url = curl_url();
+    if (!original_url) {
         return 0;
     }
 
-    // Initialize a mime structure
-    curl_mime *mime = curl_mime_init(curl);
-    if (mime == NULL) {
-        curl_easy_cleanup(curl);
+    // Ensure data is null-terminated for use with curl_url_set
+    char *url_data = (char *)malloc(size + 1);
+    if (!url_data) {
+        curl_url_cleanup(original_url);
         return 0;
     }
+    memcpy(url_data, data, size);
+    url_data[size] = '\0';
 
-    // Initialize a mime part
-    curl_mimepart *part = curl_mime_addpart(mime);
-    if (part == NULL) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
-        return 0;
+    // Set the URL in the original CURLU object
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_set
+    CURLUcode set_result = curl_url_set(original_url, CURLUPART_URL, url_data, -1);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    free(url_data);
+
+    // Only proceed if the URL was set successfully
+    if (set_result == CURLUE_OK) {
+        // Call the function-under-test
+        CURLU *duplicated_url = curl_url_dup(original_url);
+
+        // Cleanup the duplicated URL
+        if (duplicated_url) {
+            curl_url_cleanup(duplicated_url);
+        }
     }
 
-    // Create another mime structure to be used as subparts
-    curl_mime *subparts = curl_mime_init(curl);
-    if (subparts == NULL) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-
-    // Call the function-under-test
-    CURLcode result = curl_mime_subparts(part, subparts);
-
-    // Clean up
-    curl_mime_free(mime);
-    curl_easy_cleanup(curl);
+    // Cleanup the original URL
+    curl_url_cleanup(original_url);
 
     return 0;
 }

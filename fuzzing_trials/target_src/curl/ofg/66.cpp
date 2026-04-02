@@ -1,44 +1,57 @@
-#include <curl/curl.h>
 #include <stdint.h>
-#include <stddef.h>
-
-// Callback function for reading data
-size_t read_callback(char *buffer, size_t size, size_t nitems, void *instream) {
-    // Fill the buffer with some data
-    for (size_t i = 0; i < size * nitems; ++i) {
-        buffer[i] = 'A'; // Example data
-    }
-    return size * nitems;
-}
-
-// Callback function for seeking
-int seek_callback(void *instream, curl_off_t offset, int origin) {
-    // Example seek implementation
-    return CURL_SEEKFUNC_OK;
-}
-
-// Callback function for freeing resources
-void free_callback(void *ptr) {
-    // Example free implementation
-}
+#include <stdlib.h>
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    CURL *curl = curl_easy_init();
-    if (!curl) {
+    CURLM *multi_handle;
+    CURL *easy_handle;
+    CURLMcode mcode;
+    CURLcode ecode;
+
+    // Initialize a CURLM handle
+    multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        return 0; // If initialization fails, exit early
+    }
+
+    // Initialize a CURL easy handle
+    easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0; // If initialization fails, exit early
+    }
+
+    // Set the URL for the easy handle
+    // We use a small part of the input data as a URL for demonstration
+    if (size > 0) {
+        char url[256];
+        snprintf(url, sizeof(url), "http://example.com/%.*s", (int)size, data);
+        ecode = curl_easy_setopt(easy_handle, CURLOPT_URL, url);
+        if (ecode != CURLE_OK) {
+            curl_easy_cleanup(easy_handle);
+            curl_multi_cleanup(multi_handle);
+            return 0;
+        }
+    }
+
+    // Add the easy handle to the multi handle
+    mcode = curl_multi_add_handle(multi_handle, easy_handle);
+    if (mcode != CURLM_OK) {
+        curl_easy_cleanup(easy_handle);
+        curl_multi_cleanup(multi_handle);
         return 0;
     }
 
-    curl_mime *mime = curl_mime_init(curl);
-    curl_mimepart *part = curl_mime_addpart(mime);
+    // Perform the multi handle operations
+    int still_running;
+    do {
+        mcode = curl_multi_perform(multi_handle, &still_running);
+    } while (mcode == CURLM_OK && still_running);
 
-    curl_off_t datasize = (curl_off_t)size; // Use size as the data size
-
-    // Call the function-under-test
-    CURLcode result = curl_mime_data_cb(part, datasize, read_callback, seek_callback, free_callback, NULL);
-
-    // Cleanup
-    curl_mime_free(mime);
-    curl_easy_cleanup(curl);
+    // Clean up the CURL handles
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
+    curl_multi_cleanup(multi_handle);
 
     return 0;
 }

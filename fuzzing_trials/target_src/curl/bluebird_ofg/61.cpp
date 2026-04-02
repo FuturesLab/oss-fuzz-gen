@@ -4,71 +4,54 @@
 #include "curl/curl.h"
 
 extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    CURLU *url;
-    CURLU *dup_url;
-    CURLUcode result;
-    
-    // Initialize a CURLU handle
-    url = curl_url();
-    if (!url) {
+    // Initialize CURLU pointer
+    CURLU *original_url = curl_url();
+    if (!original_url) {
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
-    char *url_string = (char *)malloc(size + 1);
-    if (!url_string) {
-        curl_url_cleanup(url);
+    // Ensure data is null-terminated for use with curl_url_set
+    char *url_data = (char *)malloc(size + 1);
+    if (!url_data) {
+        curl_url_cleanup(original_url);
         return 0;
     }
-    memcpy(url_string, data, size);
-    url_string[size] = '\0';
+    memcpy(url_data, data, size);
+    url_data[size] = '\0';
 
-    // Set the URL in the CURLU handle
-    result = curl_url_set(url, CURLUPART_URL, url_string, 0);
-    free(url_string);
+    // Set the URL in the original CURLU object
 
-    if (result == CURLUE_OK) {
-        // Duplicate the CURLU handle
-        dup_url = curl_url_dup(url);
-        if (dup_url) {
-            // Cleanup the duplicated URL
-            curl_url_cleanup(dup_url);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_set
+    CURLUcode set_result = curl_url_set(original_url, CURLUPART_URL, url_data, CURLH_CONNECT);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    free(url_data);
+
+    // Only proceed if the URL was set successfully
+    if (set_result == CURLUE_OK) {
+        // Call the function-under-test
+        CURLU *duplicated_url = curl_url_dup(original_url);
+
+        // Cleanup the duplicated URL
+        if (duplicated_url) {
+            curl_url_cleanup(duplicated_url);
         }
     }
 
     // Cleanup the original URL
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_dup to curl_easy_send
-        CURL* ret_curl_easy_init_uuplp = curl_easy_init();
-        if (ret_curl_easy_init_uuplp == NULL){
-        	return 0;
-        }
-        size_t piszssya = 1;
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_cleanup to curl_easy_unescape
+    int pcnmrnbr = -1;
 
-        CURLcode ret_curl_easy_send_pwrts = curl_easy_send(ret_curl_easy_init_uuplp, (const void *)dup_url, CURL_HTTPPOST_LARGE, &piszssya);
+    char* ret_curl_easy_unescape_tdqxw = curl_easy_unescape((void *)original_url, (const char *)"r", CURLFINFOFLAG_KNOWN_FILENAME, &pcnmrnbr);
+    if (ret_curl_easy_unescape_tdqxw == NULL){
+    	return 0;
+    }
 
-        // End mutation: Producer.APPEND_MUTATOR
+    // End mutation: Producer.APPEND_MUTATOR
 
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_send to curl_multi_perform
-        CURLM* ret_curl_multi_init_eoekf = curl_multi_init();
-        if (ret_curl_multi_init_eoekf == NULL){
-        	return 0;
-        }
-
-        CURLMcode ret_curl_multi_perform_ssffd = curl_multi_perform(ret_curl_multi_init_eoekf, (int *)&piszssya);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_dup to curl_easy_recv
-        size_t lmwwpepx = size;
-
-        CURLcode ret_curl_easy_recv_cyjzz = curl_easy_recv(NULL, (void *)dup_url, CURLU_GUESS_SCHEME, &lmwwpepx);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    curl_url_cleanup(url);
+    curl_url_cleanup(original_url);
 
     return 0;
 }

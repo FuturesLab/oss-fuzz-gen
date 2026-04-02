@@ -1,42 +1,60 @@
-#include <stdint.h>
-#include <stddef.h>
 #include <curl/curl.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-    CURL *curl = curl_easy_init();
-    if (curl == NULL) {
+    CURLM *multi_handle;
+    CURL *easy_handle;
+    int still_running; // to check if there are still transfers running
+
+    // Initialize CURL multi handle
+    multi_handle = curl_multi_init();
+    if (!multi_handle) {
         return 0;
     }
 
-    // Initialize a mime structure
-    curl_mime *mime = curl_mime_init(curl);
-    if (mime == NULL) {
-        curl_easy_cleanup(curl);
+    // Initialize CURL easy handle
+    easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
         return 0;
     }
 
-    // Initialize a mime part
-    curl_mimepart *part = curl_mime_addpart(mime);
-    if (part == NULL) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
+    // Convert the input data to a string and set it as a URL
+    char *url = (char *)malloc(size + 1);
+    if (url == NULL) {
+        curl_easy_cleanup(easy_handle);
+        curl_multi_cleanup(multi_handle);
         return 0;
     }
+    memcpy(url, data, size);
+    url[size] = '\0'; // Null-terminate the URL string
 
-    // Create another mime structure to be used as subparts
-    curl_mime *subparts = curl_mime_init(curl);
-    if (subparts == NULL) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
-        return 0;
+    curl_easy_setopt(easy_handle, CURLOPT_URL, url);
+    curl_easy_setopt(easy_handle, CURLOPT_WRITEFUNCTION, NULL); // Discard output
+
+    // Add the easy handle to the multi handle
+    curl_multi_add_handle(multi_handle, easy_handle);
+
+    // Perform the request
+    curl_multi_perform(multi_handle, &still_running);
+
+    // Wait for transfers to complete
+    while (still_running) {
+        int numfds;
+        CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 1000, &numfds);
+        if (mc != CURLM_OK) {
+            break;
+        }
+        curl_multi_perform(multi_handle, &still_running);
     }
 
-    // Call the function-under-test
-    CURLcode result = curl_mime_subparts(part, subparts);
-
-    // Clean up
-    curl_mime_free(mime);
-    curl_easy_cleanup(curl);
+    // Cleanup
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
+    curl_multi_cleanup(multi_handle);
+    free(url);
 
     return 0;
 }

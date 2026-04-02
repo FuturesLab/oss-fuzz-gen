@@ -1,25 +1,39 @@
+#include <cstdint>
+#include <cstddef>
 #include <curl/curl.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Initialize a CURL easy handle
+    // Initialize curl_mimepart
     CURL *curl = curl_easy_init();
     if (!curl) {
-        return 0; // Return if initialization fails
+        return 0;
+    }
+    
+    curl_mime *mime = curl_mime_init(curl);
+    if (!mime) {
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+    
+    curl_mimepart *part = curl_mime_addpart(mime);
+    if (!part) {
+        curl_mime_free(mime);
+        curl_easy_cleanup(curl);
+        return 0;
     }
 
-    // Ensure we have enough data to extract an integer for the pause bitmask
-    int pause_option = 0;
-    if (size >= sizeof(int)) {
-        // Copy the first few bytes of data into the pause_option
-        pause_option = *(reinterpret_cast<const int*>(data));
-    }
+    // Ensure data is null-terminated for use as a C-string
+    char *mime_type = new char[size + 1];
+    memcpy(mime_type, data, size);
+    mime_type[size] = '\0';
 
     // Call the function-under-test
-    curl_easy_pause(curl, pause_option);
+    curl_mime_type(part, mime_type);
 
-    // Cleanup
+    // Clean up
+    delete[] mime_type;
+    curl_mime_free(mime);
     curl_easy_cleanup(curl);
 
     return 0;

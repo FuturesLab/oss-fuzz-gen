@@ -1,39 +1,39 @@
 #include <curl/curl.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    curl_mime *mime;
-    curl_mimepart *part;
+    CURLM *multi_handle;
+    CURLMcode res;
+    curl_socket_t sockfd;
+    int running_handles;
 
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_ALL);
-    curl = curl_easy_init();
-    if(curl) {
-        // Create a mime handle
-        mime = curl_mime_init(curl);
+    // Initialize libcurl
+    curl_global_init(CURL_GLOBAL_DEFAULT);
 
-        // Add a part to the mime handle
-        part = curl_mime_addpart(mime);
-
-        // Ensure the data is null-terminated for safety
-        char *data_copy = (char *)malloc(size + 1);
-        memcpy(data_copy, data, size);
-        data_copy[size] = '\0';
-
-        // Call the function-under-test
-        res = curl_mime_data(part, data_copy, size);
-
-        // Clean up
-        free(data_copy);
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
+    // Create a multi handle
+    multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        curl_global_cleanup();
+        return 0;
     }
 
+    // Use the first byte of data as a curl_socket_t value
+    if (size > 0) {
+        sockfd = (curl_socket_t)data[0];
+    } else {
+        sockfd = 0; // Default value if no data
+    }
+
+    // Use the second byte of data as an 'events' value
+    int events = (size > 1) ? (int)data[1] : 0;
+
+    // Call the function-under-test
+    res = curl_multi_socket_action(multi_handle, sockfd, events, &running_handles);
+
+    // Cleanup
+    curl_multi_cleanup(multi_handle);
     curl_global_cleanup();
+
     return 0;
 }

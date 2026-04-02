@@ -1,53 +1,37 @@
 #include <curl/curl.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>  // Include this header for strlen and memcpy
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <cstdlib> // Include for malloc and free
 
-extern "C" {
-
-// Custom memory allocation callbacks
-void* custom_malloc_60(size_t size) {
-    return malloc(size);
-}
-
-void custom_free_60(void* ptr) {
-    free(ptr);
-}
-
-void* custom_realloc_60(void* ptr, size_t size) {
-    return realloc(ptr, size);
-}
-
-char* custom_strdup_60(const char* str) {
-    size_t len = strlen(str) + 1;
-    char* copy = (char*)malloc(len);
-    if (copy) {
-        memcpy(copy, str, len);
+extern "C" int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
+    // Initialize CURL
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        return 0;
     }
-    return copy;
-}
 
-void* custom_calloc_60(size_t nmemb, size_t size) {
-    return calloc(nmemb, size);
-}
-
-int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Convert data to a long value for the first parameter
-    long flags = 0;
-    if (size >= sizeof(long)) {
-        flags = *(const long*)data;
+    // Ensure the input data is null-terminated for string operations
+    char *input = static_cast<char *>(malloc(size + 1));
+    if (!input) {
+        curl_easy_cleanup(curl);
+        return 0;
     }
+    memcpy(input, data, size);
+    input[size] = '\0';
+
+    // Prepare an integer pointer for the output length
+    int output_length = 0;
 
     // Call the function-under-test
-    CURLcode result = curl_global_init_mem(flags, custom_malloc_60, custom_free_60, custom_realloc_60, custom_strdup_60, custom_calloc_60);
+    char *unescaped = curl_easy_unescape(curl, input, static_cast<int>(size), &output_length);
 
-    // Cleanup if necessary
-    if (result == CURLE_OK) {
-        curl_global_cleanup();
+    // Clean up
+    if (unescaped) {
+        curl_free(unescaped);
     }
+    free(input);
+    curl_easy_cleanup(curl);
 
     return 0;
-}
-
 }

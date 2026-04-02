@@ -1,44 +1,38 @@
 #include <curl/curl.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 
-extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
+extern "C" {
+
+// Dummy callback function for CURLOPT_WRITEFUNCTION
+static size_t dummy_write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
+    // This is a dummy callback, you can implement any logic you want here
+    return size * nmemb;
+}
+
+int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
     CURL *curl;
+    CURLcode res;
+    void *userptr = (void *)data; // Using data as user pointer
 
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    // Initialize a CURL handle
     curl = curl_easy_init();
-
     if(curl) {
-        // Set options for CURL if needed
-        // Use the input data as a URL to ensure the function is tested with real input
-        if (size > 0) {
-            char *url = (char *)malloc(size + 1);
-            if (url) {
-                memcpy(url, data, size);
-                url[size] = '\0'; // Null-terminate the string
+        // Set the URL that is being fuzzed
+        curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
 
-                curl_easy_setopt(curl, CURLOPT_URL, url);
+        // Set the dummy write callback
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, dummy_write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, userptr);
 
-                // Perform the request, curl_easy_perform() returns 0 on success
-                CURLcode res = curl_easy_perform(curl);
+        // Perform the request
+        res = curl_easy_perform(curl);
 
-                // Check for errors
-                if(res != CURLE_OK) {
-                    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-                }
-
-                free(url);
-            }
-        }
-
-        // Perform any necessary cleanup
+        // Cleanup the CURL handle
         curl_easy_cleanup(curl);
     }
 
-    curl_global_cleanup();
-
     return 0;
+}
+
 }

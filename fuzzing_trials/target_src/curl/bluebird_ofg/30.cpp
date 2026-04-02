@@ -1,44 +1,51 @@
-#include "curl/curl.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include the header for memcpy
+
+extern "C" {
+    #include "curl/curl.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Initialize libcurl
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-
-    // Create a new mime structure
-    curl_mime *mime = curl_mime_init(NULL);
-    if (!mime) {
-        curl_global_cleanup();
-        return 0;
+    // Ensure the data is null-terminated to prevent buffer overflow when used as a string
+    char *ptr = (char *)malloc(size + 1); // Allocate extra byte for null terminator
+    if (ptr == NULL) {
+        return 0; // Allocation failed, exit early
     }
 
-    // Create a new mime part
-    curl_mimepart *part = curl_mime_addpart(mime);
-    if (!part) {
-        curl_mime_free(mime);
-        curl_global_cleanup();
-        return 0;
+    // Copy the input data into the allocated memory and null-terminate it
+    memcpy(ptr, data, size);
+    ptr[size] = '\0'; // Null-terminate the string
+
+    // Initialize a CURL handle
+    CURL *curl = curl_easy_init();
+    if(curl) {
+        // Use the input data as a URL for testing
+        curl_easy_setopt(curl, CURLOPT_URL, ptr);
+        
+        // Perform the request, ignoring the result
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_multi_socket_all
+        int cophxmmq = 0;
+
+        CURLMcode ret_curl_multi_socket_all_jgvwv = curl_multi_socket_all((void *)curl, &cophxmmq);
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+        curl_easy_perform(curl);
+
+        // Cleanup
+
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_easy_cleanup with curl_easy_reset
+        curl_easy_reset(curl);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
     }
 
-    // Ensure that the data is null-terminated for use as a string
-    char *encoder = (char *)malloc(size + 1);
-    if (!encoder) {
-        curl_mime_free(mime);
-        curl_global_cleanup();
-        return 0;
-    }
-    memcpy(encoder, data, size);
-    encoder[size] = '\0';
-
-    // Call the function-under-test
-    CURLcode result = curl_mime_encoder(part, encoder);
-
-    // Clean up
-    free(encoder);
-    curl_mime_free(mime);
-    curl_global_cleanup();
+    // Free the allocated memory
+    free(ptr);
 
     return 0;
 }

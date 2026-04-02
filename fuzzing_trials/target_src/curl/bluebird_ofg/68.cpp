@@ -1,90 +1,56 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include "curl/curl.h"
+#include <cstring> // Include the header for memcpy
 
 extern "C" {
-    // Hypothetical function under test
-    CURLcode curl_easy_setopt(CURL *handle, CURLoption option, ...);
+    #include "curl/curl.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Exit if input size is too small to be meaningful
+    // Ensure the data is null-terminated to prevent buffer overflow when used as a string
+    char *ptr = (char *)malloc(size + 1); // Allocate extra byte for null terminator
+    if (ptr == NULL) {
+        return 0; // Allocation failed, exit early
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *ptr = static_cast<char*>(malloc(size + 1));
-    if (ptr == nullptr) {
-        return 0; // Exit if memory allocation fails
-    }
-
-    // Copy the input data to the allocated memory
+    // Copy the input data into the allocated memory and null-terminate it
     memcpy(ptr, data, size);
     ptr[size] = '\0'; // Null-terminate the string
 
     // Initialize a CURL handle
     CURL *curl = curl_easy_init();
     if(curl) {
-        // Use the input data in a call to a function under test
-        // Set URL option
-        CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, ptr);
+        // Use the input data as a URL for testing
+        curl_easy_setopt(curl, CURLOPT_URL, ptr);
         
-        // Check if setting the URL was successful
-        if (res == CURLE_OK) {
-            // Set additional options to increase code coverage
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+        // Perform the request, ignoring the result
 
-            // Perform the request to increase code coverage
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_multi_socket_all
+        int cophxmmq = 0;
 
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_multi_add_handle
-
-
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_multi_add_handle with curl_multi_remove_handle
-            CURLMcode ret_curl_multi_add_handle_dlurh = curl_multi_remove_handle(NULL, curl);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-            // End mutation: Producer.APPEND_MUTATOR
-
-            curl_easy_perform(curl);
-        }
-
-        // Clean up the CURL handle
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_easy_recv
-        size_t xhqroxki = -1;
-
-        CURLcode ret_curl_easy_recv_sfywh = curl_easy_recv(curl, (void *)curl, CURL_HTTPPOST_BUFFER, &xhqroxki);
+        CURLMcode ret_curl_multi_socket_all_jgvwv = curl_multi_socket_all((void *)curl, &cophxmmq);
 
         // End mutation: Producer.APPEND_MUTATOR
 
-        curl_easy_cleanup(curl);
+        curl_easy_perform(curl);
+
+        // Cleanup
+
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_easy_cleanup with curl_easy_reset
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_easy_reset
+        curl_easy_reset(NULL);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
     }
 
     // Free the allocated memory
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_init to curl_ws_send
-    CURL* ret_curl_easy_duphandle_erpoc = curl_easy_duphandle(NULL);
-    if (ret_curl_easy_duphandle_erpoc == NULL){
-    	return 0;
-    }
-    size_t wmqytnsb = 64;
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of curl_ws_send
-    CURLcode ret_curl_ws_send_wvncz = curl_ws_send(ret_curl_easy_duphandle_erpoc, (const void *)curl, CURL_VERSION_SPNEGO, &wmqytnsb, 0, -1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     free(ptr);
 
-    // Return 0 to indicate successful execution
     return 0;
 }

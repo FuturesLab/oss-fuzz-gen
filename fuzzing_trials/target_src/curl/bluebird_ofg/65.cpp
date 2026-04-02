@@ -1,46 +1,59 @@
-#include "curl/curl.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include the header for memcpy
 
-// Ensure C linkage for the fuzz target function
+extern "C" {
+    #include "curl/curl.h"
+}
+
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    char url[256] = "http://example.com";
-    long response_code;
-
-    // Initialize CURL
-    curl = curl_easy_init();
-    if (!curl) {
-        return 0;
+    // Ensure the data is null-terminated to prevent buffer overflow when used as a string
+    char *ptr = (char *)malloc(size + 1); // Allocate extra byte for null terminator
+    if (ptr == NULL) {
+        return 0; // Allocation failed, exit early
     }
 
-    // Set a URL
-    curl_easy_setopt(curl, CURLOPT_URL, url);
+    // Copy the input data into the allocated memory and null-terminate it
+    memcpy(ptr, data, size);
+    ptr[size] = '\0'; // Null-terminate the string
 
-    // Perform the request
-    res = curl_easy_perform(curl);
-    if (res != CURLE_OK) {
+    // Initialize a CURL handle
+    CURL *curl = curl_easy_init();
+    if(curl) {
+        // Use the input data as a URL for testing
+        curl_easy_setopt(curl, CURLOPT_URL, ptr);
+        
+        // Perform the request, ignoring the result
+        curl_easy_perform(curl);
+
+        // Cleanup
         curl_easy_cleanup(curl);
-        return 0;
     }
 
-    // Fuzz CURLINFO parameter
-    CURLINFO info;
-    if (size > 0) {
-        info = static_cast<CURLINFO>(data[0] % CURLINFO_END);
-    } else {
-        info = CURLINFO_RESPONSE_CODE;
-    }
+    // Free the allocated memory
 
-    // Call the function-under-test
-    if (info == CURLINFO_RESPONSE_CODE) {
-        res = curl_easy_getinfo(curl, info, &response_code);
-    }
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_cleanup to curl_strnequal
+        const char kjubhpim[1024] = "aongh";
 
-    // Cleanup
-    curl_easy_cleanup(curl);
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of curl_strnequal
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of curl_strnequal
+        int ret_curl_strnequal_uewaf = curl_strnequal(kjubhpim, (const char *)data, CURL_SOCKOPT_ERROR);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        if (ret_curl_strnequal_uewaf < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+    free(ptr);
 
     return 0;
 }

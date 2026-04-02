@@ -1,44 +1,48 @@
 #include "curl/curl.h"
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-
-// Ensure C linkage for the libcurl functions
-extern "C" {
-    #include "curl/curl.h"
-}
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
+    // Initialize a curl_mimepart
     CURL *easy_handle = curl_easy_init();
-
-    if (easy_handle == nullptr) {
+    if (!easy_handle) {
         return 0;
     }
+    curl_mime *mime = curl_mime_init(easy_handle);
+    if (!mime) {
+        curl_easy_cleanup(easy_handle);
+        return 0;
+    }
+    curl_mimepart *part = curl_mime_addpart(mime);
 
+    // Initialize a curl_slist
+    struct curl_slist *slist = NULL;
     if (size > 0) {
-        // Use the fuzzing data as a URL
-        char *url = new char[size + 1];
-        memcpy(url, data, size);
-        url[size] = '\0';
-
-        // Set the URL using libcurl's API
-        curl_easy_setopt(easy_handle, CURLOPT_URL, url);
-
-        // Optionally, set the header using libcurl's API
-        struct curl_slist *headers = nullptr;
-        headers = curl_slist_append(headers, "Content-Type: application/octet-stream");
-        curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, headers);
-
-        // Perform the request
-        curl_easy_perform(easy_handle);
-
-        // Clean up
-        delete[] url;
-        if (headers) {
-            curl_slist_free_all(headers);
+        // Convert data to a null-terminated string
+        char *header = (char *)malloc(size + 1);
+        if (!header) {
+            curl_mime_free(mime);
+            curl_easy_cleanup(easy_handle);
+            return 0;
         }
+        memcpy(header, data, size);
+        header[size] = '\0';
+
+        // Add the header to the slist
+        slist = curl_slist_append(slist, header);
+        free(header);
     }
 
+    // Use a fixed integer for the third parameter
+    int take_ownership = 1;
+
+    // Call the function-under-test
+    curl_mime_headers(part, slist, take_ownership);
+
+    // Cleanup
+    curl_mime_free(mime);
     curl_easy_cleanup(easy_handle);
+
     return 0;
 }

@@ -1,52 +1,28 @@
-#include <curl/curl.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-
-// Ensure C linkage for C++ compilation
-extern "C" {
-    #include <curl/curl.h>
-}
+#include <string.h>
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    CURL *easy_handle = curl_easy_init();
-    if (!easy_handle) {
-        return 0;
-    }
+    CURLU *url = curl_url();
+    CURLUPart part = CURLUPART_URL; // Using CURLUPART_URL as a sample part
+    unsigned int flags = 0; // Initializing flags to 0
 
-    // Initialize a mime structure
-    curl_mime *mime = curl_mime_init(easy_handle);
-    if (!mime) {
-        curl_easy_cleanup(easy_handle);
+    // Ensure the data is null-terminated to be used as a string
+    char *url_part = (char *)malloc(size + 1);
+    if (url_part == NULL) {
+        curl_url_cleanup(url);
         return 0;
     }
-
-    // Add a part to the mime structure
-    curl_mimepart *part = curl_mime_addpart(mime);
-    if (!part) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(easy_handle);
-        return 0;
-    }
-
-    // Ensure the data is null-terminated for the function call
-    char *data_with_null = (char *)malloc(size + 1);
-    if (!data_with_null) {
-        curl_mime_free(mime);
-        curl_easy_cleanup(easy_handle);
-        return 0;
-    }
-    memcpy(data_with_null, data, size);
-    data_with_null[size] = '\0';
+    memcpy(url_part, data, size);
+    url_part[size] = '\0';
 
     // Call the function-under-test
-    CURLcode result = curl_mime_data(part, data_with_null, CURL_ZERO_TERMINATED);
+    curl_url_set(url, part, url_part, flags);
 
-    // Clean up
-    free(data_with_null);
-    curl_mime_free(mime);
-    curl_easy_cleanup(easy_handle);
+    // Cleanup
+    free(url_part);
+    curl_url_cleanup(url);
 
     return 0;
 }

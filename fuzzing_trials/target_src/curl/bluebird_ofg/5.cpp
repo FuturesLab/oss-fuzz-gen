@@ -1,63 +1,58 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include "curl/curl.h"
 
-extern "C" {
-    // Hypothetical function under test
-    CURLcode curl_easy_setopt(CURL *handle, CURLoption option, ...);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Exit if input size is too small to be meaningful
+    // Initialize CURLU object
+    CURLU *urlp = curl_url();
+    if (!urlp) {
+        return 0;
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *ptr = static_cast<char*>(malloc(size + 1));
-    if (ptr == nullptr) {
-        return 0; // Exit if memory allocation fails
+    // Prepare a null-terminated string from the input data
+    char *url = (char *)malloc(size + 1);
+    if (!url) {
+        curl_url_cleanup(urlp);
+        return 0;
+    }
+    memcpy(url, data, size);
+    url[size] = '\0';
+
+    // Set the URL in the CURLU object
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_set
+    CURLUcode result = curl_url_set(urlp, CURLUPART_URL, url, CURL_SEEKFUNC_OK);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    free(url);
+
+    if (result != CURLUE_OK) {
+        curl_url_cleanup(urlp);
+        return 0;
     }
 
-    // Copy the input data to the allocated memory
-    memcpy(ptr, data, size);
-    ptr[size] = '\0'; // Null-terminate the string
+    // Prepare to get different parts of the URL
+    char *output = nullptr;
+    CURLUPart parts[] = {CURLUPART_SCHEME, CURLUPART_HOST, CURLUPART_PATH, CURLUPART_QUERY, CURLUPART_FRAGMENT};
+    unsigned int flags = 0;
 
-    // Initialize a CURL handle
-    CURL *curl = curl_easy_init();
-    if(curl) {
-        // Use the input data in a call to a function under test
-        // Set URL option
-        CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, ptr);
-        
-        // Check if setting the URL was successful
-        if (res == CURLE_OK) {
-            // Set additional options to increase code coverage
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    // Attempt to get each part of the URL
+    for (CURLUPart part : parts) {
 
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_setopt to curl_easy_duphandle
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_get
+        result = curl_url_get(urlp, part, &output, CURLU_PUNY2IDN);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-            CURL* ret_curl_easy_duphandle_twweg = curl_easy_duphandle(curl);
-            if (ret_curl_easy_duphandle_twweg == NULL){
-            	return 0;
-            }
 
-            // End mutation: Producer.APPEND_MUTATOR
-
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
-
-            // Perform the request to increase code coverage
-            curl_easy_perform(curl);
+        if (result == CURLUE_OK && output) {
+            curl_free(output);
         }
-
-        // Clean up the CURL handle
-        curl_easy_cleanup(curl);
     }
 
-    // Free the allocated memory
-    free(ptr);
+    // Cleanup
+    curl_url_cleanup(urlp);
 
-    // Return 0 to indicate successful execution
     return 0;
 }

@@ -1,43 +1,44 @@
-#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Initialize CURLSH pointer
-    CURLSH *share_handle = curl_share_init();
-    if (share_handle == NULL) {
-        return 0; // If initialization fails, exit the fuzzing iteration
+    CURLM *multi_handle;
+    curl_socket_t sockfd;
+    int running_handles;
+    CURLMcode result;
+
+    // Initialize libcurl
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    // Create a multi handle
+    multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        curl_global_cleanup();
+        return 0;
     }
 
-    // Use input data to set options on the share handle
+    // Use the first byte of data to determine a socket value
     if (size > 0) {
-        CURLSHcode res;
-
-        // Use the first byte of data to determine which option to set
-        switch (data[0] % 3) {
-            case 0:
-                res = curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
-                break;
-            case 1:
-                res = curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
-                break;
-            case 2:
-                res = curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
-                break;
-            default:
-                res = CURLSHE_BAD_OPTION; // Should not happen
-                break;
-        }
-
-        // Optionally check the result of setting the option
-        if (res != CURLSHE_OK) {
-            // Handle error if needed
-        }
+        sockfd = static_cast<curl_socket_t>(data[0]);
+    } else {
+        sockfd = 0; // Default to 0 if no data is provided
     }
 
-    // Call the function under test
-    CURLSHcode result = curl_share_cleanup(share_handle);
+    // Use the rest of the data to determine the running_handles value
+    if (size > 1) {
+        running_handles = static_cast<int>(data[1]);
+    } else {
+        running_handles = 1; // Default to 1 if no additional data is provided
+    }
 
-    // Return 0 to indicate the fuzzer should continue
+    // Call the function-under-test
+    result = curl_multi_socket_action(multi_handle, sockfd, 0, &running_handles);
+
+    // Clean up
+    curl_multi_cleanup(multi_handle);
+    curl_global_cleanup();
+
     return 0;
 }

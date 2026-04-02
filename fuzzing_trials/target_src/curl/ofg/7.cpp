@@ -1,24 +1,44 @@
-#include <stdint.h>
-#include <stddef.h>
 #include <curl/curl.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Initialize the CURL share interface
-    CURLSH *share_handle = curl_share_init();
+    CURL *curl;
+    CURLcode res;
+    void *buffer;
+    size_t buffer_size;
+    size_t n;
 
-    // Check if the share handle was created successfully
-    if (share_handle != NULL) {
-        // Use the input data to set a CURLSH option
-        // For demonstration, we'll use CURLSHOPT_SHARE with a type if possible
-        if (size > 0) {
-            long option = data[0] % 2 == 0 ? CURL_LOCK_DATA_COOKIE : CURL_LOCK_DATA_DNS;
-            curl_share_setopt(share_handle, CURLSHOPT_SHARE, option);
-        }
-
-        // Cleanup the share handle after use
-        curl_share_cleanup(share_handle);
+    // Initialize CURL
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if (!curl) {
+        return 0;
     }
+
+    // Set a dummy URL to initialize the CURL handle
+    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+
+    // Allocate a buffer to receive data
+    buffer_size = size > 0 ? size : 1; // Ensure buffer size is at least 1
+    buffer = malloc(buffer_size);
+    if (!buffer) {
+        curl_easy_cleanup(curl);
+        curl_global_cleanup();
+        return 0;
+    }
+
+    // Copy the input data to the buffer
+    memcpy(buffer, data, buffer_size);
+
+    // Perform the curl_easy_recv operation
+    res = curl_easy_recv(curl, buffer, buffer_size, &n);
+
+    // Cleanup
+    free(buffer);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
 
     return 0;
 }

@@ -1,35 +1,33 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>  // For uint8_t
+
+extern "C" {
 #include <curl/curl.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    CURLM *multi_handle;
-    curl_socket_t sockfd;
-    int running_handles;
-    CURLMcode result;
+    // Initialize a CURL handle
+    CURL *curl = curl_easy_init();
+    
+    // Check if the initialization was successful
+    if(curl) {
+        // Set the URL that is being fuzzed. This is a dummy URL for testing.
+        curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
 
-    // Initialize libcurl
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+        // Set the POST data with the fuzzing input
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, reinterpret_cast<const char*>(data));
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, size);
 
-    // Create a multi handle
-    multi_handle = curl_multi_init();
-    if (multi_handle == NULL) {
-        curl_global_cleanup();
-        return 0;
+        // Perform the request, res will get the return code
+        CURLcode res = curl_easy_perform(curl);
+
+        // Check for errors
+        if(res != CURLE_OK) {
+            // Handle error
+        }
+
+        // Cleanup the CURL handle
+        curl_easy_cleanup(curl);
     }
-
-    // Ensure the socket is not NULL and has a valid value
-    sockfd = (curl_socket_t)(size > 0 ? data[0] : 0);
-
-    // Ensure running_handles is not NULL
-    running_handles = 1;
-
-    // Call the function-under-test
-    result = curl_multi_socket(multi_handle, sockfd, &running_handles);
-
-    // Clean up
-    curl_multi_cleanup(multi_handle);
-    curl_global_cleanup();
 
     return 0;
 }

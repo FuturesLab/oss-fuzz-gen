@@ -1,31 +1,37 @@
 #include <curl/curl.h>
-#include <cstdint>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
+    // Initialize CURLM handle
     CURLM *multi_handle = curl_multi_init();
     if (!multi_handle) {
-        return 0;
+        return 0; // Return if initialization fails
     }
 
-    // Ensure the data is large enough to extract meaningful inputs
-    if (size < sizeof(CURLMoption) + sizeof(void *)) {
+    // Initialize CURL easy handle
+    CURL *easy_handle = curl_easy_init();
+    if (!easy_handle) {
         curl_multi_cleanup(multi_handle);
-        return 0;
+        return 0; // Return if initialization fails
     }
 
-    // Extract a CURLMoption from the data
-    CURLMoption option;
-    std::memcpy(&option, data, sizeof(CURLMoption));
+    // Set some options for the easy handle
+    curl_easy_setopt(easy_handle, CURLOPT_URL, "http://example.com");
+    curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, data);
+    curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDSIZE, size);
 
-    // Extract a void pointer from the data
-    void *ptr;
-    std::memcpy(&ptr, data + sizeof(CURLMoption), sizeof(void *));
+    // Add the easy handle to the multi handle
+    curl_multi_add_handle(multi_handle, easy_handle);
 
-    // Call the function-under-test
-    curl_multi_setopt(multi_handle, option, ptr);
+    // Perform the request
+    int still_running;
+    curl_multi_perform(multi_handle, &still_running);
 
     // Clean up
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
     curl_multi_cleanup(multi_handle);
 
     return 0;

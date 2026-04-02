@@ -1,43 +1,35 @@
+#include <cstdint>
+#include <cstddef>
+#include <cstring> // For memcpy
 #include <curl/curl.h>
-#include <stdint.h>
-#include <stddef.h>
+
+extern "C" {
+#include <curl/urlapi.h> // Ensure the CURLU-related functions and types are included
+}
 
 extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    CURLM *multi_handle;
-    CURLMcode result;
-
-    // Initialize a CURLM handle
-    multi_handle = curl_multi_init();
-    if (!multi_handle) {
+    // Initialize CURLU handle
+    CURLU *urlp = curl_url();
+    if (!urlp) {
         return 0;
     }
 
-    // Ensure the data size is sufficient for setting options
-    if (size < sizeof(long)) {
-        curl_multi_cleanup(multi_handle);
-        return 0;
-    }
+    // Prepare the input data for the function-under-test
+    CURLUPart part = CURLUPART_URL; // Using CURLUPART_URL as an example
+    const char *url_string = reinterpret_cast<const char *>(data);
+    unsigned int flags = 0; // Default flags
 
-    // Use the input data to set options
-    long option_value = *((long *)data);
-    CURLMoption options[] = {
-        CURLMOPT_PIPELINING,
-        CURLMOPT_MAX_HOST_CONNECTIONS,
-        CURLMOPT_MAX_PIPELINE_LENGTH,
-        CURLMOPT_MAX_TOTAL_CONNECTIONS
-    };
+    // Ensure the input data is null-terminated
+    char *null_terminated_data = new char[size + 1];
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Iterate over possible options and set them
-    for (size_t i = 0; i < sizeof(options) / sizeof(options[0]); ++i) {
-        result = curl_multi_setopt(multi_handle, options[i], (void *)option_value);
-        // Check the result for any errors
-        if (result != CURLM_OK) {
-            // Handle the error if needed
-        }
-    }
+    // Call the function-under-test
+    curl_url_set(urlp, part, null_terminated_data, flags);
 
-    // Cleanup the CURLM handle
-    curl_multi_cleanup(multi_handle);
+    // Clean up
+    curl_url_cleanup(urlp);
+    delete[] null_terminated_data;
 
     return 0;
 }

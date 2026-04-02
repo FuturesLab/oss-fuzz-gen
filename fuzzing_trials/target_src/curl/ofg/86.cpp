@@ -1,33 +1,56 @@
+#include <curl/curl.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>  // Include string.h for memcpy
-#include <curl/curl.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    CURLU *url_handle;
+    CURL *curl;
+    CURLcode result;
+    struct curl_slist *headers = NULL;
+    char *header_value = NULL;
 
-    // Initialize a CURLU handle
-    url_handle = curl_url();
+    // Initialize CURL
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if(curl) {
+        // Ensure data is not NULL and has a reasonable size
+        if (size > 0 && data != NULL) {
+            // Allocate memory for header value and copy data into it
+            header_value = (char *)malloc(size + 1);
+            if (header_value) {
+                memcpy(header_value, data, size);
+                header_value[size] = '\0'; // Null-terminate the string
 
-    if (url_handle != NULL) {
-        // Use the data and size in some way to manipulate the CURLU handle
-        // For example, set a URL part if the size is sufficient
-        if (size > 0) {
-            char *url_part = (char *)malloc(size + 1);
-            if (url_part != NULL) {
-                memcpy(url_part, data, size);
-                url_part[size] = '\0';  // Null-terminate the string
+                // Set the custom header
+                headers = curl_slist_append(headers, header_value);
+                if (headers) {
+                    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-                // Set the URL part (CURLUPART_URL is used as an example)
-                curl_url_set(url_handle, CURLUPART_URL, url_part, 0);
+                    // Perform the request (this is just a placeholder URL)
+                    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
 
-                free(url_part);
+                    // Call the function under test
+                    result = curl_easy_perform(curl);
+
+                    // You might want to perform some checks or operations with 'result' here
+                }
+
+                // Free the allocated header value
+                free(header_value);
             }
         }
 
-        // Call the function-under-test
-        curl_url_cleanup(url_handle);
+        // Clean up the headers if they were set
+        if (headers) {
+            curl_slist_free_all(headers);
+        }
+
+        // Clean up CURL
+        curl_easy_cleanup(curl);
     }
+
+    curl_global_cleanup();
 
     return 0;
 }

@@ -1,52 +1,48 @@
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <curl/curl.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-
-extern "C" {
-    #include <curl/curl.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    // Initialize a CURL handle
-    CURL *original_handle = curl_easy_init();
-    if (original_handle == NULL) {
-        return 0; // If initialization failed, exit early
+    // Initialize CURLU object
+    CURLU *urlp = curl_url();
+    if (!urlp) {
+        return 0;
     }
 
-    // Set some options on the original handle to ensure it's not NULL
-    // Using the data to set URL and other options
-    if (size > 0) {
-        // Ensure the data is null-terminated for use as a string
-        char *url = (char *)malloc(size + 1);
-        if (url == NULL) {
-            curl_easy_cleanup(original_handle);
-            return 0;
+    // Prepare a null-terminated string from the input data
+    char *url = (char *)malloc(size + 1);
+    if (!url) {
+        curl_url_cleanup(urlp);
+        return 0;
+    }
+    memcpy(url, data, size);
+    url[size] = '\0';
+
+    // Set the URL in the CURLU object
+    CURLUcode result = curl_url_set(urlp, CURLUPART_URL, url, 0);
+    free(url);
+
+    if (result != CURLUE_OK) {
+        curl_url_cleanup(urlp);
+        return 0;
+    }
+
+    // Prepare to get different parts of the URL
+    char *output = nullptr;
+    CURLUPart parts[] = {CURLUPART_SCHEME, CURLUPART_HOST, CURLUPART_PATH, CURLUPART_QUERY, CURLUPART_FRAGMENT};
+    unsigned int flags = 0;
+
+    // Attempt to get each part of the URL
+    for (CURLUPart part : parts) {
+        result = curl_url_get(urlp, part, &output, flags);
+        if (result == CURLUE_OK && output) {
+            curl_free(output);
         }
-        memcpy(url, data, size);
-        url[size] = '\0';
-
-        // Set the URL option
-        curl_easy_setopt(original_handle, CURLOPT_URL, url);
-
-        // Perform the request to increase code coverage
-        CURLcode res = curl_easy_perform(original_handle);
-        if (res != CURLE_OK) {
-            // Handle error if needed
-        }
-
-        free(url);
     }
 
-    // Duplicate the handle
-    CURL *duplicate_handle = curl_easy_duphandle(original_handle);
-
-    // Clean up
-    if (duplicate_handle != NULL) {
-        curl_easy_cleanup(duplicate_handle);
-    }
-    curl_easy_cleanup(original_handle);
+    // Cleanup
+    curl_url_cleanup(urlp);
 
     return 0;
 }

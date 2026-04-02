@@ -1,27 +1,30 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
 #include <curl/curl.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    // Ensure the input data is non-null and size is non-zero
-    if (data == nullptr || size == 0) {
-        return 0;
+    // Initialize a CURL mime structure
+    CURL *easy_handle = curl_easy_init();
+    if (easy_handle == NULL) {
+        return 0; // Exit if initialization fails
     }
 
-    // Create a null-terminated string from the input data
-    char *inputStr = new char[size + 1];
-    memcpy(inputStr, data, size);
-    inputStr[size] = '\0';
+    curl_mime *mime = curl_mime_init(easy_handle);
+    if (mime == NULL) {
+        curl_easy_cleanup(easy_handle);
+        return 0; // Exit if mime initialization fails
+    }
 
     // Call the function-under-test
-    char *escapedStr = curl_escape(inputStr, static_cast<int>(size));
+    curl_mimepart *part = curl_mime_addpart(mime);
+    if (part != NULL) {
+        // Optionally, you can set some data to the part using the fuzzing input
+        curl_mime_data(part, (const char *)data, size);
+    }
 
     // Clean up
-    delete[] inputStr;
-    if (escapedStr) {
-        curl_free(escapedStr);
-    }
+    curl_mime_free(mime);
+    curl_easy_cleanup(easy_handle);
 
     return 0;
 }

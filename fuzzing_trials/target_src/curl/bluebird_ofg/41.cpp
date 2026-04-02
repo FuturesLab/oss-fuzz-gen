@@ -1,40 +1,47 @@
 #include "curl/curl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+#include <stddef.h>
 
-extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
+extern "C" {
+
+// Define a dummy callback function
+typedef CURLcode (*curl_ssl_ctx_callback)(CURL *curl, void *sslctx, void *userptr);
+
+CURLcode dummy_ssl_ctx_callback(CURL *curl, void *sslctx, void *userptr) {
+    // Dummy callback function that does nothing
+    return CURLE_OK;
+}
+
+int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
     CURL *curl;
     CURLcode res;
-    
+    void *userptr = (void*)data; // Use the data as a user pointer
+
     // Initialize a CURL session
     curl = curl_easy_init();
     if(curl) {
-        // Convert the input data to a string URL
-        // Ensure the data is null-terminated
-        char *url = (char *)malloc(size + 1);
-        if (url == NULL) {
+        // Set the SSL context callback
+        res = curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, dummy_ssl_ctx_callback);
+        if(res != CURLE_OK) {
             curl_easy_cleanup(curl);
             return 0;
         }
-        memcpy(url, data, size);
-        url[size] = '\0';
 
-        // Set the URL that is about to receive our GET request
-        curl_easy_setopt(curl, CURLOPT_URL, url);
-
-        // Perform the request, res will get the return code
-        res = curl_easy_perform(curl);
-
-        // Check for errors
+        // Set the user pointer for the SSL context callback
+        res = curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, userptr);
         if(res != CURLE_OK) {
-            fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+            curl_easy_cleanup(curl);
+            return 0;
         }
 
-        // Always cleanup
+        // Perform a dummy operation to trigger the SSL context callback
+        res = curl_easy_perform(curl);
+
+        // Cleanup the CURL session
         curl_easy_cleanup(curl);
-        free(url);
     }
+
     return 0;
+}
+
 }

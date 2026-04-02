@@ -1,53 +1,58 @@
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "curl/curl.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    CURL *curl;
-    char *escaped_string;
-
-    // Initialize a CURL handle
-    curl = curl_easy_init();
-    if(!curl) {
+    // Initialize CURLU object
+    CURLU *urlp = curl_url();
+    if (!urlp) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
-        curl_easy_cleanup(curl);
+    // Prepare a null-terminated string from the input data
+    char *url = (char *)malloc(size + 1);
+    if (!url) {
+        curl_url_cleanup(urlp);
         return 0;
     }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
+    memcpy(url, data, size);
+    url[size] = '\0';
 
-    // Call the function-under-test
-    escaped_string = curl_easy_escape(curl, input_string, (int)size);
+    // Set the URL in the CURLU object
+    CURLUcode result = curl_url_set(urlp, CURLUPART_URL, url, 0);
+    free(url);
+
+    if (result != CURLUE_OK) {
+        curl_url_cleanup(urlp);
+        return 0;
+    }
+
+    // Prepare to get different parts of the URL
+    char *output = nullptr;
+    CURLUPart parts[] = {CURLUPART_SCHEME, CURLUPART_HOST, CURLUPART_PATH, CURLUPART_QUERY, CURLUPART_FRAGMENT};
+    unsigned int flags = 0;
+
+    // Attempt to get each part of the URL
+    for (CURLUPart part : parts) {
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_get
+
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of curl_url_get
+        result = curl_url_get(urlp, part, &output, CURLU_GET_EMPTY);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        if (result == CURLUE_OK && output) {
+            curl_free(output);
+        }
+    }
 
     // Cleanup
-    if (escaped_string) {
-        curl_free(escaped_string);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_easy_escape to curl_mime_filename
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_mime_filename with curl_mime_encoder
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_mime_encoder with curl_mime_name
-    CURLcode ret_curl_mime_filename_jvrat = curl_mime_name(NULL, escaped_string);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(input_string);
-    curl_easy_cleanup(curl);
+    curl_url_cleanup(urlp);
 
     return 0;
 }
