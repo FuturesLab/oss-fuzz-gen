@@ -1,23 +1,39 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "/src/libbpf/src/libbpf.h"
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract necessary parameters
-    if (size < sizeof(enum bpf_prog_type) + sizeof(enum bpf_func_id)) {
+    struct bpf_object *obj;
+    char *path;
+    
+    // Ensure that the size is sufficient to create a path
+    if (size < 2) {
         return 0;
     }
 
-    // Extract parameters from data
-    enum bpf_prog_type prog_type = (enum bpf_prog_type)data[0];
-    enum bpf_func_id func_id = (enum bpf_func_id)data[1];
+    // Initialize a bpf_object
+    obj = bpf_object__open_mem(data, size, NULL);
+    if (!obj) {
+        return 0;
+    }
 
-    // The rest of the data is used as the const void* parameter
-    const void *void_param = (const void *)(data + 2);
+    // Allocate memory for the path and ensure it's null-terminated
+    path = (char *)malloc(size + 1);
+    if (!path) {
+        bpf_object__close(obj);
+        return 0;
+    }
+    memcpy(path, data, size);
+    path[size] = '\0';
 
     // Call the function-under-test
-    int result = libbpf_probe_bpf_helper(prog_type, func_id, void_param);
+    bpf_object__unpin_maps(obj, path);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Clean up
+    free(path);
+    bpf_object__close(obj);
+
     return 0;
 }

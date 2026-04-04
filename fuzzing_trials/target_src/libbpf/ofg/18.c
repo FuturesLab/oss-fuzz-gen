@@ -1,28 +1,31 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 #include "/src/libbpf/src/libbpf.h"
 
-int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    struct bpf_object_skeleton skeleton;
-    struct bpf_object_open_opts opts;
+// Forward declaration of the function-under-test
+struct btf * bpf_object__btf(const struct bpf_object *);
 
-    // Ensure that size is sufficient for meaningful fuzzing
-    if (size < sizeof(struct bpf_object_skeleton)) {
+int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
+    struct bpf_object *bpf_obj = NULL;
+    struct btf *btf_obj = NULL;
+
+    // Create a BPF object from the input data
+    bpf_obj = bpf_object__open_mem(data, size, NULL);
+    if (!bpf_obj) {
         return 0;
     }
 
-    // Initialize the skeleton and opts with some default values
-    // Here, we assume that the data is large enough to fill the skeleton structure
-    // and opts structure. This is a simplification, as the actual structures may
-    // require more complex initialization.
-    memset(&skeleton, 0, sizeof(skeleton));
-    memset(&opts, 0, sizeof(opts));
+    // Load the BPF object to ensure it is valid
+    if (bpf_object__load(bpf_obj) < 0) {
+        bpf_object__close(bpf_obj);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = bpf_object__open_skeleton(&skeleton, &opts);
+    btf_obj = bpf_object__btf(bpf_obj);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Clean up
+    bpf_object__close(bpf_obj);
+
     return 0;
 }

@@ -1,27 +1,33 @@
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include "/src/libbpf/src/libbpf.h"
 
-// Use the existing enumeration type from bpf.h
-typedef enum bpf_prog_type DW_TAG_enumeration_typebpf_prog_type;
-
-extern int libbpf_probe_bpf_prog_type(DW_TAG_enumeration_typebpf_prog_type prog_type, const void *opts);
-
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    if (size < sizeof(DW_TAG_enumeration_typebpf_prog_type)) {
+    struct bpf_program *prog = NULL;
+    struct bpf_object *obj = NULL;
+    struct bpf_program *iter;
+
+    // Create a BPF object from the input data
+    obj = bpf_object__open_mem(data, size, NULL);
+    if (!obj) {
         return 0;
     }
 
-    // Extract the bpf_prog_type from the input data
-    DW_TAG_enumeration_typebpf_prog_type prog_type = *(DW_TAG_enumeration_typebpf_prog_type *)data;
-
-    // Ensure prog_type is within valid range
-    if (prog_type > BPF_PROG_TYPE_SYSCALL) {
-        prog_type = BPF_PROG_TYPE_UNSPEC;
+    // Load the BPF object
+    if (bpf_object__load(obj) != 0) {
+        bpf_object__close(obj);
+        return 0;
     }
 
-    // Call the function-under-test
-    int result = libbpf_probe_bpf_prog_type(prog_type, (const void *)(data + sizeof(DW_TAG_enumeration_typebpf_prog_type)));
+    // Iterate over all programs in the BPF object
+    bpf_object__for_each_program(iter, obj) {
+        // Attempt to autoload the BPF program
+        bpf_program__autoload(iter);
+    }
+
+    // Clean up
+    bpf_object__close(obj);
 
     return 0;
 }

@@ -1,40 +1,52 @@
+#include "/src/libbpf/src/libbpf.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <unistd.h>
-#include "/src/libbpf/src/libbpf.h"
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract meaningful inputs
-    if (size < 4) {
+    struct bpf_object *obj;
+    char *path;
+    int result;
+
+    // Initialize a bpf_object for the purpose of this test
+    obj = bpf_object__open("/path/to/bpf/object");
+    if (!obj) {
         return 0;
     }
 
-    // Extract a pid_t from the data
-    pid_t pid = *(const pid_t *)data;
-    data += sizeof(pid_t);
-    size -= sizeof(pid_t);
+    // Ensure the data is large enough to create a valid path string
+    if (size < 1) {
+        bpf_object__close(obj);
+        return 0;
+    }
 
-    // Use a portion of the data as a string for the function name
-    const char *func_name = (const char *)data;
-    size_t func_name_len = size > 0 ? size : 1; // Ensure non-zero length
-    char func_name_buffer[256];
-    snprintf(func_name_buffer, sizeof(func_name_buffer), "%.*s", (int)func_name_len, func_name);
+    // Allocate memory for the path and copy data into it
+    path = (char *)malloc(size + 1);
+    if (!path) {
+        bpf_object__close(obj);
+        return 0;
+    }
+    memcpy(path, data, size);
+    path[size] = '\0'; // Null-terminate to ensure it's a valid string
 
-    // Use a fixed string for the binary path as a placeholder
-    const char *binary_path = "/bin/ls";
-
-    // Create a dummy bpf_program and bpf_uprobe_multi_opts
-    struct bpf_program *prog = (struct bpf_program *)0x1; // Dummy non-NULL pointer
-    struct bpf_uprobe_multi_opts opts = {};
+    // To maximize fuzzing effectiveness, ensure path is not empty
+    if (strlen(path) == 0) {
+        free(path);
+        bpf_object__close(obj);
+        return 0;
+    }
 
     // Call the function-under-test
-    struct bpf_link *link = bpf_program__attach_uprobe_multi(prog, pid, binary_path, func_name_buffer, &opts);
+    result = bpf_object__unpin_programs(obj, path);
 
-    // Clean up if necessary (depends on the actual implementation of bpf_program__attach_uprobe_multi)
-    if (link) {
-        bpf_link__destroy(link);
-    }
+    // Log the result for debugging purposes
+    printf("Result of bpf_object__unpin_programs: %d\n", result);
+
+    // Cleanup
+    free(path);
+    bpf_object__close(obj);
 
     return 0;
 }

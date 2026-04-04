@@ -1,46 +1,95 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "libbpf.h"
 
 int LLVMFuzzerTestOneInput_312(const uint8_t *data, size_t size) {
-    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
+    struct bpf_program *prog;
+    int attach_type;
+    char *target;
+    struct bpf_object *obj;
 
-    if (obj != NULL) {
-        // Call the function-under-test
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-        int result = bpf_object__load(obj);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Clean up the bpf_object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__prev_map
-
-    struct bpf_map* ret_bpf_object__prev_map_hnjjh = bpf_object__prev_map(obj, NULL);
-    if (ret_bpf_object__prev_map_hnjjh == NULL){
-    	return 0;
+    // Ensure data size is sufficient for creating a string
+    if (size < 1) {
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Load a dummy BPF object to initialize a bpf_program
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bpf_object__open_mem
+    obj = bpf_object__open_mem((const void *)data, size, NULL);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prev_map to bpf_map__initial_value
-    int ret_bpf_object__load_syvxu = bpf_object__load(obj);
-    if (ret_bpf_object__load_syvxu < 0){
-    	return 0;
+    if (!obj) {
+        return 0;
     }
 
-    void* ret_bpf_map__initial_value_rspdt = bpf_map__initial_value(ret_bpf_object__prev_map_hnjjh, (size_t *)&ret_bpf_object__load_syvxu);
-    if (ret_bpf_map__initial_value_rspdt == NULL){
-    	return 0;
-    }
+    // Get the first program from the BPF object
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__next_program with bpf_object__prev_program
+    prog = bpf_object__prev_program(obj, NULL);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
+
+    if (!prog) {
         bpf_object__close(obj);
+        return 0;
     }
+
+    // Use the first byte of data to determine the attach_type
+    attach_type = (int)data[0];
+
+    // Allocate memory for the target string and copy data into it
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_xdp
+    int ret_bpf_object__load_jqurq = bpf_object__load(obj);
+    if (ret_bpf_object__load_jqurq < 0){
+    	return 0;
+    }
+
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach_xdp with bpf_program__attach_perf_event
+    struct bpf_link* ret_bpf_program__attach_xdp_vvvez = bpf_program__attach_perf_event(prog, ret_bpf_object__load_jqurq);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    if (ret_bpf_program__attach_xdp_vvvez == NULL){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    target = (char *)malloc(size);
+    if (target == NULL) {
+        bpf_object__close(obj);
+        return 0;
+    }
+    memcpy(target, data + 1, size - 1);
+    target[size - 1] = '\0'; // Ensure null-termination
+
+    // Call the function-under-test
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__set_attach_target
+    bpf_program__set_attach_target(prog, 0, target);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+
+    // Clean up
+    free(target);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__kversion
+
+        unsigned int ret_bpf_object__kversion_gmwuy = bpf_object__kversion(obj);
+        if (ret_bpf_object__kversion_gmwuy < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+    bpf_object__close(obj);
 
     return 0;
 }

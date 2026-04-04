@@ -1,72 +1,39 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "/src/libbpf/include/uapi/linux/perf_event.h"
 #include "libbpf.h"
 
+// Define a dummy event callback function
+enum bpf_perf_event_ret dummy_event_callback_52(void *ctx, int cpu, struct perf_event_header *event) {
+    // Do nothing
+    return LIBBPF_PERF_EVENT_CONT;
+}
+
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
+    int fd = 1; // Assuming a valid file descriptor for demonstration
+    size_t page_cnt = 8; // Example page count
+    struct perf_event_attr attr;
+    struct perf_buffer_raw_opts opts;
+    struct perf_buffer *buffer;
 
-    if (obj != NULL) {
-        // Call the function-under-test
+    // Initialize perf_event_attr with some default values
+    attr.type = PERF_TYPE_SOFTWARE;
+    attr.size = sizeof(struct perf_event_attr);
+    attr.config = PERF_COUNT_SW_CPU_CLOCK;
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
+    // Initialize perf_buffer_raw_opts with some default values
+    opts.sz = sizeof(struct perf_buffer_raw_opts);
+    opts.cpu_cnt = 0;
+    opts.cpus = NULL;
+    opts.map_keys = NULL;
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__load with bpf_object__prepare
-        int result = bpf_object__prepare(obj);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Call the function-under-test
+    buffer = perf_buffer__new_raw(fd, page_cnt, &attr, dummy_event_callback_52, NULL, &opts);
 
-
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Clean up the bpf_object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__next_program
-
-    struct bpf_program* ret_bpf_object__next_program_dknpu = bpf_object__next_program(obj, NULL);
-    if (ret_bpf_object__next_program_dknpu == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_raw_tracepoint
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__attach_raw_tracepoint
-    const char rnqkfonq[1024] = "cbdkc";
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__insns
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__set_type
-
-    int ret_bpf_program__set_type_ebpuy = bpf_program__set_type(ret_bpf_object__next_program_dknpu, 0);
-    if (ret_bpf_program__set_type_ebpuy < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    const struct bpf_insn* ret_bpf_program__insns_nrsjo = bpf_program__insns(ret_bpf_object__next_program_dknpu);
-    if (ret_bpf_program__insns_nrsjo == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    struct bpf_link* ret_bpf_program__attach_raw_tracepoint_vqfkl = bpf_program__attach_raw_tracepoint(ret_bpf_object__next_program_dknpu, rnqkfonq);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_bpf_program__attach_raw_tracepoint_vqfkl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-        bpf_object__close(obj);
+    // Clean up if necessary
+    if (buffer) {
+        perf_buffer__free(buffer);
     }
 
     return 0;

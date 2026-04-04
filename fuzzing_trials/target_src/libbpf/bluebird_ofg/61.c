@@ -1,67 +1,80 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include "libbpf.h"
+#include "/src/libbpf/src/bpf.h"
+#include "/src/libbpf/src/bpf.h"
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
+    if (size < 3) {
+        return 0; // Not enough data to process
+    }
+
+    // Create a bpf_object to hold the program
     struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
-
-    if (obj != NULL) {
-        // Call the function-under-test
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-        int result = bpf_object__load(obj);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Clean up the bpf_object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__prev_map
-
-    struct bpf_map* ret_bpf_object__prev_map_hnjjh = bpf_object__prev_map(obj, NULL);
-    if (ret_bpf_object__prev_map_hnjjh == NULL){
-    	return 0;
+    if (!obj) {
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prev_map to bpf_map__initial_value
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prev_map to bpf_map__set_value_size
-    __u32 ret_bpf_map__btf_value_type_id_effgl = bpf_map__btf_value_type_id(NULL);
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_map__set_value_size with bpf_map__set_max_entries
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_map__set_max_entries with bpf_map__set_key_size
-    int ret_bpf_map__set_value_size_gknal = bpf_map__set_key_size(ret_bpf_object__prev_map_hnjjh, ret_bpf_map__btf_value_type_id_effgl);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_bpf_map__set_value_size_gknal < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_bpf_object__load_gzmbv = bpf_object__load(NULL);
-    if (ret_bpf_object__load_gzmbv < 0){
-    	return 0;
-    }
-
-    void* ret_bpf_map__initial_value_imapt = bpf_map__initial_value(ret_bpf_object__prev_map_hnjjh, (size_t *)&ret_bpf_object__load_gzmbv);
-    if (ret_bpf_map__initial_value_imapt == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Load the BPF program
+    if (bpf_object__load(obj) != 0) {
         bpf_object__close(obj);
+        return 0;
     }
+
+    // Get the first program in the object
+    struct bpf_program *prog = bpf_object__next_program(obj, NULL);
+    if (!prog) {
+        bpf_object__close(obj);
+        return 0;
+    }
+
+    // Initialize tracepoint category and name from the input data
+    char *category = (char *)malloc(size / 2 + 1);
+    char *name = (char *)malloc(size / 2 + 1);
+
+    if (!category || !name) {
+        if (category) {
+                free(category);
+        }
+        if (name) {
+                free(name);
+        }
+        bpf_object__close(obj);
+        return 0;
+    }
+
+    memcpy(category, data, size / 2);
+    category[size / 2] = '\0';
+
+    memcpy(name, data + size / 2, size / 2);
+    name[size / 2] = '\0';
+
+    // Initialize a dummy bpf_tracepoint_opts structure
+    struct bpf_tracepoint_opts opts;
+    memset(&opts, 0, sizeof(opts));
+
+    // Call the function-under-test
+    struct bpf_link *link = bpf_program__attach_tracepoint_opts(prog, category, name, &opts);
+
+    // Cleanup
+    if (link) {
+        bpf_link__destroy(link);
+    }
+    free(category);
+    free(name);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to libbpf_probe_bpf_map_type
+
+        int ret_libbpf_probe_bpf_map_type_yejbs = libbpf_probe_bpf_map_type(0, (const void *)obj);
+        if (ret_libbpf_probe_bpf_map_type_yejbs < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+    bpf_object__close(obj);
 
     return 0;
 }

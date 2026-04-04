@@ -4,37 +4,32 @@
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
     struct bpf_program *prog = NULL;
-    struct bpf_link *link = NULL;
     struct bpf_object *obj = NULL;
-    int err;
+    struct bpf_line_info *line_info;
 
-    // Initialize BPF object from data
+    // Initialize BPF object from provided data
     obj = bpf_object__open_mem(data, size, NULL);
     if (!obj) {
         return 0;
     }
 
-    // Load BPF program
-    err = bpf_object__load(obj);
-    if (err) {
+    // Load the BPF object
+    if (bpf_object__load(obj) < 0) {
         bpf_object__close(obj);
         return 0;
     }
 
-    // Get the first program in the object
+    // Get the first program in the BPF object
     prog = bpf_object__next_program(obj, NULL);
     if (!prog) {
         bpf_object__close(obj);
         return 0;
     }
 
-    // Attach the BPF program as a tracepoint
-    link = bpf_program__attach_trace(prog);
+    // Call the function-under-test
+    line_info = bpf_program__line_info(prog);
 
     // Clean up
-    if (link) {
-        bpf_link__destroy(link);
-    }
     bpf_object__close(obj);
 
     return 0;

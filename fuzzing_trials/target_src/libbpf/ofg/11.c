@@ -1,28 +1,37 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "/src/libbpf/src/libbpf.h"
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient for our needs
-    if (size < sizeof(enum bpf_prog_type) + sizeof(enum bpf_func_id)) {
+    struct bpf_object *obj;
+    char path[256];
+    int fd;
+
+    // Initialize a bpf_object
+    obj = bpf_object__open_mem(data, size, NULL);
+    if (!obj) {
         return 0;
     }
 
-    // Extract enum bpf_prog_type from data
-    enum bpf_prog_type prog_type = *(enum bpf_prog_type *)data;
-    data += sizeof(enum bpf_prog_type);
-    size -= sizeof(enum bpf_prog_type);
-
-    // Extract enum bpf_func_id from data
-    enum bpf_func_id func_id = *(enum bpf_func_id *)data;
-    data += sizeof(enum bpf_func_id);
-    size -= sizeof(enum bpf_func_id);
-
-    // Use the remaining data as the const void * argument
-    const void *arg = (const void *)data;
+    // Create a temporary file to use as the path
+    strncpy(path, "/tmp/fuzzfileXXXXXX", sizeof(path));
+    fd = mkstemp(path);
+    if (fd == -1) {
+        bpf_object__close(obj);
+        return 0;
+    }
+    close(fd);
 
     // Call the function-under-test
-    libbpf_probe_bpf_helper(prog_type, func_id, arg);
+    bpf_object__unpin_maps(obj, path);
+
+    // Clean up
+    unlink(path);
+    bpf_object__close(obj);
 
     return 0;
 }

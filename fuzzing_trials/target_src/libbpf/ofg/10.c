@@ -1,32 +1,28 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <stddef.h>
 #include "/src/libbpf/src/libbpf.h"
 
+// Define a mock structure for bpf_map to use in the fuzzing harness
+struct bpf_map {
+    int dummy; // Placeholder member to ensure non-NULL structure
+};
+
+// Fuzzing harness for bpf_map__ifindex
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for meaningful fuzzing
-    if (size < 2) {
+    // Ensure there is enough data to initialize the bpf_map structure
+    if (size < sizeof(struct bpf_map)) {
         return 0;
     }
 
-    // Initialize parameters for bpf_program__attach_uprobe_multi
-    struct bpf_program *prog = (struct bpf_program *)data; // Cast data to a bpf_program pointer
-    pid_t pid = (pid_t)data[0]; // Use the first byte of data as a pid
-    const char *binary_path = "/bin/ls"; // Example binary path, should be valid
-    const char *function_name = "main"; // Example function name, should be valid
-
-    // Allocate memory for bpf_uprobe_multi_opts and initialize it
-    struct bpf_uprobe_multi_opts opts;
-    opts.sz = sizeof(struct bpf_uprobe_multi_opts); // Set the size of the options struct
+    // Initialize a bpf_map structure using the input data
+    struct bpf_map map;
+    map.dummy = *(int *)data; // Use the input data to set the dummy member
 
     // Call the function-under-test
-    struct bpf_link *link = bpf_program__attach_uprobe_multi(prog, pid, binary_path, function_name, &opts);
+    __u32 ifindex = bpf_map__ifindex(&map);
 
-    // Clean up if necessary
-    if (link) {
-        bpf_link__destroy(link);
-    }
+    // Use the result (if necessary) to prevent compiler optimizations
+    (void)ifindex;
 
     return 0;
 }

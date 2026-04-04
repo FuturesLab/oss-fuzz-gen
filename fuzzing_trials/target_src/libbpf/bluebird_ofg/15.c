@@ -1,43 +1,40 @@
 #include <stdint.h>
 #include <stddef.h>
-#include "libbpf.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+// Assuming the definition of DW_TAG_enumeration_typebpf_attach_type
+typedef struct {
+    int dummy; // Placeholder for actual fields
+} DW_TAG_enumeration_typebpf_attach_type;
+
+// Function-under-test declaration
+int libbpf_attach_type_by_name(const char *name, DW_TAG_enumeration_typebpf_attach_type *attach_type);
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
-
-    if (obj != NULL) {
-        // Call the function-under-test
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-        int result = bpf_object__load(obj);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Clean up the bpf_object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__prev_map
-
-    struct bpf_map* ret_bpf_object__prev_map_hnjjh = bpf_object__prev_map(obj, NULL);
-    if (ret_bpf_object__prev_map_hnjjh == NULL){
-    	return 0;
+    // Ensure the data is not empty
+    if (size == 0) {
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prev_map to bpf_map__initial_value
-    size_t pnzxmqqq = 1;
-
-    void* ret_bpf_map__initial_value_vwrng = bpf_map__initial_value(ret_bpf_object__prev_map_hnjjh, &pnzxmqqq);
-    if (ret_bpf_map__initial_value_vwrng == NULL){
-    	return 0;
+    // Allocate memory for the name string and ensure it's null-terminated
+    char *name = (char *)malloc(size + 1);
+    if (name == NULL) {
+        return 0; // Memory allocation failed
     }
+    memcpy(name, data, size);
+    name[size] = '\0';
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Initialize the DW_TAG_enumeration_typebpf_attach_type structure
+    DW_TAG_enumeration_typebpf_attach_type attach_type;
+    memset(&attach_type, 0, sizeof(attach_type));
 
-        bpf_object__close(obj);
-    }
+    // Call the function-under-test
+    libbpf_attach_type_by_name(name, &attach_type);
+
+    // Free allocated memory
+    free(name);
 
     return 0;
 }

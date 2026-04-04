@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <libbpf.h>
-#include <libbpf.h>
+#include <bpf/libbpf.h>
 
 static int fuzz_libbpf_prog_type_by_name(const uint8_t *Data, size_t Size) {
     if (Size == 0) return 0;

@@ -1,52 +1,57 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "libbpf.h"
 
+// Define the fuzzing function
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
-
-    if (obj != NULL) {
-        // Call the function-under-test
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-        int result = bpf_object__load(obj);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Clean up the bpf_object
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__unpin_programs
-
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__unpin_programs with bpf_object__pin
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_object__pin
-        int ret_bpf_object__unpin_programs_xzkno = bpf_object__pin(obj, NULL);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        if (ret_bpf_object__unpin_programs_xzkno < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__unpin
-
-    int ret_bpf_object__unpin_arhfn = bpf_object__unpin(obj, (const char *)"w");
-    if (ret_bpf_object__unpin_arhfn < 0){
-    	return 0;
+    // Ensure the input size is sufficient to initialize the structure
+    if (size < sizeof(struct bpf_object_skeleton)) {
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-        bpf_object__close(obj);
+    // Allocate memory for bpf_object_skeleton
+    struct bpf_object_skeleton *skeleton = malloc(sizeof(struct bpf_object_skeleton));
+    if (skeleton == NULL) {
+        return 0;
     }
+
+    // Initialize the skeleton with the input data
+    // Note: Ensure that the data is correctly mapped to the structure fields.
+    memcpy(skeleton, data, sizeof(struct bpf_object_skeleton));
+
+    // Create an options structure for opening the skeleton
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts), // Ensure the size is set correctly
+    };
+
+    // Open the skeleton with the provided options
+    if (bpf_object__open_skeleton(skeleton, &opts) != 0) {
+        free(skeleton);
+        return 0;
+    }
+
+    // Call the function-under-test
+    int result = bpf_object__load_skeleton(skeleton);
+    if (result != 0) {
+        // Handle error if needed
+        bpf_object__destroy_skeleton(skeleton);
+        return 0;
+    }
+
+    // Perform additional operations to ensure the skeleton is utilized
+    // Ensure that the skeleton is used in a meaningful way
+    // For demonstration, assume we are calling a hypothetical function
+    // bpf_object__do_something(skeleton);
+
+    // Ensure the skeleton is utilized by calling a valid function
+    // Here we assume bpf_object__do_something is a valid function for demonstration
+    // Note: Replace with actual function if available
+    // bpf_object__do_something(skeleton);
+
+    // Free the allocated memory
+    bpf_object__destroy_skeleton(skeleton);
 
     return 0;
 }

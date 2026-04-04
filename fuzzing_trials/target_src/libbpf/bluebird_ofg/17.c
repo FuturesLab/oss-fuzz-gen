@@ -1,36 +1,83 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "/src/libbpf/include/uapi/linux/perf_event.h"
 #include "libbpf.h"
 
+// Define a dummy event callback function
+enum bpf_perf_event_ret dummy_event_callback(void *ctx, int cpu, struct perf_event_header *event) {
+    // No-op
+    return LIBBPF_PERF_EVENT_CONT;
+}
+
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
+    // Initialize variables for perf_buffer__new_raw
+    int fd = 1; // File descriptor, using 1 as a placeholder
+    size_t page_cnt = 8; // Number of pages
+    struct perf_event_attr attr;
+    perf_buffer_event_fn event_cb = dummy_event_callback;
+    void *ctx = NULL; // Context, can be NULL
+    struct perf_buffer_raw_opts opts;
 
-    if (obj != NULL) {
-        // Call the function-under-test
+    // Initialize perf_event_attr with some values
+    attr.type = PERF_TYPE_SOFTWARE;
+    attr.size = sizeof(struct perf_event_attr);
+    attr.config = PERF_COUNT_SW_CPU_CLOCK;
+    attr.sample_period = 1000;
+    attr.sample_type = PERF_SAMPLE_RAW;
+    attr.read_format = 0;
+    attr.disabled = 1;
+    attr.inherit = 1;
+    attr.pinned = 1;
+    attr.exclusive = 0;
+    attr.exclude_user = 0;
+    attr.exclude_kernel = 0;
+    attr.exclude_hv = 0;
+    attr.exclude_idle = 0;
+    attr.mmap = 1;
+    attr.comm = 1;
+    attr.freq = 0;
+    attr.inherit_stat = 0;
+    attr.enable_on_exec = 0;
+    attr.task = 0;
+    attr.watermark = 0;
+    attr.precise_ip = 0;
+    attr.mmap_data = 0;
+    attr.sample_id_all = 0;
+    attr.exclude_host = 0;
+    attr.exclude_guest = 0;
+    attr.exclude_callchain_kernel = 0;
+    attr.exclude_callchain_user = 0;
+    attr.mmap2 = 0;
+    attr.comm_exec = 0;
+    attr.use_clockid = 0;
+    attr.context_switch = 0;
+    attr.write_backward = 0;
+    attr.namespaces = 0;
+    attr.ksymbol = 0;
+    attr.bpf_event = 0;
+    attr.aux_output = 0;
+    attr.cgroup = 0;
+    attr.text_poke = 0;
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-        int result = bpf_object__load(obj);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Use fuzzing input to modify some attributes dynamically
+    if (size >= sizeof(struct perf_event_attr)) {
+        // Copy fuzzing data into the attr structure
+        memcpy(&attr, data, sizeof(struct perf_event_attr));
+    }
 
+    // Initialize perf_buffer_raw_opts with some values
+    opts.sz = sizeof(struct perf_buffer_raw_opts);
+    opts.cpu_cnt = 0; // Default to open on all CPUs
+    opts.cpus = NULL; // No specific CPUs
+    opts.map_keys = NULL; // No specific map keys
 
+    // Call the function-under-test
+    struct perf_buffer *pb = perf_buffer__new_raw(fd, page_cnt, &attr, event_cb, ctx, &opts);
 
-        // Clean up the bpf_object
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__unpin_programs
-
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_object__unpin_programs
-        int ret_bpf_object__unpin_programs_usdfq = bpf_object__unpin_programs(obj, (const char *)"r");
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        if (ret_bpf_object__unpin_programs_usdfq < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        bpf_object__close(obj);
+    // Clean up if necessary
+    if (pb != NULL) {
+        perf_buffer__free(pb);
     }
 
     return 0;

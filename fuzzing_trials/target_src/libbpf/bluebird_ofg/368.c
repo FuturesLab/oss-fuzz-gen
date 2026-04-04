@@ -5,116 +5,134 @@
 #include "libbpf.h"
 
 int LLVMFuzzerTestOneInput_368(const uint8_t *data, size_t size) {
+    struct bpf_program *prog;
+    int attach_type;
+    char *target;
+    struct bpf_object *obj;
+
+    // Ensure data size is sufficient for creating a string
     if (size < 1) {
         return 0;
     }
 
-    // Ensure the data is null-terminated to safely use it as a string
-    char *target = (char *)malloc(size + 1);
-    if (!target) {
-        return 0;
-    }
-    memcpy(target, data, size);
-    target[size] = '\0';
-
-    // Initialize libbpf
-    libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-
-    // Create a new BPF program object
-    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
+    // Load a dummy BPF object to initialize a bpf_program
+    obj = bpf_object__open_mem(data, size, NULL);
     if (!obj) {
-        free(target);
         return 0;
     }
 
-    struct bpf_program *prog = bpf_object__next_program(obj, NULL);
-    if (!prog) {
-        bpf_object__close(obj);
-        free(target);
-        return 0;
-    }
+    // Get the first program from the BPF object
 
-    int attach_type = (int)data[0]; // Use the first byte of data as an integer
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__set_attach_target
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__set_attach_target
-    int result = bpf_program__set_attach_target(prog, 64, target);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__load
 
 
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_attach_target to perf_buffer__buffer
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bpf_object__open
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_attach_target to bpf_object__next_program
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_attach_target to bpf_program__set_autoattach
-
-    bpf_program__set_autoattach(prog, 0);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-    int ret_bpf_object__prepare_juach = bpf_object__load(obj);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__load with bpf_object__prepare
+    int ret_bpf_object__load_nnecp = bpf_object__prepare(obj);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
 
-    if (ret_bpf_object__prepare_juach < 0){
-    	return 0;
-    }
-
-    struct bpf_program* ret_bpf_object__next_program_pgwwg = bpf_object__next_program(obj, prog);
-    if (ret_bpf_object__next_program_pgwwg == NULL){
+    if (ret_bpf_object__load_nnecp < 0){
     	return 0;
     }
 
     // End mutation: Producer.APPEND_MUTATOR
 
-    struct bpf_object* ret_bpf_object__open_xowhv = bpf_object__open((const char *)"r");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    prog = bpf_object__next_program(obj, NULL);
+    if (!prog) {
+        bpf_object__close(obj);
+        return 0;
+    }
 
+    // Use the first byte of data to determine the attach_type
+    attach_type = (int)data[0];
 
-    if (ret_bpf_object__open_xowhv == NULL){
+    // Allocate memory for the target string and copy data into it
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_kprobe
+
+    struct bpf_link* ret_bpf_program__attach_kprobe_kelcs = bpf_program__attach_kprobe(prog, 1, NULL);
+    if (ret_bpf_program__attach_kprobe_kelcs == NULL){
     	return 0;
     }
-    size_t wyxitjxc = -1;
 
+    // End mutation: Producer.APPEND_MUTATOR
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of perf_buffer__buffer
-    size_t cxkcjewp = size;
-    int ret_perf_buffer__buffer_wjhdx = perf_buffer__buffer(NULL, result, (void **)&ret_bpf_object__open_xowhv, &cxkcjewp);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    target = (char *)malloc(size);
+    if (target == NULL) {
+        bpf_object__close(obj);
+        return 0;
+    }
+    memcpy(target, data + 1, size - 1);
+    target[size - 1] = '\0'; // Ensure null-termination
 
+    // Call the function-under-test
+    bpf_program__set_attach_target(prog, attach_type, target);
 
-    if (ret_perf_buffer__buffer_wjhdx < 0){
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_attach_target to bpf_program__attach_iter
+
+    struct bpf_link* ret_bpf_program__attach_iter_ozpnh = bpf_program__attach_iter(prog, NULL);
+    if (ret_bpf_program__attach_iter_ozpnh == NULL){
     	return 0;
     }
 
     // End mutation: Producer.APPEND_MUTATOR
 
+    free(target);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from perf_buffer__buffer to bpf_program__pin
-    bpf_program__unload(prog);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__kversion
 
-    int ret_bpf_program__pin_cxzmm = bpf_program__pin(prog, &ret_bpf_object__open_xowhv);
-    if (ret_bpf_program__pin_cxzmm < 0){
-    	return 0;
-    }
+        unsigned int ret_bpf_object__kversion_gmwuy = bpf_object__kversion(obj);
+        if (ret_bpf_object__kversion_gmwuy < 0){
+        	return 0;
+        }
 
-    // End mutation: Producer.APPEND_MUTATOR
+        // End mutation: Producer.APPEND_MUTATOR
+
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to perf_buffer__buffer
+        size_t ret_bpf_program__insn_cnt_uqzcq = bpf_program__insn_cnt(NULL);
+        if (ret_bpf_program__insn_cnt_uqzcq < 0){
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__insn_cnt to bpf_object__open_mem
+        struct bpf_func_info* ret_bpf_program__func_info_xeumw = bpf_program__func_info(prog);
+        if (ret_bpf_program__func_info_xeumw == NULL){
+        	return 0;
+        }
+
+        struct bpf_object* ret_bpf_object__open_mem_lgsfw = bpf_object__open_mem((const void *)ret_bpf_program__func_info_xeumw, ret_bpf_program__insn_cnt_uqzcq, NULL);
+        if (ret_bpf_object__open_mem_lgsfw == NULL){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+        size_t ret_bpf_program__insn_cnt_kqsiq = bpf_program__insn_cnt(NULL);
+        if (ret_bpf_program__insn_cnt_kqsiq < 0){
+        	return 0;
+        }
+
+        int ret_perf_buffer__buffer_tjprl = perf_buffer__buffer(NULL, (int )ret_bpf_program__insn_cnt_uqzcq, (void **)&obj, &ret_bpf_program__insn_cnt_kqsiq);
+        if (ret_perf_buffer__buffer_tjprl < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__find_map_by_name
+
+        struct bpf_map* ret_bpf_object__find_map_by_name_vfeyw = bpf_object__find_map_by_name(obj, (const char *)"w");
+        if (ret_bpf_object__find_map_by_name_vfeyw == NULL){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
 
     bpf_object__close(obj);
-    free(target);
 
     return 0;
 }

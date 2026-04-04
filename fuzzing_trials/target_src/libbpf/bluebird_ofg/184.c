@@ -1,71 +1,189 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "libbpf.h"
 
 int LLVMFuzzerTestOneInput_184(const uint8_t *data, size_t size) {
-    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
+    struct bpf_program *prog;
+    int attach_type;
+    char *target;
+    struct bpf_object *obj;
 
-    if (obj != NULL) {
-        // Call the function-under-test
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-        int result = bpf_object__load(obj);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Clean up the bpf_object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__prev_map
-
-    struct bpf_map* ret_bpf_object__prev_map_hnjjh = bpf_object__prev_map(obj, NULL);
-    if (ret_bpf_object__prev_map_hnjjh == NULL){
-    	return 0;
+    // Ensure data size is sufficient for creating a string
+    if (size < 1) {
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prev_map to bpf_map__initial_value
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prev_map to bpf_map__set_value_size
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prev_map to bpf_map__set_autoattach
-    bool ret_bpf_map__is_pinned_mpivn = bpf_map__is_pinned(ret_bpf_object__prev_map_hnjjh);
-    if (ret_bpf_map__is_pinned_mpivn == 0){
-    	return 0;
+    // Load a dummy BPF object to initialize a bpf_program
+    obj = bpf_object__open_mem(data, size, NULL);
+    if (!obj) {
+        return 0;
     }
 
-    int ret_bpf_map__set_autoattach_knlzp = bpf_map__set_autoattach(ret_bpf_object__prev_map_hnjjh, ret_bpf_map__is_pinned_mpivn);
-    if (ret_bpf_map__set_autoattach_knlzp < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    __u32 ret_bpf_map__btf_value_type_id_effgl = bpf_map__btf_value_type_id(NULL);
-
-    int ret_bpf_map__set_value_size_gknal = bpf_map__set_value_size(ret_bpf_object__prev_map_hnjjh, ret_bpf_map__btf_value_type_id_effgl);
-    if (ret_bpf_map__set_value_size_gknal < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_bpf_object__load_gzmbv = bpf_object__load(NULL);
-    if (ret_bpf_object__load_gzmbv < 0){
-    	return 0;
-    }
-
-    void* ret_bpf_map__initial_value_imapt = bpf_map__initial_value(ret_bpf_object__prev_map_hnjjh, (size_t *)&ret_bpf_object__load_gzmbv);
-    if (ret_bpf_map__initial_value_imapt == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Get the first program from the BPF object
+    prog = bpf_object__next_program(obj, NULL);
+    if (!prog) {
         bpf_object__close(obj);
+        return 0;
     }
+
+    // Use the first byte of data to determine the attach_type
+    attach_type = (int)data[0];
+
+    // Allocate memory for the target string and copy data into it
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_xdp
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__set_ifindex
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_uprobe_opts
+
+    struct bpf_link* ret_bpf_program__attach_uprobe_opts_adeiv = bpf_program__attach_uprobe_opts(prog, 0, (const char *)"w", 1, NULL);
+    if (ret_bpf_program__attach_uprobe_opts_adeiv == NULL){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    __u32 ret_bpf_map__btf_value_type_id_vsubl = bpf_map__btf_value_type_id(NULL);
+
+    bpf_program__set_ifindex(prog, ret_bpf_map__btf_value_type_id_vsubl);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__load with bpf_object__prepare
+    int ret_bpf_object__load_jqurq = bpf_object__prepare(obj);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    if (ret_bpf_object__load_jqurq < 0){
+    	return 0;
+    }
+
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach_xdp with bpf_program__attach_perf_event
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__attach_perf_event
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__load to bpf_program__set_log_buf
+    bpf_program__unload(prog);
+
+    int ret_bpf_program__set_log_buf_mrtbk = bpf_program__set_log_buf(prog, NULL, (size_t )ret_bpf_object__load_jqurq);
+    if (ret_bpf_program__set_log_buf_mrtbk < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    struct bpf_link* ret_bpf_program__attach_xdp_vvvez = bpf_program__attach_perf_event(prog, 0);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    if (ret_bpf_program__attach_xdp_vvvez == NULL){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__attach_perf_event to bpf_map__lookup_and_delete_elem
+    struct bpf_map* ret_bpf_map__inner_map_rpohz = bpf_map__inner_map(NULL);
+    if (ret_bpf_map__inner_map_rpohz == NULL){
+    	return 0;
+    }
+    int ret_bpf_program__fd_qhfwm = bpf_program__fd(prog);
+    if (ret_bpf_program__fd_qhfwm < 0){
+    	return 0;
+    }
+    int ret_bpf_object__load_skeleton_spunv = bpf_object__load_skeleton(NULL);
+    if (ret_bpf_object__load_skeleton_spunv < 0){
+    	return 0;
+    }
+    __u64 ret_bpf_map__map_extra_igjrk = bpf_map__map_extra(NULL);
+
+    int ret_bpf_map__lookup_and_delete_elem_czxnb = bpf_map__lookup_and_delete_elem(ret_bpf_map__inner_map_rpohz, (const void *)data, (size_t )ret_bpf_program__fd_qhfwm, (void *)ret_bpf_program__attach_xdp_vvvez, (size_t )ret_bpf_object__load_skeleton_spunv, ret_bpf_map__map_extra_igjrk);
+    if (ret_bpf_map__lookup_and_delete_elem_czxnb < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    target = (char *)malloc(size);
+    if (target == NULL) {
+        bpf_object__close(obj);
+        return 0;
+    }
+    memcpy(target, data + 1, size - 1);
+    target[size - 1] = '\0'; // Ensure null-termination
+
+    // Call the function-under-test
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__set_attach_target
+    bpf_program__set_attach_target(prog, 0, target);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+
+    // Clean up
+    free(target);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__kversion
+
+        unsigned int ret_bpf_object__kversion_gmwuy = bpf_object__kversion(obj);
+        if (ret_bpf_object__kversion_gmwuy < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__token_fd
+
+        int ret_bpf_object__token_fd_zxxqt = bpf_object__token_fd(obj);
+        if (ret_bpf_object__token_fd_zxxqt < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to perf_buffer__buffer
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__token_fd to libbpf_strerror
+        int ret_bpf_link__destroy_sakur = bpf_link__destroy(ret_bpf_program__attach_xdp_vvvez);
+        if (ret_bpf_link__destroy_sakur < 0){
+        	return 0;
+        }
+
+        int ret_libbpf_strerror_rxopo = libbpf_strerror(ret_bpf_link__destroy_sakur, NULL, (size_t )ret_bpf_object__token_fd_zxxqt);
+        if (ret_libbpf_strerror_rxopo < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+        size_t ret_bpf_program__insn_cnt_ckkfi = bpf_program__insn_cnt(prog);
+        if (ret_bpf_program__insn_cnt_ckkfi < 0){
+        	return 0;
+        }
+        int ret_libbpf_unregister_prog_handler_fhumd = libbpf_unregister_prog_handler(1);
+        if (ret_libbpf_unregister_prog_handler_fhumd < 0){
+        	return 0;
+        }
+
+        int ret_perf_buffer__buffer_rayhs = perf_buffer__buffer(NULL, (int )ret_bpf_program__insn_cnt_ckkfi, (void **)&obj, (size_t *)&ret_libbpf_unregister_prog_handler_fhumd);
+        if (ret_perf_buffer__buffer_rayhs < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+    bpf_object__close(obj);
 
     return 0;
 }

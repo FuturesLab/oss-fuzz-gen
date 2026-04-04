@@ -1,29 +1,23 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "/src/libbpf/src/libbpf.h"
 
-// Define a mock bpf_program structure for testing
-struct bpf_program {
-    // Add necessary fields here if needed for testing
-};
+int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
+    struct bpf_link *link = NULL;
 
-// Remove the redefinition of bpf_kprobe_multi_opts since it's already defined in libbpf.h
+    // Ensure that we have at least the size of a pointer to work with
+    if (size < sizeof(struct bpf_link *)) {
+        return 0;
+    }
 
-extern int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    struct bpf_program prog;
-    struct bpf_kprobe_multi_opts opts;
-    struct bpf_link *link;
-    const char *function_name = "test_function";
+    // Cast the data to a bpf_link pointer
+    link = (struct bpf_link *)data;
 
-    // Initialize the bpf_program and bpf_kprobe_multi_opts structures with data
-    // For simplicity, we are not using data to initialize these structures in this example
-    // In a real scenario, you might want to populate these structures with meaningful data
+    // Call the function-under-test
+    int result = bpf_link__unpin(link);
 
-    // Call the function under test
-    link = bpf_program__attach_kprobe_multi_opts(&prog, function_name, &opts);
-
-    // Normally, you would perform some checks or further operations with 'link'
-    // For fuzzing purposes, we just ensure the function is called
+    // Optionally, you can do something with the result if needed
+    // For example, you could log it or use it in further logic
 
     return 0;
 }
