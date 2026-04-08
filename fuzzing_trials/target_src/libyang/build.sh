@@ -34,7 +34,7 @@ fi
 static_pcre=($(find /src/pcre2 -name "libpcre2-8.a"))
 
 for fuzzer in lyd_parse_mem_xml; do
-  $CC $CFLAGS -r /src/synthesized_driver/*.c* -I./libyang -I./compat
+  $CC $CFLAGS -o ${fuzzer}.o -r /src/synthesized_driver/*.c* -I./libyang -I./compat
   $CXX $CXXFLAGS ${fuzzer}.o -o $OUT/${fuzzer} \
     ./libyang.a ${static_pcre}
 done
