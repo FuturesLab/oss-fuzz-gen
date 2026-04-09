@@ -45,4 +45,4 @@ libhts.a -Wl,--start-group -lz -lbz2 -llzma -lcurl -lidn2 -lnghttp2 \
 
 cp $OUT/hts_open_fuzzer $OUT/fuzz_driver_$SANITIZER
 
-zip -j $OUT/hts_open_fuzzer_seed_corpus.zip test/*.sam test/*.fai test/*.fa test/*.bai  test/*.cram test/*.bam test/*.crai
+zip -j $OUT/hts_open_fuzzer_seed_corpus.zip test/*.sam test/*.fai test/*.fa test/*.bai  test/*.cram test/*.bam test/*.crai 
