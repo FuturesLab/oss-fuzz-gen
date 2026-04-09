@@ -33,7 +33,7 @@ fi
 
 # Build fuzzer
 cd fuzz
-$CC $CFLAGS -c -I.. -I../src -I../tools -ogdbm_fuzzer.o -r /src/synthesized_driver/*.c* 
+$CC $CFLAGS -I.. -I../src -I../tools -ogdbm_fuzzer.o -r /src/synthesized_driver/*.c* 
 $CXX $CXXFLAGS -ogdbm_fuzzer gdbm_fuzzer.o ../tools/libgdbmapp.a ../src/.libs/libgdbm.a
 
 cp gdbm_fuzzer $OUT
