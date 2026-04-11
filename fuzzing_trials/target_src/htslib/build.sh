@@ -33,23 +33,16 @@ if [ "$SANITIZER" = "address" ]; then
 fi
 
 
-$CC $CFLAGS /src/htslib/test/fuzz/hts_open_fuzzer.c -I. -I..\
-    -o test/fuzz/hts_open_fuzzer.o \
-     ./libhts.a  -lz -lbz2 -llzma -lcurl -lcrypto -lpthread -lm
-
-# Build tests
-make -j$(nproc) test/hts_endian test/fieldarith test/hfile test/pileup test/pileup_mod \
-    test/sam test/test_bgzf test/test_expr test/test_faidx test/test_kfunc \
-    test/test_khash test/test_kstring test/test_mod test/test_nibbles test/test_realn \
-    test/test-regidx test/test_str2int test/test_time_funcs test/test_view \
-    test/test_index test/test-vcf-api test/test-vcf-sweep test/test-bcf-sr \
-    test/test-bcf-translate test/test-parse-reg test/test_introspection \
-    test/test-bcf_set_variant_type
+$CC $CFLAGS -I. -I./htslib -I.. \
+    -r /src/synthesized_driver/*.c \
+    -o test/fuzz/hts_open_fuzzer.o
 
 # build fuzzers
-$CXX $CXXFLAGS -o "$OUT/hts_open_fuzzer" test/fuzz/hts_open_fuzzer.o libhts.a -lz -lbz2 -llzma -lcurl -lcrypto -lpthread
+$CXX $CXXFLAGS -o "$OUT/hts_open_fuzzer" test/fuzz/hts_open_fuzzer.o \
+libhts.a -Wl,--start-group -lz -lbz2 -llzma -lcurl -lidn2 -lnghttp2 \
+-lrtmp -lssh -lpsl -lnettle -lgnutls -lgssapi_krb5 -lldap -llber \
+-lbrotlidec -lcrypto -lpthread -ldl -lrt -Wl,--end-group
 
 cp $OUT/hts_open_fuzzer $OUT/fuzz_driver_$SANITIZER
 
-zip -j $OUT/hts_open_fuzzer_seed_corpus.zip test/*.sam test/*.fai test/*.fa test/*.bai  test/*.cram test/*.bam test/*.crai
- 
+zip -j $OUT/hts_open_fuzzer_seed_corpus.zip test/*.sam test/*.fai test/*.fa test/*.bai  test/*.cram test/*.bam test/*.crai 

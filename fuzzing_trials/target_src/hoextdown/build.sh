@@ -31,7 +31,7 @@ if [ "$SANITIZER" = "address" ]; then
 fi
 
 # build fuzzers
-$CC $CFLAGS -c -std=c99 -Isrc \
+$CC $CFLAGS -r -std=c99 -Isrc \
     /src/synthesized_driver/*.c*  -o $WORK/hoedown_fuzzer.o
 $CXX $CXXFLAGS -std=c++11 -Isrc \
     $WORK/hoedown_fuzzer.o -o $OUT/hoedown_fuzzer "$SRC/hoextdown/libhoedown.a"

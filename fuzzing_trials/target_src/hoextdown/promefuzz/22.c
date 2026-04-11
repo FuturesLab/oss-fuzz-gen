@@ -1,0 +1,86 @@
+// This fuzz driver is generated for library hoextdown, aiming to fuzz the following functions:
+// hoedown_html_toc_renderer_new at html.c:1040:1 in html.h
+// hoedown_document_new at document.c:3979:1 in document.h
+// hoedown_document_render at document.c:4070:1 in document.h
+// hoedown_document_render_inline at document.c:4186:1 in document.h
+// hoedown_document_free at document.c:4246:1 in document.h
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include "html.h"
+#include "document.h"
+
+static void *dummy_realloc_callback(void *ptr, size_t size) {
+    return realloc(ptr, size);
+}
+
+static void dummy_free_callback(void *ptr) {
+    free(ptr);
+}
+
+static void dummy_buffer_free_callback(void *buffer) {
+    if (buffer) {
+        hoedown_buffer *buf = (hoedown_buffer *)buffer;
+        if (buf->data_free) buf->data_free(buf->data);
+        free(buf);
+    }
+}
+
+int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
+
+    int nesting_level = Data[0] % 5; // arbitrary nesting level choice
+    hoedown_renderer *renderer = hoedown_html_toc_renderer_new(nesting_level);
+
+    if (!renderer) return 0;
+
+    hoedown_extensions extensions = HOEDOWN_EXT_TABLES | HOEDOWN_EXT_FENCED_CODE;
+    size_t max_nesting = (Size > 1) ? Data[1] : 1;
+    if (max_nesting == 0) max_nesting = 1;
+
+    hoedown_user_block user_block = NULL;
+    
+    hoedown_buffer *meta = (hoedown_buffer *)malloc(sizeof(hoedown_buffer));
+    if (!meta) {
+        free(renderer);
+        return 0;
+    }
+    meta->data = NULL;
+    meta->size = 0;
+    meta->asize = 0;
+    meta->unit = 0;
+    meta->data_realloc = dummy_realloc_callback;
+    meta->data_free = dummy_free_callback;
+    meta->buffer_free = dummy_buffer_free_callback;
+
+    hoedown_document *document = hoedown_document_new(renderer, extensions, max_nesting, 0, user_block, meta);
+
+    if (document) {
+        hoedown_buffer *output_buffer = (hoedown_buffer *)malloc(sizeof(hoedown_buffer));
+        if (output_buffer) {
+            output_buffer->data = (uint8_t *)malloc(Size);
+            if (output_buffer->data) {
+                output_buffer->size = Size;
+                output_buffer->asize = Size;
+                output_buffer->unit = 1;
+                output_buffer->data_realloc = dummy_realloc_callback;
+                output_buffer->data_free = dummy_free_callback;
+                output_buffer->buffer_free = dummy_buffer_free_callback;
+
+                hoedown_document_render(document, output_buffer, Data, Size);
+                hoedown_document_render_inline(document, output_buffer, Data, Size);
+
+                output_buffer->buffer_free(output_buffer);
+            } else {
+                free(output_buffer);
+            }
+        }
+        hoedown_document_free(document);
+    }
+
+    meta->buffer_free(meta);
+    free(renderer);
+
+    return 0;
+}
