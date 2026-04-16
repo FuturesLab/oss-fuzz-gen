@@ -2,89 +2,82 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <stdint.h>
-#include <stdio.h>
-#include "/src/libyang/src/parser_data.h"
-#include "/src/libyang/src/tree_data.h"
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
+#include "/src/libyang/src/context.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static void test_ly_ctx_new(const char *search_dir, uint32_t options) {
+    struct ly_ctx *ctx = NULL;
+    if (ly_ctx_new(search_dir, options, &ctx) == LY_SUCCESS) {
+        // Test ly_ctx_set_options
+        ly_ctx_set_options(ctx, options);
+
+        // Test ly_ctx_compile
+        ly_ctx_compile(ctx);
+
+        // Test ly_ctx_set_module_imp_clb with a dummy callback
+        ly_ctx_set_module_imp_clb(ctx, NULL, NULL);
+
+        // Test ly_ctx_unset_options
+        ly_ctx_unset_options(ctx, options);
+
+        // Cleanup
+        ly_ctx_destroy(ctx);
+    }
+}
+
+static void test_ly_ctx_new_ylmem(const char *search_dir, const char *data, LYD_FORMAT format, int options) {
+    struct ly_ctx *ctx = NULL;
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_new_ylmem with ly_ctx_new_ylpath
+    if (ly_ctx_new_ylpath(search_dir, data, format, options, &ctx) == LY_SUCCESS) {
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+        // Test ly_ctx_set_options
+        ly_ctx_set_options(ctx, options);
+
+        // Test ly_ctx_compile
+        ly_ctx_compile(ctx);
+
+        // Test ly_ctx_set_module_imp_clb with a dummy callback
+        ly_ctx_set_module_imp_clb(ctx, NULL, NULL);
+
+        // Test ly_ctx_unset_options
+        ly_ctx_unset_options(ctx, options);
+
+        // Cleanup
+        ly_ctx_destroy(ctx);
     }
 }
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 4) {
+        return 0;
+    }
 
-    // Prepare inputs for lyd_new_term
-    struct lyd_node *parent = NULL;
-    const struct lys_module *module = NULL;
-    char *name = strndup((const char *)Data, Size);
-    char *value = strndup((const char *)Data, Size);
-    uint32_t options = 0;
-    struct lyd_node *node = NULL;
+    // Use the first byte as options
+    uint32_t options = Data[0];
 
-    // Fuzz lyd_new_term
-    lyd_new_term(parent, module, name, value, options, &node);
+    // Use the next byte as format
+    LYD_FORMAT format = (LYD_FORMAT)Data[1];
 
-    // Prepare inputs for lyd_parse_value_fragment
-    struct ly_ctx *ctx = NULL;
-    char *path = strndup((const char *)Data, Size);
-    struct ly_in *in = NULL;
-    LYD_FORMAT format = LYD_JSON;
-    uint32_t new_val_options = 0;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-    struct lyd_node *tree = NULL;
+    // Use the rest as search_dir and data
+    char *search_dir = strndup((const char *)Data + 2, (Size - 2) / 2);
+    char *data = strndup((const char *)Data + 2 + (Size - 2) / 2, (Size - 2) / 2);
 
-    // Write to dummy file
-    write_dummy_file(Data, Size);
+    // Test ly_ctx_new
+    test_ly_ctx_new(search_dir, options);
 
-    // Fuzz lyd_parse_value_fragment
-    lyd_parse_value_fragment(ctx, path, in, format, new_val_options, parse_options, validate_options, &tree);
+    // Test ly_ctx_new_ylmem
+    test_ly_ctx_new_ylmem(search_dir, data, format, options);
 
-    // Prepare inputs for lyd_new_path2
-    void *value_path = NULL;
-    uint64_t value_size_bits = 0;
-    uint32_t any_hints = 0;
-    struct lyd_node *new_parent = NULL;
-    struct lyd_node *new_node = NULL;
-
-    // Fuzz lyd_new_path2
-    lyd_new_path2(parent, ctx, path, value_path, value_size_bits, any_hints, options, &new_parent, &new_node);
-
-    // Prepare inputs for lyd_new_attr2
-    const char *module_ns = NULL;
-    char *attr_name = strndup((const char *)Data, Size);
-    char *attr_value = strndup((const char *)Data, Size);
-    struct lyd_attr *attr = NULL;
-
-    // Fuzz lyd_new_attr2
-    lyd_new_attr2(parent, module_ns, attr_name, attr_value, &attr);
-
-    // Prepare inputs for lyd_new_list2
-    const char *keys = NULL;
-
-    // Fuzz lyd_new_list2
-    lyd_new_list2(parent, module, name, keys, options, &node);
-
-    // Prepare inputs for lyd_new_attr
-    const char *module_name = NULL;
-
-    // Fuzz lyd_new_attr
-    lyd_new_attr(parent, module_name, attr_name, attr_value, &attr);
-
-    // Cleanup
-    free(name);
-    free(value);
-    free(path);
-    free(attr_name);
-    free(attr_value);
+    free(search_dir);
+    free(data);
 
     return 0;
 }

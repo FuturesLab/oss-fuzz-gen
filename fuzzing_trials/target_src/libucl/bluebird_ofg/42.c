@@ -1,40 +1,108 @@
-#include "ucl.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Ensure there's enough data for a null-terminated string
-    if (size < 2) {
+    // Declare and initialize variables
+    ucl_object_t *ucl_obj = NULL;
+    ucl_emitter_t emitter_type = UCL_EMIT_JSON; // Corrected type name
+
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize the ucl_parser
-    struct ucl_parser *parser = ucl_parser_new(0);
+    // Create a UCL parser
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
+    struct ucl_parser *parser = ucl_parser_new(-1);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (parser == NULL) {
         return 0;
     }
 
-    // Prepare a null-terminated string from the input data
-    char *file_name = (char *)malloc(size + 1);
-    if (file_name == NULL) {
+    // Parse the input data
+    if (!ucl_parser_add_chunk(parser, data, size)) {
         ucl_parser_free(parser);
         return 0;
     }
-    memcpy(file_name, data, size);
-    file_name[size] = '\0';
 
-    // Use the first byte of data as the priority value
-    unsigned int priority = (unsigned int)data[0];
+    // Get the UCL object
+    ucl_obj = ucl_parser_get_object(parser);
+    if (ucl_obj == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-    // Call the function under test
-    bool result = ucl_parser_add_file_priority(parser, file_name, priority);
+    // Call the function-under-test
+    unsigned char *result = ucl_object_emit(ucl_obj, emitter_type);
 
-    // Clean up
-    free(file_name);
+    // Free allocated resources
+    if (result != NULL) {
+        free(result);
+    }
+    ucl_object_unref(ucl_obj);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_elt_append
+    ucl_object_t* ret_ucl_object_fromdouble_hdhsj = ucl_object_fromdouble(size);
+    if (ret_ucl_object_fromdouble_hdhsj == NULL){
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_elt_append_efsbd = ucl_elt_append(ucl_obj, ret_ucl_object_fromdouble_hdhsj);
+    if (ret_ucl_elt_append_efsbd == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_elt_append to ucl_object_reserve
+    bool ret_ucl_object_reserve_ostvt = ucl_object_reserve(ucl_obj, -1);
+    if (ret_ucl_object_reserve_ostvt == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

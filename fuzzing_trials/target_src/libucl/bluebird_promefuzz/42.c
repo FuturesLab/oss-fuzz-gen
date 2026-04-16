@@ -2,79 +2,144 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include "ucl.h"
-#include <stdint.h>
-#include <stddef.h>
+#include <sys/stat.h>
+#include <stdio.h>
 #include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-
-static ucl_object_t *create_random_ucl_object() {
-    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
-    if (obj == NULL) {
-        return NULL;
-    }
-    obj->key = NULL;
-    obj->value.iv = 0;
-    obj->next = NULL;
-    obj->prev = NULL;
-    obj->keylen = 0;
-    obj->len = 0;
-    obj->ref = 1;
-    obj->flags = 0;
-    obj->type = 0;
-    memset(obj->trash_stack, 0, sizeof(obj->trash_stack));
-    return obj;
-}
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a dummy UCL object
-    ucl_object_t *top = create_random_ucl_object();
-    if (!top) return 0;
-
-    // Create a key for deletion
-    const char *key = (const char *)Data;
-    size_t keylen = Size;
-
-    // Test ucl_object_delete_keyl
-    bool result = ucl_object_delete_keyl(top, key, keylen);
-
-    // Create another UCL object for array operations
-    ucl_object_t *elt = create_random_ucl_object();
-    if (!elt) {
-        ucl_object_free(top);
+    if (Size < 1) {
         return 0;
     }
 
-    // Test ucl_array_replace_index
-    unsigned int index = Data[0] % 10;  // Random index
-    ucl_object_t *replaced = ucl_array_replace_index(top, elt, index);
-    if (replaced) {
-        ucl_object_unref(replaced);
+    // Create a new UCL object of type UCL_OBJECT
+    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
+    if (top == NULL) {
+        return 0;
     }
 
-    // Test ucl_object_ref
-    ucl_object_t *ref_obj = ucl_object_ref(top);
+    // Convert the input data to a string
+    const char *str = (const char *)Data;
+    size_t len = Size;
 
-    // Test ucl_object_copy
-    ucl_object_t *copy_obj = ucl_object_copy(top);
-    if (copy_obj) {
-        ucl_object_unref(copy_obj);
+    // Create UCL objects from strings
+    ucl_object_t *elt1 = ucl_object_fromstring_common(str, len, UCL_STRING_TRIM);
+    ucl_object_t *elt2 = ucl_object_fromstring_common(str, len, UCL_STRING_PARSE);
+    ucl_object_t *elt3 = ucl_object_fromstring_common(str, len, UCL_STRING_ESCAPE);
+
+    // Insert keys into the UCL object
+    ucl_object_insert_key(top, elt1, "key1", 4, true);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_object_toboolean
+    bool ret_ucl_object_toboolean_jlkgh = ucl_object_toboolean(elt1);
+    if (ret_ucl_object_toboolean_jlkgh == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_insert_key(top, elt2, "key2", 4, true);
+    ucl_object_insert_key(top, elt3, "key3", 4, true);
+
+    // Open a dummy file for writing
+    FILE *fp = fopen("./dummy_file", "w");
+    if (fp == NULL) {
+        ucl_object_unref(top);
+        return 0;
     }
 
-    // Test ucl_array_delete
-    ucl_object_t *deleted = ucl_array_delete(top, elt);
-    if (deleted) {
-        ucl_object_unref(deleted);
+    // Get emitter functions for file output
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
+    if (emitter_funcs == NULL) {
+        fclose(fp);
+        ucl_object_unref(top);
+        return 0;
+    }
+
+    // Create and manage streamlined UCL emitters
+    struct ucl_emitter_context *ctx1 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON, emitter_funcs);
+    struct ucl_emitter_context *ctx2 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON_COMPACT, emitter_funcs);
+    struct ucl_emitter_context *ctx3 = ucl_object_emit_streamline_new(top, UCL_EMIT_CONFIG, emitter_funcs);
+    struct ucl_emitter_context *ctx4 = ucl_object_emit_streamline_new(top, UCL_EMIT_YAML, emitter_funcs);
+
+    // Create a new UCL object of type UCL_ARRAY
+    ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
+    if (array_obj != NULL) {
+        // Start a container for streamlined output
+        ucl_object_emit_streamline_start_container(ctx1, array_obj);
+        ucl_object_emit_streamline_start_container(ctx2, array_obj);
+        ucl_object_emit_streamline_start_container(ctx3, array_obj);
+        ucl_object_emit_streamline_start_container(ctx4, array_obj);
     }
 
     // Cleanup
-    ucl_object_unref(ref_obj);
-    ucl_object_unref(elt);
-    ucl_object_free(top);
+    if (ctx1) {
+        ucl_object_emit_streamline_finish(ctx1);
+    }
+    if (ctx2) {
+        ucl_object_emit_streamline_finish(ctx2);
+    }
+    if (ctx3) {
+        ucl_object_emit_streamline_finish(ctx3);
+    }
+    if (ctx4) {
+        ucl_object_emit_streamline_finish(ctx4);
+    }
+    if (array_obj) {
+        ucl_object_unref(array_obj);
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_typed_new to ucl_array_prepend
+    ucl_object_t* ret_ucl_object_copy_tajfz = ucl_object_copy(elt2);
+    if (ret_ucl_object_copy_tajfz == NULL){
+    	return 0;
+    }
+    bool ret_ucl_array_prepend_tbxkv = ucl_array_prepend(ret_ucl_object_copy_tajfz, array_obj);
+    if (ret_ucl_array_prepend_tbxkv == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    fclose(fp);
+    ucl_object_unref(top);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

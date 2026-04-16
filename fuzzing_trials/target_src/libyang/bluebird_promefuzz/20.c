@@ -2,147 +2,104 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include "/src/libyang/src/parser_data.h"
-#include "/src/libyang/src/tree_data.h"
+#include "libyang.h"
 
-static void fuzz_ly_pattern_compile(const uint8_t *data, size_t size) {
-    struct ly_ctx *ctx = NULL; // Optional, can be NULL
-    char *pattern = (char *)malloc(size + 1);
-    if (!pattern) {
-        return;
-    }
-    memcpy(pattern, data, size);
-    pattern[size] = '\0';
-
-    void *pat_comp = NULL;
-    LY_ERR ret = ly_pattern_compile(ctx, pattern, &pat_comp);
-    if (ret == LY_SUCCESS) {
-        ly_pattern_free(pat_comp);
-    }
-
-    free(pattern);
-}
-
-static void fuzz_ly_pattern_match(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return;
-    } // Need at least some data for pattern and string
-
-    struct ly_ctx *ctx = NULL; // Optional, can be NULL
-    size_t pattern_len = data[0] % size;
-    size_t string_len = data[1] % size;
-
-    if (pattern_len + string_len + 2 > size) {
-        return;
-    }
-
-    char *pattern = (char *)malloc(pattern_len + 1);
-    if (!pattern) {
-        return;
-    }
-    memcpy(pattern, data + 2, pattern_len);
-    pattern[pattern_len] = '\0';
-
-    char *string = (char *)malloc(string_len + 1);
-    if (!string) {
-        free(pattern);
-        return;
-    }
-    memcpy(string, data + 2 + pattern_len, string_len);
-    string[string_len] = '\0';
-
-    void *pat_comp = NULL;
-    LY_ERR ret = ly_pattern_match(ctx, pattern, string, string_len, &pat_comp);
-    if ((ret == LY_SUCCESS || ret == LY_ENOT) && pat_comp) {
-        ly_pattern_free(pat_comp);
-    }
-
-    free(pattern);
-    free(string);
-}
-
-static void fuzz_lyd_value_validate(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return;
-    } // Need some data for value
-
-    struct lysc_node *schema = NULL; // Simplified, should be a valid schema
-    char *value = (char *)malloc(size + 1);
-    if (!value) {
-        return;
-    }
-    memcpy(value, data, size);
-    value[size] = '\0';
-    
-    struct lyd_node *ctx_node = NULL; // Optional, can be NULL
-    const struct lysc_type *realtype = NULL;
-    const char *canonical = NULL;
-
-    LY_ERR ret = lyd_value_validate(schema, value, size, ctx_node, &realtype, &canonical);
-    if (ret == LY_SUCCESS && canonical) {
-        // Assuming a valid context for lydict_remove
-        // lydict_remove(ctx, canonical);
-    }
-
-    free(value);
-}
-
-static void fuzz_lyd_parse_data_path(const uint8_t *data, size_t size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    struct ly_ctx *ctx = NULL; // Simplified, should be a valid context
-    LYD_FORMAT format = 0; // Try to detect format
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-    struct lyd_node *tree = NULL;
-
-    LY_ERR ret = lyd_parse_data_path(ctx, "./dummy_file", format, parse_options, validate_options, &tree);
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_parse_data_path to lyd_insert_child
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_parse_data_path to lyd_validate_ext
-    lyd_free_all(tree);
-
-    LY_ERR ret_lyd_validate_ext_prhzr = lyd_validate_ext(&tree, NULL, 1, &tree);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    LY_ERR ret_lyd_unlink_tree_gqnds = lyd_unlink_tree(tree);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_unlink_tree to lyd_diff_tree
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_unlink_tree to lyd_validate_module_final
-
-    LY_ERR ret_lyd_validate_module_final_kdigd = lyd_validate_module_final(tree, NULL, size);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lyd_free_all(tree);
-
-    LY_ERR ret_lyd_diff_tree_vyfcd = lyd_diff_tree(tree, tree, LYD_HT_MIN_ITEMS, &tree);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    LY_ERR ret_lyd_insert_child_tvbws = lyd_insert_child(tree, tree);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-;
-    if (ret == LY_SUCCESS && tree) {
-        lyd_free_all(tree); // Assuming a valid function to free the tree
-    }
-}
+static const char *dummy_schema_name = "dummy-schema-name";
+static const char *dummy_path = "/dummy:container/list[key='value']";
+static const char *dummy_value = "dummy-value";
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    fuzz_ly_pattern_compile(Data, Size);
-    fuzz_ly_pattern_match(Data, Size);
-    fuzz_lyd_value_validate(Data, Size);
-    fuzz_lyd_parse_data_path(Data, Size);
+    struct ly_ctx *ctx = NULL;
+    const struct lys_module *module = NULL;
+    struct lyd_node *parent = NULL, *node = NULL;
+    uint32_t options = 0;
+    LY_ERR err;
+
+    // Initialize context
+    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+        return 0;
+    }
+
+    // Load a dummy module for testing
+    if (lys_parse_mem(ctx, "module dummy {namespace \"urn:dummy\";prefix d;}", LYS_IN_YANG, &module) != LY_SUCCESS) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+
+    // Fuzzing lyd_new_list3
+    const void *key_values[] = {dummy_value};
+    uint32_t value_sizes_bits[] = {8 * strlen(dummy_value)};
+    err = lyd_new_list3(parent, module, dummy_schema_name, key_values, value_sizes_bits, options, &node);
+    if (err != LY_SUCCESS && err != LY_EEXIST) {
+        // Handle error
+    }
+
+    // Fuzzing lyd_new_path
+    char *path = strndup((const char *)Data, Size);
+    if (path) {
+        err = lyd_new_path(parent, ctx, path, dummy_value, options, &node);
+        if (err != LY_SUCCESS && err != LY_EEXIST) {
+            // Handle error
+        }
+        free(path);
+    }
+
+    // Fuzzing lyd_new_inner
+    err = lyd_new_inner(parent, module, dummy_schema_name, 0, &node);
+    if (err != LY_SUCCESS) {
+        // Handle error
+    }
+
+    // Fuzzing lyd_new_list
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_new_inner to lyd_new_meta
+    LY_ERR ret_ly_ctx_compile_opkbb = ly_ctx_compile(ctx);
+    ly_pattern_free((void *)parent);
+    ly_pattern_free((void *)parent);
+    uint32_t ret_lyd_list_pos_ygcii = lyd_list_pos(NULL);
+    if (ret_lyd_list_pos_ygcii < 0){
+    	return 0;
+    }
+    struct lyd_meta *rggzylww;
+    memset(&rggzylww, 0, sizeof(rggzylww));
+
+    LY_ERR ret_lyd_new_meta_eufer = lyd_new_meta(ctx, parent, NULL, parent, parent, ret_lyd_list_pos_ygcii, &rggzylww);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    err = lyd_new_list(parent, module, dummy_schema_name, options, &node, dummy_value);
+    if (err != LY_SUCCESS) {
+        // Handle error
+    }
+
+    // Fuzzing lyd_insert_child
+    if (node) {
+        err = lyd_insert_child(parent, node);
+        if (err != LY_SUCCESS) {
+            // Handle error
+        }
+    }
+
+    // Fuzzing lyd_new_list2
+    err = lyd_new_list2(parent, module, dummy_schema_name, "[key='value']", options, &node);
+    if (err != LY_SUCCESS) {
+        // Handle error
+    }
+
+    // Cleanup
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_new_list2 to ly_ctx_new_printed
+    struct ly_ctx *gmzqbbaj;
+    memset(&gmzqbbaj, 0, sizeof(gmzqbbaj));
+
+    LY_ERR ret_ly_ctx_new_printed_wfckw = ly_ctx_new_printed((const void *)parent, &gmzqbbaj);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    lyd_free_tree(node);
+    ly_ctx_destroy(ctx);
+
     return 0;
 }

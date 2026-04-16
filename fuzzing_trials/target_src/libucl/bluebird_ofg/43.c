@@ -1,27 +1,80 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-  // Ensure that size is sufficient to extract an unsigned int for priority
-  if (size < sizeof(unsigned int)) {
+  // If size is 0, there's no data to process
+  if (size == 0) {
     return 0;
   }
 
-  // Initialize a ucl_parser object
+  // Create a new UCL parser
   struct ucl_parser *parser = ucl_parser_new(0);
   if (parser == NULL) {
     return 0;
   }
 
-  // Extract an unsigned int from the data for the priority
-  unsigned int priority = *((unsigned int *)data);
+  // Add data to the parser
+  ucl_parser_add_string(parser, (const char *)data, size);
 
-  // Call the function under test
-  bool result = ucl_parser_set_default_priority(parser, priority);
+  // Call the function-under-test
 
-  // Clean up
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_set_default_priority
+  unsigned int ret_ucl_parser_get_column_updii = ucl_parser_get_column(parser);
+  if (ret_ucl_parser_get_column_updii < 0){
+  	return 0;
+  }
+  bool ret_ucl_parser_set_default_priority_ukxja = ucl_parser_set_default_priority(parser, ret_ucl_parser_get_column_updii);
+  if (ret_ucl_parser_set_default_priority_ukxja == 0){
+  	return 0;
+  }
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  int priority = ucl_parser_get_default_priority(parser);
+
+  // Free the parser
   ucl_parser_free(parser);
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -2,216 +2,162 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include "libyang.h" // Ensure this header is included for function declarations
+#include <unistd.h>
+#include <fcntl.h>
+#include "/src/libyang/src/context.h"
+#include "/src/libyang/src/parser_schema.h"
+#include "/src/libyang/src/in.h"
 
-static void fuzz_lyd_parse_value_fragment(const uint8_t *Data, size_t Size) {
-    if (Size < 5) {
-        return;
-    }
-
+static struct ly_ctx *create_context() {
     struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        return;
+    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+        return NULL;
     }
-
-    struct ly_in *in = NULL;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_new to lyd_validate_all
-    struct lyd_node *qlkpjbqz;
-    memset(&qlkpjbqz, 0, sizeof(qlkpjbqz));
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of lyd_validate_all
-    LY_ERR ret_lyd_validate_all_suyye = lyd_validate_all(&qlkpjbqz, ctx, 1, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    if (ly_in_new_memory((const char *)Data, &in)) {
-        ly_ctx_destroy(ctx);
-        return;
-    }
-
-    const char *path = "/path/to/node";
-    LYD_FORMAT format = LYD_JSON;
-    uint32_t new_val_options = 0;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-    struct lyd_node *tree = NULL;
-
-    lyd_parse_value_fragment(ctx, path, in, format, new_val_options, parse_options, validate_options, &tree);
-
-    lyd_free_all(tree);
-    ly_in_free(in, 0);
-    ly_ctx_destroy(ctx);
+    return ctx;
 }
 
-static void fuzz_lyd_parse_data_mem(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
+static void cleanup_context(struct ly_ctx *ctx) {
+    if (ctx) {
+        ly_ctx_destroy(ctx);
     }
-
-    // Ensure null-termination of input data
-    char *data_copy = (char *)malloc(Size + 1);
-    if (!data_copy) {
-        return;
-    }
-    memcpy(data_copy, Data, Size);
-    data_copy[Size] = '\0';
-
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        free(data_copy);
-        return;
-    }
-
-    LYD_FORMAT format = LYD_JSON;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-    struct lyd_node *tree = NULL;
-
-    lyd_parse_data_mem(ctx, data_copy, format, parse_options, validate_options, &tree);
-
-    lyd_free_all(tree);
-    free(data_copy);
-    ly_ctx_destroy(ctx);
 }
 
-static void fuzz_lyd_new_path(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
+static void fuzz_ly_ctx_get_module_ns(const struct ly_ctx *ctx, const char *ns, const char *revision) {
 
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        return;
-    }
-
-    struct lyd_node *parent = NULL;
-    const char *path = "/path/to/node";
-
-    // Ensure null-termination of input data
-    char *value_copy = (char *)malloc(Size + 1);
-    if (!value_copy) {
-        ly_ctx_destroy(ctx);
-        return;
-    }
-    memcpy(value_copy, Data, Size);
-    value_copy[Size] = '\0';
-
-    uint32_t options = 0;
-    struct lyd_node *node = NULL;
-
-    lyd_new_path(parent, ctx, path, value_copy, options, &node);
-
-    lyd_free_all(node);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_free_all to ly_ctx_get_module_imp_clb
-
-    ly_module_imp_clb ret_ly_ctx_get_module_imp_clb_ldoox = ly_ctx_get_module_imp_clb(NULL, (void **)&node);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(value_copy);
-    ly_ctx_destroy(ctx);
-}
-
-static void fuzz_lyd_parse_data_path(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
-
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        return;
-    }
-
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        ly_ctx_destroy(ctx);
-        return;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    LYD_FORMAT format = 0;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-    struct lyd_node *tree = NULL;
-
-    lyd_parse_data_path(ctx, "./dummy_file", format, parse_options, validate_options, &tree);
-
-    lyd_free_all(tree);
-    ly_ctx_destroy(ctx);
-}
-
-static void fuzz_lyd_parse_data(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
-
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        return;
-    }
-
-    struct ly_in *in = NULL;
-    if (ly_in_new_memory((const char *)Data, &in)) {
-        ly_ctx_destroy(ctx);
-        return;
-    }
-
-    LYD_FORMAT format = 0;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-    struct lyd_node *tree = NULL;
-
-    lyd_parse_data(ctx, NULL, in, format, parse_options, validate_options, &tree);
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lyd_free_all with lyd_free_tree
-    lyd_free_tree(tree);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_get_module_ns with ly_ctx_get_module
+    struct lys_module *module = ly_ctx_get_module(ctx, ns, revision);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
 
-    ly_in_free(in, 0);
-    ly_ctx_destroy(ctx);
+    // No specific cleanup required for ly_ctx_get_module_ns result
 }
 
-static void fuzz_lyd_find_path(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+static void fuzz_lys_parse(struct ly_ctx *ctx, const char *data, LYS_INFORMAT format) {
+    struct ly_in *in = NULL;
+    if (ly_in_new_memory(data, &in) != LY_SUCCESS) {
         return;
     }
+    struct lys_module *module = NULL;
+    if (lys_parse(ctx, in, format, NULL, &module) != LY_SUCCESS) {
+        // Handle error
+    }
+    ly_in_free(in, 0);
+}
 
-    struct ly_ctx *ctx = NULL;
+static void fuzz_lys_parse_fd(struct ly_ctx *ctx, int fd, LYS_INFORMAT format) {
+    struct lys_module *module = NULL;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_new
-    if (ly_ctx_new(NULL, 64, &ctx)) {
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lys_parse_fd
+    if (lys_parse_fd(ctx, LYD_HT_MIN_ITEMS, format, &module) != LY_SUCCESS) {
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
 
-        return;
+        // Handle error
     }
+    // No specific cleanup required for lys_parse_fd result
+}
 
-    struct lyd_node *ctx_node = NULL;
-    const char *path = "/path/to/node";
-    ly_bool output = 0;
-    struct lyd_node *match = NULL;
+static void fuzz_lys_parse_mem(struct ly_ctx *ctx, const char *data, LYS_INFORMAT format) {
+    struct lys_module *module = NULL;
+    if (lys_parse_mem(ctx, data, format, &module) != LY_SUCCESS) {
+        // Handle error
+    
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lys_parse_mem to ly_ctx_get_yanglib_data
+    struct lyd_node *rcnhhcbs;
+    memset(&rcnhhcbs, 0, sizeof(rcnhhcbs));
+    const char mmwxvpac[1024] = "ergqk";
 
-    lyd_find_path(ctx_node, path, output, &match);
+    LY_ERR ret_ly_ctx_get_yanglib_data_txktw = ly_ctx_get_yanglib_data(ctx, &rcnhhcbs, mmwxvpac);
 
-    ly_ctx_destroy(ctx);
+    // End mutation: Producer.APPEND_MUTATOR
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_get_yanglib_data to lyd_eval_xpath
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_get_yanglib_data to lyd_compare_siblings
+    LY_ERR ret_lyd_unlink_tree_okuqm = lyd_unlink_tree(rcnhhcbs);
+
+    LY_ERR ret_lyd_compare_siblings_jgvtc = lyd_compare_siblings(rcnhhcbs, rcnhhcbs, 0);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    ly_bool ret_ly_ctx_is_printed_zacih = ly_ctx_is_printed(ctx);
+
+    LY_ERR ret_lyd_eval_xpath_dxukh = lyd_eval_xpath(rcnhhcbs, (const char *)"r", &ret_ly_ctx_is_printed_zacih);
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+}
+    // No specific cleanup required for lys_parse_mem result
+}
+
+static void fuzz_lys_parse_path(struct ly_ctx *ctx, const char *path, LYS_INFORMAT format) {
+    struct lys_module *module = NULL;
+    if (lys_parse_path(ctx, path, format, &module) != LY_SUCCESS) {
+        // Handle error
+    }
+    // No specific cleanup required for lys_parse_path result
+}
+
+static void fuzz_ly_ctx_get_module_latest(const struct ly_ctx *ctx, const char *name) {
+    struct lys_module *module = ly_ctx_get_module_latest(ctx, name);
+    // No specific cleanup required for ly_ctx_get_module_latest result
 }
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
-    fuzz_lyd_parse_value_fragment(Data, Size);
-    fuzz_lyd_parse_data_mem(Data, Size);
-    fuzz_lyd_new_path(Data, Size);
-    fuzz_lyd_parse_data_path(Data, Size);
-    fuzz_lyd_parse_data(Data, Size);
-    fuzz_lyd_find_path(Data, Size);
+    if (Size < 1) {
+        return 0;
+    }
+
+    struct ly_ctx *ctx = create_context();
+    if (!ctx) {
+        return 0;
+    }
+
+    char *dummy_data = (char *)malloc(Size + 1);
+    if (!dummy_data) {
+        cleanup_context(ctx);
+        return 0;
+    }
+    memcpy(dummy_data, Data, Size);
+    dummy_data[Size] = '\0';
+
+    char *dummy_ns = "urn:example:namespace";
+    char *dummy_revision = "2023-10-10";
+    char *dummy_path = "./dummy_file";
+
+    // Fuzz ly_ctx_get_module_ns
+    fuzz_ly_ctx_get_module_ns(ctx, dummy_ns, dummy_revision);
+
+    // Fuzz lys_parse
+    fuzz_lys_parse(ctx, dummy_data, LYS_IN_YANG);
+
+    // Create a dummy file for lys_parse_fd
+    int fd = open(dummy_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd != -1) {
+        write(fd, dummy_data, Size);
+        lseek(fd, 0, SEEK_SET);
+        fuzz_lys_parse_fd(ctx, fd, LYS_IN_YANG);
+        close(fd);
+    }
+
+    // Fuzz lys_parse_mem
+    fuzz_lys_parse_mem(ctx, dummy_data, LYS_IN_YANG);
+
+    // Fuzz lys_parse_path
+    FILE *file = fopen(dummy_path, "w");
+    if (file) {
+        fwrite(dummy_data, 1, Size, file);
+        fclose(file);
+        fuzz_lys_parse_path(ctx, dummy_path, LYS_IN_YANG);
+    }
+
+    // Fuzz ly_ctx_get_module_latest
+    fuzz_ly_ctx_get_module_latest(ctx, "example-module");
+
+    free(dummy_data);
+    cleanup_context(ctx);
     return 0;
 }

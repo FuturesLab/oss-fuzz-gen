@@ -2,142 +2,87 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 #include "/src/libyang/src/context.h"
-#include "/src/libyang/src/parser_data.h"
 
-static void fuzz_ly_ctx_new_yldata(const uint8_t *Data, size_t Size) {
+static void test_ly_ctx_new(const char *search_dir, uint32_t options) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
-    const char *search_dir = ".";
-    int options = 0;
 
-    // Attempt to create a new context with the fuzzing data
-    ly_ctx_new_yldata(search_dir, tree, options, &ctx);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ly_ctx_new
+    if (ly_ctx_new((const char *)"w", options, &ctx) == LY_SUCCESS) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Clean up
-    if (ctx) {
+
+        // Test ly_ctx_set_options
+        ly_ctx_set_options(ctx, options);
+
+        // Test ly_ctx_compile
+        ly_ctx_compile(ctx);
+
+        // Test ly_ctx_set_module_imp_clb with a dummy callback
+        ly_ctx_set_module_imp_clb(ctx, NULL, NULL);
+
+        // Test ly_ctx_unset_options
+        ly_ctx_unset_options(ctx, options);
+
+        // Cleanup
         ly_ctx_destroy(ctx);
     }
 }
 
-static void fuzz_ly_ctx_new_ylpath(const uint8_t *Data, size_t Size) {
+static void test_ly_ctx_new_ylmem(const char *search_dir, const char *data, LYD_FORMAT format, int options) {
     struct ly_ctx *ctx = NULL;
-    const char *search_dir = ".";
-    const char *path = "./dummy_file";
-    LYD_FORMAT format = 0;
-    int options = 0;
 
-    // Write fuzzing data to a dummy file
-    FILE *file = fopen(path, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of ly_ctx_new_ylmem
+    if (ly_ctx_new_ylmem(search_dir, data, format, 1, &ctx) == LY_SUCCESS) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Attempt to create a new context with the file path
-    ly_ctx_new_ylpath(search_dir, path, format, options, &ctx);
 
-    // Clean up
-    if (ctx) {
+        // Test ly_ctx_set_options
+        ly_ctx_set_options(ctx, options);
+
+        // Test ly_ctx_compile
+        ly_ctx_compile(ctx);
+
+        // Test ly_ctx_set_module_imp_clb with a dummy callback
+        ly_ctx_set_module_imp_clb(ctx, NULL, NULL);
+
+        // Test ly_ctx_unset_options
+        ly_ctx_unset_options(ctx, options);
+
+        // Cleanup
         ly_ctx_destroy(ctx);
     }
-}
-
-static void fuzz_lyd_parse_data_path(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
-    const char *path = "./dummy_file";
-    LYD_FORMAT format = 0;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-
-    // Write fuzzing data to a dummy file
-    FILE *file = fopen(path, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-
-    // Attempt to parse the data from the file
-    lyd_parse_data_path(ctx, path, format, parse_options, validate_options, &tree);
-
-    // Clean up
-    if (tree) {
-        lyd_free_all(tree);
-    }
-    if (ctx) {
-        ly_ctx_destroy(ctx);
-    }
-}
-
-static void fuzz_ly_ctx_get_searchdirs(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    const char * const *searchdirs;
-
-    // Create a new context
-    ly_ctx_new(NULL, 0, &ctx);
-
-    // Get the search directories
-    searchdirs = ly_ctx_get_searchdirs(ctx);
-
-    // Clean up
-    if (ctx) {
-        ly_ctx_destroy(ctx);
-    }
-}
-
-static void fuzz_ly_ctx_set_searchdir(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    char *search_dir = malloc(Size + 1);
-    if (!search_dir) {
-        return;
-    }
-    memcpy(search_dir, Data, Size);
-    search_dir[Size] = '\0';
-
-    // Create a new context
-    ly_ctx_new(NULL, 0, &ctx);
-
-    // Set the search directory
-    ly_ctx_set_searchdir(ctx, search_dir);
-
-    // Clean up
-    if (ctx) {
-        ly_ctx_destroy(ctx);
-    }
-    free(search_dir);
-}
-
-static void fuzz_ly_ctx_unset_searchdir(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    char *search_dir = malloc(Size + 1);
-    if (!search_dir) {
-        return;
-    }
-    memcpy(search_dir, Data, Size);
-    search_dir[Size] = '\0';
-
-    // Create a new context
-    ly_ctx_new(NULL, 0, &ctx);
-
-    // Unset the search directory
-    ly_ctx_unset_searchdir(ctx, search_dir);
-
-    // Clean up
-    if (ctx) {
-        ly_ctx_destroy(ctx);
-    }
-    free(search_dir);
 }
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    fuzz_ly_ctx_new_yldata(Data, Size);
-    fuzz_ly_ctx_new_ylpath(Data, Size);
-    fuzz_lyd_parse_data_path(Data, Size);
-    fuzz_ly_ctx_get_searchdirs(Data, Size);
-    fuzz_ly_ctx_set_searchdir(Data, Size);
-    fuzz_ly_ctx_unset_searchdir(Data, Size);
+    if (Size < 4) {
+        return 0;
+    }
+
+    // Use the first byte as options
+    uint32_t options = Data[0];
+
+    // Use the next byte as format
+    LYD_FORMAT format = (LYD_FORMAT)Data[1];
+
+    // Use the rest as search_dir and data
+    char *search_dir = strndup((const char *)Data + 2, (Size - 2) / 2);
+    char *data = strndup((const char *)Data + 2 + (Size - 2) / 2, (Size - 2) / 2);
+
+    // Test ly_ctx_new
+    test_ly_ctx_new(search_dir, options);
+
+    // Test ly_ctx_new_ylmem
+    test_ly_ctx_new_ylmem(search_dir, data, format, options);
+
+    free(search_dir);
+    free(data);
 
     return 0;
 }

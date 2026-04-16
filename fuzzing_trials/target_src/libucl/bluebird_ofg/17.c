@@ -1,82 +1,113 @@
-#include "ucl.h"
-#include <stddef.h>
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
+#include <stddef.h>
+#include "ucl.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+    // Declare and initialize variables
+    ucl_object_t *obj = ucl_object_new();
+    enum ucl_object_keys_sort_flags sort_flags = UCL_SORT_KEYS_ICASE; // Corrected the enum value
 
-  // Call the function-under-test
-  bool result = ucl_parser_add_chunk(parser, data, size);
+    // Ensure that the data is not empty
+    if (size > 0 && obj != NULL) {
+        // Create a UCL parser
+        struct ucl_parser *parser = ucl_parser_new(0);
 
-  // Free the parser after use
+        // Parse the input data
+        if (ucl_parser_add_chunk(parser, data, size)) {
+            // Get the top-level object
+            const ucl_object_t *top = ucl_parser_get_object(parser);
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_free to ucl_parser_add_string
-  const ucl_object_t tqcjshsg;
+            // Copy the parsed object to our object
+            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_merge with ucl_array_merge
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_chunk to ucl_object_iterate_with_error
-  ucl_object_t* ret_ucl_object_fromstring_mgwwq = ucl_object_fromstring((const char *)"w");
-  if (ret_ucl_object_fromstring_mgwwq == NULL){
-  	return 0;
-  }
-  const ucl_object_t qbxcyuya;
-  memset(&qbxcyuya, 0, sizeof(qbxcyuya));
-  int64_t ret_ucl_object_toint_zaqwi = ucl_object_toint(&qbxcyuya);
-  if (ret_ucl_object_toint_zaqwi < 0){
-  	return 0;
-  }
-  ucl_object_iter_t byhcrdki;
-  memset(&byhcrdki, 0, sizeof(byhcrdki));
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_merge
+            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_object_merge
+            bool ret_ucl_object_merge_bazrs = ucl_object_merge(top, top, 0);
+            // End mutation: Producer.REPLACE_ARG_MUTATOR
+            if (ret_ucl_object_merge_bazrs == 0){
+            	return 0;
+            }
+            // End mutation: Producer.APPEND_MUTATOR
+            
 
-  const ucl_object_t* ret_ucl_object_iterate_with_error_fzyjy = ucl_object_iterate_with_error(ret_ucl_object_fromstring_mgwwq, &byhcrdki, result, (int *)&ret_ucl_object_toint_zaqwi);
-  if (ret_ucl_object_iterate_with_error_fzyjy == NULL){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  memset(&tqcjshsg, 0, sizeof(tqcjshsg));
-  char* ret_ucl_copy_value_trash_imfem = ucl_copy_value_trash(&tqcjshsg);
-  if (ret_ucl_copy_value_trash_imfem == NULL){
-  	return 0;
-  }
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_copy_value_trash to ucl_comments_add
-  ucl_object_t* ret_ucl_object_fromstring_iltke = ucl_object_fromstring(ret_ucl_copy_value_trash_imfem);
-  if (ret_ucl_object_fromstring_iltke == NULL){
-  	return 0;
-  }
-  ucl_object_t* ret_ucl_object_typed_new_gnlcv = ucl_object_typed_new(0);
-  if (ret_ucl_object_typed_new_gnlcv == NULL){
-  	return 0;
-  }
-
-  ucl_comments_add(ret_ucl_object_fromstring_iltke, ret_ucl_object_typed_new_gnlcv, ret_ucl_copy_value_trash_imfem);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  int ret_ucl_parser_get_default_priority_gkkng = ucl_parser_get_default_priority(parser);
-  if (ret_ucl_parser_get_default_priority_gkkng < 0){
-  	return 0;
-  }
-
-  bool ret_ucl_parser_add_string_cfrcj = ucl_parser_add_string(parser, ret_ucl_copy_value_trash_imfem, (size_t )ret_ucl_parser_get_default_priority_gkkng);
-  if (ret_ucl_parser_add_string_cfrcj == 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_parser_free with ucl_parser_clear_error
-  ucl_parser_clear_error(parser);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-  // Return 0 as the function result is not needed for the fuzzer
-  return 0;
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_merge to ucl_array_delete
+            ucl_object_unref(top);
+            ucl_object_t* ret_ucl_array_delete_ybddw = ucl_array_delete(top, top);
+            if (ret_ucl_array_delete_ybddw == NULL){
+            	return 0;
+            }
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            ucl_array_merge(obj, (ucl_object_t *)top, true);
+            // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_merge to ucl_copy_value_trash
+            char* ret_ucl_copy_value_trash_sdsey = ucl_copy_value_trash(obj);
+            if (ret_ucl_copy_value_trash_sdsey == NULL){
+            	return 0;
+            }
+            // End mutation: Producer.APPEND_MUTATOR
+            
 }
+
+        // Free the parser
+        ucl_parser_free(parser);
+
+        // Call the function under test
+        ucl_object_sort_keys(obj, sort_flags);
+
+        // Clean up
+        ucl_object_unref(obj);
+    }
+
+    return 0;
+}
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

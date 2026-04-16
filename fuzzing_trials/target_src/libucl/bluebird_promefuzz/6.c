@@ -2,55 +2,124 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
 #include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
 
-static void dummy_dtor(void *ud) {
-    // Dummy destructor
+static void test_ucl_parser_add_string(struct ucl_parser *parser, const uint8_t *data, size_t size) {
+    if (parser) {
+        // Ensure the data is null-terminated if size is 0
+        char *null_terminated_data = (char *)malloc(size + 1);
+        if (null_terminated_data) {
+            memcpy(null_terminated_data, data, size);
+            null_terminated_data[size] = '\0';
+
+            // Try adding the string with the exact size
+            ucl_parser_add_string(parser, null_terminated_data, size);
+
+            // Try adding the string assuming it's null-terminated
+            ucl_parser_add_string(parser, null_terminated_data, 0);
+
+            free(null_terminated_data);
+        }
+    }
 }
 
-static const char *dummy_emitter(void *ud) {
-    // Dummy emitter
-    return "dummy";
+static void test_ucl_parser_add_fd(struct ucl_parser *parser, const uint8_t *data, size_t size) {
+    if (parser) {
+        int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+        if (fd != -1) {
+            write(fd, data, size);
+            lseek(fd, 0, SEEK_SET);
+            ucl_parser_add_fd(parser, fd);
+            close(fd);
+        }
+    }
 }
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    struct ucl_parser *parser = ucl_parser_new(0);
 
-    // Fuzz ucl_object_typed_new
-    ucl_type_t type = (ucl_type_t)(Data[0] % (UCL_NULL + 1));
-    ucl_object_t *obj1 = ucl_object_typed_new(type);
+    if (parser) {
+        // Fuzz ucl_parser_add_string
+        test_ucl_parser_add_string(parser, Data, Size);
 
-    // Fuzz ucl_object_string_to_type
-    char input[Size + 1];
-    memcpy(input, Data, Size);
-    input[Size] = '\0';
-    ucl_type_t res;
-    bool conversion_success = ucl_object_string_to_type(input, &res);
+        // Fuzz ucl_parser_add_fd
+        test_ucl_parser_add_fd(parser, Data, Size);
 
-    // Fuzz ucl_object_new_full
-    unsigned priority = Data[0];
-    ucl_object_t *obj2 = ucl_object_new_full(type, priority);
-    if (obj2) {
-        ucl_object_unref(obj2);
+        // Fuzz ucl_parser_get_default_priority
+        int priority = ucl_parser_get_default_priority(parser);
+
+        // Fuzz ucl_parser_get_error_code
+        int error_code = ucl_parser_get_error_code(parser);
+
+        // Fuzz ucl_parser_get_error
+        const char *error_str = ucl_parser_get_error(parser);
+
+        // Clean up
+        ucl_parser_free(parser);
     }
 
-    // Fuzz ucl_object_type_to_string
-    const char *type_str = ucl_object_type_to_string(type);
 
-    // Fuzz ucl_object_new_userdata
-    void *user_data = (void *)Data; // Just use the data pointer as user data
-    ucl_object_t *obj3 = ucl_object_new_userdata(dummy_dtor, dummy_emitter, user_data);
-    if (obj3) {
-        ucl_object_unref(obj3);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_add_fd_full
+    unsigned int ret_ucl_object_get_priority_ncjzd = ucl_object_get_priority(NULL);
+    if (ret_ucl_object_get_priority_ncjzd < 0){
+    	return 0;
     }
-
-    // Fuzz ucl_object_type
-    if (obj1) {
-        ucl_type_t obj_type = ucl_object_type(obj1);
-        ucl_object_unref(obj1);
+    unsigned int ret_ucl_parser_get_linenum_sglzf = ucl_parser_get_linenum(NULL);
+    if (ret_ucl_parser_get_linenum_sglzf < 0){
+    	return 0;
     }
-
+    bool ret_ucl_parser_add_fd_full_qohtz = ucl_parser_add_fd_full(parser, (int )ret_ucl_object_get_priority_ncjzd, ret_ucl_parser_get_linenum_sglzf, 0, 0);
+    if (ret_ucl_parser_add_fd_full_qohtz == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

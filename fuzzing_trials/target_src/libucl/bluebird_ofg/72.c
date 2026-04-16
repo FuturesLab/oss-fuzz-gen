@@ -1,42 +1,80 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
+  // If size is 0, there's no data to process
+  if (size == 0) {
+    return 0;
+  }
+
   // Create a new UCL parser
   struct ucl_parser *parser = ucl_parser_new(0);
   if (parser == NULL) {
     return 0;
   }
 
+  // Add data to the parser
+  ucl_parser_add_string(parser, (const char *)data, size);
+
   // Call the function-under-test
-  bool result = ucl_parser_add_chunk(parser, data, size);
 
-  // Free the parser after use
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_chunk to ucl_parser_add_chunk_full
-  char* ret_ucl_copy_key_trash_vlhoe = ucl_copy_key_trash(NULL);
-  if (ret_ucl_copy_key_trash_vlhoe == NULL){
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_register_macro
+  struct ucl_parser* ret_ucl_parser_new_umzyu = ucl_parser_new(-1);
+  if (ret_ucl_parser_new_umzyu == NULL){
   	return 0;
   }
-  int64_t ret_ucl_object_toint_omfnq = ucl_object_toint(NULL);
-  if (ret_ucl_object_toint_omfnq < 0){
+  bool ret_ucl_parser_register_macro_ojwwk = ucl_parser_register_macro(ret_ucl_parser_new_umzyu, (const char *)data, NULL, (void *)parser);
+  if (ret_ucl_parser_register_macro_ojwwk == 0){
   	return 0;
   }
-  int ret_ucl_parser_get_error_code_lcvlx = ucl_parser_get_error_code(parser);
-  if (ret_ucl_parser_get_error_code_lcvlx < 0){
-  	return 0;
-  }
-
-  bool ret_ucl_parser_add_chunk_full_avsya = ucl_parser_add_chunk_full(parser, (const unsigned char *)ret_ucl_copy_key_trash_vlhoe, (size_t )ret_ucl_object_toint_omfnq, (unsigned int )ret_ucl_parser_get_error_code_lcvlx, 0, 0);
-  if (ret_ucl_parser_add_chunk_full_avsya == 0){
-  	return 0;
-  }
-
   // End mutation: Producer.APPEND_MUTATOR
+  
+  int priority = ucl_parser_get_default_priority(parser);
 
+  // Free the parser
   ucl_parser_free(parser);
 
-  // Return 0 as the function result is not needed for the fuzzer
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_72(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

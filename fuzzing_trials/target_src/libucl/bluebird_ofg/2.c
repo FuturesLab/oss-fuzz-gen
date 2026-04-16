@@ -1,61 +1,82 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
+#include <stdint.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *ucl_obj = NULL;
-    ucl_emitter_t emitter_type = UCL_EMIT_JSON; // Corrected type name
+  // If size is 0, there's no data to process
+  if (size == 0) {
+    return 0;
+  }
 
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
+  // Create a new UCL parser
+  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
+  struct ucl_parser *parser = ucl_parser_new(size);
+  // End mutation: Producer.REPLACE_ARG_MUTATOR
+  if (parser == NULL) {
+    return 0;
+  }
 
-    // Create a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
+  // Add data to the parser
+  ucl_parser_add_string(parser, (const char *)data, size);
 
-    // Parse the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
-        ucl_parser_free(parser);
-        return 0;
-    }
+  // Call the function-under-test
 
-    // Get the UCL object
-    ucl_obj = ucl_parser_get_object(parser);
-    if (ucl_obj == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_register_context_macro
+  struct ucl_emitter_functions* ret_ucl_object_emit_fd_funcs_yzojy = ucl_object_emit_fd_funcs(1);
+  if (ret_ucl_object_emit_fd_funcs_yzojy == NULL){
+  	return 0;
+  }
+  bool ret_ucl_parser_register_context_macro_czcch = ucl_parser_register_context_macro(parser, (const char *)"w", NULL, (void *)ret_ucl_object_emit_fd_funcs_yzojy);
+  if (ret_ucl_parser_register_context_macro_czcch == 0){
+  	return 0;
+  }
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  int priority = ucl_parser_get_default_priority(parser);
 
-    // Call the function-under-test
-    unsigned char *result = ucl_object_emit(ucl_obj, emitter_type);
+  // Free the parser
+  ucl_parser_free(parser);
 
-    // Free allocated resources
-    if (result != NULL) {
-        free(result);
-    }
-    ucl_object_unref(ucl_obj);
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_object_delete_key
-    const ucl_object_t tbfkxved;
-    memset(&tbfkxved, 0, sizeof(tbfkxved));
-    char* ret_ucl_copy_value_trash_iodxf = ucl_copy_value_trash(&tbfkxved);
-    if (ret_ucl_copy_value_trash_iodxf == NULL){
-    	return 0;
-    }
+    if(argc < 2)
+        exit(0);
 
-    bool ret_ucl_object_delete_key_srokl = ucl_object_delete_key(ucl_obj, ret_ucl_copy_value_trash_iodxf);
-    if (ret_ucl_object_delete_key_srokl == 0){
-    	return 0;
-    }
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    fseek(f, 0, SEEK_END);
 
-    ucl_parser_free(parser);
+    size = ftell(f);
+    rewind(f);
 
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

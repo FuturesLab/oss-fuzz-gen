@@ -1,0 +1,128 @@
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include "htslib/hts.h"
+#include "htslib/sam.h"
+
+// Function to handle the fuzz input
+int LLVMFuzzerTestOneInput_169(const uint8_t *data, size_t size) {
+    // Check if the input size is reasonable
+    if (size < 4) { // Arbitrary small size to avoid processing very small inputs
+        return 0;
+    }
+
+    // Initialize htsFile with a temporary file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the file with htslib
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (!hts_file) {
+        remove(tmpl);
+        return 0;
+    }
+
+    // Read the header
+    bam_hdr_t *header = sam_hdr_read(hts_file);
+    if (!header) {
+        hts_close(hts_file);
+        remove(tmpl);
+        return 0;
+    }
+
+    // Initialize an iterator
+    hts_idx_t *idx = sam_index_load(hts_file, tmpl);
+    if (!idx) {
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        remove(tmpl);
+        return 0;
+    }
+
+    hts_itr_t *itr = sam_itr_queryi(idx, HTS_IDX_NOCOOR, 0, 0);
+    if (!itr) {
+        hts_idx_destroy(idx);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_destroy to sam_itr_queryi
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_destroy to hts_idx_save_as
+        char mjkajjsq[1024] = "mmesm";
+        hts_free(mjkajjsq);
+        char* ret_bam_flag2str_bhptf = bam_flag2str(BAM_FREAD2);
+        if (ret_bam_flag2str_bhptf == NULL){
+        	return 0;
+        }
+
+        int ret_hts_idx_save_as_mzxha = hts_idx_save_as(idx, (const char *)mjkajjsq, ret_bam_flag2str_bhptf, BAM_USER_OWNS_DATA);
+        if (ret_hts_idx_save_as_mzxha < 0){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+        int ret_hclose_mdagy = hclose(NULL);
+        if (ret_hclose_mdagy < 0){
+        	return 0;
+        }
+
+        hts_itr_t* ret_sam_itr_queryi_ifaaj = sam_itr_queryi(idx, BAM_FUNMAP, BAM_CMATCH, (int64_t )ret_hclose_mdagy);
+        if (ret_sam_itr_queryi_ifaaj == NULL){
+        	return 0;
+        }
+
+        // End mutation: Producer.APPEND_MUTATOR
+
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        remove(tmpl);
+        return 0;
+    }
+
+    // Initialize a buffer for the third parameter
+    bam1_t *b = bam_init1();
+    if (!b) {
+        hts_itr_destroy(itr);
+        hts_idx_destroy(idx);
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        remove(tmpl);
+        return 0;
+    }
+
+    // Call the function-under-test
+    while (sam_itr_next(hts_file, itr, b) >= 0) {
+        // Process each record (for fuzzing, we don't need to do anything here)
+    }
+
+    // Clean up
+    bam_destroy1(b);
+    hts_itr_destroy(itr);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_itr_destroy to hts_itr_multi_cram
+    hts_idx_destroy(idx);
+
+    int ret_hts_itr_multi_cram_sdbtr = hts_itr_multi_cram(idx, itr);
+    if (ret_hts_itr_multi_cram_sdbtr < 0){
+    	return 0;
+    }
+
+    // End mutation: Producer.APPEND_MUTATOR
+
+    hts_idx_destroy(idx);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    remove(tmpl);
+
+    return 0;
+}

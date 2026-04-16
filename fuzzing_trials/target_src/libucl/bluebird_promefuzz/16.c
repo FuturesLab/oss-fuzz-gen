@@ -2,85 +2,148 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include "ucl.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-
-static int dummy_emitter_append_character(unsigned char c, size_t nchars, void *ud) {
-    (void)c; (void)nchars; (void)ud;
-    return 0;
-}
-
-static int dummy_emitter_append_len(unsigned const char *str, size_t len, void *ud) {
-    (void)str; (void)len; (void)ud;
-    return 0;
-}
-
-static int dummy_emitter_append_int(int64_t elt, void *ud) {
-    (void)elt; (void)ud;
-    return 0;
-}
-
-static int dummy_emitter_append_double(double elt, void *ud) {
-    (void)elt; (void)ud;
-    return 0;
-}
-
-static void dummy_emitter_free_func(void *ud) {
-    (void)ud;
-}
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    ucl_object_t *ucl_obj = ucl_object_new();
-    if (!ucl_obj) return 0;
-
-    // Ensure the key is null-terminated and within bounds
-    char *key = (char *)malloc(Size + 1);
-    if (!key) {
-        ucl_object_unref(ucl_obj);
+    if (Size < 1) {
         return 0;
     }
-    memcpy(key, Data, Size);
-    key[Size] = '\0';
 
-    // Fuzz ucl_object_delete_key
-    ucl_object_delete_key(ucl_obj, key);
+    // Create a new UCL object of type UCL_OBJECT
+    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
+    if (top == NULL) {
+        return 0;
+    }
 
-    // Fuzz ucl_object_sort_keys
-    enum ucl_object_keys_sort_flags sort_flag = (enum ucl_object_keys_sort_flags)(Data[0] % 3);
-    ucl_object_sort_keys(ucl_obj, sort_flag);
+    // Convert the input data to a string
+    const char *str = (const char *)Data;
+    size_t len = Size;
 
-    // Fuzz ucl_object_validate
-    ucl_object_t *schema = ucl_object_new();
-    struct ucl_schema_error err;
-    ucl_object_validate(schema, ucl_obj, &err);
+    // Create UCL objects from strings
+    ucl_object_t *elt1 = ucl_object_fromstring_common(str, len, UCL_STRING_TRIM);
+    ucl_object_t *elt2 = ucl_object_fromstring_common(str, len, UCL_STRING_PARSE);
+    ucl_object_t *elt3 = ucl_object_fromstring_common(str, len, UCL_STRING_ESCAPE);
 
-    // Fuzz ucl_object_emit_full
-    struct ucl_emitter_functions emitter = {
-        .ucl_emitter_append_character = dummy_emitter_append_character,
-        .ucl_emitter_append_len = dummy_emitter_append_len,
-        .ucl_emitter_append_int = dummy_emitter_append_int,
-        .ucl_emitter_append_double = dummy_emitter_append_double,
-        .ucl_emitter_free_func = dummy_emitter_free_func,
-        .ud = NULL
-    };
-    ucl_object_emit_full(ucl_obj, UCL_EMIT_JSON, &emitter, NULL);
+    // Insert keys into the UCL object
+    ucl_object_insert_key(top, elt1, "key1", 4, true);
+    ucl_object_insert_key(top, elt2, "key2", 4, true);
 
-    // Fuzz ucl_object_validate_root
-    ucl_object_t *root_schema = ucl_object_new();
-    ucl_object_validate_root(schema, ucl_obj, root_schema, &err);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_object_merge
+    ucl_object_t* ret_ucl_object_copy_ocdww = ucl_object_copy(top);
+    if (ret_ucl_object_copy_ocdww == NULL){
+    	return 0;
+    }
+    bool ret_ucl_object_merge_zfvin = ucl_object_merge(ret_ucl_object_copy_ocdww, elt2, 0);
+    if (ret_ucl_object_merge_zfvin == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_insert_key(top, elt3, "key3", 4, true);
+
+    // Open a dummy file for writing
+    FILE *fp = fopen("./dummy_file", "w");
+    if (fp == NULL) {
+        ucl_object_unref(top);
+        return 0;
+    }
+
+    // Get emitter functions for file output
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
+    if (emitter_funcs == NULL) {
+        fclose(fp);
+        ucl_object_unref(top);
+        return 0;
+    }
+
+    // Create and manage streamlined UCL emitters
+    struct ucl_emitter_context *ctx1 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON, emitter_funcs);
+    struct ucl_emitter_context *ctx2 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON_COMPACT, emitter_funcs);
+    struct ucl_emitter_context *ctx3 = ucl_object_emit_streamline_new(top, UCL_EMIT_CONFIG, emitter_funcs);
+    struct ucl_emitter_context *ctx4 = ucl_object_emit_streamline_new(top, UCL_EMIT_YAML, emitter_funcs);
+
+    // Create a new UCL object of type UCL_ARRAY
+    ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
+    if (array_obj != NULL) {
+        // Start a container for streamlined output
+        ucl_object_emit_streamline_start_container(ctx1, array_obj);
+        ucl_object_emit_streamline_start_container(ctx2, array_obj);
+        ucl_object_emit_streamline_start_container(ctx3, array_obj);
+        ucl_object_emit_streamline_start_container(ctx4, array_obj);
+    }
 
     // Cleanup
-    free(key);
-    ucl_object_unref(ucl_obj);
-    ucl_object_unref(schema);
-    ucl_object_unref(root_schema);
+    if (ctx1) {
+        ucl_object_emit_streamline_finish(ctx1);
+    }
+    if (ctx2) {
+        ucl_object_emit_streamline_finish(ctx2);
+    }
+    if (ctx3) {
+        ucl_object_emit_streamline_finish(ctx3);
+    }
+    if (ctx4) {
+        ucl_object_emit_streamline_finish(ctx4);
+    }
+    if (array_obj) {
+        ucl_object_unref(array_obj);
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_typed_new to ucl_comments_move
+    ucl_object_t* ret_ucl_object_copy_oyyqb = ucl_object_copy(top);
+    if (ret_ucl_object_copy_oyyqb == NULL){
+    	return 0;
+    }
+    bool ret_ucl_comments_move_nznyx = ucl_comments_move(ret_ucl_object_copy_oyyqb, array_obj, ret_ucl_object_copy_ocdww);
+    if (ret_ucl_comments_move_nznyx == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    fclose(fp);
+    ucl_object_unref(top);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

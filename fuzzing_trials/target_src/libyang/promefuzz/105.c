@@ -1,63 +1,84 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
-// ly_ctx_new at context.c:278:1 in context.h
-// ly_ctx_set_module_imp_clb at context.c:816:1 in context.h
-// ly_ctx_load_module at context.c:239:1 in context.h
-// ly_ctx_compile at context.c:593:1 in context.h
-// ly_ctx_get_change_count at context.c:755:1 in context.h
-// ly_ctx_get_module_implemented at context.c:1009:1 in context.h
-// ly_ctx_free_parsed at context.c:1360:1 in context.h
-// ly_ctx_destroy at context.c:1503:1 in context.h
+// lyd_dup_siblings at tree_data.c:2535:1 in tree_data.h
+// lyd_insert_child at tree_data.c:1095:1 in tree_data.h
+// lyd_list_pos at tree_data_common.c:749:1 in tree_data.h
+// lyd_insert_before at tree_data.c:1140:1 in tree_data.h
+// lyd_compare_single at tree_data.c:1868:1 in tree_data.h
+// lyd_dup_single_to_ctx at tree_data.c:2522:1 in tree_data.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "context.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "tree_data.h"
 
-static LY_ERR dummy_module_imp_clb(const char *mod_name, const char *mod_rev, const char *submod_name,
-                                   const char *submod_rev, void *user_data, LYS_INFORMAT *format,
-                                   const char **module_data, void (**free_module_data)(void *model_data, void *user_data)) {
-    // Dummy callback function for module import
-    return LY_SUCCESS;
+static struct lyd_node *create_dummy_lyd_node() {
+    struct lyd_node *node = (struct lyd_node *)malloc(sizeof(struct lyd_node));
+    if (!node) {
+        return NULL;
+    }
+    memset(node, 0, sizeof(struct lyd_node));
+    struct lysc_node *schema = (struct lysc_node *)malloc(sizeof(struct lysc_node));
+    if (!schema) {
+        free(node);
+        return NULL;
+    }
+    memset(schema, 0, sizeof(struct lysc_node));
+    node->schema = schema;
+    return node;
+}
+
+static void free_dummy_lyd_node(struct lyd_node *node) {
+    if (node) {
+        free((void *)node->schema);
+        free(node);
+    }
+}
+
+static struct ly_ctx *create_dummy_ly_ctx() {
+    // Since struct ly_ctx is incomplete, we cannot allocate it directly.
+    // We assume a function ly_ctx_new() exists to create a new context.
+    struct ly_ctx *ctx = NULL;
+    // ly_ctx_new(NULL, 0, &ctx); // Replace with actual initialization if available
+    return ctx;
+}
+
+static void free_dummy_ly_ctx(struct ly_ctx *ctx) {
+    if (ctx) {
+        // ly_ctx_destroy(ctx, NULL); // Replace with actual cleanup if available
+    }
 }
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx;
-    const char *revision = NULL;
-    const char *features[] = {NULL};
-
-    // Initialize libyang context
-    if (ly_ctx_new(NULL, 0, &ctx)) {
+    if (Size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Set a dummy module import callback
-    ly_ctx_set_module_imp_clb(ctx, dummy_module_imp_clb, NULL);
+    uint32_t options = *((uint32_t *)Data);
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
 
-    // Try to load a module with the given input data as module name
-    char *name = strndup((const char *)Data, Size);
-    if (name) {
-        struct lys_module *mod = ly_ctx_load_module(ctx, name, revision, features);
+    struct lyd_node *node = create_dummy_lyd_node();
+    struct lyd_node *parent = create_dummy_lyd_node();
+    struct lyd_node *dup = NULL;
+    struct ly_ctx *ctx = create_dummy_ly_ctx();
 
-        // Compile the context if the module was loaded
-        if (mod) {
-            ly_ctx_compile(ctx);
-        }
-
-        // Get change count
-        uint16_t change_count = ly_ctx_get_change_count(ctx);
-
-        // Get the implemented module
-        struct lys_module *implemented_mod = ly_ctx_get_module_implemented(ctx, name);
-
-        // Free parsed modules
-        ly_ctx_free_parsed(ctx);
-
-        free(name);
+    if (node && parent && ctx) {
+        lyd_dup_siblings(node, parent, options, &dup);
+        lyd_insert_child(parent, node);
+        lyd_list_pos(node);
+        lyd_insert_before(node, parent);
+        lyd_compare_single(node, parent, options);
+        lyd_dup_single_to_ctx(node, ctx, parent, options, &dup);
     }
 
-    // Clean up the context
-    ly_ctx_destroy(ctx);
+    free_dummy_lyd_node(node);
+    free_dummy_lyd_node(parent);
+    free_dummy_lyd_node(dup);
+    free_dummy_ly_ctx(ctx);
 
     return 0;
 }

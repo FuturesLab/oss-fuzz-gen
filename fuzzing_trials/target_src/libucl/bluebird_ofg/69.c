@@ -1,58 +1,69 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-  // Create a new UCL parser
+  // Ensure size is not zero to avoid undefined behavior with non-null-terminated strings
+  if (size == 0) {
+    return 0;
+  }
 
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
-  struct ucl_parser *parser = ucl_parser_new(UCL_PRIORITY_MAX);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+  struct ucl_parser *parser = ucl_parser_new(0);
   if (parser == NULL) {
     return 0;
   }
 
+  ucl_parser_add_string(parser, (const char *)data, size);
+
   // Call the function-under-test
-  bool result = ucl_parser_add_chunk(parser, data, size);
+  unsigned int line_number = ucl_parser_get_linenum(parser);
 
-  // Free the parser after use
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_chunk to ucl_parser_add_fd_priority
-  const ucl_object_t ljfhibwc;
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_chunk to ucl_object_iterate_safe
-  const ucl_object_t nbbtbljt;
-  memset(&nbbtbljt, 0, sizeof(nbbtbljt));
-  ucl_object_iter_t ret_ucl_object_iterate_new_gdolk = ucl_object_iterate_new(&nbbtbljt);
-
-  const ucl_object_t* ret_ucl_object_iterate_safe_jorqo = ucl_object_iterate_safe(ret_ucl_object_iterate_new_gdolk, result);
-  if (ret_ucl_object_iterate_safe_jorqo == NULL){
-  	return 0;
+  // Use the result to prevent compiler optimizations that remove the call
+  if (line_number == 0) {
+    // Do something trivial
   }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  memset(&ljfhibwc, 0, sizeof(ljfhibwc));
-  int64_t ret_ucl_object_toint_fdbkp = ucl_object_toint(&ljfhibwc);
-  if (ret_ucl_object_toint_fdbkp < 0){
-  	return 0;
-  }
-  unsigned int ret_ucl_parser_get_column_vnmji = ucl_parser_get_column(NULL);
-  if (ret_ucl_parser_get_column_vnmji < 0){
-  	return 0;
-  }
-
-  bool ret_ucl_parser_add_fd_priority_tvnrm = ucl_parser_add_fd_priority(parser, (int )ret_ucl_object_toint_fdbkp, ret_ucl_parser_get_column_vnmji);
-  if (ret_ucl_parser_add_fd_priority_tvnrm == 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
 
   ucl_parser_free(parser);
-
-  // Return 0 as the function result is not needed for the fuzzer
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_69(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
