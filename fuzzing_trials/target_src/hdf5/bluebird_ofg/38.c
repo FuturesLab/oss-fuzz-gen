@@ -1,59 +1,71 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include "hdf5.h"
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    hid_t file_id, space_id, attr_id;
-    hsize_t dims[1] = {1};
-    int dummy_data[1] = {0};
-    size_t buf_size;
-    char *name_buf;
-
-    // Ensure the size is sufficient for our needs
-    if (size < sizeof(size_t)) {
+    // Ensure the data size is sufficient to extract parameters.
+    if (size < 8) {
         return 0;
-    }
+    } // Adjust size as needed for your parameters
 
-    // Initialize buf_size from data
-    buf_size = *((size_t *)data);
-
-    // Validate buf_size to prevent excessive memory allocation
-    if (buf_size > size - sizeof(size_t) || buf_size > 1024) {
-        return 0;
-    }
-
-    // Allocate memory for the name buffer
-    name_buf = (char *)malloc(buf_size + 1);
-    if (name_buf == NULL) {
-        return 0;
-    }
-
-    // Ensure the name buffer is null-terminated
-    name_buf[buf_size] = '\0';
-
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a temporary file and dataset to attach an attribute
-    file_id = H5Fcreate("temp.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    space_id = H5Screate_simple(1, dims, NULL);
-    hid_t dataset_id = H5Dcreate(file_id, "dataset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Create an attribute
-    attr_id = H5Acreate(dataset_id, "attribute", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
+    // Extract parameters from the data
+    const char *file_name = "testfile.h5"; // Static file name for testing
+    unsigned int create_mode = (unsigned int)data[0];
+    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
+    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
+    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
 
     // Call the function-under-test
-    ssize_t result = H5Aget_name(attr_id, buf_size, name_buf);
+    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
 
-    // Clean up
-    free(name_buf);
-    H5Aclose(attr_id);
-    H5Dclose(dataset_id);
-    H5Sclose(space_id);
-    H5Fclose(file_id);
-    H5close();
+    // Close the file if it was successfully created
+    if (file_id >= 0) {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fstart_mdc_logging
+        H5Fstart_mdc_logging(file_id);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -2,86 +2,132 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include "/src/hdf5/src/H5Dpublic.h"
 #include "/src/hdf5/src/H5Apublic.h"
 #include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Tpublic.h"
 
-static void fuzz_H5Aexists_by_name_async(const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    hid_t loc_id = (hid_t)Data[0];
-    const char *obj_name = "dummy_object";
-    const char *attr_name = "dummy_attr";
-    bool exists;
-    hid_t lapl_id = (hid_t)Data[1];
-    hid_t es_id = (hid_t)Data[2];
-
-    H5Aexists_by_name_async(loc_id, obj_name, attr_name, &exists, lapl_id, es_id);
-}
-
-static void fuzz_H5Dwrite_async(const uint8_t *Data, size_t Size) {
-    if (Size < 6) return;
-    hid_t dset_id = (hid_t)Data[0];
-    hid_t mem_type_id = (hid_t)Data[1];
-    hid_t mem_space_id = (hid_t)Data[2];
-    hid_t file_space_id = (hid_t)Data[3];
-    hid_t dxpl_id = (hid_t)Data[4];
-    const void *buf = Data + 6;
-    hid_t es_id = (hid_t)Data[5];
-
-    H5Dwrite_async(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf, es_id);
-}
-
-static void fuzz_H5Fflush_async(const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    hid_t object_id = (hid_t)Data[0];
-    H5F_scope_t scope = (H5F_scope_t)(Data[1] % 2);
-    hid_t es_id = (hid_t)Data[2];
-
-    H5Fflush_async(object_id, scope, es_id);
-}
-
-static void fuzz_H5Dread_async(const uint8_t *Data, size_t Size) {
-    if (Size < 6) return;
-    hid_t dset_id = (hid_t)Data[0];
-    hid_t mem_type_id = (hid_t)Data[1];
-    hid_t mem_space_id = (hid_t)Data[2];
-    hid_t file_space_id = (hid_t)Data[3];
-    hid_t dxpl_id = (hid_t)Data[4];
-    void *buf = malloc(256); // Allocate buffer for reading
-    hid_t es_id = (hid_t)Data[5];
-
-    if (buf) {
-        H5Dread_async(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf, es_id);
-        free(buf);
-    }
-}
-
-static void fuzz_H5Fclose_async(const uint8_t *Data, size_t Size) {
-    if (Size < 2) return;
-    hid_t file_id = (hid_t)Data[0];
-    hid_t es_id = (hid_t)Data[1];
-
-    H5Fclose_async(file_id, es_id);
-}
-
-static void fuzz_H5Dset_extent_async(const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    hid_t dset_id = (hid_t)Data[0];
-    hsize_t size[1] = {(hsize_t)Data[1]};
-    hid_t es_id = (hid_t)Data[2];
-
-    H5Dset_extent_async(dset_id, size, es_id);
+static herr_t dummy_operator(void *elem, hid_t type_id, unsigned ndim, const hsize_t *point, void *operator_data) {
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *Data, size_t Size) {
-    fuzz_H5Aexists_by_name_async(Data, Size);
-    fuzz_H5Dwrite_async(Data, Size);
-    fuzz_H5Fflush_async(Data, Size);
-    fuzz_H5Dread_async(Data, Size);
-    fuzz_H5Fclose_async(Data, Size);
-    fuzz_H5Dset_extent_async(Data, Size);
+    if (Size < sizeof(hid_t) * 3 + sizeof(hsize_t) * 2) {
+        return 0;
+    }
+
+    const char *dummy_file = "./dummy_file";
+    FILE *file = fopen(dummy_file, "w");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of H5Fcreate
+    hid_t file_id = H5Fcreate((const char *)Data, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (file_id < 0) {
+        return 0;
+    }
+
+    hsize_t dims[2] = {Size, 1};
+    hid_t space_id = H5Screate_simple(2, dims, NULL);
+    if (space_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    hid_t dset_id = H5Dcreate2(file_id, "dset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dset_id < 0) {
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    herr_t status;
+    status = H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+    H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+
+    status = H5Diterate((void *)Data, H5T_NATIVE_UCHAR, space_id, dummy_operator, NULL);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    status = H5Dfill(Data, H5T_NATIVE_UCHAR, (void *)Data, H5T_NATIVE_UCHAR, space_id);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    hid_t attr_id = H5Acreate2(dset_id, "attr", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
+    if (attr_id >= 0) {
+        H5Aclose(attr_id);
+    }
+
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+
+    H5Dclose(dset_id);
+    H5Sclose(space_id);
+    H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

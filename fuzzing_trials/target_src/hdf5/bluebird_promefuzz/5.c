@@ -1,91 +1,136 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_mdc_config at H5F.c:1772:1 in H5Fpublic.h
-// H5Fset_mdc_config at H5F.c:1814:1 in H5Fpublic.h
-// H5Fget_mdc_hit_rate at H5F.c:1853:1 in H5Fpublic.h
-// H5Freset_mdc_hit_rate_stats at H5F.c:1947:1 in H5Fpublic.h
-// H5Fget_mdc_size at H5F.c:1895:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fdelete at H5F.c:1117:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "H5Fpublic.h"
-#include "H5Ppublic.h"
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
 
-static void initialize_cache_config(H5AC_cache_config_t *config) {
-    config->version = H5AC__CURR_CACHE_CONFIG_VERSION;
-    config->rpt_fcn_enabled = 0;
-    config->open_trace_file = 0;
-    config->close_trace_file = 0;
-    strcpy(config->trace_file_name, "");
-    config->evictions_enabled = 1;
-    config->set_initial_size = 0;
-    config->initial_size = 1024 * 1024;
-    config->min_clean_fraction = 0.5;
-    config->max_size = 16 * 1024 * 1024;
-    config->min_size = 512 * 1024;
-    config->epoch_length = 50000;
-    config->incr_mode = H5C_incr__threshold;
-    config->lower_hr_threshold = 0.9;
-    config->increment = 2.0;
-    config->apply_max_increment = 1;
-    config->max_increment = 4 * 1024 * 1024;
-    config->flash_incr_mode = H5C_flash_incr__add_space;
-    config->flash_multiple = 1.0;
-    config->flash_threshold = 0.25;
-    config->decr_mode = H5C_decr__age_out_with_threshold;
-    config->upper_hr_threshold = 0.999;
-    config->decrement = 0.9;
-    config->apply_max_decrement = 1;
-    config->max_decrement = 1 * 1024 * 1024;
-    config->epochs_before_eviction = 3;
-    config->apply_empty_reserve = 1;
-    config->empty_reserve = 0.1;
-    config->dirty_bytes_threshold = 256 * 1024;
-    config->metadata_write_strategy = H5AC_METADATA_WRITE_STRATEGY__PROCESS_0_ONLY;
+static herr_t dummy_chunk_iter_cb(const hsize_t *offset, unsigned filter_mask, haddr_t addr, hsize_t size, void *op_data) {
+    // Dummy callback function for H5Dchunk_iter
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    hid_t file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return 0;
-
-    H5AC_cache_config_t config;
-    initialize_cache_config(&config);
-
-    for (int i = 0; i < 4; i++) {
-        H5Fget_mdc_config(file_id, &config);
+    if (Size < 1) {
+        return 0;
     }
 
-    for (int i = 0; i < 4; i++) {
-        H5Fset_mdc_config(file_id, &config);
+    // Create a dummy file for testing
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 
-    double hit_rate;
-    for (int i = 0; i < 2; i++) {
-        H5Fget_mdc_hit_rate(file_id, &hit_rate);
-    }
+    hid_t file_id1 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    hid_t file_id2 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
 
-    for (int i = 0; i < 2; i++) {
-        H5Freset_mdc_hit_rate_stats(file_id);
-    }
 
-    size_t max_size, min_clean_size, cur_size;
-    int cur_num_entries;
-    for (int i = 0; i < 6; i++) {
-        H5Fget_mdc_size(file_id, &max_size, &min_clean_size, &cur_size, &cur_num_entries);
-    }
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Fget_mdc_size
+    size_t loqmaddg = Size;
+    size_t bcxpdksm = 64;
+    size_t zyzcoygn = 1;
+    int qncwrrvp = 1;
+    herr_t ret_H5Fget_mdc_size_nbcfl = H5Fget_mdc_size(file_id1, &loqmaddg, &bcxpdksm, &zyzcoygn, &qncwrrvp);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hid_t dset_id1 = H5Dopen2(file_id1, "dataset1", H5P_DEFAULT);
+    hid_t dset_id2 = H5Dopen2(file_id2, "dataset2", H5P_DEFAULT);
 
-    H5Fclose(file_id);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dopen2 to H5Fget_info2
+    H5F_info2_t bpqlkkyt;
+    memset(&bpqlkkyt, 0, sizeof(bpqlkkyt));
+    herr_t ret_H5Fget_info2_acivt = H5Fget_info2(dset_id1, &bpqlkkyt);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hsize_t nchunks;
+    H5Dget_num_chunks(dset_id1, H5S_ALL, &nchunks);
+    H5Dget_num_chunks(dset_id2, H5S_ALL, &nchunks);
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_num_chunks to H5Dset_extent
+    hid_t ret_H5Aget_space_ncnpd = H5Aget_space(dset_id1);
+    herr_t ret_H5Dset_extent_sinry = H5Dset_extent(ret_H5Aget_space_ncnpd, &nchunks);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hsize_t offset[1] = {0};
+    unsigned filter_mask;
+    haddr_t addr;
+    hsize_t size;
+
+    H5Dget_chunk_info(dset_id1, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info(dset_id2, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+
+    H5Dget_chunk_info_by_coord(dset_id1, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info_by_coord(dset_id2, offset, &filter_mask, &addr, &size);
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_chunk_info_by_coord to H5Gget_num_objs
+    hid_t ret_H5Freopen_yhkdh = H5Freopen(file_id1);
+    herr_t ret_H5Gget_num_objs_lzvmn = H5Gget_num_objs(ret_H5Freopen_yhkdh, &size);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    H5Dchunk_iter(dset_id1, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+    H5Dchunk_iter(dset_id2, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
+
     H5Fdelete("./dummy_file", H5P_DEFAULT);
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

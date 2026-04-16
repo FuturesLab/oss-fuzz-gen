@@ -1,134 +1,133 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_info1 at H5Fdeprec.c:86:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fset_latest_format at H5Fdeprec.c:206:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_access_plist at H5F.c:152:1 in H5Fpublic.h
-// H5Fget_info1 at H5Fdeprec.c:86:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fget_info1 at H5Fdeprec.c:86:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_create_plist at H5F.c:106:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
-#include <H5Fpublic.h>
-#include <H5Ppublic.h>
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Apublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Tpublic.h"
 
-static void handle_hid_t(hid_t id) {
-    if (id >= 0) {
-        H5Pclose(id);
-    }
+static herr_t dummy_operator(void *elem, hid_t type_id, unsigned ndim, const hsize_t *point, void *operator_data) {
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(hid_t) * 3 + sizeof(hsize_t) * 2) {
+        return 0;
+    }
 
-    // Create a dummy file
-    hid_t file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return 0;
+    const char *dummy_file = "./dummy_file";
+    FILE *file = fopen(dummy_file, "w");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Close the file
-    H5Fclose(file_id);
+    hid_t file_id = H5Fcreate(dummy_file, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    // Re-create the file
-    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return 0;
-
-    // Get file info
-    H5F_info1_t file_info;
-    if (H5Fget_info1(file_id, &file_info) < 0) {
+    hsize_t dims[2] = {Size, 1};
+    hid_t space_id = H5Screate_simple(2, dims, NULL);
+    if (space_id < 0) {
         H5Fclose(file_id);
         return 0;
     }
 
-    // Get file creation property list
-    hid_t plist_id = H5Fget_create_plist(file_id);
-    handle_hid_t(plist_id);
-
-    // Set latest format
-    H5Fset_latest_format(file_id, Data[0] % 2 == 0);
-
-    // Close the file
-    H5Fclose(file_id);
-
-    // Re-create the file
-    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return 0;
-
-    // Get file access property list
-    plist_id = H5Fget_access_plist(file_id);
-    handle_hid_t(plist_id);
-
-    // Get file info again
-    if (H5Fget_info1(file_id, &file_info) < 0) {
+    hid_t dset_id = H5Dcreate2(file_id, "dset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dset_id < 0) {
+        H5Sclose(space_id);
         H5Fclose(file_id);
         return 0;
     }
 
-    // Get file creation property list again
-    plist_id = H5Fget_create_plist(file_id);
-    handle_hid_t(plist_id);
-
-    // Close the file
-    H5Fclose(file_id);
-
-    // Open the file
-    file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id < 0) return 0;
-
-    // Get file info
-    if (H5Fget_info1(file_id, &file_info) < 0) {
+    herr_t status;
+    status = H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
         H5Fclose(file_id);
         return 0;
     }
 
-    // Get file creation property list
-    plist_id = H5Fget_create_plist(file_id);
-    handle_hid_t(plist_id);
+    H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+    H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
 
-    // Close the file
-    H5Fclose(file_id);
+    status = H5Diterate((void *)Data, H5T_NATIVE_UCHAR, space_id, dummy_operator, NULL);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Re-create the file
-    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return 0;
+    status = H5Dfill(Data, H5T_NATIVE_UCHAR, (void *)Data, H5T_NATIVE_UCHAR, space_id);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Get file creation property list
-    plist_id = H5Fget_create_plist(file_id);
-    handle_hid_t(plist_id);
+    hid_t attr_id = H5Acreate2(dset_id, "attr", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
+    if (attr_id >= 0) {
+        H5Aclose(attr_id);
+    }
 
-    // Close the file
-    H5Fclose(file_id);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
 
-    // Open the file
-    file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id < 0) return 0;
-
-    // Get file creation property list
-    plist_id = H5Fget_create_plist(file_id);
-    handle_hid_t(plist_id);
-
-    // Close the file
-    H5Fclose(file_id);
+    H5Dclose(dset_id);
+    H5Sclose(space_id);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fstart_mdc_logging
+    H5Fstart_mdc_logging(file_id);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

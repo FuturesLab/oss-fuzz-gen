@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
 #include "hdf5.h"
 
@@ -31,12 +32,7 @@ int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
     group_name[size] = '\0';
 
     // Create a group to ensure it exists
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of H5Gcreate1
-    group_id = H5Gcreate1(file_id, group_name, H5G_NLIBTYPES);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    group_id = H5Gcreate1(file_id, group_name, 0);
     if (group_id >= 0) {
         H5Gclose(group_id);
     }
@@ -48,18 +44,47 @@ int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
     if (group_id >= 0) {
         H5Gclose(group_id);
     }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Gopen1 to H5Dcreate_anon
-    hid_t ret_H5Dget_type_vehkx = H5Dget_type(file_id);
-    hid_t ret_H5Fget_create_plist_liptt = H5Fget_create_plist(group_id);
-    hid_t ret_H5Aget_space_zdnna = H5Aget_space(file_id);
-
-    hid_t ret_H5Dcreate_anon_prokd = H5Dcreate_anon(group_id, ret_H5Dget_type_vehkx, ret_H5Fget_create_plist_liptt, 0, ret_H5Aget_space_zdnna);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     H5Fclose(file_id);
     free(group_name);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

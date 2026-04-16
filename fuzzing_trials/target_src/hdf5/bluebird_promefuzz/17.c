@@ -1,128 +1,110 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Dopen2 at H5D.c:393:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dget_type at H5D.c:706:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Dopen2 at H5D.c:393:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dget_type at H5D.c:706:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Aopen_by_name at H5A.c:657:1 in H5Apublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Aget_type at H5A.c:1128:1 in H5Apublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Aclose at H5A.c:2194:1 in H5Apublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Aopen_by_name at H5A.c:657:1 in H5Apublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Aget_type at H5A.c:1128:1 in H5Apublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Aclose at H5A.c:2194:1 in H5Apublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Aclose at H5A.c:2194:1 in H5Apublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <hdf5.h>
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
 
-#define DUMMY_FILE "./dummy_file"
-#define DATASET_NAME "dummy_dataset"
-#define ATTRIBUTE_NAME "dummy_attribute"
-#define OBJECT_NAME "dummy_object"
-
-static void write_dummy_file() {
-    FILE *file = fopen(DUMMY_FILE, "w");
-    if (file) {
-        fprintf(file, "Dummy data for HDF5 testing.\n");
-        fclose(file);
-    }
+static herr_t dummy_chunk_iter_cb(const hsize_t *offset, unsigned filter_mask, haddr_t addr, hsize_t size, void *op_data) {
+    // Dummy callback function for H5Dchunk_iter
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    write_dummy_file();
+    if (Size < 1) {
+        return 0;
+    }
 
-    hid_t file_id1 = H5Fopen(DUMMY_FILE, H5F_ACC_RDWR, H5P_DEFAULT);
-    hid_t file_id2 = H5Fopen(DUMMY_FILE, H5F_ACC_RDWR, H5P_DEFAULT);
-    
-    hid_t dset_id = H5Dopen2(file_id1, DATASET_NAME, H5P_DEFAULT);
-    H5Fclose(file_id1);
+    // Create a dummy file for testing
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 
-    hid_t dtype_id = H5Dget_type(dset_id);
+    hid_t file_id1 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    hid_t file_id2 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+
+    hid_t dset_id1 = H5Dopen2(file_id1, "dataset1", H5P_DEFAULT);
+    hid_t dset_id2 = H5Dopen2(file_id2, "dataset2", H5P_DEFAULT);
+
+    hsize_t nchunks;
+    H5Dget_num_chunks(dset_id1, H5S_ALL, &nchunks);
+    H5Dget_num_chunks(dset_id2, H5S_ALL, &nchunks);
+
+    hsize_t offset[1] = {0};
+    unsigned filter_mask;
+    haddr_t addr;
+    hsize_t size;
+
+    H5Dget_chunk_info(dset_id1, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info(dset_id2, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+
+    H5Dget_chunk_info_by_coord(dset_id1, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info_by_coord(dset_id2, offset, &filter_mask, &addr, &size);
+
+    H5Dchunk_iter(dset_id1, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+    H5Dchunk_iter(dset_id2, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fstart_swmr_write
+    H5Fstart_swmr_write(file_id1);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
     H5Fclose(file_id2);
 
-    H5Dclose(dset_id);
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
     H5Fclose(file_id1);
-
-    hid_t new_file_id = H5Fcreate(DUMMY_FILE, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    file_id1 = H5Fopen(DUMMY_FILE, H5F_ACC_RDWR, H5P_DEFAULT);
-
-    dset_id = H5Dopen2(file_id1, DATASET_NAME, H5P_DEFAULT);
-    H5Fclose(new_file_id);
-
-    dtype_id = H5Dget_type(dset_id);
-    H5Fclose(file_id1);
-
-    H5Dclose(dset_id);
-    H5Fclose(file_id1);
-
-    file_id1 = H5Fopen(DUMMY_FILE, H5F_ACC_RDWR, H5P_DEFAULT);
-    file_id2 = H5Fopen(DUMMY_FILE, H5F_ACC_RDWR, H5P_DEFAULT);
-
-    hid_t attr_id = H5Aopen_by_name(file_id1, OBJECT_NAME, ATTRIBUTE_NAME, H5P_DEFAULT, H5P_DEFAULT);
-    H5Fclose(file_id1);
-
-    hid_t atype_id = H5Aget_type(attr_id);
     H5Fclose(file_id2);
-
-    H5Aclose(attr_id);
-    H5Fclose(file_id1);
-
-    new_file_id = H5Fcreate(DUMMY_FILE, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    file_id1 = H5Fopen(DUMMY_FILE, H5F_ACC_RDWR, H5P_DEFAULT);
-
-    attr_id = H5Aopen_by_name(file_id1, OBJECT_NAME, ATTRIBUTE_NAME, H5P_DEFAULT, H5P_DEFAULT);
-    H5Fclose(new_file_id);
-
-    atype_id = H5Aget_type(attr_id);
-    H5Fclose(file_id1);
-
-    H5Aclose(attr_id);
-    H5Fclose(file_id1);
-    H5Fclose(file_id1);
-    H5Fclose(file_id1);
-    H5Aclose(attr_id);
-    H5Dclose(dset_id);
-    H5Fclose(file_id1);
-    H5Fclose(file_id1);
-    H5Fclose(file_id1);
-    H5Fclose(file_id1);
-    H5Fclose(file_id1);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

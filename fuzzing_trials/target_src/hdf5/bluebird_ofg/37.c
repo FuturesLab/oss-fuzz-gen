@@ -1,49 +1,71 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include "hdf5.h"
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
+    // Ensure the data size is sufficient to extract parameters.
+    if (size < 8) {
+        return 0;
+    } // Adjust size as needed for your parameters
 
-    // Create a file using the default properties.
-    hid_t file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file
+    // Extract parameters from the data
+    const char *file_name = "testfile.h5"; // Static file name for testing
+    unsigned int create_mode = (unsigned int)data[0];
+    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
+    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
+    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+
+    // Call the function-under-test
+    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+
+    // Close the file if it was successfully created
+    if (file_id >= 0) {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fstop_mdc_logging
+        H5Fstop_mdc_logging(file_id);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
-
-    // Create a dataspace
-    hsize_t dims[1] = {10};
-    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
-    if (dataspace_id < 0) {
-        H5Fclose(file_id);
-        return 0; // Failed to create dataspace
-    }
-
-    // Create a dataset
-    hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dataset_id < 0) {
-        H5Sclose(dataspace_id);
-        H5Fclose(file_id);
-        return 0; // Failed to create dataset
-    }
-
-    // Close the dataset and dataspace
-    H5Dclose(dataset_id);
-    H5Sclose(dataspace_id);
-
-    // Prepare parameters for H5Fget_vfd_handle
-    void *file_handle = NULL;
-    hid_t fapl_id = H5P_DEFAULT;
-
-    // Call the function under test
-    herr_t status = H5Fget_vfd_handle(file_id, fapl_id, &file_handle);
-
-    // Clean up and close the file
-    H5Fclose(file_id);
-
-    // Close HDF5 library
-    H5close();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,41 +1,76 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    hid_t file_id;
-    char *name_buf;
-    ssize_t name_len;
-    size_t buf_size;
-
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a temporary file to get a valid file_id
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Ensure the file was created successfully
-    if (file_id < 0) {
+    // Ensure the size is sufficient for testing
+    if (size < sizeof(hid_t) + 1) {
         return 0;
     }
 
-    // Allocate a buffer for the name
-    buf_size = 256; // Arbitrary buffer size for the file name
-    name_buf = (char *)malloc(buf_size);
-    if (name_buf == NULL) {
-        H5Fclose(file_id);
+    // Extract a valid hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
+
+    // Allocate a buffer for the file name
+    size_t name_size = size - sizeof(hid_t);
+    char *name_buffer = (char *)malloc(name_size);
+    if (name_buffer == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    name_len = H5Fget_name(file_id, name_buf, buf_size);
+    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
 
     // Clean up
-    free(name_buf);
-    H5Fclose(file_id);
 
-    // Close HDF5 library
-    H5close();
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Glink2
+    hid_t ret_H5Dget_space_codda = H5Dget_space(0);
+    hid_t ret_H5Aget_space_ovdni = H5Aget_space(0);
+    herr_t ret_H5Glink2_rerdu = H5Glink2(ret_H5Dget_space_codda, name_buffer, 0, ret_H5Aget_space_ovdni, (const char *)data);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(name_buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_47(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

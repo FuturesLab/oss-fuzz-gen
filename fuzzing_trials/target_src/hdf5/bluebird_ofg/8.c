@@ -3,76 +3,68 @@
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient for our needs
-    if (size < 5) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Prepare the parameters for H5Fopen
-    const char *filename = "testfile.h5"; // Using a fixed filename for testing
-    unsigned int flags = (unsigned int)data[0]; // Use the first byte for flags
-    hid_t fapl_id = (hid_t)data[1]; // Use the second byte for fapl_id
+    // Create a null-terminated string from the input data
+    char filename[size + 1];
+    for (size_t i = 0; i < size; i++) {
+        filename[i] = (char)data[i];
+    }
+    filename[size] = '\0';
+
+    // Use a valid file access property list identifier
+    hid_t fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    if (fapl_id < 0) {
+        return 0; // Failed to create property list, exit
+    }
 
     // Call the function-under-test
-    hid_t file_id = H5Fopen(filename, flags, fapl_id);
+    H5Fdelete(filename, fapl_id);
 
-    // Close the file if it was successfully opened
-    if (file_id >= 0) {
+    // Close the property list
+    H5Pclose(fapl_id);
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Freset_page_buffering_stats
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Fget_eoa
-    haddr_t qahjrtrt;
-    memset(&qahjrtrt, 0, sizeof(qahjrtrt));
-
-    herr_t ret_H5Fget_eoa_alzvu = H5Fget_eoa(file_id, &qahjrtrt);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_eoa to H5Dread_chunk2
-    hid_t ret_H5Dget_access_plist_vemmy = H5Dget_access_plist(0);
-    hid_t ret_H5Aget_space_bmpqr = H5Aget_space(file_id);
-    hsize_t ret_H5Aget_storage_size_uzebi = H5Aget_storage_size(file_id);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Aget_storage_size to H5Gget_objtype_by_idx
-    hid_t ret_H5Freopen_yyaff = H5Freopen(file_id);
-
-    H5G_obj_t ret_H5Gget_objtype_by_idx_forjb = H5Gget_objtype_by_idx(ret_H5Freopen_yyaff, ret_H5Aget_storage_size_uzebi);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_H5Aget_num_attrs_jdlwp = H5Aget_num_attrs(file_id);
-    if (ret_H5Aget_num_attrs_jdlwp < 0){
-    	return 0;
-    }
-    uint32_t vlqffxdz = 1;
-
-    herr_t ret_H5Dread_chunk2_ejsdy = H5Dread_chunk2(ret_H5Dget_access_plist_vemmy, ret_H5Aget_space_bmpqr, &ret_H5Aget_storage_size_uzebi, &vlqffxdz, (void *)&qahjrtrt, (size_t *)&ret_H5Aget_num_attrs_jdlwp);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dread_chunk2 to H5Aget_info_by_name
-    hid_t ret_H5Dget_type_ffgeb = H5Dget_type(ret_H5Aget_space_bmpqr);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_type to H5Fget_mdc_logging_status
-    _Bool wepgvcwj;
-    memset(&wepgvcwj, 0, sizeof(wepgvcwj));
-
-    herr_t ret_H5Fget_mdc_logging_status_vepxe = H5Fget_mdc_logging_status(ret_H5Dget_type_ffgeb, &wepgvcwj, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hid_t ret_H5Dget_access_plist_cnnhm = H5Dget_access_plist(ret_H5Aget_space_bmpqr);
-
-    herr_t ret_H5Aget_info_by_name_gvfli = H5Aget_info_by_name(ret_H5Dget_type_ffgeb, &qahjrtrt, &qahjrtrt, NULL, ret_H5Dget_access_plist_cnnhm);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-        H5Freset_page_buffering_stats(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }return 0;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,25 +1,76 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "hdf5.h"
-
-// Dummy scatter function to be used with H5Dscatter
-herr_t scatter_func(const void *src_buf, size_t src_buf_bytes_used, void *op_data) {
-    // For the purpose of fuzzing, we simply return 0 (success).
-    return 0;
-}
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the fuzzing process
-    if (size < sizeof(hid_t) * 2) {
+    // Ensure the data size is sufficient to extract parameters.
+    if (size < 8) {
         return 0;
-    }
+    } // Adjust size as needed for your parameters
 
-    // Initialize variables
-    void *op_data = (void *)data; // Using the data as op_data
-    hid_t type_id = *(const hid_t *)data; // Treating the beginning of data as hid_t
-    hid_t space_id = *(const hid_t *)(data + sizeof(hid_t)); // Treating the next part of data as hid_t
+    // Extract parameters from the data
+    const char *file_name = "testfile.h5"; // Static file name for testing
+    unsigned int create_mode = (unsigned int)data[0];
+    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
+    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
+    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
 
     // Call the function-under-test
-    H5Dscatter(scatter_func, op_data, type_id, space_id, op_data);
+    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
 
+    // Close the file if it was successfully created
+    if (file_id >= 0) {
+        H5Fclose(file_id);
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Dcreate_anon
+    hid_t ret_H5Fget_create_plist_nfgmv = H5Fget_create_plist(0);
+    hid_t ret_H5Freopen_dfldq = H5Freopen(file_id);
+    hid_t ret_H5Dcreate_anon_mmsjm = H5Dcreate_anon(file_id, ret_H5Fget_create_plist_nfgmv, file_id, 0, ret_H5Freopen_dfldq);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_66(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

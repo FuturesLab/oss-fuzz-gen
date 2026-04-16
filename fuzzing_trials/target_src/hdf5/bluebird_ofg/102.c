@@ -1,28 +1,74 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 #include "hdf5.h"
-#include "/src/hdf5/src/H5ACpublic.h"
 
 int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract a valid hid_t
-    if (size < sizeof(hid_t)) {
+    // Ensure the data size is sufficient for a null-terminated string
+    if (size < 2) {
         return 0;
     }
 
-    // Extract a hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Initialize the H5AC_cache_config_t structure
-    H5AC_cache_config_t config;
-    config.version = H5AC__CURR_CACHE_CONFIG_VERSION;
-
-    // Call the function under test
-    herr_t status = H5Fget_mdc_config(file_id, &config);
-
-    // Use the status in some way to prevent compiler optimizations
-    if (status < 0) {
-        // Handle error if needed
+    // Allocate memory for the file name string
+    char *filename = (char *)malloc(size + 1);
+    if (filename == NULL) {
+        return 0;
     }
+
+    // Copy data into filename and null-terminate it
+    memcpy(filename, data, size);
+    filename[size] = '\0';
+
+    // Use a valid hid_t for fapl_id, H5P_DEFAULT is often used for default property lists
+    hid_t fapl_id = H5P_DEFAULT;
+
+    // Call the function-under-test
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of H5Fis_accessible
+    htri_t result = H5Fis_accessible((const char *)"w", fapl_id);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    // Free allocated memory
+    free(filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_102(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

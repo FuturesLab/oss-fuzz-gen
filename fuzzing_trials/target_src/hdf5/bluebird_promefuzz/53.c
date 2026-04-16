@@ -2,93 +2,181 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "/src/hdf5/src/H5Dpublic.h"
-#include "/src/hdf5/src/H5Ppublic.h" // Include for H5Pclose
+#include <stdbool.h>
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
 
-static herr_t safe_H5Dread(hid_t dset_id, hid_t mem_type_id, hid_t mem_space_id, hid_t file_space_id, hid_t dxpl_id, void *buf) {
-    herr_t status = H5Dread(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf);
-    if (status < 0) {
-        fprintf(stderr, "H5Dread failed\n");
+static void handle_hid_t(hid_t id) {
+    if (id >= 0) {
+        H5Pclose(id);
     }
-    return status;
-}
-
-static hid_t safe_H5Dget_access_plist(hid_t dset_id) {
-    hid_t plist_id = H5Dget_access_plist(dset_id);
-    if (plist_id < 0) {
-        fprintf(stderr, "H5Dget_access_plist failed\n");
-    }
-    return plist_id;
-}
-
-static herr_t safe_H5Dvlen_reclaim(hid_t type_id, hid_t space_id, hid_t dxpl_id, void *buf) {
-    herr_t status = H5Dvlen_reclaim(type_id, space_id, dxpl_id, buf);
-    if (status < 0) {
-        fprintf(stderr, "H5Dvlen_reclaim failed\n");
-    }
-    return status;
-}
-
-static herr_t safe_H5Dget_space_status(hid_t dset_id, H5D_space_status_t *allocation) {
-    herr_t status = H5Dget_space_status(dset_id, allocation);
-    if (status < 0) {
-        fprintf(stderr, "H5Dget_space_status failed\n");
-    }
-    return status;
-}
-
-static herr_t safe_H5Dfill(const void *fill, hid_t fill_type_id, void *buf, hid_t buf_type_id, hid_t space_id) {
-    herr_t status = H5Dfill(fill, fill_type_id, buf, buf_type_id, space_id);
-    if (status < 0) {
-        fprintf(stderr, "H5Dfill failed\n");
-    }
-    return status;
-}
-
-static herr_t safe_H5Dwrite(hid_t dset_id, hid_t mem_type_id, hid_t mem_space_id, hid_t file_space_id, hid_t dxpl_id, const void *buf) {
-    herr_t status = H5Dwrite(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf);
-    if (status < 0) {
-        fprintf(stderr, "H5Dwrite failed\n");
-    }
-    return status;
 }
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(hid_t) * 5) {
-        return 0; // Not enough data to proceed
-    }
-
-    hid_t dset_id = *((hid_t *)Data);
-    hid_t mem_type_id = *((hid_t *)(Data + sizeof(hid_t)));
-    hid_t mem_space_id = *((hid_t *)(Data + 2 * sizeof(hid_t)));
-    hid_t file_space_id = *((hid_t *)(Data + 3 * sizeof(hid_t)));
-    hid_t dxpl_id = *((hid_t *)(Data + 4 * sizeof(hid_t)));
-
-    void *buf = malloc(1024); // Allocate a buffer for reading/writing
-    if (!buf) {
-        fprintf(stderr, "Memory allocation failed\n");
+    if (Size < 1) {
         return 0;
     }
 
-    safe_H5Dread(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf);
-    safe_H5Dwrite(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf);
-
-    hid_t access_plist = safe_H5Dget_access_plist(dset_id);
-    if (access_plist >= 0) {
-        H5Pclose(access_plist);
+    // Create a dummy file
+    hid_t file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
     }
 
-    H5D_space_status_t allocation;
-    safe_H5Dget_space_status(dset_id, &allocation);
+    // Close the file
+    H5Fclose(file_id);
 
-    safe_H5Dvlen_reclaim(mem_type_id, mem_space_id, dxpl_id, buf);
-    safe_H5Dfill(NULL, mem_type_id, buf, mem_type_id, mem_space_id);
+    // Re-create the file
+    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    free(buf);
+    // Get file info
+    H5F_info1_t file_info;
+    if (H5Fget_info1(file_id, &file_info) < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Get file creation property list
+    hid_t plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Set latest format
+    H5Fset_latest_format(file_id, Data[0] % 2 == 0);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Re-create the file
+    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Get file access property list
+    plist_id = H5Fget_access_plist(file_id);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_access_plist to H5Dget_chunk_info_by_coord
+    hsize_t ret_H5Aget_storage_size_tvrsa = H5Aget_storage_size(0);
+    haddr_t ret_H5Dget_offset_wjjte = H5Dget_offset(plist_id);
+    hsize_t ret_H5Dget_storage_size_brvya = H5Dget_storage_size(plist_id);
+    herr_t ret_H5Dget_chunk_info_by_coord_tdsje = H5Dget_chunk_info_by_coord(plist_id, &ret_H5Aget_storage_size_tvrsa, NULL, &ret_H5Dget_offset_wjjte, &ret_H5Dget_storage_size_brvya);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    handle_hid_t(plist_id);
+
+    // Get file info again
+    if (H5Fget_info1(file_id, &file_info) < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Get file creation property list again
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Open the file
+    file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Get file info
+    if (H5Fget_info1(file_id, &file_info) < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Get file creation property list
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Aopen_idx
+    hid_t ret_H5Aopen_idx_pyfsh = H5Aopen_idx(file_id, 64);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    plist_id = H5Fget_create_plist(file_id);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_create_plist to H5Dgather
+    hid_t ret_H5Freopen_xfxzk = H5Freopen(file_id);
+    char xtkntkas[1024] = "opcup";
+    herr_t ret_H5Dgather_kbryd = H5Dgather(plist_id, xtkntkas, ret_H5Freopen_xfxzk, 1, (void *)"w", NULL, (void *)"w");
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Re-create the file
+    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Get file creation property list
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Open the file
+    file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Get file creation property list
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

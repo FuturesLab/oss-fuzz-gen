@@ -1,79 +1,84 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient for our needs
-    if (size < 5) {
-        return 0;
+    // Initialize variables
+    hid_t file_id;
+    hsize_t filesize;
+    herr_t status;
+
+    // Create a temporary file for testing
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file, exit early
     }
 
-    // Prepare the parameters for H5Fopen
-    const char *filename = "testfile.h5"; // Using a fixed filename for testing
-    unsigned int flags = (unsigned int)data[0]; // Use the first byte for flags
-    hid_t fapl_id = (hid_t)data[1]; // Use the second byte for fapl_id
+    // Simulate writing data to the file to ensure it's not empty
+    if (size > 0) {
+        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
+        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dget_create_plist with H5Dget_space
+        hid_t ret_H5Dget_create_plist_wdveq = H5Dget_space(dataset_id);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        hsize_t ffboenyb;
+        memset(&ffboenyb, 0, sizeof(ffboenyb));
+        herr_t ret_H5Dget_num_chunks_qytjq = H5Dget_num_chunks(dataset_id, ret_H5Dget_create_plist_wdveq, &ffboenyb);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
+    }
 
     // Call the function-under-test
-    hid_t file_id = H5Fopen(filename, flags, fapl_id);
+    status = H5Fget_filesize(file_id, &filesize);
 
-    // Close the file if it was successfully opened
-    if (file_id >= 0) {
+    // Close the file
+    H5Fclose(file_id);
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Freset_page_buffering_stats
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Fget_eoa
-    haddr_t qahjrtrt;
-    memset(&qahjrtrt, 0, sizeof(qahjrtrt));
-
-    herr_t ret_H5Fget_eoa_alzvu = H5Fget_eoa(file_id, &qahjrtrt);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_eoa to H5Dread_chunk2
-    hid_t ret_H5Dget_access_plist_vemmy = H5Dget_access_plist(0);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_access_plist to H5Gget_objinfo
-
-    herr_t ret_H5Gget_objinfo_sbdaw = H5Gget_objinfo(ret_H5Dget_access_plist_vemmy, NULL, 1, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hid_t ret_H5Aget_space_bmpqr = H5Aget_space(file_id);
-    hsize_t ret_H5Aget_storage_size_uzebi = H5Aget_storage_size(file_id);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Aget_storage_size to H5Aget_info_by_idx
-    hid_t ret_H5Dget_type_hheeg = H5Dget_type(0);
-    H5A_info_t jzxafuoq;
-    memset(&jzxafuoq, 0, sizeof(jzxafuoq));
-
-    herr_t ret_H5Aget_info_by_idx_agsse = H5Aget_info_by_idx(file_id, (const char *)"w", 0, 0, ret_H5Aget_storage_size_uzebi, &jzxafuoq, ret_H5Dget_type_hheeg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_H5Aget_num_attrs_jdlwp = H5Aget_num_attrs(file_id);
-    if (ret_H5Aget_num_attrs_jdlwp < 0){
-    	return 0;
-    }
-    uint32_t vlqffxdz = 1;
-
-    herr_t ret_H5Dread_chunk2_ejsdy = H5Dread_chunk2(ret_H5Dget_access_plist_vemmy, ret_H5Aget_space_bmpqr, &ret_H5Aget_storage_size_uzebi, &vlqffxdz, (void *)&qahjrtrt, (size_t *)&ret_H5Aget_num_attrs_jdlwp);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Aopen_by_idx
-    hsize_t ret_H5Dget_storage_size_domkm = H5Dget_storage_size(file_id);
-    hid_t ret_H5Dget_access_plist_hcpkv = H5Dget_access_plist(0);
-    hid_t ret_H5Dget_access_plist_errcd = H5Dget_access_plist(file_id);
-
-    hid_t ret_H5Aopen_by_idx_jgrhb = H5Aopen_by_idx(file_id, (const char *)data, 0, 0, ret_H5Dget_storage_size_domkm, ret_H5Dget_access_plist_hcpkv, ret_H5Dget_access_plist_errcd);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-        H5Freset_page_buffering_stats(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }return 0;
+    // Return success
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_41(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

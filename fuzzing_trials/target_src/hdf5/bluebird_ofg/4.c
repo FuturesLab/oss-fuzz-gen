@@ -1,41 +1,89 @@
 #include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Initialize the HDF5 library
-    H5open();
+    // Initialize variables
+    hid_t file_id;
+    hsize_t filesize;
+    herr_t status;
 
-    // Create a memory file to avoid file I/O
-    hid_t fapl = H5Pcreate(H5P_FILE_ACCESS);
-    H5Pset_fapl_core(fapl, (size_t)1024, 0);
+    // Create a temporary file for testing
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file, exit early
+    }
 
-    // Create a new HDF5 file using the core file driver
-    hid_t file_id = H5Fcreate("fuzz_test_file", H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+    // Simulate writing data to the file to ensure it's not empty
+    if (size > 0) {
+        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
+        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
-    // Create a dataspace
-    hsize_t dims[1] = {10}; // Example dimension
-    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
 
-    // Create a dataset
-    hid_t dataset_id = H5Dcreate2(file_id, "dset", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Utilize the input data
-    if (size >= sizeof(int) * 10) {
-        // Write the input data to the dataset if size is sufficient
-        H5Dwrite(dataset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Aget_name_by_idx
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Aget_type with H5Dget_create_plist
+        hid_t ret_H5Aget_type_cuqkp = H5Dget_create_plist(dataset_id);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        char gwwvcpdb[1024] = "xyled";
+        ssize_t ret_H5Aget_name_by_idx_jkgpg = H5Aget_name_by_idx(dataset_id, (const char *)"r", 0, 0, 0, gwwvcpdb, 0, ret_H5Aget_type_cuqkp);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        hid_t ret_H5Fget_access_plist_dqphx = H5Fget_access_plist(file_id);
+        herr_t ret_H5Dget_num_chunks_whmzj = H5Dget_num_chunks(ret_H5Fget_access_plist_dqphx, dataset_id, NULL);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
     }
 
     // Call the function-under-test
-    haddr_t offset = H5Dget_offset(dataset_id);
+    status = H5Fget_filesize(file_id, &filesize);
 
-    // Clean up
-    H5Dclose(dataset_id);
-    H5Sclose(dataspace_id);
+    // Close the file
     H5Fclose(file_id);
-    H5Pclose(fapl);
 
-    // Close the HDF5 library
-    H5close();
-
+    // Return success
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

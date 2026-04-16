@@ -1,51 +1,70 @@
 #include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating meaningful input
-    if (size < 10) return 0;
+    // Declare and initialize variables for the function parameters
+    hid_t file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dapl_id = H5Pcreate(H5P_DATASET_ACCESS);
 
-    // Prepare the input parameters for H5Aclose_async
-    const char *app_file = __FILE__;
-    const char *app_func = __func__;
-    unsigned int app_line = __LINE__;
+    // Ensure that the dataset name is null-terminated
+    char dataset_name[256];
+    size_t name_length = size < 255 ? size : 255;
+    memcpy(dataset_name, data, name_length);
+    dataset_name[name_length] = '\0';
 
-    // Create a file to attach the attribute to
-    hid_t file_id = H5Fcreate("temp_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return 0;
+    // Call the function-under-test
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dopen2 with H5Aopen
+    hid_t dataset_id = H5Aopen(file_id, dataset_name, dapl_id);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-    // Create a dataspace
-    hid_t space_id = H5Screate(H5S_SCALAR);
-    if (space_id < 0) {
-        H5Fclose(file_id);
-        return 0;
+    // Clean up resources
+    if (dataset_id >= 0) {
+        H5Dclose(dataset_id);
     }
-
-    // Create an attribute
-    hid_t attribute_id = H5Acreate2(file_id, "attribute_name", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
-    if (attribute_id < 0) {
-        H5Sclose(space_id);
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Create an event set
-    hid_t es_id = H5EScreate();
-    if (es_id < 0) {
-        H5Aclose(attribute_id);
-        H5Sclose(space_id);
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Call the function under test
-    herr_t result = H5Aclose_async(attribute_id, es_id);
-
-    // Cleanup
-    H5Aclose(attribute_id);
-    H5ESclose(es_id);
-    H5Sclose(space_id);
+    H5Pclose(dapl_id);
     H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

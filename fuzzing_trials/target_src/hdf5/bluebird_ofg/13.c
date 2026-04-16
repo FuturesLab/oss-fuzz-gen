@@ -1,87 +1,76 @@
 #include <stdint.h>
-#include "hdf5.h"
 #include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t file_id = H5I_INVALID_HID; // Invalid file identifier
-    hsize_t increment_size = 0;
+    // Initialize variables
+    hid_t file_id;
+    hsize_t filesize;
+    herr_t status;
 
-    // Ensure the data size is sufficient to extract necessary values
-    if (size < sizeof(hsize_t)) {
-        return 0;
-    }
-
-    // Use the data to determine the increment size
-    increment_size = *((hsize_t *)data);
-
-    // Open an HDF5 file to get a valid file identifier
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of H5Fcreate
-    file_id = H5Fcreate("fuzz_test.h5", size, H5P_DEFAULT, H5P_DEFAULT);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Create a temporary file for testing
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
-        return 0; // Failed to create file, exit
+        return 0; // Failed to create file, exit early
     }
 
-    // Ensure the increment size is a meaningful value
-    if (increment_size == 0) {
-        increment_size = 1; // Set to a minimum increment size if zero
+    // Simulate writing data to the file to ensure it's not empty
+    if (size > 0) {
+        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
+        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dclose with H5Dflush
+        H5Dflush(dataset_id);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        H5Sclose(dataspace_id);
     }
 
     // Call the function-under-test
+    status = H5Fget_filesize(file_id, &filesize);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Gmove2
+    // Close the file
+    H5Fclose(file_id);
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Dwrite
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fget_obj_count
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Aget_info_by_name
-    hid_t ret_H5Freopen_zxddg = H5Freopen(0);
-    H5A_info_t hujihzoa;
-    memset(&hujihzoa, 0, sizeof(hujihzoa));
-
-    herr_t ret_H5Aget_info_by_name_cixvp = H5Aget_info_by_name(file_id, (const char *)"r", (const char *)data, &hujihzoa, ret_H5Freopen_zxddg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    ssize_t ret_H5Fget_obj_count_odjnp = H5Fget_obj_count(file_id, -1);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hid_t ret_H5Aget_create_plist_ngwnt = H5Aget_create_plist(file_id);
-    hid_t ret_H5Fget_access_plist_eyolr = H5Fget_access_plist(0);
-    hid_t ret_H5Freopen_qpodp = H5Freopen(file_id);
-    char ujplmizg[1024] = "mbyne";
-
-    herr_t ret_H5Dwrite_ntvbv = H5Dwrite(file_id, file_id, ret_H5Aget_create_plist_ngwnt, ret_H5Fget_access_plist_eyolr, ret_H5Freopen_qpodp, ujplmizg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    herr_t ret_H5Gmove2_toyyl = H5Gmove2(file_id, (const char *)"w", file_id, (const char *)data);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    herr_t status = H5Fincrement_filesize(file_id, increment_size);
-
-    // Check the status of the function call
-    if (status < 0) {
-        // Handle error if needed (e.g., log it, though not necessary for fuzzing)
-    }
-
-    // Close the HDF5 file
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Dclose
-    H5Dclose(file_id);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
+    // Return success
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

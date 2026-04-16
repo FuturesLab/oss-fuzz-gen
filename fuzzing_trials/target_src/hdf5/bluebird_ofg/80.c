@@ -1,33 +1,77 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    hid_t loc_id = H5I_INVALID_HID;  // Use an invalid ID for fuzzing
-    char obj_name[256];
-    char attr_name[256];
-    hid_t lapl_id = H5P_DEFAULT;  // Default link access property list
-
-    // Ensure the data size is sufficient for our needs
-    if (size < 2) {
+    // Ensure the size is sufficient for testing
+    if (size < sizeof(hid_t) + 1) {
         return 0;
     }
 
-    // Copy data into obj_name and attr_name, ensuring null-termination
-    size_t obj_name_len = size / 2 < 255 ? size / 2 : 255;
-    size_t attr_name_len = size - obj_name_len < 255 ? size - obj_name_len : 255;
+    // Extract a valid hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
 
-    // Copy and null-terminate the strings
-    memcpy(obj_name, data, obj_name_len);
-    obj_name[obj_name_len] = '\0';
-
-    memcpy(attr_name, data + obj_name_len, attr_name_len);
-    attr_name[attr_name_len] = '\0';
+    // Allocate a buffer for the file name
+    size_t name_size = size - sizeof(hid_t);
+    char *name_buffer = (char *)malloc(name_size);
+    if (name_buffer == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    H5Adelete_by_name(loc_id, obj_name, attr_name, lapl_id);
+    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Dread
+    hid_t ret_H5Dget_type_oxzsp = H5Dget_type(0);
+    hid_t ret_H5Aget_type_uztic = H5Aget_type(0);
+    hid_t ret_H5Aget_create_plist_xyatk = H5Aget_create_plist(0);
+    herr_t ret_H5Dread_cclkc = H5Dread(0, 0, ret_H5Dget_type_oxzsp, ret_H5Aget_type_uztic, ret_H5Aget_create_plist_xyatk, (void *)name_buffer);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(name_buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_80(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

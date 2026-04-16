@@ -1,37 +1,77 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Initialize variables
-    herr_t status;
-    hid_t file_id;
-    H5F_info2_t file_info;
-
-    // Check if the input size is sufficient to create a valid file name
-    if (size < 1) {
+    // Ensure the size is sufficient for testing
+    if (size < sizeof(hid_t) + 1) {
         return 0;
     }
 
-    // Create a file name from the input data
-    char file_name[256];
-    size_t file_name_size = (size < 255) ? size : 255;
-    for (size_t i = 0; i < file_name_size; i++) {
-        file_name[i] = data[i] % 26 + 'A'; // Ensure it's a valid character
-    }
-    file_name[file_name_size] = '\0';
+    // Extract a valid hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
 
-    // Create a new HDF5 file using the file name
-    file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
+    // Allocate a buffer for the file name
+    size_t name_size = size - sizeof(hid_t);
+    char *name_buffer = (char *)malloc(name_size);
+    if (name_buffer == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    status = H5Fget_info2(file_id, &file_info);
+    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
 
-    // Close the file
-    H5Fclose(file_id);
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Acreate2
+    hid_t ret_H5Dget_space_pxgkv = H5Dget_space(0);
+    hid_t ret_H5Fget_create_plist_nwpej = H5Fget_create_plist(0);
+    hid_t ret_H5Aget_space_vamue = H5Aget_space(0);
+    hid_t ret_H5Acreate2_uzcyt = H5Acreate2(0, name_buffer, ret_H5Dget_space_pxgkv, 0, ret_H5Fget_create_plist_nwpej, ret_H5Aget_space_vamue);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(name_buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,29 +1,83 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for extracting multiple values
-    if (size < 20) {
+    // Initialize the HDF5 library
+    H5open();
+
+    // Create a file to work with
+    hid_t file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
-    // Extract values from data
-    const char *location = (const char *)data;
-    const char *attr_name = (const char *)(data + 1);
-    unsigned int idx_type = (unsigned int)data[2];
-    hid_t loc_id = (hid_t)data[3];
-    const char *name = (const char *)(data + 4);
-    H5_index_t index_type = (H5_index_t)(data[5] % 3); // Assuming 3 types
-    H5_iter_order_t order = (H5_iter_order_t)(data[6] % 3); // Assuming 3 orders
-    hsize_t n = (hsize_t)data[7];
-    hid_t aapl_id = (hid_t)data[8];
-    hid_t lapl_id = (hid_t)data[9];
-    hid_t es_id = (hid_t)data[10];
+    // Create a group in the file
+    hid_t group_id = H5Gcreate(file_id, "group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Call the function-under-test with the correct number of arguments
-    hid_t result = H5Aopen_by_idx_async(loc_id, name, index_type, order, n, aapl_id, lapl_id, es_id);
+    // Ensure data is null-terminated for use as a string
+    char *mount_point = (char *)malloc(size + 1);
+    if (mount_point == NULL) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+    memcpy(mount_point, data, size);
+    mount_point[size] = '\0';
 
-    // Return 0 to indicate the fuzzer can continue
+    // Call the function under test
+    herr_t status = H5Funmount(group_id, mount_point);
+
+    // Clean up
+    free(mount_point);
+    H5Gclose(group_id);
+    H5Fclose(file_id);
+    H5close();
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_90(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

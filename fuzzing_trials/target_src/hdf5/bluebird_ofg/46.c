@@ -1,35 +1,90 @@
 #include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
 #include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
-        return 0;
-    } // Adjust size as needed for your parameters
+    // Initialize variables
+    hid_t file_id;
+    hsize_t filesize;
+    herr_t status;
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Create a temporary file for testing
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file, exit early
+    }
+
+    // Simulate writing data to the file to ensure it's not empty
+    if (size > 0) {
+        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
+        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
+        hid_t ret_H5Fget_access_plist_dqphx = H5Fget_access_plist(file_id);
+        herr_t ret_H5Dget_num_chunks_whmzj = H5Dget_num_chunks(ret_H5Fget_access_plist_dqphx, dataset_id, NULL);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
+    }
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
 
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fset_libver_bounds
-
-    herr_t ret_H5Fset_libver_bounds_qhruk = H5Fset_libver_bounds(file_id, H5F_LIBVER_V200, H5F_LIBVER_V200);
-
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fget_page_buffering_stats
+    unsigned int qvslfekm = 64;
+    unsigned int yzxnohxa = size;
+    unsigned int rfbkovfh = 0;
+    unsigned int svhvzuvp = -1;
+    unsigned int roygtota = 0;
+    herr_t ret_H5Fget_page_buffering_stats_lrgyf = H5Fget_page_buffering_stats(file_id, &qvslfekm, &yzxnohxa, &rfbkovfh, &svhvzuvp, &roygtota);
     // End mutation: Producer.APPEND_MUTATOR
+    
+    status = H5Fget_filesize(file_id, &filesize);
 
-        H5Fclose(file_id);
-    }
+    // Close the file
+    H5Fclose(file_id);
+
+    // Return success
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

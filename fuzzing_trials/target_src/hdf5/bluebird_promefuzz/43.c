@@ -1,70 +1,110 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fcreate_async at H5F.c:673:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dget_space_async at H5D.c:625:1 in H5Dpublic.h
-// H5Freopen_async at H5F.c:1477:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <H5Dpublic.h>
-#include <H5Fpublic.h>
-#include <H5Spublic.h>
-#include <H5Tpublic.h>
-#include <H5Ppublic.h>
-#include <H5ESpublic.h>
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
 
-static hid_t create_file(const char *filename) {
-    return H5Fcreate_async(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT, H5ES_NONE);
-}
-
-static hid_t create_dataset(hid_t file_id, const char *dset_name) {
-    hsize_t dims[2] = {10, 10};
-    hid_t space_id = H5Screate_simple(2, dims, NULL);
-    hid_t dset_id = H5Dcreate_async(file_id, dset_name, H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT, H5ES_NONE);
-    H5Sclose(space_id);
-    return dset_id;
-}
-
-static void write_dataset(hid_t dset_id) {
-    int data[10][10] = {0};
-    H5Dwrite_async(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data, H5ES_NONE);
+static herr_t dummy_chunk_iter_cb(const hsize_t *offset, unsigned filter_mask, haddr_t addr, hsize_t size, void *op_data) {
+    // Dummy callback function for H5Dchunk_iter
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) return 0;
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
-
-    hid_t file_id = create_file("./dummy_file");
-    if (file_id < 0) return 0;
-
-    hid_t dset_id = create_dataset(file_id, "dset");
-    if (dset_id < 0) {
-        H5Fclose(file_id);
+    if (Size < 1) {
         return 0;
     }
 
-    write_dataset(dset_id);
-
-    hid_t space_id = H5Dget_space_async(dset_id, H5ES_NONE);
-    if (space_id >= 0) {
-        H5Sclose(space_id);
+    // Create a dummy file for testing
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 
-    hid_t reopened_file_id = H5Freopen_async(file_id, H5ES_NONE);
-    if (reopened_file_id >= 0) {
-        H5Fclose(reopened_file_id);
-    }
+    hid_t file_id1 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    hid_t file_id2 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
 
-    H5Dclose(dset_id);
-    H5Fclose(file_id);
+    hid_t dset_id1 = H5Dopen2(file_id1, "dataset1", H5P_DEFAULT);
+    hid_t dset_id2 = H5Dopen2(file_id2, "dataset2", H5P_DEFAULT);
+
+    hsize_t nchunks;
+    H5Dget_num_chunks(dset_id1, H5S_ALL, &nchunks);
+    H5Dget_num_chunks(dset_id2, H5S_ALL, &nchunks);
+
+    hsize_t offset[1] = {0};
+    unsigned filter_mask;
+    haddr_t addr;
+    hsize_t size;
+
+    H5Dget_chunk_info(dset_id1, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info(dset_id2, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+
+    H5Dget_chunk_info_by_coord(dset_id1, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info_by_coord(dset_id2, offset, &filter_mask, &addr, &size);
+
+    H5Dchunk_iter(dset_id1, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+    H5Dchunk_iter(dset_id2, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fformat_convert
+    H5Fformat_convert(file_id1);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    H5Fclose(file_id2);
+
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

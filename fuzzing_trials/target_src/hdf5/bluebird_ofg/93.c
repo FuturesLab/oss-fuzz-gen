@@ -1,44 +1,77 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Define and initialize variables
-    size_t count = 1;
-    
-    // Allocate memory for hid_t arrays
-    hid_t *mem_type_ids = (hid_t *)malloc(count * sizeof(hid_t));
-    hid_t *mem_space_ids = (hid_t *)malloc(count * sizeof(hid_t));
-    hid_t *file_space_ids = (hid_t *)malloc(count * sizeof(hid_t));
-    hid_t *dset_ids = (hid_t *)malloc(count * sizeof(hid_t));
-    
-    // Initialize hid_t arrays with dummy values
-    for (size_t i = 0; i < count; i++) {
-        mem_type_ids[i] = H5T_NATIVE_INT;
-        mem_space_ids[i] = H5S_ALL;
-        file_space_ids[i] = H5S_ALL;
-        dset_ids[i] = H5I_INVALID_HID; // Use an invalid ID for fuzzing
+    // Ensure the size is sufficient for testing
+    if (size < sizeof(hid_t) + 1) {
+        return 0;
     }
 
-    hid_t dxpl_id = H5P_DEFAULT;
-    hid_t es_id = H5I_INVALID_HID; // Use an invalid ID for fuzzing
+    // Extract a valid hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
 
-    // Create a buffer for the data
-    const void **bufs = (const void **)malloc(count * sizeof(void *));
-    for (size_t i = 0; i < count; i++) {
-        bufs[i] = (const void *)data;
+    // Allocate a buffer for the file name
+    size_t name_size = size - sizeof(hid_t);
+    char *name_buffer = (char *)malloc(name_size);
+    if (name_buffer == NULL) {
+        return 0;
     }
 
     // Call the function-under-test
-    herr_t result = H5Dwrite_multi_async(count, dset_ids, mem_type_ids, mem_space_ids, 
-                                         file_space_ids, dxpl_id, bufs, es_id);
+    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
 
-    // Free allocated memory
-    free(mem_type_ids);
-    free(mem_space_ids);
-    free(file_space_ids);
-    free(dset_ids);
-    free(bufs);
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aget_name_by_idx
+    hid_t ret_H5Dget_access_plist_imykz = H5Dget_access_plist(0);
+    hsize_t ret_H5Dget_storage_size_ornvz = H5Dget_storage_size(0);
+    hid_t ret_H5Dget_space_ivexw = H5Dget_space(0);
+    ssize_t ret_H5Aget_name_by_idx_ecciv = H5Aget_name_by_idx(ret_H5Dget_access_plist_imykz, name_buffer, 0, 0, ret_H5Dget_storage_size_ornvz, (char *)"w", H5F_FAMILY_DEFAULT, ret_H5Dget_space_ivexw);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(name_buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_93(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

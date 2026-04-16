@@ -1,96 +1,137 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Drefresh at H5D.c:2096:1 in H5Dpublic.h
-// H5Dread at H5D.c:1041:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fstart_swmr_write at H5F.c:2253:1 in H5Fpublic.h
-// H5Dread at H5D.c:1041:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "H5Dpublic.h"
-#include "H5Fpublic.h"
-#include "H5Spublic.h"
-#include "H5Ppublic.h"
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Apublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Tpublic.h"
 
-static herr_t handle_error(herr_t status, const char *msg) {
-    if (status < 0) {
-        fprintf(stderr, "%s\n", msg);
-    }
-    return status;
+static herr_t dummy_operator(void *elem, hid_t type_id, unsigned ndim, const hsize_t *point, void *operator_data) {
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(hid_t) * 2) {
+    if (Size < sizeof(hid_t) * 3 + sizeof(hsize_t) * 2) {
         return 0;
     }
 
-    // Initialize identifiers
-    hid_t file_id = *((hid_t *)Data);
-    hid_t dset_id = *((hid_t *)(Data + sizeof(hid_t)));
+    const char *dummy_file = "./dummy_file";
+    FILE *file = fopen(dummy_file, "w");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Dummy buffer
-    void *buf = malloc(1024);
-    if (!buf) {
+    hid_t file_id = H5Fcreate(dummy_file, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
-    // Refresh dataset
-    handle_error(H5Drefresh(dset_id), "Failed to refresh dataset");
 
-    // Read dataset
-    handle_error(H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf), "Failed to read dataset");
-
-    // Close dataset
-    handle_error(H5Dclose(dset_id), "Failed to close dataset");
-
-    // Close file
-    handle_error(H5Fclose(file_id), "Failed to close file");
-
-    // Write dataset
-    handle_error(H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf), "Failed to write dataset");
-
-    // Close dataset
-    handle_error(H5Dclose(dset_id), "Failed to close dataset");
-
-    // Close file
-    handle_error(H5Fclose(file_id), "Failed to close file");
-
-    // Start SWMR write
-    handle_error(H5Fstart_swmr_write(file_id), "Failed to start SWMR write");
-
-    // Read dataset
-    handle_error(H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf), "Failed to read dataset");
-
-    // Close dataset
-    handle_error(H5Dclose(dset_id), "Failed to close dataset");
-
-    // Close file
-    handle_error(H5Fclose(file_id), "Failed to close file");
-
-    // Close dataset multiple times
-    for (int i = 0; i < 4; i++) {
-        handle_error(H5Dclose(dset_id), "Failed to close dataset");
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Aopen_by_name
+    hid_t ret_H5Aget_create_plist_kxevd = H5Aget_create_plist(0);
+    hid_t ret_H5Aopen_by_name_dsrrj = H5Aopen_by_name(file_id, (const char *)"w", (const char *)"w", 0, ret_H5Aget_create_plist_kxevd);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hsize_t dims[2] = {Size, 1};
+    hid_t space_id = H5Screate_simple(2, dims, NULL);
+    if (space_id < 0) {
+        H5Fclose(file_id);
+        return 0;
     }
 
-    // Close file multiple times
-    for (int i = 0; i < 4; i++) {
-        handle_error(H5Fclose(file_id), "Failed to close file");
+    hid_t dset_id = H5Dcreate2(file_id, "dset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dset_id < 0) {
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
     }
 
-    free(buf);
+    herr_t status;
+    status = H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+    H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+
+    status = H5Diterate((void *)Data, H5T_NATIVE_UCHAR, space_id, dummy_operator, NULL);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    status = H5Dfill(Data, H5T_NATIVE_UCHAR, (void *)Data, H5T_NATIVE_UCHAR, space_id);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    hid_t attr_id = H5Acreate2(dset_id, "attr", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
+    if (attr_id >= 0) {
+        H5Aclose(attr_id);
+    }
+
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+
+    H5Dclose(dset_id);
+    H5Sclose(space_id);
+    H5Fclose(file_id);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,15 +1,71 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "hdf5.h"
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    hid_t file_id = H5I_INVALID_HID; // Invalid ID for testing
-    H5F_scope_t scope = H5F_SCOPE_GLOBAL;
-    hid_t es_id = H5I_INVALID_HID; // Invalid ID for testing
+    // Ensure the data size is sufficient to extract parameters.
+    if (size < 8) {
+        return 0;
+    } // Adjust size as needed for your parameters
 
-    // Call the function-under-test with the correct number of arguments
-    herr_t result = H5Fflush_async(file_id, scope, es_id);
+    // Extract parameters from the data
+    const char *file_name = "testfile.h5"; // Static file name for testing
+    unsigned int create_mode = (unsigned int)data[0];
+    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
+    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
+    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
 
-    // Return 0 to indicate the fuzzer should continue
+    // Call the function-under-test
+    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+
+    // Close the file if it was successfully created
+    if (file_id >= 0) {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Aclose
+        H5Aclose(file_id);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_86(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

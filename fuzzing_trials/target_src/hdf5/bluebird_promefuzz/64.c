@@ -1,82 +1,130 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Diterate at H5D.c:1842:1 in H5Dpublic.h
-// H5Dget_chunk_storage_size at H5D.c:2218:1 in H5Dpublic.h
-// H5Fformat_convert at H5F.c:2447:1 in H5Fpublic.h
-// H5Dformat_convert at H5D.c:2139:1 in H5Dpublic.h
-// H5Dwrite_chunk at H5D.c:1491:1 in H5Dpublic.h
-// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include "H5Dpublic.h"
-#include "H5Fpublic.h"
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
 
-#define DUMMY_FILE "./dummy_file"
-
-// Callback function for H5Diterate
-static herr_t iterate_callback(void *elem, hid_t type_id, unsigned ndim, const hsize_t *point, void *operator_data) {
-    // Example callback: simply return 0 to continue iteration
+static herr_t dummy_chunk_iter_cb(const hsize_t *offset, unsigned filter_mask, haddr_t addr, hsize_t size, void *op_data) {
+    // Dummy callback function for H5Dchunk_iter
     return 0;
-}
-
-// Dummy function to simulate HDF5 ID creation
-static hid_t create_dummy_hid() {
-    static hid_t dummy_id = 0;
-    return ++dummy_id;
 }
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(hid_t) + sizeof(hsize_t)) {
-        return 0; // Not enough data to proceed
-    }
-
-    // Simulate the creation of IDs and data required for the functions
-    hid_t dset_id = create_dummy_hid();
-    hid_t type_id = create_dummy_hid();
-    hid_t space_id = create_dummy_hid();
-    hid_t dxpl_id = create_dummy_hid();
-    hsize_t offset = 0;
-    hsize_t chunk_bytes = 0;
-    void *buf = malloc(Size);
-    if (!buf) {
+    if (Size < 1) {
         return 0;
     }
-    memcpy(buf, Data, Size);
 
-    // Prepare dummy data for H5Dwrite_chunk
-    uint32_t filters = 0;
-    size_t data_size = Size;
-
-    // Create a dummy file
-    FILE *file = fopen(DUMMY_FILE, "wb");
-    if (!file) {
-        free(buf);
-        return 0;
+    // Create a dummy file for testing
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
 
-    // Fuzz H5Diterate
-    H5Diterate(buf, type_id, space_id, iterate_callback, NULL);
+    hid_t file_id1 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    hid_t file_id2 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
 
-    // Fuzz H5Dget_chunk_storage_size
-    H5Dget_chunk_storage_size(dset_id, &offset, &chunk_bytes);
 
-    // Fuzz H5Fformat_convert
-    H5Fformat_convert(dset_id);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Aopen_by_idx_async
+    hsize_t ret_H5Dget_storage_size_mpxqk = H5Dget_storage_size(0);
+    hid_t ret_H5Fget_create_plist_taktk = H5Fget_create_plist(0);
+    hid_t ret_H5Aopen_by_idx_async_ibgra = H5Aopen_by_idx_async((const char *)"r", (const char *)"w", -1, file_id2, (const char *)"r", 0, 0, ret_H5Dget_storage_size_mpxqk, 0, ret_H5Fget_create_plist_taktk, file_id1);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hid_t dset_id1 = H5Dopen2(file_id1, "dataset1", H5P_DEFAULT);
+    hid_t dset_id2 = H5Dopen2(file_id2, "dataset2", H5P_DEFAULT);
 
-    // Fuzz H5Dformat_convert
-    H5Dformat_convert(dset_id);
+    hsize_t nchunks;
+    H5Dget_num_chunks(dset_id1, H5S_ALL, &nchunks);
+    H5Dget_num_chunks(dset_id2, H5S_ALL, &nchunks);
 
-    // Fuzz H5Dwrite_chunk
-    H5Dwrite_chunk(dset_id, dxpl_id, filters, &offset, data_size, buf);
+    hsize_t offset[1] = {0};
+    unsigned filter_mask;
+    haddr_t addr;
+    hsize_t size;
 
-    // Fuzz H5Dwrite
-    H5Dwrite(dset_id, type_id, space_id, space_id, dxpl_id, buf);
+    H5Dget_chunk_info(dset_id1, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info(dset_id2, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
 
-    // Cleanup
-    free(buf);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_chunk_info to H5Dwrite_multi
+    hid_t ret_H5Dget_space_ezokz = H5Dget_space(dset_id1);
+    hid_t ret_H5Aget_space_gzzsk = H5Aget_space(0);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Aget_space to H5Aiterate_by_name
+    hid_t ret_H5Freopen_akxjq = H5Freopen(ret_H5Dget_space_ezokz);
+    herr_t ret_H5Aiterate_by_name_oeipq = H5Aiterate_by_name(ret_H5Freopen_akxjq, (const char *)"r", 0, 0, &size, NULL, (void *)&nchunks, ret_H5Aget_space_gzzsk);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hid_t ret_H5Aget_space_rwkuk = H5Aget_space(file_id1);
+    hid_t ret_H5Dget_create_plist_znpzu = H5Dget_create_plist(file_id1);
+    herr_t ret_H5Dwrite_multi_ayxmn = H5Dwrite_multi(Size, &ret_H5Dget_space_ezokz, NULL, &ret_H5Aget_space_gzzsk, &ret_H5Aget_space_rwkuk, ret_H5Dget_create_plist_znpzu, (const void **)&offset);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    H5Dget_chunk_info_by_coord(dset_id1, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info_by_coord(dset_id2, offset, &filter_mask, &addr, &size);
+
+    H5Dchunk_iter(dset_id1, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+    H5Dchunk_iter(dset_id2, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
+
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_64(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

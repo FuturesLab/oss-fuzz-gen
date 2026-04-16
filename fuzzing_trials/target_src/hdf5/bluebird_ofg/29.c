@@ -1,48 +1,81 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t file_id, dataspace_id, datatype_id, dcpl_id, dapl_id;
-    hid_t dataset_id;
-
-    // Initialize the HDF5 library
-    H5open();
-
-    // Create a new file using the default properties.
-    file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Create a simple dataspace with a single dimension
-    hsize_t dims[1] = {size / sizeof(int)};
-    dataspace_id = H5Screate_simple(1, dims, NULL);
-
-    // Create a datatype
-    datatype_id = H5Tcopy(H5T_NATIVE_INT);
-    H5Tset_order(datatype_id, H5T_ORDER_LE);
-
-    // Create property lists (using default properties for simplicity)
-    dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-    dapl_id = H5Pcreate(H5P_DATASET_ACCESS);
-
-    // Call the function under test
-    dataset_id = H5Dcreate_anon(file_id, datatype_id, dataspace_id, dcpl_id, dapl_id);
-
-    // Write the input data to the dataset
-    if (dims[0] > 0) {
-        H5Dwrite(dataset_id, datatype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+    // Ensure the size is sufficient for testing
+    if (size < sizeof(hid_t) + 1) {
+        return 0;
     }
 
-    // Close the dataset and other resources
-    H5Dclose(dataset_id);
-    H5Pclose(dcpl_id);
-    H5Pclose(dapl_id);
-    H5Tclose(datatype_id);
-    H5Sclose(dataspace_id);
-    H5Fclose(file_id);
+    // Extract a valid hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
 
-    // Close the HDF5 library
-    H5close();
+    // Allocate a buffer for the file name
+    size_t name_size = size - sizeof(hid_t);
+    char *name_buffer = (char *)malloc(name_size);
+    if (name_buffer == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Dread_multi
+    hid_t ret_H5Dget_create_plist_iirrv = H5Dget_create_plist(0);
+    hid_t ret_H5Dget_type_bthsz = H5Dget_type(0);
+    hid_t ret_H5Dget_type_dqceq = H5Dget_type(0);
+    hid_t skvlujyx;
+    memset(&skvlujyx, 0, sizeof(skvlujyx));
+    hid_t rgwobueq;
+    memset(&rgwobueq, 0, sizeof(rgwobueq));
+    herr_t ret_H5Dread_multi_osuoi = H5Dread_multi(H5G_NLIBTYPES, &skvlujyx, &rgwobueq, &ret_H5Dget_create_plist_iirrv, &ret_H5Dget_type_bthsz, ret_H5Dget_type_dqceq, (void **)&name_buffer);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(name_buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

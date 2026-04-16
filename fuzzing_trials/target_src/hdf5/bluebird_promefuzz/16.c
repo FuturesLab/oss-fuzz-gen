@@ -1,133 +1,123 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Aiterate2 at H5A.c:1855:1 in H5Apublic.h
-// H5Aiterate_by_name at H5A.c:1942:1 in H5Apublic.h
-// H5Aiterate_by_name at H5A.c:1942:1 in H5Apublic.h
-// H5Aiterate2 at H5A.c:1855:1 in H5Apublic.h
-// H5Aiterate_by_name at H5A.c:1942:1 in H5Apublic.h
-// H5Aiterate_by_name at H5A.c:1942:1 in H5Apublic.h
-// H5Aiterate1 at H5Adeprec.c:373:1 in H5Apublic.h
-// H5Aiterate2 at H5A.c:1855:1 in H5Apublic.h
-// H5Aiterate_by_name at H5A.c:1942:1 in H5Apublic.h
-// H5Aiterate_by_name at H5A.c:1942:1 in H5Apublic.h
-// H5Aiterate1 at H5Adeprec.c:373:1 in H5Apublic.h
-// H5Aiterate2 at H5A.c:1855:1 in H5Apublic.h
-// H5Aiterate_by_name at H5A.c:1942:1 in H5Apublic.h
-// H5Aiterate_by_name at H5A.c:1942:1 in H5Apublic.h
-// H5Aiterate1 at H5Adeprec.c:373:1 in H5Apublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include "H5Apublic.h"
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
 
-static herr_t dummy_operator(hid_t location_id, const char *attr_name, const H5A_info_t *ainfo, void *op_data) {
-    return 0; // Dummy operator function for iteration
+static herr_t dummy_chunk_iter_cb(const hsize_t *offset, unsigned filter_mask, haddr_t addr, hsize_t size, void *op_data) {
+    // Dummy callback function for H5Dchunk_iter
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(hid_t) + sizeof(hsize_t) + sizeof(hid_t)) {
+    if (Size < 1) {
         return 0;
     }
 
-    hid_t loc_id = *((const hid_t *)Data);
-    Data += sizeof(hid_t);
-    Size -= sizeof(hid_t);
-
-    hsize_t idx = *((const hsize_t *)Data);
-    Data += sizeof(hsize_t);
-    Size -= sizeof(hsize_t);
-
-    hid_t lapl_id = *((const hid_t *)Data);
-    Data += sizeof(hid_t);
-    Size -= sizeof(hid_t);
-
-    const char *obj_name = "./dummy_file";
-    H5_index_t idx_type = H5_INDEX_NAME;
-    H5_iter_order_t order = H5_ITER_INC;
-
-    herr_t ret;
-
-    ret = H5Aiterate2(loc_id, idx_type, order, &idx, dummy_operator, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate2 failed\n");
+    // Create a dummy file for testing
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 
-    ret = H5Aiterate_by_name(loc_id, obj_name, idx_type, order, &idx, dummy_operator, NULL, lapl_id);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate_by_name failed\n");
-    }
+    hid_t file_id1 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of H5Fopen
+    hid_t file_id2 = H5Fopen("./dummy_file", H5D_CHUNK_CACHE_W0_DEFAULT, H5P_DEFAULT);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    ret = H5Aiterate_by_name(loc_id, obj_name, idx_type, order, &idx, dummy_operator, NULL, lapl_id);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate_by_name failed\n");
-    }
+    hid_t dset_id1 = H5Dopen2(file_id1, "dataset1", H5P_DEFAULT);
 
-    unsigned idx1 = (unsigned)idx;
-    ret = H5Aiterate1(loc_id, &idx1, (H5A_operator1_t)dummy_operator, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate1 failed\n");
-    }
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dopen2 to H5Acreate_by_name
+    hid_t ret_H5Fget_access_plist_yckji = H5Fget_access_plist(0);
+    hid_t ret_H5Aget_create_plist_zdqet = H5Aget_create_plist(file_id2);
+    hid_t ret_H5Acreate_by_name_cyerh = H5Acreate_by_name(file_id2, (const char *)"w", (const char *)"w", ret_H5Fget_access_plist_yckji, file_id1, 0, ret_H5Aget_create_plist_zdqet, dset_id1);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hid_t dset_id2 = H5Dopen2(file_id2, "dataset2", H5P_DEFAULT);
 
-    ret = H5Aiterate2(loc_id, idx_type, order, &idx, dummy_operator, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate2 failed\n");
-    }
+    hsize_t nchunks;
+    H5Dget_num_chunks(dset_id1, H5S_ALL, &nchunks);
+    H5Dget_num_chunks(dset_id2, H5S_ALL, &nchunks);
 
-    ret = H5Aiterate_by_name(loc_id, obj_name, idx_type, order, &idx, dummy_operator, NULL, lapl_id);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate_by_name failed\n");
-    }
 
-    ret = H5Aiterate_by_name(loc_id, obj_name, idx_type, order, &idx, dummy_operator, NULL, lapl_id);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate_by_name failed\n");
-    }
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_num_chunks to H5Fget_file_image
+    hid_t ret_H5Freopen_pizhx = H5Freopen(file_id2);
+    ssize_t ret_H5Fget_file_image_oqzpw = H5Fget_file_image(ret_H5Freopen_pizhx, (void *)&nchunks, H5F_NUM_METADATA_READ_RETRY_TYPES);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hsize_t offset[1] = {0};
+    unsigned filter_mask;
+    haddr_t addr;
+    hsize_t size;
 
-    idx1 = (unsigned)idx;
-    ret = H5Aiterate1(loc_id, &idx1, (H5A_operator1_t)dummy_operator, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate1 failed\n");
-    }
+    H5Dget_chunk_info(dset_id1, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info(dset_id2, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
 
-    ret = H5Aiterate2(loc_id, idx_type, order, &idx, dummy_operator, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate2 failed\n");
-    }
+    H5Dget_chunk_info_by_coord(dset_id1, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info_by_coord(dset_id2, offset, &filter_mask, &addr, &size);
 
-    ret = H5Aiterate_by_name(loc_id, obj_name, idx_type, order, &idx, dummy_operator, NULL, lapl_id);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate_by_name failed\n");
-    }
+    H5Dchunk_iter(dset_id1, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+    H5Dchunk_iter(dset_id2, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
 
-    ret = H5Aiterate_by_name(loc_id, obj_name, idx_type, order, &idx, dummy_operator, NULL, lapl_id);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate_by_name failed\n");
-    }
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
 
-    idx1 = (unsigned)idx;
-    ret = H5Aiterate1(loc_id, &idx1, (H5A_operator1_t)dummy_operator, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate1 failed\n");
-    }
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
 
-    ret = H5Aiterate2(loc_id, idx_type, order, &idx, dummy_operator, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate2 failed\n");
-    }
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
 
-    ret = H5Aiterate_by_name(loc_id, obj_name, idx_type, order, &idx, dummy_operator, NULL, lapl_id);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate_by_name failed\n");
-    }
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
 
-    ret = H5Aiterate_by_name(loc_id, obj_name, idx_type, order, &idx, dummy_operator, NULL, lapl_id);
-    if (ret < 0) {
-        fprintf(stderr, "H5Aiterate_by_name failed\n");
-    }
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

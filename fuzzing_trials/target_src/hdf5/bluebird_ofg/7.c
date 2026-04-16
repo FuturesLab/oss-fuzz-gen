@@ -1,73 +1,72 @@
 #include <stdint.h>
-#include "hdf5.h"
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t file_id = H5I_INVALID_HID; // Invalid file identifier
-    hsize_t increment_size = 0;
-
-    // Ensure the data size is sufficient to extract necessary values
-    if (size < sizeof(hsize_t)) {
+    // Ensure the data is large enough to contain a non-empty string and additional parameters
+    if (size < 5) {
         return 0;
     }
 
-    // Use the data to determine the increment size
-    increment_size = *((hsize_t *)data);
+    // Use the data to create a null-terminated string for the file name
+    char filename[256];
+    size_t filename_len = (size < sizeof(filename) - 1) ? size : sizeof(filename) - 1;
+    memcpy(filename, data, filename_len);
+    filename[filename_len] = '\0';
 
-    // Open an HDF5 file to get a valid file identifier
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of H5Fcreate
-    file_id = H5Fcreate("fuzz_test.h5", size, H5P_DEFAULT, H5P_DEFAULT);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit
-    }
-
-    // Ensure the increment size is a meaningful value
-    if (increment_size == 0) {
-        increment_size = 1; // Set to a minimum increment size if zero
-    }
+    // Extract the flags and fapl_id from the data
+    unsigned int flags = (unsigned int)data[filename_len % size];
+    hid_t fapl_id = (hid_t)data[(filename_len + 1) % size];
 
     // Call the function-under-test
+    hid_t file_id = H5Fopen(filename, flags, fapl_id);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Gmove2
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of H5Gmove2
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of H5Gmove2
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Adelete_by_idx
-    hsize_t ret_H5Dget_storage_size_ltnzz = H5Dget_storage_size(0);
-    hid_t ret_H5Fget_access_plist_bowef = H5Fget_access_plist(file_id);
-
-    herr_t ret_H5Adelete_by_idx_lqapx = H5Adelete_by_idx(file_id, (const char *)"w", 0, 0, ret_H5Dget_storage_size_ltnzz, ret_H5Fget_access_plist_bowef);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    herr_t ret_H5Gmove2_toyyl = H5Gmove2(file_id, (const char *)"r", file_id, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    herr_t status = H5Fincrement_filesize(file_id, increment_size);
-
-    // Check the status of the function call
-    if (status < 0) {
-        // Handle error if needed (e.g., log it, though not necessary for fuzzing)
+    // If the file was successfully opened, close it
+    if (file_id >= 0) {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Freset_page_buffering_stats
+        H5Freset_page_buffering_stats(file_id);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
-
-    // Close the HDF5 file
-    H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

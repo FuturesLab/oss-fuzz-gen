@@ -1,77 +1,144 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fmount at H5F.c:1183:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fget_obj_count at H5F.c:216:1 in H5Fpublic.h
-// H5Funmount at H5F.c:1301:1 in H5Fpublic.h
-// H5Funmount at H5F.c:1301:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <H5Fpublic.h>
-#include <H5Ppublic.h>
+#include <stdbool.h>
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Apublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5ESpublic.h"
 
-static void write_dummy_file() {
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        fputs("dummy content", file);
-        fclose(file);
+static herr_t fuzz_H5Aexists_by_name_async(const uint8_t *Data, size_t Size) {
+    if (Size < 3) {
+        return 0;
     }
+    hid_t loc_id = (hid_t)Data[0];
+    const char *obj_name = (const char *)&Data[1];
+    const char *attr_name = (const char *)&Data[2];
+    bool exists;
+    hid_t lapl_id = H5P_DEFAULT;
+    hid_t es_id = H5ES_NONE;
+
+    return H5Aexists_by_name_async(loc_id, obj_name, attr_name, &exists, lapl_id, es_id);
 }
 
-int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
+static herr_t fuzz_H5Aread_async(const uint8_t *Data, size_t Size) {
+    if (Size < 2) {
+        return 0;
+    }
+    hid_t attr_id = (hid_t)Data[0];
+    hid_t dtype_id = (hid_t)Data[1];
+    void *buf = malloc(1024); // Allocate buffer for reading
+    hid_t es_id = H5ES_NONE;
+
+    herr_t ret = H5Aread_async(attr_id, dtype_id, buf, es_id);
+    free(buf);
+    return ret;
+}
+
+static herr_t fuzz_H5Arename_by_name_async(const uint8_t *Data, size_t Size) {
+    if (Size < 3) {
+        return 0;
+    }
+    hid_t loc_id = (hid_t)Data[0];
+    const char *obj_name = (const char *)&Data[1];
+    const char *old_attr_name = (const char *)&Data[2];
+    const char *new_attr_name = "new_attr_name";
+    hid_t lapl_id = H5P_DEFAULT;
+    hid_t es_id = H5ES_NONE;
+
+    return H5Arename_by_name_async(loc_id, obj_name, old_attr_name, new_attr_name, lapl_id, es_id);
+}
+
+static herr_t fuzz_H5Dread_async(const uint8_t *Data, size_t Size) {
+    if (Size < 5) {
+        return 0;
+    }
+    hid_t dset_id = (hid_t)Data[0];
+    hid_t mem_type_id = (hid_t)Data[1];
+    hid_t mem_space_id = (hid_t)Data[2];
+    hid_t file_space_id = (hid_t)Data[3];
+    hid_t dxpl_id = (hid_t)Data[4];
+    void *buf = malloc(1024); // Allocate buffer for reading
+    hid_t es_id = H5ES_NONE;
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dread_async with H5Dset_extent_async
+    herr_t ret = H5Dset_extent_async(dset_id, mem_type_id, mem_space_id);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    free(buf);
+    return ret;
+}
+
+static herr_t fuzz_H5Aclose_async(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
     }
+    hid_t attr_id = (hid_t)Data[0];
+    hid_t es_id = H5ES_NONE;
 
-    write_dummy_file();
+    return H5Aclose_async(attr_id, es_id);
+}
 
-    hid_t file_id, child_id, loc_id;
-    herr_t status;
-    ssize_t obj_count;
-
-    // Fuzz data for file access flags
-    unsigned flags = Data[0] % 2 == 0 ? H5F_ACC_TRUNC : H5F_ACC_EXCL;
-
-    // H5Fcreate and H5Fclose sequence
-    for (int i = 0; i < 7; ++i) {
-        file_id = H5Fcreate("./dummy_file", flags, H5P_DEFAULT, H5P_DEFAULT);
-        if (file_id >= 0) {
-            H5Fclose(file_id);
-        }
+static herr_t fuzz_H5Aexists_async(const uint8_t *Data, size_t Size) {
+    if (Size < 2) {
+        return 0;
     }
+    hid_t obj_id = (hid_t)Data[0];
+    const char *attr_name = (const char *)&Data[1];
+    bool exists;
+    hid_t es_id = H5ES_NONE;
 
-    // H5Fopen and H5Fmount sequence
-    loc_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (loc_id >= 0) {
-        for (int i = 0; i < 5; ++i) {
-            child_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-            if (child_id >= 0) {
-                status = H5Fmount(loc_id, "/mount_point", child_id, H5P_DEFAULT);
-                H5Fclose(child_id);
-            }
-        }
-        H5Fclose(loc_id);
-    }
+    return H5Aexists_async(obj_id, attr_name, &exists, es_id);
+}
 
-    // H5Fget_obj_count and H5Funmount sequence
-    loc_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (loc_id >= 0) {
-        obj_count = H5Fget_obj_count(loc_id, H5F_OBJ_ALL);
-        if (obj_count >= 0) {
-            H5Funmount(loc_id, "/mount_point");
-            H5Funmount(loc_id, "/mount_point");
-        }
-        H5Fclose(loc_id);
-    }
+int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
+    fuzz_H5Aexists_by_name_async(Data, Size);
+    fuzz_H5Aread_async(Data, Size);
+    fuzz_H5Arename_by_name_async(Data, Size);
+    fuzz_H5Dread_async(Data, Size);
+    fuzz_H5Aclose_async(Data, Size);
+    fuzz_H5Aexists_async(Data, Size);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

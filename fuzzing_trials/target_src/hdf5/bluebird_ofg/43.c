@@ -1,51 +1,75 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    hid_t dataset_id;
-    herr_t status;
-
-    // Initialize the HDF5 library
-    H5open();
-
-    // Create a new HDF5 file to obtain a valid dataset ID
-    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
+    // Ensure the size is sufficient for testing
+    if (size < sizeof(hid_t) + 1) {
         return 0;
     }
 
-    // Create a simple dataspace
-    hsize_t dims[1] = {10};
-    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
-    if (dataspace_id < 0) {
-        H5Fclose(file_id);
-        return 0;
-    }
+    // Extract a valid hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
 
-    // Create a dataset
-    dataset_id = H5Dcreate2(file_id, "dset", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dataset_id < 0) {
-        H5Sclose(dataspace_id);
-        H5Fclose(file_id);
+    // Allocate a buffer for the file name
+    size_t name_size = size - sizeof(hid_t);
+    char *name_buffer = (char *)malloc(name_size);
+    if (name_buffer == NULL) {
         return 0;
-    }
-
-    // Use the input data to write to the dataset if size is sufficient
-    if (size >= 10 * sizeof(int)) {
-        status = H5Dwrite(dataset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
     }
 
     // Call the function-under-test
-    status = H5Drefresh(dataset_id);
+    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
 
-    // Clean up resources
-    H5Dclose(dataset_id);
-    H5Sclose(dataspace_id);
-    H5Fclose(file_id);
+    // Clean up
 
-    // Close the HDF5 library
-    H5close();
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Gmove2
+    hid_t ret_H5Freopen_imeoj = H5Freopen(0);
+    herr_t ret_H5Gmove2_fyrnr = H5Gmove2(ret_H5Freopen_imeoj, name_buffer, 0, (const char *)data);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(name_buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

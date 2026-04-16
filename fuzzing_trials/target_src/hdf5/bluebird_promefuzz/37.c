@@ -1,108 +1,123 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fget_freespace at H5F.c:1617:1 in H5Fpublic.h
-// H5Fget_free_sections at H5F.c:2147:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fget_free_sections at H5F.c:2147:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include "H5Dpublic.h"
-#include "H5Fpublic.h"
-#include "H5Spublic.h"
-#include "H5Tpublic.h"
-#include "H5Ppublic.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
 
-static void write_dummy_file() {
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        fputs("dummy data", file);
-        fclose(file);
+static herr_t handle_error(herr_t status, const char *msg) {
+    if (status < 0) {
+        fprintf(stderr, "%s\n", msg);
     }
+    return status;
 }
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
-    write_dummy_file();
-
-    hid_t file_id, dset_id;
-    hssize_t free_space;
-    ssize_t num_sections;
-    H5F_sect_info_t *sect_info = NULL;
-
-    // H5Fcreate
-    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return 0;
-
-    // H5Fclose
-    if (H5Fclose(file_id) < 0) return 0;
-
-    // H5Dcreate2
-    hid_t space_id = H5Screate(H5S_SCALAR);
-    if (space_id < 0) return 0;
-
-    dset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dset_id < 0) {
-        H5Sclose(space_id);
+    if (Size < sizeof(hid_t) * 2) {
         return 0;
     }
 
-    // H5Dclose
-    if (H5Dclose(dset_id) < 0) {
-        H5Sclose(space_id);
+    // Initialize identifiers
+    hid_t file_id = *((hid_t *)Data);
+    hid_t dset_id = *((hid_t *)(Data + sizeof(hid_t)));
+
+    // Dummy buffer
+    void *buf = malloc(1024);
+    if (!buf) {
         return 0;
     }
 
-    // H5Dcreate2 again
-    dset_id = H5Dcreate2(file_id, "dataset2", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dset_id < 0) {
-        H5Sclose(space_id);
-        return 0;
+    // Refresh dataset
+    handle_error(H5Drefresh(dset_id), "Failed to refresh dataset");
+
+    // Read dataset
+    handle_error(H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf), "Failed to read dataset");
+
+    // Close dataset
+    handle_error(H5Dclose(dset_id), "Failed to close dataset");
+
+    // Close file
+    handle_error(H5Fclose(file_id), "Failed to close file");
+
+    // Write dataset
+    handle_error(H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf), "Failed to write dataset");
+
+    // Close dataset
+    handle_error(H5Dclose(dset_id), "Failed to close dataset");
+
+    // Close file
+    handle_error(H5Fclose(file_id), "Failed to close file");
+
+    // Start SWMR write
+    handle_error(H5Fstart_swmr_write(file_id), "Failed to start SWMR write");
+
+    // Read dataset
+    handle_error(H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf), "Failed to read dataset");
+
+    // Close dataset
+    handle_error(H5Dclose(dset_id), "Failed to close dataset");
+
+    // Close file
+    handle_error(H5Fclose(file_id), "Failed to close file");
+
+    // Close dataset multiple times
+    for (int i = 0; i < 4; i++) {
+        handle_error(H5Dclose(dset_id), "Failed to close dataset");
     }
 
-    // H5Dclose again
-    if (H5Dclose(dset_id) < 0) {
-        H5Sclose(space_id);
-        return 0;
+    // Close file multiple times
+    for (int i = 0; i < 4; i++) {
+        handle_error(H5Fclose(file_id), "Failed to close file");
     }
 
-    H5Sclose(space_id);
-
-    // H5Fclose again
-    if (H5Fclose(file_id) < 0) return 0;
-
-    // H5Fopen
-    file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id < 0) return 0;
-
-    // H5Fget_freespace
-    free_space = H5Fget_freespace(file_id);
-    if (free_space < 0) return 0;
-
-    // H5Fget_free_sections multiple times
-    for (int i = 0; i < 10; i++) {
-        num_sections = H5Fget_free_sections(file_id, H5FD_MEM_DEFAULT, 0, NULL);
-        if (num_sections > 0) {
-            sect_info = (H5F_sect_info_t *)malloc(num_sections * sizeof(H5F_sect_info_t));
-            if (sect_info == NULL) {
-                H5Fclose(file_id);
-                return 0;
-            }
-            H5Fget_free_sections(file_id, H5FD_MEM_DEFAULT, num_sections, sect_info);
-            free(sect_info);
-        }
-    }
-
-    // Final H5Fclose
-    H5Fclose(file_id);
-
+    free(buf);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

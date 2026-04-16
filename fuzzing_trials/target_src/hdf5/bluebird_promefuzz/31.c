@@ -1,101 +1,115 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_access_plist at H5F.c:152:1 in H5Fpublic.h
-// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
-// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
-// H5Dflush at H5D.c:2055:1 in H5Dpublic.h
-// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <hdf5.h>
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
 
-static void write_dummy_file() {
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        const char *dummy_content = "This is a dummy file for HDF5 testing.";
-        fwrite(dummy_content, 1, strlen(dummy_content), file);
-        fclose(file);
-    }
+static herr_t dummy_chunk_iter_cb(const hsize_t *offset, unsigned filter_mask, haddr_t addr, hsize_t size, void *op_data) {
+    // Dummy callback function for H5Dchunk_iter
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there is at least some data.
+    if (Size < 1) {
+        return 0;
+    }
 
-    write_dummy_file();
+    // Create a dummy file for testing
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 
-    hid_t file_id, plist_id, dset_id1, dset_id2;
-    herr_t status;
-    hid_t space_id, type_id;
-    hsize_t dims[1] = {10};
-    int data[10] = {0}; // Dummy data buffer
+    hid_t file_id1 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    hid_t file_id2 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
 
-    // Create a new file using default properties.
-    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return 0;
+    hid_t dset_id1 = H5Dopen2(file_id1, "dataset1", H5P_DEFAULT);
+    hid_t dset_id2 = H5Dopen2(file_id2, "dataset2", H5P_DEFAULT);
 
-    // Get the file access property list identifier.
-    plist_id = H5Fget_access_plist(file_id);
-    if (plist_id < 0) goto close_file;
+    hsize_t nchunks;
+    H5Dget_num_chunks(dset_id1, H5S_ALL, &nchunks);
+    H5Dget_num_chunks(dset_id2, H5S_ALL, &nchunks);
 
-    // Create a simple dataspace.
-    space_id = H5Screate_simple(1, dims, NULL);
-    if (space_id < 0) goto close_plist;
+    hsize_t offset[1] = {0};
+    unsigned filter_mask;
+    haddr_t addr;
+    hsize_t size;
 
-    // Create a new dataset within the file using defined dataspace and datatype.
-    type_id = H5Tcopy(H5T_NATIVE_INT);
-    dset_id1 = H5Dcreate2(file_id, "dset1", type_id, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dset_id1 < 0) goto close_space;
+    H5Dget_chunk_info(dset_id1, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info(dset_id2, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
 
-    // Write the dataset.
-    status = H5Dwrite(dset_id1, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-    if (status < 0) goto close_dset1_early;
 
-    // Flush the dataset.
-    status = H5Dflush(dset_id1);
-    if (status < 0) goto close_dset1_early;
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_chunk_info to H5Adelete_by_idx
+    hid_t ret_H5Dget_access_plist_vifte = H5Dget_access_plist(file_id2);
+    hid_t ret_H5Freopen_zukdm = H5Freopen(0);
+    herr_t ret_H5Adelete_by_idx_cxynf = H5Adelete_by_idx(ret_H5Dget_access_plist_vifte, (const char *)"r", 0, 0, size, ret_H5Freopen_zukdm);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    H5Dget_chunk_info_by_coord(dset_id1, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info_by_coord(dset_id2, offset, &filter_mask, &addr, &size);
 
-    // Create another dataset.
-    dset_id2 = H5Dcreate2(file_id, "dset2", type_id, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dset_id2 < 0) goto close_dset1_early;
+    H5Dchunk_iter(dset_id1, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+    H5Dchunk_iter(dset_id2, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
 
-    // Close datasets.
     H5Dclose(dset_id1);
     H5Dclose(dset_id2);
 
-    // Close property lists and spaces.
-close_space:
-    H5Sclose(space_id);
-close_plist:
-    H5Pclose(plist_id);
-close_file:
-    H5Fclose(file_id);
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
 
-    // Reopen the file and datasets for further testing.
-    file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id < 0) return 0;
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
 
-    dset_id1 = H5Dcreate2(file_id, "dset3", type_id, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dset_id1 >= 0) {
-        H5Dclose(dset_id1);
-    }
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
 
-    // Close the file.
-    H5Fclose(file_id);
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
 
     return 0;
-
-close_dset1_early:
-    H5Dclose(dset_id1);
-    goto close_space;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

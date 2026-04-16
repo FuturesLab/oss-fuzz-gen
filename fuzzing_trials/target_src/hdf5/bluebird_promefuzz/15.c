@@ -1,78 +1,140 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fget_filesize at H5F.c:1659:1 in H5Fpublic.h
-// H5Fget_vfd_handle at H5F.c:422:1 in H5Fpublic.h
-// H5Fget_intent at H5F.c:1540:1 in H5Fpublic.h
-// H5Fget_info2 at H5F.c:2055:1 in H5Fpublic.h
-// H5Fget_name at H5F.c:1999:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <hdf5.h>
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Apublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Tpublic.h"
 
-#define DUMMY_FILE "./dummy_file"
-
-static hid_t create_dummy_hdf5_file() {
-    hid_t file_id = H5Fcreate(DUMMY_FILE, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        fprintf(stderr, "Failed to create dummy HDF5 file.\n");
-        exit(EXIT_FAILURE);
-    }
-    return file_id;
+static herr_t dummy_operator(void *elem, hid_t type_id, unsigned ndim, const hsize_t *point, void *operator_data) {
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(hid_t)) {
+    if (Size < sizeof(hid_t) * 3 + sizeof(hsize_t) * 2) {
         return 0;
     }
+
+    const char *dummy_file = "./dummy_file";
+    FILE *file = fopen(dummy_file, "w");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    hid_t file_id = H5Fcreate(dummy_file, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Gmove
+    herr_t ret_H5Gmove_pbwrk = H5Gmove(file_id, NULL, NULL);
+    // End mutation: Producer.APPEND_MUTATOR
     
-    // Create a dummy HDF5 file
-    hid_t file_id = create_dummy_hdf5_file();
-
-    // Fuzz H5Fget_filesize
-    hsize_t filesize;
-    if (H5Fget_filesize(file_id, &filesize) < 0) {
-        fprintf(stderr, "H5Fget_filesize failed.\n");
+    hsize_t dims[2] = {Size, 1};
+    hid_t space_id = H5Screate_simple(2, dims, NULL);
+    if (space_id < 0) {
+        H5Fclose(file_id);
+        return 0;
     }
 
-    // Fuzz H5Fget_vfd_handle
-    void *file_handle;
-    if (H5Fget_vfd_handle(file_id, H5P_DEFAULT, &file_handle) < 0) {
-        fprintf(stderr, "H5Fget_vfd_handle failed.\n");
+    hid_t dset_id = H5Dcreate2(file_id, "dset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dset_id < 0) {
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
     }
 
-    // Fuzz H5Fget_intent
-    unsigned intent;
-    if (H5Fget_intent(file_id, &intent) < 0) {
-        fprintf(stderr, "H5Fget_intent failed.\n");
+    herr_t status;
+    status = H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
     }
 
-    // Fuzz H5Fget_info2
-    H5F_info2_t file_info;
-    if (H5Fget_info2(file_id, &file_info) < 0) {
-        fprintf(stderr, "H5Fget_info2 failed.\n");
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of H5Dwrite
+    H5Dwrite(dset_id, dset_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    H5Dwrite(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, Data);
+
+    status = H5Diterate((void *)Data, H5T_NATIVE_UCHAR, space_id, dummy_operator, NULL);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
     }
 
-    // Fuzz H5Fget_name
-    char name[1024];
-    if (H5Fget_name(file_id, name, sizeof(name)) < 0) {
-        fprintf(stderr, "H5Fget_name failed.\n");
+    status = H5Dfill(Data, H5T_NATIVE_UCHAR, (void *)Data, H5T_NATIVE_UCHAR, space_id);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
     }
 
-    // Close the file
-    if (H5Fclose(file_id) < 0) {
-        fprintf(stderr, "Failed to close file.\n");
+    hid_t attr_id = H5Acreate2(dset_id, "attr", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
+    if (attr_id >= 0) {
+        H5Aclose(attr_id);
     }
 
-    // Cleanup
-    remove(DUMMY_FILE);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+    H5Dread(dset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void *)Data);
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dclose with H5Dformat_convert
+    H5Dformat_convert(dset_id);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    H5Sclose(space_id);
+    H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,88 +1,97 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
-// Function to create a simple dataset for testing
-hid_t create_test_dataset() {
-    hid_t file_id, dataset_id, dataspace_id, dcpl_id;
-    hsize_t dims[1] = {10}; // Example dimension size
-    hsize_t chunk_dims[1] = {5}; // Example chunk size
-    int data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}; // Example data
+int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
+    // Initialize variables
+    hid_t file_id;
+    hsize_t filesize;
+    herr_t status;
 
-    // Create a new file using the default properties
-    file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a temporary file for testing
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file, exit early
+    }
 
-    // Create the data space for the dataset
-    dataspace_id = H5Screate_simple(1, dims, NULL);
+    // Simulate writing data to the file to ensure it's not empty
+    if (size > 0) {
+        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
+        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
-    // Create a dataset creation property list and set it to use chunking
-    dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-    H5Pset_chunk(dcpl_id, 1, chunk_dims);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
+        hid_t ret_H5Freopen_jkojw = H5Freopen(file_id);
+        hsize_t ret_H5Dget_storage_size_txvkk = H5Dget_storage_size(0);
 
-    // Create the dataset with chunked storage
-    dataset_id = H5Dcreate2(file_id, "/dset", H5T_NATIVE_INT, dataspace_id, 
-                            H5P_DEFAULT, dcpl_id, H5P_DEFAULT);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_storage_size to H5Aiterate_by_name
+        hid_t ret_H5Aget_type_ozqqh = H5Aget_type(file_id);
+        herr_t ret_H5Aiterate_by_name_dgbrx = H5Aiterate_by_name(dataset_id, (const char *)data, 0, 0, &ret_H5Dget_storage_size_txvkk, NULL, (void *)"r", ret_H5Aget_type_ozqqh);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        herr_t ret_H5Dget_num_chunks_rqphk = H5Dget_num_chunks(dataset_id, ret_H5Freopen_jkojw, &ret_H5Dget_storage_size_txvkk);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
+    }
 
-    // Write the initial data to the dataset
-    H5Dwrite(dataset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+    // Call the function-under-test
 
-    // Close the dataspace, property list, and file
-    H5Sclose(dataspace_id);
-    H5Pclose(dcpl_id);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Gget_objtype_by_idx
+    H5G_obj_t ret_H5Gget_objtype_by_idx_yhuzp = H5Gget_objtype_by_idx(file_id, 0);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    status = H5Fget_filesize(file_id, &filesize);
+
+    // Close the file
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_filesize to H5Gget_objtype_by_idx
+    H5G_obj_t ret_H5Gget_objtype_by_idx_lofto = H5Gget_objtype_by_idx(file_id, filesize);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     H5Fclose(file_id);
 
-    return dataset_id;
-}
-
-int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Create a test dataset
-    hid_t dataset_id = create_test_dataset();
-    hid_t dxpl_id = H5Pcreate(H5P_DATASET_XFER); // Create a data transfer property list
-
-    // Ensure there's enough data to read for hsize_t array
-    if (size < sizeof(hsize_t)) {
-        H5Dclose(dataset_id);
-        H5Pclose(dxpl_id);
-        return 0;
-    }
-
-    // Use the first part of data as hsize_t array
-    hsize_t offset[1] = {0}; // Initialize to a valid offset
-    if (size >= sizeof(hsize_t)) {
-        memcpy(offset, data, sizeof(hsize_t));
-        offset[0] %= 10; // Ensure offset is within dataset bounds
-    }
-
-    // Use the next part of data as a uint32_t filter mask
-    uint32_t filter_mask = 0;
-    if (size >= sizeof(hsize_t) + sizeof(uint32_t)) {
-        filter_mask = *(uint32_t *)(data + sizeof(hsize_t));
-    }
-
-    // Allocate a buffer for the chunk data
-    void *chunk_data = malloc(5 * sizeof(int)); // Allocate space for one chunk
-    if (chunk_data == NULL) {
-        H5Dclose(dataset_id);
-        H5Pclose(dxpl_id);
-        return 0;
-    }
-
-    // Set buffer size
-    size_t buf_size = 5 * sizeof(int);
-
-    // Call the function-under-test with the correct number of arguments
-    herr_t result = H5Dread_chunk2(dataset_id, dxpl_id, offset, &filter_mask, chunk_data, &buf_size);
-
-    // Check for errors in reading the chunk
-    if (result < 0) {
-        // Handle the error if needed
-    }
-
-    // Free allocated memory and close HDF5 resources
-    free(chunk_data);
-    H5Dclose(dataset_id);
-    H5Pclose(dxpl_id);
-
+    // Return success
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

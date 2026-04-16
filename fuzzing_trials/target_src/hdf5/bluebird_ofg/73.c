@@ -1,17 +1,75 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function-under-test
-    hid_t loc_id = 1; // Assuming a valid location identifier
-    H5L_type_t link_type = H5L_TYPE_HARD; // Using a valid link type
-    const char *cur_name = "current_name"; // Non-NULL string for current name
-    const char *new_name = "new_name"; // Non-NULL string for new name
+    // Ensure the size is sufficient for testing
+    if (size < sizeof(hid_t) + 1) {
+        return 0;
+    }
+
+    // Extract a valid hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
+
+    // Allocate a buffer for the file name
+    size_t name_size = size - sizeof(hid_t);
+    char *name_buffer = (char *)malloc(name_size);
+    if (name_buffer == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    herr_t result = H5Glink(loc_id, link_type, cur_name, new_name);
+    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Fget_vfd_handle
+    hid_t ret_H5Aget_space_zzdep = H5Aget_space(0);
+    herr_t ret_H5Fget_vfd_handle_lxodd = H5Fget_vfd_handle(ret_H5Aget_space_zzdep, 0, (void **)&name_buffer);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(name_buffer);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_73(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,27 +1,75 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
-    // Ensure the data size is large enough to extract necessary parameters
-    if (size < 3) {
+    // Ensure the size is sufficient for testing
+    if (size < sizeof(hid_t) + 1) {
         return 0;
     }
 
-    // Extract parameters from the input data
-    const char *file_name = "/tmp/fuzz_test_file.h5";
-    const char *dataset_name = "dataset";
-    hid_t loc_id = H5P_DEFAULT;  // Assuming a default location ID for simplicity
-    hid_t dapl_id = H5P_DEFAULT; // Dataset access property list
-    hid_t es_id = H5ES_NONE;
+    // Extract a valid hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
+
+    // Allocate a buffer for the file name
+    size_t name_size = size - sizeof(hid_t);
+    char *name_buffer = (char *)malloc(name_size);
+    if (name_buffer == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    hid_t dataset_id = H5Dopen_async(file_name, dataset_name, dapl_id, es_id);
+    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
 
-    // Close the dataset if it was successfully opened
-    if (dataset_id >= 0) {
-        H5Dclose(dataset_id);
-    }
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aget_info_by_name
+    hid_t ret_H5Aget_type_rzruu = H5Aget_type(0);
+    herr_t ret_H5Aget_info_by_name_jghvr = H5Aget_info_by_name(ret_H5Aget_type_rzruu, (const char *)"w", name_buffer, NULL, 0);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(name_buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_98(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

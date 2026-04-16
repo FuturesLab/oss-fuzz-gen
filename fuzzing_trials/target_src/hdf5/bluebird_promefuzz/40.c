@@ -1,119 +1,125 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fcreate at H5F.c:638:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dcreate2 at H5D.c:179:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dwrite at H5D.c:1350:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Dopen2 at H5D.c:393:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dread at H5D.c:1041:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Dopen2 at H5D.c:393:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Dread at H5D.c:1041:1 in H5Dpublic.h
-// H5Fget_metadata_read_retry_info at H5F.c:2104:1 in H5Fpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <hdf5.h>
+#include "/src/hdf5/src/H5Dpublic.h"
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
+#include "/src/hdf5/src/H5Spublic.h"
 
-#define DUMMY_FILE "./dummy_file"
-#define DATASET_NAME "dataset"
-
-static hid_t create_dummy_file() {
-    hid_t file_id = H5Fcreate(DUMMY_FILE, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        fprintf(stderr, "Failed to create dummy file\n");
-        return -1;
-    }
-
-    hsize_t dims[1] = {10};
-    hid_t space_id = H5Screate_simple(1, dims, NULL);
-    if (space_id < 0) {
-        fprintf(stderr, "Failed to create dataspace\n");
-        H5Fclose(file_id);
-        return -1;
-    }
-
-    hid_t dset_id = H5Dcreate2(file_id, DATASET_NAME, H5T_NATIVE_INT, space_id, 
-                               H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dset_id < 0) {
-        fprintf(stderr, "Failed to create dataset\n");
-        H5Sclose(space_id);
-        H5Fclose(file_id);
-        return -1;
-    }
-
-    int data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    if (H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data) < 0) {
-        fprintf(stderr, "Failed to write data to dataset\n");
-    }
-
-    H5Dclose(dset_id);
-    H5Sclose(space_id);
-    H5Fclose(file_id);
-
+static herr_t dummy_chunk_iter_cb(const hsize_t *offset, unsigned filter_mask, haddr_t addr, hsize_t size, void *op_data) {
+    // Dummy callback function for H5Dchunk_iter
     return 0;
 }
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
+    if (Size < 1) {
         return 0;
     }
 
-    if (create_dummy_file() < 0) {
-        return 0;
+    // Create a dummy file for testing
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 
-    hid_t file_id = H5Fopen(DUMMY_FILE, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (file_id < 0) {
-        fprintf(stderr, "Failed to open file\n");
-        return 0;
-    }
+    hid_t file_id1 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    hid_t file_id2 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
 
-    hid_t dset_id = H5Dopen2(file_id, DATASET_NAME, H5P_DEFAULT);
-    if (dset_id < 0) {
-        fprintf(stderr, "Failed to open dataset\n");
-        H5Fclose(file_id);
-        return 0;
-    }
+    hid_t dset_id1 = H5Dopen2(file_id1, "dataset1", H5P_DEFAULT);
+    hid_t dset_id2 = H5Dopen2(file_id2, "dataset2", H5P_DEFAULT);
 
-    int buf[10];
-    if (H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf) < 0) {
-        fprintf(stderr, "Failed to read dataset\n");
-    }
+    hsize_t nchunks;
+    H5Dget_num_chunks(dset_id1, H5S_ALL, &nchunks);
+    H5Dget_num_chunks(dset_id2, H5S_ALL, &nchunks);
 
-    H5Dclose(dset_id);
+    hsize_t offset[1] = {0};
+    unsigned filter_mask;
+    haddr_t addr;
+    hsize_t size;
 
-    dset_id = H5Dopen2(file_id, DATASET_NAME, H5P_DEFAULT);
-    if (dset_id < 0) {
-        fprintf(stderr, "Failed to reopen dataset\n");
-        H5Fclose(file_id);
-        return 0;
-    }
+    H5Dget_chunk_info(dset_id1, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info(dset_id2, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
 
-    if (H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf) < 0) {
-        fprintf(stderr, "Failed to reread dataset\n");
-    }
 
-    H5F_retry_info_t retry_info;
-    if (H5Fget_metadata_read_retry_info(file_id, &retry_info) < 0) {
-        fprintf(stderr, "Failed to get metadata read retry info\n");
-    }
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_chunk_info to H5Dwrite_multi
+    hid_t ret_H5Dget_space_ezokz = H5Dget_space(dset_id1);
+    hid_t ret_H5Aget_space_gzzsk = H5Aget_space(0);
 
-    H5Dclose(dset_id);
-    H5Fclose(file_id);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Aget_space to H5Dvlen_get_buf_size
+    hid_t ret_H5Fget_create_plist_nomlf = H5Fget_create_plist(ret_H5Aget_space_gzzsk);
+    hid_t ret_H5Dget_create_plist_gblyt = H5Dget_create_plist(ret_H5Dget_space_ezokz);
+    hsize_t ret_H5Aget_storage_size_jzhdi = H5Aget_storage_size(dset_id1);
+    herr_t ret_H5Dvlen_get_buf_size_jhcic = H5Dvlen_get_buf_size(ret_H5Aget_space_gzzsk, ret_H5Fget_create_plist_nomlf, ret_H5Dget_create_plist_gblyt, &ret_H5Aget_storage_size_jzhdi);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hid_t ret_H5Aget_space_rwkuk = H5Aget_space(file_id1);
+    hid_t ret_H5Dget_create_plist_znpzu = H5Dget_create_plist(file_id1);
+    herr_t ret_H5Dwrite_multi_ayxmn = H5Dwrite_multi(Size, &ret_H5Dget_space_ezokz, NULL, &ret_H5Aget_space_gzzsk, &ret_H5Aget_space_rwkuk, ret_H5Dget_create_plist_znpzu, (const void **)&offset);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    H5Dget_chunk_info_by_coord(dset_id1, offset, &filter_mask, &addr, &size);
+    H5Dget_chunk_info_by_coord(dset_id2, offset, &filter_mask, &addr, &size);
+
+    H5Dchunk_iter(dset_id1, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+    H5Dchunk_iter(dset_id2, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
+
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+    H5Fdelete("./dummy_file", H5P_DEFAULT);
+
+    H5Dclose(dset_id1);
+    H5Dclose(dset_id2);
+
+    H5Fclose(file_id1);
+    H5Fclose(file_id2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

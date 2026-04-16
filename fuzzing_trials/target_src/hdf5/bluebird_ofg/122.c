@@ -1,36 +1,81 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient for our needs
-    if (size < 5) {
-        return 0;
+    // Initialize variables
+    hid_t file_id;
+    hsize_t filesize;
+    herr_t status;
+
+    // Create a temporary file for testing
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file, exit early
     }
 
-    // Prepare the parameters for H5Fopen
-    const char *filename = "testfile.h5"; // Using a fixed filename for testing
-    unsigned int flags = (unsigned int)data[0]; // Use the first byte for flags
-    hid_t fapl_id = (hid_t)data[1]; // Use the second byte for fapl_id
+    // Simulate writing data to the file to ensure it's not empty
+    if (size > 0) {
+        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
+        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
+    }
 
     // Call the function-under-test
-    hid_t file_id = H5Fopen(filename, flags, fapl_id);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fget_filesize with H5Gget_num_objs
 
-    // Close the file if it was successfully opened
-    if (file_id >= 0) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Freset_page_buffering_stats
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Aiterate1
-    unsigned int wthnzukn = 64;
-
-    herr_t ret_H5Aiterate1_mkezg = H5Aiterate1(file_id, &wthnzukn, NULL, NULL);
-
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fget_dset_no_attrs_hint
+    herr_t ret_H5Fget_dset_no_attrs_hint_ugfkx = H5Fget_dset_no_attrs_hint(file_id, NULL);
     // End mutation: Producer.APPEND_MUTATOR
+    
+    status = H5Gget_num_objs(file_id, &filesize);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-        H5Freset_page_buffering_stats(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Close the file
+    H5Fclose(file_id);
 
-
-    }    return 0;
+    // Return success
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_122(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

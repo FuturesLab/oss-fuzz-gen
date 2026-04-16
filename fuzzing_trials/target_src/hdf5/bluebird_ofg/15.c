@@ -1,59 +1,93 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for two null-terminated strings
-    if (size < 3) {
-        return 0;
-    } // At least 3 bytes needed for two 1-char strings and two null terminators
+    // Initialize variables
+    hid_t file_id;
+    hsize_t filesize;
+    herr_t status;
 
-    // Create a file and a group to work with
-    hid_t file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a temporary file for testing
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
-        return 0;
+        return 0; // Failed to create file, exit early
     }
 
-    hid_t group_id = H5Gcreate2(file_id, "/group1", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (group_id < 0) {
-        H5Fclose(file_id);
-        return 0;
+    // Simulate writing data to the file to ensure it's not empty
+    if (size > 0) {
+        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
+        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Aget_name_by_idx
+        hid_t ret_H5Aget_type_cuqkp = H5Aget_type(dataset_id);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Aget_type to H5Awrite
+        hid_t ret_H5Dget_type_vaoui = H5Dget_type(dataset_id);
+        herr_t ret_H5Awrite_bqfhq = H5Awrite(ret_H5Aget_type_cuqkp, ret_H5Dget_type_vaoui, (const void *)data);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        char gwwvcpdb[1024] = "xyled";
+        ssize_t ret_H5Aget_name_by_idx_jkgpg = H5Aget_name_by_idx(dataset_id, (const char *)"r", 0, 0, 0, gwwvcpdb, 0, ret_H5Aget_type_cuqkp);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        hid_t ret_H5Fget_access_plist_dqphx = H5Fget_access_plist(file_id);
+        herr_t ret_H5Dget_num_chunks_whmzj = H5Dget_num_chunks(ret_H5Fget_access_plist_dqphx, dataset_id, NULL);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
     }
-
-    // Split the input data into two strings
-    size_t middle = size / 2;
-    char *src_name = (char *)malloc(middle + 1);
-    char *dst_name = (char *)malloc(size - middle + 1);
-
-    if (!src_name || !dst_name) {
-        free(src_name);
-        free(dst_name);
-        H5Gclose(group_id);
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    memcpy(src_name, data, middle);
-    src_name[middle] = '\0';
-
-    memcpy(dst_name, data + middle, size - middle);
-    dst_name[size - middle] = '\0';
 
     // Call the function-under-test
+    status = H5Fget_filesize(file_id, &filesize);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Gmove with H5Gset_comment
-    herr_t status = H5Gset_comment(group_id, src_name, dst_name);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Clean up
-    free(src_name);
-    free(dst_name);
-    H5Gclose(group_id);
+    // Close the file
     H5Fclose(file_id);
 
+    // Return success
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

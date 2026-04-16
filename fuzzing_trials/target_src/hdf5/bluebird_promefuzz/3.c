@@ -1,89 +1,182 @@
-// This fuzz driver is generated for library hdf5, aiming to fuzz the following functions:
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Fopen at H5F.c:812:1 in H5Fpublic.h
-// H5Dopen2 at H5D.c:393:1 in H5Dpublic.h
-// H5Dopen2 at H5D.c:393:1 in H5Dpublic.h
-// H5Dget_num_chunks at H5D.c:2268:1 in H5Dpublic.h
-// H5Dget_num_chunks at H5D.c:2268:1 in H5Dpublic.h
-// H5Dget_chunk_info at H5D.c:2317:1 in H5Dpublic.h
-// H5Dget_chunk_info at H5D.c:2317:1 in H5Dpublic.h
-// H5Dget_chunk_info_by_coord at H5D.c:2386:1 in H5Dpublic.h
-// H5Dget_chunk_info_by_coord at H5D.c:2386:1 in H5Dpublic.h
-// H5Dchunk_iter at H5D.c:2437:1 in H5Dpublic.h
-// H5Dchunk_iter at H5D.c:2437:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fdelete at H5F.c:1117:1 in H5Fpublic.h
-// H5Fdelete at H5F.c:1117:1 in H5Fpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Dclose at H5D.c:463:1 in H5Dpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
-// H5Fclose at H5F.c:1027:1 in H5Fpublic.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <H5Dpublic.h>
-#include <H5Fpublic.h>
-#include <H5Ppublic.h>
-#include <H5Spublic.h>
+#include <stdbool.h>
+#include "/src/hdf5/src/H5Fpublic.h"
+#include "/src/hdf5/src/H5Ppublic.h"
 
-static herr_t dummy_chunk_iter_cb(const hsize_t *offset, unsigned filter_mask, haddr_t addr, hsize_t size, void *op_data) {
-    // Dummy callback function for H5Dchunk_iter
-    return 0;
+static void handle_hid_t(hid_t id) {
+    if (id >= 0) {
+        H5Pclose(id);
+    }
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a dummy file for testing
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    if (Size < 1) {
+        return 0;
     }
 
-    hid_t file_id1 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
-    hid_t file_id2 = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    // Create a dummy file
+    hid_t file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    hid_t dset_id1 = H5Dopen2(file_id1, "dataset1", H5P_DEFAULT);
-    hid_t dset_id2 = H5Dopen2(file_id2, "dataset2", H5P_DEFAULT);
+    // Close the file
+    H5Fclose(file_id);
 
-    hsize_t nchunks;
-    H5Dget_num_chunks(dset_id1, H5S_ALL, &nchunks);
-    H5Dget_num_chunks(dset_id2, H5S_ALL, &nchunks);
+    // Re-create the file
+    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    hsize_t offset[1] = {0};
-    unsigned filter_mask;
-    haddr_t addr;
-    hsize_t size;
+    // Get file info
+    H5F_info1_t file_info;
+    if (H5Fget_info1(file_id, &file_info) < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    H5Dget_chunk_info(dset_id1, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
-    H5Dget_chunk_info(dset_id2, H5S_ALL, 0, offset, &filter_mask, &addr, &size);
+    // Get file creation property list
+    hid_t plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
 
-    H5Dget_chunk_info_by_coord(dset_id1, offset, &filter_mask, &addr, &size);
-    H5Dget_chunk_info_by_coord(dset_id2, offset, &filter_mask, &addr, &size);
+    // Set latest format
+    H5Fset_latest_format(file_id, Data[0] % 2 == 0);
 
-    H5Dchunk_iter(dset_id1, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
-    H5Dchunk_iter(dset_id2, H5P_DEFAULT, dummy_chunk_iter_cb, NULL);
+    // Close the file
+    H5Fclose(file_id);
 
-    H5Dclose(dset_id1);
-    H5Dclose(dset_id2);
+    // Re-create the file
+    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    H5Fclose(file_id1);
-    H5Fclose(file_id2);
+    // Get file access property list
+    plist_id = H5Fget_access_plist(file_id);
 
-    H5Fdelete("./dummy_file", H5P_DEFAULT);
-    H5Fdelete("./dummy_file", H5P_DEFAULT);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_access_plist to H5Dget_chunk_info_by_coord
+    hsize_t ret_H5Aget_storage_size_tvrsa = H5Aget_storage_size(0);
+    haddr_t ret_H5Dget_offset_wjjte = H5Dget_offset(plist_id);
+    hsize_t ret_H5Dget_storage_size_brvya = H5Dget_storage_size(plist_id);
+    herr_t ret_H5Dget_chunk_info_by_coord_tdsje = H5Dget_chunk_info_by_coord(plist_id, &ret_H5Aget_storage_size_tvrsa, NULL, &ret_H5Dget_offset_wjjte, &ret_H5Dget_storage_size_brvya);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    handle_hid_t(plist_id);
 
-    H5Dclose(dset_id1);
-    H5Dclose(dset_id2);
+    // Get file info again
+    if (H5Fget_info1(file_id, &file_info) < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    H5Fclose(file_id1);
-    H5Fclose(file_id2);
+    // Get file creation property list again
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Open the file
+    file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Get file info
+    if (H5Fget_info1(file_id, &file_info) < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Get file creation property list
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Aopen_idx
+    hid_t ret_H5Aopen_idx_mnreg = H5Aopen_idx(file_id, 0);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    plist_id = H5Fget_create_plist(file_id);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_create_plist to H5Dgather
+    hid_t ret_H5Freopen_xfxzk = H5Freopen(file_id);
+    char xtkntkas[1024] = "opcup";
+    herr_t ret_H5Dgather_kbryd = H5Dgather(plist_id, xtkntkas, ret_H5Freopen_xfxzk, 1, (void *)"w", NULL, (void *)"w");
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Re-create the file
+    file_id = H5Fcreate("./dummy_file", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Get file creation property list
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Open the file
+    file_id = H5Fopen("./dummy_file", H5F_ACC_RDWR, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Get file creation property list
+    plist_id = H5Fget_create_plist(file_id);
+    handle_hid_t(plist_id);
+
+    // Close the file
+    H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

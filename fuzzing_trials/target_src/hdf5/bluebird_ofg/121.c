@@ -1,47 +1,81 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
+    // Initialize variables
+    hid_t file_id;
+    hsize_t filesize;
+    herr_t status;
+
+    // Create a temporary file for testing
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file, exit early
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Simulate writing data to the file to ensure it's not empty
+    if (size > 0) {
+        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
+        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dwrite_chunk
+        hid_t ret_H5Dget_type_piujj = H5Dget_type(dataset_id);
+        hsize_t ret_H5Aget_storage_size_miipb = H5Aget_storage_size(file_id);
+        herr_t ret_H5Dwrite_chunk_jhffc = H5Dwrite_chunk(dataset_id, ret_H5Dget_type_piujj, H5F_FAMILY_DEFAULT, &ret_H5Aget_storage_size_miipb, 64, NULL);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
     }
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    status = H5Fget_filesize(file_id, &filesize);
 
-    // Clean up
+    // Close the file
+    H5Fclose(file_id);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Fget_vfd_handle
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Gmove
-    hid_t ret_H5Fget_access_plist_jtxjd = H5Fget_access_plist(0);
-    const char bmbqqomz[1024] = "ydahc";
-
-    herr_t ret_H5Gmove_eikwa = H5Gmove(ret_H5Fget_access_plist_jtxjd, name_buffer, bmbqqomz);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hid_t ret_H5Aget_type_csrhw = H5Aget_type(0);
-    hid_t ret_H5Aget_type_izwby = H5Aget_type(0);
-
-    herr_t ret_H5Fget_vfd_handle_dmmit = H5Fget_vfd_handle(ret_H5Aget_type_csrhw, ret_H5Aget_type_izwby, (void **)&name_buffer);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(name_buffer);
-
+    // Return success
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_121(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

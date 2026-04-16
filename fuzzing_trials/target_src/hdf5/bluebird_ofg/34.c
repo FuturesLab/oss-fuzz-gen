@@ -1,65 +1,64 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for the fuzzer
-    if (size < 2) {
-        return 0;
+    // Define and initialize the parameters for the function
+    const char *loc_name = "location_name";
+    const char *attr_name = "attribute_name";
+    unsigned int aapl_id = 0; // Use default property list
+    hid_t lapl_id = H5P_DEFAULT; // Use default link access property list
+    hid_t es_id = H5ES_NONE; // Use default event set identifier
+    hid_t async_id = H5I_INVALID_HID; // Use an invalid ID initially
+
+    // Ensure the data size is sufficient for creating a valid hid_t
+    if (size >= sizeof(hid_t)) {
+        // Cast the first few bytes of data to a hid_t for testing
+        hid_t loc_id = *(const hid_t *)data;
+
+        // Call the function-under-test with the correct number of arguments
+        async_id = H5Aopen_by_name_async(loc_id, loc_name, attr_name, aapl_id, lapl_id, es_id);
     }
-
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a file and a group to ensure we have a valid hid_t
-    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
-    }
-    
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Aread
-    hid_t ret_H5Freopen_cohmg = H5Freopen(0);
-    char wjxvalau[1024] = "ldlkq";
-
-    herr_t ret_H5Aread_slhcd = H5Aread(file_id, ret_H5Freopen_cohmg, wjxvalau);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (group_id < 0) {
-        H5Fclose(file_id);
-        return 0;
-    }
-
-    // Close the group to prepare for unlinking
-    H5Gclose(group_id);
-
-    // Prepare the group name from the input data
-    size_t name_len = size - 1;
-    char *group_name = (char *)malloc(name_len + 1);
-    if (group_name == NULL) {
-        H5Fclose(file_id);
-        return 0;
-    }
-    memcpy(group_name, data, name_len);
-    group_name[name_len] = '\0';
-
-    // Call the function-under-test
-    H5Gunlink(file_id, group_name);
-
-    // Clean up
-    free(group_name);
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Freset_page_buffering_stats
-    H5Freset_page_buffering_stats(file_id);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Close HDF5 library
-    H5close();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

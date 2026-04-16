@@ -1,42 +1,76 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for our needs
-    if (size < 10) {
+    // Ensure the size is sufficient for testing
+    if (size < sizeof(hid_t) + 1) {
         return 0;
     }
 
-    // Initialize HDF5 library
-    H5open();
+    // Extract a valid hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
 
-    // Create a source file and group
-    hid_t src_file = H5Fcreate("src.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t src_group = H5Gcreate(src_file, "src_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Allocate a buffer for the file name
+    size_t name_size = size - sizeof(hid_t);
+    char *name_buffer = (char *)malloc(name_size);
+    if (name_buffer == NULL) {
+        return 0;
+    }
 
-    // Create a destination file and group
-    hid_t dst_file = H5Fcreate("dst.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t dst_group = H5Gcreate(dst_file, "dst_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Call the function-under-test
+    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
 
-    // Extract link type from data
-    H5L_type_t link_type = (H5L_type_t)(data[0] % 3); // Ensure valid link type
+    // Clean up
 
-    // Prepare names using data
-    const char *src_name = "source";
-    const char *dst_name = "destination";
-
-    // Call the function under test
-    herr_t status = H5Lcreate_hard(src_group, src_name, dst_group, dst_name, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Close resources
-    H5Gclose(src_group);
-    H5Fclose(src_file);
-    H5Gclose(dst_group);
-    H5Fclose(dst_file);
-
-    // Close HDF5 library
-    H5close();
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Arename_by_name
+    hid_t ret_H5Dget_space_fbgrf = H5Dget_space(0);
+    hid_t ret_H5Dget_type_vvmdn = H5Dget_type(0);
+    herr_t ret_H5Arename_by_name_pggbn = H5Arename_by_name(ret_H5Dget_space_fbgrf, NULL, name_buffer, (const char *)"r", ret_H5Dget_type_vvmdn);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(name_buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
