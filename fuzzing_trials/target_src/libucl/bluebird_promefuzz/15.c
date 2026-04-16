@@ -2,50 +2,119 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
+#include <stdbool.h>
+
+static ucl_object_t *create_dummy_ucl_object() {
+    ucl_object_t *obj = ucl_object_new();
+    if (obj) {
+        ucl_object_insert_key(obj, ucl_object_fromstring("value1"), "key1", 0, false);
+        ucl_object_insert_key(obj, ucl_object_fromstring("value2"), "key2", 0, false);
+    }
+    return obj;
+}
+
+static ucl_object_t *create_dummy_ucl_array() {
+    ucl_object_t *arr = ucl_object_new_full(UCL_ARRAY, 0);
+    if (arr) {
+        ucl_array_append(arr, ucl_object_fromstring("elem1"));
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_array_append with ucl_array_prepend
+        ucl_array_prepend(arr, ucl_object_fromstring("elem2"));
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
+    return arr;
+}
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    // Initialize a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
-
-    // Create a dummy file and write the input data to it
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file == NULL) {
-        ucl_parser_free(parser);
+    if (Size < 1) {
         return 0;
     }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
 
-    // Parse the dummy file
-    if (!ucl_parser_add_file(parser, "./dummy_file")) {
-        // Handle parsing error
-        ucl_parser_get_error_code(parser);
-        ucl_parser_clear_error(parser);
+    // Create dummy UCL objects
+    ucl_object_t *obj = create_dummy_ucl_object();
+    ucl_object_t *arr = create_dummy_ucl_array();
+
+    if (!obj || !arr) {
+        if (obj) {
+                ucl_object_unref(obj);
+        }
+        if (arr) {
+                ucl_object_unref(arr);
+        }
+        return 0;
     }
 
-    // Call the target functions in the specified order
-    unsigned column = ucl_parser_get_column(parser);
+    // Prepare a null-terminated string from the input data
+    char path[256];
+    size_t path_len = (Size < sizeof(path) - 1) ? Size : sizeof(path) - 1;
+    memcpy(path, Data, path_len);
+    path[path_len] = '\0';
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_parser_get_linenum with ucl_parser_get_column
-    unsigned linenum = ucl_parser_get_column(parser);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Fuzz ucl_object_lookup_path
+    const ucl_object_t *result = ucl_object_lookup_path(obj, path);
 
-
-    ucl_parser_clear_error(parser);
-    int error_code = ucl_parser_get_error_code(parser);
-    ucl_object_t *obj = ucl_parser_get_object(parser);
-
-    // If obj is not NULL, unref it once before freeing the parser
-    if (obj != NULL) {
-        ucl_object_unref(obj);
+    // Fuzz ucl_object_replace_key
+    ucl_object_t *new_obj = ucl_object_fromstring("new_value");
+    if (new_obj) {
+        ucl_object_replace_key(obj, new_obj, path, path_len, true);
     }
 
-    ucl_parser_free(parser);
+    // Fuzz ucl_object_delete_key
+    ucl_object_delete_key(obj, path);
 
-    // Clean up the dummy file
-    remove("./dummy_file");
+    // Fuzz ucl_object_reserve
+    ucl_object_reserve(arr, path_len);
+
+    // Fuzz ucl_object_merge
+    ucl_object_merge(obj, arr, true);
+
+    // Fuzz ucl_object_type
+    ucl_type_t type = ucl_object_type(obj);
+
+    // Cleanup
+    ucl_object_unref(obj);
+    ucl_object_unref(arr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

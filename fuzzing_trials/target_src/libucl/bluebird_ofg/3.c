@@ -1,94 +1,114 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include <stdlib.h>
 #include "ucl.h"
 
-int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser;
-    char *input_string;
-    unsigned int priority;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    // Initialize the parser
-    parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
+    if (size == 0) {
+        return 0;
+    }
+
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Ensure that the input string is null-terminated
-    input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
+    // Parse the input data
+    if (!ucl_parser_add_chunk(parser, data, size)) {
         ucl_parser_free(parser);
         return 0;
     }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
 
-    // Set a fixed priority for fuzzing
-    priority = 1;
+    // Get the root object
+    ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Create an iterator
+    ucl_object_iter_t iter = ucl_object_iterate_new(root);
+
+    // Choose a valid iterate type
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_iterate_new to ucl_object_iterate_reset
+    ucl_object_t* ret_ucl_object_fromdouble_cudgk = ucl_object_fromdouble(0);
+    if (ret_ucl_object_fromdouble_cudgk == NULL){
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromdouble to ucl_object_emit_full
+    struct ucl_emitter_functions* ret_ucl_object_emit_fd_funcs_dizjd = ucl_object_emit_fd_funcs(0);
+    if (ret_ucl_object_emit_fd_funcs_dizjd == NULL){
+    	return 0;
+    }
+    bool ret_ucl_object_emit_full_tuxiq = ucl_object_emit_full(root, 0, ret_ucl_object_emit_fd_funcs_dizjd, ret_ucl_object_fromdouble_cudgk);
+    if (ret_ucl_object_emit_full_tuxiq == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_iter_t ret_ucl_object_iterate_reset_degsg = ucl_object_iterate_reset(iter, ret_ucl_object_fromdouble_cudgk);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    enum ucl_iterate_type iterate_type = UCL_ITERATE_BOTH;
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ucl_parser_add_string_priority
-    bool result = ucl_parser_add_string_priority(parser, input_string, 0, priority);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    const ucl_object_t *result = ucl_object_iterate_full(iter, iterate_type);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string_priority to ucl_set_include_path
-    ucl_object_t* ret_ucl_object_fromint_jmawh = ucl_object_fromint(64);
-    if (ret_ucl_object_fromint_jmawh == NULL){
-    	return 0;
-    }
-
-    bool ret_ucl_set_include_path_emufb = ucl_set_include_path(parser, ret_ucl_object_fromint_jmawh);
-    if (ret_ucl_set_include_path_emufb == 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(input_string);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_free to ucl_parser_get_current_stack_object
-        const ucl_object_t tmaaujbb;
-        memset(&tmaaujbb, 0, sizeof(tmaaujbb));
-        double ret_ucl_object_todouble_lmtfo = ucl_object_todouble(&tmaaujbb);
-        if (ret_ucl_object_todouble_lmtfo < 0){
-        	return 0;
-        }
-
-        ucl_object_t* ret_ucl_parser_get_current_stack_object_iebfm = ucl_parser_get_current_stack_object(parser, (unsigned int )ret_ucl_object_todouble_lmtfo);
-        if (ret_ucl_parser_get_current_stack_object_iebfm == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_current_stack_object to ucl_object_insert_key
-        ucl_object_t* ret_ucl_object_fromdouble_vdpco = ucl_object_fromdouble(UCL_PRIORITY_MAX);
-        if (ret_ucl_object_fromdouble_vdpco == NULL){
-        	return 0;
-        }
-        unsigned int ret_ucl_parser_get_column_pcbmy = ucl_parser_get_column(parser);
-        if (ret_ucl_parser_get_column_pcbmy < 0){
-        	return 0;
-        }
-        bool ret_ucl_object_toboolean_crybx = ucl_object_toboolean(NULL);
-        if (ret_ucl_object_toboolean_crybx == 0){
-        	return 0;
-        }
-
-        bool ret_ucl_object_insert_key_cshii = ucl_object_insert_key(ret_ucl_object_fromdouble_vdpco, ret_ucl_parser_get_current_stack_object_iebfm, (const char *)"w", (size_t )ret_ucl_parser_get_column_pcbmy, ret_ucl_object_toboolean_crybx);
-        if (ret_ucl_object_insert_key_cshii == 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
+    ucl_object_iterate_free(iter);
+    ucl_object_unref(root);
     ucl_parser_free(parser);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

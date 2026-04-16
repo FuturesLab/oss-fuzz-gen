@@ -1,27 +1,77 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Initialize two ucl_object_t objects
-    ucl_object_t *obj1 = ucl_object_new_full(UCL_ARRAY, NULL);
-    ucl_object_t *obj2 = ucl_object_new_full(UCL_ARRAY, NULL);
+    // Create a new UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
 
-    // Add some dummy data to the objects to ensure they are not NULL
-    ucl_object_t *dummy_obj1 = ucl_object_fromstring("dummy1");
-    ucl_object_t *dummy_obj2 = ucl_object_fromstring("dummy2");
-    ucl_array_append(obj1, dummy_obj1);
-    ucl_array_append(obj2, dummy_obj2);
+    // Add the data to the parser
+    if (ucl_parser_add_chunk(parser, data, size) == false) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-    // Use the first byte of data to determine the boolean parameter
-    bool merge_recursively = size > 0 ? (data[0] % 2 == 0) : false;
+    // Get the root object
+    ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-    // Call the function under test
-    bool result = ucl_array_merge(obj1, obj2, merge_recursively);
+    // Call the function-under-test
+    ucl_object_t *popped_object = ucl_array_pop_first(root);
 
     // Clean up
-    ucl_object_unref(obj1);
-    ucl_object_unref(obj2);
+    if (popped_object != NULL) {
+        ucl_object_unref(popped_object);
+    }
+    ucl_object_unref(root);
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

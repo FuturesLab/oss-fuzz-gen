@@ -2,52 +2,123 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
-
-static ucl_object_t* create_ucl_object(ucl_type_t type, const char *key) {
-    ucl_object_t *obj = ucl_object_new_full(type, 0);
-    if (obj) {
-        obj->key = key;
-        obj->keylen = key ? strlen(key) : 0;
-    }
-    return obj;
-}
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create UCL objects
-    ucl_object_t *obj1 = create_ucl_object(UCL_OBJECT, "key1");
-    ucl_object_t *obj2 = create_ucl_object(UCL_OBJECT, "key2");
-
-    if (!obj1 || !obj2) {
-        if (obj1) ucl_object_unref(obj1);
-        if (obj2) ucl_object_unref(obj2);
+    if (Size == 0) {
         return 0;
     }
 
-    // Merge obj2 into obj1
-    bool merge_result = ucl_object_merge(obj1, obj2, true);
-
-    // Unref obj2
-    ucl_object_unref(obj2);
-
-    // Create a new UCL object with type and priority
-    ucl_object_t *new_obj = ucl_object_new_full(UCL_ARRAY, 0);
-
-    if (new_obj) {
-        // Append new_obj to obj1
-        bool append_result = ucl_array_append(obj1, new_obj);
-
-        // Cleanup
-        ucl_object_unref(new_obj);
+    // Step 1: Create a new UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
     }
 
-    ucl_object_unref(obj1);
+    // Step 2: Add chunk to the parser
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        // Handle parsing error
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
+        }
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Step 3: Get the top-level object
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_chunk to ucl_parser_add_chunk_priority
+    unsigned int ret_ucl_parser_get_linenum_sdjrd = ucl_parser_get_linenum(parser);
+    if (ret_ucl_parser_get_linenum_sdjrd < 0){
+    	return 0;
+    }
+    bool ret_ucl_parser_add_chunk_priority_hzlyc = ucl_parser_add_chunk_priority(parser, NULL, (size_t )ret_ucl_parser_get_linenum_sdjrd, 64);
+    if (ret_ucl_parser_add_chunk_priority_hzlyc == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_t *obj = ucl_parser_get_object(parser);
+    if (obj == NULL) {
+        // Handle error in getting object
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
+        }
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Step 4: Serialize the object in various formats
+    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
+    if (json_output != NULL) {
+        free(json_output);
+    }
+
+    unsigned char *config_output = ucl_object_emit(obj, UCL_EMIT_CONFIG);
+    if (config_output != NULL) {
+        free(config_output);
+    }
+
+    unsigned char *yaml_output = ucl_object_emit(obj, UCL_EMIT_YAML);
+    if (yaml_output != NULL) {
+        free(yaml_output);
+    }
+
+    unsigned char *msgpack_output = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
+    if (msgpack_output != NULL) {
+        free(msgpack_output);
+    }
+
+    // Step 5: Cleanup
+    ucl_object_unref(obj);
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_41(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

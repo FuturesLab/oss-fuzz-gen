@@ -2,79 +2,132 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <string.h>
-#include <stdlib.h>
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
-
-static ucl_object_t* create_ucl_object() {
-    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
-    if (obj) {
-        memset(obj, 0, sizeof(ucl_object_t));
-        obj->type = UCL_OBJECT;
-        obj->value.ov = NULL; // Initialize the object value to NULL
-    }
-    return obj;
-}
-
-static char* copy_key(const uint8_t *Data, size_t Size) {
-    char *key = (char *)malloc(Size + 1);
-    if (key) {
-        memcpy(key, Data, Size);
-        key[Size] = '\0'; // Ensure the key is null-terminated
-    }
-    return key;
-}
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    ucl_object_t *top = create_ucl_object();
-    ucl_object_t *elt = create_ucl_object();
-    if (!top || !elt) {
-        free(top);
-        free(elt);
+    if (Size == 0) {
         return 0;
     }
 
-    char *key = copy_key(Data, Size);
-    if (!key) {
-        free(top);
-        free(elt);
+    // Step 1: Create a new UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
-    size_t keylen = Size;
-    bool copy_key_flag = true;
-
-    // Test ucl_object_insert_key
-    ucl_object_insert_key(top, elt, key, keylen, copy_key_flag);
-
-    // Test ucl_object_delete_keyl
-    ucl_object_delete_keyl(top, key, keylen);
-
-    // Test ucl_object_keyl
-    size_t len;
-    const char *retrieved_key = ucl_object_keyl(elt, &len);
-
-    // Test ucl_object_replace_key
-    ucl_object_replace_key(top, elt, key, keylen, copy_key_flag);
-
-    // Test ucl_object_lookup_len
-    const ucl_object_t *found_obj = ucl_object_lookup_len(top, key, keylen);
-
-    // Test ucl_object_pop_keyl
-    ucl_object_t *popped_obj = ucl_object_pop_keyl(top, key, keylen);
-    if (popped_obj && popped_obj != elt) {
-        free(popped_obj);
+    // Step 2: Add chunk to the parser
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        // Handle parsing error
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
+        }
+        ucl_parser_free(parser);
+        return 0;
     }
 
-    free(key);
-    free(top);
-    free(elt);
+    // Step 3: Get the top-level object
+    ucl_object_t *obj = ucl_parser_get_object(parser);
+    if (obj == NULL) {
+        // Handle error in getting object
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
+        }
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Step 4: Serialize the object in various formats
+    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
+    if (json_output != NULL) {
+        free(json_output);
+    }
+
+    unsigned char *config_output = ucl_object_emit(obj, UCL_EMIT_CONFIG);
+    if (config_output != NULL) {
+        free(config_output);
+    }
+
+    unsigned char *yaml_output = ucl_object_emit(obj, UCL_EMIT_YAML);
+    if (yaml_output != NULL) {
+        free(yaml_output);
+    }
+
+    unsigned char *msgpack_output = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
+    if (msgpack_output != NULL) {
+        free(msgpack_output);
+    }
+
+    // Step 5: Cleanup
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_comments_add
+    ucl_object_t* ret_ucl_array_pop_last_qxpyy = ucl_array_pop_last(obj);
+    if (ret_ucl_array_pop_last_qxpyy == NULL){
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_object_fromdouble_ozslk = ucl_object_fromdouble(-1);
+    if (ret_ucl_object_fromdouble_ozslk == NULL){
+    	return 0;
+    }
+    ucl_comments_add(obj, ret_ucl_object_fromdouble_ozslk, (const char *)json_output);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_comments_add to ucl_array_head
+    const ucl_object_t* ret_ucl_array_head_ogjgc = ucl_array_head(obj);
+    if (ret_ucl_array_head_ogjgc == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_unref(obj);
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

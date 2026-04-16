@@ -2,106 +2,138 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <stdbool.h>
 
-static ucl_object_t *create_random_ucl_object(const uint8_t *Data, size_t Size) {
-    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
-    if (!obj) return NULL;
-
-    size_t offset = 0;
-    if (Size > sizeof(int64_t)) {
-        obj->value.iv = *((int64_t *)(Data + offset));
-        offset += sizeof(int64_t);
-    } else {
-        obj->value.iv = 0;
+static ucl_object_t* create_dummy_object() {
+    ucl_object_t* obj = (ucl_object_t*)malloc(sizeof(ucl_object_t));
+    if (obj) {
+        memset(obj, 0, sizeof(ucl_object_t));
+        obj->type = UCL_OBJECT;
     }
-
-    if (Size > offset + sizeof(double)) {
-        obj->value.dv = *((double *)(Data + offset));
-        offset += sizeof(double);
-    } else {
-        obj->value.dv = 0.0;
-    }
-
-    if (Size > offset) {
-        obj->value.sv = (const char *)(Data + offset);
-        obj->len = Size - offset;
-    } else {
-        obj->value.sv = NULL;
-        obj->len = 0;
-    }
-
-    obj->key = NULL;
-    obj->next = NULL;
-    obj->prev = NULL;
-    obj->keylen = 0;
-    obj->ref = 1;
-    obj->flags = 0;
-    obj->type = 0;
-    memset(obj->trash_stack, 0, sizeof(obj->trash_stack));
-
     return obj;
 }
 
-static void free_ucl_object(ucl_object_t *obj) {
-    if (obj) {
-        free(obj);
-    }
+static int dummy_emitter_append_character(unsigned char c, size_t nchars, void *ud) {
+    // Dummy implementation
+    return 0;
+}
+
+static int dummy_emitter_append_len(unsigned const char *str, size_t len, void *ud) {
+    // Dummy implementation
+    return 0;
+}
+
+static int dummy_emitter_append_int(int64_t elt, void *ud) {
+    // Dummy implementation
+    return 0;
+}
+
+static int dummy_emitter_append_double(double elt, void *ud) {
+    // Dummy implementation
+    return 0;
+}
+
+static void dummy_emitter_free_func(void *ud) {
+    // Dummy implementation
 }
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
-    ucl_object_t *obj = create_random_ucl_object(Data, Size);
-    if (!obj) return 0;
-
-    const char *str;
-    char *copy_str;
-    double dbl;
-    size_t len;
-
-    // Test ucl_object_tostring_forced
-    str = ucl_object_tostring_forced(obj);
-    if (str) {
-        // Simulate usage
-        (void)strlen(str);
+    if (Size < 1) {
+        return 0;
     }
 
-    // Test ucl_object_ref
-    ucl_object_t *ref_obj = ucl_object_ref(obj);
-    if (ref_obj) {
-        // Simulate usage
-        (void)ref_obj->ref;
-    }
+    // Prepare dummy objects
+    ucl_object_t *top = create_dummy_object();
+    ucl_object_t *elt = create_dummy_object();
+    ucl_object_t *comments = create_dummy_object();
 
-    // Test ucl_object_todouble
-    dbl = ucl_object_todouble(obj);
-    (void)dbl; // Simulate usage
+    // Copy key
+    char key[256];
+    size_t keylen = (Size < 256) ? Size : 255;
+    memcpy(key, Data, keylen);
+    key[keylen] = '\0';
 
-    // Test ucl_object_tolstring
-    str = ucl_object_tolstring(obj, &len);
-    if (str) {
-        // Simulate usage
-        (void)strlen(str);
-    }
+    // Test ucl_object_replace_key
+    ucl_object_replace_key(top, elt, key, keylen, true);
+
+    // Test ucl_object_fromstring_common
+    ucl_object_t *str_obj = ucl_object_fromstring_common((const char *)Data, Size, UCL_STRING_PARSE);
 
     // Test ucl_object_tostring
-    str = ucl_object_tostring(obj);
-    if (str) {
-        // Simulate usage
-        (void)strlen(str);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_tostring with ucl_object_tostring_forced
+    const char *str = ucl_object_tostring_forced(str_obj);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Test ucl_object_emit_full
+    struct ucl_emitter_functions emitter = {
+        .ucl_emitter_append_character = dummy_emitter_append_character,
+        .ucl_emitter_append_len = dummy_emitter_append_len,
+        .ucl_emitter_append_int = dummy_emitter_append_int,
+        .ucl_emitter_append_double = dummy_emitter_append_double,
+        .ucl_emitter_free_func = dummy_emitter_free_func,
+        .ud = NULL
+    };
+    ucl_object_emit_full(top, UCL_EMIT_JSON, &emitter, comments);
+
+    // Test ucl_object_key
+    const char *obj_key = ucl_object_key(top);
+
+    // Test ucl_object_lookup_path_char
+    const ucl_object_t *path_obj = ucl_object_lookup_path_char(top, key, '.');
+
+    // Cleanup
+    free(top);
+    free(elt);
+    free(comments);
+    if (str_obj) {
+        ucl_object_unref(str_obj);
     }
 
-    // Test ucl_copy_value_trash
-    copy_str = ucl_copy_value_trash(obj);
-    if (copy_str) {
-        // Simulate usage
-        free(copy_str);
-    }
-
-    free_ucl_object(obj);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

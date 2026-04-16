@@ -2,21 +2,34 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include "ucl.h"
 
-static ucl_object_t *create_random_ucl_object() {
-    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
+static ucl_object_t* create_random_ucl_object() {
+    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
     if (obj) {
-        memset(obj, 0, sizeof(ucl_object_t));
-        obj->type = UCL_OBJECT;
+        obj->value.ov = NULL; // Initialize to NULL or a valid object structure
+        obj->key = NULL;
+        obj->next = NULL;
+        obj->prev = NULL;
+        obj->keylen = 0;
+        obj->len = 0;
+        obj->ref = 1; // Initialize reference count
+        obj->flags = 0;
+        obj->type = 0;
+        obj->trash_stack[0] = NULL;
+        obj->trash_stack[1] = NULL;
     }
     return obj;
 }
 
-static void free_ucl_object(ucl_object_t *obj) {
+static void cleanup_ucl_object(ucl_object_t *obj) {
     if (obj) {
+        if (obj->key) {
+            free((void*)obj->key);
+        }
         free(obj);
     }
 }
@@ -26,87 +39,101 @@ int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Prepare dummy UCL objects
     ucl_object_t *top = create_random_ucl_object();
     ucl_object_t *elt = create_random_ucl_object();
-    ucl_object_t *replace_elt = create_random_ucl_object();
-    ucl_object_t *merged_elt = create_random_ucl_object();
-
-    if (!top || !elt || !replace_elt || !merged_elt) {
-        free_ucl_object(top);
-        free_ucl_object(elt);
-        free_ucl_object(replace_elt);
-        free_ucl_object(merged_elt);
+    if (!top || !elt) {
+        cleanup_ucl_object(top);
+        cleanup_ucl_object(elt);
         return 0;
     }
 
-    // Prepare a key
-    char *key = (char *)malloc(Size + 1);
+    // Ensure the key is null-terminated to avoid buffer overflow
+    char *key = malloc(Size + 1);
     if (!key) {
-        free_ucl_object(top);
-        free_ucl_object(elt);
-        free_ucl_object(replace_elt);
-        free_ucl_object(merged_elt);
+        cleanup_ucl_object(top);
+        cleanup_ucl_object(elt);
         return 0;
     }
     memcpy(key, Data, Size);
-    key[Size] = '\0'; // Ensure null-termination
+    key[Size] = '\0';
     size_t keylen = Size;
-    bool copy_key = Data[0] % 2 == 0;
-
-    // Test ucl_object_insert_key
-    ucl_object_insert_key(top, elt, key, keylen, copy_key);
+    bool copy_key = true;
 
     // Test ucl_object_replace_key
-    ucl_object_replace_key(top, replace_elt, key, keylen, copy_key);
+    ucl_object_replace_key(top, elt, key, keylen, copy_key);
 
-    // Test ucl_object_delete_key
-    ucl_object_delete_key(top, key);
+    // Test ucl_object_delete_keyl
+    ucl_object_delete_keyl(top, key, keylen);
 
-    // Test ucl_object_lookup
-    ucl_object_lookup(top, key);
-
-    // Test ucl_object_insert_key_merged
-    ucl_object_insert_key_merged(top, merged_elt, key, keylen, copy_key);
+    // Test ucl_object_keyl
+    size_t len;
+    const char *retrieved_key = ucl_object_keyl(top, &len);
 
     // Test ucl_object_pop_key
-    ucl_object_t *popped = ucl_object_pop_key(top, key);
-    if (popped && popped != elt && popped != replace_elt && popped != merged_elt) {
-        free_ucl_object(popped);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_keyl to ucl_object_tolstring
+    ucl_object_t* ret_ucl_object_frombool_ycpox = ucl_object_frombool(0);
+    if (ret_ucl_object_frombool_ycpox == NULL){
+    	return 0;
     }
-
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_pop_key to ucl_object_pop_keyl
-    char *fxokebhg[1024] = {"brnkx", NULL};
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_pop_key to ucl_object_type
-
-    ucl_type_t ret_ucl_object_type_xejct = ucl_object_type(popped);
-
+    const char* ret_ucl_object_tolstring_zenzo = ucl_object_tolstring(ret_ucl_object_frombool_ycpox, &len);
+    if (ret_ucl_object_tolstring_zenzo == NULL){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_t *popped_obj = ucl_object_pop_key(top, key);
+    cleanup_ucl_object(popped_obj);
 
-    struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_esvkb = ucl_object_emit_memory_funcs(fxokebhg);
-    if (ret_ucl_object_emit_memory_funcs_esvkb == NULL){
-    	return 0;
-    }
-    unsigned int ret_ucl_parser_get_column_vphff = ucl_parser_get_column(NULL);
-    if (ret_ucl_parser_get_column_vphff < 0){
-    	return 0;
-    }
+    // Test ucl_object_lookup_len
+    const ucl_object_t *looked_up_obj = ucl_object_lookup_len(top, key, keylen);
 
-    ucl_object_t* ret_ucl_object_pop_keyl_ixjlu = ucl_object_pop_keyl(popped, (const char *)*fxokebhg, (size_t )ret_ucl_parser_get_column_vphff);
-    if (ret_ucl_object_pop_keyl_ixjlu == NULL){
-    	return 0;
-    }
+    // Test ucl_object_pop_keyl
+    ucl_object_t *popped_obj_l = ucl_object_pop_keyl(top, key, keylen);
+    cleanup_ucl_object(popped_obj_l);
 
-    // End mutation: Producer.APPEND_MUTATOR
-
+    cleanup_ucl_object(top);
     free(key);
-    free_ucl_object(top);
-    free_ucl_object(elt);
-    free_ucl_object(replace_elt);
-    free_ucl_object(merged_elt);
+    // Do not cleanup `elt` here as it may have been freed by libucl functions
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

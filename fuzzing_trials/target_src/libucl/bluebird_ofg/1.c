@@ -1,71 +1,110 @@
-#include "ucl.h"
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    if (size < 2) {
+    // Declare and initialize variables
+    ucl_object_t *ucl_obj = NULL;
+    ucl_emitter_t emitter_type = UCL_EMIT_JSON; // Corrected type name
+
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Split the input data into two parts for two ucl_object_t objects
-    size_t half_size = size / 2;
-    const uint8_t *data1 = data;
-    size_t size1 = half_size;
-    const uint8_t *data2 = data + half_size;
-    size_t size2 = size - half_size;
-
-    // Create first UCL object from data1
-    struct ucl_parser *parser1 = ucl_parser_new(0);
-    if (parser1 == NULL) {
+    // Create a UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
-    ucl_parser_add_chunk(parser1, data1, size1);
-    const ucl_object_t *obj1 = ucl_parser_get_object(parser1);
 
-    // Create second UCL object from data2
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
-    struct ucl_parser *parser2 = ucl_parser_new(-1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (parser2 == NULL) {
-        ucl_parser_free(parser1);
+    // Parse the input data
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
         return 0;
     }
-    ucl_parser_add_chunk(parser2, data2, size2);
-    const ucl_object_t *obj2 = ucl_parser_get_object(parser2);
 
-    // Compare the two UCL objects
-    if (obj1 != NULL && obj2 != NULL) {
-        int result = ucl_object_compare(obj1, obj2);
+    // Get the UCL object
+    ucl_obj = ucl_parser_get_object(parser);
+    if (ucl_obj == NULL) {
+        ucl_parser_free(parser);
+        return 0;
     }
 
-    // Clean up
-    if (obj1 != NULL) {
-        ucl_object_unref(obj1);
-    }
-    if (obj2 != NULL) {
-        ucl_object_unref(obj2);
-    }
+    // Call the function-under-test
+    unsigned char *result = ucl_object_emit(ucl_obj, emitter_type);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_pop_keyl
-    unsigned char ret_ucl_parser_chunk_peek_jyyle = ucl_parser_chunk_peek(parser2);
-    double ret_ucl_object_todouble_frroz = ucl_object_todouble(obj1);
-    if (ret_ucl_object_todouble_frroz < 0){
+    // Free allocated resources
+    if (result != NULL) {
+        free(result);
+    }
+    ucl_object_unref(ucl_obj);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_elt_append
+    ucl_object_t* ret_ucl_object_fromdouble_hdhsj = ucl_object_fromdouble(size);
+    if (ret_ucl_object_fromdouble_hdhsj == NULL){
     	return 0;
     }
-
-    ucl_object_t* ret_ucl_object_pop_keyl_bebkm = ucl_object_pop_keyl(obj2, (const char *)&ret_ucl_parser_chunk_peek_jyyle, (size_t )ret_ucl_object_todouble_frroz);
-    if (ret_ucl_object_pop_keyl_bebkm == NULL){
+    ucl_object_t* ret_ucl_elt_append_efsbd = ucl_elt_append(ucl_obj, ret_ucl_object_fromdouble_hdhsj);
+    if (ret_ucl_elt_append_efsbd == NULL){
     	return 0;
     }
-
     // End mutation: Producer.APPEND_MUTATOR
+    
 
-    ucl_parser_free(parser1);
-    ucl_parser_free(parser2);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_elt_append to ucl_object_pop_key
+    char* ret_ucl_copy_value_trash_jaime = ucl_copy_value_trash(ret_ucl_object_fromdouble_hdhsj);
+    if (ret_ucl_copy_value_trash_jaime == NULL){
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_object_pop_key_csgss = ucl_object_pop_key(ret_ucl_object_fromdouble_hdhsj, ret_ucl_copy_value_trash_jaime);
+    if (ret_ucl_object_pop_key_csgss == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

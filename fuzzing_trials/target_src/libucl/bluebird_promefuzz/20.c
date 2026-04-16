@@ -2,59 +2,85 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
 
-static void dummy_dtor(void *ptr) {
-    // Dummy destructor function
-}
-
-static const char *dummy_emitter(void *ptr) {
-    // Dummy emitter function
-    return "dummy";
-}
-
 int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's at least some data
+    // Initialize a UCL parser
+    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
 
-    // Prepare a dummy file if needed
+    // Create a dummy file and write the input data to it
     FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    if (file == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Parse the dummy file
+    if (!ucl_parser_add_file(parser, "./dummy_file")) {
+        // Handle parsing error
+        ucl_parser_get_error_code(parser);
+        ucl_parser_clear_error(parser);
     }
 
-    // Create a top-level UCL object
-    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
+    // Call the target functions in the specified order
+    unsigned column = ucl_parser_get_column(parser);
+    unsigned linenum = ucl_parser_get_linenum(parser);
+    ucl_parser_clear_error(parser);
+    int error_code = ucl_parser_get_error_code(parser);
+    ucl_object_t *obj = ucl_parser_get_object(parser);
 
-    // Insert first key-value pair
-    ucl_object_t *first_elt = ucl_object_typed_new(UCL_STRING);
-    first_elt->value.sv = "first_value";
-    ucl_object_insert_key(top, first_elt, "first_key", 9, false);
-
-    // Insert second key-value pair
-    ucl_object_t *second_elt = ucl_object_typed_new(UCL_STRING);
-    second_elt->value.sv = "second_value";
-    ucl_object_insert_key(top, second_elt, "second_key", 10, false);
-
-    // Create a user data object
-    ucl_object_t *user_data_obj = ucl_object_new_userdata(dummy_dtor, dummy_emitter, NULL);
-    if (user_data_obj) {
-        ucl_object_insert_key(top, user_data_obj, "user_data_key", 13, false);
+    // If obj is not NULL, unref it once before freeing the parser
+    if (obj != NULL) {
+        ucl_object_unref(obj);
     }
 
-    // Create an object from string
-    const char *str = "sample_string";
-    ucl_object_t *str_obj = ucl_object_fromlstring(str, strlen(str));
-    if (str_obj) {
-        ucl_object_insert_key(top, str_obj, "string_key", 10, false);
-    }
+    ucl_parser_free(parser);
 
-    // Lookup a key
-    const ucl_object_t *found_obj = ucl_object_lookup_any(top, "first_key", "second_key", "nonexistent_key", NULL);
-
-    // Cleanup
-    ucl_object_unref(top);
+    // Clean up the dummy file
+    remove("./dummy_file");
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

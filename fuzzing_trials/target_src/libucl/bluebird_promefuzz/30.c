@@ -2,128 +2,100 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
-#include <stdint.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdbool.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <string.h>
 
-static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static bool custom_macro_handler(const unsigned char *data, size_t len, const ucl_object_t *top, const ucl_object_t *elt, void *ud) {
+    return true;
 }
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size == 0) return 0;
 
-    // Initialize parser and parse input data
+    // Create a new UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
-    if (!parser) {
+    if (!parser) return 0;
+
+    // Prepare a dummy file
+    const char *dummy_filename = "./dummy_file";
+    int fd = open(dummy_filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        ucl_parser_free(parser);
         return 0;
     }
+    write(fd, Data, Size);
+    lseek(fd, 0, SEEK_SET);
 
-    // Write data to dummy file
+    // Test ucl_parser_set_filevars
+    ucl_parser_set_filevars(parser, dummy_filename, true);
+    ucl_parser_set_filevars(parser, NULL, false);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_add_fd
-    const ucl_object_t epcsclsu;
-    memset(&epcsclsu, 0, sizeof(epcsclsu));
-    double ret_ucl_object_todouble_qjypm = ucl_object_todouble(&epcsclsu);
-    if (ret_ucl_object_todouble_qjypm < 0){
-    	return 0;
+    // Test ucl_parser_add_fd
+    ucl_parser_add_fd(parser, fd);
+
+    // Test ucl_parser_register_context_macro
+    ucl_parser_register_context_macro(parser, "test_macro", custom_macro_handler, NULL);
+
+    // Test ucl_parser_register_variable
+    ucl_parser_register_variable(parser, "test_var", "test_value");
+    ucl_parser_register_variable(parser, "test_var", NULL);
+
+    // Test ucl_parser_get_error
+    const char *error = ucl_parser_get_error(parser);
+    if (error) {
+        // Handle error if necessary
     }
 
-    bool ret_ucl_parser_add_fd_uqkzt = ucl_parser_add_fd(parser, (int )ret_ucl_object_todouble_qjypm);
-    if (ret_ucl_parser_add_fd_uqkzt == 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    write_to_dummy_file(Data, Size);
-
-    // Load data into parser
-    ucl_parser_add_file(parser, "./dummy_file");
-
-    // Get comments from parser
-    const ucl_object_t *comments = ucl_parser_get_comments(parser);
-
-    // Get the top object
-    ucl_object_t *top = ucl_parser_get_object(parser);
-
-    if (top) {
-        // Emit object in different formats
-        unsigned char *emitted = ucl_object_emit(top, UCL_EMIT_JSON);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_CONFIG);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_YAML);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_MSGPACK);
-        if (emitted) {
-            free(emitted);
-        }
-
-        // Emit object using memory functions
-        void *pmem = NULL;
-        struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_memory_funcs(&pmem);
-        if (emitter_funcs) {
-            bool success = ucl_object_emit_full(top, UCL_EMIT_JSON, emitter_funcs, comments);
-            if (success && pmem) {
-                free(pmem);
-            }
-            if (emitter_funcs->ucl_emitter_free_func) {
-                emitter_funcs->ucl_emitter_free_func(emitter_funcs->ud);
-            }
-            free(emitter_funcs);
-        }
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit_memory_funcs to ucl_parser_insert_chunk
-        unsigned int ret_ucl_parser_get_linenum_lsofm = ucl_parser_get_linenum(parser);
-        if (ret_ucl_parser_get_linenum_lsofm < 0){
-        	return 0;
-        }
-        int ret_ucl_parser_get_default_priority_sydob = ucl_parser_get_default_priority(parser);
-        if (ret_ucl_parser_get_default_priority_sydob < 0){
-        	return 0;
-        }
-
-        bool ret_ucl_parser_insert_chunk_imrzy = ucl_parser_insert_chunk(parser, (const unsigned char *)pmem, (size_t )ret_ucl_parser_get_default_priority_sydob);
-        if (ret_ucl_parser_insert_chunk_imrzy == 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_insert_chunk to ucl_object_iterate_safe
-        ucl_object_iter_t ret_ucl_object_iterate_new_zbaox = ucl_object_iterate_new(top);
-
-        const ucl_object_t* ret_ucl_object_iterate_safe_fibea = ucl_object_iterate_safe(ret_ucl_object_iterate_new_zbaox, ret_ucl_parser_insert_chunk_imrzy);
-        if (ret_ucl_object_iterate_safe_fibea == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        ucl_object_unref(top);
-    }
-
+    // Cleanup
+    close(fd);
+    unlink(dummy_filename);
     ucl_parser_free(parser);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

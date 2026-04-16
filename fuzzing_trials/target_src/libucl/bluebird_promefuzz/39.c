@@ -2,144 +2,124 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdbool.h>
+#include <sys/stat.h>
 #include <string.h>
-
-static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
     if (Size == 0) {
         return 0;
     }
 
-    // Initialize parser and parse input data
+    // Step 1: Create a new UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
-    if (!parser) {
+    if (parser == NULL) {
         return 0;
     }
 
-    // Write data to dummy file
-    write_to_dummy_file(Data, Size);
-
-    // Load data into parser
-    ucl_parser_add_file(parser, "./dummy_file");
-
-    // Get comments from parser
-    const ucl_object_t *comments = ucl_parser_get_comments(parser);
-
-    // Get the top object
-    ucl_object_t *top = ucl_parser_get_object(parser);
-
-    if (top) {
-        // Emit object in different formats
-        unsigned char *emitted = ucl_object_emit(top, UCL_EMIT_JSON);
-        if (emitted) {
-            free(emitted);
+    // Step 2: Add chunk to the parser
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        // Handle parsing error
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
         }
 
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_object_lookup_path_char
-        ucl_object_t utswezyx;
-        memset(&utswezyx, 0, sizeof(utswezyx));
-        ucl_object_t* ret_ucl_array_pop_last_kgexi = ucl_array_pop_last(&utswezyx);
-        if (ret_ucl_array_pop_last_kgexi == NULL){
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_error to ucl_parser_insert_chunk
+        unsigned char ret_ucl_parser_chunk_peek_dxejj = ucl_parser_chunk_peek(parser);
+        unsigned int ret_ucl_array_size_ionld = ucl_array_size(NULL);
+        if (ret_ucl_array_size_ionld < 0){
         	return 0;
         }
-        const ucl_object_t hnrdmjlo;
-        memset(&hnrdmjlo, 0, sizeof(hnrdmjlo));
-        char* ret_ucl_copy_value_trash_tioom = ucl_copy_value_trash(&hnrdmjlo);
-        if (ret_ucl_copy_value_trash_tioom == NULL){
+        bool ret_ucl_parser_insert_chunk_jnqjv = ucl_parser_insert_chunk(parser, &ret_ucl_parser_chunk_peek_dxejj, (size_t )ret_ucl_array_size_ionld);
+        if (ret_ucl_parser_insert_chunk_jnqjv == 0){
         	return 0;
         }
-
-        const ucl_object_t* ret_ucl_object_lookup_path_char_cvjop = ucl_object_lookup_path_char(ret_ucl_array_pop_last_kgexi, ret_ucl_copy_value_trash_tioom, (const char )*emitted);
-        if (ret_ucl_object_lookup_path_char_cvjop == NULL){
-        	return 0;
-        }
-
         // End mutation: Producer.APPEND_MUTATOR
-
-        emitted = ucl_object_emit(top, UCL_EMIT_CONFIG);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_YAML);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_MSGPACK);
-        if (emitted) {
-            free(emitted);
-        }
-
-        // Emit object using memory functions
-        void *pmem = NULL;
-        struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_memory_funcs(&pmem);
-        if (emitter_funcs) {
-            bool success = ucl_object_emit_full(top, UCL_EMIT_JSON, emitter_funcs, comments);
-            if (success && pmem) {
-                free(pmem);
-            }
-            if (emitter_funcs->ucl_emitter_free_func) {
-                emitter_funcs->ucl_emitter_free_func(emitter_funcs->ud);
-            }
-            free(emitter_funcs);
-        }
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit_memory_funcs to ucl_parser_insert_chunk
-        unsigned int ret_ucl_parser_get_linenum_lsofm = ucl_parser_get_linenum(parser);
-        if (ret_ucl_parser_get_linenum_lsofm < 0){
-        	return 0;
-        }
-        int ret_ucl_parser_get_default_priority_sydob = ucl_parser_get_default_priority(parser);
-        if (ret_ucl_parser_get_default_priority_sydob < 0){
-        	return 0;
-        }
-
-        bool ret_ucl_parser_insert_chunk_imrzy = ucl_parser_insert_chunk(parser, (const unsigned char *)pmem, (size_t )ret_ucl_parser_get_default_priority_sydob);
-        if (ret_ucl_parser_insert_chunk_imrzy == 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_insert_chunk to ucl_object_iterate_safe
-        ucl_object_iter_t ret_ucl_object_iterate_new_zbaox = ucl_object_iterate_new(top);
-
-        const ucl_object_t* ret_ucl_object_iterate_safe_fibea = ucl_object_iterate_safe(ret_ucl_object_iterate_new_zbaox, ret_ucl_parser_insert_chunk_imrzy);
-        if (ret_ucl_object_iterate_safe_fibea == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        ucl_object_unref(top);
+        
+        ucl_parser_free(parser);
+        return 0;
     }
 
+    // Step 3: Get the top-level object
+    ucl_object_t *obj = ucl_parser_get_object(parser);
+    if (obj == NULL) {
+        // Handle error in getting object
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
+        }
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_comments_add
-    const ucl_object_t roxrioym;
-    memset(&roxrioym, 0, sizeof(roxrioym));
-    const char bgccnkny[1024] = "hztqc";
+    // Step 4: Serialize the object in various formats
+    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
+    if (json_output != NULL) {
+        free(json_output);
+    }
 
-    ucl_comments_add(top, &roxrioym, bgccnkny);
+    unsigned char *config_output = ucl_object_emit(obj, UCL_EMIT_CONFIG);
+    if (config_output != NULL) {
+        free(config_output);
+    }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    unsigned char *yaml_output = ucl_object_emit(obj, UCL_EMIT_YAML);
+    if (yaml_output != NULL) {
+        free(yaml_output);
+    }
 
+    unsigned char *msgpack_output = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
+    if (msgpack_output != NULL) {
+        free(msgpack_output);
+    }
+
+    // Step 5: Cleanup
+    ucl_object_unref(obj);
     ucl_parser_free(parser);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
