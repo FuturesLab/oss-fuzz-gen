@@ -1,85 +1,76 @@
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
-
-// Define a custom destructor function to match the signature required by sqlite3_result_text64
-void custom_destructor_454(void *ptr) {
-    // Implement custom cleanup logic if needed
-    // For this example, we'll just leave it empty
-    (void)ptr; // Avoid unused parameter warning
-}
-
-// Define a custom SQLite function
-void custom_function_454(sqlite3_context *context, int argc, sqlite3_value **argv) {
-    // Check if we have at least one argument
-    if (argc < 1) {
-        sqlite3_result_null(context);
-        return;
-    }
-
-    // Get the text input from the first argument
-    const char *text = (const char *)sqlite3_value_text(argv[0]);
-
-    // Get the length of the text
-    sqlite3_uint64 text_length = (sqlite3_uint64)sqlite3_value_bytes(argv[0]);
-
-    // Initialize the destructor function pointer
-    void (*destructor)(void*) = custom_destructor_454;
-
-    // Initialize the encoding
-    unsigned char encoding = SQLITE_UTF8;
-
-    // Call the function-under-test
-    sqlite3_result_text64(context, text, text_length, destructor, encoding);
-}
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_454(const uint8_t *data, size_t size) {
-    // Ensure the size is not zero to avoid passing NULL to text
-    if (size == 0) {
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
+    
+    // Initialize a database in memory
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        return 0; // If opening the database fails, exit early
+    }
+
+    // Ensure the input data is null-terminated to safely use it as a string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Initialize the SQLite database
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
-        return 1;
+    // Execute the SQL command
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
     }
 
-    // Create a custom function to get a valid context
-    if (sqlite3_create_function(db, "custom_function_454", 1, SQLITE_UTF8, NULL, custom_function_454, NULL, NULL) != SQLITE_OK) {
-        fprintf(stderr, "Failed to create custom function: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 1;
-    }
-
-    // Prepare a statement that calls the custom function
-    sqlite3_stmt *stmt;
-    const char *sql = "SELECT custom_function_454(?)";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare custom function statement: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 1;
-    }
-
-    // Bind the input data to the statement
-    if (sqlite3_bind_text(stmt, 1, (const char *)data, (int)size, SQLITE_STATIC) != SQLITE_OK) {
-        fprintf(stderr, "Failed to bind data: %s\n", sqlite3_errmsg(db));
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 1;
-    }
-
-    // Execute the statement
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-        fprintf(stderr, "Failed to execute statement: %s\n", sqlite3_errmsg(db));
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
+    free(sql);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_454(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

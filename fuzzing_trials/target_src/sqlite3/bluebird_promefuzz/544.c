@@ -1,8 +1,9 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "sqlite3.h"
 
 static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
@@ -30,30 +31,31 @@ int LLVMFuzzerTestOneInput_544(const uint8_t *Data, size_t Size) {
     int rc;
 
     // Open a database connection
-
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    const char hstrfton[1024] = "bhoqa";
-    rc = sqlite3_open(hstrfton, &db);
+    rc = sqlite3_open((const char *)"r", &db);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
     if (rc != SQLITE_OK) {
         free(sql);
         return 0;
     }
 
     // Execute SQL
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
-    rc = sqlite3_exec(db, sql, callback, 0, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
     if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
 
     // Set authorizer
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_extended_result_codes with sqlite3_wal_autocheckpoint
+    int ret_sqlite3_extended_result_codes_cxcaq = sqlite3_wal_autocheckpoint(db, -1);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (ret_sqlite3_extended_result_codes_cxcaq < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
@@ -67,22 +69,20 @@ int LLVMFuzzerTestOneInput_544(const uint8_t *Data, size_t Size) {
     int notNull;
     int primaryKey;
     int autoinc;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of sqlite3_table_column_metadata
-    int anxavnhm = 64;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 6 of sqlite3_table_column_metadata
-    int pvbjmzxt = 1;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &pvbjmzxt, &anxavnhm, &autoinc);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
 
     // Test control
-    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
+//    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_test_control with sqlite3_enable_shared_cache
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_table_column_metadata to sqlite3_overload_function
+    int ret_sqlite3_overload_function_atdsn = sqlite3_overload_function(db, (const char *)"r", Size);
+    if (ret_sqlite3_overload_function_atdsn < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    rc = sqlite3_enable_shared_cache(SQLITE_TESTCTRL_FIRST);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
     // Malloc
     void *ptr = sqlite3_malloc(Size);
@@ -92,7 +92,48 @@ int LLVMFuzzerTestOneInput_544(const uint8_t *Data, size_t Size) {
     }
 
     // Close the database connection
-    sqlite3_close(db);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
+    sqlite3_db_release_memory(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
     free(sql);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_544(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

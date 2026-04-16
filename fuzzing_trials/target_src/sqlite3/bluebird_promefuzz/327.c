@@ -1,8 +1,9 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "sqlite3.h"
 
 static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
@@ -30,41 +31,41 @@ int LLVMFuzzerTestOneInput_327(const uint8_t *Data, size_t Size) {
     int rc;
 
     // Open a database connection
-
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    const char hstrfton[1024] = "bhoqa";
-    rc = sqlite3_open(hstrfton, &db);
+    rc = sqlite3_open((const char *)"r", &db);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
     if (rc != SQLITE_OK) {
         free(sql);
         return 0;
     }
 
     // Execute SQL
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_randomness
-    int ret_sqlite3_os_end_xutog = sqlite3_os_end();
-    if (ret_sqlite3_os_end_xutog < 0){
-    	return 0;
-    }
-
-    sqlite3_randomness(ret_sqlite3_os_end_xutog, (void *)db);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    rc = sqlite3_exec(db, sql, callback, 0, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
     if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
 
     // Set authorizer
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_get_clientdata
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_is_interrupted
+    int ret_sqlite3_is_interrupted_pelvn = sqlite3_is_interrupted(db);
+    if (ret_sqlite3_is_interrupted_pelvn < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    void* ret_sqlite3_malloc_jkmuw = sqlite3_malloc(Size);
+    if (ret_sqlite3_malloc_jkmuw == NULL){
+    	return 0;
+    }
+    void* ret_sqlite3_get_clientdata_iofcv = sqlite3_get_clientdata(db, (const char *)ret_sqlite3_malloc_jkmuw);
+    if (ret_sqlite3_get_clientdata_iofcv == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
@@ -81,15 +82,28 @@ int LLVMFuzzerTestOneInput_327(const uint8_t *Data, size_t Size) {
     rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
 
     // Test control
-    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
+//    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_test_control
 
-    // Malloc
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_malloc
-    void *ptr = sqlite3_malloc(0);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_table_column_metadata to sqlite3_backup_init
+    int ret_sqlite3_db_release_memory_uzyrk = sqlite3_db_release_memory(db);
+    if (ret_sqlite3_db_release_memory_uzyrk < 0){
+    	return 0;
+    }
+    void* ret_sqlite3_malloc64_ihngb = sqlite3_malloc64(0);
+    if (ret_sqlite3_malloc64_ihngb == NULL){
+    	return 0;
+    }
+    sqlite3_backup* ret_sqlite3_backup_init_csiiy = sqlite3_backup_init(db, (const char *)Data, db, (const char *)ret_sqlite3_malloc64_ihngb);
+    if (ret_sqlite3_backup_init_csiiy == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+//    rc = sqlite3_test_control(-1);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-
+    // Malloc
+    void *ptr = sqlite3_malloc(Size);
     if (ptr) {
         memcpy(ptr, Data, Size);
         sqlite3_free(ptr);
@@ -100,3 +114,42 @@ int LLVMFuzzerTestOneInput_327(const uint8_t *Data, size_t Size) {
     free(sql);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_327(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

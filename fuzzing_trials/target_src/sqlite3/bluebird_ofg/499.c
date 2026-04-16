@@ -1,52 +1,79 @@
 #include <stdint.h>
 #include "sqlite3.h"
 #include <string.h>
-
-// Define dummy callback functions for the function-under-test
-void dummy_function_499(sqlite3_context *context, int argc, sqlite3_value **argv) {
-    // Do nothing
-}
-
-void dummy_step(sqlite3_context *context, int argc, sqlite3_value **argv) {
-    // Do nothing
-}
-
-void dummy_final(sqlite3_context *context) {
-    // Do nothing
-}
+#include <stdlib.h>
+#include <sys/stat.h> // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_499(const uint8_t *data, size_t size) {
+    // Initialize SQLite database
     sqlite3 *db;
-    const void *zFunctionName = L"test_function"; // Function name in UTF-16
-    int nArg = 1; // Number of arguments the function takes
-    int eTextRep = SQLITE_UTF16; // Text encoding
-    void *pApp = NULL; // Application data
+    sqlite3_stmt *stmt = NULL;
+    const char *tail = NULL;
+    int rc;
 
-    // Initialize SQLite database in memory
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Create an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Fuzz the sqlite3_create_function16 function
-    sqlite3_create_function16(db, zFunctionName, nArg, eTextRep, pApp, 
-                              dummy_function_499, dummy_step, dummy_final);
-
-    // Create a SQL statement to test the function
-    char *errMsg = 0;
-    if (size > 0) {
-        // Use the input data to create a SQL statement
-        char sql[256];
-        snprintf(sql, sizeof(sql), "SELECT test_function(%d);", data[0]);
-
-        // Execute the SQL statement
-        sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
+    // Ensure the input data is null-terminated for use as a SQL statement
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Close the SQLite database
+    // Call the function-under-test
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &tail);
+
+    // Clean up
+    if (stmt != NULL) {
+        sqlite3_finalize(stmt);
+    }
+    free(sql);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_499(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

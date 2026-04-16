@@ -1,60 +1,115 @@
 #include <stdint.h>
 #include "sqlite3.h"
+#include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_558(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
-
     sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-
-    // Initialize SQLite in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    int rc;
+    char *errMsg = 0;
+    char *sql;
+    
+    // Initialize an in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Create a null-terminated copy of the input data
-    char *data_copy = (char *)malloc(size + 1);
-    if (data_copy == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(data_copy, data, size);
-    data_copy[size] = '\0';
-
-    // Use the input data to construct a SQL query
-    char *sql = sqlite3_mprintf("SELECT '%q'", data_copy);
-    free(data_copy); // Free the copied data after use
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare the SQL statement
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_free(sql);
+    // Create a simple table
+    sql = "CREATE TABLE IF NOT EXISTS test(id INT, value TEXT);";
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
+        sqlite3_free((void *)"w");
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
         sqlite3_close(db);
         return 0;
     }
 
-    // Execute the SQL statement
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        // Access the result of the query
-        const unsigned char *result = sqlite3_column_text(stmt, 0);
-        if (result != NULL) {
-            // Simulate some operation with the result
-            size_t result_len = strlen((const char *)result);
-            (void)result_len; // Suppress unused variable warning
-        }
+    // Prepare the input data as an SQL statement
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_blob_write
+    int ret_sqlite3_blob_write_hoher = sqlite3_blob_write(NULL, (const void *)db, size, 1);
+    if (ret_sqlite3_blob_write_hoher < 0){
+    	return 0;
     }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_sqlite3_extended_result_codes_cphka = sqlite3_extended_result_codes(db, 0);
+    if (ret_sqlite3_extended_result_codes_cphka < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *inputSQL = (char *)malloc(size + 1);
+    if (inputSQL == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(inputSQL, data, size);
+    inputSQL[size] = '\0';
+
+    // Execute the input SQL statement
+    rc = sqlite3_exec(db, inputSQL, 0, 0, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
+        sqlite3_free(errMsg);
+    }
+
+    // Call the function-under-test
+    int changes = sqlite3_changes(db);
+    printf("Number of changes: %d\n", changes);
 
     // Clean up
-    sqlite3_finalize(stmt);
-    sqlite3_free(sql);
+    free(inputSQL);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_558(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

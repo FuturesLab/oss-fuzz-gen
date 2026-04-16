@@ -1,75 +1,88 @@
 #include <stdint.h>
 #include "sqlite3.h"
-#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_694(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    const char *sql_create = "CREATE TABLE IF NOT EXISTS test (id INTEGER, value TEXT);";
-    const char *sql_insert = "INSERT INTO test (id, value) VALUES (?, ?);";
-    const char *text;
-    int text_len;
+    char *errMsg = 0;
 
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open a new in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Execute the CREATE TABLE statement
-    rc = sqlite3_exec(db, sql_create, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Convert the input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Prepare the INSERT statement
-    rc = sqlite3_prepare_v2(db, sql_insert, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free the allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open_v2
+    void* ret_sqlite3_malloc_gnthq = sqlite3_malloc(64);
+    if (ret_sqlite3_malloc_gnthq == NULL){
+    	return 0;
     }
-
-    // Bind the integer value
-    rc = sqlite3_bind_int(stmt, 1, 1);
-    if (rc != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
+    char* ret_sqlite3_str_value_rnkma = sqlite3_str_value(NULL);
+    if (ret_sqlite3_str_value_rnkma == NULL){
+    	return 0;
     }
-
-    // Ensure the data is not NULL and has a size
-    if (size > 0) {
-        text_len = size < 100 ? size : 100; // Limit the text length to 100 characters
-        text = (const char *)data;
-
-        // Bind the text value
-        rc = sqlite3_bind_text(stmt, 2, text, text_len, SQLITE_TRANSIENT);
-        if (rc != SQLITE_OK) {
-            sqlite3_finalize(stmt);
-            sqlite3_close(db);
-            return 0;
-        }
-    } else {
-        // If size is 0, bind an empty string
-        rc = sqlite3_bind_text(stmt, 2, "", -1, SQLITE_TRANSIENT);
-        if (rc != SQLITE_OK) {
-            sqlite3_finalize(stmt);
-            sqlite3_close(db);
-            return 0;
-        }
+    int ret_sqlite3_open_v2_tcvrm = sqlite3_open_v2((const char *)ret_sqlite3_malloc_gnthq, &db, -1, ret_sqlite3_str_value_rnkma);
+    if (ret_sqlite3_open_v2_tcvrm < 0){
+    	return 0;
     }
-
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Close the database
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(sql);
+    sqlite3_free(errMsg);
     sqlite3_close(db);
 
+    // Return 0 to indicate successful execution of the fuzzer
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_694(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,57 +1,68 @@
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
+#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
 
-// Assuming that the SQLite library is properly linked
+// Define a custom destructor function to match the signature required
+void custom_destructor_621(void *ptr) {
+    // Free the memory allocated for the blob
+    free(ptr);
+}
 
 int LLVMFuzzerTestOneInput_621(const uint8_t *data, size_t size) {
-    // Initialize SQLite database in memory
+    // Allocate memory for the blob and copy the data into it
+    void *blob = malloc(size);
+    if (blob == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(blob, data, size);
+
+    // Define a sqlite3_uint64 size for the blob
+    sqlite3_uint64 blob_size = (sqlite3_uint64)size;
+
+    // Initialize SQLite and create a database in memory
     sqlite3 *db;
-    char *errMsg = 0;
-    int rc;
-
-    if (size == 0) {
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        free(blob);
         return 0;
     }
 
-    // Open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
+    // Create a table to store the blob
+    const char *create_table_sql = "CREATE TABLE IF NOT EXISTS fuzz_table (data BLOB);";
+    if (sqlite3_exec(db, create_table_sql, 0, 0, 0) != SQLITE_OK) {
+        sqlite3_close(db);
+        free(blob);
         return 0;
     }
 
-    // Create a table using the input data as part of the SQL statement
-    char sql[256];
-    snprintf(sql, sizeof(sql), "CREATE TABLE IF NOT EXISTS fuzz_table(data TEXT);");
-
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_is_interrupted
-        sqlite3_is_interrupted(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        return 0;
-    }
-
-    // Insert data into the table
-    snprintf(sql, sizeof(sql), "INSERT INTO fuzz_table (data) VALUES (?);");
+    // Prepare a statement to insert the blob into the table
     sqlite3_stmt *stmt;
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc == SQLITE_OK) {
-        sqlite3_bind_text(stmt, 1, (const char*)data, size, SQLITE_TRANSIENT);
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
+    if (sqlite3_prepare_v2(db, "INSERT INTO fuzz_table (data) VALUES (?);", -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        free(blob);
+        return 0;
     }
 
-    // Execute a simple query
-    snprintf(sql, sizeof(sql), "SELECT * FROM fuzz_table;");
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Bind the blob to the statement
+    sqlite3_bind_blob64(stmt, 1, blob, blob_size, custom_destructor_621);
+
+    // Step through the statement to execute it
+    sqlite3_step(stmt);
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Prepare a statement to query the blob back
+    if (sqlite3_prepare_v2(db, "SELECT data FROM fuzz_table;", -1, &stmt, NULL) == SQLITE_OK) {
+        // Execute the query and step through the results
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            // Access the blob data if needed
+            const void *retrieved_blob = sqlite3_column_blob(stmt, 0);
+            int retrieved_blob_size = sqlite3_column_bytes(stmt, 0);
+            // Optionally, do something with retrieved_blob and retrieved_blob_size
+        }
+        sqlite3_finalize(stmt);
     }
 
     // Close the database
@@ -59,3 +70,42 @@ int LLVMFuzzerTestOneInput_621(const uint8_t *data, size_t size) {
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_621(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

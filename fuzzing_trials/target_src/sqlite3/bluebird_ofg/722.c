@@ -1,37 +1,87 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 #include "sqlite3.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// Function to execute a SQL command
+static void execute_sql(sqlite3 *db, const char *sql) {
+    char *errMsg = 0;
+    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
+        sqlite3_free(NULL);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+    }
+}
 
 int LLVMFuzzerTestOneInput_722(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_str *strObj = NULL;
+    sqlite3 *db;
+    int rc;
 
-    // Initialize SQLite in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+    // Open a new in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        return 0; // If opening the database failed, return immediately
     }
 
-    // Call the function-under-test
-    strObj = sqlite3_str_new(db);
+    // Ensure the database pointer is not NULL
+    if (db != NULL) {
+        // Attempt to execute the input data as SQL command
+        char *sql = (char *)malloc(size + 1);
+        if (sql != NULL) {
+            memcpy(sql, data, size);
+            sql[size] = '\0'; // Null-terminate the input data
+            execute_sql(db, sql);
+            free(sql);
+        }
 
-    // Utilize the input data to perform some operations
-    if (strObj != NULL && data != NULL && size > 0) {
-        sqlite3_str_appendf(strObj, "%.*s", (int)size, data);
+        // Close the database
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
+        sqlite3_changes(db);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
-
-    // Clean up
-    if (strObj != NULL) {
-        sqlite3_str_finish(strObj);
-    }
-    sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_722(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

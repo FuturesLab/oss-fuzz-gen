@@ -1,55 +1,72 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include for size_t
 #include "sqlite3.h"
-#include <string.h>
 
+// Define the fuzzer entry point
 int LLVMFuzzerTestOneInput_220(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
+    if (size == 0) return 0; // Ensure there is data to process
+
+    // Initialize SQLite
     sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3_open(":memory:", &db);
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+    // Prepare a SQL statement using the input data
+    sqlite3_stmt *stmt;
+    const char *tail;
+    int rc = sqlite3_prepare_v2(db, (const char *)data, (int)size, &stmt, &tail);
+
+    if (rc == SQLITE_OK && stmt != NULL) {
+        // Step through the statement to execute it
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            // Access some data from the result
+            sqlite3_int64 result = sqlite3_column_int64(stmt, 0);
+            (void)result; // Use the result in some way to prevent compiler warnings
+        }
+        // Finalize the statement to clean up
+        sqlite3_finalize(stmt);
     }
 
-    // Ensure the input data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_get_autocommit
-        sqlite3_get_autocommit(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free allocated resources
-    if (errMsg) {
-        sqlite3_free(errMsg);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_name
-    int ret_sqlite3_data_count_ujdvt = sqlite3_data_count(NULL);
-    if (ret_sqlite3_data_count_ujdvt < 0){
-    	return 0;
-    }
-
-    const char* ret_sqlite3_db_name_cfoby = sqlite3_db_name(db, ret_sqlite3_data_count_ujdvt);
-    if (ret_sqlite3_db_name_cfoby == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(sql);
+    // Clean up
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_220(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

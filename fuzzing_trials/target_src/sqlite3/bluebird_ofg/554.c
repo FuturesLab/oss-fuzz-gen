@@ -1,68 +1,102 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h> // Include for size_t
 #include "sqlite3.h"
-#include <stdlib.h>
-#include <string.h>
 
-void myDestructor(void *p) {
-    // Custom destructor function.
-    // It could free the allocated memory if necessary.
-    free(p);
+// Dummy function types to replace DW_TAG_subroutine_typeInfinite loop
+typedef int (*callback_type)(void*, int, char**, char**);
+typedef void (*free_callback_type)(void*);
+
+// Define a callback function
+int myCallback_554(void* data, int argc, char** argv, char** azColName) {
+    return 0;
 }
 
-void myFunction(sqlite3_context *context, int argc, sqlite3_value **argv) {
-    // This function will be invoked by the SQL statement
-    if (argc > 0) {
-        const unsigned char *text = sqlite3_value_text(argv[0]);
-        if (text) {
-            sqlite3_result_text(context, (const char *)text, -1, SQLITE_TRANSIENT);
-        } else {
-            sqlite3_result_null(context);
-        }
-    } else {
-        sqlite3_result_null(context);
-    }
+// Define a free callback function
+void myFreeCallback_554(void* data) {
 }
 
 int LLVMFuzzerTestOneInput_554(const uint8_t *data, size_t size) {
-    // Initialize SQLite and create a mock context
+    // Initialize variables
     sqlite3 *db;
-    sqlite3_stmt *stmt;
+    callback_type xCallback;
+    void *pClientData;
+    free_callback_type xFree;
+    char *errMsg = 0;
 
-    // Open an in-memory SQLite database
+    // Open a SQLite database in memory
     if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0; // If failed to open, return immediately
+        return 0;
     }
 
-    // Create a custom function to obtain a valid context
-    if (sqlite3_create_function_v2(db, "myFunction", 1, SQLITE_UTF8, NULL, myFunction, NULL, NULL, myDestructor) != SQLITE_OK) {
+    // Assign the defined callback functions and client data
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_limit
+    int ret_sqlite3_limit_sqxvq = sqlite3_limit(db, 0, 1);
+    if (ret_sqlite3_limit_sqxvq < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    xCallback = myCallback_554;
+    pClientData = (void*)data; // Use data as client data
+    xFree = myFreeCallback_554;
+
+    // Convert the input data to a string for SQL execution
+    char *sql = (char*)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
-        return 0; // If failed to create function, return immediately
+        return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0'; // Null-terminate the string
 
-    // Prepare a dummy SQL statement to trigger the custom function
-    if (sqlite3_prepare_v2(db, "SELECT myFunction(?)", -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0; // If failed to prepare, return immediately
-    }
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, xCallback, pClientData, &errMsg);
 
-    // Bind the input data to the SQL statement
-    if (sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC) != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0; // If failed to bind, return immediately
-    }
+    // Free the allocated memory for the SQL string
+    free(sql);
 
-    // Execute the statement to ensure the function is called
-    if (sqlite3_step(stmt) != SQLITE_ROW) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0; // If execution fails, return immediately
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_554(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

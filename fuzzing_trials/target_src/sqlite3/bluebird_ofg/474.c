@@ -1,83 +1,125 @@
 #include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
+#include <stddef.h>  // Include for size_t
 #include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>  // Include for NULL
+#include <string.h>  // Include for strlen and memcpy
+#include "sqlite3.h"
 
-int LLVMFuzzerTestOneInput_474(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    int rc;
-    const void *blob_data;
-    int column_index = 0; // Default column index
-
-    // Create a temporary in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
-        return 0;
-    }
-
-    // Create a simple table for testing
-    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);";
-    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare an insert statement
-    const char *insert_sql = "INSERT INTO test (data) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind the input data as a blob
-    rc = sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to bind blob: %s\n", sqlite3_errmsg(db));
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the insert statement
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Prepare a select statement
-    const char *select_sql = "SELECT data FROM test WHERE id = 1;";
-    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare select statement: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the select statement
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Call the function-under-test
-        blob_data = sqlite3_column_blob(stmt, column_index);
-    }
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Close the database
-    sqlite3_close(db);
-
+// Callback function to be used with sqlite3_trace_v2
+static int trace_callback(unsigned int trace, void *ctx, void *p, void *x) {
+    // Implement a simple callback that does nothing
     return 0;
 }
+
+int LLVMFuzzerTestOneInput_474(const uint8_t *data, size_t size) {
+    sqlite3 *db;
+    unsigned int mask = 0;
+    void *user_data = NULL;
+    int result;
+
+    // Open an in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        return 0;
+    }
+
+    // Set the trace mask to a fixed value for fuzzing
+    mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW;
+
+    // Call the function-under-test
+    result = sqlite3_trace_v2(db, mask, trace_callback, user_data);
+
+    // Execute the input data as an SQL statement if it's not empty
+    if (size > 0) {
+        // Allocate a new buffer with an additional byte for the null terminator
+        char *sql = (char *)malloc(size + 1);
+        if (sql == NULL) {
+            sqlite3_close(db);
+            return 0;
+        }
+
+        // Copy the input data to the new buffer and null-terminate it
+        memcpy(sql, data, size);
+        sql[size] = '\0';
+
+        char *errMsg = 0;
+        sqlite3_exec(db, sql, 0, 0, &errMsg);
+        if (errMsg) {
+            sqlite3_free(errMsg);
+        }
+
+        // Free the allocated buffer
+        free(sql);
+    }
+
+    // Close the SQLite database
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_trace_v2 to sqlite3_db_config
+    int ret_sqlite3_db_config_jzzuh = sqlite3_db_config(db, 0);
+    if (ret_sqlite3_db_config_jzzuh < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_db_release_memory(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_db_release_memory to sqlite3_backup_init
+    int ret_sqlite3_close_v2_ecmwr = sqlite3_close_v2(db);
+    if (ret_sqlite3_close_v2_ecmwr < 0){
+    	return 0;
+    }
+    char* ret_sqlite3_str_value_upuyk = sqlite3_str_value(NULL);
+    if (ret_sqlite3_str_value_upuyk == NULL){
+    	return 0;
+    }
+    sqlite3_backup* ret_sqlite3_backup_init_ajbpj = sqlite3_backup_init(db, (const char *)"w", db, ret_sqlite3_str_value_upuyk);
+    if (ret_sqlite3_backup_init_ajbpj == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_474(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

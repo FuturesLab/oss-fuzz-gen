@@ -1,53 +1,81 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
-#include <stdlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_441(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
+    sqlite3 *db;
     int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER, value TEXT);"
-                      "INSERT INTO test (id, value) VALUES (1, 'Hello'), (2, 'World');"
-                      "SELECT value FROM test WHERE id = ?;";
 
-    // Open an in-memory database
+    // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0;
+        return 0; // If opening the database fails, return immediately
     }
 
-    // Execute the SQL to create table and insert data
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Create a SQL statement from the input data
+    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
+
+    // Execute the SQL statement
+    char *errMsg = 0;
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free the SQL statement
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_readonly
+    int ret_sqlite3_db_readonly_kpall = sqlite3_db_readonly(db, errMsg);
+    if (ret_sqlite3_db_readonly_kpall < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(sql);
+
+    // If there was an error, free the error message
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = ?;", -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind the first parameter to the statement
-    int id = (size > 0) ? data[0] % 3 : 0; // Ensure id is 0, 1, or 2
-    sqlite3_bind_int(stmt, 1, id);
-
-    // Execute the statement and call the function-under-test
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        const unsigned char *text = sqlite3_column_text(stmt, 0);
-        // Use the text in some way to prevent optimization out
-        if (text) {
-            volatile unsigned char dummy = text[0];
-            (void)dummy;
-        }
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_441(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

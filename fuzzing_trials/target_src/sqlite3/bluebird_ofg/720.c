@@ -1,71 +1,118 @@
 #include <stdint.h>
+#include <stddef.h>  // Include for size_t
 #include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>  // Include for NULL
+#include <string.h>  // Include for strlen and memcpy
 #include "sqlite3.h"
 
-// A mock function to act as the destructor for the auxiliary data
-void mock_destructor(void *data) {
-    // In a real scenario, you would free or clean up the data here
-    free(data);
-}
-
-// Custom SQL function to provide a valid sqlite3_context
-void custom_sql_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
-    // This function does nothing but is necessary to obtain a valid context
-    // Simulate setting auxiliary data within this function
-    if (argc > 0) {
-        void *aux_data = malloc(sqlite3_value_bytes(argv[0]));
-        if (aux_data) {
-            memcpy(aux_data, sqlite3_value_blob(argv[0]), sqlite3_value_bytes(argv[0]));
-            sqlite3_set_auxdata(context, 0, aux_data, mock_destructor);
-        }
-    }
+// Callback function to be used with sqlite3_trace_v2
+static int trace_callback(unsigned int trace, void *ctx, void *p, void *x) {
+    // Implement a simple callback that does nothing
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_720(const uint8_t *data, size_t size) {
-    // Initialize variables
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
-    int rc;
+    sqlite3 *db;
+    unsigned int mask = 0;
+    void *user_data = NULL;
+    int result;
 
-    // Open an in-memory database to obtain a valid sqlite3_context
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0; // Exit if the database cannot be opened
+    // Open an in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        return 0;
     }
 
-    // Create a custom SQL function to be able to use sqlite3_context
-    rc = sqlite3_create_function(db, "custom_func", 1, SQLITE_UTF8, NULL, custom_sql_function, NULL, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0; // Exit if the function cannot be created
+    // Set the trace mask to a fixed value for fuzzing
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open_v2
+    sqlite3_free((void *)db);
+    int ret_sqlite3_open_v2_dhakd = sqlite3_open_v2(NULL, &db, 64, db);
+    if (ret_sqlite3_open_v2_dhakd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW;
+
+    // Call the function-under-test
+    result = sqlite3_trace_v2(db, mask, trace_callback, user_data);
+
+    // Execute the input data as an SQL statement if it's not empty
+    if (size > 0) {
+        // Allocate a new buffer with an additional byte for the null terminator
+        char *sql = (char *)malloc(size + 1);
+        if (sql == NULL) {
+            sqlite3_close(db);
+            return 0;
+        }
+
+        // Copy the input data to the new buffer and null-terminate it
+        memcpy(sql, data, size);
+        sql[size] = '\0';
+
+        char *errMsg = 0;
+        sqlite3_exec(db, sql, 0, 0, &errMsg);
+        if (errMsg) {
+            sqlite3_free(errMsg);
+        }
+
+        // Free the allocated buffer
+        free(sql);
     }
 
-    // Prepare a simple SQL statement to call the custom function with input data
-    sqlite3_stmt *stmt;
-    rc = sqlite3_prepare_v2(db, "SELECT custom_func(?)", -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0; // Exit if the statement cannot be prepared
-    }
+    // Close the SQLite database
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
 
-    // Bind the input data to the SQL statement
-    rc = sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT);
-    if (rc != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0; // Exit if the data cannot be bound
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_trace_v2 to sqlite3_db_config
+    int ret_sqlite3_db_config_jzzuh = sqlite3_db_config(db, 0);
+    if (ret_sqlite3_db_config_jzzuh < 0){
+    	return 0;
     }
-
-    // Step through the statement to trigger the custom function
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW || rc == SQLITE_DONE) {
-        // The custom function is triggered during sqlite3_step, no need to manually handle context
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_db_release_memory(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_720(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

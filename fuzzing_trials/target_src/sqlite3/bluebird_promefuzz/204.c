@@ -1,12 +1,13 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "sqlite3.h"
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
     sqlite3_stmt *stmt = NULL;
@@ -20,16 +21,13 @@ static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
     }
 
     rc = sqlite3_step(stmt);
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_step with sqlite3_data_count
-    rc = sqlite3_data_count(stmt);  // Call sqlite3_step twice as required
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    rc = sqlite3_step(stmt);  // Call sqlite3_step twice as required
 
     int column_count = sqlite3_column_count(stmt);
     for (int i = 0; i < column_count; i++) {
-        int col_type = sqlite3_column_type(stmt, i);
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_column_type with sqlite3_stmt_explain
+        int col_type = sqlite3_stmt_explain(stmt, i);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
         const char *col_name = sqlite3_column_name(stmt, i);
         const unsigned char *col_text = sqlite3_column_text(stmt, i);
         int col_bytes = sqlite3_column_bytes(stmt, i);
@@ -72,3 +70,42 @@ int LLVMFuzzerTestOneInput_204(const uint8_t *Data, size_t Size) {
     sqlite3_close(db);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_204(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

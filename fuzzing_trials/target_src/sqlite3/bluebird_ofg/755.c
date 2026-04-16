@@ -1,32 +1,87 @@
-#include <stddef.h>  // Include for size_t
 #include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 #include "sqlite3.h"
 
-// Define a simple progress callback function
-int progress_callback(void *unused) {
-    // This function can perform any operation, for now, it just returns 0
-    return 0;
+// Function to execute a SQL command
+static void execute_sql(sqlite3 *db, const char *sql) {
+    char *errMsg = 0;
+    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+    }
 }
 
 int LLVMFuzzerTestOneInput_755(const uint8_t *data, size_t size) {
     sqlite3 *db;
     int rc;
-    void *user_data = (void *)data; // Use the input data as user data
 
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
+    // Open a new in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, exit early
+        return 0; // If opening the database failed, return immediately
     }
 
-    // Use a fixed number of operations for the progress handler
-    int operations = 100;
+    // Ensure the database pointer is not NULL
+    if (db != NULL) {
+        // Attempt to execute the input data as SQL command
+        char *sql = (char *)malloc(size + 1);
+        if (sql != NULL) {
+            memcpy(sql, data, size);
+            sql[size] = '\0'; // Null-terminate the input data
+            execute_sql(db, sql);
+            free(sql);
+        }
 
-    // Call the function-under-test with the progress callback
-    sqlite3_progress_handler(db, operations, progress_callback, user_data);
-
-    // Close the database
-    sqlite3_close(db);
+        // Close the database
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_total_changes
+        sqlite3_total_changes(db);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_755(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

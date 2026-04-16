@@ -1,8 +1,9 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "sqlite3.h"
 
 static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
@@ -30,7 +31,12 @@ int LLVMFuzzerTestOneInput_73(const uint8_t *Data, size_t Size) {
     int rc;
 
     // Open a database connection
-    rc = sqlite3_open(":memory:", &db);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    const char njjwpquw[1024] = "ubtqk";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(njjwpquw, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
         free(sql);
         return 0;
@@ -43,6 +49,39 @@ int LLVMFuzzerTestOneInput_73(const uint8_t *Data, size_t Size) {
     }
 
     // Set authorizer
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_name
+    const char* ret_sqlite3_db_name_ayerf = sqlite3_db_name(db, 0);
+    if (ret_sqlite3_db_name_ayerf == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_sqlite3_extended_result_codes_cxcaq = sqlite3_extended_result_codes(db, -1);
+    if (ret_sqlite3_extended_result_codes_cxcaq < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_extended_result_codes to sqlite3_blob_open
+    char* ret_sqlite3_str_value_gvclq = sqlite3_str_value(NULL);
+    if (ret_sqlite3_str_value_gvclq == NULL){
+    	return 0;
+    }
+    void* ret_sqlite3_malloc_dskaf = sqlite3_malloc(0);
+    if (ret_sqlite3_malloc_dskaf == NULL){
+    	return 0;
+    }
+    const char cynxtoxy[1024] = "ccycn";
+    int ret_sqlite3_blob_open_thtox = sqlite3_blob_open(db, ret_sqlite3_str_value_gvclq, cynxtoxy, (const char *)ret_sqlite3_malloc_dskaf, 0, -1, NULL);
+    if (ret_sqlite3_blob_open_thtox < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
@@ -59,12 +98,7 @@ int LLVMFuzzerTestOneInput_73(const uint8_t *Data, size_t Size) {
     rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
 
     // Test control
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_test_control
-    rc = sqlite3_test_control(Size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
 
     // Malloc
     void *ptr = sqlite3_malloc(Size);
@@ -74,23 +108,48 @@ int LLVMFuzzerTestOneInput_73(const uint8_t *Data, size_t Size) {
     }
 
     // Close the database connection
-    sqlite3_close(db);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_free to sqlite3_prepare_v3
-        void* ret_sqlite3_malloc_ojhjv = sqlite3_malloc(0);
-        if (ret_sqlite3_malloc_ojhjv == NULL){
-        	return 0;
-        }
-        sqlite3_stmt *mtyurqhu;
-        memset(&mtyurqhu, 0, sizeof(mtyurqhu));
-
-        int ret_sqlite3_prepare_v3_zgfik = sqlite3_prepare_v3(NULL, (const char *)errMsg, rc, Size, &mtyurqhu, (const char **)&ret_sqlite3_malloc_ojhjv);
-        if (ret_sqlite3_prepare_v3_zgfik < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
+    sqlite3_db_release_memory(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
     free(sql);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_73(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

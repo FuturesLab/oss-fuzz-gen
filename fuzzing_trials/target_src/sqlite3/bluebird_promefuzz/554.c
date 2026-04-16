@@ -1,100 +1,122 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "sqlite3.h"
-#include "stdint.h"
-#include "stdio.h"
-#include <stdlib.h>
-#include "string.h"
+#include <stdarg.h>
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static sqlite3 *initialize_db() {
+    sqlite3 *db = NULL;
+    int rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return NULL;
     }
+    return db;
+}
+
+static void cleanup_db(sqlite3 *db) {
+    if (db) {
+        sqlite3_close(db);
+    }
+}
+
+static char *custom_vmprintf(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    char *result = sqlite3_vmprintf(format, args);
+    va_end(args);
+    return result;
 }
 
 int LLVMFuzzerTestOneInput_554(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    sqlite3 *db;
+    sqlite3 *db = initialize_db();
+    if (!db) {
+        return 0;
+    }
+
+    // Use custom_vmprintf to create a format string
+    char *formatted_str = custom_vmprintf("%.*s", (int)Size, Data);
+    if (!formatted_str) {
+        cleanup_db(db);
+        return 0;
+    }
+
+    // Prepare a statement using sqlite3_prepare_v2
     sqlite3_stmt *stmt = NULL;
-    char *errMsg = 0;
-    int rc;
-
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
+    const char *tail = NULL;
+    int rc = sqlite3_prepare_v2(db, formatted_str, -1, &stmt, &tail);
     if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Create a dummy table
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare an INSERT statement
-    sql = "INSERT INTO test (value) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind text data to the prepared statement
-    sqlite3_bind_text(stmt, 1, (const char *)Data, Size, SQLITE_TRANSIENT);
-
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-
-    // Reset the statement
-    sqlite3_reset(stmt);
-
-    // Use sqlite3_sql to get the SQL string
-    const char *sql_text = sqlite3_sql(stmt);
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Prepare a SELECT statement
-    sql = "SELECT value FROM test;";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Step through the results
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        // Get text from the first column
-        const unsigned char *text = sqlite3_column_text(stmt, 0);
-
-        // Use sqlite3_snprintf to format a string
-        char buffer[100];
-        sqlite3_snprintf(sizeof(buffer), buffer, "Value: %s", text);
-
-        // Another snprintf with different format
-        sqlite3_snprintf(sizeof(buffer), buffer, "Length: %d", (int)strlen((const char *)text));
-    }
-
-    // Reset the statement
-    sqlite3_reset(stmt);
-
-    // Finalize the statement
-    if (stmt) {
+        const char *err_msg = sqlite3_errmsg(db);
+        fprintf(stderr, "SQL error: %s\n", err_msg);
+    } else {
+        // If the statement is prepared successfully, get the expanded SQL
+        char *expanded_sql = sqlite3_expanded_sql(stmt);
+        if (expanded_sql) {
+            sqlite3_free(expanded_sql);
+        }
         sqlite3_finalize(stmt);
     }
 
-    // Close the database connection
-    sqlite3_close(db);
+    // Free the formatted string
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_prepare_v2 to sqlite3_open16
+    char lmwncoty[1024] = "usnuh";
+    int ret_sqlite3_open16_jnftw = sqlite3_open16(lmwncoty, &db);
+    if (ret_sqlite3_open16_jnftw < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(formatted_str);
+
+    // Cleanup
+    cleanup_db(db);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_554(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

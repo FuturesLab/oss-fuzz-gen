@@ -1,48 +1,95 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // For size_t
+#include <stdlib.h>
+#include <sys/stat.h>  // For malloc, free, and NULL
+#include <string.h>  // For memcpy
 #include "sqlite3.h"
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_674(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
     sqlite3 *db;
+    int rc;
     char *errMsg = 0;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Initialize a database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Execute a simple SQL statement to ensure the database is in a valid state
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sqlite3_exec
+    rc = sqlite3_exec(db, (const char *)"r", 0, 0, &errMsg);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL statement
+    // If size is greater than 0, use the data to execute a SQL statement
+    if (size > 0) {
+        // Interpret the data as a SQL statement
+        char *sql = (char *)malloc(size + 1);
+        if (sql == NULL) {
+            sqlite3_close(db);
+            return 0;
+        }
+        memcpy(sql, data, size);
+        sql[size] = '\0'; // Null-terminate the string
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
-    char *ggwrttvt[1024] = {"nabhk", NULL};
-    sqlite3_exec(db, sql, 0, 0, ggwrttvt);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        // Execute the SQL statement
+        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(errMsg);
+        }
 
-
-
-    // Free allocated resources
-    if (errMsg) {
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-        char fcolonxv[1024] = "hbtyz";
-        sqlite3_free(fcolonxv);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+        free(sql);
     }
-    free(sql);
+
+    // Call the function-under-test
+    int autocommit = sqlite3_get_autocommit(db);
+
+    // Cleanup
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_674(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

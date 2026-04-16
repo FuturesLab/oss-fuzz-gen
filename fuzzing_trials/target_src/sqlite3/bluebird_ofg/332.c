@@ -1,57 +1,99 @@
 #include <stdint.h>
+#include <stddef.h>  // Include for size_t
+#include <stdlib.h>
+#include <sys/stat.h>  // Include for NULL
+#include <string.h>  // Include for strlen and memcpy
 #include "sqlite3.h"
-#include <string.h>
+
+// Callback function to be used with sqlite3_trace_v2
+static int trace_callback(unsigned int trace, void *ctx, void *p, void *x) {
+    // Implement a simple callback that does nothing
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_332(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    const char *sql;
-    const void *result;
+    unsigned int mask = 0;
+    void *user_data = NULL;
+    int result;
 
-    // Initialize SQLite in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open an in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
         return 0;
     }
 
-    // Create a simple table
-    sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Set the trace mask to a fixed value for fuzzing
+    mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW;
+
+    // Call the function-under-test
+    result = sqlite3_trace_v2(db, mask, trace_callback, user_data);
+
+    // Execute the input data as an SQL statement if it's not empty
+    if (size > 0) {
+        // Allocate a new buffer with an additional byte for the null terminator
+        char *sql = (char *)malloc(size + 1);
+        if (sql == NULL) {
+            sqlite3_close(db);
+            return 0;
+        }
+
+        // Copy the input data to the new buffer and null-terminate it
+        memcpy(sql, data, size);
+        sql[size] = '\0';
+
+        char *errMsg = 0;
+        sqlite3_exec(db, sql, 0, 0, &errMsg);
+        if (errMsg) {
+            sqlite3_free(errMsg);
+        }
+
+        // Free the allocated buffer
+        free(sql);
     }
 
-    // Insert a sample row
-    sql = "INSERT INTO test (value) VALUES ('sample');";
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare a statement using the input data
-    sql = "SELECT value FROM test WHERE id = ?;";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind the input data as an integer to the statement
-    int input_id = size > 0 ? data[0] % 2 : 0; // Ensure a valid index
-    sqlite3_bind_int(stmt, 1, input_id);
-
-    // Execute the statement and call the function-under-test
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        result = sqlite3_column_text16(stmt, 0);
-    }
-
-    // Cleanup
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_332(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

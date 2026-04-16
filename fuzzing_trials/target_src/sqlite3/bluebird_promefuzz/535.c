@@ -1,8 +1,9 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "sqlite3.h"
 
 static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
@@ -30,7 +31,9 @@ int LLVMFuzzerTestOneInput_535(const uint8_t *Data, size_t Size) {
     int rc;
 
     // Open a database connection
-    rc = sqlite3_open(":memory:", &db);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
         free(sql);
         return 0;
@@ -45,22 +48,38 @@ int LLVMFuzzerTestOneInput_535(const uint8_t *Data, size_t Size) {
     // Set authorizer
     rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
     if (rc != SQLITE_OK) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_errcode with sqlite3_extended_errcode
-        sqlite3_extended_errcode(db);
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_error_offset
+        sqlite3_error_offset(db);
         // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
         free(sql);
         return 0;
     }
 
     // Table column metadata
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_set_authorizer to sqlite3_wal_checkpoint
+    char* ret_sqlite3_str_value_dagii = sqlite3_str_value(NULL);
+    if (ret_sqlite3_str_value_dagii == NULL){
+    	return 0;
+    }
+    int ret_sqlite3_wal_checkpoint_jfcup = sqlite3_wal_checkpoint(db, ret_sqlite3_str_value_dagii);
+    if (ret_sqlite3_wal_checkpoint_jfcup < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_wal_checkpoint to sqlite3_overload_function
+    unsigned int ret_sqlite3_value_subtype_ohhvl = sqlite3_value_subtype(NULL);
+    if (ret_sqlite3_value_subtype_ohhvl < 0){
+    	return 0;
+    }
+    int ret_sqlite3_overload_function_oscjl = sqlite3_overload_function(db, (const char *)"w", (int )ret_sqlite3_value_subtype_ohhvl);
+    if (ret_sqlite3_overload_function_oscjl < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     const char *dataType;
     const char *collSeq;
     int notNull;
@@ -69,7 +88,9 @@ int LLVMFuzzerTestOneInput_535(const uint8_t *Data, size_t Size) {
     rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
 
     // Test control
-    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
+//    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_test_control
+//    rc = sqlite3_test_control(1);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
     // Malloc
     void *ptr = sqlite3_malloc(Size);
@@ -83,3 +104,42 @@ int LLVMFuzzerTestOneInput_535(const uint8_t *Data, size_t Size) {
     free(sql);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_535(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

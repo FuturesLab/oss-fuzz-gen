@@ -1,91 +1,89 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <string.h>
 #include "sqlite3.h"
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
-}
-
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
-}
-
 int LLVMFuzzerTestOneInput_481(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) return 0;
+
+    // Initialize a new sqlite3_str object
+    sqlite3_str *str = sqlite3_str_new(NULL);
+
+    if (str == NULL) {
         return 0;
     }
 
-    sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
+    // Fuzz sqlite3_str_append
+    sqlite3_str_append(str, (const char*)Data, (int)Size);
 
-    int rc;
-
-    // Open a database connection
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
+    // Fuzz sqlite3_str_appendchar
+    if (Size > 1) {
+        char C = (char)Data[0];
+        int N = (int)Data[1];
+        sqlite3_str_appendchar(str, N, C);
     }
 
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Fuzz sqlite3_str_truncate
+    if (Size > 2) {
+        int N = (int)Data[2];
+        sqlite3_str_truncate(str, N);
     }
 
-    // Set authorizer
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
+    // Check the length of the string
+    int length = sqlite3_str_length(str);
+
+    // Check the error code
+    int errcode = sqlite3_str_errcode(str);
+
+    // Reset the string
+    sqlite3_str_reset(str);
+
+    // Clean up by finalizing the sqlite3_str object
+    char *finalized_str = sqlite3_str_finish(str);
+    if (finalized_str) {
+        free(finalized_str);
     }
 
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
-    }
-
-    // Close the database connection
-    sqlite3_close(db);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_free to sqlite3_prepare_v3
-        void* ret_sqlite3_malloc_ojhjv = sqlite3_malloc(0);
-        if (ret_sqlite3_malloc_ojhjv == NULL){
-        	return 0;
-        }
-        sqlite3_stmt *mtyurqhu;
-        memset(&mtyurqhu, 0, sizeof(mtyurqhu));
-
-        int ret_sqlite3_prepare_v3_zgfik = sqlite3_prepare_v3(NULL, (const char *)errMsg, rc, Size, &mtyurqhu, (const char **)&ret_sqlite3_malloc_ojhjv);
-        if (ret_sqlite3_prepare_v3_zgfik < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    free(sql);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_481(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

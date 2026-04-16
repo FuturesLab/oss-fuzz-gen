@@ -1,102 +1,108 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
-}
-
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static void write_dummy_file(const char *data, size_t size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(data, 1, size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_442(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) {
         return 0;
     }
 
-    sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
-
+    sqlite3 *sourceDb = NULL;
+    sqlite3 *destDb = NULL;
+    sqlite3_backup *backup = NULL;
     int rc;
+    int nPage = Data[0] % 10 + 1; // Number of pages to copy
 
-    // Open a database connection
+    // Write data to dummy file
+    write_dummy_file((const char *)Data, Size);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    const char hstrfton[1024] = "bhoqa";
-    rc = sqlite3_open(hstrfton, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Open source database
+    rc = sqlite3_open("./dummy_file", &sourceDb);
     if (rc != SQLITE_OK) {
-        free(sql);
         return 0;
     }
 
-    // Execute SQL
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_randomness
-    int ret_sqlite3_os_end_xutog = sqlite3_os_end();
-    if (ret_sqlite3_os_end_xutog < 0){
-    	return 0;
-    }
-
-    sqlite3_randomness(ret_sqlite3_os_end_xutog, (void *)db);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    rc = sqlite3_exec(db, sql, callback, 0, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Open destination database
+    rc = sqlite3_open(":memory:", &destDb);
     if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    // Set authorizer
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_vtab_on_conflict
-        sqlite3_vtab_on_conflict(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        free(sql);
+        sqlite3_close(sourceDb);
         return 0;
     }
 
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
+    // Initialize backup
+    backup = sqlite3_backup_init(destDb, "main", sourceDb, "main");
+    if (backup) {
+        // Perform backup steps
+        while ((rc = sqlite3_backup_step(backup, nPage)) == SQLITE_OK) {
+            // Optionally, check progress
+            int remaining = sqlite3_backup_remaining(backup);
+            int pageCount = sqlite3_backup_pagecount(backup);
+        }
+        
+        // Finalize backup
+        sqlite3_backup_finish(backup);
     }
 
-    // Close the database connection
-    sqlite3_close(db);
-    free(sql);
+    // Close databases
+    sqlite3_close_v2(destDb);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close_v2 with sqlite3_db_release_memory
+    sqlite3_db_release_memory(sourceDb);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_442(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

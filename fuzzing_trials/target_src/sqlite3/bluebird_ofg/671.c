@@ -1,46 +1,89 @@
 #include <stdint.h>
 #include "sqlite3.h"
 #include <stdlib.h>
-
-// Function to initialize a SQLite statement for fuzzing
-static sqlite3_stmt* initialize_sqlite_statement(sqlite3 *db) {
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value INTEGER);"
-                      "INSERT INTO test (value) VALUES (?);";
-    sqlite3_stmt *stmt = NULL;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return NULL;
-    }
-    return stmt;
-}
+#include <sys/stat.h>
 
 int LLVMFuzzerTestOneInput_671(const uint8_t *data, size_t size) {
-    if (size < sizeof(int) * 2) {
-        return 0; // Ensure there's enough data for two integers
-    }
+    sqlite3 *db = NULL;
+    int checkpoint_threshold = 1000; // Arbitrary non-zero value for testing
+    int result;
 
-    // Initialize SQLite in-memory database
-    sqlite3 *db;
+    // Open an in-memory SQLite database
     if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Initialize the SQLite statement
-    sqlite3_stmt *stmt = initialize_sqlite_statement(db);
-    if (stmt == NULL) {
+    // Convert the input data to a string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Extract integers from the input data
-    int index = *(int *)data; // First integer for the index
-    int value = *(int *)(data + sizeof(int)); // Second integer for the value
+    // Execute the SQL command
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Call the function under test
-    sqlite3_bind_int(stmt, index, value);
+    // Call the function-under-test
+    result = sqlite3_wal_autocheckpoint(db, checkpoint_threshold);
 
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Free resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_wal_autocheckpoint to sqlite3_open16
+    sqlite3_value* ret_sqlite3_value_dup_xrtof = sqlite3_value_dup(NULL);
+    if (ret_sqlite3_value_dup_xrtof == NULL){
+    	return 0;
+    }
+    int ret_sqlite3_open16_zucsi = sqlite3_open16((const void *)ret_sqlite3_value_dup_xrtof, &db);
+    if (ret_sqlite3_open16_zucsi < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
+    free(sql);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_671(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

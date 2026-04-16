@@ -1,0 +1,81 @@
+#include <stdint.h>
+#include "sqlite3.h"
+#include <string.h>
+
+int LLVMFuzzerTestOneInput_821(const uint8_t *data, size_t size) {
+    sqlite3 *db;
+    char *errMsg = 0;
+
+    // Open a new in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
+    }
+
+    // Convert the input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free the allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
+    sqlite3_uint64 ret_sqlite3_msize_qomnb = sqlite3_msize((void *)db);
+    int ret_sqlite3_open_xvkhz = sqlite3_open(db, &db);
+    if (ret_sqlite3_open_xvkhz < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(sql);
+    sqlite3_free(errMsg);
+    sqlite3_close(db);
+
+    // Return 0 to indicate successful execution of the fuzzer
+    return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_821(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

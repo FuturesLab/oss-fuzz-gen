@@ -1,53 +1,102 @@
 #include <stdint.h>
+#include <stddef.h> // Include for size_t
 #include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
+// Dummy function types to replace DW_TAG_subroutine_typeInfinite loop
+typedef int (*callback_type)(void*, int, char**, char**);
+typedef void (*free_callback_type)(void*);
+
+// Define a callback function
+int myCallback_596(void* data, int argc, char** argv, char** azColName) {
+    return 0;
+}
+
+// Define a free callback function
+void myFreeCallback_596(void* data) {
+}
 
 int LLVMFuzzerTestOneInput_596(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
+    // Initialize variables
+    sqlite3 *db;
+    callback_type xCallback;
+    void *pClientData;
+    free_callback_type xFree;
     char *errMsg = 0;
 
-    // Allocate a buffer with an extra byte for the null terminator
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        fprintf(stderr, "Memory allocation failed\n");
+    // Open a SQLite database in memory
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Copy the input data to the buffer and null-terminate it
+    // Assign the defined callback functions and client data
+    xCallback = myCallback_596;
+    pClientData = (void*)data; // Use data as client data
+    xFree = myFreeCallback_596;
+
+    // Convert the input data to a string for SQL execution
+    char *sql = (char*)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
     memcpy(sql, data, size);
-    sql[size] = '\0';
+    sql[size] = '\0'; // Null-terminate the string
 
-    // Open a new database connection. ":memory:" creates a new database in RAM.
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        free(sql);
-        return 0;
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, xCallback, pClientData, &errMsg);
+
+    // Free the allocated memory for the SQL string
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_limit
+    int ret_sqlite3_limit_ukiqs = sqlite3_limit(db, -1, 1);
+    if (ret_sqlite3_limit_ukiqs < 0){
+    	return 0;
     }
-
-    // Execute some SQL statement to potentially generate an error
-    // Using the input data as the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        // Call the function-under-test
-        const char *error_message = sqlite3_errmsg(db);
-        // Print the error message for debugging purposes
-        fprintf(stderr, "SQL error: %s\n", error_message);
-
-        // Free the error message if it was allocated
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
-    }
-
-    // Close the database connection
-    sqlite3_close(db);
-
-    // Free the allocated buffer
+    // End mutation: Producer.APPEND_MUTATOR
+    
     free(sql);
+
+    // Close the SQLite database
+    sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_596(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

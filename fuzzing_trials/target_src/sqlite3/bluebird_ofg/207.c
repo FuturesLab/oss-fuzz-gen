@@ -1,37 +1,84 @@
 #include <stdint.h>
 #include "sqlite3.h"
-#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_207(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
+    sqlite3 *db;
+    char *errMsg = 0;
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open a new in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Create a sample table and insert some data
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    sqlite3_exec(db, createTableSQL, 0, 0, 0);
-
-    // Insert data based on provided fuzzing input
-    if (size > 0) {
-        char *insertSQL = (char *)malloc(size + 50);
-        if (insertSQL != NULL) {
-            snprintf(insertSQL, size + 50, "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
-            sqlite3_exec(db, insertSQL, 0, 0, 0);
-            free(insertSQL);
-        }
+    // Convert the input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Call the function-under-test
-    sqlite3_int64 changes = sqlite3_total_changes64(db);
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Clean up
+    // Free the allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
+    int ret_sqlite3_changes_vdeki = sqlite3_changes(db);
+    if (ret_sqlite3_changes_vdeki < 0){
+    	return 0;
+    }
+    int ret_sqlite3_open_zpnbu = sqlite3_open(errMsg, &db);
+    if (ret_sqlite3_open_zpnbu < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(sql);
+    sqlite3_free(errMsg);
     sqlite3_close(db);
 
+    // Return 0 to indicate successful execution of the fuzzer
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_207(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

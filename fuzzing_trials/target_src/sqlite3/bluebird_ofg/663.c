@@ -1,49 +1,86 @@
 #include <stdint.h>
-#include "sqlite3.h"
+#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_663(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    const char *sql = "SELECT * FROM test WHERE id = ?1";
+    char *errMsg = 0;
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
+    // Initialize variables
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    int rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, 0);
+    // Ensure data is not empty
+    if (size == 0) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Allocate memory for a null-terminated SQL command
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Copy data to sql and ensure it is null-terminated
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the SQL command
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+        sqlite3_free(errMsg);
     }
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Ensure the data size is sufficient to form a valid integer index
-    if (size < sizeof(int)) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Use the first bytes of data to form an integer index
-    int index = *(int *)data;
-
-    // Call the function-under-test
-    const char *param_name = sqlite3_bind_parameter_name(stmt, index);
-
-    // Cleanup
-    sqlite3_finalize(stmt);
+    // Clean up
+    free(sql);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_663(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

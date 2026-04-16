@@ -1,42 +1,99 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include this for size_t
 #include "sqlite3.h"
 #include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>  // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_684(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
-
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
-        return 0;
+    // Initialize SQLite library
+    if (sqlite3_initialize() != SQLITE_OK) {
+        return 0; // If initialization fails, return 0 to continue fuzzing
     }
 
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        int rc = sqlite3_open(":memory:", &db);
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                sqlite3_close(db);
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
-
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            sqlite3_close(db);
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
+    // Create an in-memory database
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0; // If opening the database fails, return 0 to continue fuzzing
     }
 
+    // Allocate memory for the null-terminated input data
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_db_name
+    const char* ret_sqlite3_db_name_kriiu = sqlite3_db_name(db, size);
+    if (ret_sqlite3_db_name_kriiu == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        sqlite3_shutdown();
+        return 0; // If memory allocation fails, return 0 to continue fuzzing
+    }
+
+    // Copy the input data and null-terminate it
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the input data as an SQL statement
+    char *errMsg = 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free the allocated memory for the SQL statement
+    free(sql);
+
+    // Free any error message allocated by sqlite3_exec
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
+
+    // Close the database connection
+    sqlite3_close(db);
+
+    // Shutdown SQLite library
+    sqlite3_shutdown();
+
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_684(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

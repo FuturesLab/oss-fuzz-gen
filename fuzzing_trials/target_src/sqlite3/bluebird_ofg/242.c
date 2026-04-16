@@ -1,57 +1,88 @@
 #include <stdint.h>
-#include <stddef.h> // Include this to define size_t
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_242(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
     char *errMsg = 0;
-
-    // Initialize SQLite
-    rc = sqlite3_open(":memory:", &db);
+    int rc;
+    
+    // Initialize a database in memory
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
-        return 0;
+        return 0; // If opening the database fails, exit early
     }
 
-    // Create a simple table
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER, value INTEGER);", 0, 0, &errMsg);
+    // Ensure the input data is null-terminated to safely use it as a string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the SQL command
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
     }
 
-    // Insert some data
-    rc = sqlite3_exec(db, "INSERT INTO test (id, value) VALUES (1, 100), (2, 200);", 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_txn_state
+    char* ret_sqlite3_str_value_ughtr = sqlite3_str_value(NULL);
+    if (ret_sqlite3_str_value_ughtr == NULL){
+    	return 0;
     }
-
-    // Prepare a statement
-    rc = sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = ?;", -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    int ret_sqlite3_txn_state_barrx = sqlite3_txn_state(db, ret_sqlite3_str_value_ughtr);
+    if (ret_sqlite3_txn_state_barrx < 0){
+    	return 0;
     }
-
-    // Bind a value from the fuzzing input to the statement
-    if (size > 0) {
-        int index = data[0] % 2 + 1; // Ensure index is within the range of available rows
-        sqlite3_bind_int(stmt, 1, index);
-
-        // Execute the statement and use sqlite3_column_int64
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-            sqlite3_int64 value = sqlite3_column_int64(stmt, 0);
-            (void)value; // Use the value to avoid compiler warnings
-        }
-    }
-
-    // Cleanup
-    sqlite3_finalize(stmt);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(sql);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_242(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

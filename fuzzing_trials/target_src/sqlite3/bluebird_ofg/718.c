@@ -1,42 +1,97 @@
 #include <stdint.h>
-#include "sqlite3.h"
+#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
+#include "sqlite3.h"
 
-// Dummy comparison function
-static int dummy_compare(void *unused, int len1, const void *str1, int len2, const void *str2) {
-    (void)unused; // Unused parameter
-    return strncmp((const char *)str1, (const char *)str2, len1 < len2 ? len1 : len2);
+// Function to execute a SQL command
+static void execute_sql(sqlite3 *db, const char *sql) {
+    char *errMsg = 0;
+    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+    }
 }
 
 int LLVMFuzzerTestOneInput_718(const uint8_t *data, size_t size) {
     sqlite3 *db;
     int rc;
 
-    // Initialize SQLite database in memory
+    // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0;
+        return 0; // If opening the database failed, return immediately
     }
 
-    // Ensure the data is not empty and has a valid size for a collation name
-    if (size == 0 || size > 255) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Ensure the database pointer is not NULL
+    if (db != NULL) {
+        // Attempt to execute the input data as SQL command
+        char *sql = (char *)malloc(size + 1);
+        if (sql != NULL) {
+            memcpy(sql, data, size);
+            sql[size] = '\0'; // Null-terminate the input data
+            execute_sql(db, sql);
+            free(sql);
+        }
 
-    // Use the input data as the collation name
-    // Ensure null-termination for the collation name
-    char collationName[256];
-    memcpy(collationName, data, size);
-    collationName[size] = '\0';
+        // Close the database
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
+        sqlite3_changes(db);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_changes to sqlite3_realloc64
 
-    int textEncoding = SQLITE_UTF16;
-
-    // Call the function-under-test
-    rc = sqlite3_create_collation16(db, collationName, textEncoding, NULL, dummy_compare);
-
-    // Close the database
-    sqlite3_close(db);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_changes to sqlite3_set_last_insert_rowid
+        sqlite3_int64 ret_sqlite3_memory_used_hltpm = sqlite3_memory_used();
+        sqlite3_set_last_insert_rowid(db, ret_sqlite3_memory_used_hltpm);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        void* ret_sqlite3_realloc64_auzwq = sqlite3_realloc64((void *)db, 0);
+        if (ret_sqlite3_realloc64_auzwq == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_718(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

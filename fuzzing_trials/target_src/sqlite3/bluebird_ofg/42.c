@@ -3,54 +3,92 @@
 #include "sqlite3.h"
 #include <string.h>
 
+// Define a sample authorizer callback function
+int authorizer_callback_42(void *pArg, int action, const char *detail1, const char *detail2, const char *detail3, const char *detail4) {
+    // For fuzzing purposes, return SQLITE_OK to allow all actions
+    return SQLITE_OK;
+}
+
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
     sqlite3 *db;
+    int rc;
     char *errMsg = 0;
 
-    // Open an in-memory SQLite database
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
+    // Set the authorizer with the callback function
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_randomness
+    sqlite3_randomness(-1, (void *)db);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    rc = sqlite3_set_authorizer(db, authorizer_callback_42, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Ensure the input data is null-terminated before using it as an SQL statement
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_is_interrupted
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_is_interrupted with sqlite3_total_changes
-        sqlite3_total_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    if (!sql) {
+        sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
     // Execute the SQL statement
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
-    sqlite3_exec(db, sql, 0, 0, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Free allocated resources
-    if (errMsg) {
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
+
+    // Clean up
     free(sql);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

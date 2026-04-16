@@ -1,46 +1,86 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include for size_t
+#include <stdlib.h>
+#include <sys/stat.h>  // Include for NULL
 #include "sqlite3.h"
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_405(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
-    sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3 *db = NULL;
+    char *errMsg = NULL;
+    int rc;
 
-    // Open an in-memory SQLite database
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open(NULL, &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_total_changes
-        sqlite3_total_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Prepare an SQL statement using the input data
+    // Note: The input data is not null-terminated, so we need to handle it carefully
+    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
 
     // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    
+    // Free the allocated SQL string
+    sqlite3_free(sql);
 
-    // Free allocated resources
-    if (errMsg) {
+    // Check for errors
+    if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
-    free(sql);
-    sqlite3_close(db);
 
+    // Close the database
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
+    sqlite3_changes(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_changes to sqlite3_str_new
+    sqlite3_str* ret_sqlite3_str_new_jfjby = sqlite3_str_new(db);
+    if (ret_sqlite3_str_new_jfjby == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_405(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

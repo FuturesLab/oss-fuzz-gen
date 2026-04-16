@@ -1,47 +1,87 @@
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 
 int LLVMFuzzerTestOneInput_477(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
     sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
     char *errMsg = 0;
 
     // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
+    // Ensure null-terminated string for SQL statement
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_extended_errcode
-        sqlite3_extended_errcode(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+        sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL statement
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+        // Call the function under test
+        const char *original_sql = sqlite3_sql(stmt);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
-    char *ggwrttvt[1024] = {"nabhk", NULL};
-    sqlite3_exec(db, sql, 0, 0, ggwrttvt);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        // Use the result in some way to avoid compiler optimizations
+        if (original_sql != NULL) {
+            (void)strlen(original_sql);
+        }
 
-
-
-    // Free allocated resources
-    if (errMsg) {
-        sqlite3_free(errMsg);
+        // Finalize the statement
+        sqlite3_finalize(stmt);
     }
+
+    // Clean up
     free(sql);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_477(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

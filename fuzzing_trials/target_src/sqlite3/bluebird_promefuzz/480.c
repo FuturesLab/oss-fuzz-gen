@@ -1,68 +1,135 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "sqlite3.h"
-#include "stdint.h"
-#include "stddef.h"
-#include "stdio.h"
-#include "string.h"
-#include <stdlib.h>
 
-static void prepare_dummy_db(sqlite3 **db) {
-    if (sqlite3_open(":memory:", db) != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(*db));
-        exit(1);
-    }
-    char *errMsg = NULL;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
-    if (sqlite3_exec(*db, sql, 0, 0, &errMsg) != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
-        sqlite3_close(*db);
-        exit(1);
-    }
+static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
+    return SQLITE_OK; // Allow all actions
+}
+
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0; // No-op callback
 }
 
 int LLVMFuzzerTestOneInput_480(const uint8_t *Data, size_t Size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    sqlite3_str *strAccum = NULL;
-    char *formattedStr = NULL;
-    const unsigned char *textResult = NULL;
-    int rc;
-
-    prepare_dummy_db(&db);
-
-    // Prepare SQL statement
-    rc = sqlite3_prepare_v2(db, (const char *)Data, (int)Size, &stmt, NULL);
-    if (rc != SQLITE_OK) goto cleanup;
-
-    // Execute the statement
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        // Retrieve text from the first column
-        textResult = sqlite3_column_text(stmt, 0);
-        if (textResult) {
-            // Use sqlite3_mprintf to format a string
-            formattedStr = sqlite3_mprintf("Row data: %s", textResult);
-            if (formattedStr) {
-                // Create a new sqlite3_str object
-                strAccum = sqlite3_str_new(db);
-
-                // Append formatted string twice
-                sqlite3_str_appendf(strAccum, "%s", formattedStr);
-                sqlite3_str_appendf(strAccum, "%s", formattedStr);
-
-                // Free the formatted string
-                sqlite3_free(formattedStr);
-            }
-        }
+    if (Size == 0) {
+        return 0;
     }
 
-cleanup:
-    if (strAccum) sqlite3_str_finish(strAccum);
-    if (stmt) sqlite3_finalize(stmt);
-    if (db) sqlite3_close(db);
+    sqlite3 *db;
+    char *errMsg = 0;
+    char *sql = (char *)malloc(Size + 1);
+    if (!sql) {
+        return 0;
+    }
+    memcpy(sql, Data, Size);
+    sql[Size] = '\0'; // Ensure null-termination
+
+    int rc;
+
+    // Open a database connection
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        free(sql);
+        return 0;
+    }
+
+    // Execute SQL
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+    }
+
+    // Set authorizer
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
+    int ret_sqlite3_extended_result_codes_cxcaq = sqlite3_extended_result_codes(db, -1);
+    if (ret_sqlite3_extended_result_codes_cxcaq < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_extended_result_codes to sqlite3_errmsg16
+    const void* ret_sqlite3_errmsg16_xshjy = sqlite3_errmsg16(db);
+    if (ret_sqlite3_errmsg16_xshjy == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        free(sql);
+        return 0;
+    }
+
+    // Table column metadata
+    const char *dataType;
+    const char *collSeq;
+    int notNull;
+    int primaryKey;
+    int autoinc;
+    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
+
+    // Test control
+//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
+
+    // Malloc
+    void *ptr = sqlite3_malloc(Size);
+    if (ptr) {
+        memcpy(ptr, Data, Size);
+        sqlite3_free(ptr);
+    }
+
+    // Close the database connection
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
+    sqlite3_db_release_memory(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    free(sql);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_480(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,48 +1,84 @@
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include "sqlite3.h"
-
-// Define a callback function to be used with sqlite3_trace
-static void traceCallback(void *unused, const char *sql) {
-    (void)unused; // Avoid unused parameter warning
-    // Just print the SQL statement being traced
-    printf("SQL Trace: %s\n", sql);
-}
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-    char *errMsg = 0;
+    // Call the function-under-test
+    int version = sqlite3_libversion_number();
 
-    // Initialize SQLite database in-memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
-    }
-
-    // Ensure data is null-terminated before using it as a SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
+    // Use the returned version number in some way to avoid compiler optimizations
+    if (version == 0) {
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Set the trace callback
-    sqlite3_trace(db, traceCallback, NULL);
+    // Use the input data in some way to maximize fuzzing result
+    if (size > 0 && data != NULL) {
+        sqlite3 *db;
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+        int rc = sqlite3_open((const char *)"r", &db);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+        if (rc == SQLITE_OK) {
+            // Allocate memory for the SQL statement and ensure it's null-terminated
+            char *sql = (char *)malloc(size + 1);
+            if (sql == NULL) {
+                sqlite3_close(db);
+                return 0;
+            }
+            memcpy(sql, data, size);
+            sql[size] = '\0'; // Null-terminate the SQL statement
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+            // Attempt to create a table using the input data as SQL statement
+            char *errMsg = 0;
+            sqlite3_exec(db, sql, 0, 0, &errMsg);
+            sqlite3_free(errMsg);
+            sqlite3_close(db);
 
-    // Clean up
-    if (errMsg) {
-        sqlite3_free(errMsg);
+            // Free the allocated memory for the SQL statement
+            free(sql);
+        }
     }
-    free(sql);
-    sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

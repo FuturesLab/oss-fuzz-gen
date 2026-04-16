@@ -1,43 +1,88 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
-#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_603(const uint8_t *data, size_t size) {
+    // Check if the input data is non-null and has a non-zero size
+    if (data == NULL || size == 0) {
+        return 0;
+    }
+
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    const char *sql = "SELECT ?";
+    char *errMsg = 0;
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
-
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
+    // Open a new in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"w", &db)) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
         sqlite3_close(db);
         return 0;
     }
 
-    // Ensure there is enough data to extract an integer and a double
-    if (size < sizeof(int) + sizeof(double)) {
-        sqlite3_finalize(stmt);
+    // Convert the input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Extract an integer and a double from the input data
-    int index = *((int *)data);
-    double value = *((double *)(data + sizeof(int)));
+    // Execute the SQL command(s) from the input data
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Call the function-under-test
-    sqlite3_bind_double(stmt, index, value);
+    // Free allocated resources
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_compileoption_used
+    int ret_sqlite3_compileoption_used_gvlcp = sqlite3_compileoption_used(errMsg);
+    if (ret_sqlite3_compileoption_used_gvlcp < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
+    free(sql);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_603(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

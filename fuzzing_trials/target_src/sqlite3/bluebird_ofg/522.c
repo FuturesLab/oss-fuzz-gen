@@ -1,77 +1,86 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
+#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_522(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create an SQLite memory context
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
-    }
-
-    // Prepare an SQLite statement to create a value
-    sqlite3_stmt *stmt;
-    const char *sql = "SELECT ?";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind the input data to the statement as a blob
-    if (sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC) != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement to get a value
-    if (sqlite3_step(stmt) != SQLITE_ROW) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Get the value from the statement
-    const sqlite3_value *original_value = sqlite3_column_value(stmt, 0);
-
-    // Check if the original_value is NULL and handle it
-    if (original_value == NULL) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
     // Call the function-under-test
-    sqlite3_value *duplicated_value = sqlite3_value_dup(original_value);
+    int version = sqlite3_libversion_number();
 
-    // Check if the duplicated_value is NULL and handle it
-    if (duplicated_value != NULL) {
-        // Use the duplicated value in some way to ensure it's not optimized out
-        int value_type = sqlite3_value_type(duplicated_value);
-
-        // Additional use of the duplicated_value to ensure coverage
-        if (value_type == SQLITE_BLOB) {
-            const void *blob_data = sqlite3_value_blob(duplicated_value);
-            int blob_size = sqlite3_value_bytes(duplicated_value);
-            if (blob_data != NULL && blob_size > 0) {
-                // Simulate some operation on the blob data
-                volatile int dummy = 0;
-                for (int i = 0; i < blob_size; i++) {
-                    dummy += ((const uint8_t *)blob_data)[i];
-                }
-            }
-        }
-
-        // Clean up
-        sqlite3_value_free(duplicated_value);
+    // Use the returned version number in some way to avoid compiler optimizations
+    if (version == 0) {
+        return 0;
     }
 
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
+    // Use the input data in some way to maximize fuzzing result
+    if (size > 0 && data != NULL) {
+        sqlite3 *db;
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+        int rc = sqlite3_open((const char *)"r", &db);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+        if (rc == SQLITE_OK) {
+            // Allocate memory for the SQL statement and ensure it's null-terminated
+            char *sql = (char *)malloc(size + 1);
+            if (sql == NULL) {
+                sqlite3_close(db);
+                return 0;
+            }
+            memcpy(sql, data, size);
+            sql[size] = '\0'; // Null-terminate the SQL statement
+
+            // Attempt to create a table using the input data as SQL statement
+            char *errMsg = 0;
+            sqlite3_exec(db, sql, 0, 0, &errMsg);
+            sqlite3_free(errMsg);
+            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
+            sqlite3_errcode(db);
+            // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+            // Free the allocated memory for the SQL statement
+            free(sql);
+        }
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_522(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

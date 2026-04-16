@@ -1,86 +1,113 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
+#include <stdio.h>
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
-}
-
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_476(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
-    sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
-
+    sqlite3 *db = NULL;
+    sqlite3 *db2 = NULL;
+    sqlite3_backup *backup = NULL;
+    char *errMsg = NULL;
     int rc;
 
-    // Open a database connection
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
+    // Ensure the input size is sufficient for testing
+    if (Size < 1) return 0;
 
-    // Execute SQL
+    // Write the input data to a dummy file
+    write_dummy_file(Data, Size);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
-    char *pqhizvvq[1024] = {"tzedq", NULL};
-    rc = sqlite3_exec(db, sql, callback, 0, pqhizvvq);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    // Set authorizer
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
+    // Attempt to open a database connection using the input data as a filename
+    rc = sqlite3_open("./dummy_file", &db);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
-        free(sql);
         return 0;
     }
 
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_test_control with sqlite3_config
-    rc = sqlite3_config(SQLITE_TESTCTRL_FIRST);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
+    // Open a second database connection
+    rc = sqlite3_open(":memory:", &db2);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        sqlite3_close(db2);
+        return 0;
     }
 
-    // Close the database connection
+    // Initialize a backup from the first to the second database
+    backup = sqlite3_backup_init(db2, "main", db, "main");
+    if (backup) {
+        // Perform the backup step
+        sqlite3_backup_step(backup, -1);
+        sqlite3_backup_finish(backup);
+    }
+
+    // Check if the database is read-only
+    sqlite3_db_readonly(db, "main");
+
+    // Get the number of changes made by the last operation
+    sqlite3_changes(db);
+
+    // Get the database name
+    sqlite3_db_name(db, 0);
+
+    // Get the database filename
+    sqlite3_db_filename(db, "main");
+
+    // Cleanup and close database connections
     sqlite3_close(db);
-    free(sql);
+    sqlite3_close(db2);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_476(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

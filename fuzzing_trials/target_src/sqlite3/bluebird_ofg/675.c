@@ -1,49 +1,80 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 
 int LLVMFuzzerTestOneInput_675(const uint8_t *data, size_t size) {
-    // Initialize an SQLite3 database connection
     sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    sqlite3_initialize();
+    char *errMsg = NULL;
+    int rc;
 
-    // Open an in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
+    // Initialize a SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a dummy statement
-    const char *sql = "SELECT ?";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+    // Ensure data is null-terminated for use as a string
+    char *clientDataKey = (char *)malloc(size + 1);
+    if (clientDataKey == NULL) {
         sqlite3_close(db);
-        sqlite3_shutdown();
         return 0;
     }
+    memcpy(clientDataKey, data, size);
+    clientDataKey[size] = '\0';
 
-    // Ensure the data is not NULL and has a size greater than 0
-    if (data != NULL && size > 0) {
-        // Bind the input data as a blob
-        sqlite3_bind_blob(stmt, 1, data, (int)size, SQLITE_TRANSIENT);
-    } else {
-        // Use a default non-NULL value
-        sqlite3_bind_text(stmt, 1, "default", -1, SQLITE_TRANSIENT);
+    // Example of executing a SQL statement using the input data
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sqlite3_exec
+    rc = sqlite3_exec(db, (const char *)"r", 0, 0, &errMsg);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
     }
-
-    // Execute the statement to invoke the function-under-test
-    sqlite3_step(stmt);
-
-    // Get the value from the first column
-    sqlite3_value *value = sqlite3_column_value(stmt, 0);
-
-    // Call the function-under-test
-    unsigned int subtype = sqlite3_value_subtype(value);
 
     // Clean up
-    sqlite3_finalize(stmt);
+    free(clientDataKey);
     sqlite3_close(db);
-    sqlite3_shutdown();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_675(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

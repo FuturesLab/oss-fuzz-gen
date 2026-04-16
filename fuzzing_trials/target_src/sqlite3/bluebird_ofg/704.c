@@ -1,23 +1,89 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include this for size_t
 #include <stdlib.h>
-#include <string.h>
+#include <sys/stat.h>  // Include this for NULL
 #include "sqlite3.h"
+#include <string.h>  // Include this for memcpy
 
 int LLVMFuzzerTestOneInput_704(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated to be used as a C string
-    char *sql_query = (char *)malloc(size + 1);
-    if (sql_query == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Initialize the SQLite database connection
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // If opening the database fails, exit early
     }
-    memcpy(sql_query, data, size);
-    sql_query[size] = '\0';
 
-    // Call the function-under-test
-    sqlite3_complete(sql_query);
+    // Prepare a simple SQLite statement
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value BLOB)", -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0; // If preparing the statement fails, exit early
+    }
+    sqlite3_step(stmt); // Execute the CREATE TABLE statement
+    sqlite3_finalize(stmt);
 
-    // Free allocated memory
-    free(sql_query);
+    // Insert the fuzzing data into the database if size is greater than 0
+    if (size > 0 && sqlite3_prepare_v2(db, "INSERT INTO test (value) VALUES (?)", -1, &stmt, NULL) == SQLITE_OK) {
+        // Bind the fuzzing data to the SQL statement
+        if (sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT) == SQLITE_OK) {
+            // Execute the statement
+            sqlite3_step(stmt);
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    // Prepare a statement to retrieve the data
+    if (sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = 1", -1, &stmt, NULL) == SQLITE_OK) {
+        // Execute the statement and check the result
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            const void *retrieved_data = sqlite3_column_blob(stmt, 0);
+            int retrieved_size = sqlite3_column_bytes(stmt, 0);
+            // Use the retrieved data in some way, if needed
+            // For fuzzing, we don't need to do anything specific with retrieved_data
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_704(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

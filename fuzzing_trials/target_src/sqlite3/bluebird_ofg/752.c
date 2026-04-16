@@ -1,61 +1,74 @@
-#include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include "sqlite3.h"
 #include <string.h>
 
+// Fuzzing harness for sqlite3_overload_function
 int LLVMFuzzerTestOneInput_752(const uint8_t *data, size_t size) {
+    // Initialize a SQLite database connection
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    double result;
-
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table
-    const char *create_table_sql = "CREATE TABLE test (id INTEGER, value REAL);";
-    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Ensure the data is not empty and can be used as a function name
+    if (size == 0) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Insert a row into the table
-    const char *insert_sql = "INSERT INTO test (id, value) VALUES (1, 3.14);";
-    rc = sqlite3_exec(db, insert_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Copy the data to a null-terminated string for the function name
+    char func_name[size + 1];
+    memcpy(func_name, data, size);
+    func_name[size] = '\0';
 
-    // Prepare a statement to select the value
-    const char *select_sql = "SELECT value FROM test WHERE id = ?;";
-    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Use a fixed number of arguments for the function
+    int num_args = 1;
 
-    // Bind the id parameter from the fuzzing input
-    if (size > 0) {
-        int id = data[0] % 256; // Use the first byte of data as the id
-        sqlite3_bind_int(stmt, 1, id);
-    }
+    // Call the function-under-test
+    sqlite3_overload_function(db, func_name, num_args);
 
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Call the function-under-test
-        result = sqlite3_column_double(stmt, 0);
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Clean up and close the SQLite database connection
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_752(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

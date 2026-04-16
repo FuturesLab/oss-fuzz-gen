@@ -1,42 +1,84 @@
-#include <stddef.h>  // For size_t and NULL
-#include <stdint.h>  // For uint8_t
-#include "sqlite3.h" // For SQLite3 functions
+#include <stdint.h>
+#include "sqlite3.h"
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
-// Remove the incorrect internal header inclusion
-// #include "/src/sqlite3/bld/sqlite3.h" // This line is not needed
-
-// Function prototype for the fuzzer
 int LLVMFuzzerTestOneInput_241(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
+    sqlite3 *db;
+    char *errMsg = 0;
+    char **result;
+    int rows, columns;
+    int rc;
+
+    // Initialize SQLite database in memory
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Initialize SQLite
-    sqlite3_initialize();
-
-    // Create a new SQLite database in memory
-    sqlite3 *db;
-    char *errMsg = 0;
-    int rc = sqlite3_open(":memory:", &db);
-
-    if (rc != SQLITE_OK) {
+    // Ensure the input data is null-terminated for use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Prepare a SQL statement using the fuzz data
-    sqlite3_stmt *stmt;
-    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
+    // Fuzz the sqlite3_get_table function
+    rc = sqlite3_get_table(db, query, &result, &rows, &columns, &errMsg);
 
-    if (rc == SQLITE_OK) {
-        // Execute the SQL statement
-        sqlite3_step(stmt);
-        // Finalize the statement to release resources
-        sqlite3_finalize(stmt);
+    // Free resources
+    if (result != NULL) {
+        sqlite3_free_table(result);
     }
-
-    // Close the SQLite database
+    if (errMsg != NULL) {
+        sqlite3_free(errMsg);
+    }
+    free(query);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_241(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

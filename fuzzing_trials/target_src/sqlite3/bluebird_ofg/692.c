@@ -1,58 +1,93 @@
+#include <stddef.h>  // For size_t
+#include <stdlib.h>
+#include <sys/stat.h>  // For NULL
 #include <stdint.h>
 #include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <string.h>  // For strlen
 
 int LLVMFuzzerTestOneInput_692(const uint8_t *data, size_t size) {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
     int rc;
-    char *errMsg = 0;
 
-    // Open a temporary in-memory database
+    // Attempt to open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        return 0;
-    }
-
-    // Create a simple table
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
+        return 0; // Exit if the database couldn't be opened
     }
 
-    // Ensure the input data is null-terminated and safe for sqlite3_mprintf
-    char *safeData = (char *)malloc(size + 1);
-    if (!safeData) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(safeData, data, size);
-    safeData[size] = '\0';
+    // If there's data, attempt to execute it as an SQL statement
+    if (size > 0) {
+        // Ensure the data is null-terminated before passing to sqlite3_exec
+        char *sql = (char *)malloc(size + 1);
+        if (sql == NULL) {
+            sqlite3_close(db);
+            return 0; // Exit if memory allocation fails
+        }
+        memcpy(sql, data, size);
+        sql[size] = '\0'; // Null-terminate the string
 
-    // Use the input data to insert into the table
-    char *sql = sqlite3_mprintf("INSERT INTO test (value) VALUES (%Q);", safeData);
-    free(safeData);
-    rc = sqlite3_exec(db, sql, NULL, 0, &errMsg);
-    sqlite3_free(sql);
+        char *errMsg = 0;
+        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(errMsg);
+        }
 
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_realloc64
+        sqlite3_uint64 ret_sqlite3_msize_btdmm = sqlite3_msize(NULL);
+        void* ret_sqlite3_realloc64_vjnak = sqlite3_realloc64((void *)db, ret_sqlite3_msize_btdmm);
+        if (ret_sqlite3_realloc64_vjnak == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        free(sql); // Free the allocated memory
     }
 
     // Call the function-under-test
-    int changes = sqlite3_changes(db);
-    printf("Number of changes: %d\n", changes);
+    int errno_result = sqlite3_system_errno(db);
 
-    // Close the database
+    // Clean up and close the database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_692(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

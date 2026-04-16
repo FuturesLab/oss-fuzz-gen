@@ -1,8 +1,9 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "string.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "sqlite3.h"
 
 static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
@@ -30,13 +31,11 @@ int LLVMFuzzerTestOneInput_408(const uint8_t *Data, size_t Size) {
     int rc;
 
     // Open a database connection
-
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    const char hstrfton[1024] = "bhoqa";
-    rc = sqlite3_open(hstrfton, &db);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
         free(sql);
         return 0;
@@ -44,27 +43,27 @@ int LLVMFuzzerTestOneInput_408(const uint8_t *Data, size_t Size) {
 
     // Execute SQL
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_randomness
-    int ret_sqlite3_os_end_xutog = sqlite3_os_end();
-    if (ret_sqlite3_os_end_xutog < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_db_name
+    const char* ret_sqlite3_db_name_bcuxi = sqlite3_db_name(db, 1);
+    if (ret_sqlite3_db_name_bcuxi == NULL){
     	return 0;
     }
-
-    sqlite3_randomness(ret_sqlite3_os_end_xutog, (void *)db);
-
     // End mutation: Producer.APPEND_MUTATOR
-
-    rc = sqlite3_exec(db, sql, callback, 0, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
     if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
 
     // Set authorizer
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
+    int ret_sqlite3_extended_result_codes_cxcaq = sqlite3_extended_result_codes(db, -1);
+    if (ret_sqlite3_extended_result_codes_cxcaq < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
@@ -81,20 +80,9 @@ int LLVMFuzzerTestOneInput_408(const uint8_t *Data, size_t Size) {
     rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
 
     // Test control
-    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
+//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
 
     // Malloc
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_test_control to sqlite3_db_name
-    sqlite3_int64 ret_sqlite3_changes64_tcooo = sqlite3_changes64(db);
-
-    const char* ret_sqlite3_db_name_xslgl = sqlite3_db_name(db, rc);
-    if (ret_sqlite3_db_name_xslgl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     void *ptr = sqlite3_malloc(Size);
     if (ptr) {
         memcpy(ptr, Data, Size);
@@ -106,3 +94,42 @@ int LLVMFuzzerTestOneInput_408(const uint8_t *Data, size_t Size) {
     free(sql);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_408(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

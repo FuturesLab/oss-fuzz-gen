@@ -1,46 +1,86 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
     sqlite3 *db;
-    char *errMsg = 0;
+    int rc;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0; // If opening the database fails, return immediately
     }
 
-    // Ensure the input data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_total_changes
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_total_changes with sqlite3_get_autocommit
-        sqlite3_get_autocommit(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Create a SQL statement from the input data
+    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
 
     // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    char *errMsg = 0;
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Free allocated resources
+    // Free the SQL statement
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_serialize
+    int ret_sqlite3_total_changes_ixhpm = sqlite3_total_changes(db);
+    if (ret_sqlite3_total_changes_ixhpm < 0){
+    	return 0;
+    }
+    sqlite3_int64 ret_sqlite3_memory_used_apxpf = sqlite3_memory_used();
+    unsigned char* ret_sqlite3_serialize_bjvue = sqlite3_serialize(db, errMsg, &ret_sqlite3_memory_used_apxpf, 0);
+    if (ret_sqlite3_serialize_bjvue == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(sql);
+
+    // If there was an error, free the error message
     if (errMsg) {
         sqlite3_free(errMsg);
     }
-    free(sql);
+
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

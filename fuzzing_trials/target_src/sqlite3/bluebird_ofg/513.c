@@ -1,51 +1,96 @@
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_513(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
-    sqlite3 *db;
-    char *errMsg = 0;
+    // Initialize SQLite in-memory databases
+    sqlite3 *pDbSrc = NULL;
+    sqlite3 *pDbDest = NULL;
+    sqlite3_backup *pBackup = NULL;
+    int rc;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Open source and destination databases
+    rc = sqlite3_open(":memory:", &pDbSrc);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_vtab_on_conflict
-        sqlite3_vtab_on_conflict(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    rc = sqlite3_open(":memory:", &pDbDest);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(pDbSrc);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Use the input data to create a simple table and insert data
+    if (size > 0) {
+        char *errMsg = 0;
+        char sql[1024];
 
-    // Free allocated resources
-    if (errMsg) {
-        sqlite3_free(errMsg);
+        // Create a table
+        snprintf(sql, sizeof(sql), "CREATE TABLE test(data BLOB);");
+        sqlite3_exec(pDbSrc, sql, 0, 0, &errMsg);
+
+        // Insert the input data into the table
+        snprintf(sql, sizeof(sql), "INSERT INTO test(data) VALUES(?);");
+        sqlite3_stmt *stmt;
+        sqlite3_prepare_v2(pDbSrc, sql, -1, &stmt, 0);
+        sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
     }
-    free(sql);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_close to sqlite3_complete16
+    // Create a backup object
+    pBackup = sqlite3_backup_init(pDbDest, "main", pDbSrc, "main");
+    if (pBackup != NULL) {
+        // Perform some operations to simulate backup process
+        sqlite3_backup_step(pBackup, 5);
 
-    int ret_sqlite3_complete16_tkied = sqlite3_complete16((const void *)db);
-    if (ret_sqlite3_complete16_tkied < 0){
-    	return 0;
+        // Finish the backup
+        sqlite3_backup_finish(pBackup);
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    sqlite3_close(db);
+    // Close the databases
+    sqlite3_close(pDbSrc);
+    sqlite3_close(pDbDest);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_513(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
