@@ -2,41 +2,69 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include "libyang.h" // Ensure this header is included for function declarations
+#include <unistd.h>
+#include <fcntl.h>
+#include "/src/libyang/src/parser_data.h"
+#include "/src/libyang/src/tree_data.h"
+#include "/src/libyang/src/in.h"
+
+static void fuzz_lyd_parse_data_fd(const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        return;
+    }
+
+    if (write(fd, Data, Size) != Size) {
+        close(fd);
+        return;
+    }
+
+    lseek(fd, 0, SEEK_SET);
+
+    struct ly_ctx *ctx = NULL; // Initialize context as needed
+    LYD_FORMAT format = 0; // Assume some format
+    uint32_t parse_options = 0;
+    uint32_t validate_options = 0;
+    struct lyd_node *tree = NULL;
+
+    lyd_parse_data_fd(ctx, fd, format, parse_options, validate_options, &tree);
+
+    // Clean up
+    lyd_free_all(tree);
+    close(fd);
+}
+
+static void fuzz_lyd_parse_data(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL; // Initialize context as needed
+    struct lyd_node *parent = NULL;
+    struct ly_in *in = NULL;
+    ly_in_new_memory((const char *)Data, &in);
+    if (!in) {
+        return;
+    }
+    LYD_FORMAT format = 0; // Assume some format
+    uint32_t parse_options = 0;
+    uint32_t validate_options = 0;
+    struct lyd_node *tree = NULL;
+
+    lyd_parse_data(ctx, parent, in, format, parse_options, validate_options, &tree);
+
+    // Clean up
+    lyd_free_all(tree);
+    ly_in_free(in, 0);
+}
 
 static void fuzz_lyd_parse_value_fragment(const uint8_t *Data, size_t Size) {
-    if (Size < 5) {
-        return;
-    }
-
-    struct ly_ctx *ctx = NULL;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_new
-    if (ly_ctx_new(NULL, LYD_HT_MIN_ITEMS, &ctx)) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        return;
-    }
-
+    struct ly_ctx *ctx = NULL; // Initialize context as needed
+    const char *path = "/some/path"; // Example path
     struct ly_in *in = NULL;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_new to lyd_validate_all
-    struct lyd_node *qlkpjbqz;
-    memset(&qlkpjbqz, 0, sizeof(qlkpjbqz));
-
-    LY_ERR ret_lyd_validate_all_suyye = lyd_validate_all(&qlkpjbqz, ctx, 64, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    if (ly_in_new_memory((const char *)Data, &in)) {
-        ly_ctx_destroy(ctx);
+    ly_in_new_memory((const char *)Data, &in);
+    if (!in) {
         return;
     }
-
-    const char *path = "/path/to/node";
-    LYD_FORMAT format = LYD_JSON;
+    LYD_FORMAT format = LYD_JSON; // Assume LYD_JSON
     uint32_t new_val_options = 0;
     uint32_t parse_options = 0;
     uint32_t validate_options = 0;
@@ -44,179 +72,78 @@ static void fuzz_lyd_parse_value_fragment(const uint8_t *Data, size_t Size) {
 
     lyd_parse_value_fragment(ctx, path, in, format, new_val_options, parse_options, validate_options, &tree);
 
+    // Clean up
     lyd_free_all(tree);
     ly_in_free(in, 0);
-    ly_ctx_destroy(ctx);
 }
 
 static void fuzz_lyd_parse_data_mem(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    struct ly_ctx *ctx = NULL; // Initialize context as needed
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
         return;
     }
+    memcpy(data, Data, Size);
+    data[Size] = '\0'; // Ensure null-termination
 
-    // Ensure null-termination of input data
-    char *data_copy = (char *)malloc(Size + 1);
-    if (!data_copy) {
-        return;
-    }
-    memcpy(data_copy, Data, Size);
-    data_copy[Size] = '\0';
-
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        free(data_copy);
-        return;
-    }
-
-    LYD_FORMAT format = LYD_JSON;
+    LYD_FORMAT format = 0; // Assume some format
     uint32_t parse_options = 0;
     uint32_t validate_options = 0;
     struct lyd_node *tree = NULL;
 
-    lyd_parse_data_mem(ctx, data_copy, format, parse_options, validate_options, &tree);
+    lyd_parse_data_mem(ctx, data, format, parse_options, validate_options, &tree);
 
+    // Clean up
     lyd_free_all(tree);
-    free(data_copy);
-    ly_ctx_destroy(ctx);
+    free(data);
 }
 
-static void fuzz_lyd_new_path(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
+static void fuzz_lyd_new_implicit_all(const uint8_t *Data, size_t Size) {
+    struct lyd_node *tree = NULL; // Initialize tree as needed
+    struct ly_ctx *ctx = NULL; // Initialize context if tree is empty
+    uint32_t implicit_options = 0;
+    struct lyd_node *diff = NULL;
 
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        return;
-    }
+    lyd_new_implicit_all(&tree, ctx, implicit_options, &diff);
 
-    struct lyd_node *parent = NULL;
-    const char *path = "/path/to/node";
-
-    // Ensure null-termination of input data
-    char *value_copy = (char *)malloc(Size + 1);
-    if (!value_copy) {
-        ly_ctx_destroy(ctx);
-        return;
-    }
-    memcpy(value_copy, Data, Size);
-    value_copy[Size] = '\0';
-
-    uint32_t options = 0;
-    struct lyd_node *node = NULL;
-
-    lyd_new_path(parent, ctx, path, value_copy, options, &node);
-
-    lyd_free_all(node);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_free_all to ly_ctx_get_module_imp_clb
-
-    ly_module_imp_clb ret_ly_ctx_get_module_imp_clb_ldoox = ly_ctx_get_module_imp_clb(NULL, (void **)&node);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(value_copy);
-    ly_ctx_destroy(ctx);
+    // Clean up
+    lyd_free_all(tree);
+    lyd_free_all(diff);
 }
 
 static void fuzz_lyd_parse_data_path(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
         return;
     }
 
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
+    if (write(fd, Data, Size) != Size) {
+        close(fd);
         return;
     }
 
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        ly_ctx_destroy(ctx);
-        return;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    lseek(fd, 0, SEEK_SET);
 
-    LYD_FORMAT format = 0;
+    struct ly_ctx *ctx = NULL; // Initialize context as needed
+    const char *path = "./dummy_file";
+    LYD_FORMAT format = 0; // Assume some format
     uint32_t parse_options = 0;
     uint32_t validate_options = 0;
     struct lyd_node *tree = NULL;
 
-    lyd_parse_data_path(ctx, "./dummy_file", format, parse_options, validate_options, &tree);
+    lyd_parse_data_path(ctx, path, format, parse_options, validate_options, &tree);
 
+    // Clean up
     lyd_free_all(tree);
-    ly_ctx_destroy(ctx);
-}
-
-static void fuzz_lyd_parse_data(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
-
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        return;
-    }
-
-    struct ly_in *in = NULL;
-    if (ly_in_new_memory((const char *)Data, &in)) {
-        ly_ctx_destroy(ctx);
-        return;
-    }
-
-    LYD_FORMAT format = 0;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-    struct lyd_node *tree = NULL;
-
-    lyd_parse_data(ctx, NULL, in, format, parse_options, validate_options, &tree);
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lyd_free_all with lyd_free_tree
-    lyd_free_tree(tree);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    ly_in_free(in, 0);
-    ly_ctx_destroy(ctx);
-}
-
-static void fuzz_lyd_find_path(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
-
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        return;
-    }
-
-    struct lyd_node *ctx_node = NULL;
-    const char *path = "/path/to/node";
-    ly_bool output = 0;
-    struct lyd_node *match = NULL;
-
-    lyd_find_path(ctx_node, path, output, &match);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_find_path to lyd_validate_all
-    ly_ctx_free_parsed(ctx);
-    struct lyd_node *bwdgxtvo;
-    memset(&bwdgxtvo, 0, sizeof(bwdgxtvo));
-
-    LY_ERR ret_lyd_validate_all_xfwgc = lyd_validate_all(&match, ctx, 0, &bwdgxtvo);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    ly_ctx_destroy(ctx);
+    close(fd);
 }
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
+    fuzz_lyd_parse_data_fd(Data, Size);
+    fuzz_lyd_parse_data(Data, Size);
     fuzz_lyd_parse_value_fragment(Data, Size);
     fuzz_lyd_parse_data_mem(Data, Size);
-    fuzz_lyd_new_path(Data, Size);
+    fuzz_lyd_new_implicit_all(Data, Size);
     fuzz_lyd_parse_data_path(Data, Size);
-    fuzz_lyd_parse_data(Data, Size);
-    fuzz_lyd_find_path(Data, Size);
     return 0;
 }

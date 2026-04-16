@@ -1,51 +1,73 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>  // Include for the bool type
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
+  // Ensure that the size is sufficient to create a valid ucl_object_t
+  if (size == 0) {
+    return 0;
+  }
+
   // Create a new UCL parser
   struct ucl_parser *parser = ucl_parser_new(0);
   if (parser == NULL) {
     return 0;
   }
 
-  // Call the function-under-test
-  bool result = ucl_parser_add_chunk(parser, data, size);
+  // Add the input data to the parser
+  ucl_parser_add_string(parser, (const char *)data, size);
 
-  // Free the parser after use
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_chunk to ucl_object_merge
-  ucl_object_t* ret_ucl_object_typed_new_myqti = ucl_object_typed_new(0);
-  if (ret_ucl_object_typed_new_myqti == NULL){
-  	return 0;
-  }
-  ucl_object_t azdgdasy;
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_typed_new to ucl_object_key
-
-
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_key with ucl_object_tostring
-  const char* ret_ucl_object_key_djuwg = ucl_object_tostring(ret_ucl_object_typed_new_myqti);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-  if (ret_ucl_object_key_djuwg == NULL){
-  	return 0;
+  // Get the UCL object from the parser
+  const ucl_object_t *obj = ucl_parser_get_object(parser);
+  if (obj != NULL) {
+    // Call the function under test
+    bool result = ucl_object_toboolean(obj);
   }
 
-  // End mutation: Producer.APPEND_MUTATOR
-
-  memset(&azdgdasy, 0, sizeof(azdgdasy));
-
-  bool ret_ucl_object_merge_zefko = ucl_object_merge(&azdgdasy, ret_ucl_object_typed_new_myqti, result);
-  if (ret_ucl_object_merge_zefko == 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
+  // Clean up
   ucl_parser_free(parser);
 
-  // Return 0 as the function result is not needed for the fuzzer
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_57(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

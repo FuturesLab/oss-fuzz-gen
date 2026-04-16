@@ -2,88 +2,124 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
-#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include "unistd.h"
-#include <fcntl.h>
+#include <sys/stat.h>
 #include <string.h>
 
-static void fuzz_ucl_parser_set_filevars(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        // Use part of the data as a filename
-        char *filename = strndup((const char *)Data, Size);
-        bool need_expand = Data[0] % 2; // Randomize need_expand
-        ucl_parser_set_filevars(parser, filename, need_expand);
-        free(filename);
-    } else {
-        ucl_parser_set_filevars(parser, NULL, false);
-    }
-}
-
-static void fuzz_ucl_parser_add_string_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    unsigned priority = Data[0] % 16; // Priority is limited to 4 bits
-    // Ensure the data is null-terminated
-    char *data_copy = (char *)malloc(Size + 1);
-    if (data_copy != NULL) {
-        memcpy(data_copy, Data, Size);
-        data_copy[Size] = '\0';
-        ucl_parser_add_string_priority(parser, data_copy, Size, priority);
-        free(data_copy);
-    }
-}
-
-static void fuzz_ucl_parser_add_fd(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    int fd = open("./dummy_file", O_RDWR | O_CREAT, 0666);
-    if (fd != -1) {
-        write(fd, Data, Size);
-        lseek(fd, 0, SEEK_SET); // Reset file descriptor position
-        ucl_parser_add_fd(parser, fd);
-        close(fd);
-    }
-}
-
-static void fuzz_ucl_parser_add_file_full(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    if (Size > 2) { // Ensure we have enough bytes for indices
-        char *filename = strndup((const char *)Data, Size);
-        unsigned priority = Data[0] % 16;
-        enum ucl_duplicate_strategy strat = Data[1] % 4;
-        enum ucl_parse_type parse_type = Data[2] % 4;
-        ucl_parser_add_file_full(parser, filename, priority, strat, parse_type);
-        free(filename);
-    }
-}
-
-static void fuzz_ucl_parser_add_file_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        char *filename = strndup((const char *)Data, Size);
-        unsigned priority = Data[0] % 16;
-        ucl_parser_add_file_priority(parser, filename, priority);
-        free(filename);
-    }
-}
-
-static void fuzz_ucl_parser_set_default_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        unsigned prio = Data[0] % 17; // Priority range is 0 to 16
-        ucl_parser_set_default_priority(parser, prio);
-    }
-}
-
 int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    struct ucl_parser *parser = ucl_parser_new(0);
-
-    if (parser != NULL) {
-        fuzz_ucl_parser_set_filevars(parser, Data, Size);
-        fuzz_ucl_parser_add_string_priority(parser, Data, Size);
-        fuzz_ucl_parser_add_fd(parser, Data, Size);
-        fuzz_ucl_parser_add_file_full(parser, Data, Size);
-        fuzz_ucl_parser_add_file_priority(parser, Data, Size);
-        fuzz_ucl_parser_set_default_priority(parser, Data, Size);
-
-        ucl_parser_free(parser);
+    if (Size == 0) {
+        return 0;
     }
+
+    // Step 1: Create a new UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Step 2: Add chunk to the parser
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        // Handle parsing error
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
+        }
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Step 3: Get the top-level object
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_chunk to ucl_parser_insert_chunk
+    unsigned char ret_ucl_parser_chunk_peek_yxgux = ucl_parser_chunk_peek(parser);
+    unsigned int ret_ucl_parser_get_column_eshjh = ucl_parser_get_column(parser);
+    if (ret_ucl_parser_get_column_eshjh < 0){
+    	return 0;
+    }
+    bool ret_ucl_parser_insert_chunk_ilsxk = ucl_parser_insert_chunk(parser, &ret_ucl_parser_chunk_peek_yxgux, (size_t )ret_ucl_parser_get_column_eshjh);
+    if (ret_ucl_parser_insert_chunk_ilsxk == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_t *obj = ucl_parser_get_object(parser);
+    if (obj == NULL) {
+        // Handle error in getting object
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
+        }
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Step 4: Serialize the object in various formats
+    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
+    if (json_output != NULL) {
+        free(json_output);
+    }
+
+    unsigned char *config_output = ucl_object_emit(obj, UCL_EMIT_CONFIG);
+    if (config_output != NULL) {
+        free(config_output);
+    }
+
+    unsigned char *yaml_output = ucl_object_emit(obj, UCL_EMIT_YAML);
+    if (yaml_output != NULL) {
+        free(yaml_output);
+    }
+
+    unsigned char *msgpack_output = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
+    if (msgpack_output != NULL) {
+        free(msgpack_output);
+    }
+
+    // Step 5: Cleanup
+    ucl_object_unref(obj);
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -57,9 +57,6 @@ if [ -n "${BASELINE_COV:-}" ]; then
   CXXFLAGS="$CXXFLAGS -DBASELINE_COV"
 fi
 
-CFLAGS="$CFLAGS -DINC_MAIN"
-CXXFLAGS="$CXXFLAGS -DINC_MAIN"
-
 if [ "$SANITIZER" = "none" ]; then
   CFLAGS="$CFLAGS -pthread  -ldl"
   CXXFLAGS="$CXXFLAGS -pthread  -ldl"

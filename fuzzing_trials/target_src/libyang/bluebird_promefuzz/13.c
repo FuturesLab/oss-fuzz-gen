@@ -2,20 +2,82 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <fcntl.h>
 #include <unistd.h>
-#include "/src/libyang/src/parser_data.h"
-#include "/src/libyang/src/tree_data.h"
+#include <fcntl.h>
+#include "/src/libyang/src/context.h"
+#include "/src/libyang/src/parser_schema.h"
+#include "/src/libyang/src/in.h"
 
-static int create_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return -1;
+static struct ly_ctx *create_context() {
+    struct ly_ctx *ctx = NULL;
+    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+        return NULL;
     }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-    return 0;
+    return ctx;
+}
+
+static void cleanup_context(struct ly_ctx *ctx) {
+    if (ctx) {
+        ly_ctx_destroy(ctx);
+    }
+}
+
+static void fuzz_ly_ctx_get_module_ns(const struct ly_ctx *ctx, const char *ns, const char *revision) {
+    struct lys_module *module = ly_ctx_get_module_ns(ctx, ns, revision);
+    // No specific cleanup required for ly_ctx_get_module_ns result
+}
+
+static void fuzz_lys_parse(struct ly_ctx *ctx, const char *data, LYS_INFORMAT format) {
+    struct ly_in *in = NULL;
+    if (ly_in_new_memory(data, &in) != LY_SUCCESS) {
+        return;
+    }
+    struct lys_module *module = NULL;
+    if (lys_parse(ctx, in, format, NULL, &module) != LY_SUCCESS) {
+        // Handle error
+    }
+    ly_in_free(in, 0);
+}
+
+static void fuzz_lys_parse_fd(struct ly_ctx *ctx, int fd, LYS_INFORMAT format) {
+    struct lys_module *module = NULL;
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lys_parse_fd
+    if (lys_parse_fd(ctx, 0, format, &module) != LY_SUCCESS) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        // Handle error
+    }
+    // No specific cleanup required for lys_parse_fd result
+}
+
+static void fuzz_lys_parse_mem(struct ly_ctx *ctx, const char *data, LYS_INFORMAT format) {
+    struct lys_module *module = NULL;
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lys_parse_mem
+    if (lys_parse_mem(ctx, (const char *)data, format, &module) != LY_SUCCESS) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+        // Handle error
+    }
+    // No specific cleanup required for lys_parse_mem result
+}
+
+static void fuzz_lys_parse_path(struct ly_ctx *ctx, const char *path, LYS_INFORMAT format) {
+    struct lys_module *module = NULL;
+    if (lys_parse_path(ctx, path, format, &module) != LY_SUCCESS) {
+        // Handle error
+    }
+    // No specific cleanup required for lys_parse_path result
+}
+
+static void fuzz_ly_ctx_get_module_latest(const struct ly_ctx *ctx, const char *name) {
+    struct lys_module *module = ly_ctx_get_module_latest(ctx, name);
+    // No specific cleanup required for ly_ctx_get_module_latest result
 }
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
@@ -23,67 +85,53 @@ int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Create a dummy file with the input data
-    if (create_dummy_file(Data, Size) != 0) {
+    struct ly_ctx *ctx = create_context();
+    if (!ctx) {
         return 0;
     }
 
-    // Variables for lyd_parse_data_fd
-    struct ly_ctx *ctx = NULL; // Assume context is initialized
-    int fd = open("./dummy_file", O_RDONLY);
-    if (fd == -1) {
+    char *dummy_data = (char *)malloc(Size + 1);
+    if (!dummy_data) {
+        cleanup_context(ctx);
         return 0;
     }
-    LYD_FORMAT format = (LYD_FORMAT)(Data[0] % 3); // Random format
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-    struct lyd_node *tree = NULL;
+    memcpy(dummy_data, Data, Size);
+    dummy_data[Size] = '\0';
 
-    // Fuzz lyd_parse_data_fd
-    lyd_parse_data_fd(ctx, fd, format, parse_options, validate_options, &tree);
+    char *dummy_ns = "urn:example:namespace";
+    char *dummy_revision = "2023-10-10";
+    char *dummy_path = "./dummy_file";
 
-    // Close the file descriptor
-    close(fd);
+    // Fuzz ly_ctx_get_module_ns
+    fuzz_ly_ctx_get_module_ns(ctx, dummy_ns, dummy_revision);
 
-    // Variables for lyd_merge_siblings
-    struct lyd_node *target = NULL; // Assume target is initialized
-    struct lyd_node *source = tree; // Use parsed tree as source
-    uint16_t merge_options = 0;
+    // Fuzz lys_parse
+    fuzz_lys_parse(ctx, dummy_data, LYS_IN_YANG);
 
-    // Fuzz lyd_merge_siblings
-    lyd_merge_siblings(&target, source, merge_options);
+    // Create a dummy file for lys_parse_fd
+    int fd = open(dummy_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd != -1) {
+        write(fd, dummy_data, Size);
+        lseek(fd, 0, SEEK_SET);
+        fuzz_lys_parse_fd(ctx, fd, LYS_IN_YANG);
+        close(fd);
+    }
 
-    // Variables for lyd_insert_child
-    struct lyd_node *parent = target; // Assume parent is initialized
-    struct lyd_node *node = source; // Use source node
+    // Fuzz lys_parse_mem
+    fuzz_lys_parse_mem(ctx, dummy_data, LYS_IN_YANG);
 
-    // Fuzz lyd_insert_child
-    lyd_insert_child(parent, node);
+    // Fuzz lys_parse_path
+    FILE *file = fopen(dummy_path, "w");
+    if (file) {
+        fwrite(dummy_data, 1, Size, file);
+        fclose(file);
+        fuzz_lys_parse_path(ctx, dummy_path, LYS_IN_YANG);
+    }
 
-    // Variables for lyd_diff_apply_all
-    struct lyd_node *data = target; // Use target as data
-    struct lyd_node *diff = source; // Use source as diff
+    // Fuzz ly_ctx_get_module_latest
+    fuzz_ly_ctx_get_module_latest(ctx, "example-module");
 
-    // Fuzz lyd_diff_apply_all
-    lyd_diff_apply_all(&data, diff);
-
-    // Variables for lyd_find_sibling_first
-    struct lyd_node *siblings = target; // Assume siblings are initialized
-    struct lyd_node *target_node = source; // Use source as target node
-    struct lyd_node *match = NULL;
-
-    // Fuzz lyd_find_sibling_first
-    lyd_find_sibling_first(siblings, target_node, &match);
-
-    // Variables for lyd_leafref_link_node_tree
-    struct lyd_node *tree_root = target; // Use target as root
-
-    // Fuzz lyd_leafref_link_node_tree
-    lyd_leafref_link_node_tree(tree_root);
-
-    // Cleanup
-    lyd_free_all(tree);
-    lyd_free_all(target);
-
+    free(dummy_data);
+    cleanup_context(ctx);
     return 0;
 }

@@ -1,93 +1,89 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
 // ly_ctx_new at context.c:278:1 in context.h
-// lyd_parse_data_fd at tree_data.c:224:1 in parser_data.h
-// lyd_dup_siblings_to_ctx at tree_data.c:2547:1 in tree_data.h
-// lyd_path at tree_data.c:2974:1 in tree_data.h
-// lyd_find_sibling_first at tree_data.c:3182:1 in tree_data.h
-// lyd_first_sibling at tree_data_common.c:771:1 in tree_data.h
-// lyd_free_tree at tree_data_free.c:265:1 in tree_data.h
-// lyd_free_tree at tree_data_free.c:265:1 in tree_data.h
+// ly_ctx_set_options at context.c:626:1 in context.h
+// ly_ctx_compile at context.c:593:1 in context.h
+// ly_ctx_set_module_imp_clb at context.c:816:1 in context.h
+// ly_ctx_unset_options at context.c:704:1 in context.h
+// ly_ctx_destroy at context.c:1503:1 in context.h
+// ly_ctx_new_ylmem at context.c:473:1 in context.h
+// ly_ctx_set_options at context.c:626:1 in context.h
+// ly_ctx_compile at context.c:593:1 in context.h
+// ly_ctx_set_module_imp_clb at context.c:816:1 in context.h
+// ly_ctx_unset_options at context.c:704:1 in context.h
 // ly_ctx_destroy at context.c:1503:1 in context.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include "parser_data.h"
-#include "tree_data.h"
-#include "libyang.h" // Include the correct header for context functions
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "context.h"
 
-static int write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return -1;
+static void test_ly_ctx_new(const char *search_dir, uint32_t options) {
+    struct ly_ctx *ctx = NULL;
+    if (ly_ctx_new(search_dir, options, &ctx) == LY_SUCCESS) {
+        // Test ly_ctx_set_options
+        ly_ctx_set_options(ctx, options);
+
+        // Test ly_ctx_compile
+        ly_ctx_compile(ctx);
+
+        // Test ly_ctx_set_module_imp_clb with a dummy callback
+        ly_ctx_set_module_imp_clb(ctx, NULL, NULL);
+
+        // Test ly_ctx_unset_options
+        ly_ctx_unset_options(ctx, options);
+
+        // Cleanup
+        ly_ctx_destroy(ctx);
     }
-    size_t written = fwrite(Data, 1, Size, file);
-    fclose(file);
-    return (written == Size) ? 0 : -1;
+}
+
+static void test_ly_ctx_new_ylmem(const char *search_dir, const char *data, LYD_FORMAT format, int options) {
+    struct ly_ctx *ctx = NULL;
+    if (ly_ctx_new_ylmem(search_dir, data, format, options, &ctx) == LY_SUCCESS) {
+        // Test ly_ctx_set_options
+        ly_ctx_set_options(ctx, options);
+
+        // Test ly_ctx_compile
+        ly_ctx_compile(ctx);
+
+        // Test ly_ctx_set_module_imp_clb with a dummy callback
+        ly_ctx_set_module_imp_clb(ctx, NULL, NULL);
+
+        // Test ly_ctx_unset_options
+        ly_ctx_unset_options(ctx, options);
+
+        // Cleanup
+        ly_ctx_destroy(ctx);
+    }
 }
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < 4) {
         return 0;
     }
 
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
-    struct lyd_node *dup = NULL;
-    struct lyd_node *match = NULL;
-    char *path = NULL;
-    int fd = -1;
+    // Use the first byte as options
+    uint32_t options = Data[0];
 
-    // Initialize context
-    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
-        goto cleanup;
-    }
+    // Use the next byte as format
+    LYD_FORMAT format = (LYD_FORMAT)Data[1];
 
-    // Write data to dummy file
-    if (write_dummy_file(Data, Size) != 0) {
-        goto cleanup;
-    }
+    // Use the rest as search_dir and data
+    char *search_dir = strndup((const char *)Data + 2, (Size - 2) / 2);
+    char *data = strndup((const char *)Data + 2 + (Size - 2) / 2, (Size - 2) / 2);
 
-    // Open dummy file
-    fd = open("./dummy_file", O_RDONLY);
-    if (fd == -1) {
-        goto cleanup;
-    }
+    // Test ly_ctx_new
+    test_ly_ctx_new(search_dir, options);
 
-    // Fuzzing lyd_parse_data_fd
-    lyd_parse_data_fd(ctx, fd, (LYD_FORMAT)(Data[0] % 3), 0, 0, &tree);
+    // Test ly_ctx_new_ylmem
+    test_ly_ctx_new_ylmem(search_dir, data, format, options);
 
-    // Fuzzing lyd_dup_siblings_to_ctx
-    if (tree) {
-        lyd_dup_siblings_to_ctx(tree, ctx, NULL, 0, &dup);
-    }
+    free(search_dir);
+    free(data);
 
-    // Fuzzing lyd_path
-    if (tree) {
-        path = lyd_path(tree, (LYD_PATH_TYPE)(Data[0] % 2), NULL, 0);
-        free(path);
-    }
-
-    // Fuzzing lyd_find_sibling_first
-    if (tree) {
-        lyd_find_sibling_first(tree, tree, &match);
-    }
-
-    // Fuzzing lyd_first_sibling
-    if (tree) {
-        struct lyd_node *first_sibling = lyd_first_sibling(tree);
-        (void)first_sibling; // Suppress unused variable warning
-    }
-
-cleanup:
-    if (fd != -1) {
-        close(fd);
-    }
-    lyd_free_tree(tree);
-    lyd_free_tree(dup);
-    ly_ctx_destroy(ctx);
     return 0;
 }

@@ -2,72 +2,85 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
 #include "ucl.h"
 
+static bool dummy_variable_handler(const unsigned char *data, size_t data_len, unsigned char **result, unsigned long *result_len, bool *need_free, void *ud) {
+    // Dummy handler function for unknown variables
+    *result = NULL;
+    *result_len = 0;
+    *need_free = false;
+    return true;
+}
+
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    // Step 1: Create a new UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
-        return 0; // Handle memory allocation failure
+        return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *input_data = (char *)malloc(Size + 1);
-    if (input_data == NULL) {
-        ucl_parser_free(parser);
-        return 0; // Handle memory allocation failure
-    }
-    memcpy(input_data, Data, Size);
-    input_data[Size] = '\0';
+    // Test ucl_parser_add_chunk_full
+    ucl_parser_add_chunk_full(parser, Data, Size, 0, UCL_DUPLICATE_APPEND, UCL_PARSE_UCL);
 
-    // Step 2: Add string data to the parser
-    bool res = ucl_parser_add_string(parser, input_data, Size);
+    // Test ucl_parser_set_filevars
+    ucl_parser_set_filevars(parser, "./dummy_file", true);
 
-    // Step 3: Retrieve and print error if any
+    // Test ucl_parser_set_variables_handler
+    ucl_parser_set_variables_handler(parser, dummy_variable_handler, NULL);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_register_macro
-    unsigned char ret_ucl_parser_chunk_peek_gtnoe = ucl_parser_chunk_peek(parser);
-    char cmrrrcpr[1024] = "pgnvp";
-
-    bool ret_ucl_parser_register_macro_uvxxt = ucl_parser_register_macro(parser, (const char *)&ret_ucl_parser_chunk_peek_gtnoe, NULL, cmrrrcpr);
-    if (ret_ucl_parser_register_macro_uvxxt == 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Test ucl_parser_get_error
     const char *error = ucl_parser_get_error(parser);
     if (error != NULL) {
-        // Handle error (in fuzzing context, just continue)
+        printf("Parser error: %s\n", error);
     }
 
-    // Step 4: Attempt to get the top-level UCL object
-    ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    // Test ucl_parser_clear_error
+    ucl_parser_clear_error(parser);
 
-    // Step 5: Free the parser
+    // Cleanup
     ucl_parser_free(parser);
-
-    // Step 6: Iterate over the UCL object if it exists
-    if (top_obj != NULL) {
-        ucl_object_iter_t it = NULL;
-        int ep = 0;
-        const ucl_object_t *cur;
-
-        while ((cur = ucl_object_iterate_with_error(top_obj, &it, true, &ep)) != NULL) {
-            // Iterate over the object (in fuzzing context, just continue)
-        }
-
-        // Step 7: Unref the top-level object
-        ucl_object_unref(top_obj);
-    }
-
-    // Free the allocated input data
-    free(input_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

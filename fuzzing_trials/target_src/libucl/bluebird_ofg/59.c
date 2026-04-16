@@ -1,82 +1,80 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
+  // If size is 0, there's no data to process
+  if (size == 0) {
+    return 0;
+  }
+
   // Create a new UCL parser
   struct ucl_parser *parser = ucl_parser_new(0);
   if (parser == NULL) {
     return 0;
   }
 
+  // Add data to the parser
+  ucl_parser_add_string(parser, (const char *)data, size);
+
   // Call the function-under-test
-  bool result = ucl_parser_add_chunk(parser, data, size);
 
-  // Free the parser after use
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_free to ucl_parser_add_string
-  double ret_ucl_object_todouble_xdgwi = ucl_object_todouble(NULL);
-  if (ret_ucl_object_todouble_xdgwi < 0){
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_add_fd
+  unsigned int ret_ucl_parser_get_column_vqyik = ucl_parser_get_column(NULL);
+  if (ret_ucl_parser_get_column_vqyik < 0){
   	return 0;
   }
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_todouble to ucl_object_insert_key
-  ucl_object_t* ret_ucl_object_fromdouble_gohhj = ucl_object_fromdouble(size);
-  if (ret_ucl_object_fromdouble_gohhj == NULL){
+  bool ret_ucl_parser_add_fd_cgglp = ucl_parser_add_fd(parser, (int )ret_ucl_parser_get_column_vqyik);
+  if (ret_ucl_parser_add_fd_cgglp == 0){
   	return 0;
   }
-  char *mwipyrfl[1024] = {"xccsu", NULL};
-  struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_qpgpe = ucl_object_emit_memory_funcs(mwipyrfl);
-  if (ret_ucl_object_emit_memory_funcs_qpgpe == NULL){
-  	return 0;
-  }
-  const ucl_object_t zptpeiqj;
-  memset(&zptpeiqj, 0, sizeof(zptpeiqj));
-  bool ret_ucl_object_toboolean_bzzuf = ucl_object_toboolean(&zptpeiqj);
-  if (ret_ucl_object_toboolean_bzzuf == 0){
-  	return 0;
-  }
-
-  bool ret_ucl_object_insert_key_glhry = ucl_object_insert_key(ret_ucl_object_fromdouble_gohhj, NULL, (const char *)*mwipyrfl, (size_t )ret_ucl_object_todouble_xdgwi, ret_ucl_object_toboolean_bzzuf);
-  if (ret_ucl_object_insert_key_glhry == 0){
-  	return 0;
-  }
-
   // End mutation: Producer.APPEND_MUTATOR
+  
+  int priority = ucl_parser_get_default_priority(parser);
 
-  bool ret_ucl_parser_add_string_ffpnd = ucl_parser_add_string(parser, (const char *)"r", (size_t )ret_ucl_object_todouble_xdgwi);
-  if (ret_ucl_parser_add_string_ffpnd == 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_object_iterate_with_error
-  ucl_object_t blerndeu;
-  memset(&blerndeu, 0, sizeof(blerndeu));
-  ucl_object_t* ret_ucl_array_pop_last_fzvoq = ucl_array_pop_last(&blerndeu);
-  if (ret_ucl_array_pop_last_fzvoq == NULL){
-  	return 0;
-  }
-  ucl_object_iter_t feisybyp;
-  memset(&feisybyp, 0, sizeof(feisybyp));
-  bool ret_ucl_object_iter_chk_excpn_bnsdn = ucl_object_iter_chk_excpn(&feisybyp);
-  if (ret_ucl_object_iter_chk_excpn_bnsdn == 0){
-  	return 0;
-  }
-  int lrignxwz = 1;
-
-  const ucl_object_t* ret_ucl_object_iterate_with_error_sdvcs = ucl_object_iterate_with_error(&blerndeu, &feisybyp, ret_ucl_parser_add_string_ffpnd, &lrignxwz);
-  if (ret_ucl_object_iterate_with_error_sdvcs == NULL){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
+  // Free the parser
   ucl_parser_free(parser);
 
-  // Return 0 as the function result is not needed for the fuzzer
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_59(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

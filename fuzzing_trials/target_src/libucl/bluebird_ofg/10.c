@@ -1,55 +1,84 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "ucl.h"
+#include <sys/stat.h>
 #include <string.h>
-#include <stdlib.h>
+#include "ucl.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Initialize UCL parser
+    struct ucl_parser *parser;
+    int fd;
+    bool result;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
-    struct ucl_parser *parser = ucl_parser_new(64);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Create a temporary file
+    fd = open("/tmp/fuzz_temp_file", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        return 0;
+    }
 
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
 
+    // Reset file offset to the beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
     if (parser == NULL) {
+        close(fd);
         return 0;
     }
-
-    // Ensure the data is null-terminated before parsing
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
-
-    // Parse the input data
-    if (!ucl_parser_add_string(parser, input_data, size)) {
-        free(input_data);
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Get the root object
-    const ucl_object_t *root_obj = ucl_parser_get_object(parser);
-    if (root_obj == NULL) {
-        free(input_data);
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Define a path to lookup
-    const char *path = "example.path";
 
     // Call the function-under-test
-    const ucl_object_t *result = ucl_object_lookup_path(root_obj, path);
+    result = ucl_parser_add_fd(parser, fd);
 
-    // Free resources
-    ucl_object_unref(root_obj);
-    free(input_data);
+    // Clean up
     ucl_parser_free(parser);
+    close(fd);
+    unlink("/tmp/fuzz_temp_file");
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,87 +1,73 @@
+#include <sys/stat.h>
+#include <string.h>
+#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
-#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser;
-    char *input_string;
-    unsigned int priority;
+  // If size is 0, there's no data to process
+  if (size == 0) {
+    return 0;
+  }
 
-    // Initialize the parser
-    parser = ucl_parser_new(UCL_PARSER_DEFAULT);
-    if (parser == NULL) {
-        return 0;
-    }
+  // Create a new UCL parser
+  struct ucl_parser *parser = ucl_parser_new(0);
+  if (parser == NULL) {
+    return 0;
+  }
 
-    // Ensure that the input string is null-terminated
-    input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
+  // Add data to the parser
 
-    // Set a fixed priority for fuzzing
-    priority = 1;
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_register_variable
+  ucl_parser_register_variable(parser, (const char *)"r", NULL);
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  ucl_parser_add_string(parser, (const char *)data, size);
 
-    // Call the function-under-test
-    bool result = ucl_parser_add_string_priority(parser, input_string, size, priority);
+  // Call the function-under-test
+  int priority = ucl_parser_get_default_priority(parser);
 
-    // Clean up
+  // Free the parser
+  ucl_parser_free(parser);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string_priority to ucl_set_include_path
-    ucl_object_t* ret_ucl_object_fromint_jmawh = ucl_object_fromint(64);
-    if (ret_ucl_object_fromint_jmawh == NULL){
-    	return 0;
-    }
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-    bool ret_ucl_set_include_path_emufb = ucl_set_include_path(parser, ret_ucl_object_fromint_jmawh);
-    if (ret_ucl_set_include_path_emufb == 0){
-    	return 0;
-    }
+    if(argc < 2)
+        exit(0);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-    free(input_string);
+    fseek(f, 0, SEEK_END);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_free to ucl_parser_get_current_stack_object
-        int ret_ucl_parser_get_error_code_omogi = ucl_parser_get_error_code(parser);
-        if (ret_ucl_parser_get_error_code_omogi < 0){
-        	return 0;
-        }
+    size = ftell(f);
+    rewind(f);
 
-        ucl_object_t* ret_ucl_parser_get_current_stack_object_gzfbm = ucl_parser_get_current_stack_object(parser, (unsigned int )ret_ucl_parser_get_error_code_omogi);
-        if (ret_ucl_parser_get_current_stack_object_gzfbm == NULL){
-        	return 0;
-        }
+    if(size < 1 + 1)
+        exit(0);
 
-        // End mutation: Producer.APPEND_MUTATOR
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
 
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_free to ucl_parser_add_file_priority
-        const ucl_object_t fhujwyyd;
-        memset(&fhujwyyd, 0, sizeof(fhujwyyd));
-        char* ret_ucl_copy_value_trash_omybz = ucl_copy_value_trash(&fhujwyyd);
-        if (ret_ucl_copy_value_trash_omybz == NULL){
-        	return 0;
-        }
-        const ucl_object_t bbjmxxhs;
-        memset(&bbjmxxhs, 0, sizeof(bbjmxxhs));
-        unsigned int ret_ucl_array_size_mvchk = ucl_array_size(&bbjmxxhs);
-        if (ret_ucl_array_size_mvchk < 0){
-        	return 0;
-        }
+    LLVMFuzzerTestOneInput_60(data + 1, (size_t)(size - 1));
 
-        bool ret_ucl_parser_add_file_priority_kjjhj = ucl_parser_add_file_priority(parser, ret_ucl_copy_value_trash_omybz, ret_ucl_array_size_mvchk);
-        if (ret_ucl_parser_add_file_priority_kjjhj == 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    ucl_parser_free(parser);
-
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

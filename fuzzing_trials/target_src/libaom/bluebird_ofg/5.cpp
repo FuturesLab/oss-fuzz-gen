@@ -1,54 +1,71 @@
-#include <cstdint>
-#include <cstdlib>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+
+extern "C" {
+    #include "/src/aom/aom/aom_codec.h"
+    #include "aom/aom_decoder.h"
+    #include "aom/aomdx.h"  // Include the header where aom_codec_av1_dx is declared
+}
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
+    // Initialize the codec interface
     aom_codec_iface_t *iface = aom_codec_av1_dx();
 
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) {
+    // Ensure the data size is non-zero for meaningful testing
+    if (size == 0) {
         return 0;
     }
 
+    // Initialize stream info structure
+    aom_codec_stream_info_t stream_info;
+    stream_info.is_kf = 0;  // Initialize with a default value
+
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, nullptr);
+    aom_codec_err_t result = aom_codec_peek_stream_info(iface, data, size, &stream_info);
 
-    // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
-
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_cxmbv = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)iface);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
-
-    aom_codec_err_t ret_aom_codec_control_yjtsg = aom_codec_control(&codec, size);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_control
-    aom_codec_caps_t ret_aom_codec_get_caps_boeri = aom_codec_get_caps(iface);
-    if (ret_aom_codec_get_caps_boeri < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_control
-    aom_codec_err_t ret_aom_codec_control_obvnb = aom_codec_control(&codec, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    aom_codec_destroy(&codec);
+    // Optionally, handle the result or check for specific conditions
+    // For fuzzing purposes, we are primarily interested in finding crashes or unexpected behavior
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

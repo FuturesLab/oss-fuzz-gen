@@ -1,112 +1,68 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
-// lyd_insert_after at tree_data.c:1164:1 in tree_data.h
-// lyd_insert_before at tree_data.c:1140:1 in tree_data.h
-// lyd_insert_sibling at tree_data.c:1114:1 in tree_data.h
-// lyd_insert_child at tree_data.c:1095:1 in tree_data.h
-// lyd_diff_apply_all at diff.c:1971:1 in tree_data.h
-// lyd_diff_tree at diff.c:1429:1 in tree_data.h
+// ly_ctx_new at context.c:278:1 in context.h
+// ly_ctx_destroy at context.c:1503:1 in context.h
+// ly_ctx_internal_modules_count at context.c:1124:1 in context.h
+// ly_ctx_is_printed at context.c:1493:1 in context.h
+// ly_ctx_get_modules_hash at context.c:763:1 in context.h
+// ly_ctx_get_module_implemented at context.c:1009:1 in context.h
+// ly_ctx_free_parsed at context.c:1360:1 in context.h
+// ly_ctx_get_options at context.c:618:1 in context.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include "tree_data.h"
+#include "context.h"
 
-static struct lys_module *initialize_module() {
-    // Dummy module initialization
-    struct lys_module *module = (struct lys_module *)malloc(sizeof(struct lys_module));
-    return module;
-}
-
-static struct lysc_node *initialize_schema_node(struct lys_module *module, uint16_t nodetype) {
-    struct lysc_node *schema = (struct lysc_node *)malloc(sizeof(struct lysc_node));
-    if (!schema) return NULL;
-    schema->nodetype = nodetype;
-    schema->module = module;
-    return schema;
-}
-
-static struct lyd_node *initialize_lyd_node(struct lysc_node *schema) {
-    if (!schema) return NULL;
-    struct lyd_node *node = (struct lyd_node *)malloc(sizeof(struct lyd_node));
-    if (!node) return NULL;
-    node->schema = schema;
-    node->prev = node;  // Circular reference for single node
-    node->next = NULL;
-    node->parent = NULL;
-    return node;
-}
-
-static void cleanup_node(struct lyd_node *node) {
-    if (node) {
-        free((void *)node->schema);
-        free(node);
+static struct ly_ctx *create_dummy_context() {
+    // Create a dummy context using a library function
+    struct ly_ctx *ctx = NULL;
+    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+        return NULL;
     }
+    return ctx;
+}
+
+static void free_dummy_context(struct ly_ctx *ctx) {
+    // Free the dummy context using a library function
+    ly_ctx_destroy(ctx);
 }
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Not enough data to proceed
-
-    struct lys_module *module = initialize_module();
-    if (!module) return 0;
-
-    // Initialize schema nodes
-    struct lysc_node *schema1 = initialize_schema_node(module, LYS_LIST);
-    struct lysc_node *schema2 = initialize_schema_node(module, LYS_LIST);
-
-    // Initialize lyd_nodes
-    struct lyd_node *sibling = initialize_lyd_node(schema1);
-    struct lyd_node *node = initialize_lyd_node(schema2);
-
-    if (!sibling || !node) {
-        cleanup_node(sibling);
-        cleanup_node(node);
-        free(module);
+    if (Size < 1) {
         return 0;
     }
 
-    // Fuzzing the lyd_insert_after function
-    if (sibling->schema && node->schema) {
-        lyd_insert_after(sibling, node);
+    struct ly_ctx *ctx = create_dummy_context();
+    if (!ctx) {
+        return 0;
     }
 
-    // Fuzzing the lyd_insert_before function
-    if (sibling->schema && node->schema) {
-        lyd_insert_before(sibling, node);
-    }
+    // Test ly_ctx_internal_modules_count
+    uint32_t internal_modules_count = ly_ctx_internal_modules_count(ctx);
+    (void)internal_modules_count;  // Suppress unused variable warning
 
-    // Fuzzing the lyd_insert_sibling function
-    struct lyd_node *first = NULL;
-    if (sibling->schema && node->schema) {
-        lyd_insert_sibling(sibling, node, &first);
-    }
+    // Test ly_ctx_is_printed
+    ly_bool is_printed = ly_ctx_is_printed(ctx);
+    (void)is_printed;  // Suppress unused variable warning
 
-    // Fuzzing the lyd_insert_child function
-    if (sibling->schema && node->schema) {
-        lyd_insert_child(sibling, node);
-    }
+    // Test ly_ctx_get_modules_hash
+    uint32_t modules_hash = ly_ctx_get_modules_hash(ctx);
+    (void)modules_hash;  // Suppress unused variable warning
 
-    // Fuzzing the lyd_diff_apply_all function
-    struct lyd_node *data_tree = sibling;
-    struct lyd_node *diff_tree = node;
-    if (data_tree && diff_tree) {
-        lyd_diff_apply_all(&data_tree, diff_tree);
-    }
+    // Test ly_ctx_get_module_implemented
+    const char *module_name = (const char *)Data;
+    struct lys_module *module = ly_ctx_get_module_implemented(ctx, module_name);
+    (void)module;  // Suppress unused variable warning
 
-    // Fuzzing the lyd_diff_tree function
-    struct lyd_node *diff = NULL;
-    if (sibling->schema && node->schema) {
-        lyd_diff_tree(sibling, node, 0, &diff);
-    }
+    // Test ly_ctx_free_parsed
+    ly_ctx_free_parsed(ctx);
 
-    // Cleanup
-    cleanup_node(sibling);
-    cleanup_node(node);
-    cleanup_node(diff);
-    free(module);
+    // Test ly_ctx_get_options
+    uint32_t options = ly_ctx_get_options(ctx);
+    (void)options;  // Suppress unused variable warning
+
+    free_dummy_context(ctx);
 
     return 0;
 }

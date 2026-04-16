@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,50 +9,134 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "stdint.h"
-#include "stddef.h"
-#include <fstream>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include "/src/aom/aom/aom.h"
 #include "/src/aom/aom/aom_codec.h"
-#include "/src/aom/aom/aom_encoder.h"
 #include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "aom/aomdx.h"
+#include "aom/aom_decoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size < sizeof(int)) {
+        return 0;
+    }
 
     // Initialize codec context
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_err_t res;
-
-    // Assume the interface is for AV1 encoder
+    aom_codec_ctx_t codec;
     aom_codec_iface_t *iface = aom_codec_av1_cx();
-
-    // Initialize encoder configuration
     aom_codec_enc_cfg_t cfg;
-    res = aom_codec_enc_config_default(iface, &cfg, 0);
-    if (res != AOM_CODEC_OK) return 0;
+    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
+        return 0;
+    }
 
-    // Initialize codec
-    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
-    if (res != AOM_CODEC_OK) return 0;
+    if (aom_codec_enc_init(&codec, iface, &cfg, 0)) {
+        return 0;
+    }
 
-    // Prepare a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
+    // Prepare parameters from input data
+    int bitrate = *reinterpret_cast<const int*>(Data);
+    Data += sizeof(int);
+    Size -= sizeof(int);
 
-    // Extract an integer from the input data
-    int control_value = *reinterpret_cast<const int*>(Data);
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_BITRATE_ONE_PASS_CBR
+    aom_codec_control(&codec, AV1E_SET_BITRATE_ONE_PASS_CBR, bitrate);
 
-    // Fuzz each target function with extracted control_value
-    aom_codec_control(&codec_ctx, AV1E_SET_NOISE_SENSITIVITY, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_FP_MT_UNIT_TEST, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_MIN_GF_INTERVAL, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_AUTO_INTRA_TOOLS_OFF, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_TILE_COLUMNS, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_CDF_UPDATE_MODE, control_value);
+    if (Size < 1) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
 
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
+    // Fuzz aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ
+    int enable_rate_guide_deltaq = Data[0] % 2;
+    aom_codec_control(&codec, AV1E_ENABLE_RATE_GUIDE_DELTAQ, enable_rate_guide_deltaq);
+
+    if (Size < 2) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING
+    int enable_keyframe_filtering = Data[1] % 2;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_control
+    aom_codec_control(&codec, AOM_MAX_LAYERS);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    if (Size < 3) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE
+    int force_video_mode = Data[2] % 2;
+    aom_codec_control(&codec, AV1E_SET_FORCE_VIDEO_MODE, force_video_mode);
+
+    if (Size < 4) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_AUTO_TILES
+    int auto_tiles = Data[3] % 2;
+    aom_codec_control(&codec, AV1E_SET_AUTO_TILES, auto_tiles);
+
+    if (Size < 5) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_AQ_MODE
+    int aq_mode = Data[4] % 4; // Assuming 4 different AQ modes
+    aom_codec_control(&codec, AV1E_SET_AQ_MODE, aq_mode);
+
+    // Clean up
+    aom_codec_destroy(&codec);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

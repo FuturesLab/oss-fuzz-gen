@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,89 +9,97 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "/src/aom/aom/aom.h"
-#include "/src/aom/aom/aom_codec.h"
-#include "/src/aom/aom/aom_encoder.h"
-#include "/src/aom/aom/aomcx.h"
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
-#include "/src/aom/aom/aom_image.h"
-#include "/src/aom/aom/aom_integer.h"
-#include "/src/aom/aom/aom_frame_buffer.h"
-#include "/src/aom/aom/aom_external_partition.h"
-}
-
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
-
-static aom_codec_ctx_t *initialize_codec() {
-    aom_codec_ctx_t *codec = new aom_codec_ctx_t;
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    aom_codec_enc_cfg_t cfg;
-    
-    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
-        delete codec;
-        return nullptr;
-    }
-    
-    if (aom_codec_enc_init(codec, iface, &cfg, 0)) {
-        delete codec;
-        return nullptr;
-    }
-    
-    return codec;
-}
-
-static void cleanup_codec(aom_codec_ctx_t *codec) {
-    if (codec) {
-        aom_codec_destroy(codec);
-        delete codec;
-    }
-}
-
-static void fuzz_codec_control_functions(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
-    if (!codec || !Data || Size < 1) return;
-
-    // Example for AV1E_SET_POSTENCODE_DROP_RTC
-    int drop_rtc = Data[0] % 2;
-    aom_codec_control(codec, AV1E_SET_POSTENCODE_DROP_RTC, drop_rtc);
-
-    // Example for AV1E_SET_PARTITION_INFO_PATH
-    const char *partition_info_path = "./dummy_file";
-    FILE *file = fopen(partition_info_path, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-    aom_codec_control(codec, AV1E_SET_PARTITION_INFO_PATH, partition_info_path);
-
-    // Example for AV1E_GET_TARGET_SEQ_LEVEL_IDX
-    int seq_level_idx;
-    aom_codec_control(codec, AV1E_GET_TARGET_SEQ_LEVEL_IDX, &seq_level_idx);
-
-    // Example for AV1E_SET_TARGET_SEQ_LEVEL_IDX
-    int target_seq_level_idx = Data[0] % 24; // Assuming 24 possible levels
-    aom_codec_control(codec, AV1E_SET_TARGET_SEQ_LEVEL_IDX, target_seq_level_idx);
-
-    // Example for AV1E_SET_RATE_DISTRIBUTION_INFO
-    if (Size > 0) {
-        std::vector<char> rate_distribution_info(Data, Data + Size);
-        rate_distribution_info.push_back('\0'); // Ensure null-termination
-        aom_codec_control(codec, AV1E_SET_RATE_DISTRIBUTION_INFO, rate_distribution_info.data());
-    }
-
-    // Example for AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC
-    int high_motion_content_screen_rtc;
-    aom_codec_control(codec, AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC, &high_motion_content_screen_rtc);
-}
+#include <cassert>
+#include "/src/aom/aom/aom_codec.h"
+#include "aom/aom_decoder.h"
+#include "aom/aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    aom_codec_ctx_t *codec = initialize_codec();
-    if (codec) {
-        fuzz_codec_control_functions(codec, Data, Size);
-        cleanup_codec(codec);
+    if (Size < 1) return 0;
+
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    aom_codec_dec_cfg_t cfg = {0};
+    aom_codec_flags_t flags = 0;
+    int ver = AOM_DECODER_ABI_VERSION;
+
+    // Initialize the codec
+    if (aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver) != AOM_CODEC_OK) {
+        return 0;
     }
+
+    // Decode data
+    if (aom_codec_decode(&codec_ctx, Data, Size, nullptr) != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    // Get frame
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *img = nullptr;
+    while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
+        // Process the frame (e.g., validate or analyze image data)
+    }
+
+    // Get stream info
+    aom_codec_stream_info_t stream_info = {0};
+    if (aom_codec_get_stream_info(&codec_ctx, &stream_info) == AOM_CODEC_OK) {
+        // Use stream info (e.g., width and height)
+    }
+
+    // Peek stream info
+    if (Size >= 4) { // Ensure there's enough data to peek
+        aom_codec_stream_info_t peek_info = {0};
+        if (aom_codec_peek_stream_info(iface, Data, Size, &peek_info) == AOM_CODEC_OK) {
+            // Use peek info
+        }
+    }
+
+    // Cleanup
+    aom_codec_destroy(&codec_ctx);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

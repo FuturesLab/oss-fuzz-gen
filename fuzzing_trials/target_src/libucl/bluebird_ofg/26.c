@@ -1,24 +1,76 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Ensure that the size is greater than 0 to proceed
-    if (size == 0) {
-        return 0;
-    }
+  // If size is 0, there's no data to process
+  if (size == 0) {
+    return 0;
+  }
 
-    // Create a ucl_object_t instance
-    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+  // Create a new UCL parser
+  struct ucl_parser *parser = ucl_parser_new(0);
+  if (parser == NULL) {
+    return 0;
+  }
 
-    // Use the first byte of data to determine the reserve size
-    size_t reserve_size = (size_t)data[0];
+  // Add data to the parser
+  ucl_parser_add_string(parser, (const char *)data, size);
 
-    // Call the function-under-test
-    bool result = ucl_object_reserve(obj, reserve_size);
+  // Call the function-under-test
 
-    // Clean up the ucl_object_t instance
-    ucl_object_unref(obj);
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_add_file_priority
+  bool ret_ucl_parser_add_file_priority_qhnji = ucl_parser_add_file_priority(parser, (const char *)"w", -1);
+  if (ret_ucl_parser_add_file_priority_qhnji == 0){
+  	return 0;
+  }
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  int priority = ucl_parser_get_default_priority(parser);
 
+  // Free the parser
+  ucl_parser_free(parser);
+
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

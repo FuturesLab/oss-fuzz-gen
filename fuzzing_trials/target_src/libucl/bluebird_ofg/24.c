@@ -1,38 +1,75 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-  // If size is 0 we need a null-terminated string.
-  // We dont null-terminate the string and by the design
-  // of the API passing 0 as size with non null-terminated string
-  // gives undefined behavior.
-  if (size == 0) {
-    return 0;
-  }
-  
-  struct ucl_parser *parser;
-  parser = ucl_parser_new(0);
+    // Create a new UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
 
-  ucl_parser_add_string(parser, (char *)data, size);
+    // Parse the input data
+    ucl_parser_add_chunk(parser, data, size);
 
-  if (ucl_parser_get_error(parser) != NULL) {
+    // Get the root UCL object
+    ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Create a dummy object to search for in the array
+    ucl_object_t *search_obj = ucl_object_fromstring("test");
+
+    // Call the function-under-test
+    unsigned int index = ucl_array_index_of(root, search_obj);
+
+    // Clean up
+    ucl_object_unref(search_obj);
+    ucl_object_unref(root);
     ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Call the function-under-test
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_error to ucl_parser_add_special_handler
-  struct ucl_parser_special_handler pedbuawu;
-  memset(&pedbuawu, 0, sizeof(pedbuawu));
-
-  ucl_parser_add_special_handler(parser, &pedbuawu);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  ucl_parser_chunk_skip(parser);
-
-  ucl_parser_free(parser);
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

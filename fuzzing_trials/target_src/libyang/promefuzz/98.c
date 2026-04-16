@@ -1,97 +1,119 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
-// lyd_new_term at tree_data_new.c:742:1 in tree_data.h
-// lyd_parse_value_fragment at tree_data.c:252:1 in parser_data.h
-// lyd_new_path2 at tree_data_new.c:1787:1 in tree_data.h
-// lyd_new_attr2 at tree_data_new.c:987:1 in tree_data.h
-// lyd_new_list2 at tree_data_new.c:581:1 in tree_data.h
-// lyd_new_attr at tree_data_new.c:937:1 in tree_data.h
+// lyd_dup_siblings at tree_data.c:2535:1 in tree_data.h
+// lyd_insert_child at tree_data.c:1095:1 in tree_data.h
+// lyd_list_pos at tree_data_common.c:749:1 in tree_data.h
+// lyd_insert_before at tree_data.c:1140:1 in tree_data.h
+// lyd_compare_single at tree_data.c:1868:1 in tree_data.h
+// lyd_dup_single_to_ctx at tree_data.c:2522:1 in tree_data.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <stdio.h>
-#include "parser_data.h"
 #include "tree_data.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static struct lyd_node *create_node_with_schema(struct lysc_node *schema) {
+    struct lyd_node *node = (struct lyd_node *)malloc(sizeof(struct lyd_node));
+    if (!node) {
+        return NULL;
     }
+    memset(node, 0, sizeof(struct lyd_node));
+    node->schema = schema;
+    node->prev = node; // prev should never be NULL
+    return node;
+}
+
+static struct lysc_node *create_schema_node() {
+    struct lysc_node *schema = (struct lysc_node *)malloc(sizeof(struct lysc_node));
+    if (!schema) {
+        return NULL;
+    }
+    memset(schema, 0, sizeof(struct lysc_node));
+    return schema;
+}
+
+static struct ly_ctx *create_context() {
+    struct ly_ctx *ctx = NULL;
+    // Mock context creation, replace with actual function if available
+    // ly_ctx_new(NULL, 0, &ctx);
+    return ctx;
 }
 
 int LLVMFuzzerTestOneInput_98(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    // Prepare inputs for lyd_new_term
-    struct lyd_node *parent = NULL;
-    const struct lys_module *module = NULL;
-    char *name = strndup((const char *)Data, Size);
-    char *value = strndup((const char *)Data, Size);
-    uint32_t options = 0;
-    struct lyd_node *node = NULL;
+    struct lysc_node *schema = create_schema_node();
+    if (!schema) {
+        return 0;
+    }
 
-    // Fuzz lyd_new_term
-    lyd_new_term(parent, module, name, value, options, &node);
+    struct lyd_node *node = create_node_with_schema(schema);
+    struct lyd_node *parent = create_node_with_schema(schema);
+    struct lyd_node *dup = NULL;
 
-    // Prepare inputs for lyd_parse_value_fragment
-    struct ly_ctx *ctx = NULL;
-    char *path = strndup((const char *)Data, Size);
-    struct ly_in *in = NULL;
-    LYD_FORMAT format = LYD_JSON;
-    uint32_t new_val_options = 0;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-    struct lyd_node *tree = NULL;
+    if (!node || !parent) {
+        free(schema);
+        free(node);
+        free(parent);
+        return 0;
+    }
 
-    // Write to dummy file
-    write_dummy_file(Data, Size);
+    // Ensure nodes have a valid context
+    struct ly_ctx *ctx = create_context();
+    if (!ctx) {
+        free(schema);
+        free(node);
+        free(parent);
+        return 0;
+    }
 
-    // Fuzz lyd_parse_value_fragment
-    lyd_parse_value_fragment(ctx, path, in, format, new_val_options, parse_options, validate_options, &tree);
+    // Fuzzing lyd_dup_siblings
+    uint32_t options = Data[0];
+    LY_ERR ret = lyd_dup_siblings(node, parent, options, &dup);
+    if (ret == LY_SUCCESS && dup) {
+        // Cleanup duplicated nodes
+        free(dup);
+    }
 
-    // Prepare inputs for lyd_new_path2
-    void *value_path = NULL;
-    uint64_t value_size_bits = 0;
-    uint32_t any_hints = 0;
-    struct lyd_node *new_parent = NULL;
-    struct lyd_node *new_node = NULL;
+    // Fuzzing lyd_insert_child
+    ret = lyd_insert_child(parent, node);
+    if (ret != LY_SUCCESS) {
+        // Handle error if needed
+    }
 
-    // Fuzz lyd_new_path2
-    lyd_new_path2(parent, ctx, path, value_path, value_size_bits, any_hints, options, &new_parent, &new_node);
+    // Fuzzing lyd_list_pos
+    uint32_t pos = lyd_list_pos(node);
+    if (pos == 0) {
+        // Handle error if needed
+    }
 
-    // Prepare inputs for lyd_new_attr2
-    const char *module_ns = NULL;
-    char *attr_name = strndup((const char *)Data, Size);
-    char *attr_value = strndup((const char *)Data, Size);
-    struct lyd_attr *attr = NULL;
+    // Fuzzing lyd_insert_before
+    ret = lyd_insert_before(node, parent);
+    if (ret != LY_SUCCESS) {
+        // Handle error if needed
+    }
 
-    // Fuzz lyd_new_attr2
-    lyd_new_attr2(parent, module_ns, attr_name, attr_value, &attr);
+    // Fuzzing lyd_compare_single
+    ret = lyd_compare_single(node, parent, options);
+    if (ret == LY_SUCCESS || ret == LY_ENOT) {
+        // Handle comparison result
+    }
 
-    // Prepare inputs for lyd_new_list2
-    const char *keys = NULL;
-
-    // Fuzz lyd_new_list2
-    lyd_new_list2(parent, module, name, keys, options, &node);
-
-    // Prepare inputs for lyd_new_attr
-    const char *module_name = NULL;
-
-    // Fuzz lyd_new_attr
-    lyd_new_attr(parent, module_name, attr_name, attr_value, &attr);
+    // Fuzzing lyd_dup_single_to_ctx
+    ret = lyd_dup_single_to_ctx(node, ctx, parent, options, &dup);
+    if (ret == LY_SUCCESS && dup) {
+        // Cleanup duplicated node
+        free(dup);
+    }
 
     // Cleanup
-    free(name);
-    free(value);
-    free(path);
-    free(attr_name);
-    free(attr_value);
+    // Assuming ly_ctx_destroy is a function to destroy a context
+    // ly_ctx_destroy(ctx);
+    free(schema);
+    free(node);
+    free(parent);
 
     return 0;
 }

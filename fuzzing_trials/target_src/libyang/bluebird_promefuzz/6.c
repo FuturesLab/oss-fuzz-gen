@@ -2,82 +2,79 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include "/src/libyang/src/parser_data.h"
-#include "/src/libyang/src/tree_data.h"
-#include "libyang.h" // Include the correct header for context functions
+#include "libyang.h"
 
-static int write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return -1;
+static struct ly_ctx *create_context() {
+    struct ly_ctx *ctx = NULL;
+    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+        return NULL;
     }
-    size_t written = fwrite(Data, 1, Size, file);
-    fclose(file);
-    return (written == Size) ? 0 : -1;
+    return ctx;
+}
+
+static struct lys_module *create_module(struct ly_ctx *ctx) {
+    const char *module_data = "module dummy {namespace \"urn:dummy\";prefix d;}";
+    struct lys_module *module = NULL;
+    if (lys_parse_mem(ctx, module_data, LYS_IN_YANG, &module) != LY_SUCCESS) {
+        return NULL;
+    }
+    return module;
+}
+
+static struct lyd_node *create_parent_node(struct ly_ctx *ctx) {
+    struct lyd_node *parent = NULL;
+    const char *data = "{\"d:dummy\":{}}";
+    if (lyd_parse_data_mem(ctx, data, LYD_JSON, LYD_PARSE_ONLY, 0, &parent) != LY_SUCCESS) {
+        return NULL;
+    }
+    return parent;
 }
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < 3) {
         return 0;
     }
 
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
-    struct lyd_node *dup = NULL;
-    struct lyd_node *match = NULL;
-    char *path = NULL;
-    int fd = -1;
-
-    // Initialize context
-    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
-        goto cleanup;
+    struct ly_ctx *ctx = create_context();
+    if (!ctx) {
+        return 0;
     }
 
-    // Write data to dummy file
-    if (write_dummy_file(Data, Size) != 0) {
-        goto cleanup;
+    struct lys_module *module = create_module(ctx);
+    if (!module) {
+        ly_ctx_destroy(ctx);
+        return 0;
     }
 
-    // Open dummy file
-    fd = open("./dummy_file", O_RDONLY);
-    if (fd == -1) {
-        goto cleanup;
+    struct lyd_node *parent = create_parent_node(ctx);
+    if (!parent) {
+        ly_ctx_destroy(ctx);
+        return 0;
     }
 
-    // Fuzzing lyd_parse_data_fd
-    lyd_parse_data_fd(ctx, fd, (LYD_FORMAT)(Data[0] % 3), 0, 0, &tree);
+    char *name = strndup((const char *)Data, Size / 3);
+    char *val_str = strndup((const char *)Data + Size / 3, Size / 3);
+    uint32_t options = *(uint32_t *)(Data + 2 * (Size / 3));
 
-    // Fuzzing lyd_dup_siblings_to_ctx
-    if (tree) {
-        lyd_dup_siblings_to_ctx(tree, ctx, NULL, 0, &dup);
-    }
+    struct lyd_meta *meta = NULL;
+    lyd_new_meta(ctx, parent, module, name, val_str, options, &meta);
 
-    // Fuzzing lyd_path
-    if (tree) {
-        path = lyd_path(tree, (LYD_PATH_TYPE)(Data[0] % 2), NULL, 0);
-        free(path);
-    }
+    struct lyd_meta *dup_meta = NULL;
+    lyd_dup_meta_single(meta, parent, &dup_meta);
 
-    // Fuzzing lyd_find_sibling_first
-    if (tree) {
-        lyd_find_sibling_first(tree, tree, &match);
-    }
+    lyd_change_meta(meta, val_str);
 
-    // Fuzzing lyd_first_sibling
-    if (tree) {
-        struct lyd_node *first_sibling = lyd_first_sibling(tree);
-        (void)first_sibling; // Suppress unused variable warning
-    }
+    lyd_compare_meta(meta, dup_meta);
 
-cleanup:
-    if (fd != -1) {
-        close(fd);
-    }
-    lyd_free_tree(tree);
-    lyd_free_tree(dup);
+    lyd_free_meta_single(meta);
+    lyd_free_meta_single(dup_meta);
+
+    free(name);
+    free(val_str);
+    lyd_free_tree(parent);
     ly_ctx_destroy(ctx);
+
     return 0;
 }

@@ -2,59 +2,126 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
+#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "ucl.h"
-#include <stdlib.h>
 #include <string.h>
 
-static int cmp_func(const ucl_object_t **o1, const ucl_object_t **o2) {
-    if ((*o1)->type == UCL_FLOAT && (*o2)->type == UCL_FLOAT) {
-        double diff = (*o1)->value.dv - (*o2)->value.dv;
-        return (diff > 0) - (diff < 0);
+static ucl_object_t* create_ucl_object_from_data(const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
+        return NULL;
     }
-    return 0;
+    // Use a portion of data to determine the type
+    ucl_type_t type = (ucl_type_t)(Data[0] % (UCL_NULL + 1));
+    return ucl_object_typed_new(type);
 }
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Prepare a string from the input data
-    char *input_string = (char *)malloc(Size + 1);
-    if (!input_string) return 0;
-    memcpy(input_string, Data, Size);
-    input_string[Size] = '\0';
-
-    // Create array object
-    ucl_object_t *array = ucl_object_typed_new(UCL_ARRAY);
-    if (!array) {
-        free(input_string);
+    if (Size < 1) {
         return 0;
     }
 
-    // Create UCL objects from string and prepend to array
-    for (int i = 0; i < 4; i++) {
-        ucl_object_t *string_obj = ucl_object_fromstring(input_string);
-        if (string_obj) {
-            ucl_array_prepend(array, string_obj);
+    // Create a top level UCL object of type UCL_OBJECT
+    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
+    if (!top) {
+        return 0;
+    }
+
+    // Create an element UCL object from input data
+    ucl_object_t *element = create_ucl_object_from_data(Data, Size);
+    if (!element) {
+        ucl_object_unref(top);
+        return 0;
+    }
+
+    // Use part of the data as a key
+    const char *key = (const char *)Data;
+    size_t keylen = Size < 256 ? Size : 255; // Limit key length to 255
+    bool copy_key = true;
+
+    // Replace key in the top object
+    bool replaced = ucl_object_replace_key(top, element, key, keylen, copy_key);
+
+    // Create another element from a string
+    ucl_object_t *str_obj = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE);
+    if (str_obj) {
+        ucl_object_insert_key(top, str_obj, "inserted_key_1", 14, true);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_object_lookup_any
+        struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_itybx = ucl_object_emit_memory_funcs((void **)&top);
+        if (ret_ucl_object_emit_memory_funcs_itybx == NULL){
+        	return 0;
         }
+        const ucl_object_t* ret_ucl_object_lookup_any_axaje = ucl_object_lookup_any(str_obj, &top);
+        if (ret_ucl_object_lookup_any_axaje == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Insert another element
+    ucl_object_t *str_obj2 = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE_BOOLEAN);
+    if (str_obj2) {
+        ucl_object_insert_key(top, str_obj2, "inserted_key_2", 14, true);
     }
 
-    // Sort the array
-    ucl_object_array_sort(array, cmp_func);
-
-    // Create a UCL object from a double value
-    double dv = (Size > 7) ? *((double*)Data) : 0.0;
-    ucl_object_t *double_obj = ucl_object_fromdouble(dv);
-
-    // Cleanup
-    ucl_object_unref(array);
-    if (double_obj) {
-        ucl_object_unref(double_obj);
+    // Insert yet another element
+    ucl_object_t *str_obj3 = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE_INT);
+    if (str_obj3) {
+        ucl_object_insert_key(top, str_obj3, "inserted_key_3", 14, true);
     }
-    free(input_string);
+
+    // Create a final UCL object with a specific type
+    ucl_object_t *final_obj = ucl_object_typed_new(UCL_STRING);
+    if (final_obj) {
+        ucl_object_unref(final_obj);
+    }
+
+    // Clean up
+    ucl_object_unref(top);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

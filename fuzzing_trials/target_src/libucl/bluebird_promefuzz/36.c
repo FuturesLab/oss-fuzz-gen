@@ -2,126 +2,144 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include "ucl.h"
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
+#include <stdio.h>
 #include <stdbool.h>
-#include <string.h>
-
-static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_36(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Initialize parser and parse input data
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (!parser) {
+    // Create a new UCL object of type UCL_OBJECT
+    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
+    if (top == NULL) {
         return 0;
     }
 
-    // Write data to dummy file
-    write_to_dummy_file(Data, Size);
+    // Convert the input data to a string
+    const char *str = (const char *)Data;
+    size_t len = Size;
 
-    // Load data into parser
-    ucl_parser_add_file(parser, "./dummy_file");
+    // Create UCL objects from strings
+    ucl_object_t *elt1 = ucl_object_fromstring_common(str, len, UCL_STRING_TRIM);
+    ucl_object_t *elt2 = ucl_object_fromstring_common(str, len, UCL_STRING_PARSE);
 
-    // Get comments from parser
-    const ucl_object_t *comments = ucl_parser_get_comments(parser);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromstring_common to ucl_object_insert_key
+    ucl_object_t* ret_ucl_object_new_eeful = ucl_object_new();
+    if (ret_ucl_object_new_eeful == NULL){
+    	return 0;
+    }
+    char* ret_ucl_copy_value_trash_jywbe = ucl_copy_value_trash(elt1);
+    if (ret_ucl_copy_value_trash_jywbe == NULL){
+    	return 0;
+    }
+    unsigned int ret_ucl_object_get_priority_scfvj = ucl_object_get_priority(elt2);
+    if (ret_ucl_object_get_priority_scfvj < 0){
+    	return 0;
+    }
+    bool ret_ucl_object_insert_key_hfham = ucl_object_insert_key(ret_ucl_object_new_eeful, elt2, ret_ucl_copy_value_trash_jywbe, (size_t )ret_ucl_object_get_priority_scfvj, 1);
+    if (ret_ucl_object_insert_key_hfham == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_t *elt3 = ucl_object_fromstring_common(str, len, UCL_STRING_ESCAPE);
 
-    // Get the top object
-    ucl_object_t *top = ucl_parser_get_object(parser);
+    // Insert keys into the UCL object
+    ucl_object_insert_key(top, elt1, "key1", 4, true);
+    ucl_object_insert_key(top, elt2, "key2", 4, true);
+    ucl_object_insert_key(top, elt3, "key3", 4, true);
 
-    if (top) {
-        // Emit object in different formats
-        unsigned char *emitted = ucl_object_emit(top, UCL_EMIT_JSON);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_CONFIG);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_YAML);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_MSGPACK);
-        if (emitted) {
-            free(emitted);
-        }
-
-        // Emit object using memory functions
-        void *pmem = NULL;
-        struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_memory_funcs(&pmem);
-        if (emitter_funcs) {
-            bool success = ucl_object_emit_full(top, UCL_EMIT_JSON, emitter_funcs, comments);
-            if (success && pmem) {
-                free(pmem);
-            }
-            if (emitter_funcs->ucl_emitter_free_func) {
-                emitter_funcs->ucl_emitter_free_func(emitter_funcs->ud);
-            }
-            free(emitter_funcs);
-        }
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit_memory_funcs to ucl_parser_insert_chunk
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit_memory_funcs to ucl_parser_insert_chunk
-        int64_t ret_ucl_object_toint_zfpkc = ucl_object_toint(NULL);
-        if (ret_ucl_object_toint_zfpkc < 0){
-        	return 0;
-        }
-
-        bool ret_ucl_parser_insert_chunk_pyqsp = ucl_parser_insert_chunk(parser, (const unsigned char *)pmem, (size_t )ret_ucl_object_toint_zfpkc);
-        if (ret_ucl_parser_insert_chunk_pyqsp == 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        unsigned int ret_ucl_parser_get_linenum_lsofm = ucl_parser_get_linenum(parser);
-        if (ret_ucl_parser_get_linenum_lsofm < 0){
-        	return 0;
-        }
-        int ret_ucl_parser_get_default_priority_sydob = ucl_parser_get_default_priority(parser);
-        if (ret_ucl_parser_get_default_priority_sydob < 0){
-        	return 0;
-        }
-
-        bool ret_ucl_parser_insert_chunk_imrzy = ucl_parser_insert_chunk(parser, (const unsigned char *)pmem, (size_t )ret_ucl_parser_get_default_priority_sydob);
-        if (ret_ucl_parser_insert_chunk_imrzy == 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_insert_chunk to ucl_object_iterate_safe
-        ucl_object_iter_t ret_ucl_object_iterate_new_zbaox = ucl_object_iterate_new(top);
-
-        const ucl_object_t* ret_ucl_object_iterate_safe_fibea = ucl_object_iterate_safe(ret_ucl_object_iterate_new_zbaox, ret_ucl_parser_insert_chunk_imrzy);
-        if (ret_ucl_object_iterate_safe_fibea == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
+    // Open a dummy file for writing
+    FILE *fp = fopen("./dummy_file", "w");
+    if (fp == NULL) {
         ucl_object_unref(top);
+        return 0;
     }
 
-    ucl_parser_free(parser);
+    // Get emitter functions for file output
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
+    if (emitter_funcs == NULL) {
+        fclose(fp);
+        ucl_object_unref(top);
+        return 0;
+    }
+
+    // Create and manage streamlined UCL emitters
+    struct ucl_emitter_context *ctx1 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON, emitter_funcs);
+    struct ucl_emitter_context *ctx2 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON_COMPACT, emitter_funcs);
+    struct ucl_emitter_context *ctx3 = ucl_object_emit_streamline_new(top, UCL_EMIT_CONFIG, emitter_funcs);
+    struct ucl_emitter_context *ctx4 = ucl_object_emit_streamline_new(top, UCL_EMIT_YAML, emitter_funcs);
+
+    // Create a new UCL object of type UCL_ARRAY
+    ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
+    if (array_obj != NULL) {
+        // Start a container for streamlined output
+        ucl_object_emit_streamline_start_container(ctx1, array_obj);
+        ucl_object_emit_streamline_start_container(ctx2, array_obj);
+        ucl_object_emit_streamline_start_container(ctx3, array_obj);
+        ucl_object_emit_streamline_start_container(ctx4, array_obj);
+    }
+
+    // Cleanup
+    if (ctx1) {
+        ucl_object_emit_streamline_finish(ctx1);
+    }
+    if (ctx2) {
+        ucl_object_emit_streamline_finish(ctx2);
+    }
+    if (ctx3) {
+        ucl_object_emit_streamline_finish(ctx3);
+    }
+    if (ctx4) {
+        ucl_object_emit_streamline_finish(ctx4);
+    }
+    if (array_obj) {
+        ucl_object_unref(array_obj);
+    }
+    fclose(fp);
+    ucl_object_unref(top);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_36(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

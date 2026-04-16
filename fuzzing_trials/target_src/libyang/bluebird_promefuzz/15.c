@@ -2,53 +2,104 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include "/src/libyang/src/context.h"
+#include <time.h>
+#include "/src/libyang/src/tree_data.h"
 
-static LY_ERR dummy_module_imp_clb(const char *mod_name, const char *mod_rev, const char *submod_name,
-                                   const char *submod_rev, void *user_data, LYS_INFORMAT *format,
-                                   const char **module_data, void (**free_module_data)(void *model_data, void *user_data)) {
-    // Dummy callback function for module import
-    return LY_SUCCESS;
+static void test_ly_time_tz_offset_at(time_t time) {
+    int offset = ly_time_tz_offset_at(time);
+    // Handle the offset if needed
+}
+
+static void test_ly_time_str2ts(const char *value, size_t size) {
+    // Ensure the input string is null-terminated
+    char *null_terminated_value = (char *)malloc(size + 1);
+    if (!null_terminated_value) {
+        return;
+    }
+    memcpy(null_terminated_value, value, size);
+    null_terminated_value[size] = '\0';
+
+    struct timespec ts;
+    LY_ERR err = ly_time_str2ts(null_terminated_value, &ts);
+    // Handle the error if needed
+
+    free(null_terminated_value);
+}
+
+static void test_ly_time_ts2str(const struct timespec *ts) {
+    char *str = NULL;
+    LY_ERR err = ly_time_ts2str(ts, &str);
+    // Handle the error and use str if needed
+    free(str);
+}
+
+static void test_ly_time_time2str(time_t time, const char *fractions_s, size_t size) {
+    // Ensure the fractions string is null-terminated
+    char *null_terminated_fractions = (char *)malloc(size + 1);
+    if (!null_terminated_fractions) {
+        return;
+    }
+    memcpy(null_terminated_fractions, fractions_s, size);
+    null_terminated_fractions[size] = '\0';
+
+    char *str = NULL;
+    LY_ERR err = ly_time_time2str(time, null_terminated_fractions, &str);
+    // Handle the error and use str if needed
+
+    free(str);
+    free(null_terminated_fractions);
+}
+
+static void test_ly_time_str2time(const char *value, size_t size) {
+    // Ensure the input string is null-terminated
+    char *null_terminated_value = (char *)malloc(size + 1);
+    if (!null_terminated_value) {
+        return;
+    }
+    memcpy(null_terminated_value, value, size);
+    null_terminated_value[size] = '\0';
+
+    time_t time;
+    char *fractions_s = NULL;
+    LY_ERR err = ly_time_str2time(null_terminated_value, &time, &fractions_s);
+    // Handle the error and use time and fractions_s if needed
+
+    free(fractions_s);
+    free(null_terminated_value);
+}
+
+static void test_ly_time_tz_offset() {
+    int offset = ly_time_tz_offset();
+    // Handle the offset if needed
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx;
-    const char *revision = NULL;
-    const char *features[] = {NULL};
-
-    // Initialize libyang context
-    if (ly_ctx_new(NULL, 0, &ctx)) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Set a dummy module import callback
-    ly_ctx_set_module_imp_clb(ctx, dummy_module_imp_clb, NULL);
-
-    // Try to load a module with the given input data as module name
-    char *name = strndup((const char *)Data, Size);
-    if (name) {
-        struct lys_module *mod = ly_ctx_load_module(ctx, name, revision, features);
-
-        // Compile the context if the module was loaded
-        if (mod) {
-            ly_ctx_compile(ctx);
-        }
-
-        // Get change count
-        uint16_t change_count = ly_ctx_get_change_count(ctx);
-
-        // Get the implemented module
-        struct lys_module *implemented_mod = ly_ctx_get_module_implemented(ctx, name);
-
-        // Free parsed modules
-        ly_ctx_free_parsed(ctx);
-
-        free(name);
+    // Create a dummy file if needed
+    FILE *dummy_file = fopen("./dummy_file", "w");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
     }
 
-    // Clean up the context
-    ly_ctx_destroy(ctx);
+    // Use the data to test the functions
+    time_t time = (time_t)Data[0];
+    char *string_data = (char *)Data;
+
+    test_ly_time_tz_offset_at(time);
+    test_ly_time_str2ts(string_data, Size);
+    
+    struct timespec ts = { .tv_sec = time, .tv_nsec = 0 };
+    test_ly_time_ts2str(&ts);
+
+    test_ly_time_time2str(time, string_data, Size);
+    test_ly_time_str2time(string_data, Size);
+    test_ly_time_tz_offset();
 
     return 0;
 }

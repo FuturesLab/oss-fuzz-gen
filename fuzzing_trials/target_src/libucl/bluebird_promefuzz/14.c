@@ -2,50 +2,129 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
+#include <stdbool.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
 
-static ucl_object_t* create_dummy_ucl_object(const uint8_t *Data, size_t Size) {
-    ucl_object_t *obj = ucl_object_fromstring_common((const char *)Data, Size, 0);
-    return obj;
+static void fuzz_ucl_parser_set_filevars(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        // Use part of the data as a filename
+        char *filename = strndup((const char *)Data, Size);
+        bool need_expand = Data[0] % 2; // Randomize need_expand
+        ucl_parser_set_filevars(parser, filename, need_expand);
+        free(filename);
+    } else {
+        ucl_parser_set_filevars(parser, NULL, false);
+    }
+}
+
+static void fuzz_ucl_parser_add_string_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    unsigned priority = Data[0] % 16; // Priority is limited to 4 bits
+    // Ensure the data is null-terminated
+    char *data_copy = (char *)malloc(Size + 1);
+    if (data_copy != NULL) {
+        memcpy(data_copy, Data, Size);
+        data_copy[Size] = '\0';
+        ucl_parser_add_string_priority(parser, data_copy, Size, priority);
+        free(data_copy);
+    }
+}
+
+static void fuzz_ucl_parser_add_fd(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_RDWR | O_CREAT, 0666);
+    if (fd != -1) {
+        write(fd, Data, Size);
+        lseek(fd, 0, SEEK_SET); // Reset file descriptor position
+        ucl_parser_add_fd(parser, fd);
+        close(fd);
+    }
+}
+
+static void fuzz_ucl_parser_add_file_full(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    if (Size > 2) { // Ensure we have enough bytes for indices
+        char *filename = strndup((const char *)Data, Size);
+        unsigned priority = Data[0] % 16;
+        enum ucl_duplicate_strategy strat = Data[1] % 4;
+        enum ucl_parse_type parse_type = Data[2] % 4;
+        ucl_parser_add_file_full(parser, filename, priority, strat, parse_type);
+        free(filename);
+    }
+}
+
+static void fuzz_ucl_parser_add_file_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        char *filename = strndup((const char *)Data, Size);
+        unsigned priority = Data[0] % 16;
+        ucl_parser_add_file_priority(parser, filename, priority);
+        free(filename);
+    }
+}
+
+static void fuzz_ucl_parser_set_default_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        unsigned prio = Data[0] % 17; // Priority range is 0 to 16
+        ucl_parser_set_default_priority(parser, prio);
+    }
 }
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    struct ucl_parser *parser = ucl_parser_new(0);
 
-    ucl_object_t *obj = create_dummy_ucl_object(Data, Size);
-    if (!obj) return 0;
+    if (parser != NULL) {
+        fuzz_ucl_parser_set_filevars(parser, Data, Size);
+        fuzz_ucl_parser_add_string_priority(parser, Data, Size);
+        fuzz_ucl_parser_add_fd(parser, Data, Size);
+        fuzz_ucl_parser_add_file_full(parser, Data, Size);
+        fuzz_ucl_parser_add_file_priority(parser, Data, Size);
+        fuzz_ucl_parser_set_default_priority(parser, Data, Size);
 
-    ucl_object_iter_t iter = ucl_object_iterate_new(obj);
-    if (!iter) {
-        ucl_object_unref(obj);
-        return 0;
+        ucl_parser_free(parser);
     }
-
-    const ucl_object_t *next_obj;
-    bool expand_values = true;
-    while ((next_obj = ucl_object_iterate_safe(iter, expand_values)) != NULL) {
-        // Process next_obj if necessary
-    }
-
-    // Reset the iterator
-    iter = ucl_object_iterate_reset(iter, obj);
-
-    // Iterate with error handling
-    int error = 0;
-    ucl_object_iter_t iter_with_error = NULL;
-    while ((next_obj = ucl_object_iterate_with_error(obj, &iter_with_error, expand_values, &error)) != NULL) {
-        if (error) {
-            // Handle error
-            break;
-        }
-    }
-
-    // Free the iterator
-    ucl_object_iterate_free(iter);
-
-    // Clean up
-    ucl_object_unref(obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

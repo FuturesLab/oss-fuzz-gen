@@ -2,59 +2,127 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <sys/stat.h>
+#include <stdio.h>
 #include "ucl.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *Data, size_t Size) {
-    // Initialize a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+    if (Size == 0) {
+        return 0;
+    }
 
-    // Create a dummy file and write the input data to it
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file == NULL) {
+    // Step 1: Create a new UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Step 2: Add chunk to the parser
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        // Handle parsing error
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
+        }
         ucl_parser_free(parser);
         return 0;
     }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
 
-    // Parse the dummy file
-    if (!ucl_parser_add_file(parser, "./dummy_file")) {
-        // Handle parsing error
-        ucl_parser_get_error_code(parser);
-        ucl_parser_clear_error(parser);
-    }
+    // Step 3: Get the top-level object
 
-    // Call the target functions in the specified order
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_file to ucl_set_include_path
-    ucl_object_t* ret_ucl_object_fromstring_mptoc = ucl_object_fromstring(NULL);
-    if (ret_ucl_object_fromstring_mptoc == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_add_chunk_full
+    unsigned int ret_ucl_parser_get_column_zwoen = ucl_parser_get_column(NULL);
+    if (ret_ucl_parser_get_column_zwoen < 0){
     	return 0;
     }
-
-    bool ret_ucl_set_include_path_sccfi = ucl_set_include_path(parser, ret_ucl_object_fromstring_mptoc);
-    if (ret_ucl_set_include_path_sccfi == 0){
+    unsigned int ret_ucl_array_size_agdht = ucl_array_size(NULL);
+    if (ret_ucl_array_size_agdht < 0){
     	return 0;
     }
-
+    bool ret_ucl_parser_add_chunk_full_quanp = ucl_parser_add_chunk_full(parser, (const unsigned char *)"w", (size_t )ret_ucl_parser_get_column_zwoen, ret_ucl_array_size_agdht, 0, 0);
+    if (ret_ucl_parser_add_chunk_full_quanp == 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
-    unsigned column = ucl_parser_get_column(parser);
-    unsigned linenum = ucl_parser_get_linenum(parser);
-    ucl_parser_clear_error(parser);
-    int error_code = ucl_parser_get_error_code(parser);
+    
     ucl_object_t *obj = ucl_parser_get_object(parser);
-
-    // If obj is not NULL, unref it once before freeing the parser
-    if (obj != NULL) {
-        ucl_object_unref(obj);
+    if (obj == NULL) {
+        // Handle error in getting object
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            // Normally, you might log the error, but for fuzzing, we ignore it
+        }
+        ucl_parser_free(parser);
+        return 0;
     }
 
-    ucl_parser_free(parser);
+    // Step 4: Serialize the object in various formats
+    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
+    if (json_output != NULL) {
+        free(json_output);
+    }
 
-    // Clean up the dummy file
-    remove("./dummy_file");
+    unsigned char *config_output = ucl_object_emit(obj, UCL_EMIT_CONFIG);
+    if (config_output != NULL) {
+        free(config_output);
+    }
+
+    unsigned char *yaml_output = ucl_object_emit(obj, UCL_EMIT_YAML);
+    if (yaml_output != NULL) {
+        free(yaml_output);
+    }
+
+    unsigned char *msgpack_output = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
+    if (msgpack_output != NULL) {
+        free(msgpack_output);
+    }
+
+    // Step 5: Cleanup
+    ucl_object_unref(obj);
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

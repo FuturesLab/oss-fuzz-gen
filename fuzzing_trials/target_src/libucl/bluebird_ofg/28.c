@@ -1,73 +1,91 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
+#include <string.h>
 #include "ucl.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *ucl_obj = NULL;
-    ucl_emitter_t emitter_type = UCL_EMIT_JSON; // Corrected type name
-
+    // Initialize the UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    const ucl_object_t *root = NULL;
+    const ucl_object_t *comment = NULL;
+    
     // Ensure the data is not empty
     if (size == 0) {
-        return 0;
-    }
-
-    // Create a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
+        ucl_parser_free(parser);
         return 0;
     }
 
     // Parse the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
-        ucl_parser_free(parser);
-        return 0;
-    }
+    ucl_parser_add_chunk(parser, data, size);
 
-    // Get the UCL object
-    ucl_obj = ucl_parser_get_object(parser);
-    if (ucl_obj == NULL) {
-        ucl_parser_free(parser);
-        return 0;
+    // Get the root object
+    root = ucl_parser_get_object(parser);
+
+    // Create a dummy key object to search for comments
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_array_merge
+    ucl_object_t* ret_ucl_object_ref_ifzmf = ucl_object_ref(root);
+    if (ret_ucl_object_ref_ifzmf == NULL){
+    	return 0;
     }
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ucl_array_merge
+    bool ret_ucl_array_merge_gnfhw = ucl_array_merge(root, ret_ucl_object_ref_ifzmf, 1);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (ret_ucl_array_merge_gnfhw == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_t *key = ucl_object_fromstring("dummy_key");
 
     // Call the function-under-test
-    unsigned char *result = ucl_object_emit(ucl_obj, emitter_type);
+    comment = ucl_comments_find(root, key);
 
-    // Free allocated resources
-    if (result != NULL) {
-        free(result);
-    }
-    ucl_object_unref(ucl_obj);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_object_delete_key
-    const ucl_object_t tbfkxved;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_comments_move
-    ucl_object_t fcqpbznw;
-    memset(&fcqpbznw, 0, sizeof(fcqpbznw));
-
-    bool ret_ucl_comments_move_qtzhn = ucl_comments_move(&fcqpbznw, ucl_obj, ucl_obj);
-    if (ret_ucl_comments_move_qtzhn == 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    memset(&tbfkxved, 0, sizeof(tbfkxved));
-    char* ret_ucl_copy_value_trash_iodxf = ucl_copy_value_trash(&tbfkxved);
-    if (ret_ucl_copy_value_trash_iodxf == NULL){
-    	return 0;
-    }
-
-    bool ret_ucl_object_delete_key_srokl = ucl_object_delete_key(ucl_obj, ret_ucl_copy_value_trash_iodxf);
-    if (ret_ucl_object_delete_key_srokl == 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Clean up
+    ucl_object_unref(root);
+    ucl_object_unref(key);
     ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,82 +1,143 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include "libyang.h"
+#include "/src/libyang/src/context.h"
+#include "/src/libyang/src/parser_data.h"
 
-static struct ly_ctx *initialize_context() {
+static void fuzz_ly_ctx_new(const uint8_t *Data, size_t Size) {
     struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
-        return NULL;
+    char *search_dir = NULL;
+    uint32_t options = 0;
+
+    if (Size > sizeof(uint32_t)) {
+        search_dir = strndup((const char *)Data, Size - sizeof(uint32_t));
+        options = *(uint32_t *)(Data + Size - sizeof(uint32_t));
     }
-    return ctx;
+
+    ly_ctx_new(search_dir, options, &ctx);
+
+    if (ctx) {
+        ly_ctx_destroy(ctx);
+    }
+
+    free(search_dir);
 }
 
-static struct lys_module *get_module(struct ly_ctx *ctx) {
-    // Load a dummy module for testing
-    const char *module_data = "module dummy {namespace \"urn:dummy\"; prefix d;}";
-    struct lys_module *mod = NULL;
-    if (lys_parse_mem(ctx, module_data, LYS_IN_YANG, &mod) != LY_SUCCESS) {
-        return NULL;
+static void fuzz_ly_ctx_new_yldata(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL;
+    char *search_dir = NULL;
+    int options = 0;
+
+    if (Size > sizeof(int)) {
+        search_dir = strndup((const char *)Data, Size - sizeof(int));
+        options = *(int *)(Data + Size - sizeof(int));
     }
-    return mod;
+
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ly_ctx_new_yldata
+    ly_ctx_new_yldata(search_dir, tree, 64, &ctx);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+
+
+    if (ctx) {
+        ly_ctx_destroy(ctx);
+    }
+
+    free(search_dir);
+}
+
+static void fuzz_ly_ctx_get_yanglib_data(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *root = NULL;
+    char *format = NULL;
+
+    if (Size > 0) {
+        format = strndup((const char *)Data, Size);
+    }
+
+    ly_ctx_new(NULL, 0, &ctx);
+    if (ctx) {
+        if (format && strlen(format) > 0) {
+            ly_ctx_get_yanglib_data(ctx, &root, format);
+        }
+        lyd_free_all(root);
+        ly_ctx_destroy(ctx);
+    }
+
+    free(format);
+}
+
+static void fuzz_ly_ctx_compiled_size(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+
+    ly_ctx_new(NULL, 0, &ctx);
+    if (ctx) {
+        ly_ctx_compiled_size(ctx);
+        ly_ctx_destroy(ctx);
+    }
+}
+
+static void fuzz_ly_ctx_new_ylmem(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    char *search_dir = NULL;
+    char *data = NULL;
+    LYD_FORMAT format = 0;
+    int options = 0;
+
+    if (Size > sizeof(LYD_FORMAT) + sizeof(int)) {
+        search_dir = strndup((const char *)Data, Size - sizeof(LYD_FORMAT) - sizeof(int));
+        data = strndup((const char *)Data, Size - sizeof(LYD_FORMAT) - sizeof(int));
+        format = *(LYD_FORMAT *)(Data + Size - sizeof(LYD_FORMAT) - sizeof(int));
+        options = *(int *)(Data + Size - sizeof(int));
+    }
+
+    ly_ctx_new_ylmem(search_dir, data, format, options, &ctx);
+
+    if (ctx) {
+        ly_ctx_destroy(ctx);
+    }
+
+    free(search_dir);
+    free(data);
+}
+
+static void fuzz_lyd_parse_data_mem(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL;
+    char *data = NULL;
+    LYD_FORMAT format = 0;
+    uint32_t parse_options = 0;
+    uint32_t validate_options = 0;
+
+    if (Size > sizeof(LYD_FORMAT) + 2 * sizeof(uint32_t)) {
+        data = strndup((const char *)Data, Size - sizeof(LYD_FORMAT) - 2 * sizeof(uint32_t));
+        format = *(LYD_FORMAT *)(Data + Size - sizeof(LYD_FORMAT) - 2 * sizeof(uint32_t));
+        parse_options = *(uint32_t *)(Data + Size - 2 * sizeof(uint32_t));
+        validate_options = *(uint32_t *)(Data + Size - sizeof(uint32_t));
+    }
+
+    ly_ctx_new(NULL, 0, &ctx);
+    if (ctx) {
+        lyd_parse_data_mem(ctx, data, format, parse_options, validate_options, &tree);
+        lyd_free_all(tree);
+        ly_ctx_destroy(ctx);
+    }
+
+    free(data);
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    struct ly_ctx *ctx = initialize_context();
-    if (!ctx) return 0;
-
-    struct lys_module *module = get_module(ctx);
-    if (!module) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-
-    struct lyd_node *parent = NULL;
-    struct lyd_node *node = NULL;
-    const char *name = "test-node";
-    uint32_t options = 0;
-
-    // Ensure value is null-terminated
-    char *value = (char *)malloc(Size + 1);
-    if (!value) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(value, Data, Size);
-    value[Size] = '\0';
-
-    // Fuzzing lyd_new_term
-    lyd_new_term(parent, module, name, value, options, &node);
-
-    // Fuzzing lyd_new_opaq
-    const char *prefix = "d";
-    const char *module_name = "dummy";
-    lyd_new_opaq(parent, ctx, name, value, prefix, module_name, &node);
-
-    // Fuzzing lyd_new_list
-    lyd_new_list(parent, module, name, options, &node);
-
-    // Fuzzing lyd_new_path
-    const char *path = "/dummy:test-node";
-    lyd_new_path(parent, ctx, path, value, options, &node);
-
-    // Fuzzing lyd_new_inner
-    ly_bool output = 0;
-    lyd_new_inner(parent, module, name, output, &node);
-
-    // Fuzzing lyd_new_list3
-    const void *key_values[] = {value, NULL};
-    uint32_t value_sizes_bits[] = {8};
-    lyd_new_list3(parent, module, name, key_values, value_sizes_bits, options, &node);
-
-    // Cleanup
-    free(value);
-    lyd_free_all(parent);
-    ly_ctx_destroy(ctx);
+    fuzz_ly_ctx_new(Data, Size);
+    fuzz_ly_ctx_new_yldata(Data, Size);
+    fuzz_ly_ctx_get_yanglib_data(Data, Size);
+    fuzz_ly_ctx_compiled_size(Data, Size);
+    fuzz_ly_ctx_new_ylmem(Data, Size);
+    fuzz_lyd_parse_data_mem(Data, Size);
 
     return 0;
 }

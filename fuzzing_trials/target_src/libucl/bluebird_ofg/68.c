@@ -1,98 +1,90 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include <sys/stat.h>
 #include "ucl.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser;
-    char *input_string;
-    unsigned int priority;
+  // Ensure the size is sufficient to split into two parts
+  if (size < 2) {
+    return 0;
+  }
 
-    // Initialize the parser
-    parser = ucl_parser_new(UCL_PARSER_DEFAULT);
-    if (parser == NULL) {
-        return 0;
-    }
+  // Split the input data into two parts for two ucl_object_t objects
+  size_t mid = size / 2;
 
-    // Ensure that the input string is null-terminated
-    input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
+  // Create two ucl_parser objects
+  struct ucl_parser *parser1 = ucl_parser_new(0);
+  struct ucl_parser *parser2 = ucl_parser_new(0);
 
-    // Set a fixed priority for fuzzing
-    priority = 1;
+  // Add string data to the parsers
+  ucl_parser_add_string(parser1, (const char *)data, mid);
+  ucl_parser_add_string(parser2, (const char *)(data + mid), size - mid);
 
+  // Get ucl_object_t objects from the parsers
+  const ucl_object_t *obj1 = ucl_parser_get_object(parser1);
+
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_array_prepend
+  ucl_object_t* ret_ucl_object_fromint_gfbqe = ucl_object_fromint(64);
+  if (ret_ucl_object_fromint_gfbqe == NULL){
+  	return 0;
+  }
+  bool ret_ucl_array_prepend_ogivl = ucl_array_prepend(ret_ucl_object_fromint_gfbqe, obj1);
+  if (ret_ucl_array_prepend_ogivl == 0){
+  	return 0;
+  }
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  const ucl_object_t *obj2 = ucl_parser_get_object(parser2);
+
+  // Ensure both objects are not NULL before comparison
+  if (obj1 != NULL && obj2 != NULL) {
     // Call the function-under-test
+    int result = ucl_object_compare(obj1, obj2);
+  }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ucl_parser_add_string_priority
-    bool result = ucl_parser_add_string_priority(parser, input_string, 0, priority);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+  // Free the parsers
+  ucl_parser_free(parser1);
+  ucl_parser_free(parser2);
 
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
+    if(argc < 2)
+        exit(0);
 
-    // Clean up
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string_priority to ucl_set_include_path
-    ucl_object_t* ret_ucl_object_fromint_jmawh = ucl_object_fromint(64);
-    if (ret_ucl_object_fromint_jmawh == NULL){
-    	return 0;
-    }
+    fseek(f, 0, SEEK_END);
 
-    bool ret_ucl_set_include_path_emufb = ucl_set_include_path(parser, ret_ucl_object_fromint_jmawh);
-    if (ret_ucl_set_include_path_emufb == 0){
-    	return 0;
-    }
+    size = ftell(f);
+    rewind(f);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    if(size < 1 + 1)
+        exit(0);
 
-    free(input_string);
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_free to ucl_parser_get_current_stack_object
-        const ucl_object_t tmaaujbb;
-        memset(&tmaaujbb, 0, sizeof(tmaaujbb));
-        double ret_ucl_object_todouble_lmtfo = ucl_object_todouble(&tmaaujbb);
-        if (ret_ucl_object_todouble_lmtfo < 0){
-        	return 0;
-        }
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
 
-        ucl_object_t* ret_ucl_parser_get_current_stack_object_iebfm = ucl_parser_get_current_stack_object(parser, (unsigned int )ret_ucl_object_todouble_lmtfo);
-        if (ret_ucl_parser_get_current_stack_object_iebfm == NULL){
-        	return 0;
-        }
+    LLVMFuzzerTestOneInput_68(data + 1, (size_t)(size - 1));
 
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_current_stack_object to ucl_object_insert_key
-        ucl_object_t* ret_ucl_parser_get_object_vcpsu = ucl_parser_get_object(NULL);
-        if (ret_ucl_parser_get_object_vcpsu == NULL){
-        	return 0;
-        }
-        char* ret_ucl_copy_key_trash_zpecr = ucl_copy_key_trash(ret_ucl_object_fromint_jmawh);
-        if (ret_ucl_copy_key_trash_zpecr == NULL){
-        	return 0;
-        }
-        int ret_ucl_parser_get_error_code_khahu = ucl_parser_get_error_code(parser);
-        if (ret_ucl_parser_get_error_code_khahu < 0){
-        	return 0;
-        }
-        bool ret_ucl_object_iter_chk_excpn_ohuei = ucl_object_iter_chk_excpn(NULL);
-        if (ret_ucl_object_iter_chk_excpn_ohuei == 0){
-        	return 0;
-        }
-
-        bool ret_ucl_object_insert_key_owhoc = ucl_object_insert_key(ret_ucl_parser_get_current_stack_object_iebfm, ret_ucl_parser_get_object_vcpsu, ret_ucl_copy_key_trash_zpecr, (size_t )ret_ucl_parser_get_error_code_khahu, ret_ucl_object_iter_chk_excpn_ohuei);
-        if (ret_ucl_object_insert_key_owhoc == 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    ucl_parser_free(parser);
-
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif
