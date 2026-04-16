@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,75 +11,165 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
 #include <cstdlib>
-#include "aom/aomdx.h"
-#include "/src/aom/aom/aom_frame_buffer.h"
-#include "/src/aom/aom/aom_external_partition.h"
-#include "/src/aom/aom/aom_encoder.h"
+#include <cstring>
+#include "/src/aom/aom/aom.h"
 #include "/src/aom/aom/aom_codec.h"
 #include "/src/aom/aom/aomcx.h"
-#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
 #include "/src/aom/aom/aom_image.h"
-#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "aom/aomdx.h"
 #include "aom/aom_decoder.h"
 
-static aom_image_t* create_dummy_image() {
-    aom_image_t* img = (aom_image_t*)malloc(sizeof(aom_image_t));
-    if (!img) return nullptr;
-    img->fmt = AOM_IMG_FMT_I420;
-    img->w = 640;
-    img->h = 480;
-    img->stride[0] = img->w;
-    img->stride[1] = img->stride[2] = img->w / 2;
-    img->planes[0] = (unsigned char*)malloc(img->h * img->stride[0]);
-    img->planes[1] = (unsigned char*)malloc(img->h / 2 * img->stride[1]);
-    img->planes[2] = (unsigned char*)malloc(img->h / 2 * img->stride[2]);
-    return img;
-}
-
-static void destroy_dummy_image(aom_image_t* img) {
-    if (img) {
-        free(img->planes[0]);
-        free(img->planes[1]);
-        free(img->planes[2]);
-        free(img);
-    }
-}
-
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t) + sizeof(aom_image_t)) return 0;
-
-    aom_codec_ctx_t ctx;
-    aom_image_t* img = create_dummy_image();
-    if (!img) return 0;
-
-    aom_codec_err_t res;
-    aom_codec_pts_t pts = 0;
-    unsigned long duration = 1;
-    aom_enc_frame_flags_t flags = 0;
-
-    // Fuzzing aom_codec_encode
-    res = aom_codec_encode(&ctx, img, pts, duration, flags);
-    if (res != AOM_CODEC_OK) {
-        const char* err_msg = aom_codec_error(&ctx);
-        fprintf(stderr, "Error: %s\n", err_msg);
+    if (Size < sizeof(int)) {
+        return 0;
     }
 
-    // Fuzzing aom_codec_destroy
-    res = aom_codec_destroy(&ctx);
-    if (res != AOM_CODEC_OK) {
-        const char* err_msg = aom_codec_error(&ctx);
-        fprintf(stderr, "Destroy Error: %s\n", err_msg);
+    // Initialize codec context
+    aom_codec_ctx_t codec;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
+        return 0;
     }
 
-    // Fuzzing aom_codec_set_option
-    res = aom_codec_set_option(&ctx, "dummy_option", "dummy_value");
-    if (res != AOM_CODEC_OK) {
-        const char* err_msg = aom_codec_error(&ctx);
-        fprintf(stderr, "Set Option Error: %s\n", err_msg);
+    if (aom_codec_enc_init(&codec, iface, &cfg, 0)) {
+        return 0;
     }
 
-    destroy_dummy_image(img);
+    // Prepare parameters from input data
+    int bitrate = *reinterpret_cast<const int*>(Data);
+    Data += sizeof(int);
+    Size -= sizeof(int);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_BITRATE_ONE_PASS_CBR
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_control
+    aom_codec_control(&codec, Size);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    if (Size < 1) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ
+    int enable_rate_guide_deltaq = Data[0] % 2;
+    aom_codec_control(&codec, AV1E_ENABLE_RATE_GUIDE_DELTAQ, enable_rate_guide_deltaq);
+
+    if (Size < 2) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING
+    int enable_keyframe_filtering = Data[1] % 2;
+    aom_codec_control(&codec, AV1E_SET_ENABLE_KEYFRAME_FILTERING, enable_keyframe_filtering);
+
+    if (Size < 3) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE
+    int force_video_mode = Data[2] % 2;
+    aom_codec_control(&codec, AV1E_SET_FORCE_VIDEO_MODE, force_video_mode);
+
+    if (Size < 4) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_AUTO_TILES
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_error_detail
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_get_stream_info
+    aom_codec_err_t ret_aom_codec_get_stream_info_grsdy = aom_codec_get_stream_info(&codec, NULL);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_set_frame_buffer_functions
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_set_option
+    aom_codec_err_t ret_aom_codec_set_option_isecr = aom_codec_set_option(&codec, (const char *)"w", (const char *)"r");
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_option to aom_codec_decode
+    aom_codec_err_t ret_aom_codec_destroy_ivwdg = aom_codec_destroy(&codec);
+    size_t ret_aom_uleb_size_in_bytes_ferzp = aom_uleb_size_in_bytes(AOM_EFLAG_FORCE_KF);
+    if (ret_aom_uleb_size_in_bytes_ferzp < 0){
+    	return 0;
+    }
+    aom_codec_err_t ret_aom_codec_decode_ygdzm = aom_codec_decode(&codec, (const uint8_t *)&ret_aom_uleb_size_in_bytes_ferzp, AOM_MAX_TS_LAYERS, (void *)&codec);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_pthta = aom_codec_set_frame_buffer_functions(NULL, 0, 0, (void *)&codec);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    const char* ret_aom_codec_error_detail_ukxjw = aom_codec_error_detail(&codec);
+    if (ret_aom_codec_error_detail_ukxjw == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int auto_tiles = Data[3] % 2;
+    aom_codec_control(&codec, AV1E_SET_AUTO_TILES, auto_tiles);
+
+    if (Size < 5) {
+        aom_codec_destroy(&codec);
+        return 0;
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_AQ_MODE
+    int aq_mode = Data[4] % 4; // Assuming 4 different AQ modes
+    aom_codec_control(&codec, AV1E_SET_AQ_MODE, aq_mode);
+
+    // Clean up
+    aom_codec_destroy(&codec);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

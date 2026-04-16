@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,70 +9,126 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "aom/aomdx.h"
-#include "/src/aom/aom/aom_frame_buffer.h"
-#include "/src/aom/aom/aom_external_partition.h"
-#include "/src/aom/aom/aom_encoder.h"
-#include "/src/aom/aom/aom_codec.h"
-#include "/src/aom/aom/aomcx.h"
-#include "/src/aom/aom/aom_integer.h"
-#include "/src/aom/aom/aom_image.h"
-#include "/src/aom/aom/aom.h"
-#include "aom/aom_decoder.h"
-}
-
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <iostream>
-#include <fstream>
-
-static void InitializeCodecContext(aom_codec_ctx_t &ctx) {
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    aom_codec_enc_cfg_t cfg;
-    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
-        std::cerr << "Failed to get default encoder configuration" << std::endl;
-        return;
-    }
-    if (aom_codec_enc_init(&ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
-        std::cerr << "Failed to initialize encoder" << std::endl;
-        return;
-    }
-}
-
-static void CleanupCodecContext(aom_codec_ctx_t &ctx) {
-    if (aom_codec_destroy(&ctx) != AOM_CODEC_OK) {
-        std::cerr << "Failed to destroy codec context" << std::endl;
-    }
-}
+#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aomcx.h"
+#include "aom/aom_decoder.h"
+#include "aom/aomdx.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom_integer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    aom_codec_ctx_t codec_ctx;
-    InitializeCodecContext(codec_ctx);
+    // Initialize decoder
+    aom_codec_ctx_t dec_ctx;
+    aom_codec_iface_t *dec_iface = aom_codec_av1_dx();
 
-    int param_value = 0;
-    std::memcpy(&param_value, Data, sizeof(int));
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_av1_dx to aom_codec_iface_name
+    const char* ret_aom_codec_iface_name_btjfb = aom_codec_iface_name(dec_iface);
+    if (ret_aom_codec_iface_name_btjfb == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    aom_codec_dec_cfg_t dec_cfg = {0}; // Default configuration
+    aom_codec_err_t dec_res = aom_codec_dec_init_ver(&dec_ctx, dec_iface, &dec_cfg, 0, AOM_DECODER_ABI_VERSION);
+    if (dec_res != AOM_CODEC_OK) {
+        return 0;
+    }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_TUNING
-    aom_codec_control_typechecked_AOME_SET_TUNING(&codec_ctx, AOME_SET_TUNING, param_value);
+    // Initialize encoder
+    aom_codec_ctx_t enc_ctx;
+    aom_codec_iface_t *enc_iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t enc_cfg;
+    if (aom_codec_enc_config_default(enc_iface, &enc_cfg, 0) != AOM_CODEC_OK) {
+        aom_codec_destroy(&dec_ctx);
+        return 0;
+    }
+    aom_codec_err_t enc_res = aom_codec_enc_init_ver(&enc_ctx, enc_iface, &enc_cfg, 0, AOM_ENCODER_ABI_VERSION);
+    if (enc_res != AOM_CODEC_OK) {
+        aom_codec_destroy(&dec_ctx);
+        return 0;
+    }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD
-    aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD(&codec_ctx, AOME_SET_STATIC_THRESHOLD, static_cast<unsigned int>(param_value));
+    // Decode input data
+    if (aom_codec_decode(&dec_ctx, Data, Size, NULL) != AOM_CODEC_OK) {
+        aom_codec_destroy(&enc_ctx);
+        aom_codec_destroy(&dec_ctx);
+        return 0;
+    }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_ARNR_MAXFRAMES
-    aom_codec_control_typechecked_AOME_SET_ARNR_MAXFRAMES(&codec_ctx, AOME_SET_ARNR_MAXFRAMES, static_cast<unsigned int>(param_value));
+    // Get decoded frames
+    aom_codec_iter_t iter = NULL;
+    aom_image_t *img = nullptr;
+    while ((img = aom_codec_get_frame(&dec_ctx, &iter)) != NULL) {
+        // Encode the frame
+        if (aom_codec_encode(&enc_ctx, img, 0, 1, 0) != AOM_CODEC_OK) {
+            break;
+        }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_ARNR_STRENGTH
-    aom_codec_control_typechecked_AOME_SET_ARNR_STRENGTH(&codec_ctx, AOME_SET_ARNR_STRENGTH, static_cast<unsigned int>(param_value));
+        // Get stream info
+        aom_codec_stream_info_t si;
+        if (aom_codec_get_stream_info(&dec_ctx, &si) != AOM_CODEC_OK) {
+            break;
+        }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF
-    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF(&codec_ctx, AOME_SET_ENABLEAUTOALTREF, static_cast<unsigned int>(param_value));
+        // Get capabilities
+        aom_codec_caps_t caps = aom_codec_get_caps(dec_iface);
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_CQ_LEVEL
-    aom_codec_control_typechecked_AOME_SET_CQ_LEVEL(&codec_ctx, AOME_SET_CQ_LEVEL, param_value);
+        (void)caps; // Use capabilities for something meaningful
+    }
 
-    CleanupCodecContext(codec_ctx);
+    // Cleanup
+    aom_codec_destroy(&enc_ctx);
+    aom_codec_destroy(&dec_ctx);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

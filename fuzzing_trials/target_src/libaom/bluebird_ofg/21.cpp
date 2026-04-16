@@ -1,28 +1,74 @@
-#include <cstdint>
+#include <string.h>
+#include <sys/stat.h>
 #include <cstddef>
-#include <cstring>
-#include "/src/aom/aom/aom_integer.h"  // Assuming this is where aom_uleb_encode is declared
-
-extern "C" {
-    // Include the function-under-test
-    int aom_uleb_encode(uint64_t value, size_t available, uint8_t *coded, size_t *coded_size);
-}
+#include <cstdint>
+#include "aom/aom_decoder.h"
+#include "aom/aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Initialize variables
-    uint64_t value = 12345; // A non-zero arbitrary value
-    size_t available = size > 0 ? size : 1; // Ensure available is at least 1
-    uint8_t *coded = new uint8_t[available]; // Allocate memory for coded
-    size_t coded_size = 0; // Initialize coded_size
+    aom_codec_ctx_t codec;
+    aom_codec_err_t res;
+    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
+    void *user_priv = (void*)1; // Non-NULL user private data
 
-    // Ensure data is not NULL and size is greater than 0
-    if (data != nullptr && size > 0) {
-        // Call the function-under-test
-        aom_uleb_encode(value, available, coded, &coded_size);
+    // Initialize the codec context
+    res = aom_codec_dec_init(&codec, iface, NULL, 0);
+    if (res != AOM_CODEC_OK) {
+        return 0; // Initialization failed
     }
 
-    // Clean up allocated memory
-    delete[] coded;
+    // Call the function-under-test
+    res = aom_codec_decode(&codec, data, size, user_priv);
+
+    // Destroy the codec context
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_get_frame
+    aom_image_t* ret_aom_codec_get_frame_zzokr = aom_codec_get_frame(&codec, NULL);
+    if (ret_aom_codec_get_frame_zzokr == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    aom_codec_destroy(&codec);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

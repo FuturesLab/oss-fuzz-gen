@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -29,6 +31,17 @@ extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
     // Initialize decoder
     aom_codec_ctx_t dec_ctx;
     aom_codec_iface_t *dec_iface = aom_codec_av1_dx();
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_av1_dx to aom_codec_peek_stream_info
+    size_t ret_aom_uleb_size_in_bytes_xljnl = aom_uleb_size_in_bytes(AOM_MAX_TILE_COLS);
+    if (ret_aom_uleb_size_in_bytes_xljnl < 0){
+    	return 0;
+    }
+    aom_codec_stream_info_t xalzskqu;
+    memset(&xalzskqu, 0, sizeof(xalzskqu));
+    aom_codec_err_t ret_aom_codec_peek_stream_info_xudhg = aom_codec_peek_stream_info(dec_iface, (const uint8_t *)&ret_aom_uleb_size_in_bytes_xljnl, AOM_PLANE_U, &xalzskqu);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     aom_codec_dec_cfg_t dec_cfg = {0}; // Default configuration
     aom_codec_err_t dec_res = aom_codec_dec_init_ver(&dec_ctx, dec_iface, &dec_cfg, 0, AOM_DECODER_ABI_VERSION);
     if (dec_res != AOM_CODEC_OK) {
@@ -79,14 +92,46 @@ extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
 
     // Cleanup
     aom_codec_destroy(&enc_ctx);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_set_option
-
-        aom_codec_err_t ret_aom_codec_set_option_uicri = aom_codec_set_option(&dec_ctx, (const char *)Data, (const char *)"w");
-
-        // End mutation: Producer.APPEND_MUTATOR
-
     aom_codec_destroy(&dec_ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

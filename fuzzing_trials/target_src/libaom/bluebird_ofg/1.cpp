@@ -1,71 +1,108 @@
+#include <string.h>
+#include <sys/stat.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include "aom/aom_decoder.h"
 #include "aom/aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
     aom_codec_ctx_t codec;
     aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
+    void *user_priv = (void*)1; // Non-NULL user private data
 
     // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, nullptr, 0);
+    res = aom_codec_dec_init(&codec, iface, NULL, 0);
     if (res != AOM_CODEC_OK) {
-        return 0;
+        return 0; // Initialization failed
     }
 
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, nullptr);
+    res = aom_codec_decode(&codec, data, size, user_priv);
 
     // Destroy the codec context
 
     // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
+    aom_image_t itwfpvem;
+    memset(&itwfpvem, 0, sizeof(itwfpvem));
+    aom_img_flip(&itwfpvem);
 
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of aom_codec_set_frame_buffer_functions
-    char ktbcqqjc[1024] = "tzuqq";
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_cxmbv = aom_codec_set_frame_buffer_functions(&codec, 0, 0, ktbcqqjc);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_set_option
-    const char vyaafayr[1024] = "eslhb";
-
-    aom_codec_err_t ret_aom_codec_set_option_gdtgk = aom_codec_set_option(&codec, (const char *)data, vyaafayr);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    aom_codec_err_t ret_aom_codec_control_yjtsg = aom_codec_control(&codec, size);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_destroy to aom_codec_control
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_set_option
-    const char setldenk[1024] = "smpmh";
-
-    aom_codec_err_t ret_aom_codec_set_option_fdlby = aom_codec_set_option(&codec, NULL, setldenk);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    aom_codec_caps_t ret_aom_codec_get_caps_boeri = aom_codec_get_caps(iface);
-    if (ret_aom_codec_get_caps_boeri < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_img_flip to aom_img_plane_width
+    size_t ret_aom_uleb_size_in_bytes_vthmz = aom_uleb_size_in_bytes(size);
+    if (ret_aom_uleb_size_in_bytes_vthmz < 0){
     	return 0;
     }
-
-    aom_codec_err_t ret_aom_codec_control_obvnb = aom_codec_control(&codec, (int )ret_aom_codec_get_caps_boeri);
-
+    int ret_aom_img_plane_width_vowso = aom_img_plane_width(&itwfpvem, (int )ret_aom_uleb_size_in_bytes_vthmz);
+    if (ret_aom_img_plane_width_vowso < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ydahc = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)&itwfpvem);
+    // End mutation: Producer.APPEND_MUTATOR
+    
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
+    aom_codec_err_t ret_aom_codec_control_wogqs = aom_codec_control(&codec, size);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_decode
+    size_t ret_aom_img_num_metadata_pdnnb = aom_img_num_metadata(&itwfpvem);
+    if (ret_aom_img_num_metadata_pdnnb < 0){
+    	return 0;
+    }
+    size_t ret_aom_uleb_size_in_bytes_ikmes = aom_uleb_size_in_bytes(-1);
+    if (ret_aom_uleb_size_in_bytes_ikmes < 0){
+    	return 0;
+    }
+    const char* ret_aom_codec_iface_name_jvcvj = aom_codec_iface_name(iface);
+    if (ret_aom_codec_iface_name_jvcvj == NULL){
+    	return 0;
+    }
+    aom_codec_err_t ret_aom_codec_decode_poetr = aom_codec_decode(&codec, (const uint8_t *)&ret_aom_img_num_metadata_pdnnb, ret_aom_uleb_size_in_bytes_ikmes, (void *)iface);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     aom_codec_destroy(&codec);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
