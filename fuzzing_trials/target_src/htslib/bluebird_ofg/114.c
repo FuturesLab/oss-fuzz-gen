@@ -1,75 +1,83 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdlib.h>  // Include for dynamic memory allocation
 
-// Function prototype for the function-under-test
-int sam_index_build3(const char *fn, const char *fnidx, int min_shift, int n_threads);
+// Assuming bam_mplp_t and DW_TAG_subroutine_typeInfinite_loop are defined somewhere in the included headers
+typedef struct {
+    // Placeholder for actual structure members
+    int placeholder; 
+} bam_mplp_t;
+
+typedef struct {
+    // Placeholder for actual structure members
+    int placeholder; 
+} DW_TAG_subroutine_typeInfinite_loop;
+
+// Function under test
+void bam_mplp_constructor(bam_mplp_t *mplp, DW_TAG_subroutine_typeInfinite_loop *loop);
 
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    // Check if the input size is too small to be meaningful
-    if (size < 1) {
-        return 0; // Exit if no data is provided
+    // Allocate memory for bam_mplp_t and DW_TAG_subroutine_typeInfinite_loop
+    bam_mplp_t *mplp = (bam_mplp_t *)malloc(sizeof(bam_mplp_t));
+    if (!mplp) return 0;  // Check for allocation failure
+
+    DW_TAG_subroutine_typeInfinite_loop *loop = (DW_TAG_subroutine_typeInfinite_loop *)malloc(sizeof(DW_TAG_subroutine_typeInfinite_loop));
+    if (!loop) {
+        free(mplp);
+        return 0;  // Check for allocation failure
     }
 
-    // Create temporary files to simulate filenames
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
+    // Initialize with a non-NULL value
+    mplp->placeholder = 0;
+    loop->placeholder = 0;
 
-    // Ensure the temporary files are created successfully
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) {
-                close(fd1);
-        }
-        if (fd2 != -1) {
-                close(fd2);
-        }
-        return 0; // Exit if file creation fails
-    }
+    // Call the function under test
+    bam_mplp_constructor(mplp, loop);
 
-    // Write fuzz data to the first temporary file
-    ssize_t written = write(fd1, data, size);
-    if (written == -1 || written != size) {
-        close(fd1);
-        close(fd2);
-        unlink(tmpl1);
-        unlink(tmpl2);
-        return 0; // Exit if writing fails
-    }
-    close(fd1);
-
-    // Initialize parameters for the function-under-test
-    const char *fn = tmpl1;
-    const char *fnidx = tmpl2;
-    int min_shift = 1;  // Example value, can be varied
-    int n_threads = 2;  // Example value, can be varied
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sam_index_build3
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of sam_index_build3
-    int result = sam_index_build3(fn, fnidx, size, -1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Check the result of the function-under-test
-    if (result != 0) {
-        fprintf(stderr, "Function sam_index_build3 failed with error code: %d\n", result);
-    }
-
-    // Clean up temporary files
-    unlink(tmpl1);
-    unlink(tmpl2);
+    // Free allocated memory
+    free(mplp);
+    free(loop);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_114(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

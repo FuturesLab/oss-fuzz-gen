@@ -1,45 +1,77 @@
+#include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>  // Include for malloc and free
-#include <string.h>  // Include for memcpy
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <htslib/hts.h>
-#include <htslib/bgzf.h> // Include for BGZF related functions
-
-// Remove incorrect inclusion of hts.h
-// #include "/src/htslib/htslib/hts.h"
-
-// bgzf_open_mem is not a standard function in HTSlib, so we need to simulate or replace it
-// with an equivalent operation. Assuming we want to simulate reading from memory, we can use
-// bgzf_open with a custom memory buffer. This requires more setup than is typically shown in
-// a simple example, so we will simulate with a file operation instead.
 
 int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    // Use a BGZF file handle to simulate operations that would involve an index.
-    BGZF *bgzf_fp = NULL;
-
-    // Ensure there's enough data to perform meaningful operations.
-    if (size > 0) {
-        // Create a temporary file to simulate the BGZF file.
-        FILE *temp_file = tmpfile();
-        if (temp_file == NULL) {
-            return 0;
-        }
-
-        // Write the data to the temporary file.
-        fwrite(data, 1, size, temp_file);
-        rewind(temp_file);
-
-        // Open the temporary file using bgzf_open.
-        bgzf_fp = bgzf_dopen(fileno(temp_file), "r");
-        if (bgzf_fp != NULL) {
-            // Perform operations that would involve an index, such as reading.
-            // This is a placeholder for operations involving hts_idx_t indirectly.
-            bgzf_close(bgzf_fp);
-        }
-
-        // Close the temporary file.
-        fclose(temp_file);
+    // Create a temporary file to use as the input filename
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Define a mode for opening the file
+    const char *mode = "r"; // Read mode
+
+    // Call the function-under-test
+    htsFile *file = hts_open(tmpl, mode);
+
+    // Clean up
+    if (file != NULL) {
+        hts_close(file);
+    }
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_99(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

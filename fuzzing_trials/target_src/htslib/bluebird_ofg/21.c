@@ -1,50 +1,69 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/hts_defs.h"
-#include "/src/htslib/htslib/bgzf.h"
-#include "/src/htslib/htslib/kstring.h"
-#include "/src/htslib/htslib/tbx.h"
-
-// Dummy implementations for function pointers
-static int dummy_name2id(void *hdr, const char *name) {
-    return 0; // Dummy implementation
-}
-
-static int dummy_itr_query_func(hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t end, hts_itr_t *iter) {
-    return 0; // Dummy implementation
-}
-
-static int dummy_readrec_func(BGZF *fp, void *hdr, void *data, int *tid, int64_t *beg, int64_t *end, int *is_rev, kstring_t *str) {
-    return 0; // Dummy implementation
-}
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Initialize htsFormat structure
+    htsFormat format;
+    
+    // Ensure that the size is large enough to fill the fields of htsFormat
+    if (size < sizeof(htsFormat)) {
         return 0;
     }
 
-    // Create a dummy hts_idx_t pointer
-    hts_idx_t *dummy_idx = NULL; // Initialize as NULL
+    // Copy data to format, ensuring no overflow
+    memcpy(&format, data, sizeof(htsFormat));
 
-    // Use the data as a string for the query
-    char *query = (char *)malloc(size + 1);
-    if (query == NULL) {
-        return 0;
-    }
-    memcpy(query, data, size);
-    query[size] = '\0';
+    // Call the function-under-test
+    char *description = hts_format_description(&format);
 
-    // Call the function under test
-    hts_itr_t *itr = hts_itr_querys(dummy_idx, query, dummy_name2id, NULL, dummy_itr_query_func, dummy_readrec_func);
-
-    // Clean up
-    free(query);
-    if (itr) {
-        hts_itr_destroy(itr);
+    // Free the allocated description if it's not NULL
+    if (description != NULL) {
+        free(description);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

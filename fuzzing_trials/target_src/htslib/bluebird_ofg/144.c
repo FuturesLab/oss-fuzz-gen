@@ -1,116 +1,73 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include "htslib/hts.h"
-#include "htslib/sam.h"
+#include <stddef.h>
+#include <string.h>
 
-// Function to handle the fuzz input
+// Declare the external function
+extern int sam_open_mode(char *, const char *, const char *);
+
 int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
-    // Check if the input size is reasonable
-    if (size < 4) { // Arbitrary small size to avoid processing very small inputs
+    // Ensure that the input data is large enough to create three strings
+    if (size < 6) {
         return 0;
     }
 
-    // Initialize htsFile with a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Allocate buffers for the strings
+    char buffer1[3];
+    char buffer2[3];
+    char buffer3[3];
 
-    // Open the file with htslib
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        remove(tmpl);
-        return 0;
-    }
+    // Copy data into the buffers ensuring null-termination
+    memcpy(buffer1, data, 2);
+    buffer1[2] = '\0';
 
-    // Read the header
+    memcpy(buffer2, data + 2, 2);
+    buffer2[2] = '\0';
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to sam_hdr_set
-    sam_hdr_t* ret_sam_hdr_get_wymnx = sam_hdr_get(hts_file);
-    if (ret_sam_hdr_get_wymnx == NULL){
-    	return 0;
-    }
+    memcpy(buffer3, data + 4, 2);
+    buffer3[2] = '\0';
 
-    int ret_sam_hdr_set_alzzd = sam_hdr_set(hts_file, ret_sam_hdr_get_wymnx, HTS_IDX_NONE);
-    if (ret_sam_hdr_set_alzzd < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    bam_hdr_t *header = sam_hdr_read(hts_file);
-    if (!header) {
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize an iterator
-    hts_idx_t *idx = sam_index_load(hts_file, tmpl);
-    if (!idx) {
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    hts_itr_t *itr = sam_itr_queryi(idx, HTS_IDX_NOCOOR, 0, 0);
-    if (!itr) {
-        hts_idx_destroy(idx);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_destroy to sam_itr_queryi
-
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sam_itr_queryi
-        hts_itr_t* ret_sam_itr_queryi_eetvp = sam_itr_queryi(idx, 64, BAM_FMUNMAP, 64);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        if (ret_sam_itr_queryi_eetvp == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize a buffer for the third parameter
-    bam1_t *b = bam_init1();
-    if (!b) {
-        hts_itr_destroy(itr);
-        hts_idx_destroy(idx);
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Call the function-under-test
-    while (sam_itr_next(hts_file, itr, b) >= 0) {
-        // Process each record (for fuzzing, we don't need to do anything here)
-    }
-
-    // Clean up
-    bam_destroy1(b);
-    hts_itr_destroy(itr);
-    hts_idx_destroy(idx);
-    bam_hdr_destroy(header);
-    hts_close(hts_file);
-    remove(tmpl);
+    // Call the function under test
+    sam_open_mode(buffer1, buffer2, buffer3);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_144(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

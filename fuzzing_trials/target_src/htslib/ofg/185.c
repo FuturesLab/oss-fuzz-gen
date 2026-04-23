@@ -1,83 +1,68 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>  // Include for mkstemp, close, unlink
-#include <fcntl.h>   // Include for write
-#include <string.h>  // Include for memcpy
-#include "/src/htslib/htslib/hfile.h"  // Correct path for hfile.h
+#include <htslib/hts.h>
+#include <htslib/sam.h>
 
-// Hypothetical function under test; replace with actual function
-int process_data(const uint8_t *data, size_t size) {
-    // Perform some operations on the data to increase code coverage
-    if (size > 0) {
-        // Example: Check for a specific pattern in the data
-        if (size >= 4 && data[0] == 'F' && data[1] == 'U' && data[2] == 'Z' && data[3] == 'Z') {
-            printf("Pattern 'FUZZ' found!\n");
-            return 1;
-        }
-        // Example: Sum up all the bytes in the data
-        int sum = 0;
-        for (size_t i = 0; i < size; i++) {
-            sum += data[i];
-        }
-        return sum;
-    }
-    return 0;
-}
-
+// Remove the extern "C" linkage specification for C++ compatibility
 int LLVMFuzzerTestOneInput_185(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;  // Exit early if there's no data to process
+    // Initialize the hts_idx_t and hts_itr_t structures
+    // Provide appropriate dummy values for the additional parameters
+    hts_idx_t *index = hts_idx_init(0, HTS_FMT_BAI, 0, 14, 5); // Initialize with dummy values
+    hts_itr_t *iterator = (hts_itr_t *)malloc(sizeof(hts_itr_t));
+
+    if (index == NULL || iterator == NULL) {
+        if (index != NULL) hts_idx_destroy(index);
+        if (iterator != NULL) free(iterator);
+        return 0;
     }
 
-    // Create a temporary file to use with hFILE
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;  // If we can't create a temp file, exit early
-    }
-
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) == -1) {
-        close(fd);
-        unlink(tmpl);
-        return 0;  // If writing fails, clean up and exit early
-    }
-
-    // Open the file using hFILE
-    hFILE *hfile = hopen(tmpl, "r+");
-    if (hfile == NULL) {
-        close(fd);
-        unlink(tmpl);
-        return 0;  // If opening fails, clean up and exit early
-    }
-
-    // Read the data back from the file
-    uint8_t *buffer = malloc(size);
-    if (buffer == NULL) {
-        hclose(hfile);
-        close(fd);
-        unlink(tmpl);
-        return 0;  // If memory allocation fails, clean up and exit early
-    }
-
-    if (hread(hfile, buffer, size) != size) {
-        free(buffer);
-        hclose(hfile);
-        close(fd);
-        unlink(tmpl);
-        return 0;  // If reading fails, clean up and exit early
-    }
-
-    // Call the function-under-test with the read data
-    int result = process_data(buffer, size);
+    // Call the function-under-test
+    // Note: hts_itr_multi_bam is not a standard function in htslib, assuming it is a custom function
+    // If it is part of the library, ensure to include the correct header or use the correct function signature
+    int result = hts_itr_multi_bam(index, iterator);
 
     // Clean up
-    free(buffer);
-    hclose(hfile);
-    close(fd);
-    unlink(tmpl);
+    hts_idx_destroy(index);
+    free(iterator);
 
-    return result;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_185(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

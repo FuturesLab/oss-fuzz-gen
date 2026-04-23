@@ -1,52 +1,97 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include "htslib/sam.h"
-#include "/src/htslib/htslib/kstring.h"
+#include "htslib/sam.h" // Correct path for sam_hdr_t
 
 int LLVMFuzzerTestOneInput_101(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract multiple strings
-    if (size < 5) {
+    sam_hdr_t *hdr;
+    char *arg1, *arg2, *arg3;
+    void *arg4 = (void *)1; // Using a non-NULL value for the void argument
+
+    // Initialize the sam_hdr_t object
+    hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Initialize variables
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
-        return 0;
-    }
-
-    // Allocate space for strings and ensure null-termination
-    char str1[2], str2[2], str3[2], str4[2];
-    kstring_t ks = {0, 0, NULL};
-
-    // Extract strings from data
-    str1[0] = (char)data[0];
-    str1[1] = '\0';
-    str2[0] = (char)data[1];
-    str2[1] = '\0';
-    str3[0] = (char)data[2];
-    str3[1] = '\0';
-    str4[0] = (char)data[3];
-    str4[1] = '\0';
-
-    // Use the rest of the data for kstring_t
-    ks.l = size - 4;
-    ks.s = (char *)malloc(ks.l + 1);
-    if (!ks.s) {
+    // Ensure there is enough data for the string arguments
+    if (size < 3) {
         sam_hdr_destroy(hdr);
         return 0;
     }
-    memcpy(ks.s, data + 4, ks.l);
-    ks.s[ks.l] = '\0';
+
+    // Allocate and copy strings from the input data
+    arg1 = (char *)malloc(size / 3 + 1);
+    arg2 = (char *)malloc(size / 3 + 1);
+    arg3 = (char *)malloc(size / 3 + 1);
+
+    if (arg1 == NULL || arg2 == NULL || arg3 == NULL) {
+        free(arg1);
+        free(arg2);
+        free(arg3);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    memcpy(arg1, data, size / 3);
+    arg1[size / 3] = '\0';
+
+    memcpy(arg2, data + size / 3, size / 3);
+    arg2[size / 3] = '\0';
+
+    memcpy(arg3, data + 2 * (size / 3), size / 3);
+    arg3[size / 3] = '\0';
 
     // Call the function-under-test
-    int result = sam_hdr_find_tag_id(hdr, str1, str2, str3, str4, &ks);
+    sam_hdr_update_line(hdr, arg1, arg2, arg3, arg4);
 
     // Clean up
-    free(ks.s);
+    free(arg1);
+    free(arg2);
+    free(arg3);
     sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_101(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

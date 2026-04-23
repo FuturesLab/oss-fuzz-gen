@@ -2,55 +2,82 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include <htslib/bgzf.h>
-#include <htslib/sam.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Assuming bam_plp_t and DW_TAG_subroutine_typeInfinite_loop are defined somewhere
+typedef void* bam_plp_t; // Placeholder type definition
+typedef struct {
+    int dummy; // Placeholder structure
+} DW_TAG_subroutine_typeInfinite_loop;
+
+// Function signature
+void bam_plp_destructor(bam_plp_t plp, DW_TAG_subroutine_typeInfinite_loop *loop);
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Initialize BGZF file for writing
-    BGZF *fp = bgzf_open("/dev/null", "w");
-    if (fp == NULL) {
-        return 0;
+    bam_plp_t plp;
+    DW_TAG_subroutine_typeInfinite_loop loop;
+
+    // Initialize plp and loop with non-NULL values
+    // For fuzzing, we can allocate memory or use some dummy values
+    plp = malloc(1); // Allocate minimal memory
+    if (plp == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Allocate memory for bam1_t structure
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        bgzf_close(fp);
-        return 0;
-    }
+    // Initialize the loop structure with some data
+    loop.dummy = (size > 0) ? data[0] : 0;
 
-    // Ensure size is sufficient to fill bam1_t structure
-    if (size > sizeof(bam1_core_t)) {
-        // Allocate memory for the data field
-        b->data = (uint8_t *)malloc(size);
-        if (b->data == NULL) {
-            bam_destroy1(b);
-            bgzf_close(fp);
-            return 0;
-        }
+    // Call the function-under-test
+    bam_plp_destructor(plp, &loop);
 
-        // Copy data into bam1_t structure
-        memcpy(b->data, data, size);
-
-        // Properly initialize bam1_t fields
-        b->core.l_qname = data[0] % 255 + 1; // Set a valid length for the query name
-        b->core.n_cigar = data[1] % 10; // Random number of cigar operations
-        b->core.l_qseq = data[2] % 255;  // Random sequence length
-        b->core.l_extranul = 0; // No extra null bytes
-
-        // Set the data_len to the size of the data allocated
-        b->l_data = size;
-
-        // Call the function-under-test
-        bam_write1(fp, b);
-
-        // No need to free b->data manually
-    }
-
-    // Clean up
-    bam_destroy1(b);  // This will free b->data if it was allocated
-    bgzf_close(fp);
+    // Free allocated memory
+    free(plp);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

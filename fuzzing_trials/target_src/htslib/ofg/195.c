@@ -1,50 +1,82 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <unistd.h>  // For close() and mkstemp()
-#include <fcntl.h>   // For O_RDWR
-#include "/src/htslib/htslib/hfile.h"  // Correct path for hgetdelim
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>  // Include for mkstemp function
+#include "/src/htslib/htslib/hts.h"  // Ensure the correct path to the htslib header
 
 int LLVMFuzzerTestOneInput_195(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for hgetdelim
-    char *buffer = (char *)malloc(size + 1);  // Allocate buffer for reading
-    if (buffer == NULL) {
-        return 0;  // Exit if memory allocation fails
-    }
-    size_t buffer_size = size + 1;  // Set buffer size
-    int delimiter = '\n';  // Use newline as a delimiter
-
-    // Create a temporary file and write the fuzz data to it
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        free(buffer);
-        return 0;  // Exit if file creation fails
+        return 0;
     }
-    FILE *file = fdopen(fd, "w+");
-    if (file == NULL) {
-        close(fd);
-        free(buffer);
-        return 0;  // Exit if file opening fails
-    }
-    fwrite(data, 1, size, file);
-    rewind(file);
 
-    // Convert FILE* to hFILE* using hopen with the correct arguments
-    hFILE *hfile = hopen(tmpl, "r");
-    if (hfile == NULL) {
-        fclose(file);
-        free(buffer);
-        return 0;  // Exit if hFILE conversion fails
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
     }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Prepare the second argument for hts_readlines
+    int num_lines = 0;
 
     // Call the function-under-test
-    ssize_t result = hgetdelim(buffer, buffer_size, delimiter, hfile);
+    char **lines = hts_readlines(tmpl, &num_lines);
 
     // Clean up
-    hclose(hfile);  // Assuming hclose is the correct function to close hFILE
-    fclose(file);
-    free(buffer);
+    if (lines != NULL) {
+        for (int i = 0; i < num_lines; ++i) {
+            free(lines[i]);
+        }
+        free(lines);
+    }
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_195(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

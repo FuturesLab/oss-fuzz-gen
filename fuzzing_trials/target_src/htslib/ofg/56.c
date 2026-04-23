@@ -1,36 +1,67 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <htslib/sam.h> // Include the necessary header for bam_cigar2rlen
+#include <stdio.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read an integer and at least one uint32_t
-    if (size < sizeof(int) + sizeof(uint32_t)) {
+    // Ensure we have enough data to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Extract an integer from the data
-    int n_cigar = *((int *)data);
-
-    // Ensure n_cigar is a positive number to avoid undefined behavior
-    if (n_cigar <= 0) {
+    // Initialize htsFile
+    htsFile *file = hts_open("test.bam", "wb");
+    if (file == NULL) {
         return 0;
     }
 
-    // Calculate the number of uint32_t elements we can safely extract
-    size_t num_cigar_ops = (size - sizeof(int)) / sizeof(uint32_t);
-
-    // Ensure we have at least n_cigar uint32_t elements
-    if (num_cigar_ops < (size_t)n_cigar) {
-        return 0;
-    }
-
-    // Extract the uint32_t array from the data
-    const uint32_t *cigar = (const uint32_t *)(data + sizeof(int));
+    // Extract an integer from the input data
+    int threads = *(int *)data;
 
     // Call the function-under-test
-    hts_pos_t result = bam_cigar2rlen(n_cigar, cigar);
+    hts_set_threads(file, threads);
 
-    (void)result; // Suppress unused variable warning
+    // Close the htsFile
+    hts_close(file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_56(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

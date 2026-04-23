@@ -1,89 +1,84 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
-#include "htslib/sam.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include "htslib/hts.h"
+#include "/src/htslib/htslib/tbx.h"  // Include the header for hts_idx_t and hts_idx_fmt
+#include "/src/htslib/htslib/bgzf.h" // Include the header for BGZF related functions
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to initialize all parameters
-    if (size < sizeof(uint32_t) * 3 + 3 * sizeof(hts_pos_t) + 3 * sizeof(size_t) + 2 * sizeof(char)) {
+    // Create a temporary file to use with the BGZF functions
+    char tmp_filename[] = "/tmp/fuzz_input_XXXXXX";
+    int fd = mkstemp(tmp_filename);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize parameters for bam_set1
-    bam1_t *b = bam_init1();
-    if (!b) {
-        return 0; // Ensure bam1_t is initialized successfully
-    }
+    // Write the data to the temporary file
+    write(fd, data, size);
+    close(fd);
 
-    size_t offset = 0;
-    
-    // Ensure qname is null-terminated within the bounds of the data
-    size_t max_qname_len = size - offset;
-    const char *qname = (const char *)data;
-    size_t qname_len = strnlen(qname, max_qname_len);
-    
-    if (qname_len == max_qname_len) {
-        bam_destroy1(b);
-        return 0; // qname is not null-terminated within the available data
-    }
-    
-    offset += qname_len + 1; // Move offset past qname
-
-    if (offset + sizeof(uint16_t) + sizeof(int32_t) + sizeof(hts_pos_t) + sizeof(uint8_t) + sizeof(size_t) > size) {
-        bam_destroy1(b);
+    // Open the temporary file with BGZF
+    BGZF *bgzf = bgzf_open(tmp_filename, "r");
+    if (bgzf == NULL) {
+        unlink(tmp_filename);
         return 0;
     }
 
-    uint16_t flag = *(uint16_t *)(data + offset);
-    offset += sizeof(uint16_t);
-    int32_t tid = *(int32_t *)(data + offset);
-    offset += sizeof(int32_t);
-    hts_pos_t pos = *(hts_pos_t *)(data + offset);
-    offset += sizeof(hts_pos_t);
-    uint8_t mapq = *(uint8_t *)(data + offset);
-    offset += sizeof(uint8_t);
-    size_t n_cigar = *(size_t *)(data + offset);
-    offset += sizeof(size_t);
-
-    if (offset + n_cigar * sizeof(uint32_t) + sizeof(int32_t) + 2 * sizeof(hts_pos_t) + sizeof(size_t) > size) {
-        bam_destroy1(b);
-        return 0;
-    }
-
-    const uint32_t *cigar = (const uint32_t *)(data + offset);
-    offset += n_cigar * sizeof(uint32_t);
-    int32_t mtid = *(int32_t *)(data + offset);
-    offset += sizeof(int32_t);
-    hts_pos_t mpos = *(hts_pos_t *)(data + offset);
-    offset += sizeof(hts_pos_t);
-    hts_pos_t isize = *(hts_pos_t *)(data + offset);
-    offset += sizeof(hts_pos_t);
-    size_t l_seq = *(size_t *)(data + offset);
-    offset += sizeof(size_t);
-
-    if (offset + l_seq + l_seq + sizeof(size_t) > size) {
-        bam_destroy1(b);
-        return 0;
-    }
-
-    const char *seq = (const char *)(data + offset);
-    offset += l_seq;
-    const char *qual = (const char *)(data + offset);
-    offset += l_seq;
-    size_t l_aux = *(size_t *)(data + offset);
-    offset += sizeof(size_t);
-
-    if (offset + l_aux > size) {
-        bam_destroy1(b);
+    // Use the htslib function to create an index
+    hts_idx_t *idx = tbx_index_load(tmp_filename);
+    if (idx == NULL) {
+        bgzf_close(bgzf);
+        unlink(tmp_filename);
         return 0;
     }
 
     // Call the function-under-test
-    bam_set1(b, size, qname, flag, tid, pos, mapq, n_cigar, cigar, mtid, mpos, isize, l_seq, seq, qual, l_aux);
+    int result = hts_idx_fmt(idx);
 
     // Clean up
-    bam_destroy1(b);
+    hts_idx_destroy(idx);
+    bgzf_close(bgzf);
+    unlink(tmp_filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_137(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

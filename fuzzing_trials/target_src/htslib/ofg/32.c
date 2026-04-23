@@ -1,41 +1,54 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <htslib/hts.h>
-#include <htslib/faidx.h>
-#include <htslib/hts_defs.h> // Include hts_defs.h for the full definition of hts_idx_t
+#include <stdio.h>
+
+// Assume this is the function-under-test provided by the library
+unsigned int hts_features();
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Since we cannot determine the size of hts_idx_t, we will assume a minimum size for fuzzing
-    // This is a workaround since hts_idx_t is an opaque type and its size is unknown
-    const size_t assumed_size = 64; // Assumed minimum size for fuzzing purposes
-
-    // Ensure the size is sufficient to create a mock hts_idx_t structure
-    if (size < assumed_size) {
-        return 0;
-    }
-
-    // Allocate memory for hts_idx_t and initialize it with fuzz data
-    void *index = malloc(assumed_size);
-    if (index == NULL) {
-        return 0;
-    }
-
-    // Copy data into the index structure
-    memcpy(index, data, assumed_size);
-
     // Call the function-under-test
-    // Note: hts_idx_get_n_no_coor expects a valid hts_idx_t pointer, 
-    // so this is just a placeholder to demonstrate the fuzzing process
-    uint64_t result = hts_idx_get_n_no_coor((hts_idx_t *)index);
-
-    // Use the result to avoid compiler optimizations
-    volatile uint64_t avoid_optimization = result;
-    (void)avoid_optimization;
-
-    // Clean up
-    free(index);
+    unsigned int features = hts_features();
+    
+    // Print the features for debugging purposes (optional)
+    printf("HTS Features: %u\n", features);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

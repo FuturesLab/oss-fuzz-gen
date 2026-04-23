@@ -1,248 +1,144 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "htslib/hts.h"
-#include "htslib/hfile.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
 #include "htslib/sam.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static sam_hdr_t *create_dummy_header() {
+    // Create a dummy sam_hdr_t for testing
+    const char *header_text = "@HD\tVN:1.0\n@SQ\tSN:chr1\tLN:248956422\n";
+    return sam_hdr_parse(strlen(header_text), header_text);
 }
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    write_dummy_file(Data, Size);
+    // Ensure null-terminated input for sam_hdr_parse
+    char *null_terminated_data = (char *)malloc(Size + 1);
+    if (!null_terminated_data) {
+        return 0;
+    }
+    memcpy(null_terminated_data, Data, Size);
+    null_terminated_data[Size] = '\0';
 
-    // Open a file stream using hopen
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hopen
-    const char mrjvvofh[1024] = "tsmty";
-    hFILE *hfile = hopen("./dummy_file", mrjvvofh);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (!hfile) {
+    // Test sam_hdr_parse
+    sam_hdr_t *header = sam_hdr_parse(Size, null_terminated_data);
+    free(null_terminated_data);
+    if (!header) {
         return 0;
     }
 
-    // Open a htsFile using hts_hopen
+    // Test sam_hdr_dup
+    sam_hdr_t *dup_header = sam_hdr_dup(header);
+    if (dup_header) {
+        sam_hdr_destroy(dup_header);
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hopen to hgetdelim
-    char* ret_bam_flag2str_aeogi = bam_flag2str(-1);
-    if (ret_bam_flag2str_aeogi == NULL){
+    // Test sam_hdr_incr_ref
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_dup to sam_idx_init
+    htsFile bfrokwtp;
+    memset(&bfrokwtp, 0, sizeof(bfrokwtp));
+    const htsFormat* ret_hts_get_format_hbvjh = hts_get_format(&bfrokwtp);
+    if (ret_hts_get_format_hbvjh == NULL){
+    	return 0;
+    }
+    const uint8_t inntpkpl = Size;
+    int64_t ret_bam_aux2i_gupvm = bam_aux2i(&inntpkpl);
+    if (ret_bam_aux2i_gupvm < 0){
     	return 0;
     }
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_flag2str to bam_aux_update_str
-    bam1_t oioaqcsf;
-    memset(&oioaqcsf, 0, sizeof(oioaqcsf));
-    const char jfuaekxu[1024] = "avaga";
-
-    int ret_bam_aux_update_str_klnsk = bam_aux_update_str(&oioaqcsf, jfuaekxu, BAM_FPAIRED, ret_bam_flag2str_aeogi);
-    if (ret_bam_aux_update_str_klnsk < 0){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from bam_aux2i to sam_hdr_find_tag_pos using the plateau pool
+    const char* type = "SQ";
+    const char* key = "LN";
+    kstring_t ks = {0, 0, NULL};
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!header) {
     	return 0;
     }
-
+    int ret_sam_hdr_find_tag_pos_zzwyv = sam_hdr_find_tag_pos(header, type, (int )ret_bam_aux2i_gupvm, key, &ks);
+    if (ret_sam_hdr_find_tag_pos_zzwyv < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    const uint8_t vkmuuejt = 64;
+    char ret_bam_aux2A_gkxax = bam_aux2A(&vkmuuejt);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!dup_header) {
+    	return 0;
+    }
+    int ret_sam_idx_init_rvmta = sam_idx_init(&bfrokwtp, dup_header, (int )ret_bam_aux2i_gupvm, &ret_bam_aux2A_gkxax);
+    if (ret_sam_idx_init_rvmta < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    sam_hdr_incr_ref(header);
 
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hgetdelim
-    ssize_t ret_hgetdelim_cdwob = hgetdelim(ret_bam_flag2str_aeogi, 1, BAM_FREAD1, hfile);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htsFile *hts_fp = hts_hopen(hfile, "./dummy_file", "r");
-    if (!hts_fp) {
-        hclose(hfile); // Close hFILE only if hts_hopen fails
-        return 0;
+    // Test sam_hdr_length
+    size_t length = sam_hdr_length(header);
+    if (length == SIZE_MAX) {
+        // Handle error if needed
     }
 
-    // Read SAM/BAM/CRAM header
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_hopen to hts_set_cache_size
-    int ret_hfile_has_plugin_svvri = hfile_has_plugin(ret_bam_flag2str_aeogi);
-    if (ret_hfile_has_plugin_svvri < 0){
-    	return 0;
+    // Test bam_hdr_dup
+    sam_hdr_t *bam_dup_header = bam_hdr_dup(header);
+    if (bam_dup_header) {
+        bam_hdr_destroy(bam_dup_header);
     }
 
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hts_set_cache_size
-    hts_set_cache_size(hts_fp, BAM_FQCFAIL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_set_cache_size to sam_read1
-    sam_hdr_t* ret_sam_hdr_read_ltutv = sam_hdr_read(hts_fp);
-    if (ret_sam_hdr_read_ltutv == NULL){
-    	return 0;
-    }
-    bam1_t* ret_bam_dup1_zgsur = bam_dup1(&oioaqcsf);
-    if (ret_bam_dup1_zgsur == NULL){
-    	return 0;
-    }
-
-    int ret_sam_read1_xnfzx = sam_read1(hts_fp, ret_sam_hdr_read_ltutv, ret_bam_dup1_zgsur);
-    if (ret_sam_read1_xnfzx < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    sam_hdr_t *header = sam_hdr_read(hts_fp);
-    if (header) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sam_hdr_destroy with sam_hdr_incr_ref
-        sam_hdr_incr_ref(header);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }
-
-    // Close the htsFile
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to sam_hdr_count_lines
-    const uint8_t hervkuau = 0;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bam_aux2Z
-    const uint8_t tzmohqrl = Size;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to sam_hdr_line_index
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to hts_free
-
-    hts_free((void *)header);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char* ret_bam_flag2str_pqqot = bam_flag2str(HTS_FMT_TBI);
-    if (ret_bam_flag2str_pqqot == NULL){
-    	return 0;
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_flag2str to hts_reglist_create
-    int dyoymcig = 0;
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_flag2str to hts_hopen
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_flag2str to hts_parse_reg
-    int64_t ret_bam_aux2i_qollr = bam_aux2i((const uint8_t *)&ret_hfile_has_plugin_svvri);
-    if (ret_bam_aux2i_qollr < 0){
-    	return 0;
-    }
-    const bam1_t udlhzwvz;
-    memset(&udlhzwvz, 0, sizeof(udlhzwvz));
-    hts_pos_t ret_bam_endpos_zobdw = bam_endpos(&udlhzwvz);
-    if (ret_bam_endpos_zobdw < 0){
-    	return 0;
-    }
-
-    const char* ret_hts_parse_reg_lclbv = hts_parse_reg(ret_bam_flag2str_aeogi, (int *)&ret_bam_aux2i_qollr, (int *)&ret_bam_endpos_zobdw);
-    if (ret_hts_parse_reg_lclbv == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_hflush_ggjwz = hflush(hfile);
-    if (ret_hflush_ggjwz < 0){
-    	return 0;
-    }
-
-    htsFile* ret_hts_hopen_nyiaj = hts_hopen(hfile, (const char *)"r", ret_bam_flag2str_aeogi);
-    if (ret_hts_hopen_nyiaj == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_hopen to hts_detect_format2
-    hts_free((void *)hts_fp);
-    htsFormat eyxtfudd;
-    memset(&eyxtfudd, 0, sizeof(eyxtfudd));
-
-    int ret_hts_detect_format2_wlhsb = hts_detect_format2(hfile, hts_fp, &eyxtfudd);
-    if (ret_hts_detect_format2_wlhsb < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hts_reglist_t* ret_hts_reglist_create_dpdix = hts_reglist_create(&ret_bam_flag2str_aeogi, HTS_MOD_REPORT_UNCHECKED, &dyoymcig, (void *)hfile, NULL);
-    if (ret_hts_reglist_create_dpdix == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hts_free((void *)hts_fp);
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sam_hdr_line_index with sam_hdr_change_HD
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_free to hfile_list_schemes
-    char* ret_bam_flag2str_msqsp = bam_flag2str(HTS_IDX_NOCOOR);
-    if (ret_bam_flag2str_msqsp == NULL){
-    	return 0;
-    }
-
-    int ret_hfile_list_schemes_kbqez = hfile_list_schemes(header, &ret_bam_flag2str_msqsp, &ret_bam_endpos_zobdw);
-    if (ret_hfile_list_schemes_kbqez < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_sam_hdr_line_index_xduvr = sam_hdr_change_HD(header, ret_bam_flag2str_pqqot, hts_fp);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_sam_hdr_line_index_xduvr < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bam_aux2Z
-    const uint8_t osubnzzt = -1;
-    char* ret_bam_aux2Z_zgbfo = bam_aux2Z(&osubnzzt);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_bam_aux2Z_zgbfo == NULL){
-    	return 0;
-    }
-
-    int ret_sam_hdr_count_lines_utrml = sam_hdr_count_lines(header, ret_bam_aux2Z_zgbfo);
-    if (ret_sam_hdr_count_lines_utrml < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hts_close(hts_fp); // This will also close the underlying hFILE
+    // Clean up the original header
+    sam_hdr_destroy(header);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

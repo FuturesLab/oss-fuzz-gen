@@ -1,38 +1,73 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <htslib/sam.h>  // For bam_mplp_t and related functions
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-// Dummy function to match the expected function pointer type
-static int dummy_func(void *data, bam1_t *b) {
-    // Simulate reading a BAM record from the provided data
-    if (data == NULL || b == NULL) {
-        return -1;
-    }
-    // Here we would normally parse the data into a bam1_t structure
-    // For simplicity, we just return 0 to indicate success
-    return 0;
-}
+// Function prototype for the function-under-test
+int hts_file_type(const char *);
 
+// LLVMFuzzerTestOneInput function to fuzz hts_file_type
 int LLVMFuzzerTestOneInput_192(const uint8_t *data, size_t size) {
-    // Check if size is sufficient for the operation
-    if (size < 1) {
-        return 0; // Not enough data to proceed
+    // Create a temporary file to store the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Declare and initialize the bam_mplp_t variable
-    void *dummy_data = (void *)data; // Use the input data as dummy data for the function pointer
-    bam_mplp_t mplp = bam_mplp_init(1, dummy_func, &dummy_data); // Initialize with a dummy function and data
-
-    if (mplp == NULL) {
-        return 0; // Exit if initialization failed
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
     }
+    close(fd);
 
-    // Call the function-under-test
-    bam_mplp_reset(mplp);
+    // Call the function-under-test with the temporary file path
+    hts_file_type(tmpl);
 
-    // Clean up
-    bam_mplp_destroy(mplp); // Clean up the mplp object
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_192(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

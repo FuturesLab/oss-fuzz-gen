@@ -1,60 +1,66 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/tbx.h" // Include the tabix library for index functions
 
+// Function-under-test declaration
+int hisremote(const char *);
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for our needs
-    if (size < 5) {
-        return 0;
+    // Ensure the data is null-terminated
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Use the first byte of data as an integer parameter
-    int param_int = (int)data[0];
+    // Call the function-under-test
+    hisremote(null_terminated_data);
 
-    // Use the rest of the data as a string, ensuring it's null-terminated
-    size_t string_size = size - 1;
-    char *param_str = (char *)malloc(string_size + 1);
-    if (param_str == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(param_str, data + 1, string_size);
-    param_str[string_size] = '\0';
-
-    // Initialize htsFile and tbx_t structures
-    htsFile *file = hts_open(param_str, "r");
-    if (file == NULL) {
-        free(param_str);
-        return 0; // Failed to open file
-    }
-
-    tbx_t *tbx = tbx_index_load(param_str);
-    if (tbx == NULL) {
-        hts_close(file);
-        free(param_str);
-        return 0; // Failed to load index
-    }
-
-    // Call a function that utilizes the index, e.g., tbx_name2id
-    int result = tbx_name2id(tbx, param_str);
-
-    // Clean up
-    tbx_destroy(tbx);
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_close with hts_check_EOF
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_check_EOF with hts_close
-    hts_close(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    free(param_str);
+    // Free the allocated memory
+    free(null_terminated_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_103(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,53 +1,71 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
-#include "htslib/sam.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include "htslib/sam.h" // Assuming bam_plp_t is defined in this header
+#include "htslib/hts.h" // Include additional headers that might be necessary for initialization
 
 int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = NULL;
-    char *header_text = NULL;
+    // Declare and initialize variables
+    bam_plp_t plp;
+    int maxcnt = 0;
 
-    // Ensure the data is not empty and create a null-terminated string
-    if (size > 0) {
-        header_text = (char *)malloc(size + 1);
-        if (header_text == NULL) {
-            return 0; // Memory allocation failed
-        }
-        memcpy(header_text, data, size);
-        header_text[size] = '\0'; // Null-terminate the string
+    // Initialize the bam_plp_t object properly
+    hts_itr_t *iter = NULL; // Assuming an iterator is needed
+    bam_hdr_t *hdr = bam_hdr_init(); // Initialize a BAM header
+    plp = bam_plp_init(NULL, NULL); // Initialize bam_plp_t properly
 
-        // Parse the header text into a sam_hdr_t structure
-        hdr = sam_hdr_parse(size, header_text);
-        if (hdr != NULL) {
-            // Call the function-under-test
-            int nref = sam_hdr_nref(hdr);
-            // Print or use the result if needed
-            printf("Number of reference sequences: %d\n", nref);
-
-            // Free the header structure
-            sam_hdr_destroy(hdr);
-        }
-
-        // Free the allocated header text
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_parse to hts_resize_array_
-        unsigned int ret_hts_features_snjhs = hts_features();
-        if (ret_hts_features_snjhs < 0){
-        	return 0;
-        }
-        char *qbuovfzi[1024] = {"bgptb", NULL};
-
-        int ret_hts_resize_array__kwwhb = hts_resize_array_(HTS_IDX_SILENT_FAIL, (size_t )ret_hts_features_snjhs, HTS_FEATURE_CONFIGURE, (void *)hdr, qbuovfzi, BAM_FSECONDARY, (const char *)"r");
-        if (ret_hts_resize_array__kwwhb < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        free(header_text);
+    // Ensure size is sufficient to extract an integer
+    if (size >= sizeof(int)) {
+        // Extract an integer from the input data
+        maxcnt = *(int *)data;
     }
+
+    // Call the function-under-test
+    bam_plp_set_maxcnt(plp, maxcnt);
+
+    // Clean up
+    bam_plp_destroy(plp);
+    bam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_123(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

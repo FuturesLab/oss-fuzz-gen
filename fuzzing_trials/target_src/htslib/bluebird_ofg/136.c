@@ -1,90 +1,221 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "htslib/sam.h"
 #include "htslib/hts.h"
+#include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    htsFile *file = NULL;
+    bam_hdr_t *header = NULL;
+    bam1_t *alignment = bam_init1();
+    int result = 0;
+
+    if (alignment == NULL) {
+        return 0;
+    }
+
+    // Create a temporary file to use with hts_open
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
+        bam_destroy1(alignment);
         return 0;
     }
-    
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
+
+    // Write the fuzz data to the file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
         unlink(tmpl);
+        bam_destroy1(alignment);
         return 0;
     }
-    close(fd);
 
-    // Open the temporary file as an htsFile
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
+    // Open the temporary file with hts_open
+    file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        close(fd);
         unlink(tmpl);
+        bam_destroy1(alignment);
         return 0;
     }
 
-    // Initialize the sam_hdr_t and bam1_t structures
-    sam_hdr_t *header = sam_hdr_read(hts_file);
-    if (!header) {
-        hts_close(hts_file);
-        unlink(tmpl);
-        return 0;
+    // Attempt to read the header and alignment from the file
+    header = sam_hdr_read(file);
+    if (header != NULL) {
+        while (sam_read1(file, header, alignment) >= 0) {
+            // Process the alignment (this is where code coverage can increase)
+        }
+        bam_hdr_destroy(header);
     }
 
-    bam1_t *alignment = bam_init1();
-    if (!alignment) {
-        sam_hdr_destroy(header);
+    // Cleanup
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_destroy to sam_hdr_remove_tag_id
-        char* ret_bam_flag2str_kkpfb = bam_flag2str(BAM_CDIFF);
-        if (ret_bam_flag2str_kkpfb == NULL){
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_read1 to sam_idx_init
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!file) {
         	return 0;
         }
-        const htsFormat jjbdjbrq;
-        memset(&jjbdjbrq, 0, sizeof(jjbdjbrq));
-        char* ret_hts_format_description_llnvm = hts_format_description(&jjbdjbrq);
-        if (ret_hts_format_description_llnvm == NULL){
+        const htsFormat* ret_hts_get_format_iuwml = hts_get_format(file);
+        if (ret_hts_get_format_iuwml == NULL){
         	return 0;
         }
-        char* ret_bam_flag2str_vstxf = bam_flag2str(BAM_FREAD2);
-        if (ret_bam_flag2str_vstxf == NULL){
-        	return 0;
-        }
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bam_flag2str
-        char* ret_bam_flag2str_ifmop = bam_flag2str(size);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        if (ret_bam_flag2str_ifmop == NULL){
+        const bam1_t loptyquw;
+        memset(&loptyquw, 0, sizeof(loptyquw));
+        hts_pos_t ret_bam_endpos_bniab = bam_endpos(&loptyquw);
+        if (ret_bam_endpos_bniab < 0){
         	return 0;
         }
 
-        int ret_sam_hdr_remove_tag_id_nkfdb = sam_hdr_remove_tag_id(header, ret_bam_flag2str_kkpfb, ret_hts_format_description_llnvm, ret_bam_flag2str_vstxf, ret_bam_flag2str_ifmop);
-        if (ret_sam_hdr_remove_tag_id_nkfdb < 0){
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_endpos to hts_set_threads
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!file) {
         	return 0;
         }
-
+        int ret_hts_check_EOF_tfvfj = hts_check_EOF(file);
+        if (ret_hts_check_EOF_tfvfj < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!file) {
+        	return 0;
+        }
+        int ret_hts_set_threads_svuza = hts_set_threads(file, (int )ret_bam_endpos_bniab);
+        if (ret_hts_set_threads_svuza < 0){
+        	return 0;
+        }
         // End mutation: Producer.APPEND_MUTATOR
+        
+        char* ret_bam_flag2str_ullzb = bam_flag2str(HTS_IDX_REST);
+        if (ret_bam_flag2str_ullzb == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!file) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!header) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_bam_flag2str_ullzb) {
+        	return 0;
+        }
 
-        hts_close(hts_file);
-        unlink(tmpl);
-        return 0;
-    }
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_flag2str to sam_hdr_count_lines
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!file) {
+        	return 0;
+        }
 
-    // Call the function-under-test
-    sam_read1(hts_file, header, alignment);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_flag2str to hts_set_filter_expression
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!file) {
+        	return 0;
+        }
 
-    // Clean up
-    bam_destroy1(alignment);
-    sam_hdr_destroy(header);
-    hts_close(hts_file);
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from bam_flag2str to sam_hdr_pg_id using the plateau pool
+        sam_hdr_t *hdr = sam_hdr_init();
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_bam_flag2str_ullzb) {
+        	return 0;
+        }
+        const char* ret_sam_hdr_pg_id_tjnof = sam_hdr_pg_id(hdr, ret_bam_flag2str_ullzb);
+        if (ret_sam_hdr_pg_id_tjnof == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+        int ret_hts_flush_xdkub = hts_flush(file);
+        if (ret_hts_flush_xdkub < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!file) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_bam_flag2str_ullzb) {
+        	return 0;
+        }
+        int ret_hts_set_filter_expression_pqlpt = hts_set_filter_expression(file, ret_bam_flag2str_ullzb);
+        if (ret_hts_set_filter_expression_pqlpt < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        sam_hdr_t* ret_sam_hdr_get_yigvy = sam_hdr_get(file);
+        if (ret_sam_hdr_get_yigvy == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sam_hdr_get_yigvy) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_bam_flag2str_ullzb) {
+        	return 0;
+        }
+        int ret_sam_hdr_count_lines_qohwg = sam_hdr_count_lines(ret_sam_hdr_get_yigvy, ret_bam_flag2str_ullzb);
+        if (ret_sam_hdr_count_lines_qohwg < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        int ret_sam_idx_init_wddrx = sam_idx_init(file, header, (int )ret_bam_endpos_bniab, ret_bam_flag2str_ullzb);
+        if (ret_sam_idx_init_wddrx < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_close with sam_idx_save
+    sam_idx_save(file);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    close(fd);
     unlink(tmpl);
+    bam_destroy1(alignment);
 
+    return result;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_136(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

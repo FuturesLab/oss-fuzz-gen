@@ -1,60 +1,83 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include "htslib/sam.h" // Assuming bam_mplp_t and bam_pileup1_t are defined here
-
-// Declare the dummy iterator function outside of the main function
-int dummy_iter(void *data, bam1_t *b) {
-    return -1; // Return -1 to indicate no more data
-}
+#include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Declare all variables before any goto
-    bam_mplp_t mplp;
-    int tid, pos, n_plp;
-    const bam_pileup1_t *plp;
-
-    // Ensure the data size is sufficient for the test
-    if (size < sizeof(bam1_t)) {
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Properly initialize bam1_t structure to avoid segmentation fault
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        fprintf(stderr, "Failed to initialize bam1_t\n");
+    // Create a non-NULL string from the input data
+    char *pg_id = (char *)malloc(size + 1);
+    if (pg_id == NULL) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
+    memcpy(pg_id, data, size);
+    pg_id[size] = '\0'; // Ensure null-termination
 
-    // Copy data into bam1_t structure to avoid segmentation fault
-    memcpy(b->data, data, size < b->m_data ? size : b->m_data);
-
-    // Initialize bam_mplp_t properly
-    // Use a dummy iterator function to avoid NULL dereference
-    mplp = bam_mplp_init(1, dummy_iter, (void **)&b); // Initialize with 1 iterator, dummy callback
-
-    if (mplp == NULL) {
-        fprintf(stderr, "Failed to initialize bam_mplp_t\n");
-        bam_destroy1(b);
+    // Add a dummy program record to ensure hdr is not empty
+    if (sam_hdr_add_pg(hdr, "ID", "dummy", "PN", "dummy_program", NULL) != 0) {
+        free(pg_id);
+        sam_hdr_destroy(hdr);
         return 0;
     }
-
-    // Initialize integer pointers
-    tid = 0;
-    pos = 0;
-    n_plp = 0;
 
     // Call the function-under-test
-    int result = bam_mplp_auto(mplp, &tid, &pos, &n_plp, &plp);
+    const char *result = sam_hdr_pg_id(hdr, pg_id);
 
-    // Check the result or perform additional operations if necessary
-    // For now, we just print the result for debugging purposes
-    printf("Result: %d, tid: %d, pos: %d, n_plp: %d\n", result, tid, pos, n_plp);
+    // Check the result to ensure the function is being tested
+    if (result != NULL) {
+        // Do something with result to ensure code coverage
+    }
 
     // Clean up
-    bam_destroy1(b);
-    bam_mplp_destroy(mplp);
+    free(pg_id);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

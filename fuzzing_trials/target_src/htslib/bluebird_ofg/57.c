@@ -1,102 +1,97 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "htslib/sam.h"
 #include "htslib/hts.h"
+#include "/src/htslib/htslib/tbx.h"
+#include "/src/htslib/htslib/bgzf.h"
+#include "/src/htslib/htslib/kseq.h" // Include kseq.h for sequence handling if needed
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
+    // Initialize variables for the function parameters
+    hts_idx_t *index;
+    uint32_t meta_size;
+    uint8_t *meta_data;
+
+    // Create a temporary file to simulate a BGZF file from input data
+    char tmp_filename[] = "tmp_bgzf_XXXXXX";
+    int fd = mkstemp(tmp_filename);
     if (fd == -1) {
-        return 0;
+        return 0; // Exit if temporary file creation fails
     }
-    
-    // Write the fuzz data to the temporary file
+
+    // Write input data to the temporary file
     if (write(fd, data, size) != size) {
         close(fd);
-        unlink(tmpl);
-        return 0;
+        remove(tmp_filename);
+        return 0; // Exit if writing to file fails
     }
     close(fd);
 
-    // Open the temporary file as an htsFile
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        unlink(tmpl);
-        return 0;
+    // Open the BGZF file using the temporary file
+    BGZF *bgzf = bgzf_open(tmp_filename, "r");
+    if (bgzf == NULL) {
+        remove(tmp_filename);
+        return 0; // Exit if BGZF file opening fails
     }
 
-    // Initialize the sam_hdr_t and bam1_t structures
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_set_filter_expression
-    char* ret_bam_flag2str_rzgcd = bam_flag2str(BAM_CPAD);
-    if (ret_bam_flag2str_rzgcd == NULL){
-    	return 0;
-    }
-
-    int ret_hts_set_filter_expression_drwkn = hts_set_filter_expression(hts_file, ret_bam_flag2str_rzgcd);
-    if (ret_hts_set_filter_expression_drwkn < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    sam_hdr_t *header = sam_hdr_read(hts_file);
-    if (!header) {
-        hts_close(hts_file);
-        unlink(tmpl);
-        return 0;
-    }
-
-    bam1_t *alignment = bam_init1();
-    if (!alignment) {
-        sam_hdr_destroy(header);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_destroy to sam_hdr_remove_tag_id
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bam_flag2str
-        char* ret_bam_flag2str_lgzwu = bam_flag2str(BAM_CDEL);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        if (ret_bam_flag2str_lgzwu == NULL){
-        	return 0;
-        }
-        hts_free((void *)header);
-        const uint8_t eczmdvxv = 1;
-        char ret_bam_aux2A_dfqxh = bam_aux2A(&eczmdvxv);
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bam_flag2str
-        char* ret_bam_flag2str_frtmt = bam_flag2str(BAM_CDEL);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        if (ret_bam_flag2str_frtmt == NULL){
-        	return 0;
-        }
-
-        int ret_sam_hdr_remove_tag_id_olkqj = sam_hdr_remove_tag_id(header, ret_bam_flag2str_lgzwu, header, &ret_bam_aux2A_dfqxh, ret_bam_flag2str_frtmt);
-        if (ret_sam_hdr_remove_tag_id_olkqj < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        hts_close(hts_file);
-        unlink(tmpl);
-        return 0;
+    // Create an index for the BGZF file
+    index = tbx_index_load2(tmp_filename, NULL);
+    if (index == NULL) {
+        bgzf_close(bgzf);
+        remove(tmp_filename);
+        return 0; // Exit if index creation fails
     }
 
     // Call the function-under-test
-    sam_read1(hts_file, header, alignment);
+    meta_data = hts_idx_get_meta(index, &meta_size);
 
-    // Clean up
-    bam_destroy1(alignment);
-    sam_hdr_destroy(header);
-    hts_close(hts_file);
-    unlink(tmpl);
+    // Free allocated resources
+    hts_idx_destroy(index);
+    bgzf_close(bgzf);
+    remove(tmp_filename);
 
+    // Return 0 to indicate successful completion of the fuzzer test
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_57(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

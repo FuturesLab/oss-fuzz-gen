@@ -3,48 +3,88 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <htslib/sam.h>
-#include <htslib/hts.h>
+
+// Mock function to create a sample sam_hdr_t
+sam_hdr_t *create_sample_sam_hdr() {
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return NULL;
+    }
+
+    // Add some sample target names to the header
+    sam_hdr_add_line(hdr, "SQ", "SN:chr1", "LN:248956422", NULL);
+    sam_hdr_add_line(hdr, "SQ", "SN:chr2", "LN:242193529", NULL);
+    sam_hdr_add_line(hdr, "SQ", "SN:chr3", "LN:198295559", NULL);
+
+    return hdr;
+}
 
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a SAM/BAM file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the temporary file using htslib
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (hts_file == NULL) {
-        remove(tmpl);
+    // Create a sample sam_hdr_t
+    sam_hdr_t *hdr = create_sample_sam_hdr();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Define index and format strings (non-NULL)
-    const char *index_filename = "index.bai";
-    const char *format = "bai";
-    int flags = 0; // Example flag value
+    // Use the first 4 bytes of data to form an integer index
+    int index = *((int *)data);
 
     // Call the function-under-test
-    hts_idx_t *index = sam_index_load3(hts_file, tmpl, index_filename, flags);
+    const char *name = sam_hdr_tid2name(hdr, index);
+
+    // Print the result for debugging purposes
+    if (name != NULL) {
+        printf("Index: %d, Name: %s\n", index, name);
+    } else {
+        printf("Index: %d, Name: NULL\n", index);
+    }
 
     // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
-    }
-    hts_close(hts_file);
-    remove(tmpl);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_72(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

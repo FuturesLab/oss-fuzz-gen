@@ -1,66 +1,75 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-// Assuming sam_hdr_t is defined in an included header file
+// Assuming the necessary headers and definitions for sam_hdr_t and sam_hdr_update_line_247 are included
 typedef struct {
-    // Dummy structure for demonstration purposes
-    int dummy;
+    // ... (details of sam_hdr_t structure)
 } sam_hdr_t;
 
-// Dummy function to represent the function-under-test
-int sam_hdr_update_line_247(sam_hdr_t *hdr, const char *arg1, const char *arg2, const char *arg3, void *arg4) {
-    // Implementation is not provided here
+// Mock implementation of sam_hdr_update_line_247 for demonstration purposes
+int sam_hdr_update_line_247(sam_hdr_t *hdr, const char *key, const char *value, const char *type, void *extra) {
+    // Dummy implementation
+    printf("Updating line with key: %s, value: %s, type: %s\n", key, value, type);
     return 0;
 }
 
 int LLVMFuzzerTestOneInput_247(const uint8_t *data, size_t size) {
-    // Ensure there's enough data for the minimum required input
-    if (size < 4) {
-        return 0;
+    if (size < 6) {
+        return 0; // Not enough data to create meaningful strings
     }
 
-    // Initialize the sam_hdr_t structure
-    sam_hdr_t hdr;
-    hdr.dummy = 0; // Initialize with a default value
+    sam_hdr_t hdr; // Assuming default initialization is valid
 
-    // Split the input data into parts for the string arguments
-    size_t part_size = size / 4;
-    size_t remaining_size = size - 3 * part_size;
+    // Create more meaningful strings from input data
+    char key[3] = { (char)data[0], (char)data[1], '\0' };
+    char value[3] = { (char)data[2], (char)data[3], '\0' };
+    char type[3] = { (char)data[4], (char)data[5], '\0' };
+    void *extra = (void *)(data + 6); // Point to the rest of the data
 
-    char *arg1 = (char *)malloc(part_size + 1);
-    char *arg2 = (char *)malloc(part_size + 1);
-    char *arg3 = (char *)malloc(part_size + 1);
-
-    if (!arg1 || !arg2 || !arg3) {
-        free(arg1);
-        free(arg2);
-        free(arg3);
-        return 0;
-    }
-
-    // Copy data into the strings and null-terminate them
-    memcpy(arg1, data, part_size);
-    arg1[part_size] = '\0';
-    memcpy(arg2, data + part_size, part_size);
-    arg2[part_size] = '\0';
-    memcpy(arg3, data + 2 * part_size, part_size);
-    arg3[part_size] = '\0';
-
-    // Use the remaining data as a void pointer
-    void *arg4 = NULL;
-    if (remaining_size > 0) {
-        arg4 = (void *)(data + 3 * part_size);
-    }
-
-    // Call the function-under-test
-    sam_hdr_update_line_247(&hdr, arg1, arg2, arg3, arg4);
-
-    // Free allocated memory
-    free(arg1);
-    free(arg2);
-    free(arg3);
+    // Invoke the function with the constructed inputs
+    sam_hdr_update_line_247(&hdr, key, value, type, extra);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_247(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

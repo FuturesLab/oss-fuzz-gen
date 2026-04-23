@@ -1,51 +1,70 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/hts.h>
-#include <unistd.h>
+#include <stdio.h>
+#include <htslib/sam.h>
+
+int dummy_function(void *data, bam1_t *b) {
+    return 0; // Return a dummy value
+}
 
 int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
-    char tmpl1[] = "/tmp/fuzzfileXXXXXX";
-    char tmpl2[] = "/tmp/fuzzfileXXXXXX";
-
-    // Create temporary files for the input filenames
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) close(fd1);
-        if (fd2 != -1) close(fd2);
+    // Ensure that the size is sufficient to initialize the void pointer
+    if (size < sizeof(void *)) {
         return 0;
     }
 
-    // Write the fuzz data to the first temporary file
-    if (write(fd1, data, size) != size) {
-        close(fd1);
-        close(fd2);
-        return 0;
-    }
-
-    // Close the file descriptors as they are not needed anymore
-    close(fd1);
-    close(fd2);
-
-    // Use non-zero integers for the int parameters
-    int flags = 1;
-    int is_remote = 1;
+    // Initialize a void pointer using the input data
+    void *dummy_data = (void *)data;
 
     // Call the function-under-test
-    hts_idx_t *index = hts_idx_load3(tmpl1, tmpl2, flags, is_remote);
+    bam_plp_t plp = bam_plp_init(dummy_function, dummy_data);
 
-    // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
+    // Normally, we would do something with 'plp', but for fuzzing purposes,
+    // we are only interested in calling the function to see if it handles input correctly.
+
+    // Clean up if necessary
+    if (plp != NULL) {
+        bam_plp_destroy(plp);
     }
-
-    // Remove the temporary files
-    unlink(tmpl1);
-    unlink(tmpl2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_144(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,72 +1,84 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h"
-#include "/src/htslib/htslib/kstring.h" // Include this for kstring_t
+#include <stdio.h>
+#include <unistd.h> // Include for close() and unlink()
+#include <fcntl.h>  // Include for mkstemp()
+
+// Assuming the function is declared in some header file
+char ** hts_readlist(const char *filename, int is_file, int *num_lines);
 
 int LLVMFuzzerTestOneInput_83(const uint8_t *data, size_t size) {
-    // Check if the input size is zero
-    if (size == 0) {
-        return 0;
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If file creation fails, exit the fuzzer
     }
 
-    // Declare and initialize variables
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return 0;
-    }
+    // Write the fuzz data to the temporary file
+    write(fd, data, size);
+    close(fd);
 
-    // Attempt to parse the input data as a SAM header
-    // Ensure the data is null-terminated by copying it to a new buffer
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    if (sam_hdr_add_lines(hdr, null_terminated_data, size) < 0) {
-        free(null_terminated_data);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    const char *type = "HD";  // Example header type, can be varied
-    int pos = 0;  // Example position, can be varied
-    kstring_t str;
-    str.l = 0;
-    str.m = size;
-    str.s = (char *)malloc(size + 1);
-
-    if (str.s == NULL) {
-        free(null_terminated_data);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    // Ensure the string is null-terminated
-    memcpy(str.s, data, size);
-    str.s[size] = '\0';
+    // Prepare parameters for hts_readlist
+    int num_lines = 0;
+    int is_file = 1; // Indicating that the input is a file
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sam_hdr_find_line_pos
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of sam_hdr_find_line_pos
-    int result = sam_hdr_find_line_pos(hdr, NULL, BAM_CREF_SKIP, &str);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of hts_readlist
+    char **result = hts_readlist((const char *)data, is_file, &num_lines);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
+    // Clean up: free the result if it is not NULL
+    if (result != NULL) {
+        for (int i = 0; i < num_lines; ++i) {
+            free(result[i]);
+        }
+        free(result);
+    }
 
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-    free(str.s);
-    free(null_terminated_data);
-    sam_hdr_destroy(hdr);
+    // Remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_83(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

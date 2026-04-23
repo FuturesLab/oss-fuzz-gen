@@ -1,55 +1,77 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <unistd.h>  // Include this for close() and unlink()
+#include <fcntl.h>   // Include this for mkstemp()
 #include <htslib/hts.h>
-#include <htslib/hts_defs.h>
-#include <htslib/hts_log.h>
-#include <htslib/sam.h>
-#include <htslib/tbx.h>
-#include <htslib/vcf.h>
-#include <htslib/vcfutils.h>
-#include <htslib/kstring.h>
-#include <htslib/kseq.h>
-#include <htslib/khash.h>
-#include <htslib/knetfile.h>
-#include <htslib/khash_str2int.h>
 
 int LLVMFuzzerTestOneInput_271(const uint8_t *data, size_t size) {
-    char tmpl1[] = "/tmp/fuzzfileXXXXXX";
-    char tmpl2[] = "/tmp/fuzzfileXXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) close(fd1);
-        if (fd2 != -1) close(fd2);
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Write data to the first temporary file
-    if (write(fd1, data, size) != size) {
-        close(fd1);
-        close(fd2);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
+    close(fd);
 
-    // Close the file descriptors
-    close(fd1);
-    close(fd2);
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    hts_idx_t *index = hts_idx_load2(tmpl1, tmpl2);
+    hts_close(file);
 
-    // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
-    }
-
-    // Remove the temporary files
-    remove(tmpl1);
-    remove(tmpl2);
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_271(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

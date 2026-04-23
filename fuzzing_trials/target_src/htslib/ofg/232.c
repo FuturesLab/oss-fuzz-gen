@@ -1,36 +1,98 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <htslib/bgzf.h>  // Include the correct header for BGZF
+
+// Function to initialize a BGZF structure with a temporary file
+BGZF* init_bgzf(const char *filename) {
+    BGZF *bgzf = bgzf_open(filename, "r");
+    if (bgzf == NULL) {
+        return NULL;
+    }
+    return bgzf;
+}
+
+// Function to clean up a BGZF structure
+void cleanup_bgzf(BGZF *bgzf) {
+    if (bgzf) {
+        bgzf_close(bgzf);
+    }
+}
 
 int LLVMFuzzerTestOneInput_232(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to proceed
-    if (size < sizeof(int) + sizeof(hts_pos_t) + sizeof(int)) {
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Initialize BGZF and bam1_t structures
+    BGZF *bgzf = init_bgzf(tmpl);
+    if (bgzf == NULL) {
+        return 0;
+    }
+    bam1_t *bam_record = bam_init1();
+    if (bam_record == NULL) {
+        cleanup_bgzf(bgzf);
         return 0;
     }
 
-    // Initialize variables
-    bam_mplp_t mplp = (bam_mplp_t)data;  // Assuming data can be cast to bam_mplp_t
-    int n_plp;
-    hts_pos_t pos;
-    int tid;
-    const bam_pileup1_t *plp;
-
-    // Extract values from data
-    n_plp = *(int *)data;
-    data += sizeof(int);
-    size -= sizeof(int);
-
-    pos = *(hts_pos_t *)data;
-    data += sizeof(hts_pos_t);
-    size -= sizeof(hts_pos_t);
-
-    tid = *(int *)data;
-    data += sizeof(int);
-    size -= sizeof(int);
-
     // Call the function-under-test
-    int result = bam_mplp64_auto(mplp, &tid, &pos, &n_plp, &plp);
+    bam_read1(bgzf, bam_record);
 
-    // Return zero to indicate successful execution
+    // Clean up
+    bam_destroy1(bam_record);
+    cleanup_bgzf(bgzf);
+    remove(tmpl);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_232(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

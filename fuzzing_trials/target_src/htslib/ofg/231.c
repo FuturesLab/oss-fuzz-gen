@@ -1,48 +1,63 @@
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  // For close() and unlink()
-#include <htslib/hts.h>
-#include <htslib/hfile.h>
+#include <stddef.h>
 
-// Define a temporary file template
-#define TEMP_FILE_TEMPLATE "/tmp/fuzzfileXXXXXX"
+// Function-under-test declaration
+double bam_auxB2f(const uint8_t *data, uint32_t size);
 
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_231(const uint8_t *data, size_t size) {
-    char tmpl[] = TEMP_FILE_TEMPLATE;
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Failed to create a temporary file
+    // Ensure the size is within a valid range for uint32_t
+    if (size == 0) {
+        return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0; // Failed to open file descriptor as a FILE*
-    }
-
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the temporary file using hts_open
-    hFILE *hfile = hopen(tmpl, "rb");
-    if (!hfile) {
-        unlink(tmpl); // Clean up the temporary file
-        return 0; // Failed to open the file with htslib
-    }
-
-    // Prepare the htsFormat structure
-    htsFormat format;
-    memset(&format, 0, sizeof(format));
+    // Cast size to uint32_t
+    uint32_t dataSize = (uint32_t)size;
 
     // Call the function-under-test
-    hts_detect_format(hfile, &format);
+    double result = bam_auxB2f(data, dataSize);
 
-    // Clean up
-    hclose(hfile);
-    unlink(tmpl); // Remove the temporary file
+    // Use the result in some way to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_231(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

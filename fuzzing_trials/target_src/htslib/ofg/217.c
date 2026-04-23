@@ -1,38 +1,67 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
-#include <stdio.h>
-#include <htslib/sam.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_217(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty and size is reasonable for the header
-    if (size > 0 && size < 65536) {
-        // Copy the input data to a null-terminated string
-        char *header_data = (char *)malloc(size + 1);
-        if (header_data == NULL) {
-            return 0;
-        }
-        memcpy(header_data, data, size);
-        header_data[size] = '\0';
+    // Ensure that the size is sufficient to initialize htsFormat
+    if (size < sizeof(htsFormat)) {
+        return 0;
+    }
 
-        // Parse the header data
-        sam_hdr_t *hdr = sam_hdr_parse(size, header_data);
-        if (hdr != NULL) {
-            // Call the function-under-test
-            const char *result = sam_hdr_str(hdr);
+    // Initialize htsFormat using the input data
+    htsFormat format;
+    // Copy data into format, ensuring it doesn't exceed the size of htsFormat
+    memcpy(&format, data, sizeof(htsFormat));
 
-            // Print the result to ensure it's not NULL
-            if (result != NULL) {
-                printf("Header String: %s\n", result);
-            }
+    // Call the function-under-test
+    const char *extension = hts_format_file_extension(&format);
 
-            // Clean up
-            sam_hdr_destroy(hdr);
-        }
-
-        // Free the allocated header data
-        free(header_data);
+    // Use the result (extension) in some way to avoid compiler optimizations removing the call
+    if (extension) {
+        // For fuzzing purposes, we can just check the length or do a simple operation
+        size_t ext_length = strlen(extension);
+        (void)ext_length; // Suppress unused variable warning
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_217(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

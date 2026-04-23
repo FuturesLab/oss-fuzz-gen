@@ -1,48 +1,66 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <htslib/hts.h>
-#include <htslib/sam.h> // Correct path for necessary declarations
-#include <stdlib.h> // Include for NULL definition
-
-// Mock function to simulate operations on hts_base_mod_state
-void hts_base_mod_state_update(hts_base_mod_state *state, const uint8_t *data, size_t size) {
-    // Hypothetical implementation
-    // This function should update the state based on the input data
-    if (state && data && size > 0) {
-        // Simulate some meaningful operations
-        for (size_t i = 0; i < size; ++i) {
-            // Since we cannot access the members directly, assume there is a function
-            // to update the state, e.g., hts_base_mod_state_modify(state, data[i]);
-            // This is a placeholder for the actual API call
-            // Example: Modify state based on data[i]
-            // This is a mock operation to simulate state change
-            // hts_base_mod_state_modify(state, data[i]); // Hypothetical function call
-        }
-    }
-}
+#include <htslib/hts_defs.h> // Include this if hts_parse_reg64 is defined here
 
 int LLVMFuzzerTestOneInput_224(const uint8_t *data, size_t size) {
-    // Allocate the base modification state
-    hts_base_mod_state *state = hts_base_mod_state_alloc();
-
-    if (state == NULL) {
-        return 0; // If allocation fails, exit early
+    // Ensure the data is null-terminated for string operations
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0;
     }
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Use the data to perform operations on the state
-    if (size > 0) {
-        // Use the mock function to update the state with data
-        hts_base_mod_state_update(state, data, size);
-    }
+    hts_pos_t beg = 0;
+    hts_pos_t end = 0;
 
-    // Optionally, add more operations to better exercise the code
-    // Example: Check the state or perform additional modifications
-    // Simulate checking or modifying the state
-    // For example, you might want to call another hypothetical function
-    // hts_base_mod_state_check(state); // Hypothetical function
+    // Call the function-under-test
+    const char *result = hts_parse_reg64(input, &beg, &end);
 
     // Clean up
-    hts_base_mod_state_free(state);
+    free(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_224(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

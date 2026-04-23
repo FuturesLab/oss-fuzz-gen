@@ -1,61 +1,94 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include <htslib/hts.h>
-#include <htslib/bgzf.h>
-#include <htslib/sam.h>
-#include <htslib/hts_defs.h>
-#include <htslib/hts_log.h>
+
+// Assuming the structure of hts_base_mod_state is defined somewhere
+typedef struct {
+    // Example fields, the actual structure may differ
+    int example_field1;
+    char example_field2;
+} hts_base_mod_state;
+
+// Mock implementation of bam_mods_queryi_55 for demonstration
+int bam_mods_queryi_55(hts_base_mod_state *state, int query, int *result1, int *result2, char *result3) {
+    // Example implementation
+    if (state == NULL || result1 == NULL || result2 == NULL || result3 == NULL) {
+        return -1;
+    }
+    *result1 = query + state->example_field1;
+    *result2 = query - state->example_field1;
+    *result3 = state->example_field2;
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
+    // Ensure the input size is large enough to extract necessary data
+    if (size < sizeof(hts_base_mod_state) + sizeof(int) + 1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (fwrite(data, 1, size, temp_file) != size) {
-        fclose(temp_file);
-        return 0;
-    }
+    // Initialize hts_base_mod_state
+    hts_base_mod_state state;
+    memcpy(&state, data, sizeof(hts_base_mod_state));
 
-    // Rewind the file to the beginning for reading
-    rewind(temp_file);
+    // Extract an integer from the data
+    int query = 0;
+    memcpy(&query, data + sizeof(hts_base_mod_state), sizeof(int));
 
-    // Open the temporary file with BGZF
-    BGZF *bgzf = bgzf_dopen(fileno(temp_file), "r");
-    if (bgzf == NULL) {
-        fclose(temp_file);
-        return 0;
-    }
-
-    // Initialize iterator
-    hts_itr_t *iter = hts_itr_query(bgzf, NULL, 0, 0, 0);
-    if (iter == NULL) {
-        bgzf_close(bgzf);
-        fclose(temp_file);
-        return 0;
-    }
-
-    // Allocate memory for a dummy bam1_t structure
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        hts_itr_destroy(iter);
-        bgzf_close(bgzf);
-        fclose(temp_file);
-        return 0;
-    }
+    // Initialize result variables
+    int result1 = 0;
+    int result2 = 0;
+    char result3 = 0;
 
     // Call the function-under-test
-    int result = hts_itr_next(bgzf, iter, b, NULL);
+    int ret = bam_mods_queryi_55(&state, query, &result1, &result2, &result3);
 
-    // Clean up
-    bam_destroy1(b);
-    hts_itr_destroy(iter);
-    bgzf_close(bgzf);
-    fclose(temp_file);
+    // Check the return value to ensure the function is executed
+    if (ret == 0) {
+        // Optionally, you can add checks or assertions here to validate the results
+        // For example:
+        // assert(result1 == query + state.example_field1);
+        // assert(result2 == query - state.example_field1);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_55(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

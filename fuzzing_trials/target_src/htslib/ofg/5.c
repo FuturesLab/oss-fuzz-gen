@@ -1,56 +1,63 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include for close() and unlink()
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h>
-#include <htslib/hts_log.h>
-#include <htslib/hts_os.h>
-#include <htslib/faidx.h> // Corrected include path for hts_idx_t and related functions
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to create a filename and some data
-    if (size < 10) {
+    // Ensure the size is sufficient for at least one uint32_t element
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Create a temporary file for the index
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    close(fd);
+    // Calculate the number of uint32_t elements we can extract from the data
+    int num_elements = size / sizeof(uint32_t);
 
-    // Initialize hts_idx_t structure
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 0, 0);
-    if (idx == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Copy some data to a valid filename string
-    char filename[256];
-    snprintf(filename, sizeof(filename), "%s", tmpl);
-
-    // Use a fixed value for int argument
-    int fmt = HTS_FMT_CSI;
-
-    // Use the input data to simulate a real-world scenario
-    // Feed part of the data to the index
-    size_t data_to_use = size - 5; // Use part of the data
-    if (data_to_use > 0) {
-        hts_idx_push(idx, 0, data[0], data[1], data[2], 0);
-    }
+    // Cast the data to a uint32_t pointer
+    const uint32_t *cigar = (const uint32_t *)data;
 
     // Call the function-under-test
-    hts_idx_save(idx, filename, fmt);
+    hts_pos_t result = bam_cigar2qlen(num_elements, cigar);
 
-    // Clean up
-    hts_idx_destroy(idx);
-    unlink(tmpl);
+    // Use the result in some way to avoid any compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

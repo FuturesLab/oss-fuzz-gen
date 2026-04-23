@@ -1,40 +1,99 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <htslib/sam.h>
 #include <htslib/hts.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include for close() and mkstemp()
 
-// Function-under-test
-int bam_next_basemod(const bam1_t *, hts_base_mod_state *, hts_base_mod *, int, int *);
-
-// Remove extern "C" as this is not valid in C files
 int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    // Initialize bam1_t structure
-    bam1_t *bam_record = bam_init1();
-    if (!bam_record) return 0;
-
-    // Initialize hts_base_mod_state structure
-    hts_base_mod_state *mod_state = hts_base_mod_state_alloc();
-    if (!mod_state) {
-        bam_destroy1(bam_record);
+    // Create a temporary file to use with htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize hts_base_mod structure
-    hts_base_mod mod;
-    mod.modified_base = 'C';  // Example base modification
-    mod.strand = 0;           // Example strand
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        remove(tmpl);
+        return 0;
+    }
 
-    // Initialize other parameters
-    int max_mods = 10;        // Example maximum number of modifications
-    int n_mods = 0;           // Number of modifications found
+    // Close the file descriptor as hts_open will open it again
+    close(fd);
+
+    // Open the temporary file as an htsFile
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        remove(tmpl);
+        return 0;
+    }
+
+    // Create a sam_hdr_t object
+    sam_hdr_t *header = sam_hdr_init();
+    if (header == NULL) {
+        hts_close(file);
+        remove(tmpl);
+        return 0;
+    }
+
+    // Add a dummy header line to ensure header is not empty
+    if (sam_hdr_add_line(header, "HD", "VN:1.0", NULL) != 0) {
+        sam_hdr_destroy(header);
+        hts_close(file);
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = bam_next_basemod(bam_record, mod_state, &mod, max_mods, &n_mods);
+    sam_hdr_write(file, header);
 
     // Clean up
-    hts_base_mod_state_free(mod_state);
-    bam_destroy1(bam_record);
+    sam_hdr_destroy(header);
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_85(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

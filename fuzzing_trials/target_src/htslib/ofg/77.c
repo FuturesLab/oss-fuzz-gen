@@ -1,27 +1,78 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include for close() and unlink()
+#include <fcntl.h>  // Include for mkstemp()
+#include <htslib/hts.h>
 
-// Function-under-test declaration
-const char * hts_test_feature(unsigned int feature);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract an unsigned int
-    if (size < sizeof(unsigned int)) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract an unsigned int from the input data
-    unsigned int feature = *((unsigned int *)data);
-
-    // Call the function-under-test
-    const char *result = hts_test_feature(feature);
-
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (result != NULL) {
-        // For example, we can check the first character
-        volatile char first_char = result[0];
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
     }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Call the function-under-test with the temporary file path
+    int flags = 0; // Use a default flag value
+    hts_idx_t *index = hts_idx_load(tmpl, flags);
+
+    // Clean up
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_77(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,85 +1,78 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-// Function prototype for the function-under-test
-int sam_index_build3(const char *fn, const char *fnidx, int min_shift, int n_threads);
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h> // Include this for the close() and remove() functions
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Check if the input size is too small to be meaningful
-    if (size < 1) {
-        return 0; // Exit if no data is provided
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
-
-    // Create temporary files to simulate filenames
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    // Ensure the temporary files are created successfully
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) {
-                close(fd1);
-        }
-        if (fd2 != -1) {
-                close(fd2);
-        }
-        return 0; // Exit if file creation fails
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
     }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Write fuzz data to the first temporary file
-    ssize_t written = write(fd1, data, size);
-    if (written == -1 || written != size) {
-        close(fd1);
-        close(fd2);
-        unlink(tmpl1);
-        unlink(tmpl2);
-        return 0; // Exit if writing fails
+    // Open the file using hts_open
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        remove(tmpl);
+        return 0;
     }
-    close(fd1);
-
-    // Initialize parameters for the function-under-test
-    const char *fn = tmpl1;
-    const char *fnidx = tmpl2;
-    int min_shift = 1;  // Example value, can be varied
-    int n_threads = 2;  // Example value, can be varied
 
     // Call the function-under-test
+    const htsFormat *format = hts_get_format(hts_file);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sam_index_build3
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sam_index_build3
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sam_index_build3
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sam_index_build3
-    int result = sam_index_build3(fn, NULL, min_shift, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Check the result of the function-under-test
-    if (result != 0) {
-        fprintf(stderr, "Function sam_index_build3 failed with error code: %d\n", result);
-    }
-
-    // Clean up temporary files
-    unlink(tmpl1);
-    unlink(tmpl2);
+    // Clean up
+    hts_close(hts_file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

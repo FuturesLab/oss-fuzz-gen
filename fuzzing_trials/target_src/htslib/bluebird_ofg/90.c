@@ -1,41 +1,62 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/hts_defs.h"
-#include "/src/htslib/hts_internal.h" // Correct path for hts_idx_t and related functions
+#include <stdlib.h>
+#include <stdio.h>
+#include "htslib/sam.h" // Assuming bam_plp_t is defined in this library
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to proceed
-    if (size < sizeof(uint64_t) + 1) {
-        return 0;
-    }
+    // Assuming bam_plp_t is a pointer type, initialize it properly
+    bam_plp_t plp = bam_plp_init(NULL, NULL); // Initialize with NULL callbacks
 
-    // Initialize parameters for hts_idx_init
-    int n = 1;  // Number of reference sequences, must be > 0
-    int min_shift = 14;  // Minimum shift, typically 14 for BAM
-    uint64_t n_lvls = 5;  // Number of levels, typically 5 for BAM
-    int fmt = HTS_FMT_CSI;  // Format, HTS_FMT_CSI is a common choice
-    int flags = 0;  // Flags, 0 for default behavior
+    if (plp == NULL) {
+        return 0; // If initialization fails, return early
+    }
 
     // Call the function-under-test
-    hts_idx_t *idx = hts_idx_init(n, min_shift, n_lvls, fmt, flags);
+    bam_plp_reset(plp);
 
-    // Use the input data to simulate some operations on the index
-    if (idx != NULL) {
-        // Use the input data to create a fake bin and offset
-        uint64_t bin = data[0] % 37450; // A typical bin range for BAM
-        uint64_t offset = *((uint64_t *)(data + 1));
-
-        // Add an entry to the index
-        int is_mapped = 1;  // Assuming the entry is mapped
-        hts_idx_push(idx, 0, bin, offset, offset + 1, is_mapped);
-        
-        // Finalize the index to simulate a complete operation
-        hts_idx_finish(idx, UINT64_MAX);
-
-        // Clean up
-        hts_idx_destroy(idx);
-    }
+    // Clean up resources
+    bam_plp_destroy(plp);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_90(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

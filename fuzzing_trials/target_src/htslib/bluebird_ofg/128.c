@@ -1,55 +1,85 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "htslib/hts.h"
+#include "htslib/sam.h" // Correct header file for bam1_t and bam_aux_append
 
 int LLVMFuzzerTestOneInput_128(const uint8_t *data, size_t size) {
-    htsFile *file = NULL;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    if (size < 8) { // Ensure there is enough data for the parameters and auxiliary data
+        return 0; // Handle insufficient input size
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
+    bam1_t *bam = bam_init1(); // Properly initialize bam1_t structure
+    if (!bam) {
+        return 0; // Handle memory allocation failure
     }
-    close(fd);
 
-    // Open the temporary file with hts_open
-    file = hts_open(tmpl, "r");
-    if (file == NULL) {
+    // Use the first byte as the character
+    char aux_char = (char)data[0];
+
+    // Use the second byte as the integer
+    int aux_int = (int)data[1];
+
+    // Use the next 3 bytes as a string for the tag
+    char tag[4];
+    memcpy(tag, data + 2, 3);
+    tag[3] = '\0'; // Null-terminate the string
+
+    // Use the next 4 bytes as the auxiliary data
+    const uint8_t *aux_data = data + 5;
+    size_t aux_data_size = size - 5;
+
+    // Ensure aux_data_size is sufficient for the expected data type
+    if (aux_data_size < 4) { // Ensure there is enough data for an integer
+        bam_destroy1(bam); // Clean up before returning
         return 0;
     }
 
     // Call the function-under-test
+    int result = bam_aux_append(bam, tag, aux_char, aux_data, 4); // Correct parameter order and size
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_flush with hts_check_EOF
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_idx_seqnames
-    int ret_hfile_has_plugin_rehhw = hfile_has_plugin((const char *)data);
-    if (ret_hfile_has_plugin_rehhw < 0){
-    	return 0;
-    }
-
-    const char** ret_hts_idx_seqnames_pwmol = hts_idx_seqnames(NULL, &ret_hfile_has_plugin_rehhw, 0, (void *)file);
-    if (ret_hts_idx_seqnames_pwmol == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hts_check_EOF(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Close the file and clean up
-    hts_close(file);
-    unlink(tmpl);
+    bam_destroy1(bam); // Clean up after usage
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_128(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

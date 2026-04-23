@@ -1,51 +1,88 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include "htslib/sam.h"
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
+
+// Function-under-test declaration
+char *sam_open_mode_opts(const char *path, const char *mode, const char *opts);
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Initialize variables
-    samFile *file = sam_open("/dev/null", "w"); // Open a dummy file for writing
-    sam_hdr_t *header = sam_hdr_init();         // Initialize a SAM header
-
-    // Ensure that the header is not NULL
-    if (header == NULL) {
-        sam_close(file);
+    // Ensure we have enough data to extract three non-NULL strings
+    if (size < 3) {
         return 0;
     }
 
-    // Allocate a buffer and copy the input data, appending a null terminator
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        sam_hdr_destroy(header);
-        sam_close(file);
-        return 0;
-    }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
+    // Split the input data into three parts
+    size_t part_size = size / 3;
+    size_t remainder = size % 3;
 
-    // Attempt to parse the null-terminated input data as a SAM header
-    sam_hdr_t *parsed_header = sam_hdr_parse(size, null_terminated_data);
-    if (parsed_header == NULL) {
-        free(null_terminated_data);
-        sam_hdr_destroy(header);
-        sam_close(file);
-        return 0;
-    }
+    // Allocate memory for the strings
+    char *path = (char *)malloc(part_size + 1);
+    char *mode = (char *)malloc(part_size + 1);
+    char *opts = (char *)malloc(part_size + remainder + 1);
 
-    // Write the header to the file
-    if (sam_hdr_write(file, parsed_header) < 0) {
-        sam_hdr_destroy(parsed_header);
-        free(null_terminated_data);
-        sam_close(file);
-        return 0;
-    }
+    // Copy data into the strings and null-terminate them
+    memcpy(path, data, part_size);
+    path[part_size] = '\0';
 
-    // Clean up
-    sam_hdr_destroy(parsed_header);
-    free(null_terminated_data);
-    sam_hdr_destroy(header);
-    sam_close(file);
+    memcpy(mode, data + part_size, part_size);
+    mode[part_size] = '\0';
+
+    memcpy(opts, data + 2 * part_size, part_size + remainder);
+    opts[part_size + remainder] = '\0';
+
+    // Call the function-under-test
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of sam_open_mode_opts
+    char *result = sam_open_mode_opts(path, mode, NULL);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    // Free the allocated memory
+    free(path);
+    free(mode);
+    free(opts);
+
+    // Free the result if it's dynamically allocated (assuming it needs to be freed)
+    free(result);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

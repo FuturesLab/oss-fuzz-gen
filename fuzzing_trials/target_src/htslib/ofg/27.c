@@ -1,32 +1,60 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include "htslib/hts.h"  // Assuming htslib is installed and available
-#include "/src/htslib/htslib/hts.h"  // Include the correct header for MD5 functions
+#include <stddef.h>
+
+// Function-under-test declaration
+uint32_t bam_auxB_len(const uint8_t *data);
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    if (size < 16) {
-        // Not enough data to proceed
+    // Ensure the data is not NULL and has at least one byte
+    if (data == NULL || size == 0) {
         return 0;
     }
-
-    // Allocate memory for the output
-    unsigned char output[16];  // MD5 outputs are typically 16 bytes
-
-    // Initialize the MD5 context
-    hts_md5_context *ctx = hts_md5_init();
-    if (ctx == NULL) {
-        return 0;
-    }
-
-    // Update the MD5 context with the input data
-    hts_md5_update(ctx, data, size);
 
     // Call the function-under-test
-    hts_md5_final(output, ctx);
+    uint32_t result = bam_auxB_len(data);
 
-    // Clean up
-    hts_md5_destroy(ctx);
+    // Use the result in some way to avoid compiler optimizations
+    // that might skip the function call if the result is unused.
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

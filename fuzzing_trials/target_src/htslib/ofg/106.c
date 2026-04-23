@@ -1,65 +1,75 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h> // For mkstemp, write, lseek, close, and unlink
-#include <fcntl.h>  // For file control options
-#include <string.h> // For memset
-#include "/src/htslib/htslib/hfile.h" // Correct path for hFILE
+#include <string.h>
+#include "/src/htslib/htslib/sam.h" // Replacing bam.h with the correct path to sam.h
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    // Check if size is greater than zero to ensure data is not empty
-    if (size == 0) {
+    bam1_t bam_record;
+    char tag[3];
+    int64_t value;
+
+    // Initialize bam_record with some non-NULL values
+    memset(&bam_record, 0, sizeof(bam1_t));
+    bam_record.data = (uint8_t *)data;
+    bam_record.l_data = size;
+
+    // Ensure the tag is a valid 2-character string
+    if (size < 2) {
         return 0;
     }
+    tag[0] = (char)data[0];
+    tag[1] = (char)data[1];
+    tag[2] = '\0';
 
-    // Create a temporary file to simulate hFILE
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // If file creation fails, exit the fuzzer
+    // Use the remaining data as the integer value
+    if (size > 2) {
+        value = *((int64_t *)(data + 2));
+    } else {
+        value = 0; // Default value if not enough data
     }
 
-    // Write the fuzz data to the file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0; // If writing fails, exit the fuzzer
-    }
-    lseek(fd, 0, SEEK_SET); // Reset file pointer to the beginning
-    close(fd); // Close the file descriptor since hopen will open it again
-
-    // Open the file using hFILE
-    hFILE *file = hopen(tmpl, "r");
-    if (file == NULL) {
-        unlink(tmpl); // Remove the temporary file
-        return 0; // If hFILE opening fails, exit the fuzzer
-    }
-
-    // Allocate a buffer to read data into
-    size_t buffer_size = 1024; // Arbitrary buffer size
-    void *buffer = malloc(buffer_size);
-    if (buffer == NULL) {
-        hclose(file);
-        unlink(tmpl); // Remove the temporary file
-        return 0; // If buffer allocation fails, exit the fuzzer
-    }
-
-    // Use a more comprehensive function to process the file
-    ssize_t bytes_read;
-    while ((bytes_read = hread(file, buffer, buffer_size)) > 0) {
-        // Process the data read if needed
-    }
-
-    // Check for read errors
-    if (bytes_read < 0) {
-        // Handle error in hread if needed
-    }
-
-    // Clean up
-    free(buffer);
-    hclose(file);
-    unlink(tmpl); // Remove the temporary file
+    // Call the function under test
+    bam_aux_update_int(&bam_record, tag, value);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_106(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

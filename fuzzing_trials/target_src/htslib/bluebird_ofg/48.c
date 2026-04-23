@@ -1,176 +1,143 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <unistd.h>
 #include "htslib/hts.h"
-#include "htslib/sam.h"
+#include "/src/htslib/htslib/thread_pool.h"
+#include "htslib/sam.h" // Include for SAM/BAM/CRAM file operations
 
-// Function to handle the fuzz input
-int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    // Check if the input size is reasonable
-    if (size < 4) { // Arbitrary small size to avoid processing very small inputs
-        return 0;
-    }
-
-    // Initialize htsFile with a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
+// Function to create a temporary file from the fuzzing input
+static htsFile* create_temp_file_from_input(const uint8_t *data, size_t size) {
+    char filename[] = "/tmp/fuzz_input_XXXXXX";
+    int fd = mkstemp(filename);
     if (fd == -1) {
-        return 0;
+        return NULL;
     }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
-        return 0;
+        unlink(filename);
+        return NULL;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    close(fd);
 
     // Open the file with htslib
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        remove(tmpl);
-        return 0;
+    htsFile *file = hts_open(filename, "r");
+    unlink(filename); // Remove the file after opening
+    return file;
+}
+
+int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
+    // Check if the input size is reasonable for a SAM/BAM/CRAM file
+    if (size < 4) {
+        return 0; // Return early if the input size is too small
     }
 
-    // Read the header
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to sam_hdr_set
-    const sam_hdr_t wqebuzqh;
-    memset(&wqebuzqh, 0, sizeof(wqebuzqh));
-    sam_hdr_t* ret_sam_hdr_dup_bythe = sam_hdr_dup(&wqebuzqh);
-    if (ret_sam_hdr_dup_bythe == NULL){
-    	return 0;
+    // Create a temporary file from the input data
+    htsFile *file = create_temp_file_from_input(data, size);
+    if (file == NULL) {
+        return 0; // If file opening fails, return early
     }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of sam_hdr_set
-    int ret_sam_hdr_set_iyfgx = sam_hdr_set(hts_file, ret_sam_hdr_dup_bythe, FT_UNKN);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_sam_hdr_set_iyfgx < 0){
-    	return 0;
+    
+    htsThreadPool thread_pool;
+    struct hts_tpool *tpool = hts_tpool_init(2); // Initialize a thread pool with 2 threads
+    if (tpool == NULL) {
+        hts_close(file);
+        return 0; // If thread pool initialization fails, return early
     }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_set to bam_mods_query_type
-    hts_base_mod_state* ret_hts_base_mod_state_alloc_ibvrf = hts_base_mod_state_alloc();
-    if (ret_hts_base_mod_state_alloc_ibvrf == NULL){
-    	return 0;
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_base_mod_state_alloc to bam_mods_recorded
-    sam_hdr_t jgjkedns;
-    memset(&jgjkedns, 0, sizeof(jgjkedns));
-    size_t ret_sam_hdr_length_pwvkt = sam_hdr_length(&jgjkedns);
-    if (ret_sam_hdr_length_pwvkt < 0){
-    	return 0;
-    }
-
-    int* ret_bam_mods_recorded_ijpla = bam_mods_recorded(ret_hts_base_mod_state_alloc_ibvrf, (int *)&ret_sam_hdr_length_pwvkt);
-    if (ret_bam_mods_recorded_ijpla == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int64_t ret_bam_aux2i_buzvr = bam_aux2i((const uint8_t *)&ret_sam_hdr_set_iyfgx);
-    if (ret_bam_aux2i_buzvr < 0){
-    	return 0;
-    }
-    int ret_hfile_has_plugin_dodjl = hfile_has_plugin((const char *)data);
-    if (ret_hfile_has_plugin_dodjl < 0){
-    	return 0;
-    }
-    hts_free((void *)hts_file);
-
-    int ret_bam_mods_query_type_drbus = bam_mods_query_type(ret_hts_base_mod_state_alloc_ibvrf, (int )ret_bam_aux2i_buzvr, &ret_hfile_has_plugin_dodjl, &ret_sam_hdr_set_iyfgx, hts_file);
-    if (ret_bam_mods_query_type_drbus < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    bam_hdr_t *header = sam_hdr_read(hts_file);
-    if (!header) {
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize an iterator
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to sam_write1
-    bam1_t* ret_bam_init1_chqdn = bam_init1();
-    if (ret_bam_init1_chqdn == NULL){
-    	return 0;
-    }
-
-    int ret_sam_write1_ybvud = sam_write1(hts_file, header, ret_bam_init1_chqdn);
-    if (ret_sam_write1_ybvud < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hts_idx_t *idx = sam_index_load(hts_file, tmpl);
-    if (!idx) {
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    hts_itr_t *itr = sam_itr_queryi(idx, HTS_IDX_NOCOOR, 0, 0);
-    if (!itr) {
-        hts_idx_destroy(idx);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_destroy to sam_itr_queryi
-
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sam_itr_queryi
-        hts_itr_t* ret_sam_itr_queryi_eetvp = sam_itr_queryi(idx, 64, BAM_FMUNMAP, 64);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        if (ret_sam_itr_queryi_eetvp == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize a buffer for the third parameter
-    bam1_t *b = bam_init1();
-    if (!b) {
-        hts_itr_destroy(itr);
-        hts_idx_destroy(idx);
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
+    thread_pool.pool = tpool;
+    thread_pool.qsize = 0; // Default queue size
 
     // Call the function-under-test
-    while (sam_itr_next(hts_file, itr, b) >= 0) {
-        // Process each record (for fuzzing, we don't need to do anything here)
+    int result = hts_set_thread_pool(file, &thread_pool);
+    if (result != 0) {
+        hts_tpool_destroy(tpool);
+        hts_close(file);
+        return 0; // If setting the thread pool fails, return early
     }
 
-    // Clean up
-    bam_destroy1(b);
-    hts_itr_destroy(itr);
-    hts_idx_destroy(idx);
+    // Read the header to ensure the file is valid
+    bam_hdr_t *header = sam_hdr_read(file);
+    if (header == NULL) {
+        hts_tpool_destroy(tpool);
+        hts_close(file);
+        return 0; // If reading the header fails, return early
+    }
+
+    // Perform operations that require the thread pool
+    bam1_t *aln = bam_init1();
+    if (aln == NULL) {
+        bam_hdr_destroy(header);
+        hts_tpool_destroy(tpool);
+        hts_close(file);
+        return 0; // If bam initialization fails, return early
+    }
+
+    while (sam_read1(file, header, aln) >= 0) {
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sam_read1 to bam_set_qname using the plateau pool
+    char qname[256];
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!aln) {
+    	return 0;
+    }
+    int ret_bam_set_qname_htmeq = bam_set_qname(aln, qname);
+    if (ret_bam_set_qname_htmeq < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+
+        // Process each alignment
+    }
+    bam_destroy1(aln);
     bam_hdr_destroy(header);
-    hts_close(hts_file);
-    remove(tmpl);
+
+    // Ensure all operations are completed before destroying the thread pool
+
+    // Clean up
+    hts_close(file);
+    hts_tpool_destroy(tpool);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_48(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

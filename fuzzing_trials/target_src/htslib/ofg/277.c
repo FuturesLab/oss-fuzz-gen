@@ -1,47 +1,85 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
+#include <unistd.h>
+#include <zlib.h>
+#include <htslib/sam.h>
+#include <htslib/bgzf.h>
 
-// Function signature
-int hts_resize_array_(size_t, size_t, size_t, void *, void **, int, const char *);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_277(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract meaningful values
-    if (size < sizeof(size_t) * 3 + sizeof(int) + 1) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract size_t values from the input data
-    size_t size1 = *((size_t *)data);
-    size_t size2 = *((size_t *)(data + sizeof(size_t)));
-    size_t size3 = *((size_t *)(data + 2 * sizeof(size_t)));
-
-    // Extract an integer value from the input data
-    int int_val = *((int *)(data + 3 * sizeof(size_t)));
-
-    // Extract a string from the input data
-    const char *string_val = (const char *)(data + 3 * sizeof(size_t) + sizeof(int));
-
-    // Ensure size1, size2, and size3 do not cause overflow in multiplication
-    if (size1 > 0 && size2 > 0 && size3 > 0 && size1 <= SIZE_MAX / size2 && size1 * size2 <= SIZE_MAX / size3) {
-        // Allocate memory for the array
-        void *array = malloc(size1 * size2 * size3);
-        if (array == NULL) {
-            return 0;  // Exit if memory allocation fails
-        }
-
-        // Initialize a pointer to the array
-        void *array_ptr = array;
-
-        // Call the function-under-test
-        hts_resize_array_(size1, size2, size3, array, &array_ptr, int_val, string_val);
-
-        // Free allocated memory
-        free(array);
+    // Write the fuzz data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
     }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the temporary file using BGZF
+    BGZF *bgzf = bgzf_open(tmpl, "r");
+    if (bgzf == NULL) {
+        remove(tmpl);
+        return 0;
+    }
+
+    // Call the function-under-test
+    sam_hdr_t *header = bam_hdr_read(bgzf);
+
+    // Clean up
+    if (header != NULL) {
+        sam_hdr_destroy(header);
+    }
+    bgzf_close(bgzf);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_277(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

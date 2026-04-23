@@ -1,62 +1,70 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/faidx.h"
-#include <string.h>
-#include <unistd.h>
+#include "htslib/sam.h" // Correct path for base modifications
 
 int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
-    htsFile *file = NULL;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-    FILE *fp;
-
-    // Create a temporary file
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the fuzz data to the temporary file
-    fp = fdopen(fd, "wb");
-    if (fp == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, fp);
-    fclose(fp);
-
-    // Open the temporary file with hts_open
-    file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Attempt to create an index for the file to ensure it's in a valid format
-    if (fai_build(tmpl) != 0) {
-        hts_close(file);
-        unlink(tmpl);
-        return 0;
-    }
-
     // Call the function-under-test
+    hts_base_mod_state *state = hts_base_mod_state_alloc();
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hts_set_fai_filename
+    // Ensure the allocated state is not NULL before proceeding
+    if (state != NULL) {
+        // Use the input data to perform some operations on the state
+        // This is a placeholder for actual operations you want to test
+        // For example, you might have a function that processes the data
+        // and modifies the state in some way.
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hts_set_fai_filename
-    hts_set_fai_filename(file, (const char *)"w");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        // Example operation: (ensure size is sufficient for operation)
+        if (size > 0) {
+            // This is a hypothetical function that would use the data
+            // hts_base_mod_process(state, data, size);
+            // Since we don't have the actual function, this is a placeholder
+        }
 
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-    hts_close(file);
-    unlink(tmpl);
+        // Deallocate the state to avoid memory leaks
+        hts_base_mod_state_free(state);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_122(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

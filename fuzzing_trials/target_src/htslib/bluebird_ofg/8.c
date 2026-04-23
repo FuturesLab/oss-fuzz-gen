@@ -1,42 +1,90 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "htslib/hts.h"
+#include "htslib/sam.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>  // Include for close() and remove()
 
-// Fuzzing harness for hts_parse_format
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Ensure the input size is non-zero
-    if (size == 0) {
+    // Ensure the input size is sufficient for creating a temporary file
+    if (size < 1) {
         return 0;
     }
 
-    // Allocate and initialize htsFormat structure
-    htsFormat format;
-    memset(&format, 0, sizeof(htsFormat));
-
-    // Ensure null-terminated string for the second parameter
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';  // Null-terminate the string
 
-    // Call the function-under-test
-    hts_parse_format(&format, input_str);
+    // Write the fuzz data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Free allocated memory
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_parse_format to hts_format_description
-
-    char* ret_hts_format_description_rsmml = hts_format_description(&format);
-    if (ret_hts_format_description_rsmml == NULL){
-    	return 0;
+    // Open the temporary file with hts_open
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        remove(tmpl);
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Call the function under test
+    hts_idx_t *index = sam_index_load(hts_file, tmpl);
 
-    free(input_str);
+    // Clean up
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    hts_close(hts_file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

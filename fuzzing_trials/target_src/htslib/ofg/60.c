@@ -1,45 +1,56 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <htslib/kstring.h> // Include this if needed for hts_set_opt options
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = sam_hdr_init();
-    const char *type = "HD";  // Example SAM header type
-    const char *id = "VN";    // Example ID
-    const char *val = "1.0";  // Example value
+    htsFile *file = hts_open("-", "r");
+    enum hts_fmt_option option = (enum hts_fmt_option)(data[0] % 5); // Assuming 5 is the number of possible options
+    int value = (size > 1) ? data[1] : 0; // Use the second byte as a value, if available
 
-    // Check if the header was initialized successfully
-    if (hdr == NULL) {
-        return 0;
+    if (file != NULL) {
+        hts_set_opt(file, option, (void *)(uintptr_t)value);
+        hts_close(file);
     }
-
-    // Add a dummy line to the header to ensure there's something to remove
-    if (sam_hdr_add_line(hdr, type, "ID", id, "VN", val, NULL) < 0) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    // Ensure the data is not null and has a reasonable size
-    if (data != NULL && size > 0) {
-        // Attempt to use the input data as part of the ID or value
-        char *dynamic_id = strndup((const char *)data, size > 10 ? 10 : size);
-        char *dynamic_val = strndup((const char *)data + (size > 10 ? 10 : 0), size > 20 ? 10 : size - (size > 10 ? 10 : 0));
-
-        if (dynamic_id && dynamic_val) {
-            // Add another line using dynamic data
-            sam_hdr_add_line(hdr, type, "ID", dynamic_id, "VN", dynamic_val, NULL);
-
-            // Call the function-under-test with dynamic data
-            sam_hdr_remove_line_id(hdr, type, dynamic_id, dynamic_val);
-        }
-
-        free(dynamic_id);
-        free(dynamic_val);
-    }
-
-    // Clean up
-    sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_60(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,51 +1,78 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  // For close() and unlink()
-#include <fcntl.h>   // For mkstemp()
+#include <stdio.h>
 
-// Assuming hFILE is defined somewhere in the included headers
-typedef struct hFILE hFILE;
+// Function signature
+ssize_t sam_parse_cigar(const char *cigar, char **op, uint32_t **len, size_t *n);
 
-// Assuming the function signature is declared somewhere
-hFILE *hopen(const char *, const char *, void *); // Corrected the function signature to use void*
-
-// Removed the extern "C" block as it's not needed in C code
+// Fuzzer entry point
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Create a temporary file to pass as the first argument
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
+    // Allocate memory for the cigar string and ensure null termination
+    char *cigar = (char *)malloc(size + 1);
+    if (cigar == NULL) {
         return 0;
     }
-    close(fd);
+    memcpy(cigar, data, size);
+    cigar[size] = '\0';
 
-    // Define a mode string for the second argument
-    const char *mode = "r";
-
-    // Create a dummy non-NULL pointer for the third argument
-    int dummy_arg = 0;
-    void *dummy_ptr = &dummy_arg;
+    // Initialize variables for the function parameters
+    char *op = NULL;
+    uint32_t *len = NULL;
+    size_t n = 0;
 
     // Call the function-under-test
-    hFILE *file = hopen(tmpl, mode, dummy_ptr);
+    ssize_t result = sam_parse_cigar(cigar, &op, &len, &n);
 
-    // Clean up
-    if (file != NULL) {
-        // Assuming there's a function to close hFILE, e.g., hclose
-        // hclose(file);
-    }
-
-    // Remove the temporary file
-    unlink(tmpl);
+    // Free allocated memory
+    free(cigar);
+    free(op);
+    free(len);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_37(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,43 +1,85 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <htslib/hts.h>
-#include <htslib/tbx.h>  // Include the header that defines hts_idx_t
 
 int LLVMFuzzerTestOneInput_268(const uint8_t *data, size_t size) {
-    // Ensure the input size is large enough to extract necessary data
-    if (size < sizeof(int) + 1) {
+    // Ensure there is enough data to create two filenames
+    if (size < 4) {
         return 0;
     }
 
-    // Initialize a mock hts_idx_t object
-    hts_idx_t *idx = tbx_index_load("dummy");  // Use a function to initialize a non-null idx
+    // Create temporary files for the two filenames
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
 
-    if (idx == NULL) {
-        return 0;  // Handle the case where index loading fails
-    }
-
-    // Extract an integer value from the input data
-    int val;
-    memcpy(&val, data, sizeof(int));
-
-    // Ensure the string is null-terminated by allocating extra space
-    size_t name_size = size - sizeof(int);
-    char *name = (char *)malloc(name_size + 1);
-    if (name == NULL) {
-        tbx_destroy(idx);  // Clean up if malloc fails
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) close(fd1);
+        if (fd2 != -1) close(fd2);
         return 0;
     }
-    memcpy(name, data + sizeof(int), name_size);
-    name[name_size] = '\0'; // Null-terminate the string
 
-    // Call the function-under-test with a non-null idx
-    hts_idx_tbi_name(idx, val, name);
+    // Write some data to the files
+    write(fd1, data, size / 2);
+    write(fd2, data + size / 2, size - size / 2);
+
+    // Close the file descriptors
+    close(fd1);
+    close(fd2);
+
+    // Call the function-under-test
+    hts_idx_t *index = hts_idx_load2(tmpl1, tmpl2);
 
     // Clean up
-    tbx_destroy(idx);  // Properly clean up the index object
-    free(name);
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_268(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

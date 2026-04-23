@@ -1,61 +1,88 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <htslib/hts.h>
+
+// Replacing the non-existent htslib/hts_idx.h with the correct header file
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/bgzf.h"
-#include "htslib/sam.h"
-#include "/src/htslib/htslib/hts_defs.h"
-#include "/src/htslib/htslib/hts_log.h"
 
 int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
+    // Ensure there is enough data to extract parameters
+    if (size < sizeof(int) + 2 * sizeof(hts_pos_t) + sizeof(uint64_t) + sizeof(int)) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (fwrite(data, 1, size, temp_file) != size) {
-        fclose(temp_file);
-        return 0;
-    }
+    // Initialize the parameters from the input data
+    int param1 = *(const int *)data;
+    data += sizeof(int);
+    size -= sizeof(int);
 
-    // Rewind the file to the beginning for reading
-    rewind(temp_file);
+    hts_pos_t param2 = *(const hts_pos_t *)data;
+    data += sizeof(hts_pos_t);
+    size -= sizeof(hts_pos_t);
 
-    // Open the temporary file with BGZF
-    BGZF *bgzf = bgzf_dopen(fileno(temp_file), "r");
-    if (bgzf == NULL) {
-        fclose(temp_file);
-        return 0;
-    }
+    hts_pos_t param3 = *(const hts_pos_t *)data;
+    data += sizeof(hts_pos_t);
+    size -= sizeof(hts_pos_t);
 
-    // Initialize iterator
-    hts_itr_t *iter = hts_itr_query(bgzf, NULL, 0, 0, 0);
-    if (iter == NULL) {
-        bgzf_close(bgzf);
-        fclose(temp_file);
-        return 0;
-    }
+    uint64_t param4 = *(const uint64_t *)data;
+    data += sizeof(uint64_t);
+    size -= sizeof(uint64_t);
 
-    // Allocate memory for a dummy bam1_t structure
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        hts_itr_destroy(iter);
-        bgzf_close(bgzf);
-        fclose(temp_file);
-        return 0;
-    }
+    int param5 = *(const int *)data;
+    data += sizeof(int);
+    size -= sizeof(int);
+
+    // Allocate and initialize hts_idx_t
+    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 0, 0);
 
     // Call the function-under-test
-    int result = hts_itr_next(bgzf, iter, b, NULL);
-
-    // Clean up
-    bam_destroy1(b);
-    hts_itr_destroy(iter);
-    bgzf_close(bgzf);
-    fclose(temp_file);
+    if (idx != NULL) {
+        hts_idx_push(idx, param1, param2, param3, param4, param5);
+        // Clean up
+        hts_idx_destroy(idx);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_104(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

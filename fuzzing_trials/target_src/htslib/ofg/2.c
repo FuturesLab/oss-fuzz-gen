@@ -1,57 +1,75 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 
-// Assuming sam_hdr_t is a structure defined in the relevant library
-typedef struct {
-    char *header;
-    size_t length;
-} sam_hdr_t;
+// Assuming the function is declared in some header file
+// #include "hfile.h"
 
-// Mock function to simulate sam_hdr_length
-size_t sam_hdr_length_2(sam_hdr_t *hdr) {
-    if (hdr == NULL || hdr->header == NULL) {
-        return 0;
-    }
-    return hdr->length;
-}
+// Mock function definition for demonstration purposes
+int hfile_list_plugins(const char **plugins, int *count);
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    if (size < 1) {
+    // Ensure size is sufficient for at least one plugin name and an integer
+    if (size < sizeof(int) + 1) {
         return 0;
     }
 
-    // Allocate memory for sam_hdr_t
-    sam_hdr_t *hdr = (sam_hdr_t *)malloc(sizeof(sam_hdr_t));
-    if (hdr == NULL) {
-        return 0;
-    }
+    // Allocate memory for the plugins array
+    const char *plugins[2];
+    char plugin_name1[] = "plugin1";
+    char plugin_name2[] = "plugin2";
 
-    // Allocate memory for the header string
-    hdr->header = (char *)malloc(size + 1);
-    if (hdr->header == NULL) {
-        free(hdr);
-        return 0;
-    }
+    // Initialize the plugins array with non-NULL values
+    plugins[0] = plugin_name1;
+    plugins[1] = plugin_name2;
 
-    // Copy the fuzz data into the header and null-terminate it
-    memcpy(hdr->header, data, size);
-    hdr->header[size] = '\0';
-
-    // Set the length of the header
-    hdr->length = size;
+    // Initialize the count variable
+    int count = 0;
 
     // Call the function-under-test
-    size_t result = sam_hdr_length_2(hdr);
+    int result = hfile_list_plugins(plugins, &count);
 
-    // Print the result (optional, for debugging purposes)
-    printf("Header length: %zu\n", result);
-
-    // Free allocated memory
-    free(hdr->header);
-    free(hdr);
+    // Print the result for debugging purposes (optional)
+    printf("Result: %d, Count: %d\n", result, count);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

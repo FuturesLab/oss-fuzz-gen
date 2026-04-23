@@ -1,36 +1,129 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h> // Ensure htslib is installed and available
-
-// Function-under-test
-ssize_t bam_parse_cigar(const char *cigar_str, char **end, bam1_t *b);
+#include <stdio.h>
+#include <htslib/sam.h>
+#include <htslib/bgzf.h> // Include the necessary header for BGZF operations
+#include <unistd.h> // Include for mkstemp
 
 int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
-    if (size == 0) return 0;
-
-    // Allocate memory for bam1_t
-    bam1_t *b = bam_init1();
-    if (b == NULL) return 0;
-
-    // Copy the data to a null-terminated string
-    char *cigar_str = (char *)malloc(size + 1);
-    if (cigar_str == NULL) {
-        bam_destroy1(b);
+    // Check if size is sufficient to create a valid BAM file
+    if (size < sizeof(bam1_t)) {
         return 0;
     }
-    memcpy(cigar_str, data, size);
-    cigar_str[size] = '\0';
 
-    // Prepare the end pointer
-    char *end = NULL;
+    // Create a temporary file to simulate a BGZF stream
+    char tmp_filename[] = "/tmp/fuzz_bam_XXXXXX";
+    int tmp_fd = mkstemp(tmp_filename);
+    if (tmp_fd == -1) {
+        return 0;
+    }
+
+    // Write the input data to the temporary file
+    if (write(tmp_fd, data, size) != size) {
+        close(tmp_fd);
+        unlink(tmp_filename);
+        return 0;
+    }
+
+    // Open the temporary file as a BGZF stream
+    BGZF *bgzf = bgzf_open(tmp_filename, "r");
+    if (bgzf == NULL) {
+        close(tmp_fd);
+        unlink(tmp_filename);
+        return 0;
+    }
+
+    // Initialize the BAM file structure
+    bam_hdr_t *header = bam_hdr_read(bgzf);
+    if (header == NULL) {
+        bgzf_close(bgzf);
+        close(tmp_fd);
+        unlink(tmp_filename);
+        return 0;
+    }
+
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        bam_hdr_destroy(header);
+        bgzf_close(bgzf);
+        close(tmp_fd);
+        unlink(tmp_filename);
+        return 0;
+    }
+
+    // Declare and initialize variables
+    bam_plp_t pileup;
+    int tid = 0;
+    int pos = 0;
+    int n_plp = 0;
+
+    // Initialize the pileup with a dummy function and data
+    pileup = bam_plp_init(NULL, NULL);
+
+    // Check if pileup initialization was successful
+    if (pileup == NULL) {
+        bam_destroy1(b);
+        bam_hdr_destroy(header);
+        bgzf_close(bgzf);
+        close(tmp_fd);
+        unlink(tmp_filename);
+        return 0;
+    }
+
+    // Read BAM records and feed them to the pileup
+    while (bam_read1(bgzf, b) >= 0) {
+        bam_plp_push(pileup, b);
+    }
 
     // Call the function-under-test
-    bam_parse_cigar(cigar_str, &end, b);
+    const bam_pileup1_t *result = bam_plp_auto(pileup, &tid, &pos, &n_plp);
 
     // Clean up
-    free(cigar_str);
+    bam_plp_destroy(pileup);
     bam_destroy1(b);
+    bam_hdr_destroy(header);
+    bgzf_close(bgzf);
+    close(tmp_fd);
+    unlink(tmp_filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_156(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

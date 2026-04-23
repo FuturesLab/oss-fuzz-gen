@@ -1,69 +1,80 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
-#include <unistd.h> // Include this for the close() and remove() functions
+#include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h> // Include this for mkstemp, write, close, and unlink
 #include "htslib/hts.h"
-#include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    // Create a temporary file to simulate an htsFile input
+    char tmpl[] = "/tmp/fuzz_htsfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0;
+        return 0; // Unable to create temporary file
     }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
-        return 0;
+        unlink(tmpl);
+        return 0; // Failed to write data to the file
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+
+    // Close the file descriptor to reopen it with hts_open
+    close(fd);
 
     // Open the temporary file as an htsFile
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        remove(tmpl);
-        return 0;
+    htsFile *hts_fp = hts_open(tmpl, "r");
+    if (hts_fp == NULL) {
+        unlink(tmpl);
+        return 0; // Failed to open the file as an htsFile
     }
-
-    // Define index and format strings
-    const char *index = "index.bai"; // Example index filename
-    const char *format = "bai";      // Example format
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to bam_aux_update_array
-    bam1_t* ret_bam_init1_tqpqk = bam_init1();
-    if (ret_bam_init1_tqpqk == NULL){
-    	return 0;
-    }
-    char* ret_bam_flag2str_gunuq = bam_flag2str(HTS_IDX_REST);
-    if (ret_bam_flag2str_gunuq == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of bam_aux_update_array
-    int ret_bam_aux_update_array_mlnrg = bam_aux_update_array(ret_bam_init1_tqpqk, ret_bam_flag2str_gunuq, size, HTS_FEATURE_CONFIGURE, (void *)hts_file);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_bam_aux_update_array_mlnrg < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hts_idx_t *index_result = sam_index_load3(hts_file, tmpl, index, 0);
+    int result = hts_check_EOF(hts_fp);
 
     // Clean up
-    if (index_result) {
-        hts_idx_destroy(index_result);
-    }
-    hts_close(hts_file);
-    remove(tmpl);
+    hts_close(hts_fp);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

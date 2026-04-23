@@ -1,64 +1,79 @@
+#include <sys/stat.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h> // Include unistd.h for mkstemp and close
+#include <fcntl.h>  // Include fcntl.h for open and write
 #include "htslib/hts.h"
-#include "htslib/sam.h"  // Include the header where hts_base_mod_state is defined
-
-extern int bam_mods_queryi(hts_base_mod_state *state, int param1, int *param2, int *param3, char *param4);
 
 int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to initialize parameters
-    if (size < sizeof(int) * 3) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize hts_base_mod_state
-    hts_base_mod_state *state = hts_base_mod_state_alloc();
-    if (state == NULL) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
+    close(fd);
 
-    // Extract integers from the data
-    int param1 = *(int *)(data);
-    int param2_value = *(int *)(data + sizeof(int));
-    int param3_value = *(int *)(data + 2 * sizeof(int));
-
-    // Allocate memory for param2 and param3
-    int *param2 = (int *)malloc(sizeof(int));
-    int *param3 = (int *)malloc(sizeof(int));
-    if (param2 == NULL || param3 == NULL) {
-        hts_base_mod_state_free(state);
-        free(param2);
-        free(param3);
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        remove(tmpl);
         return 0;
     }
-
-    // Copy extracted values to param2 and param3
-    *param2 = param2_value;
-    *param3 = param3_value;
-
-    // Allocate memory for param4 string
-    size_t param4_size = size - 3 * sizeof(int);
-    char *param4 = (char *)malloc(param4_size + 1);  // +1 for null-terminator
-    if (param4 == NULL) {
-        hts_base_mod_state_free(state);
-        free(param2);
-        free(param3);
-        return 0;
-    }
-
-    // Copy remaining data into param4 and null-terminate it
-    memcpy(param4, data + 3 * sizeof(int), param4_size);
-    param4[param4_size] = '\0';
 
     // Call the function-under-test
-    int result = bam_mods_queryi(state, param1, param2, param3, param4);
+    const htsFormat *format = hts_get_format(file);
 
     // Clean up
-    hts_base_mod_state_free(state);
-    free(param2);
-    free(param3);
-    free(param4);
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_145(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

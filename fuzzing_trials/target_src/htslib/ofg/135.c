@@ -1,27 +1,94 @@
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h> // Include string.h for memset
+#include "/src/htslib/htslib/hfile.h"
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 0, 0);  // Create a new index with default parameters
-    uint64_t final_offset = 0;
+    hFILE *file = NULL;
+    off_t offset;
+    int whence;
+    off_t result;
 
-    // Ensure idx is not NULL
-    if (idx == NULL) {
+    // Ensure size is sufficient to extract necessary parameters
+    if (size < sizeof(off_t) + sizeof(int)) {
         return 0;
     }
 
-    // If size is sufficient, use data to set the final_offset
-    if (size >= sizeof(uint64_t)) {
-        final_offset = *((uint64_t *)data);
+    // Create a temporary file to use with hseek
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Open the file using hfile
+    file = hopen(tmpl, "r");
+    if (file == NULL) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Extract parameters from data
+    offset = *(off_t *)(data);
+    whence = *(int *)(data + sizeof(off_t));
+
     // Call the function-under-test
-    int result = hts_idx_finish(idx, final_offset);
+    result = hseek(file, offset, whence);
 
     // Clean up
-    hts_idx_destroy(idx);
+    hclose(file);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_135(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

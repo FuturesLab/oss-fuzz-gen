@@ -1,89 +1,61 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
-#include <unistd.h>      // For close, unlink, write
-#include <fcntl.h>       // For mkstemp
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/thread_pool.h"  // For hts_tpool and related functions
-#include "htslib/sam.h"  // For sam_read1 and bam1_t
+#include <stdint.h>
+#include <stddef.h>
+
+// Function-under-test declaration
+double bam_auxB2f(const uint8_t *data, uint32_t size);
 
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Check if the size is reasonable for hts_open to process
-    if (size < 4) {
-        return 0; // Not enough data to process
-    }
-
-    // Create a temporary file to simulate input data
-    char filename[] = "/tmp/fuzz_input.XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
+    // Ensure the size is non-zero and fits within uint32_t limits
+    if (size == 0 || size > UINT32_MAX) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(filename);
-        return 0;
-    }
-    close(fd);
+    // Call the function-under-test with the provided data
+    double result = bam_auxB2f(data, (uint32_t)size);
 
-    // Open the temporary file with hts_open
-    htsFile *file = hts_open(filename, "r");
-    if (file == NULL) {
-        unlink(filename);
-        return 0;
-    }
-
-    htsThreadPool threadPool;
-    struct hts_tpool *pool = hts_tpool_init(1); // Initialize a thread pool with 1 thread
-    if (pool == NULL) {
-        hts_close(file);
-        unlink(filename);
-        return 0;
-    }
-
-    threadPool.pool = pool;
-    threadPool.qsize = 0; // Set the queue size to 0 for simplicity
-
-    // Set the thread pool for the file
-    int result = hts_set_thread_pool(file, &threadPool);
-    if (result != 0) {
-        hts_tpool_destroy(pool);
-        hts_close(file);
-        unlink(filename);
-        return 0;
-    }
-
-    // Simulate processing by reading from the file
-    bam_hdr_t *header = sam_hdr_read(file);
-    if (header != NULL) {
-        bam1_t *aln = bam_init1();
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_init1 to bam_parse_basemod
-        hts_base_mod_state* ret_hts_base_mod_state_alloc_nwbvc = hts_base_mod_state_alloc();
-        if (ret_hts_base_mod_state_alloc_nwbvc == NULL){
-        	return 0;
-        }
-
-        int ret_bam_parse_basemod_dlncp = bam_parse_basemod(aln, ret_hts_base_mod_state_alloc_nwbvc);
-        if (ret_bam_parse_basemod_dlncp < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        while (sam_read1(file, header, aln) >= 0) {
-            // Process the alignment (placeholder for actual logic)
-        }
-        bam_destroy1(aln);
-        bam_hdr_destroy(header);
-    }
-
-    // Clean up in the correct order
-    hts_close(file);
-    hts_tpool_destroy(pool);
-    unlink(filename);
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_80(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

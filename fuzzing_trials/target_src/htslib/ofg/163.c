@@ -1,25 +1,75 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <htslib/hts.h> // Ensure the HTSlib library is included
+#include <stddef.h>
+#include <htslib/hts.h>
+#include <htslib/hts_defs.h>
+#include <htslib/sam.h>  // Include this to define bam1_t
+#include <htslib/bgzf.h> // Include this for BGZF
 
-// Remove 'extern "C"' as it is not valid in C code
+// Dummy implementations of the function pointers required by hts_itr_querys
+static int dummy_name2id(void *hdr, const char *name) {
+    return 0; // Dummy implementation
+}
+
+static int dummy_itr_query_func(const void *hdr, const char *name, hts_itr_t *iter) {
+    return 0; // Dummy implementation
+}
+
+static int dummy_readrec_func(BGZF *fp, void *hdr, void *data, bam1_t *b, int *tid, int *beg, int *end) {
+    return 0; // Dummy implementation
+}
+
 int LLVMFuzzerTestOneInput_163(const uint8_t *data, size_t size) {
-    // Declare a pointer for hts_md5_context
-    hts_md5_context *md5_ctx;
-
-    // Initialize the MD5 context
-    md5_ctx = hts_md5_init();
-    if (md5_ctx == NULL) {
-        return 0; // Return if initialization fails
-    }
-
-    // Use the input data to update the MD5 context
-    if (size > 0) {
-        hts_md5_update(md5_ctx, data, size);
-    }
+    // Initialize necessary variables
+    hts_idx_t *idx = (hts_idx_t *)data;  // Cast data to hts_idx_t pointer
+    const char *region = "chr1:1000-2000";  // Example region string
+    void *hdr = NULL;  // Placeholder for header, can be NULL for fuzzing
 
     // Call the function-under-test
-    hts_md5_destroy(md5_ctx);
+    hts_itr_t *itr = hts_itr_querys(idx, region, dummy_name2id, hdr, dummy_itr_query_func, dummy_readrec_func);
+
+    // Clean up
+    if (itr != NULL) {
+        hts_itr_destroy(itr);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_163(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
