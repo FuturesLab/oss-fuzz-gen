@@ -11,12 +11,11 @@ def extract_multiple_defs(build_log: str) -> list[str]:
         return set(RE.findall(f.read()))
 
 if __name__ == "__main__":
+    if not len(sys.argv) == 4:
+        print(f"Usage: {sys.argv[0]} <library_name> <build_log> <approach>")
     library_name = sys.argv[1]
     build_log = sys.argv[2]
     appr = sys.argv[3]
-
-    if not len(sys.argv) == 4:
-        print(f"Usage: {sys.argv[0]} <library_name> <build_log> <approach>")
 
     funcs_defined_multiple_times = extract_multiple_defs(build_log)
     for name in funcs_defined_multiple_times:
