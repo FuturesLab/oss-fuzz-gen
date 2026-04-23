@@ -1,56 +1,70 @@
-#include "stddef.h"
-#include <stdint.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stddef.h>
 #include <stdlib.h>
-
 #include "ares.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-  if (size == 0) {
-    return 0;
-  }
-
-  /* Initialize ares library */
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ares_library_init
-  if (ares_library_init(ARES_AI_NUMERICSERV) != ARES_SUCCESS) {
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    return 0;
-  }
-
-  ares_channel channel;
-  int status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
-  }
-
-  /* Allocate memory for the CSV string and ensure it's null-terminated */
-  char *csv = (char *)malloc(size + 1);
-  if (!csv) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
-  }
-  memcpy(csv, data, size);
-  csv[size] = '\0';
-
-  /* Call the function under test */
-  ares_set_servers_ports_csv(channel, csv);
-
-  /* Clean up */
-  free(csv);
-  ares_destroy(channel);
-  ares_library_cleanup();
-
-  return 0;
+// Custom memory allocation functions
+void *custom_malloc(size_t size) {
+    return malloc(size);
 }
-#ifdef __cplusplus
+
+void custom_free(void *ptr) {
+    free(ptr);
+}
+
+void *custom_realloc(void *ptr, size_t size) {
+    return realloc(ptr, size);
+}
+
+int LLVMFuzzerTestOneInput_48(const unsigned char *data, size_t size) {
+    // Use the first byte of data as flags, if available
+    int flags = 0;
+    if (size > 0) {
+        flags = data[0];
+    }
+
+    // Call the function-under-test
+    ares_library_init_mem(flags, custom_malloc, custom_free, custom_realloc);
+
+    return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_48(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

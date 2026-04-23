@@ -1,78 +1,94 @@
 // This fuzz driver is generated for library cares, aiming to fuzz the following functions:
-// ares_library_init at ares_library_init.c:108:5 in ares.h
 // ares_init at ares_init.c:67:5 in ares.h
-// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
-// ares_set_servers_ports at ares_update_servers.c:1245:5 in ares.h
+// ares_get_servers_csv at ares_update_servers.c:1315:7 in ares.h
+// ares_free_string at ares_free_string.c:30:6 in ares.h
+// ares_set_server_state_callback at ares_update_servers.c:1355:6 in ares.h
 // ares_gethostbyname at ares_gethostbyname.c:99:6 in ares.h
-// ares_set_servers_ports at ares_update_servers.c:1245:5 in ares.h
-// ares_cancel at ares_cancel.c:34:6 in ares.h
 // ares_destroy at ares_destroy.c:32:6 in ares.h
-// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <ares.h>
 
-static void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
+static void dummy_host_callback(void *arg, int status, int timeouts, const struct hostent *host) {
     // Dummy callback function for ares_gethostbyname
 }
 
+static void dummy_server_state_callback(const char *server, ares_bool_t up, int errcode, void *user_data) {
+    // Dummy server state callback function
+}
+
 int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
+        return 0;
+    }
+
     ares_channel_t *channel;
-    int status;
-    struct ares_addr_port_node server;
-    char hostname[256] = "example.com"; // Default hostname
-
-    // Initialize ares library
-    status = ares_library_init(ARES_LIB_INIT_ALL);
+    int status = ares_init(&channel);
     if (status != ARES_SUCCESS) {
         return 0;
     }
 
-    // Create a new channel
-    status = ares_init(&channel);
-    if (status != ARES_SUCCESS) {
-        ares_library_cleanup();
-        return 0;
+    // ares_get_servers_csv
+    char *servers_csv = ares_get_servers_csv(channel);
+    if (servers_csv != NULL) {
+        ares_free_string(servers_csv);
     }
 
-    // Prepare server address and port
-    memset(&server, 0, sizeof(server));
-    if (Size >= sizeof(struct ares_addr_port_node)) {
-        memcpy(&server, Data, sizeof(struct ares_addr_port_node));
-    } else {
-        server.family = AF_INET;
-        server.addr.addr4.s_addr = htonl(INADDR_LOOPBACK);
-        server.udp_port = htons(53);
-        server.tcp_port = htons(53);
-    }
+    // ares_set_server_state_callback
+    ares_set_server_state_callback(channel, dummy_server_state_callback, NULL);
 
-    // Validate family field to prevent invalid access
-    if (server.family != AF_INET && server.family != AF_INET6) {
-        server.family = AF_INET;
-    }
+    // Prepare a hostname from input data
+    char hostname[256];
+    size_t hostname_len = Size < 255 ? Size : 255;
+    memcpy(hostname, Data, hostname_len);
+    hostname[hostname_len] = '\0';
 
-    // Set servers and ports
-    status = ares_set_servers_ports(channel, &server);
-
-    // Perform a DNS lookup
-    if (Size > 0 && Size < sizeof(hostname)) {
-        memcpy(hostname, Data, Size);
-        hostname[Size] = '\0'; // Null-terminate the hostname
-    }
-    ares_gethostbyname(channel, hostname, AF_INET, dummy_callback, NULL);
-
-    // Set servers and ports again
-    status = ares_set_servers_ports(channel, &server);
-
-    // Cancel all ongoing requests
-    ares_cancel(channel);
+    // ares_gethostbyname
+    ares_gethostbyname(channel, hostname, AF_INET, dummy_host_callback, NULL);
 
     // Cleanup
     ares_destroy(channel);
-    ares_library_cleanup();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

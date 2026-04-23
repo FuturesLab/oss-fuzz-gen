@@ -1,170 +1,168 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <stdio.h>
 #include "ares.h"
-#include <arpa/nameser.h> // Include this for ns_c_in and ns_t_a
 
-static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-  // Dummy callback function to handle responses
-}
-
-static void addrinfo_callback(void *arg, int status, int timeouts, struct ares_addrinfo *res) {
-  // Free the addrinfo result to avoid memory leaks
-  if (res) {
-    ares_freeaddrinfo(res);
-  }
+static void host_callback(void *arg, int status, int timeouts, const struct hostent *host) {
+  (void)arg;
+  (void)status;
+  (void)timeouts;
+  (void)host;
 }
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
   ares_channel_t *channel;
-  int status;
-  char *servers_csv = "8.8.8.8:53,8.8.4.4:53";
-  char *name = "example.com";
-  char *node = "localhost";
-  char *service = "http";
-  struct ares_addrinfo_hints hints;
-  unsigned char qbuf[512];
+  struct ares_addr_port_node server;
+  int result;
 
-  // Initialize c-ares library
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ares_library_init
-  status = ares_library_init(ARES_FLAG_NORECURSE);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-  if (status != ARES_SUCCESS) {
+  if (Size < sizeof(struct ares_addr_port_node) + 1) {
     return 0;
   }
 
-  // Initialize the ares channel
-  status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
+  // Initialize server address and ports
+  memcpy(&server, Data, sizeof(struct ares_addr_port_node));
+  server.next = NULL;
+
+  // Initialize ares library
+  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
+    return 0;
+  }
+
+  // Create a channel
+  if (ares_init(&channel) != ARES_SUCCESS) {
     ares_library_cleanup();
     return 0;
   }
 
-  // Set servers using CSV
-  ares_set_servers_ports_csv(channel, servers_csv);
+  // First call to ares_set_servers_ports
+  result = ares_set_servers_ports(channel, &server);
+  if (result != ARES_SUCCESS) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
 
-  // Fuzz ares_query
+  // Ensure the hostname is null-terminated to prevent overflow
+  char *hostname = (char *)malloc(Size - sizeof(struct ares_addr_port_node) + 1);
+  if (!hostname) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+  memcpy(hostname, Data + sizeof(struct ares_addr_port_node), Size - sizeof(struct ares_addr_port_node));
+  hostname[Size - sizeof(struct ares_addr_port_node)] = '\0';
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_set_servers_ports_csv to ares_gethostbyname_file
+  // Call to ares_gethostbyname
+  ares_gethostbyname(channel, hostname, AF_INET, host_callback, NULL);
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_set_servers_ports_csv to ares_set_socket_configure_callback
+  // Second call to ares_set_servers_ports
 
-  ares_set_socket_configure_callback(NULL, NULL, (void *)servers_csv);
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_gethostbyname to ares_inet_ntop
+  unsigned short ret_ares_dns_record_get_id_gcpho = ares_dns_record_get_id(NULL);
+  if (ret_ares_dns_record_get_id_gcpho < 0){
+  	return 0;
+  }
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
 
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_dns_record_get_id to ares_parse_ptr_reply
+
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_dns_record_get_id to ares_queue_wait_empty
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  char ret_ares_get_servers_csv_bbzyq = ares_get_servers_csv(channel);
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  ares_status_t ret_ares_queue_wait_empty_ngxlm = ares_queue_wait_empty(channel, (int )ret_ares_dns_record_get_id_gcpho);
   // End mutation: Producer.APPEND_MUTATOR
-
-  size_t ret_ares_queue_active_queries_xsxvt = ares_queue_active_queries(channel);
-  if (ret_ares_queue_active_queries_xsxvt < 0){
+  
+  char ret_ares_strerror_jjqmm = ares_strerror(0);
+  char ret_ares_strerror_xajjg = ares_strerror(ARES_FLAG_NOSEARCH);
+  size_t ret_ares_queue_active_queries_zlunq = ares_queue_active_queries(NULL);
+  if (ret_ares_queue_active_queries_zlunq < 0){
   	return 0;
   }
-  unsigned short ret_ares_dns_record_get_flags_waeml = ares_dns_record_get_flags(NULL);
-  if (ret_ares_dns_record_get_flags_waeml < 0){
+  size_t ret_ares_dns_record_query_cnt_tnaki = ares_dns_record_query_cnt(NULL);
+  if (ret_ares_dns_record_query_cnt_tnaki < 0){
   	return 0;
   }
-
-  int ret_ares_gethostbyname_file_oydxr = ares_gethostbyname_file(channel, servers_csv, (int )ret_ares_dns_record_get_flags_waeml, NULL);
-  if (ret_ares_gethostbyname_file_oydxr < 0){
+  int ret_ares_parse_ptr_reply_oiqsi = ares_parse_ptr_reply((unsigned char *)&ret_ares_strerror_jjqmm, (int )ret_ares_dns_record_get_id_gcpho, (void *)&ret_ares_strerror_xajjg, (int )ret_ares_queue_active_queries_zlunq, (int )ret_ares_dns_record_query_cnt_tnaki, NULL);
+  if (ret_ares_parse_ptr_reply_oiqsi < 0){
   	return 0;
   }
-
   // End mutation: Producer.APPEND_MUTATOR
-
-
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_query with ares_search
-  ares_search(channel, name, ns_c_in, ns_t_a, dummy_callback, NULL);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-  // Fuzz ares_set_servers_ports_csv
-  if (Size > 0) {
-    char *data_copy = (char *)malloc(Size + 1);
-    if (data_copy) {
-      memcpy(data_copy, Data, Size);
-      data_copy[Size] = '\0'; // Null-terminate the string to avoid overflow
-      ares_set_servers_ports_csv(channel, data_copy);
-
-      // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_set_servers_ports_csv to ares_init_options
-      struct ares_options xqlrfefe;
-      memset(&xqlrfefe, 0, sizeof(xqlrfefe));
-      ares_destroy_options(&xqlrfefe);
-
-      int ret_ares_init_options_gauvf = ares_init_options(&channel, &xqlrfefe, ARES_OPT_RESOLVCONF);
-      if (ret_ares_init_options_gauvf < 0){
-      	return 0;
-      }
-
-      // End mutation: Producer.APPEND_MUTATOR
-
-      free(data_copy);
-    }
-  }
-
-  // Fuzz ares_getaddrinfo
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_query to ares_init_options
-
-  int ret_ares_init_options_zpjoa = ares_init_options(&channel, NULL, ARES_OPT_QUERY_CACHE);
-  if (ret_ares_init_options_zpjoa < 0){
+  
+  char ret_ares_get_servers_csv_sgwod = ares_get_servers_csv(channel);
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
   	return 0;
   }
-
+  char ret_ares_inet_ntop_jntzf = ares_inet_ntop((int )ret_ares_dns_record_get_id_gcpho, (void *)channel, &ret_ares_get_servers_csv_sgwod, 0);
   // End mutation: Producer.APPEND_MUTATOR
-
-  memset(&hints, 0, sizeof(hints));
-  ares_getaddrinfo(channel, node, service, &hints, addrinfo_callback, NULL);
-
-  // Fuzz ares_search
-
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_search with ares_query
-  ares_query(channel, name, ns_c_in, ns_t_a, dummy_callback, NULL);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-  // Fuzz ares_get_servers_csv
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_query to ares_getsock
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ares_library_init
-  int ret_ares_library_init_pytdr = ares_library_init(ARES_NI_IDN_USE_STD3_ASCII_RULES);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-  if (ret_ares_library_init_pytdr < 0){
-  	return 0;
-  }
-  unsigned int ret_ares_dns_rr_get_ttl_lkyyh = ares_dns_rr_get_ttl(NULL);
-  if (ret_ares_dns_rr_get_ttl_lkyyh < 0){
-  	return 0;
+  
+  result = ares_set_servers_ports(channel, &server);
+  if (result != ARES_SUCCESS) {
+    free(hostname);
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
   }
 
-  int ret_ares_getsock_lmtnm = ares_getsock(channel, ret_ares_library_init_pytdr, (int )ret_ares_dns_rr_get_ttl_lkyyh);
-  if (ret_ares_getsock_lmtnm < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  char *csv = ares_get_servers_csv(channel);
-  if (csv) {
-    free(csv);
-  }
-
-  // Fuzz ares_send
-  if (Size > 0 && Size <= sizeof(qbuf)) {
-    memcpy(qbuf, Data, Size);
-    ares_send(channel, qbuf, Size, dummy_callback, NULL);
-  }
+  // Call to ares_cancel
+  ares_cancel(channel);
 
   // Cleanup
+  free(hostname);
   ares_destroy(channel);
   ares_library_cleanup();
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

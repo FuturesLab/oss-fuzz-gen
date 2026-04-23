@@ -1,56 +1,80 @@
-#include "stddef.h"
-#include <stdint.h>
-#include <string.h>
+#include <sys/stat.h>
+#include <stddef.h>
 #include <stdlib.h>
-
+#include <string.h>
 #include "ares.h"
+#include <arpa/nameser.h> /* For C_IN and T_A */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// Ensure the function is declared with C linkage
+int LLVMFuzzerTestOneInput_53(const unsigned char *data, size_t size) {
+    /* Ensure the data size is sufficient for creating a valid name string */
+    if (size < 1) {
+        return 0;
+    }
 
-int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-  if (size == 0) {
+    /* Create a null-terminated string for the 'name' parameter */
+    char *name = (char *)malloc(size + 1);
+    if (!name) {
+        return 0;
+    }
+    memcpy(name, data, size);
+    name[size] = '\0';
+
+    /* Initialize other parameters for ares_mkquery */
+    int dnsclass = C_IN;  // Internet class
+    int type = T_A;       // Type A (IPv4 address)
+    unsigned short id = 1; // Arbitrary ID
+    int rd = 1;           // Recursion desired
+    unsigned char *buf = NULL;
+    int buflen = 0;
+
+    /* Call the function-under-test */
+    ares_mkquery(name, dnsclass, type, id, rd, &buf, &buflen);
+
+    /* Free allocated resources */
+    free(name);
+    if (buf) {
+        free(buf);
+    }
+
     return 0;
-  }
-
-  /* Initialize ares library */
-  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
-    return 0;
-  }
-
-  ares_channel channel;
-  int status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
-  }
-
-  /* Allocate memory for the CSV string and ensure it's null-terminated */
-  char *csv = (char *)malloc(size + 1);
-  if (!csv) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
-  }
-  memcpy(csv, data, size);
-  csv[size] = '\0';
-
-  /* Call the function under test */
-
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_set_servers_ports_csv with ares_set_servers_csv
-  ares_set_servers_csv(channel, csv);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-  /* Clean up */
-  free(csv);
-  ares_destroy(channel);
-  ares_library_cleanup();
-
-  return 0;
 }
-#ifdef __cplusplus
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

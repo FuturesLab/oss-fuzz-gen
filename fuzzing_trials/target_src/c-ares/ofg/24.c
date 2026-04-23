@@ -1,30 +1,61 @@
 #include <stddef.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
-#include <ares.h>
+#include <stdlib.h>
+#include "ares.h"
 
-int LLVMFuzzerTestOneInput_24(const unsigned char *data, size_t size) {
-  ares_channel channel = NULL;
-  struct ares_options options;
-  int optmask = ARES_OPT_FLAGS;
+int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
+    /* Ensure the input data is null-terminated */
+    char *ipaddr = (char *)malloc(size + 1);
+    if (!ipaddr) return 0;
+    memcpy(ipaddr, data, size);
+    ipaddr[size] = '\0';
 
-  /* Initialize options with some default values */
-  options.flags = ARES_FLAG_USEVC;
-  options.timeout = 5000;
-  options.tries = 3;
-  options.ndots = 1;
-  options.udp_port = 53;
-  options.tcp_port = 53;
-  options.socket_send_buffer_size = 4096;
-  options.socket_receive_buffer_size = 4096;
+    struct ares_addr addr;
+    size_t out_len = 0;
 
-  /* Call the function under test */
-  ares_init_options(&channel, &options, optmask);
+    /* Call the function-under-test */
+    ares_dns_pton(ipaddr, &addr, &out_len);
 
-  /* Cleanup */
-  if (channel) {
-    ares_destroy(channel);
-  }
-
-  return 0;
+    free(ipaddr);
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

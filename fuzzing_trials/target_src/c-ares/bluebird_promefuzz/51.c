@@ -1,133 +1,170 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <stdio.h>
 #include "ares.h"
-#include <arpa/nameser.h> // Include this for ns_c_in and ns_t_a
 
-static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-  // Dummy callback function to handle responses
-}
-
-static void addrinfo_callback(void *arg, int status, int timeouts, struct ares_addrinfo *res) {
-  // Free the addrinfo result to avoid memory leaks
+static void ares_getaddrinfo_callback(void *arg, int status, int timeouts, struct ares_addrinfo *res) {
+  (void)arg;
+  (void)timeouts;
   if (res) {
     ares_freeaddrinfo(res);
   }
 }
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *Data, size_t Size) {
-  ares_channel_t *channel;
-  int status;
-  char *servers_csv = "8.8.8.8:53,8.8.4.4:53";
-  char *name = "example.com";
-  char *node = "localhost";
-  char *service = "http";
-  struct ares_addrinfo_hints hints;
-  unsigned char qbuf[512];
-
-  // Initialize c-ares library
-  status = ares_library_init(ARES_LIB_INIT_ALL);
-  if (status != ARES_SUCCESS) {
+  if (Size < sizeof(int)) {
     return 0;
   }
 
-  // Initialize the ares channel
-  status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
+  int init_flags = *(int *)Data;
+  Data += sizeof(int);
+  Size -= sizeof(int);
+
+  if (ares_library_init(init_flags) != ARES_SUCCESS) {
     return 0;
   }
 
-  // Set servers using CSV
-  ares_set_servers_ports_csv(channel, servers_csv);
-
-  // Fuzz ares_query
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_set_servers_ports_csv to ares_set_sortlist
-
-  int ret_ares_set_sortlist_vxfvv = ares_set_sortlist(NULL, servers_csv);
-  if (ret_ares_set_sortlist_vxfvv < 0){
-  	return 0;
+  const char *error_message;
+  if (Size >= sizeof(int)) {
+    int error_code = *(int *)Data;
+    error_message = ares_strerror(error_code);
+    (void)error_message;
+    Data += sizeof(int);
+    Size -= sizeof(int);
   }
 
-  // End mutation: Producer.APPEND_MUTATOR
+  ares_channel_t *channel = NULL;
+  struct ares_options options;
+  memset(&options, 0, sizeof(options));
+  int optmask = 0;
 
-  ares_query(channel, name, ns_c_in, ns_t_a, dummy_callback, NULL);
-
-  // Fuzz ares_set_servers_ports_csv
-  if (Size > 0) {
-    char *data_copy = (char *)malloc(Size + 1);
-    if (data_copy) {
-      memcpy(data_copy, Data, Size);
-      data_copy[Size] = '\0'; // Null-terminate the string to avoid overflow
-      ares_set_servers_ports_csv(channel, data_copy);
-      free(data_copy);
-    }
-  }
-
-  // Fuzz ares_getaddrinfo
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_query to ares_init_options
-  struct ares_options jhvqquro;
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_query to ares_expand_name
-  char ret_ares_strerror_wsmhq = ares_strerror(ARES_OPT_HOSTS_FILE);
-  int livhhnkv = 64;
-  char ret_ares_version_uoomn = ares_version(&livhhnkv);
-  size_t ret_ares_dns_record_query_cnt_lkisr = ares_dns_record_query_cnt(NULL);
-  if (ret_ares_dns_record_query_cnt_lkisr < 0){
-  	return 0;
-  }
-
-  int ret_ares_expand_name_nwowq = ares_expand_name((unsigned char *)&ret_ares_strerror_wsmhq, (unsigned char *)&ret_ares_version_uoomn, ARES_FLAG_PRIMARY, &name, (long *)&ret_ares_dns_record_query_cnt_lkisr);
-  if (ret_ares_expand_name_nwowq < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  memset(&jhvqquro, 0, sizeof(jhvqquro));
-
-  int ret_ares_init_options_hjcgh = ares_init_options(&channel, &jhvqquro, CARES_HAVE_ARES_LIBRARY_CLEANUP);
-  if (ret_ares_init_options_hjcgh < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  memset(&hints, 0, sizeof(hints));
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_getaddrinfo
-  ares_getaddrinfo(channel, node, NULL, &hints, addrinfo_callback, NULL);
+  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_init_options
+  if (ares_init_options(&channel, &options, ARES_OPT_EVENT_THREAD) == ARES_SUCCESS) {
   // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (Size >= sizeof(int)) {
+      int error_code = *(int *)Data;
+      error_message = ares_strerror(error_code);
+      (void)error_message;
+      Data += sizeof(int);
+      Size -= sizeof(int);
+    }
 
+    char *servers_csv = ares_get_servers_csv(channel);
+    if (servers_csv) {
+      ares_free_string(servers_csv);
+    }
 
+    // Ensure node and service are null-terminated
+    const char *node = NULL;
+    const char *service = NULL;
+    if (Size > 0) {
+      size_t node_len = strnlen((const char *)Data, Size);
+      if (node_len < Size) {
+        node = (const char *)Data;
+        Data += node_len + 1;
+        Size -= (node_len + 1);
+      }
+    }
 
-  // Fuzz ares_search
+    if (Size > 0) {
+      size_t service_len = strnlen((const char *)Data, Size);
+      if (service_len < Size) {
+        service = (const char *)Data;
+        Data += service_len + 1;
+        Size -= (service_len + 1);
+      }
+    }
 
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_search with ares_query
-  ares_query(channel, name, ns_c_in, ns_t_a, dummy_callback, NULL);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    struct ares_addrinfo_hints hints;
+    memset(&hints, 0, sizeof(hints));
 
+    if (node || service) { // Ensure at least one of them is non-null
+      ares_getaddrinfo(channel, node, service, &hints, ares_getaddrinfo_callback, NULL);
+    }
 
-
-  // Fuzz ares_get_servers_csv
-  char *csv = ares_get_servers_csv(channel);
-  if (csv) {
-    free(csv);
+    ares_destroy(channel);
   }
 
-  // Fuzz ares_send
-  if (Size > 0 && Size <= sizeof(qbuf)) {
-    memcpy(qbuf, Data, Size);
-    ares_send(channel, qbuf, Size, dummy_callback, NULL);
+
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_init_options to ares_inet_ntop
+  size_t ret_ares_dns_record_query_cnt_slbgx = ares_dns_record_query_cnt(NULL);
+  if (ret_ares_dns_record_query_cnt_slbgx < 0){
+  	return 0;
   }
 
-  // Cleanup
-  ares_destroy(channel);
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_dns_record_query_cnt to ares_dns_record_create
+  unsigned short ret_ares_dns_record_get_flags_ggycs = ares_dns_record_get_flags(NULL);
+  if (ret_ares_dns_record_get_flags_ggycs < 0){
+  	return 0;
+  }
+  ares_dns_opcode_t ret_ares_dns_record_get_opcode_uuklz = ares_dns_record_get_opcode(NULL);
+  ares_dns_rcode_t ret_ares_dns_record_get_rcode_ceiqk = ares_dns_record_get_rcode(NULL);
+  ares_status_t ret_ares_dns_record_create_eaonp = ares_dns_record_create(NULL, (unsigned short )ret_ares_dns_record_query_cnt_slbgx, ret_ares_dns_record_get_flags_ggycs, ret_ares_dns_record_get_opcode_uuklz, ret_ares_dns_record_get_rcode_ceiqk);
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  char ret_ares_dns_section_tostr_wzkgt = ares_dns_section_tostr(0);
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_dns_section_tostr to ares_inet_pton
+  unsigned int ret_ares_dns_rr_get_ttl_vtxvh = ares_dns_rr_get_ttl(NULL);
+  if (ret_ares_dns_rr_get_ttl_vtxvh < 0){
+  	return 0;
+  }
+  char ret_ares_dns_rec_type_tostr_dbngw = ares_dns_rec_type_tostr(0);
+  int ret_ares_inet_pton_afjxw = ares_inet_pton((int )ret_ares_dns_rr_get_ttl_vtxvh, &ret_ares_dns_section_tostr_wzkgt, (void *)&ret_ares_dns_rec_type_tostr_dbngw);
+  if (ret_ares_inet_pton_afjxw < 0){
+  	return 0;
+  }
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  char ret_ares_inet_ntop_wiaoh = ares_inet_ntop((int )ret_ares_dns_record_query_cnt_slbgx, (void *)channel, &ret_ares_dns_section_tostr_wzkgt, 0);
+  // End mutation: Producer.APPEND_MUTATOR
+  
   ares_library_cleanup();
-
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_51(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

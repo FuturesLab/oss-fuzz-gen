@@ -1,35 +1,80 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <ares.h>
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-  /* Ensure that the size is sufficient to extract meaningful data for options */
-  if (size < sizeof(struct ares_options)) {
+  ares_channel channel;
+  struct ares_options options;
+  int optmask = 0;
+
+  /* Initialize the ares library */
+  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
     return 0;
   }
 
-  /* Allocate memory for the options and copy data into it */
-  struct ares_options options;
-  memcpy(&options, data, sizeof(struct ares_options));
+  /* Set up ares options */
+  options.timeout = 5000; /* 5 seconds timeout */
+  options.tries = 3;      /* Number of tries */
+  optmask |= ARES_OPT_TIMEOUTMS | ARES_OPT_TRIES;
 
-  /* Extract optmask from the remaining data, if available */
-  int optmask = 0;
-  if (size >= sizeof(struct ares_options) + sizeof(int)) {
-    memcpy(&optmask, data + sizeof(struct ares_options), sizeof(int));
+  /* Initialize ares channel */
+  if (ares_init_options(&channel, &options, optmask) != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
   }
 
-  /* Initialize channel pointer */
-  ares_channel channelptr = NULL;
-
-  /* Call the function-under-test */
-  int result = ares_init_options(&channelptr, &options, optmask);
-
-  /* Clean up if the channel was successfully initialized */
-  if (result == ARES_SUCCESS && channelptr != NULL) {
-    ares_destroy(channelptr);
+  /* Use the fuzzing data to determine the timeout */
+  int timeout_ms = 0;
+  if (size >= sizeof(int)) {
+    timeout_ms = *(int *)data;
   }
+
+  /* Call the function under test */
+  ares_queue_wait_empty(channel, timeout_ms);
+
+  /* Clean up */
+  ares_destroy(channel);
+  ares_library_cleanup();
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

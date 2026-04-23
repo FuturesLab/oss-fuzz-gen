@@ -1,80 +1,106 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include "stdio.h"
-#include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 #include "ares.h"
-#include <netinet/in.h>
+#include <arpa/inet.h>
 
-static void fuzz_ares_parse_ptr_reply(const unsigned char *Data, size_t Size) {
-    struct hostent *host = NULL;
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-
-    int result = ares_parse_ptr_reply(Data, Size, &addr, sizeof(addr), AF_INET, &host);
-    if (result == ARES_SUCCESS && host) {
-        ares_free_hostent(host);
+// Callback function for ares_getaddrinfo
+static void getaddrinfo_callback(void *arg, int status, int timeouts, struct ares_addrinfo *res) {
+    if (res) {
+        ares_freeaddrinfo(res);
     }
 }
 
-static void fuzz_ares_parse_ns_reply(const unsigned char *Data, size_t Size) {
-    struct hostent *host = NULL;
-    int result = ares_parse_ns_reply(Data, Size, &host);
-    if (result == ARES_SUCCESS && host) {
-        ares_free_hostent(host);
-    }
+// Corrected callback function for ares_gethostbyaddr
+static void gethostbyaddr_callback(void *arg, int status, int timeouts, const struct hostent *host) {
+    // Handle the callback
 }
 
-static void fuzz_ares_parse_naptr_reply(const unsigned char *Data, size_t Size) {
-    struct ares_naptr_reply *naptr_out = NULL;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ares_parse_naptr_reply
-    int result = ares_parse_naptr_reply(Data, ARES_OPT_RESOLVCONF, &naptr_out);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (result == ARES_SUCCESS && naptr_out) {
-        ares_free_data(naptr_out);
-    }
-}
-
-static void fuzz_ares_parse_soa_reply(const unsigned char *Data, size_t Size) {
-    struct ares_soa_reply *soa_out = NULL;
-    int result = ares_parse_soa_reply(Data, Size, &soa_out);
-    if (result == ARES_SUCCESS && soa_out) {
-        ares_free_data(soa_out);
-    }
-}
-
-static void fuzz_ares_parse_caa_reply(const unsigned char *Data, size_t Size) {
-    struct ares_caa_reply *caa_out = NULL;
-    int result = ares_parse_caa_reply(Data, Size, &caa_out);
-    if (result == ARES_SUCCESS && caa_out) {
-        ares_free_data(caa_out);
-    }
-}
-
-static void fuzz_ares_parse_a_reply(const unsigned char *Data, size_t Size) {
-    struct hostent *host = NULL;
-    struct ares_addrttl addrttls[10];
-    int naddrttls = 10;
-    int result = ares_parse_a_reply(Data, Size, &host, addrttls, &naddrttls);
-    if (result == ARES_SUCCESS && host) {
-        ares_free_hostent(host);
-    }
+// Corrected callback function for ares_getnameinfo
+static void getnameinfo_callback(void *arg, int status, int timeouts, const char *node, const char *service) {
+    // Handle the callback
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    fuzz_ares_parse_ptr_reply(Data, Size);
-    fuzz_ares_parse_ns_reply(Data, Size);
-    fuzz_ares_parse_naptr_reply(Data, Size);
-    fuzz_ares_parse_soa_reply(Data, Size);
-    fuzz_ares_parse_caa_reply(Data, Size);
-    fuzz_ares_parse_a_reply(Data, Size);
+    if (Size < 4) {
+        return 0;
+    }
+
+    ares_channel_t *channel;
+    if (ares_init(&channel) != ARES_SUCCESS) {
+        return 0;
+    }
+
+    // Prepare dummy node and service strings
+    const char *node = "example.com";
+    const char *service = "http";
+
+    // Invoke ares_getaddrinfo
+    ares_getaddrinfo(channel, node, service, NULL, getaddrinfo_callback, NULL);
+
+    // Prepare a dummy address for ares_gethostbyaddr
+    struct in_addr addr;
+    inet_pton(AF_INET, "127.0.0.1", &addr);
+
+    // Invoke ares_gethostbyaddr
+    ares_gethostbyaddr(channel, &addr, sizeof(addr), AF_INET, gethostbyaddr_callback, NULL);
+
+    // Prepare a dummy sockaddr for ares_getnameinfo
+    struct sockaddr_in sa;
+    sa.sin_family = AF_INET;
+    sa.sin_addr = addr;
+    sa.sin_port = htons(80);
+
+    // Invoke ares_getnameinfo
+    ares_getnameinfo(channel, (struct sockaddr *)&sa, sizeof(sa), 0, getnameinfo_callback, NULL);
+
+    // Reinitialize the channel
+    ares_reinit(channel);
+
+    // Cleanup
+    ares_destroy(channel);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

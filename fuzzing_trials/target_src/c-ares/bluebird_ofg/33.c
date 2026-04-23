@@ -1,67 +1,102 @@
-#include "ares.h"
-#include "stddef.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-#include <netdb.h>  // Include this for the definition of struct hostent
-#include <sys/socket.h>  // Include this for AF_INET and AF_INET6
+#include <sys/stat.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include "ares.h"
 
-/* Callback function for ares_gethostbyname */
-static void host_callback(void *arg, int status, int timeouts, struct hostent *host) {
-  /* Handle the callback results here */
-  (void)arg;
-  (void)status;
-  (void)timeouts;
-  (void)host;
-}
+// Forward declaration of the callback function
+static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen);
 
-int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-  /* Initialize c-ares library */
-  ares_library_init(ARES_LIB_INIT_ALL);
+int LLVMFuzzerTestOneInput_33(const unsigned char *data, size_t size) {
+  ares_channel channel; // Correct the type name
+  struct ares_options options;
+  int optmask = 0;
+  int status;
 
-  ares_channel channel;
-  int status = ares_init(&channel);
+  // Initialize the ares library
+  status = ares_library_init(ARES_LIB_INIT_ALL);
   if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  /* Ensure the data is null-terminated for use as a string */
-  char *name = (char *)malloc(size + 1);
-  if (name == NULL) {
-    ares_destroy(channel);
+  // Initialize the ares channel
+  status = ares_init_options(&channel, &options, optmask);
+  if (status != ARES_SUCCESS) {
+    ares_library_cleanup();
     return 0;
   }
-  memcpy(name, data, size);
-  name[size] = '\0';
 
-  /* Define the family (AF_INET or AF_INET6) */
-  int family = AF_INET;  /* or AF_INET6 */
+  // Use the provided data as the query buffer
+  const unsigned char *qbuf = data;
+  int qlen = (int)size;
+  void *arg = NULL; // No specific argument needed for the callback
 
-  /* Call the function-under-test */
-  ares_gethostbyname(channel, name, family, host_callback, NULL);
+  // Call the function-under-test
+  ares_send(channel, qbuf, qlen, dummy_callback, arg);
 
-  /* Clean up */
+  // Clean up the ares channel
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_gethostbyname to ares_process_fd
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_gethostbyname to ares_dns_rr_get_opt_byid
-  size_t ret_ares_queue_active_queries_riteq = ares_queue_active_queries(channel);
-  if (ret_ares_queue_active_queries_riteq < 0){
+  // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from ares_send to ares_queue_wait_empty using the plateau pool
+  int timeout_ms = 0;
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
   	return 0;
   }
-
-  ares_bool_t ret_ares_dns_rr_get_opt_byid_xxfci = ares_dns_rr_get_opt_byid(NULL, 0, ARES_NI_IDN, (unsigned char **)&name, &ret_ares_queue_active_queries_riteq);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  ares_process_fd(channel, CARES_GCC_VERSION, ARES_NI_NUMERICSERV);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
+  ares_status_t ret_ares_queue_wait_empty_lmjbb = ares_queue_wait_empty(channel, timeout_ms);
+  // End mutation: Producer.SPLICE_MUTATOR
+  
   ares_destroy(channel);
-  free(name);
+
+  // Clean up the ares library
   ares_library_cleanup();
 
   return 0;
 }
+
+// Dummy callback function to be used with ares_send
+static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
+  (void)arg; // Suppress unused parameter warning
+  (void)status; // Suppress unused parameter warning
+  (void)timeouts; // Suppress unused parameter warning
+  (void)abuf; // Suppress unused parameter warning
+  (void)alen; // Suppress unused parameter warning
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

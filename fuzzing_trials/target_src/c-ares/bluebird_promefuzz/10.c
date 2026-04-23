@@ -1,64 +1,100 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <stdio.h>
 #include "ares.h"
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-static void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
-  (void)arg;
-  (void)status;
-  (void)timeouts;
-  (void)host;
+static void dummy_callback(void *arg, int status, int timeouts, const struct hostent *host) {
+    // Dummy callback function
 }
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-  if (Size < sizeof(unsigned int)) {
+    ares_channel_t *channel;
+    int status;
+
+    // Initialize the ares library
+    status = ares_library_init(ARES_LIB_INIT_ALL);
+    if (status != ARES_SUCCESS) {
+        return 0;
+    }
+
+    // Initialize the channel
+    status = ares_init(&channel);
+    if (status != ARES_SUCCESS) {
+        ares_library_cleanup();
+        return 0;
+    }
+
+    // Prepare server addresses
+    struct ares_addr_node server;
+    memset(&server, 0, sizeof(server));
+    server.family = AF_INET;
+    if (Size >= sizeof(struct in_addr)) {
+        memcpy(&server.addr.addr4, Data, sizeof(struct in_addr));
+    }
+
+    // Call ares_set_servers
+    ares_set_servers(channel, &server);
+
+    // Prepare a hostname from input data
+    char hostname[256];
+    size_t hostname_len = (Size < 255) ? Size : 255;
+    memcpy(hostname, Data, hostname_len);
+    hostname[hostname_len] = '\0';
+
+    // Call ares_gethostbyname
+    ares_gethostbyname(channel, hostname, AF_INET, dummy_callback, NULL);
+
+    // Cancel all queries
+    ares_cancel(channel);
+
+    // Cleanup
+    ares_destroy(channel);
+    ares_library_cleanup();
+
     return 0;
-  }
-
-  // Initialize ares_channel
-  ares_channel channel;
-  int init_status = ares_init(&channel);
-  if (init_status != ARES_SUCCESS) {
-    return 0;
-  }
-
-  // Set up dummy data
-  unsigned int local_ip = *(unsigned int *)Data;
-  const char *local_dev_name = "dummy_device";
-  struct sockaddr_in sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sin_family = AF_INET;
-  sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  ares_socklen_t salen = sizeof(sa);
-  int flags = 0;
-
-  // Test ares_threadsafety
-  ares_bool_t thread_safe = ares_threadsafety();
-  (void)thread_safe;
-
-  // Test ares_reinit
-  ares_status_t reinit_status = ares_reinit(channel);
-  (void)reinit_status;
-
-  // Test ares_set_local_ip4
-  ares_set_local_ip4(channel, local_ip);
-
-  // Test ares_getnameinfo
-  ares_getnameinfo(channel, (const struct sockaddr *)&sa, salen, flags, dummy_callback, NULL);
-
-  // Test ares_set_local_dev
-  ares_set_local_dev(channel, local_dev_name);
-
-  // Test ares_cancel
-  ares_cancel(channel);
-
-  // Clean up
-  ares_destroy(channel);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,51 +1,72 @@
-#include <ares.h>
-#include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h> // Include for struct in_addr
-#include <netdb.h>     // Include for struct hostent
-
-// Callback function for ares_gethostbyaddr
-static void host_callback(void *arg, int status, int timeouts, struct hostent *host) {
-  // This is a simple callback function that does nothing with the results.
-  (void)arg;
-  (void)status;
-  (void)timeouts;
-  (void)host;
-}
+#include <stdint.h>
+#include <ares.h>
+#include <ares_nameser.h>
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-  // Initialize ares library
-  ares_library_init(ARES_LIB_INIT_ALL);
+  /* Define and initialize parameters for ares_create_query */
+  const char *name = "example.com";  /* Use a valid domain name */
+  int dnsclass = C_IN;  /* Internet class */
+  int type = T_A;  /* Type A record */
+  unsigned short id = 12345;  /* Arbitrary ID */
+  int rd = 1;  /* Recursion desired */
+  unsigned char *buf = NULL;  /* Buffer for the query */
+  int buflen = 0;  /* Length of the buffer */
+  int max_udp_size = 512;  /* Standard UDP size for DNS */
 
-  ares_channel channel;
-  struct ares_options options;
-  int optmask = 0;
-
-  // Initialize ares channel
-  if (ares_init_options(&channel, &options, optmask) != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
+  /* Use the input data in some way to influence the query creation process */
+  if (size > 0) {
+    id = data[0];  /* Use the first byte of data to set the ID */
   }
 
-  // Ensure the address is not NULL and has a minimum length
-  if (size < sizeof(struct in_addr)) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
+  /* Call the function-under-test */
+  int result = ares_create_query(name, dnsclass, type, id, rd, &buf, &buflen, max_udp_size);
+
+  /* Free allocated buffer if it was successfully created */
+  if (buf != NULL) {
+    free(buf);
   }
-
-  // Use the first few bytes of data as the address
-  struct in_addr addr;
-  memcpy(&addr, data, sizeof(struct in_addr));
-
-  // Call the function-under-test
-  ares_gethostbyaddr(channel, &addr, sizeof(struct in_addr), AF_INET, host_callback, NULL);
-
-  // Clean up
-  ares_destroy(channel);
-  ares_library_cleanup();
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,84 +1,147 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <stdio.h>
 #include "ares.h"
-#include "/src/c-ares/include/ares_dns_record.h"
 
-static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-    // Dummy callback function for ares_search_dnsrec
+static void host_callback(void *arg, int status, int timeouts, const struct hostent *host) {
+  (void)arg;
+  (void)status;
+  (void)timeouts;
+  (void)host;
 }
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+  ares_channel_t *channel;
+  struct ares_addr_port_node server;
+  int result;
 
-    ares_dns_record_t *dnsrec = NULL;
-    ares_dns_rr_t *rr_out = NULL;
-    ares_channel channel;
-    unsigned short id = Data[0];
-    unsigned short flags = ARES_FLAG_USEVC;
-    ares_dns_opcode_t opcode = ARES_OPCODE_QUERY;
-    ares_dns_rcode_t rcode = ARES_SUCCESS;
-    ares_dns_section_t sect = ARES_SECTION_ANSWER;
-    const char *name = "example.com";
-    ares_dns_rec_type_t type = ARES_REC_TYPE_A;
-    ares_dns_class_t rclass = ARES_CLASS_IN;
-    unsigned int ttl = 300;
-    ares_dns_rr_key_t key = (ares_dns_rr_key_t) (Data[0] % 10);
-    unsigned short opt = Data[0];
-    unsigned char val_u8 = Data[0];
-    unsigned short val_u16 = (Data[0] << 8) | Data[0];
-    size_t val_len = 1;
-    void *arg = NULL;
+  if (Size < sizeof(struct ares_addr_port_node) + 1) {
+    return 0;
+  }
 
-    // Initialize the ares library
-    if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
-        return 0;
-    }
+  // Initialize server address and ports
+  memcpy(&server, Data, sizeof(struct ares_addr_port_node));
+  server.next = NULL;
 
-    // Initialize the channel
-    if (ares_init(&channel) != ARES_SUCCESS) {
-        ares_library_cleanup();
-        return 0;
-    }
+  // Initialize ares library
+  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
+    return 0;
+  }
 
-    // Step 1: Create a new DNS record
-    if (ares_dns_record_create(&dnsrec, id, flags, opcode, rcode) != ARES_SUCCESS) {
-        ares_destroy(channel);
-        ares_library_cleanup();
-        return 0;
-    }
+  // Create a channel
+  if (ares_init(&channel) != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
+  }
 
-    // Step 2: Add a DNS query to the record
-    ares_dns_record_query_add(dnsrec, name, type, rclass);
-
-    // Step 3: Add a resource record
-    ares_dns_record_rr_add(&rr_out, dnsrec, sect, name, type, rclass, ttl);
-
-    // Step 4: Set a 16-bit unsigned integer value
-    ares_dns_rr_set_u16(rr_out, key, val_u16);
-
-    // Step 5: Set an 8-bit unsigned integer value
-    ares_dns_rr_set_u8(rr_out, key, val_u8);
-
-    // Step 6: Set another 16-bit unsigned integer value
-    ares_dns_rr_set_u16(rr_out, key, val_u16);
-
-    // Step 7: Set options for the RR
-    ares_dns_rr_set_opt(rr_out, key, opt, Data, val_len);
-
-    // Step 8: Initiate a DNS query
-    ares_search_dnsrec(channel, dnsrec, dummy_callback, arg);
-
-    // Step 9: Destroy the DNS record
-    ares_dns_record_destroy(dnsrec);
-
-    // Cleanup the channel
+  // First call to ares_set_servers_ports
+  result = ares_set_servers_ports(channel, &server);
+  if (result != ARES_SUCCESS) {
     ares_destroy(channel);
     ares_library_cleanup();
+    return 0;
+  }
 
+  // Ensure the hostname is null-terminated to prevent overflow
+  char *hostname = (char *)malloc(Size - sizeof(struct ares_addr_port_node) + 1);
+  if (!hostname) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+  memcpy(hostname, Data + sizeof(struct ares_addr_port_node), Size - sizeof(struct ares_addr_port_node));
+  hostname[Size - sizeof(struct ares_addr_port_node)] = '\0';
+
+  // Call to ares_gethostbyname
+  ares_gethostbyname(channel, hostname, AF_INET, host_callback, NULL);
+
+  // Second call to ares_set_servers_ports
+
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_gethostbyname to ares_inet_ntop
+  unsigned short ret_ares_dns_record_get_id_gcpho = ares_dns_record_get_id(NULL);
+  if (ret_ares_dns_record_get_id_gcpho < 0){
+  	return 0;
+  }
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  char ret_ares_get_servers_csv_sgwod = ares_get_servers_csv(channel);
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  char ret_ares_inet_ntop_jntzf = ares_inet_ntop((int )ret_ares_dns_record_get_id_gcpho, (void *)channel, &ret_ares_get_servers_csv_sgwod, 0);
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  result = ares_set_servers_ports(channel, &server);
+  if (result != ARES_SUCCESS) {
+    free(hostname);
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+
+  // Call to ares_cancel
+
+  // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from ares_set_servers_ports to ares_process using the plateau pool
+  fd_set read_fds;
+  fd_set write_fds;
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  ares_process(channel, &read_fds, &write_fds);
+  // End mutation: Producer.SPLICE_MUTATOR
+  
+  ares_cancel(channel);
+
+  // Cleanup
+  free(hostname);
+  ares_destroy(channel);
+  ares_library_cleanup();
+
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

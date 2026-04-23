@@ -1,81 +1,76 @@
-#include "stddef.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stddef.h>
 #include "ares.h"
+#include <sys/socket.h> // For AF_INET
+#include <netdb.h>      // For struct hostent
 
-// Define a different name for the callback function to avoid conflict
-void my_ares_callback_50(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-  // Handle the callback, for fuzzing purposes we do nothing
+static void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
+  (void)arg;     // Suppress unused parameter warning
+  (void)status;  // Suppress unused parameter warning
+  (void)timeouts; // Suppress unused parameter warning
+  (void)host;    // Suppress unused parameter warning
 }
 
-int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-  ares_channel channel; // Corrected from ares_channel_t to ares_channel
-  int status = ares_library_init(ARES_LIB_INIT_ALL);
+int LLVMFuzzerTestOneInput_50(const unsigned char *data, size_t size) {
+  ares_channel channel;
+  struct ares_options options;
+  int optmask = 0;
+  int status = ares_init_options(&channel, &options, optmask);
+
   if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
-  }
+  // Define address and family
+  const void *addr = data;
+  int addrlen = (int)size;
+  int family = AF_INET; // Use AF_INET as a default family
 
-  // Create a copy of the input data to use as the query buffer
+  // Call the function-under-test
+  ares_gethostbyaddr(channel, addr, addrlen, family, dummy_callback, NULL);
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_init to ares_reinit
-
-  ares_status_t ret_ares_reinit_gutfk = ares_reinit(channel);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  unsigned char *qbuf = (unsigned char *)malloc(size);
-  if (qbuf == NULL) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
-  }
-  memcpy(qbuf, data, size);
-
-  // Call ares_send with the provided data
-  ares_send(channel, qbuf, (int)size, my_ares_callback_50, NULL);
-
-  // Clean up
-  free(qbuf);
-
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_destroy with ares_cancel
-  ares_cancel(channel);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_cancel to ares_search_dnsrec
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ares_strerror
-  char ret_ares_strerror_oamko = ares_strerror(size);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-  ares_status_t ret_ares_search_dnsrec_blyzv = ares_search_dnsrec(channel, NULL, NULL, (void *)&ret_ares_strerror_oamko);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_search_dnsrec to ares_inet_pton
-  struct ares_addr potwzrvs;
-  memset(&potwzrvs, 0, sizeof(potwzrvs));
-  char ret_ares_dns_addr_to_ptr_pmbqf = ares_dns_addr_to_ptr(&potwzrvs);
-
-  int ret_ares_inet_pton_pszus = ares_inet_pton(ARES_SERV_STATE_UDP, &ret_ares_strerror_oamko, (void *)&potwzrvs);
-  if (ret_ares_inet_pton_pszus < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  ares_library_cleanup();
+  // Cleanup
+  ares_destroy(channel);
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_50(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

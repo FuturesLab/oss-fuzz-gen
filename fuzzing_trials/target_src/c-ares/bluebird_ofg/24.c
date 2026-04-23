@@ -1,33 +1,118 @@
-#include <stdint.h>
-#include "stddef.h"
+#include <sys/stat.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include <string.h> // Include string.h for memcpy
+#include <arpa/inet.h>
 #include "ares.h"
+#include <netdb.h>
 
-// Remove the C++ style comment and use C style comments instead
-/* Extract ares_dns_rr_key_t from the input data */
-/* Extract unsigned short from the input data */
+static void test_callback(void *arg, int status, int timeouts, struct hostent *host) {
+  // Callback function for ares_gethostbyname
+  // This function can be used to handle the result of the DNS query.
+  (void)arg;
+  (void)status;
+  (void)timeouts;
+  (void)host;
+}
 
-// Declare the function in C linkage
-int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-  if (size < sizeof(ares_dns_rr_key_t) + sizeof(unsigned short)) {
+int LLVMFuzzerTestOneInput_24(const unsigned char *data, size_t size) {
+  ares_channel channel;
+  struct ares_options options;
+  int optmask = 0;
+  int status;
+
+  // Initialize ares library
+  status = ares_library_init(ARES_LIB_INIT_ALL);
+  if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  // Extract ares_dns_rr_key_t from the input data
-  ares_dns_rr_key_t key;
-  memcpy(&key, data, sizeof(ares_dns_rr_key_t));
+  // Initialize ares channel
+  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_init_options
+  status = ares_init_options(&channel, &options, ARES_LIB_INIT_WIN32);
+  // End mutation: Producer.REPLACE_ARG_MUTATOR
+  if (status != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
+  }
 
-  // Extract unsigned short from the input data
-  unsigned short opt;
-  memcpy(&opt, data + sizeof(ares_dns_rr_key_t), sizeof(unsigned short));
+  // Ensure the input data is null-terminated for use as a string
+  char *name = (char *)malloc(size + 1);
+  if (!name) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+  memcpy(name, data, size);
+  name[size] = '\0';
 
-  // Call the function-under-test
-  ares_dns_opt_datatype_t result = ares_dns_opt_get_datatype(key, opt);
+  // Use ares_gethostbyname with the provided data
+  ares_gethostbyname(channel, name, AF_INET, test_callback, NULL);
 
-  // Use the result in some way to avoid compiler optimizations removing the call
-  volatile ares_dns_opt_datatype_t dummy = result;
-  (void)dummy;
+  // Cleanup
+
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_gethostbyname to ares_set_servers_csv
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  ares_status_t ret_ares_reinit_rdwku = ares_reinit(channel);
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!name) {
+  	return 0;
+  }
+  int ret_ares_set_servers_csv_srawt = ares_set_servers_csv(channel, name);
+  if (ret_ares_set_servers_csv_srawt < 0){
+  	return 0;
+  }
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  ares_destroy(channel);
+  ares_library_cleanup();
+  free(name);
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

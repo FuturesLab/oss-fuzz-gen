@@ -1,84 +1,141 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include <stdint.h>
-#include "stddef.h"
-#include <stdlib.h>
-#include <string.h>
-#include "stdio.h"
+#include <stdio.h>
 #include "ares.h"
 
-static void cleanup_channel(ares_channel_t *channel) {
-    if (channel) {
-        ares_destroy(channel);
-    }
-}
-
-static void fuzz_ares_set_servers_ports_csv(ares_channel_t *channel, const char *servers) {
-    ares_set_servers_ports_csv(channel, servers);
-}
-
-static void fuzz_ares_get_servers(const ares_channel_t *channel) {
-    struct ares_addr_node *servers = NULL;
-    ares_get_servers(channel, &servers);
-    if (servers) {
-        ares_free_data(servers);
-    }
-}
-
-static void fuzz_ares_set_servers_ports(ares_channel_t *channel, const struct ares_addr_port_node *servers) {
-    ares_set_servers_ports(channel, servers);
-}
-
-static void fuzz_ares_set_servers_csv(ares_channel_t *channel, const char *servers) {
-    ares_set_servers_csv(channel, servers);
-}
-
-static void fuzz_ares_set_servers(ares_channel_t *channel, const struct ares_addr_node *servers) {
-    ares_set_servers(channel, servers);
-}
-
-static void fuzz_ares_get_servers_ports(const ares_channel_t *channel) {
-    struct ares_addr_port_node *servers = NULL;
-    ares_get_servers_ports(channel, &servers);
-    if (servers) {
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ares_free_data
-        ares_free_data(NULL);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    }
+static void ares_getaddrinfo_callback(void *arg, int status, int timeouts, struct ares_addrinfo *res) {
+  (void)arg;
+  (void)timeouts;
+  if (res) {
+    ares_freeaddrinfo(res);
+  }
 }
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+  if (Size < sizeof(int)) {
+    return 0;
+  }
+
+  int init_flags = *(int *)Data;
+  Data += sizeof(int);
+  Size -= sizeof(int);
+
+  if (ares_library_init(init_flags) != ARES_SUCCESS) {
+    return 0;
+  }
+
+  const char *error_message;
+  if (Size >= sizeof(int)) {
+    int error_code = *(int *)Data;
+    error_message = ares_strerror(error_code);
+    (void)error_message;
+    Data += sizeof(int);
+    Size -= sizeof(int);
+  }
+
+  ares_channel_t *channel = NULL;
+  struct ares_options options;
+  memset(&options, 0, sizeof(options));
+  int optmask = 0;
+
+  if (ares_init_options(&channel, &options, optmask) == ARES_SUCCESS) {
+    if (Size >= sizeof(int)) {
+      int error_code = *(int *)Data;
+      error_message = ares_strerror(error_code);
+      (void)error_message;
+      Data += sizeof(int);
+      Size -= sizeof(int);
     }
 
-    ares_channel_t *channel = NULL;
-    int status = ares_init(&channel);
-    if (status != ARES_SUCCESS) {
-        return 0;
+    char *servers_csv = ares_get_servers_csv(channel);
+    if (servers_csv) {
+      ares_free_string(servers_csv);
     }
 
-    char *servers_csv = strndup((const char *)Data, Size);
-    if (!servers_csv) {
-        cleanup_channel(channel);
-        return 0;
+    // Ensure node and service are null-terminated
+    const char *node = NULL;
+    const char *service = NULL;
+    if (Size > 0) {
+      size_t node_len = strnlen((const char *)Data, Size);
+      if (node_len < Size) {
+        node = (const char *)Data;
+        Data += node_len + 1;
+        Size -= (node_len + 1);
+      }
     }
 
-    fuzz_ares_set_servers_ports_csv(channel, servers_csv);
-    fuzz_ares_get_servers(channel);
-    fuzz_ares_set_servers_ports(channel, NULL);
-    fuzz_ares_set_servers_csv(channel, servers_csv);
-    fuzz_ares_set_servers(channel, NULL);
-    fuzz_ares_get_servers_ports(channel);
+    if (Size > 0) {
+      size_t service_len = strnlen((const char *)Data, Size);
+      if (service_len < Size) {
+        service = (const char *)Data;
+        Data += service_len + 1;
+        Size -= (service_len + 1);
+      }
+    }
 
-    free(servers_csv);
-    cleanup_channel(channel);
+    struct ares_addrinfo_hints hints;
+    memset(&hints, 0, sizeof(hints));
 
+    if (node || service) { // Ensure at least one of them is non-null
+      ares_getaddrinfo(channel, node, service, &hints, ares_getaddrinfo_callback, NULL);
+    
+      // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from ares_getaddrinfo to ares_process using the plateau pool
+      fd_set read_fds;
+      fd_set write_fds;
+      // Ensure dataflow is valid (i.e., non-null)
+      if (!channel) {
+      	return 0;
+      }
+      ares_process(channel, &read_fds, &write_fds);
+      // End mutation: Producer.SPLICE_MUTATOR
+      
+}
+
+    ares_destroy(channel);
+  }
+
+  ares_library_cleanup();
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

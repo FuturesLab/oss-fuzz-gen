@@ -1,58 +1,94 @@
-#include "stddef.h"
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 #include "ares.h"
+#include <arpa/nameser.h> // Include for C_IN and T_A
 
-int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-  ares_channel channel; // Corrected type from ares_channel_t to ares_channel
-  int status = ares_init(&channel);
+static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
+  (void)arg; // Suppress unused parameter warning
+  (void)status; // Suppress unused parameter warning
+  (void)timeouts; // Suppress unused parameter warning
+  (void)abuf; // Suppress unused parameter warning
+  (void)alen; // Suppress unused parameter warning
+  /* Dummy callback function for ares_query */
+}
+
+int LLVMFuzzerTestOneInput_51(const unsigned char *data, size_t size) {
+  ares_channel channel;
+  int status;
+  struct ares_options options;
+  int optmask = 0;
+
+  // Initialize the ares library
+  status = ares_library_init(ARES_LIB_INIT_ALL);
   if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  /* Ensure the input data is null-terminated for use as a string */
-  char *csv = (char *)malloc(size + 1);
-  if (!csv) {
-    ares_destroy(channel);
+  // Initialize the ares channel
+  status = ares_init_options(&channel, &options, optmask);
+  if (status != ARES_SUCCESS) {
+    ares_library_cleanup();
     return 0;
   }
-  memcpy(csv, data, size);
-  csv[size] = '\0';
+
+  // Ensure the data is null-terminated for use as a string
+  char *name = (char *)malloc(size + 1);
+  if (name == NULL) {
+    ares_destroy(channel);
+    ares_library_cleanup();
+    return 0;
+  }
+  memcpy(name, data, size);
+  name[size] = '\0';
 
   // Call the function-under-test
-  ares_set_servers_ports_csv(channel, csv); // Corrected the parameter from &channel to channel
+  ares_query(channel, name, C_IN, T_A, dummy_callback, NULL);
 
   // Clean up
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_set_servers_ports_csv to ares_process_fd
-  unsigned short ret_ares_dns_record_get_id_czssw = ares_dns_record_get_id(NULL);
-  if (ret_ares_dns_record_get_id_czssw < 0){
-  	return 0;
-  }
-
-  ares_process_fd(channel, ARES_OPT_EVENT_THREAD, (int )ret_ares_dns_record_get_id_czssw);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  free(csv);
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_destroy to ares_save_options
-  int ret_ares_library_init_hmilm = ares_library_init(ARES_SERV_STATE_UDP);
-  if (ret_ares_library_init_hmilm < 0){
-  	return 0;
-  }
-  struct ares_options vzyeelru;
-  memset(&vzyeelru, 0, sizeof(vzyeelru));
-
-  int ret_ares_save_options_ariwy = ares_save_options(channel, &vzyeelru, &ret_ares_library_init_hmilm);
-  if (ret_ares_save_options_ariwy < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
+  free(name);
   ares_destroy(channel);
+  ares_library_cleanup();
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_51(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
