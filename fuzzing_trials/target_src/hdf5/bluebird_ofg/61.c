@@ -1,39 +1,29 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "hdf5.h"
+#include <stdbool.h>
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
+    // Ensure we have enough data to work with
+    if (size < 10) return 0;
+
+    // Initialize parameters for H5Aexists_by_name_async
+    const char *loc_name = "location"; // Example location name
+    const char *attr_name = "attribute"; // Example attribute name
+    unsigned int lapl_id = 0; // Example link access property list identifier
+    hid_t loc_id = H5I_INVALID_HID; // Invalid identifier for testing
+    _Bool exists = false; // Boolean to check if attribute exists
+    hid_t es_id = H5I_INVALID_HID; // Invalid identifier for event set
+
+    // Call the function-under-test with the correct number of arguments
+    herr_t result = H5Aexists_by_name_async(loc_id, loc_name, attr_name, &exists, lapl_id, es_id);
+
+    // Use the result to prevent optimization out
+    if (result != 0) {
+        // Handle error if needed
     }
-
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
-
-    // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aget_info_by_idx
-    hid_t ret_H5Dget_access_plist_psauu = H5Dget_access_plist(0);
-    hsize_t ret_H5Dget_storage_size_rvidz = H5Dget_storage_size(0);
-    H5A_info_t htkmwbjs;
-    memset(&htkmwbjs, 0, sizeof(htkmwbjs));
-    herr_t ret_H5Aget_info_by_idx_rsxmn = H5Aget_info_by_idx(ret_H5Dget_access_plist_psauu, name_buffer, 0, 0, ret_H5Dget_storage_size_rvidz, &htkmwbjs, 0);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
 
     return 0;
 }

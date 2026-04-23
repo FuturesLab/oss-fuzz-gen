@@ -1,29 +1,63 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
+    // Declare and initialize variables
+    hid_t dataset_id = H5I_INVALID_HID; // Assuming invalid ID for fuzzing
+    hsize_t dims[1] = {1}; // Minimal dimension for testing
+    hsize_t storage_size = 0;
 
-    // Ensure size is sufficient for an hid_t
+    // Ensure data size is sufficient for fuzzing
     if (size < sizeof(hid_t)) {
-        H5close();
         return 0;
     }
 
-    // Interpret the data as an hid_t
-    hid_t dataset_id = *(const hid_t *)data;
+    // Use the data to create a valid hid_t for fuzzing
+    dataset_id = *((hid_t *)data);
 
     // Call the function-under-test
-    hid_t dtype_id = H5Dget_type(dataset_id);
+    herr_t result = H5Dget_chunk_storage_size(dataset_id, dims, &storage_size);
 
-    // Close the datatype if it's valid
-    if (dtype_id >= 0) {
-        H5Tclose(dtype_id);
-    }
-
-    // Close HDF5 library
-    H5close();
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_54(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,38 +1,30 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
 #include "hdf5.h"
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
+    // Initialize the HDF5 library
+    H5open();
+
+    // Create a temporary HDF5 file to use for fuzzing
+    hid_t file_id;
+    file_id = H5Fcreate("temp_fuzz_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Call the function-under-test with the file ID
+    herr_t status = H5Fstart_mdc_logging(file_id);
+
+    // Check the status
+    if (status < 0) {
+        fprintf(stderr, "H5Fstart_mdc_logging failed\n");
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Close the file
+    H5Fclose(file_id);
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
-
-    // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Gget_objinfo
-    hid_t ret_H5Aget_create_plist_ysyxq = H5Aget_create_plist(0);
-    H5G_stat_t quxndzuk;
-    memset(&quxndzuk, 0, sizeof(quxndzuk));
-    herr_t ret_H5Gget_objinfo_suwmo = H5Gget_objinfo(ret_H5Aget_create_plist_ysyxq, name_buffer, 0, &quxndzuk);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Close the HDF5 library
+    H5close();
 
     return 0;
 }

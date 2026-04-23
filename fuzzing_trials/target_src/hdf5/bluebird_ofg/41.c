@@ -1,46 +1,45 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
+    // Initialize HDF5 library
+    H5open();
 
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a memory file
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dget_create_plist with H5Dget_space
-        hid_t ret_H5Dget_create_plist_wdveq = H5Dget_space(dataset_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        hsize_t ffboenyb;
-        memset(&ffboenyb, 0, sizeof(ffboenyb));
-        herr_t ret_H5Dget_num_chunks_qytjq = H5Dget_num_chunks(dataset_id, ret_H5Dget_create_plist_wdveq, &ffboenyb);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
+    // Ensure the data size is sufficient for a valid group name
+    if (size < 1) {
+        H5Fclose(file_id);
+        return 0;
     }
 
-    // Call the function-under-test
-    status = H5Fget_filesize(file_id, &filesize);
+    // Allocate memory for the group name and ensure it's null-terminated
+    char *group_name = (char *)malloc(size + 1);
+    if (group_name == NULL) {
+        H5Fclose(file_id);
+        return 0;
+    }
+    memcpy(group_name, data, size);
+    group_name[size] = '\0';
 
-    // Close the file
+    // Fuzz the H5Gcreate1 function
+    hid_t group_id = H5Gcreate1(file_id, group_name, size);
+
+    // Clean up
+    if (group_id >= 0) {
+        H5Gclose(group_id);
+    }
+    free(group_name);
     H5Fclose(file_id);
+    H5close();
 
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

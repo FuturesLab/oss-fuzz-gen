@@ -1,32 +1,56 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
-        return 0;
-    } // Adjust size as needed for your parameters
+    // Ensure that we have enough data to work with
+    if (size < 3) return 0;
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Initialize HDF5 library
+    H5open();
+
+    // Create a temporary file to work with
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
+
+    // Create a dummy group to ensure there's something to delete
+    hid_t group_id = H5Gcreate2(file_id, "/dummy_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+    H5Gclose(group_id);
+
+    // Use parts of the data as the object name and attribute name
+    size_t name_len = size / 2;
+    size_t attr_len = size - name_len;
+
+    char *object_name = (char *)malloc(name_len + 1);
+    char *attr_name = (char *)malloc(attr_len + 1);
+
+    if (!object_name || !attr_name) {
+        free(object_name);
+        free(attr_name);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    memcpy(object_name, data, name_len);
+    object_name[name_len] = '\0';
+
+    memcpy(attr_name, data + name_len, attr_len);
+    attr_name[attr_len] = '\0';
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+    H5Adelete_by_name(file_id, object_name, attr_name, H5P_DEFAULT);
 
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Freset_mdc_hit_rate_stats
-        H5Freset_mdc_hit_rate_stats(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    // Cleanup
+    free(object_name);
+    free(attr_name);
+    H5Fclose(file_id);
+    H5close();
 
     return 0;
 }

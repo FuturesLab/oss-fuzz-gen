@@ -1,36 +1,45 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure that the size is large enough to extract the necessary parts
+    if (size < 4) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Extract the first byte for H5L_type_t
+    H5L_type_t link_type = (H5L_type_t)(data[0] % 3); // Assuming 3 types for simplicity
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Extract the next byte for hid_t
+    hid_t loc_id = (hid_t)(data[1]);
+
+    // Use the remaining data for the link_name and target_name
+    size_t half_size = (size - 2) / 2;
+    char *link_name = (char *)malloc(half_size + 1);
+    char *target_name = (char *)malloc(half_size + 1);
+
+    if (link_name == NULL || target_name == NULL) {
+        free(link_name);
+        free(target_name);
         return 0;
     }
+
+    memcpy(link_name, data + 2, half_size);
+    link_name[half_size] = '\0';
+
+    memcpy(target_name, data + 2 + half_size, half_size);
+    target_name[half_size] = '\0';
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    herr_t result = H5Glink(loc_id, link_type, link_name, target_name);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aopen
-    hid_t ret_H5Dget_type_kveyq = H5Dget_type(0);
-    hid_t ret_H5Aopen_xbsex = H5Aopen(ret_H5Dget_type_kveyq, name_buffer, 0);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    free(link_name);
+    free(target_name);
 
     return 0;
 }

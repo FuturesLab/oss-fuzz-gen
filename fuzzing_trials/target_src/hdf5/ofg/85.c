@@ -1,33 +1,85 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    hid_t loc_id = H5I_INVALID_HID;  // Use an invalid ID for fuzzing
-    char obj_name[256];
-    char attr_name[256];
-    hid_t lapl_id = H5P_DEFAULT;  // Default link access property list
+    // Initialize the HDF5 library
+    H5open();
 
-    // Ensure the data size is sufficient for our needs
-    if (size < 2) {
+    // Create a file to work with
+    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
-    // Copy data into obj_name and attr_name, ensuring null-termination
-    size_t obj_name_len = size / 2 < 255 ? size / 2 : 255;
-    size_t attr_name_len = size - obj_name_len < 255 ? size - obj_name_len : 255;
+    // Create a dataspace
+    hsize_t dims[1] = {10}; // Example dimension
+    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+    if (dataspace_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Copy and null-terminate the strings
-    memcpy(obj_name, data, obj_name_len);
-    obj_name[obj_name_len] = '\0';
-
-    memcpy(attr_name, data + obj_name_len, attr_name_len);
-    attr_name[attr_name_len] = '\0';
+    // Create a dataset
+    hid_t dataset_id = H5Dcreate2(file_id, "fuzz_dataset", H5T_NATIVE_INT, dataspace_id,
+                                  H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0;
+    }
 
     // Call the function-under-test
-    H5Adelete_by_name(loc_id, obj_name, attr_name, lapl_id);
+    H5Dflush(dataset_id);
+
+    // Close the dataset and dataspace
+    H5Dclose(dataset_id);
+    H5Sclose(dataspace_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
+    // Close the HDF5 library
+    H5close();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_85(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

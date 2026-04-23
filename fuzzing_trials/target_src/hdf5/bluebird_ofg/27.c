@@ -1,54 +1,29 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
-
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+    // Ensure that the input size is sufficient for our needs
+    if (size < 1) {
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Prepare the parameters for H5Dget_space_async
+    hid_t dset_id = (hid_t)data[0]; // Use the first byte of data for dset_id
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
-        hid_t ret_H5Freopen_jkojw = H5Freopen(file_id);
-        hsize_t ret_H5Dget_storage_size_txvkk = H5Dget_storage_size(0);
-        herr_t ret_H5Dget_num_chunks_rqphk = H5Dget_num_chunks(dataset_id, ret_H5Freopen_jkojw, &ret_H5Dget_storage_size_txvkk);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
-    }
+    // Create HDF5 identifiers
+    hid_t dxpl_id = H5Pcreate(H5P_DATASET_XFER);
+    hid_t es_id = H5EScreate();
 
     // Call the function-under-test
+    hid_t result = H5Dget_space_async(dset_id, es_id);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fget_eoa
-    haddr_t ret_H5Dget_offset_lfcry = H5Dget_offset(file_id);
-    herr_t ret_H5Fget_eoa_jyivu = H5Fget_eoa(file_id, &ret_H5Dget_offset_lfcry);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    status = H5Fget_filesize(file_id, &filesize);
+    // Clean up resources
+    H5Pclose(dxpl_id);
+    H5ESclose(es_id);
 
-    // Close the file
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_filesize to H5Gget_objtype_by_idx
-    H5G_obj_t ret_H5Gget_objtype_by_idx_lofto = H5Gget_objtype_by_idx(file_id, filesize);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    H5Fclose(file_id);
-
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

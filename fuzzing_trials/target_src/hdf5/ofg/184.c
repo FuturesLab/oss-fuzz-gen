@@ -1,29 +1,59 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <hdf5.h>
-#include "H5Fpublic.h"
 
 int LLVMFuzzerTestOneInput_184(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient to extract parameters
-    if (size < 11) {
+    // Ensure the size is sufficient to extract an hid_t type
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Extract parameters from the data
-    const char *file_name = (const char *)data;
-    unsigned int create_flags = *(unsigned int *)(data + 2);
-    unsigned int access_flags = *(unsigned int *)(data + 7);
-    hid_t fcpl_id = (hid_t)data[8];
-    hid_t fapl_id = (hid_t)data[9];
-    hid_t es_id = (hid_t)data[10];
+    // Extract an hid_t from the input data
+    hid_t file_id = *(const hid_t *)data;
 
-    // Call the function-under-test with the correct number of arguments
-    hid_t file_id = H5Fcreate_async(file_name, create_flags, fcpl_id, fapl_id, es_id);
+    // Call the function-under-test
+    herr_t result = H5Freset_mdc_hit_rate_stats(file_id);
 
-    // Close the file if it was created successfully
-    if (file_id >= 0) {
-        H5Fclose(file_id);
-    }
+    // Use the result variable to prevent compiler optimizations that might remove the function call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_184(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

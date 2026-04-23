@@ -1,36 +1,26 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure that the input size is sufficient to extract parameters
+    if (size < sizeof(hid_t) + sizeof(unsigned int)) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Extract parameters from the input data
+    hid_t loc_id = *(const hid_t *)data;
+    unsigned int idx = *(const unsigned int *)(data + sizeof(hid_t));
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hid_t attribute_id = H5Aopen_idx(loc_id, idx);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Adelete_by_name
-    hid_t ret_H5Freopen_ngeit = H5Freopen(0);
-    herr_t ret_H5Adelete_by_name_guuid = H5Adelete_by_name(0, (const char *)"r", name_buffer, ret_H5Freopen_ngeit);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Close the attribute if it was successfully opened
+    if (attribute_id >= 0) {
+        H5Aclose(attribute_id);
+    }
 
     return 0;
 }

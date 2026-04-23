@@ -1,26 +1,65 @@
 #include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for our needs
-    if (size < 10) return 0;
+    hid_t attribute_id;
+    hid_t type_id;
 
-    // Initialize the parameters for the function
-    const char *location = "location_name";
-    const char *attr_name = "attribute_name";
-    unsigned int lapl_id = 0; // Link Access Property List Identifier
-    hid_t loc_id = 0; // Location Identifier
-    const char *obj_name = "object_name";
-    const char *attr_name2 = "attribute_name2";
-    bool exists; // Changed _Bool to bool
-    hid_t dxpl_id = 0; // Data Transfer Property List Identifier
-    hid_t es_id = 0; // Event Stack Identifier
+    // Ensure the size is sufficient to extract a valid hid_t
+    if (size < sizeof(hid_t)) {
+        return 0;
+    }
 
-    // Call the function-under-test with the correct number of arguments
-    herr_t result = H5Aexists_by_name_async(loc_id, obj_name, attr_name2, &exists, lapl_id, es_id);
+    // Use the input data to create a hid_t value
+    attribute_id = *((hid_t *)data);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Call the function-under-test
+    type_id = H5Aget_type(attribute_id);
+
+    // Close the type_id if it is valid
+    if (type_id >= 0) {
+        H5Tclose(type_id);
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_136(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

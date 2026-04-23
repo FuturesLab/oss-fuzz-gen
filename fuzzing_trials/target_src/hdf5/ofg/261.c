@@ -1,48 +1,94 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_261(const uint8_t *data, size_t size) {
-    // Initialize variables
-    herr_t status;
-    hid_t src_loc_id = H5I_INVALID_HID;
-    hid_t dst_loc_id = H5I_INVALID_HID;
-    const char *src_name = "source_group";
-    const char *dst_name = "destination_group";
+    // Ensure that we have enough data to work with
+    if (size < 3) return 0;
 
-    // Check if size is sufficient to create a file and groups
-    if (size < 1) {
+    // Initialize HDF5 library
+    H5open();
+
+    // Create a temporary file to work with
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
+
+    // Create a dummy group to ensure there's something to delete
+    hid_t group_id = H5Gcreate2(file_id, "/dummy_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
         return 0;
     }
+    H5Gclose(group_id);
 
-    // Create a new file using default properties.
-    hid_t file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
-    }
+    // Use parts of the data as the object name and attribute name
+    size_t name_len = size / 2;
+    size_t attr_len = size - name_len;
 
-    // Create a group in the file.
-    src_loc_id = H5Gcreate2(file_id, src_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (src_loc_id < 0) {
+    char *object_name = (char *)malloc(name_len + 1);
+    char *attr_name = (char *)malloc(attr_len + 1);
+
+    if (!object_name || !attr_name) {
+        free(object_name);
+        free(attr_name);
         H5Fclose(file_id);
         return 0;
     }
 
-    // Create another group in the file.
-    dst_loc_id = H5Gcreate2(file_id, dst_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dst_loc_id < 0) {
-        H5Gclose(src_loc_id);
-        H5Fclose(file_id);
-        return 0;
-    }
+    memcpy(object_name, data, name_len);
+    object_name[name_len] = '\0';
+
+    memcpy(attr_name, data + name_len, attr_len);
+    attr_name[attr_len] = '\0';
 
     // Call the function-under-test
-    status = H5Gmove2(file_id, src_name, file_id, dst_name);
+    H5Adelete_by_name(file_id, object_name, attr_name, H5P_DEFAULT);
 
-    // Clean up
-    H5Gclose(src_loc_id);
-    H5Gclose(dst_loc_id);
+    // Cleanup
+    free(object_name);
+    free(attr_name);
     H5Fclose(file_id);
+    H5close();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_261(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

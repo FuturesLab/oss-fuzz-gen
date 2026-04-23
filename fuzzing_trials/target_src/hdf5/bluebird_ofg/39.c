@@ -1,44 +1,58 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "hdf5.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
-
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+    // Ensure the size is sufficient for two null-terminated strings
+    if (size < 4) {
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Initialize HDF5 library
+    H5open();
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dwrite_chunk
-        hid_t ret_H5Fget_create_plist_giwtv = H5Fget_create_plist(file_id);
-        const hsize_t ikizfmtm;
-        memset(&ikizfmtm, 0, sizeof(ikizfmtm));
-        herr_t ret_H5Dwrite_chunk_gsjaa = H5Dwrite_chunk(dataset_id, ret_H5Fget_create_plist_giwtv, H5D_CHUNK_CACHE_W0_DEFAULT, &ikizfmtm, H5G_NLIBTYPES, (const void *)"r");
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
-    }
+    // Create a new file using the default properties.
+    hid_t file_id = H5Fcreate("temp.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Create a dataspace
+    hsize_t dims[1] = {10};
+    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+
+    // Create an attribute
+    hid_t attr_id = H5Acreate2(file_id, "attr1", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Split the data into two parts for old_name and new_name
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Acreate2 to H5Dwrite
+    hid_t ret_H5Dget_type_dnsqu = H5Dget_type(0);
+    hid_t ret_H5Aget_space_pbckw = H5Aget_space(attr_id);
+    hid_t ret_H5Dget_create_plist_dluri = H5Dget_create_plist(0);
+    hid_t ret_H5Aget_create_plist_pmhvl = H5Aget_create_plist(attr_id);
+    char rnrrhrfj[1024] = "ynepd";
+    herr_t ret_H5Dwrite_mmciz = H5Dwrite(ret_H5Dget_type_dnsqu, attr_id, ret_H5Aget_space_pbckw, ret_H5Dget_create_plist_dluri, ret_H5Aget_create_plist_pmhvl, rnrrhrfj);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    size_t half_size = size / 2;
+
+    // Ensure null-terminated strings
+    char old_name[half_size + 1];
+    char new_name[size - half_size + 1];
+    memcpy(old_name, data, half_size);
+    memcpy(new_name, data + half_size, size - half_size);
+    old_name[half_size] = '\0';
+    new_name[size - half_size] = '\0';
 
     // Call the function-under-test
-    status = H5Fget_filesize(file_id, &filesize);
+    herr_t status = H5Arename(file_id, old_name, new_name);
 
-    // Close the file
+    // Clean up
+    H5Aclose(attr_id);
+    H5Sclose(dataspace_id);
     H5Fclose(file_id);
+    H5close();
 
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,36 +1,23 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    // Ensure we have enough data to create a valid hid_t
+    if (size < sizeof(hid_t)) {
         return 0;
-    } // Adjust size as needed for your parameters
-
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
-
-    // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
-
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        H5Fclose(file_id);
     }
 
+    // Create a hid_t from the input data
+    hid_t dataset_id = *((hid_t*)data);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fstop_mdc_logging
-    herr_t ret_H5Fstop_mdc_logging_sceeo = H5Fstop_mdc_logging(file_id);
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Call the function-under-test
+    // We should ensure that dataset_id is a valid HDF5 identifier before closing
+    if (H5Iis_valid(dataset_id)) {
+        H5Dclose(dataset_id);
+    }
+
     return 0;
 }
 #ifdef INC_MAIN

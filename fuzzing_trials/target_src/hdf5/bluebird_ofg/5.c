@@ -1,49 +1,85 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating a valid input
-    if (size < 1) {
+    // Initialize HDF5 library
+    if (H5open() < 0) {
         return 0;
     }
 
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a file to work with
-    hid_t file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a temporary file to work with
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
         return 0;
     }
 
-    // Use the input data to create a group name
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Acreate_by_name
-    hid_t ret_H5Dget_access_plist_fbuzs = H5Dget_access_plist(file_id);
-    hid_t ret_H5Dget_access_plist_cxyiy = H5Dget_access_plist(file_id);
-    hid_t ret_H5Aget_type_ivbkb = H5Aget_type(0);
-    hid_t ret_H5Aget_space_ltsqb = H5Aget_space(0);
-    hid_t ret_H5Acreate_by_name_ypmhv = H5Acreate_by_name(file_id, (const char *)"w", (const char *)data, ret_H5Dget_access_plist_fbuzs, file_id, ret_H5Dget_access_plist_cxyiy, ret_H5Aget_type_ivbkb, ret_H5Aget_space_ltsqb);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    char group_name[256];
-    size_t name_length = size < 255 ? size : 255;
-    for (size_t i = 0; i < name_length; ++i) {
-        group_name[i] = data[i] % 26 + 'A'; // Ensure it's a valid character
+    // Create a group in the file
+    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
     }
-    group_name[name_length] = '\0';
+
+    // Ensure that the data size is sufficient to create a comment
+    if (size < 1) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Create a comment buffer and copy data into it
+    char *comment = (char *)malloc(size + 1);
+    if (comment == NULL) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+    memcpy(comment, data, size);
+    comment[size] = '\0'; // Null-terminate the comment
+
+    // Set a comment for the group
+    if (H5Oset_comment(group_id, comment) < 0) {
+        free(comment);
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Prepare a buffer to retrieve the comment
+    size_t comment_size = size + 1;
+    char *retrieved_comment = (char *)malloc(comment_size);
+    if (retrieved_comment == NULL) {
+        free(comment);
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
 
     // Call the function-under-test
-    hid_t group_id = H5Gcreate1(file_id, group_name, name_length);
+    H5Gget_comment(group_id, "/test_group", comment_size, retrieved_comment);
 
-    // Close the group and file
-    if (group_id >= 0) {
-        H5Gclose(group_id);
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Gget_comment to H5Aopen
+    hid_t ret_H5Freopen_rfvkk = H5Freopen(file_id);
+    hid_t ret_H5Aget_space_rljtn = H5Aget_space(0);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!retrieved_comment) {
+    	return 0;
     }
+    hid_t ret_H5Aopen_shcbl = H5Aopen(ret_H5Freopen_rfvkk, retrieved_comment, ret_H5Aget_space_rljtn);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(retrieved_comment);
+    free(comment);
+    H5Gclose(group_id);
     H5Fclose(file_id);
 
-    // Close HDF5 library
+    // Close the HDF5 library
     H5close();
 
     return 0;

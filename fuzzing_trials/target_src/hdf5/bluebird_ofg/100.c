@@ -1,40 +1,30 @@
+#include <sys/stat.h>
+#include "hdf5.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "hdf5.h"
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_100(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
-        return 0;
-    } // Adjust size as needed for your parameters
+    // Ensure the data size is sufficient for the inputs
+    if (size < 4) return 0; // Adjusted to 4 since only 4 bytes are needed
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Extract parts of the data for different parameters
+    hid_t attr_id = (hid_t)data[0]; // Use a byte for the attribute ID
+    hid_t dtype_id = (hid_t)data[1]; // Use a byte for the datatype ID
+    unsigned int buf_size = (unsigned int)data[2]; // Use a byte for the buffer size
+    hid_t es_id = (hid_t)data[3]; // Use a byte for the event set ID
 
-    // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+    // Allocate memory for the buffer
+    void *buf = malloc(buf_size);
+    if (buf == NULL) return 0;
 
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        H5Fclose(file_id);
-    }
+    // Call the function-under-test with the correct number of arguments
+    herr_t result = H5Aread_async(attr_id, dtype_id, buf, es_id);
 
+    // Free the allocated buffer
+    free(buf);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Dcreate_anon
-    hid_t ret_H5Aget_type_ozxvo = H5Aget_type(file_id);
-    hid_t ret_H5Dget_access_plist_hzpwm = H5Dget_access_plist(0);
-    hid_t ret_H5Dget_type_cgnea = H5Dget_type(0);
-    hid_t ret_H5Fget_access_plist_giirv = H5Fget_access_plist(file_id);
-    hid_t ret_H5Dcreate_anon_buily = H5Dcreate_anon(ret_H5Aget_type_ozxvo, ret_H5Dget_access_plist_hzpwm, ret_H5Dget_type_cgnea, file_id, ret_H5Fget_access_plist_giirv);
-    // End mutation: Producer.APPEND_MUTATOR
-    
     return 0;
 }
 #ifdef INC_MAIN

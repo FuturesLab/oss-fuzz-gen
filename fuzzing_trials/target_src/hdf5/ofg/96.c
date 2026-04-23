@@ -3,31 +3,76 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for our needs
-    if (size < 10) return 0;
+    // Ensure size is sufficient for creating an HDF5 file
+    if (size < 1) {
+        return 0;
+    }
 
-    // Initialize variables for the function call
-    hid_t dxpl_id = H5P_DEFAULT;
-    hid_t dset_id = H5I_INVALID_HID;
-    hid_t mem_type_id = H5T_NATIVE_INT;
-    hid_t mem_space_id = H5S_ALL;
-    hid_t file_space_id = H5S_ALL;
-    hid_t es_id = H5I_INVALID_HID;
+    // Create a temporary HDF5 file
+    hid_t file_id;
+    char filename[] = "tempfileXXXXXX";
+    int fd = mkstemp(filename);
+    if (fd == -1) {
+        return 0;
+    }
+    close(fd);
 
-    // Use the provided data as the buffer for the write operation
-    const void *buf = (const void *)data;
+    // Create an HDF5 file
+    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Prepare the output variable
+    unsigned long fileno = 0;
 
     // Call the function-under-test
-    herr_t result = H5Dwrite_async(
-        dset_id,
-        mem_type_id,
-        mem_space_id,
-        file_space_id,
-        dxpl_id,
-        buf,
-        es_id
-    );
+    herr_t status = H5Fget_fileno(file_id, &fileno);
 
-    // Return 0 for success
+    // Close the HDF5 file
+    H5Fclose(file_id);
+
+    // Remove the temporary file
+    remove(filename);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_96(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

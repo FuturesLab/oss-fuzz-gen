@@ -1,44 +1,92 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_218(const uint8_t *data, size_t size) {
-    // Define and initialize variables
-    size_t count = 1;
-    
-    // Allocate memory for hid_t arrays
-    hid_t *mem_type_ids = (hid_t *)malloc(count * sizeof(hid_t));
-    hid_t *mem_space_ids = (hid_t *)malloc(count * sizeof(hid_t));
-    hid_t *file_space_ids = (hid_t *)malloc(count * sizeof(hid_t));
-    hid_t *dset_ids = (hid_t *)malloc(count * sizeof(hid_t));
-    
-    // Initialize hid_t arrays with dummy values
-    for (size_t i = 0; i < count; i++) {
-        mem_type_ids[i] = H5T_NATIVE_INT;
-        mem_space_ids[i] = H5S_ALL;
-        file_space_ids[i] = H5S_ALL;
-        dset_ids[i] = H5I_INVALID_HID; // Use an invalid ID for fuzzing
+    // Initialize variables for the function parameters
+    hid_t file_id, dataspace_id, datatype_id, dcpl_id, dapl_id;
+    hid_t dataset_id;
+
+    // Create a temporary HDF5 file to use for testing
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file
     }
 
-    hid_t dxpl_id = H5P_DEFAULT;
-    hid_t es_id = H5I_INVALID_HID; // Use an invalid ID for fuzzing
-
-    // Create a buffer for the data
-    const void **bufs = (const void **)malloc(count * sizeof(void *));
-    for (size_t i = 0; i < count; i++) {
-        bufs[i] = (const void *)data;
+    // Create a simple dataspace
+    hsize_t dims[2] = {10, 10};
+    dataspace_id = H5Screate_simple(2, dims, NULL);
+    if (dataspace_id < 0) {
+        H5Fclose(file_id);
+        return 0; // Failed to create dataspace
     }
+
+    // Create a datatype
+    datatype_id = H5Tcopy(H5T_NATIVE_INT);
+    if (datatype_id < 0) {
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0; // Failed to create datatype
+    }
+
+    // Use default property lists
+    dcpl_id = H5P_DEFAULT;
+    dapl_id = H5P_DEFAULT;
 
     // Call the function-under-test
-    herr_t result = H5Dwrite_multi_async(count, dset_ids, mem_type_ids, mem_space_ids, 
-                                         file_space_ids, dxpl_id, bufs, es_id);
+    dataset_id = H5Dcreate_anon(file_id, datatype_id, dataspace_id, dcpl_id, dapl_id);
 
-    // Free allocated memory
-    free(mem_type_ids);
-    free(mem_space_ids);
-    free(file_space_ids);
-    free(dset_ids);
-    free(bufs);
+    // Write the fuzzing input data to the dataset if it was created successfully
+    if (dataset_id >= 0 && size > 0) {
+        hsize_t start[2] = {0, 0};
+        hsize_t count[2] = {1, size < 10 ? size : 10};
+        H5Sselect_hyperslab(dataspace_id, H5S_SELECT_SET, start, NULL, count, NULL);
+        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, dataspace_id, H5P_DEFAULT, data);
+        H5Dclose(dataset_id);
+    }
+
+    // Cleanup
+    H5Tclose(datatype_id);
+    H5Sclose(dataspace_id);
+    H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_218(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

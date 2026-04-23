@@ -1,35 +1,50 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_112(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Define the flags and file access property list
+    unsigned int flags = H5F_ACC_RDONLY; // Read-only access
+    hid_t fapl_id = H5P_DEFAULT; // Default file access property list
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hid_t file_id = H5Fopen(tmpl, flags, fapl_id);
 
-    // Clean up
+    // If the file was opened successfully, close it
+    if (file_id >= 0) {
+        H5Fclose(file_id);
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Awrite
-    herr_t ret_H5Awrite_uuwen = H5Awrite(0, 0, (const void *)name_buffer);
+    // Clean up the temporary file
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Dfill
+    hid_t ret_H5Aget_type_qmnkq = H5Aget_type(file_id);
+    hid_t ret_H5Dget_space_ovhcf = H5Dget_space(0);
+    herr_t ret_H5Dfill_bwcob = H5Dfill((const void *)"r", file_id, (void *)"r", ret_H5Aget_type_qmnkq, ret_H5Dget_space_ovhcf);
     // End mutation: Producer.APPEND_MUTATOR
     
-    free(name_buffer);
+    unlink(tmpl);
 
     return 0;
 }

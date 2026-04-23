@@ -1,30 +1,52 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
 #include "hdf5.h"
+#include <unistd.h>  // For mkstemp
+#include <stdio.h>   // For perror
+#include <fcntl.h>   // For open
+#include <string.h>  // For memset
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    hid_t file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t dapl_id = H5Pcreate(H5P_DATASET_ACCESS);
+    // Ensure the data size is sufficient for our needs
+    if (size < 4) {
+        return 0;
+    }
 
-    // Ensure that the dataset name is null-terminated
-    char dataset_name[256];
-    size_t name_length = size < 255 ? size : 255;
-    memcpy(dataset_name, data, name_length);
-    dataset_name[name_length] = '\0';
+    // Create temporary file names for the parameters
+    char file_name[] = "/tmp/h5fuzzfileXXXXXX";
+    int fd = mkstemp(file_name);
+    if (fd == -1) {
+        perror("mkstemp");
+        return 0;
+    }
+    close(fd);
+
+    // Extract values from the data for the parameters
+    unsigned int flags = data[0];
+    hid_t object_id = (hid_t)data[1];
+    H5F_scope_t scope = (H5F_scope_t)data[2];
+    hid_t es_id = (hid_t)data[3];
+
+    // Open the file to ensure object_id is valid
+    object_id = H5Fopen(file_name, flags, H5P_DEFAULT);
+    if (object_id < 0) {
+        unlink(file_name);
+        return 0;
+    }
 
     // Call the function-under-test
-    hid_t dataset_id = H5Dopen2(file_id, dataset_name, dapl_id);
+    herr_t result = H5Fflush_async(object_id, scope, es_id);
 
-    // Clean up resources
-    if (dataset_id >= 0) {
-        H5Dclose(dataset_id);
-    }
-    H5Pclose(dapl_id);
-    H5Fclose(file_id);
+    // Close the file
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fstart_swmr_write
+    H5Fstart_swmr_write(object_id);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
+    // Clean up temporary file
+    unlink(file_name);
+
+    // Return 0 to indicate success
     return 0;
 }
 #ifdef INC_MAIN

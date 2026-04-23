@@ -1,39 +1,26 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure that the size is sufficient to extract the necessary parameters
+    if (size < sizeof(hid_t) + sizeof(H5F_scope_t)) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Extract hid_t from the input data
+    hid_t file_id;
+    memcpy(&file_id, data, sizeof(hid_t));
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Extract H5F_scope_t from the input data
+    H5F_scope_t scope;
+    memcpy(&scope, data + sizeof(hid_t), sizeof(H5F_scope_t));
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    herr_t result = H5Fflush(file_id, scope);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aget_info_by_idx
-    hid_t ret_H5Fget_create_plist_pazts = H5Fget_create_plist(0);
-    hsize_t ret_H5Dget_storage_size_rvidz = H5Dget_storage_size(0);
-    hid_t ret_H5Freopen_dtqix = H5Freopen(0);
-    herr_t ret_H5Aget_info_by_idx_wqhnb = H5Aget_info_by_idx(ret_H5Fget_create_plist_pazts, name_buffer, 0, 0, ret_H5Dget_storage_size_rvidz, NULL, ret_H5Freopen_dtqix);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
-
+    // Return 0 to indicate the fuzzer can continue
     return 0;
 }
 #ifdef INC_MAIN

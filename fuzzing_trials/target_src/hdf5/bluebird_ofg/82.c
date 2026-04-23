@@ -1,37 +1,52 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "hdf5.h"
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
-    } // Adjust size as needed for your parameters
+    }
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Define the flags and file access property list
+    unsigned int flags = H5F_ACC_RDONLY; // Read-only access
+    hid_t fapl_id = H5P_DEFAULT; // Default file access property list
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+    hid_t file_id = H5Fopen(tmpl, flags, fapl_id);
 
-    // Close the file if it was successfully created
+    // If the file was opened successfully, close it
     if (file_id >= 0) {
         H5Fclose(file_id);
     }
 
+    // Clean up the temporary file
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Dget_space_status
-    H5D_space_status_t rqpiczzx = H5D_SPACE_STATUS_NOT_ALLOCATED;
-    herr_t ret_H5Dget_space_status_yizdq = H5Dget_space_status(file_id, &rqpiczzx);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Dwrite_chunk
+    hid_t ret_H5Dget_access_plist_idyhx = H5Dget_access_plist(file_id);
+    hsize_t ret_H5Aget_storage_size_npzjt = H5Aget_storage_size(0);
+    char lzxqaljf[1024] = "xmbgw";
+    herr_t ret_H5Dwrite_chunk_qegoc = H5Dwrite_chunk(ret_H5Dget_access_plist_idyhx, file_id, size, &ret_H5Aget_storage_size_npzjt, 1, lzxqaljf);
     // End mutation: Producer.APPEND_MUTATOR
     
+    unlink(tmpl);
+
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,42 +1,44 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure there's enough data to work with
+    if (size < 10) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Initialize HDF5 library
+    H5open();
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Create a new file using the default properties.
+    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Create a group in the file.
+    hid_t group_id = H5Gcreate2(file_id, "/fuzz_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Prepare parameters for H5Gget_linkval
+    const char *name = "/fuzz_group";
+    size_t buf_size = size < 256 ? size : 256; // Limit buffer size
+    char *linkval = (char *)malloc(buf_size);
+    if (linkval == NULL) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
         return 0;
     }
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    herr_t status = H5Gget_linkval(group_id, name, buf_size, linkval);
 
     // Clean up
+    free(linkval);
+    H5Gclose(group_id);
+    H5Fclose(file_id);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Dread_multi
-    hid_t ret_H5Dget_create_plist_iirrv = H5Dget_create_plist(0);
-    hid_t ret_H5Dget_type_bthsz = H5Dget_type(0);
-    hid_t ret_H5Dget_type_dqceq = H5Dget_type(0);
-    hid_t skvlujyx;
-    memset(&skvlujyx, 0, sizeof(skvlujyx));
-    hid_t rgwobueq;
-    memset(&rgwobueq, 0, sizeof(rgwobueq));
-    herr_t ret_H5Dread_multi_osuoi = H5Dread_multi(H5G_NLIBTYPES, &skvlujyx, &rgwobueq, &ret_H5Dget_create_plist_iirrv, &ret_H5Dget_type_bthsz, ret_H5Dget_type_dqceq, (void **)&name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Close HDF5 library
+    H5close();
 
     return 0;
 }

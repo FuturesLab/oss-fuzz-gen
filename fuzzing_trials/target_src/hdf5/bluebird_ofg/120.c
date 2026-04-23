@@ -1,35 +1,44 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "hdf5.h"
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    // Ensure there is enough data to extract the necessary parameters
+    if (size < sizeof(hid_t) + sizeof(hsize_t) + sizeof(unsigned int) + sizeof(haddr_t) + sizeof(hsize_t)) {
         return 0;
-    } // Adjust size as needed for your parameters
+    }
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Initialize variables
+    hid_t dataset_id = *((hid_t *)data);
+    data += sizeof(hid_t);
+    size -= sizeof(hid_t);
+
+    const hsize_t *coord = (const hsize_t *)data;
+    data += sizeof(hsize_t);
+    size -= sizeof(hsize_t);
+
+    unsigned int filter_mask;
+    haddr_t addr;
+    hsize_t size_out;
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+    herr_t result = H5Dget_chunk_info_by_coord(dataset_id, coord, &filter_mask, &addr, &size_out);
 
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Dflush
-        H5Dflush(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    // Use the result to prevent compiler optimizations from removing the function call
+    (void)result;
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

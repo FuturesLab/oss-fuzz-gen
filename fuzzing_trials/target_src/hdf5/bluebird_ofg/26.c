@@ -1,38 +1,42 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
+#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
-
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+    // Create a temporary file to use as input for H5Fdelete
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) == -1) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    
+    // Close the file descriptor
+    close(fd);
+    
+    // Define a valid file access property list identifier
+    hid_t fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    if (fapl_id < 0) {
+        unlink(tmpl);
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dclose with H5Drefresh
-        H5Drefresh(dataset_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        H5Sclose(dataspace_id);
-    }
+    // Call H5Fdelete with the temporary file path and file access property list
+    herr_t status = H5Fdelete(tmpl, fapl_id);
 
-    // Call the function-under-test
-    status = H5Fget_filesize(file_id, &filesize);
+    // Clean up
+    H5Pclose(fapl_id);
+    unlink(tmpl);
 
-    // Close the file
-    H5Fclose(file_id);
-
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

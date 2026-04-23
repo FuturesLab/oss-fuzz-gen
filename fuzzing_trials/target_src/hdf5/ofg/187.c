@@ -1,42 +1,63 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <string.h>  // Include this header for memcpy
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_187(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to work with
-    if (size < 3) return 0;
-
-    // Split the input data into parts for the parameters
-    size_t id_size = sizeof(hid_t);
-    size_t name_size = (size - id_size) / 2;
-    size_t comment_size = size - id_size - name_size;
-
-    // Extract hid_t from data
-    hid_t id;
-    memcpy(&id, data, id_size);
-
-    // Extract name from data
-    char *name = (char *)malloc(name_size + 1);
-    if (!name) return 0;
-    memcpy(name, data + id_size, name_size);
-    name[name_size] = '\0';
-
-    // Extract comment from data
-    char *comment = (char *)malloc(comment_size + 1);
-    if (!comment) {
-        free(name);
+    // Ensure that size is sufficient to extract a valid hid_t value
+    if (size < sizeof(hid_t)) {
         return 0;
     }
-    memcpy(comment, data + id_size + name_size, comment_size);
-    comment[comment_size] = '\0';
 
-    // Call the function under test
-    H5Gset_comment(id, name, comment);
+    // Extract a hid_t value from the input data
+    hid_t dataset_id;
+    memcpy(&dataset_id, data, sizeof(hid_t));
 
-    // Free allocated memory
-    free(name);
-    free(comment);
+    // Call the function-under-test
+    hid_t access_plist_id = H5Dget_access_plist(dataset_id);
+
+    // Close the property list if it was successfully created
+    if (access_plist_id >= 0) {
+        H5Pclose(access_plist_id);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_187(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

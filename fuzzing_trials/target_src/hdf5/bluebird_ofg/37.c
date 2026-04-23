@@ -1,32 +1,72 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "hdf5.h"
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
-    } // Adjust size as needed for your parameters
+    }
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Define the flags and file access property list
+    unsigned int flags = H5F_ACC_RDONLY; // Read-only access
+    hid_t fapl_id = H5P_DEFAULT; // Default file access property list
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of H5Fopen
+    hid_t file_id = H5Fopen(tmpl, 1, fapl_id);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Close the file if it was successfully created
+    // If the file was opened successfully, close it
     if (file_id >= 0) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fstop_mdc_logging
-        H5Fstop_mdc_logging(file_id);
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fformat_convert
+        H5Fformat_convert(file_id);
         // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
+
+    // Clean up the temporary file
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from H5Fopen to H5Fmount using the plateau pool
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from H5Fopen to H5Dcreate2 using the plateau pool
+    hsize_t dims[1] = {size};
+    hid_t space_id = H5Screate_simple(1, dims, NULL);
+    hid_t ret_H5Dcreate2_kdnha = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from H5Dcreate2 to H5Aget_name_by_idx using the plateau pool
+    const char *obj_name = "test_object";
+    H5_index_t idx_type = H5_INDEX_NAME;
+    H5_iter_order_t order = H5_ITER_INC;
+    hsize_t n = 0;
+    char name[256];
+    size_t buf_size = sizeof(name);
+    hid_t lapl_id = H5P_DEFAULT;
+    ssize_t ret_H5Aget_name_by_idx_xheua = H5Aget_name_by_idx(ret_H5Dcreate2_kdnha, obj_name, idx_type, order, n, name, buf_size, lapl_id);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    hid_t plist_id = H5P_DEFAULT;
+    herr_t ret_H5Fmount_oxzis = H5Fmount(file_id, "/mount_point", file_id, plist_id);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    unlink(tmpl);
 
     return 0;
 }

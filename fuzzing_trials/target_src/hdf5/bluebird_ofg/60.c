@@ -1,37 +1,27 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Declare and initialize variables
+    hid_t file_id;
+    unsigned int types;
+
+    // Ensure there is enough data to extract parameters
+    if (size < sizeof(hid_t) + sizeof(unsigned int)) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Extract parameters from data
+    file_id = *(hid_t *)data;
+    types = *(unsigned int *)(data + sizeof(hid_t));
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    ssize_t result = H5Fget_obj_count(file_id, types);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Gget_linkval
-    hid_t ret_H5Dget_create_plist_gilsx = H5Dget_create_plist(0);
-    const char czoqqkuo[1024] = "ivjtj";
-    herr_t ret_H5Gget_linkval_zfgvr = H5Gget_linkval(ret_H5Dget_create_plist_gilsx, czoqqkuo, H5D_CHUNK_CACHE_W0_DEFAULT, name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Use the result to prevent compiler optimizations
+    (void)result;
 
     return 0;
 }

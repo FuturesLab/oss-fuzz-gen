@@ -1,25 +1,41 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for our needs
-    if (size < sizeof(hid_t) + sizeof(unsigned int)) {
+    // Initialize HDF5 library
+    H5open();
+
+    // Ensure the data size is sufficient to create a file name
+    if (size < 1) {
         return 0;
     }
 
-    // Extracting hid_t from data
-    hid_t file_id = *(const hid_t *)data;
+    // Create a temporary file name using the input data
+    char filename[256];
+    snprintf(filename, sizeof(filename), "/tmp/fuzzfile_%d.h5", data[0]);
 
-    // Extracting unsigned int from data
-    unsigned int types = *(const unsigned int *)(data + sizeof(hid_t));
+    // Create a new HDF5 file to obtain a valid hid_t
+    hid_t file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Initialize the H5AC_cache_config_t structure
+    H5AC_cache_config_t config;
+    config.version = H5AC__CURR_CACHE_CONFIG_VERSION;
 
     // Call the function-under-test
-    ssize_t obj_count = H5Fget_obj_count(file_id, types);
+    herr_t status = H5Fget_mdc_config(file_id, &config);
 
-    // Use obj_count in some way to avoid compiler optimizations
-    if (obj_count < 0) {
-        // Handle error case
-    }
+    // Close the HDF5 file
+    H5Fclose(file_id);
+
+    // Clean up the HDF5 library
+    H5close();
 
     return 0;
 }

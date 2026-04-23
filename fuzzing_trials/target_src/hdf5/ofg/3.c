@@ -1,41 +1,62 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    hid_t file_id;
-    char *name_buf;
-    ssize_t name_len;
-    size_t buf_size;
-
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a temporary file to get a valid file_id
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Ensure the file was created successfully
-    if (file_id < 0) {
+    // Ensure that the input data is large enough to extract two values
+    if (size < sizeof(hid_t) + sizeof(unsigned int)) {
         return 0;
     }
 
-    // Allocate a buffer for the name
-    buf_size = 256; // Arbitrary buffer size for the file name
-    name_buf = (char *)malloc(buf_size);
-    if (name_buf == NULL) {
-        H5Fclose(file_id);
-        return 0;
-    }
+    // Extract hid_t and unsigned int from the input data
+    hid_t obj_id = *(const hid_t *)data;
+    unsigned int idx = *(const unsigned int *)(data + sizeof(hid_t));
 
     // Call the function-under-test
-    name_len = H5Fget_name(file_id, name_buf, buf_size);
+    hid_t result = H5Aopen_idx(obj_id, idx);
 
-    // Clean up
-    free(name_buf);
-    H5Fclose(file_id);
-
-    // Close HDF5 library
-    H5close();
+    // Close the attribute if it was successfully opened
+    if (result >= 0) {
+        H5Aclose(result);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

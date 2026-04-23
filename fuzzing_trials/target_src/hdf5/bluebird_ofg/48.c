@@ -1,43 +1,48 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
+
+// Dummy iterator function for H5Giterate
+herr_t dummy_iterate(hid_t group, const char *name, void *op_data) {
+    // Do nothing, just return success
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
     // Initialize variables
     hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
+    const char *group_name = "fuzz_group";
+    int idx = 0;
+    void *op_data = NULL;
 
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a new HDF5 file using default properties
+    file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+        return 0; // Failed to create file, exit
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a group in the file
+    hid_t group_id = H5Gcreate(file_id, group_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0; // Failed to create group, exit
+    }
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
-        hid_t ret_H5Aget_space_ffjvq = H5Aget_space(file_id);
-        hsize_t ret_H5Dget_storage_size_zmzon = H5Dget_storage_size(dataset_id);
-        herr_t ret_H5Dget_num_chunks_mwhro = H5Dget_num_chunks(ret_H5Aget_space_ffjvq, dataset_id, &ret_H5Dget_storage_size_zmzon);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
+    // Use the input data to perform some operation, ensuring it's not null
+    if (size > 0) {
+        // For example, use the first byte of data to decide something
+        idx = data[0] % 10; // Just a dummy operation using input data
     }
 
     // Call the function-under-test
-    status = H5Fget_filesize(file_id, &filesize);
+    H5Giterate(group_id, group_name, &idx, dummy_iterate, op_data);
 
-    // Close the file
+    // Close the group and file
+    H5Gclose(group_id);
     H5Fclose(file_id);
 
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

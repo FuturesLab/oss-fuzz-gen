@@ -1,37 +1,25 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
 #include "hdf5.h"
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure size is sufficient to extract a hid_t value
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Extract a hid_t value from the data
+    hid_t file_id = *(const hid_t *)data;
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hssize_t free_space = H5Fget_freespace(file_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aiterate2
-    hid_t ret_H5Aget_create_plist_ymohp = H5Aget_create_plist(0);
-    hsize_t ret_H5Aget_storage_size_qnuol = H5Aget_storage_size(0);
-    herr_t ret_H5Aiterate2_sbzxw = H5Aiterate2(ret_H5Aget_create_plist_ymohp, 0, 0, &ret_H5Aget_storage_size_qnuol, NULL, (void *)name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Use the result in some way to avoid compiler optimizing it away
+    if (free_space < 0) {
+        // Handle error case
+    }
 
     return 0;
 }

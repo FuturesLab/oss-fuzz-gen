@@ -1,38 +1,28 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure the data size is sufficient for our needs
+    if (size < 3) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Extract parts of the data to use as parameters
+    const char *file_name = "test_file.h5"; // Using a constant file name
+    const char *attr_name = "attribute"; // Using a constant attribute name
+    unsigned int idx = data[0]; // Use the first byte for the index
+    hid_t loc_id = (hid_t)data[1]; // Use the second byte for loc_id
+    const char *aapl_name = "aapl"; // Using a constant name for aapl
+    hid_t acpl_id = (hid_t)data[2]; // Use the third byte for acpl_id
+    hid_t es_id = H5ES_NONE; // Use a constant for event stack ID
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hid_t result = H5Aopen_async(loc_id, attr_name, acpl_id, es_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Arename_by_name
-    hid_t ret_H5Dget_create_plist_nqjea = H5Dget_create_plist(0);
-    const char hdpfgber[1024] = "jcxuo";
-    herr_t ret_H5Arename_by_name_irmar = H5Arename_by_name(ret_H5Dget_create_plist_nqjea, (const char *)data, hdpfgber, name_buffer, 0);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
-
+    // Normally, you'd check the result or perform further operations, but for fuzzing, we just return
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,34 +1,30 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include "hdf5.h"
 
+// Dummy operator function for H5Aiterate_by_name
+herr_t attribute_operator(hid_t loc_id, const char *attr_name, const H5A_info_t *ainfo, void *op_data) {
+    // This is a dummy operator function. In a real scenario, you would process the attribute here.
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_89(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to contain a non-empty string and additional parameters
-    if (size < 5) {
-        return 0;
-    }
-
-    // Use the data to create a null-terminated string for the file name
-    char filename[256];
-    size_t filename_len = (size < sizeof(filename) - 1) ? size : sizeof(filename) - 1;
-    memcpy(filename, data, filename_len);
-    filename[filename_len] = '\0';
-
-    // Extract the flags and fapl_id from the data
-    unsigned int flags = (unsigned int)data[filename_len % size];
-    hid_t fapl_id = (hid_t)data[(filename_len + 1) % size];
+    // Initialize variables for H5Aiterate_by_name parameters
+    hid_t loc_id = 1; // Dummy non-NULL value for location ID
+    const char *obj_name = "dummy_object"; // Dummy object name
+    H5_index_t idx_type = H5_INDEX_NAME; // Dummy index type
+    H5_iter_order_t order = H5_ITER_INC; // Dummy iteration order
+    hsize_t idx = 0; // Starting index
+    H5A_operator2_t op = attribute_operator; // Operator function
+    void *op_data = NULL; // Operator data
+    hid_t lapl_id = H5P_DEFAULT; // Link access property list
 
     // Call the function-under-test
-    hid_t file_id = H5Fopen(filename, flags, fapl_id);
+    herr_t result = H5Aiterate_by_name(loc_id, obj_name, idx_type, order, &idx, op, op_data, lapl_id);
 
-    // If the file was successfully opened, close it
-    if (file_id >= 0) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fstart_swmr_write
-        H5Fstart_swmr_write(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
-
+    // Return 0 as required by the fuzzer
     return 0;
 }
 #ifdef INC_MAIN

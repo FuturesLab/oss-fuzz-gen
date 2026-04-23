@@ -1,28 +1,80 @@
 #include <stdint.h>
 #include <hdf5.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Declare and initialize the hid_t variable
-    hid_t file_id = -1;
+    hid_t file_id, dataset_id, dataspace_id;
+    herr_t status;
+    hsize_t dims[1];
 
-    // Create a new HDF5 file to obtain a valid hid_t
-    file_id = H5Fcreate("temp_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a new HDF5 file using default properties.
+    file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
-        return 0; // Failed to create a file, exit early
+        return 0; // Failed to create file, exit early
     }
 
-    // Enable metadata cache logging for the file
-    herr_t status = H5Fstart_mdc_logging(file_id);
-    if (status < 0) {
-        H5Fclose(file_id);
-        return 0; // Failed to start logging, exit early
+    // Use the input data to create a dataset
+    if (size > 0) {
+        dims[0] = size;
+        dataspace_id = H5Screate_simple(1, dims, NULL);
+        if (dataspace_id >= 0) {
+            dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, 
+                                    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            if (dataset_id >= 0) {
+                // Write the input data to the dataset
+                H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+                // Close the dataset
+                H5Dclose(dataset_id);
+            }
+            // Close the dataspace
+            H5Sclose(dataspace_id);
+        }
     }
 
-    // Call the function-under-test
+    // Call the function-under-test with the created file identifier
     status = H5Fstop_mdc_logging(file_id);
 
-    // Clean up by closing the file
+    // Close the file
     H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

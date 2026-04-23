@@ -1,27 +1,48 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to extract necessary parameters
-    if (size < 4) { // Adjusted minimum size for this example
+    // Ensure that the size is sufficient to create a valid string
+    if (size < 1) {
         return 0;
     }
 
-    // Extract parameters from the data
-    const char *filename = "/tmp/testfile.h5"; // Example file name
-    unsigned int flags = (unsigned int)data[0]; // Example flags for file open
-    hid_t access_plist = (hid_t)data[1]; // Example file access property list identifier
-    hid_t es_id = (hid_t)data[2]; // Example event stack identifier
+    // Create a temporary HDF5 file
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Create a dataset within the file
+    hsize_t dims[1] = {10};
+    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+    hid_t dataset_id = H5Dcreate(file_id, "dataset", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Sclose(dataspace_id);
+
+    // Create an attribute for the dataset
+    hid_t attr_space_id = H5Screate(H5S_SCALAR);
+    hid_t attr_id = H5Acreate(dataset_id, "attribute", H5T_NATIVE_INT, attr_space_id, H5P_DEFAULT, H5P_DEFAULT);
+    H5Sclose(attr_space_id);
+    H5Aclose(attr_id);
+
+    // Prepare the attribute name from the input data
+    size_t attr_name_size = size < 256 ? size : 255; // Limit the attribute name size
+    char attr_name[256];
+    memcpy(attr_name, data, attr_name_size);
+    attr_name[attr_name_size] = '\0';
 
     // Call the function-under-test
-    hid_t file_id = H5Fopen_async(filename, flags, access_plist, es_id);
+    H5Adelete(dataset_id, attr_name);
 
-    // Check the result (optional, for debugging purposes)
-    if (file_id >= 0) {
-        // Successfully opened file, close it
-        H5Fclose(file_id);
-    }
+    // Clean up and close the HDF5 objects
+    H5Dclose(dataset_id);
+    H5Fclose(file_id);
+
+    // Remove the temporary file
+    remove("tempfile.h5");
 
     return 0;
 }

@@ -1,48 +1,33 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Initialize variables
     hid_t file_id;
     hsize_t filesize;
     herr_t status;
 
-    // Create a temporary file for testing
+    // Create a temporary HDF5 file for testing
     file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
         return 0; // Failed to create file, exit early
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Aread
-        hid_t ret_H5Dget_type_jysuw = H5Dget_type(dataset_id);
-        herr_t ret_H5Aread_fishc = H5Aread(dataset_id, ret_H5Dget_type_jysuw, (void *)"w");
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        hid_t ret_H5Fget_access_plist_dqphx = H5Fget_access_plist(file_id);
-        herr_t ret_H5Dget_num_chunks_whmzj = H5Dget_num_chunks(ret_H5Fget_access_plist_dqphx, dataset_id, NULL);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
-    }
-
     // Call the function-under-test
     status = H5Fget_filesize(file_id, &filesize);
+
+    // Use the data and size to simulate some operation on the HDF5 file
+    // This is a placeholder for actual operations you might want to test
+    if (size > 0 && data != NULL) {
+        // Example: write data to the file, read it back, etc.
+        // This is just a placeholder to demonstrate using the input data
+    }
 
     // Close the file
     H5Fclose(file_id);
 
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

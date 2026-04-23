@@ -1,37 +1,51 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include "hdf5.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <fcntl.h>
+
+// Include the necessary header for mkstemp
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    if (size < 1) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Create a temporary file to use as the HDF5 file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
+    close(fd);
+
+    // Write the input data to the temporary file
+    FILE *file = fopen(tmpl, "wb");
+    if (!file) {
+        unlink(tmpl);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Prepare parameters for H5Fopen_async
+    const char *filename = tmpl;
+    unsigned int flags = H5F_ACC_RDONLY; // Open file in read-only mode
+    hid_t access_plist = H5P_DEFAULT;
+    hid_t es_id = H5ES_NONE; // Event stack ID
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hid_t file_id = H5Fopen_async(filename, flags, access_plist, es_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Dgather
-    hid_t ret_H5Fget_create_plist_zmjfk = H5Fget_create_plist(0);
-    hid_t ret_H5Aget_create_plist_dtwjs = H5Aget_create_plist(0);
-    herr_t ret_H5Dgather_hdkcb = H5Dgather(ret_H5Fget_create_plist_zmjfk, (const void *)name_buffer, ret_H5Aget_create_plist_dtwjs, -1, (void *)data, NULL, NULL);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Cleanup
+    if (file_id >= 0) {
+        H5Fclose(file_id);
+    }
+    unlink(tmpl);
 
     return 0;
 }

@@ -1,33 +1,27 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
 #include "hdf5.h"
 
+// Define a simple operator function to be used with H5Diterate
+herr_t my_operator_28(void *elem, hid_t type_id, hsize_t ndim, hssize_t *point, void *operator_data) {
+    // For fuzzing purposes, we can simply return 0
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to contain a non-empty string and additional parameters
-    if (size < 5) {
-        return 0;
-    }
-
-    // Use the data to create a null-terminated string for the file name
-    char filename[256];
-    size_t filename_len = (size < sizeof(filename) - 1) ? size : sizeof(filename) - 1;
-    memcpy(filename, data, filename_len);
-    filename[filename_len] = '\0';
-
-    // Extract the flags and fapl_id from the data
-    unsigned int flags = (unsigned int)data[filename_len % size];
-    hid_t fapl_id = (hid_t)data[(filename_len + 1) % size];
+    // Define and initialize the parameters for H5Diterate
+    void *buf = (void *)data; // Use the input data as the buffer
+    hid_t type_id = H5T_NATIVE_INT; // Use a basic HDF5 datatype
+    hid_t space_id = H5Screate_simple(1, &size, NULL); // Create a simple dataspace
+    H5D_operator_t op = my_operator_28; // Use the defined operator function
+    void *operator_data = NULL; // No additional operator data
 
     // Call the function-under-test
-    hid_t file_id = H5Fopen(filename, flags, fapl_id);
+    herr_t result = H5Diterate(buf, type_id, space_id, op, operator_data);
 
-    // If the file was successfully opened, close it
-    if (file_id >= 0) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fformat_convert
-        H5Fformat_convert(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    // Clean up the created dataspace
+    H5Sclose(space_id);
 
     return 0;
 }

@@ -1,38 +1,53 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    hid_t file_id, dataset_id, dapl_id;
+    char *dataset_name;
+    herr_t status;
+
+    // Ensure the input size is sufficient for a string
+    if (size < 1) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Create a temporary file to work with
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    // Allocate memory for dataset name and ensure it's null-terminated
+    dataset_name = (char *)malloc(size + 1);
+    if (dataset_name == NULL) {
+        H5Fclose(file_id);
+        return 0;
+    }
+    memcpy(dataset_name, data, size);
+    dataset_name[size] = '\0';
+
+    // Create a simple dataset to ensure the file has something to open
+    hsize_t dims[1] = {10};
+    hid_t space_id = H5Screate_simple(1, dims, NULL);
+    dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Sclose(space_id);
+
+    // Open the dataset using the fuzzed dataset name
+    dapl_id = H5P_DEFAULT; // Use default dataset access property list
+    hid_t opened_dataset_id = H5Dopen2(file_id, dataset_name, dapl_id);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Acreate2
-    hid_t ret_H5Dget_space_pxgkv = H5Dget_space(0);
-    hid_t ret_H5Fget_create_plist_nwpej = H5Fget_create_plist(0);
-    hid_t ret_H5Aget_space_vamue = H5Aget_space(0);
-    hid_t ret_H5Acreate2_uzcyt = H5Acreate2(0, name_buffer, ret_H5Dget_space_pxgkv, 0, ret_H5Fget_create_plist_nwpej, ret_H5Aget_space_vamue);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    if (opened_dataset_id >= 0) {
+        H5Dclose(opened_dataset_id);
+    }
+    H5Dclose(dataset_id);
+    H5Fclose(file_id);
+    free(dataset_name);
 
     return 0;
 }

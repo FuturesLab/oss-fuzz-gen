@@ -1,19 +1,56 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    // Initialize parameters
-    hid_t dset_id = 1; // Assuming a valid dataset identifier
-    hid_t dxpl_id = 2; // Assuming a valid dataset transfer property list identifier
-    uint32_t filters = 0; // No filters applied
-    hsize_t offset[1] = {0}; // Assuming a 1D dataset for simplicity
-    size_t data_size = size > 0 ? size : 1; // Ensure data_size is not zero
-    const void *buf = data; // Use the input data as the buffer
+    // Ensure the size is sufficient for creating a valid hid_t
+    if (size < sizeof(hid_t)) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    herr_t result = H5Dwrite_chunk(dset_id, dxpl_id, filters, offset, data_size, buf);
+    // Extract a hid_t value from the input data
+    hid_t file_id = *(const hid_t *)data;
 
-    // Return 0 to indicate the fuzzer should continue
+    // Call the function-under-test with the extracted hid_t
+    H5Freset_page_buffering_stats(file_id);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_119(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

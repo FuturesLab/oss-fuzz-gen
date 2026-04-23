@@ -1,25 +1,59 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_266(const uint8_t *data, size_t size) {
-    hid_t attribute_id;
-    hid_t plist_id;
-
-    // Ensure we have enough data to extract a valid hid_t
     if (size < sizeof(hid_t)) {
-        return 0;
+        return 0; // Not enough data to create a valid hid_t
     }
 
-    // Extract an hid_t from the input data
-    attribute_id = *((hid_t *)data);
+    // Extract a hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
 
-    // Call the function under test
-    plist_id = H5Aget_create_plist(attribute_id);
+    // Call the function-under-test
+    herr_t result = H5Fformat_convert(file_id);
 
-    // Close the plist_id if it's valid
-    if (plist_id >= 0) {
-        H5Pclose(plist_id);
-    }
+    // Handle the result if necessary (e.g., log it, check for errors, etc.)
+    // For this example, we simply ignore the result
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_266(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

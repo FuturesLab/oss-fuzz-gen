@@ -1,51 +1,55 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "hdf5.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for the fuzzer
-    if (size < 2) {
+    // Ensure the size is sufficient for two null-terminated strings
+    if (size < 4) {
         return 0;
     }
 
     // Initialize HDF5 library
     H5open();
 
-    // Create a file and a group to ensure we have a valid hid_t
-    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
-    }
+    // Create a new file using the default properties.
+    hid_t file_id = H5Fcreate("temp.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Create a dataspace
+    hsize_t dims[1] = {10};
+    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+
+    // Create an attribute
+    hid_t attr_id = H5Acreate2(file_id, "attr1", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Split the data into two parts for old_name and new_name
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Acreate2 to H5Dwrite
+    hid_t ret_H5Aget_type_pndky = H5Aget_type(attr_id);
+    hid_t ret_H5Aget_space_vwxsh = H5Aget_space(0);
+    hid_t ret_H5Fget_create_plist_ozdbf = H5Fget_create_plist(attr_id);
+    hid_t ret_H5Fget_create_plist_assfa = H5Fget_create_plist(0);
+    herr_t ret_H5Dwrite_pjwyx = H5Dwrite(ret_H5Aget_type_pndky, attr_id, ret_H5Aget_space_vwxsh, ret_H5Fget_create_plist_ozdbf, ret_H5Fget_create_plist_assfa, (const void *)data);
+    // End mutation: Producer.APPEND_MUTATOR
     
-    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (group_id < 0) {
-        H5Fclose(file_id);
-        return 0;
-    }
+    size_t half_size = size / 2;
 
-    // Close the group to prepare for unlinking
-    H5Gclose(group_id);
-
-    // Prepare the group name from the input data
-    size_t name_len = size - 1;
-    char *group_name = (char *)malloc(name_len + 1);
-    if (group_name == NULL) {
-        H5Fclose(file_id);
-        return 0;
-    }
-    memcpy(group_name, data, name_len);
-    group_name[name_len] = '\0';
+    // Ensure null-terminated strings
+    char old_name[half_size + 1];
+    char new_name[size - half_size + 1];
+    memcpy(old_name, data, half_size);
+    memcpy(new_name, data + half_size, size - half_size);
+    old_name[half_size] = '\0';
+    new_name[size - half_size] = '\0';
 
     // Call the function-under-test
-    H5Gunlink(file_id, group_name);
+    herr_t status = H5Arename(file_id, old_name, new_name);
 
     // Clean up
-    free(group_name);
+    H5Aclose(attr_id);
+    H5Sclose(dataspace_id);
     H5Fclose(file_id);
-
-    // Close HDF5 library
     H5close();
 
     return 0;

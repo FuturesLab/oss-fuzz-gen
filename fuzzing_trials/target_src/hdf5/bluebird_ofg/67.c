@@ -1,26 +1,67 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include "hdf5.h"
-#include <stdio.h>  // Include this for snprintf
 
+// Corrected the C++ linkage specification for C code
 int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    hid_t file_id = H5I_INVALID_HID;
+    // Initialize the HDF5 library
+    H5open();
 
-    // Check if the data size is sufficient to create a valid file name
-    if (size > 0 && size < 255) {
-        // Create a temporary file name from the input data
-        char filename[256];
-        snprintf(filename, sizeof(filename), "/tmp/fuzz_hdf5_%.*s.h5", (int)size, data);
-
-        // Create a new HDF5 file using the filename
-        file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-        if (file_id >= 0) {
-            // Call the function-under-test
-            H5Fclear_elink_file_cache(file_id);
-
-            // Close the file
-            H5Fclose(file_id);
-        }
+    // Create a temporary file to use with HDF5
+    char tmpl[] = "/tmp/hdf5fileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
+    close(fd);
+
+    // Create an HDF5 file
+    hid_t file_id = H5Fcreate(tmpl, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Create a group in the file
+    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Ensure the data is null-terminated before using it as a string
+    char *obj_name = (char *)malloc(size + 1);
+    if (obj_name == NULL) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+    memcpy(obj_name, data, size);
+    obj_name[size] = '\0';
+
+    // Prepare the H5G_stat_t structure
+    H5G_stat_t statbuf;
+
+    // Call the function-under-test
+    herr_t status = H5Gget_objinfo(group_id, obj_name, true, &statbuf);
+
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Gget_objinfo to H5Dgather
+    hid_t ret_H5Dget_space_kaymh = H5Dget_space(0);
+    hid_t ret_H5Fget_create_plist_newtn = H5Fget_create_plist(file_id);
+    herr_t ret_H5Dgather_ccgxf = H5Dgather(ret_H5Dget_space_kaymh, (const void *)&statbuf, ret_H5Fget_create_plist_newtn, H5G_NLIBTYPES, (void *)&statbuf, NULL, (void *)data);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(obj_name);
+    H5Gclose(group_id);
+    H5Fclose(file_id);
+    remove(tmpl);
+
+    // Close the HDF5 library
+    H5close();
 
     return 0;
 }

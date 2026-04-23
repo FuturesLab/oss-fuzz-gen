@@ -1,35 +1,65 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <hdf5.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_231(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the parameters
-    hid_t loc_id = 1; // Assuming a valid hid_t for location
-    char obj_name[256] = "object_name";
-    char old_attr_name[256] = "old_attribute_name";
-    char new_attr_name[256] = "new_attribute_name";
-    hid_t lapl_id = H5P_DEFAULT; // Using the default property list
-
-    // Use input data to modify the attribute names for fuzzing
-    if (size > 0) {
-        size_t copy_size = size < 255 ? size : 255;
-        memcpy(obj_name, data, copy_size);
-        obj_name[copy_size] = '\0'; // Ensure null termination
-    }
-    if (size > 1) {
-        size_t copy_size = size - 1 < 255 ? size - 1 : 255;
-        memcpy(old_attr_name, data + 1, copy_size);
-        old_attr_name[copy_size] = '\0'; // Ensure null termination
-    }
-    if (size > 2) {
-        size_t copy_size = size - 2 < 255 ? size - 2 : 255;
-        memcpy(new_attr_name, data + 2, copy_size);
-        new_attr_name[copy_size] = '\0'; // Ensure null termination
-    }
+    // Initialize variables for function parameters
+    hid_t loc_id = 0; // Example value, should be a valid HDF5 object identifier
+    const char *obj_name = "example_object"; // Example object name
+    H5_index_t idx_type = H5_INDEX_NAME; // Example index type
+    H5_iter_order_t order = H5_ITER_INC; // Example iteration order
+    hsize_t n = 0; // Example index position
+    hid_t aapl_id = H5P_DEFAULT; // Example attribute access property list
+    hid_t lapl_id = H5P_DEFAULT; // Example link access property list
 
     // Call the function-under-test
-    herr_t result = H5Arename_by_name(loc_id, obj_name, old_attr_name, new_attr_name, lapl_id);
+    hid_t attr_id = H5Aopen_by_idx(loc_id, obj_name, idx_type, order, n, aapl_id, lapl_id);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Check if the attribute was opened successfully
+    if (attr_id >= 0) {
+        // Close the attribute if it was opened
+        H5Aclose(attr_id);
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_231(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,38 +1,48 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
+// A simple iterator function for demonstration purposes
+herr_t simple_iterate(hid_t group, const char *name, const H5L_info_t *info, void *op_data) {
+    // Perform some operation on the group and name
+    return 0; // Return success
+}
+
 int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
+    if (size < 1) {
+        return 0; // Not enough data to proceed
+    }
 
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Initialize HDF5
+    H5open();
+
+    // Create a temporary file to store the HDF5 data
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+        return 0; // Unable to create file
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dclose with H5Dflush
-        H5Dflush(dataset_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        H5Sclose(dataspace_id);
+    // Create a group in the file
+    hid_t group_id = H5Gcreate(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0; // Unable to create group
     }
+
+    // Prepare parameters for H5Literate
+    hsize_t idx = 0;
+    void *op_data = NULL; // No additional data needed for this simple iterator
 
     // Call the function-under-test
-    status = H5Fget_filesize(file_id, &filesize);
+    H5Literate(group_id, H5_INDEX_NAME, H5_ITER_INC, &idx, simple_iterate, op_data);
 
-    // Close the file
+    // Clean up
+    H5Gclose(group_id);
     H5Fclose(file_id);
+    H5close();
 
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

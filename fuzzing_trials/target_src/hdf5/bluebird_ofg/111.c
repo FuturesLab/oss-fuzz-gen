@@ -1,40 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include "hdf5.h"
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
+    if (size < 4) {
+        return 0; // Ensure there is enough data for the parameters
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Initialize variables for function parameters
+    hid_t obj_id = H5I_INVALID_HID; // Use an invalid ID initially
+    const char *attr_name = "dummy_attr_name";
+    _Bool exists = false;
+    hid_t es_id = H5P_DEFAULT;
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    herr_t result = H5Aexists_async(obj_id, attr_name, &exists, es_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Acreate_by_name
-    hid_t ret_H5Aget_type_mmtik = H5Aget_type(0);
-    hid_t ret_H5Aget_type_ihocu = H5Aget_type(0);
-    hid_t ret_H5Aget_create_plist_zncxt = H5Aget_create_plist(0);
-    hid_t ret_H5Aget_type_mhfdh = H5Aget_type(0);
-    hid_t ret_H5Freopen_tkrms = H5Freopen(0);
-    hid_t ret_H5Acreate_by_name_dtrxg = H5Acreate_by_name(ret_H5Aget_type_mmtik, (const char *)data, name_buffer, ret_H5Aget_type_ihocu, ret_H5Aget_create_plist_zncxt, 0, ret_H5Aget_type_mhfdh, ret_H5Freopen_tkrms);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Use the result and exists variable to prevent unused variable warnings
+    if (result < 0) {
+        // Handle error
+    }
 
     return 0;
 }

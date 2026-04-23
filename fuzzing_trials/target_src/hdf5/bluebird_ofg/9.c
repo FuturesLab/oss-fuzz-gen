@@ -1,51 +1,70 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <string.h>
+#include <unistd.h>
 #include "hdf5.h"
 
+// Corrected the C++ linkage specification for C code
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
+    // Initialize the HDF5 library
+    H5open();
 
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a temporary file to use with HDF5
+    char tmpl[] = "/tmp/hdf5fileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    close(fd);
+
+    // Create an HDF5 file
+    hid_t file_id = H5Fcreate(tmpl, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Create a group in the file
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Aget_name_by_idx
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Aget_type with H5Dget_access_plist
-        hid_t ret_H5Aget_type_cuqkp = H5Dget_access_plist(dataset_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        char gwwvcpdb[1024] = "xyled";
-        ssize_t ret_H5Aget_name_by_idx_jkgpg = H5Aget_name_by_idx(dataset_id, (const char *)"r", 0, 0, 0, gwwvcpdb, 0, ret_H5Aget_type_cuqkp);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        hid_t ret_H5Fget_access_plist_dqphx = H5Fget_access_plist(file_id);
-        herr_t ret_H5Dget_num_chunks_whmzj = H5Dget_num_chunks(ret_H5Fget_access_plist_dqphx, dataset_id, NULL);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from H5Fcreate to H5Fget_mdc_size using the plateau pool
+    size_t max_size = 0;
+    size_t min_clean_size = 0;
+    size_t cur_size = 0;
+    int cur_num_entries = 0;
+    herr_t ret_H5Fget_mdc_size_brlgd = H5Fget_mdc_size(file_id, &max_size, &min_clean_size, &cur_size, &cur_num_entries);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
     }
+
+    // Ensure the data is null-terminated before using it as a string
+    char *obj_name = (char *)malloc(size + 1);
+    if (obj_name == NULL) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+    memcpy(obj_name, data, size);
+    obj_name[size] = '\0';
+
+    // Prepare the H5G_stat_t structure
+    H5G_stat_t statbuf;
 
     // Call the function-under-test
-    status = H5Fget_filesize(file_id, &filesize);
+    herr_t status = H5Gget_objinfo(group_id, obj_name, true, &statbuf);
 
-    // Close the file
+    // Clean up
+    free(obj_name);
+    H5Gclose(group_id);
     H5Fclose(file_id);
+    remove(tmpl);
 
-    // Return success
+    // Close the HDF5 library
+    H5close();
+
     return 0;
 }
 #ifdef INC_MAIN

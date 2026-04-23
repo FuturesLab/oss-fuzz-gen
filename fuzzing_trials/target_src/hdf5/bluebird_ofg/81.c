@@ -1,38 +1,51 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h> // Include for memcpy
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure there is enough data for all parameters
+    if (size < sizeof(hid_t) * 2 + sizeof(H5_index_t) + sizeof(H5_iter_order_t) + sizeof(hsize_t) + 1) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Extract parameters from the data
+    size_t offset = 0;
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    hid_t loc_id = *(const hid_t *)(data + offset);
+    offset += sizeof(hid_t);
+
+    // Ensure the name is null-terminated
+    size_t name_len = size - offset - sizeof(H5_index_t) - sizeof(H5_iter_order_t) - sizeof(hsize_t) - sizeof(hid_t);
+    if (name_len <= 0) {
         return 0;
     }
+    char *name = (char *)malloc(name_len + 1);
+    if (!name) {
+        return 0;
+    }
+    memcpy(name, data + offset, name_len);
+    name[name_len] = '\0';
+    offset += name_len;
+
+    H5_index_t idx_type = *(const H5_index_t *)(data + offset);
+    offset += sizeof(H5_index_t);
+
+    H5_iter_order_t order = *(const H5_iter_order_t *)(data + offset);
+    offset += sizeof(H5_iter_order_t);
+
+    hsize_t n = *(const hsize_t *)(data + offset);
+    offset += sizeof(hsize_t);
+
+    hid_t lapl_id = *(const hid_t *)(data + offset);
+    offset += sizeof(hid_t);
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    H5Adelete_by_idx(loc_id, name, idx_type, order, n, lapl_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aopen_by_name
-    hid_t ret_H5Fget_access_plist_hfewx = H5Fget_access_plist(0);
-    hid_t ret_H5Fget_create_plist_kziaf = H5Fget_create_plist(0);
-    hid_t ret_H5Dget_type_xzijd = H5Dget_type(0);
-    hid_t ret_H5Aopen_by_name_lvreu = H5Aopen_by_name(ret_H5Fget_access_plist_hfewx, name_buffer, (const char *)"w", ret_H5Fget_create_plist_kziaf, ret_H5Dget_type_xzijd);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Free allocated memory
+    free(name);
 
     return 0;
 }

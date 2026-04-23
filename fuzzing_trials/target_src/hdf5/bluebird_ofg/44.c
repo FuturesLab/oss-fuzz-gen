@@ -1,36 +1,44 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    // Declare and initialize variables
+    hid_t file_id = H5I_INVALID_HID;
+    hid_t fapl_id = H5P_DEFAULT;
+    void *vfd_handle = NULL;
+    herr_t status;
+
+    // Ensure the data size is sufficient for file creation
+    if (size < 1) {
         return 0;
-    } // Adjust size as needed for your parameters
-
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
-
-    // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
-
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        H5Fclose(file_id);
     }
 
+    // Create a temporary HDF5 file
+    const char *filename = "/tmp/tempfile.h5";
+    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Aopen_idx
-    hid_t ret_H5Aopen_idx_fmvon = H5Aopen_idx(file_id, H5G_NLIBTYPES);
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Utilize the input data in some way
+    // For example, we could write the data to the file or use it to modify some properties
+    // Here we'll just demonstrate checking the first byte
+    if (size > 0) {
+        // Example logic using the data
+        unsigned char first_byte = data[0];
+        // Perform some operation based on the first byte
+        // (This is just a placeholder for actual logic)
+    }
+
+    // Call the function-under-test
+    status = H5Fget_vfd_handle(file_id, fapl_id, &vfd_handle);
+
+    // Clean up
+    H5Fclose(file_id);
+
     return 0;
 }
 #ifdef INC_MAIN

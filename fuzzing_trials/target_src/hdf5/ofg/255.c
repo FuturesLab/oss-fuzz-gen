@@ -1,23 +1,57 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
-// Define a simple operator function that matches the H5A_operator1_t signature
-herr_t my_operator_255(hid_t location_id, const char *attr_name, const H5A_info_t *ainfo, void *op_data) {
-    // For this example, simply return 0 to continue iteration
-    return 0;
-}
-
 int LLVMFuzzerTestOneInput_255(const uint8_t *data, size_t size) {
-    // Initialize variables for the function call
-    hid_t loc_id = 0;  // Assuming 0 is a valid hid_t for testing purposes
-    unsigned int idx = 0;  // Start iteration from the beginning
-    H5A_operator1_t op = my_operator_255;  // Use the defined operator function
-    void *op_data = (void *)data;  // Use the input data as op_data
+    // Ensure there's enough data to extract parameters
+    if (size < 2) return 0;
+
+    // Extract parameters from data
+    unsigned int options = data[0];
+    hid_t attribute_id = (hid_t)data[1];
+    hid_t es_id = (hid_t)data[1];  // Use the same byte for simplicity
 
     // Call the function-under-test
-    herr_t result = H5Aiterate1(loc_id, &idx, op, op_data);
+    H5Aclose_async(attribute_id, es_id);
 
-    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_255(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

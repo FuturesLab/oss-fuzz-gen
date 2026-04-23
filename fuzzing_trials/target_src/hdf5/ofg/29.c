@@ -1,51 +1,86 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <hdf5.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating meaningful input
-    if (size < 10) return 0;
+    // Ensure size is sufficient for creating a valid string
+    if (size < 1) {
+        return 0;
+    }
 
-    // Prepare the input parameters for H5Aclose_async
-    const char *app_file = __FILE__;
-    const char *app_func = __func__;
-    unsigned int app_line = __LINE__;
+    // Create a temporary HDF5 file
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    // Create a file to attach the attribute to
-    hid_t file_id = H5Fcreate("temp_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) return 0;
+    // Create a dataset in the file to attach an attribute
+    hid_t dataspace_id = H5Screate(H5S_SCALAR);
+    hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Sclose(dataspace_id);
 
-    // Create a dataspace
-    hid_t space_id = H5Screate(H5S_SCALAR);
-    if (space_id < 0) {
+    if (dataset_id < 0) {
         H5Fclose(file_id);
         return 0;
     }
 
-    // Create an attribute
-    hid_t attribute_id = H5Acreate2(file_id, "attribute_name", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
-    if (attribute_id < 0) {
-        H5Sclose(space_id);
-        H5Fclose(file_id);
-        return 0;
-    }
+    // Create an attribute for the dataset
+    hid_t attr_id = H5Acreate2(dataset_id, "attribute", H5T_NATIVE_INT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT);
+    H5Aclose(attr_id);
 
-    // Create an event set
-    hid_t es_id = H5EScreate();
-    if (es_id < 0) {
-        H5Aclose(attribute_id);
-        H5Sclose(space_id);
-        H5Fclose(file_id);
-        return 0;
-    }
+    // Use the fuzz data as the attribute name
+    char *attr_name = (char *)malloc(size + 1);
+    memcpy(attr_name, data, size);
+    attr_name[size] = '\0'; // Null-terminate the string
 
-    // Call the function under test
-    herr_t result = H5Aclose_async(attribute_id, es_id);
+    // Call the function-under-test
+    hid_t result = H5Aopen(dataset_id, attr_name, H5P_DEFAULT);
 
-    // Cleanup
-    H5Aclose(attribute_id);
-    H5ESclose(es_id);
-    H5Sclose(space_id);
+    // Clean up
+    free(attr_name);
+    H5Dclose(dataset_id);
     H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

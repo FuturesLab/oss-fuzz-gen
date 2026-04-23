@@ -1,43 +1,27 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
 #include "hdf5.h"
 
+// Fuzzing entry point
 int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
-
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+    // Ensure the size is sufficient to extract a hid_t value
+    if (size < sizeof(hid_t)) {
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Extract a hid_t value from the input data
+    hid_t dataset_id = *(const hid_t *)data;
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dwrite_chunk
-        hid_t ret_H5Dget_type_piujj = H5Dget_type(dataset_id);
-        hsize_t ret_H5Aget_storage_size_miipb = H5Aget_storage_size(file_id);
-        herr_t ret_H5Dwrite_chunk_jhffc = H5Dwrite_chunk(dataset_id, ret_H5Dget_type_piujj, H5F_FAMILY_DEFAULT, &ret_H5Aget_storage_size_miipb, 64, NULL);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
-    }
+    // Initialize an H5D_chunk_index_t variable
+    H5D_chunk_index_t index_type;
 
     // Call the function-under-test
-    status = H5Fget_filesize(file_id, &filesize);
+    herr_t result = H5Dget_chunk_index_type(dataset_id, &index_type);
 
-    // Close the file
-    H5Fclose(file_id);
+    // Use the result and index_type for further processing if needed
+    // (For fuzzing purposes, we are primarily interested in executing the function)
 
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

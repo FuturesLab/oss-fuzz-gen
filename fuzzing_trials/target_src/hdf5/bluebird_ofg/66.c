@@ -1,38 +1,66 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    // Initialize HDF5 library
+    if (H5open() < 0) {
         return 0;
-    } // Adjust size as needed for your parameters
-
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
-
-    // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
-
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        H5Fclose(file_id);
     }
 
+    // Create a new file using the default properties.
+    hid_t file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Dcreate_anon
-    hid_t ret_H5Fget_create_plist_nfgmv = H5Fget_create_plist(0);
-    hid_t ret_H5Freopen_dfldq = H5Freopen(file_id);
-    hid_t ret_H5Dcreate_anon_mmsjm = H5Dcreate_anon(file_id, ret_H5Fget_create_plist_nfgmv, file_id, 0, ret_H5Freopen_dfldq);
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Create a dataspace. Assume a simple scalar dataspace for this example.
+    hid_t dataspace_id = H5Screate(H5S_SCALAR);
+    if (dataspace_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Create a datatype. Assume a native integer type for this example.
+    hid_t datatype_id = H5Tcopy(H5T_NATIVE_INT);
+    if (datatype_id < 0) {
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Create an attribute creation property list. Use the default in this example.
+    hid_t acpl_id = H5Pcreate(H5P_ATTRIBUTE_CREATE);
+    if (acpl_id < 0) {
+        H5Tclose(datatype_id);
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Use the first part of the data as the attribute name, ensuring it's null-terminated.
+    char attr_name[256];
+    size_t name_len = (size < 255) ? size : 255;
+    memcpy(attr_name, data, name_len);
+    attr_name[name_len] = '\0';
+
+    // Call the function under test
+    hid_t attribute_id = H5Acreate1(file_id, attr_name, datatype_id, dataspace_id, acpl_id);
+
+    // Clean up
+    if (attribute_id >= 0) {
+        H5Aclose(attribute_id);
+    }
+    H5Pclose(acpl_id);
+    H5Tclose(datatype_id);
+    H5Sclose(dataspace_id);
+    H5Fclose(file_id);
+
+    // Close the HDF5 library
+    H5close();
+
     return 0;
 }
 #ifdef INC_MAIN

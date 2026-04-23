@@ -1,49 +1,33 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
+// Define the chunk iteration operation outside of the main function
+herr_t chunk_iter_op(hid_t chunk_id, const void *chunk_data, void *op_data) {
+    // Perform a simple operation on the chunk
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
+    // Initialize HDF5 library
+    H5open();
 
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
-    }
-
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
-    }
+    // Create a file and a dataset to work with
+    hid_t file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t space_id = H5Screate_simple(1, (const hsize_t[]){10}, NULL);
+    hid_t dset_id = H5Dcreate2(file_id, "fuzz_dataset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
     // Call the function-under-test
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fget_filesize with H5Gget_num_objs
+    herr_t result = H5Dchunk_iter(dset_id, H5P_DEFAULT, chunk_iter_op, NULL);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Dget_chunk_info_by_coord
-    hsize_t ret_H5Aget_storage_size_qfecx = H5Aget_storage_size(file_id);
-    const hsize_t iafhpowd;
-    memset(&iafhpowd, 0, sizeof(iafhpowd));
-    unsigned int wrazwzrc = 0;
-    haddr_t fsbyvpol;
-    memset(&fsbyvpol, 0, sizeof(fsbyvpol));
-    herr_t ret_H5Dget_chunk_info_by_coord_izuwt = H5Dget_chunk_info_by_coord(file_id, &iafhpowd, &wrazwzrc, &fsbyvpol, &ret_H5Aget_storage_size_qfecx);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    status = H5Gget_num_objs(file_id, &filesize);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    // Close the file
+    // Cleanup
+    H5Dclose(dset_id);
+    H5Sclose(space_id);
     H5Fclose(file_id);
+    H5close();
 
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

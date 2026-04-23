@@ -1,36 +1,32 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure the size is large enough to extract necessary parameters
+    if (size < 10) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Extract parameters from the input data
+    const char *name1 = "dataset1";
+    const char *name2 = "dataset2";
+    unsigned int flags = (unsigned int)data[0];
+    hid_t loc_id = (hid_t)data[1];
+    hid_t type_id = (hid_t)data[2];
+    hid_t space_id = (hid_t)data[3];
+    hid_t dcpl_id = (hid_t)data[4];
+    hid_t dapl_id = (hid_t)data[5];
+    hid_t es_id = (hid_t)data[6];
+    hid_t dxpl_id = (hid_t)data[7];
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hid_t result = H5Dcreate_async(loc_id, name1, type_id, space_id, dcpl_id, dapl_id, es_id, dxpl_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Arename
-    hid_t ret_H5Dget_space_cbptl = H5Dget_space(0);
-    herr_t ret_H5Arename_mxsso = H5Arename(ret_H5Dget_space_cbptl, name_buffer, NULL);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Use the result to avoid unused variable warning
+    (void)result;
 
     return 0;
 }

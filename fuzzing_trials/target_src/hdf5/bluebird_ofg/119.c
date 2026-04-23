@@ -1,33 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    // Declare and initialize variables for the function-under-test
+    hid_t file_id;
+    H5F_libver_t low_bound;
+    H5F_libver_t high_bound;
+
+    // Ensure the size is sufficient to extract required values
+    if (size < sizeof(hid_t) + 2 * sizeof(H5F_libver_t)) {
         return 0;
-    } // Adjust size as needed for your parameters
-
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
-
-    // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
-
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Dformat_convert
-        H5Dformat_convert(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
+    // Extract values from the input data
+    file_id = *(const hid_t *)data;
+    low_bound = *(const H5F_libver_t *)(data + sizeof(hid_t));
+    high_bound = *(const H5F_libver_t *)(data + sizeof(hid_t) + sizeof(H5F_libver_t));
+
+    // Call the function-under-test
+    herr_t result = H5Fset_libver_bounds(file_id, low_bound, high_bound);
+
+    // Return 0 since we are not interested in the result for fuzzing
     return 0;
 }
 #ifdef INC_MAIN
