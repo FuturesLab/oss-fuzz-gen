@@ -1,39 +1,41 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    FILE *temp_file = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+
+    if (fd == -1) {
         return 0;
     }
 
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
+    temp_file = fdopen(fd, "wb+");
+    if (temp_file == NULL) {
+        close(fd);
         return 0;
     }
 
-    // Add the input data as a string to the parser
-    ucl_parser_add_string(parser, (const char *)data, size);
-
-    // Get the root object from the parser
-    const ucl_object_t *root = ucl_parser_get_object(parser);
-
-    if (root != NULL) {
-        // Call the function under test
-        const ucl_object_t *head = ucl_array_head(root);
-
-        // Do something with the result to prevent compiler optimizations
-        if (head != NULL) {
-            // Dummy operation
-            (void)ucl_object_tostring(head);
-        }
+    // Write the fuzz data to the temporary file
+    if (fwrite(data, 1, size, temp_file) != size) {
+        fclose(temp_file);
+        return 0;
     }
 
-    // Free the parser and the root object
-    ucl_object_unref(root);
-    ucl_parser_free(parser);
+    // Rewind the file to the beginning for reading
+    rewind(temp_file);
+
+    // Call the function-under-test
+    struct ucl_emitter_functions *funcs = ucl_object_emit_file_funcs(temp_file);
+
+    // Clean up
+    fclose(temp_file);
+    unlink(tmpl);
 
     return 0;
 }

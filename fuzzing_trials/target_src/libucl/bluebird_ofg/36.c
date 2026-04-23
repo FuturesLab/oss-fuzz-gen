@@ -1,38 +1,43 @@
 #include <sys/stat.h>
-#include "ucl.h"
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
     if (size == 0) {
         return 0;
     }
 
-    // Create a UCL parser
+    // Initialize UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Add data to the parser
+    // Parse the input data
     ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
 
-    // Get the root object from the parser
-    const ucl_object_t *root_obj = ucl_parser_get_object(parser);
-    if (root_obj != NULL) {
+    if (obj != NULL) {
+        // Define a ucl_emitter value
+        enum ucl_emitter emitter_type = UCL_EMIT_JSON;
+
         // Call the function-under-test
-        const char *result = ucl_object_tostring_forced(root_obj);
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_object_emit
+        unsigned char *result = ucl_object_emit(obj, UCL_EMIT_JSON_COMPACT);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-        // Use the result to prevent compiler optimizations
+        // Free the result if it's not NULL
         if (result != NULL) {
-            volatile size_t result_len = strlen(result);
-            (void)result_len;
+            free(result);
         }
+
+        // Free the UCL object
+        ucl_object_unref(obj);
     }
 
-    // Free the parser
+    // Clean up the parser
     ucl_parser_free(parser);
 
     return 0;

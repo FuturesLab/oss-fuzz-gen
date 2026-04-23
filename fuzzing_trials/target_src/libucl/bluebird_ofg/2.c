@@ -1,45 +1,77 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    if (size == 0) {
+        return 0;
+    }
+
+    // Initialize UCL parser
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
+    struct ucl_parser *parser = ucl_parser_new(-1);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Parse the input data
+    ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
+
+    if (obj != NULL) {
+        // Define a ucl_emitter value
+        enum ucl_emitter emitter_type = UCL_EMIT_JSON;
+
+        // Call the function-under-test
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_object_emit
+        unsigned char *result = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+        // Free the result if it's not NULL
+        if (result != NULL) {
+            free(result);
+        }
+
+        // Free the UCL object
+        ucl_object_unref(obj);
+    }
+
+    // Clean up the parser
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from ucl_parser_get_object to ucl_object_compare_qsort using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from ucl_parser_get_object to ucl_object_reserve using the plateau pool
+    size_t reserve_size = (size_t)data[0];
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    bool ret_ucl_object_reserve_dxzrb = ucl_object_reserve(obj, reserve_size);
+    if (ret_ucl_object_reserve_dxzrb == 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int ret_ucl_object_compare_qsort_czisc = ucl_object_compare_qsort(&obj, &obj);
+    if (ret_ucl_object_compare_qsort_czisc < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
-  struct ucl_parser *parser = ucl_parser_new(size);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_register_context_macro
-  struct ucl_emitter_functions* ret_ucl_object_emit_fd_funcs_yzojy = ucl_object_emit_fd_funcs(1);
-  if (ret_ucl_object_emit_fd_funcs_yzojy == NULL){
-  	return 0;
-  }
-  bool ret_ucl_parser_register_context_macro_czcch = ucl_parser_register_context_macro(parser, (const char *)"w", NULL, (void *)ret_ucl_object_emit_fd_funcs_yzojy);
-  if (ret_ucl_parser_register_context_macro_czcch == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

@@ -1,100 +1,77 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include "ucl.h"
-
-static ucl_object_t* create_random_ucl_object() {
-    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
-    if (obj) {
-        obj->value.ov = NULL; // Initialize to NULL or a valid object structure
-        obj->key = NULL;
-        obj->next = NULL;
-        obj->prev = NULL;
-        obj->keylen = 0;
-        obj->len = 0;
-        obj->ref = 1; // Initialize reference count
-        obj->flags = 0;
-        obj->type = 0;
-        obj->trash_stack[0] = NULL;
-        obj->trash_stack[1] = NULL;
-    }
-    return obj;
-}
-
-static void cleanup_ucl_object(ucl_object_t *obj) {
-    if (obj) {
-        if (obj->key) {
-            free((void*)obj->key);
-        }
-        free(obj);
-    }
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    // Step 1: Prepare the environment
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
-    ucl_object_t *top = create_random_ucl_object();
-    ucl_object_t *elt = create_random_ucl_object();
-    if (!top || !elt) {
-        cleanup_ucl_object(top);
-        cleanup_ucl_object(elt);
+    // Step 2: Add chunk to parser
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        // Cleanup if adding chunk fails
+        ucl_parser_free(parser);
         return 0;
     }
 
-    // Ensure the key is null-terminated to avoid buffer overflow
-    char *key = malloc(Size + 1);
-    if (!key) {
-        cleanup_ucl_object(top);
-        cleanup_ucl_object(elt);
+    // Step 3: Get the top object from the parser
+    ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    if (top_obj == NULL) {
+        // Retrieve and print error if object retrieval fails
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            fprintf(stderr, "Error: %s\n", error);
+        }
+        ucl_parser_free(parser);
         return 0;
     }
-    memcpy(key, Data, Size);
-    key[Size] = '\0';
-    size_t keylen = Size;
-    bool copy_key = true;
 
-    // Test ucl_object_replace_key
-    ucl_object_replace_key(top, elt, key, keylen, copy_key);
+    // Step 4: Emit the object in various formats
 
-    // Test ucl_object_delete_keyl
-    ucl_object_delete_keyl(top, key, keylen);
-
-    // Test ucl_object_keyl
-    size_t len;
-    const char *retrieved_key = ucl_object_keyl(top, &len);
-
-    // Test ucl_object_pop_key
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_keyl to ucl_object_tolstring
-    ucl_object_t* ret_ucl_object_frombool_ycpox = ucl_object_frombool(0);
-    if (ret_ucl_object_frombool_ycpox == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_compare_qsort
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!top_obj) {
     	return 0;
     }
-    const char* ret_ucl_object_tolstring_zenzo = ucl_object_tolstring(ret_ucl_object_frombool_ycpox, &len);
-    if (ret_ucl_object_tolstring_zenzo == NULL){
+    ucl_object_t* ret_ucl_object_copy_tvlvz = ucl_object_copy(top_obj);
+    if (ret_ucl_object_copy_tvlvz == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_copy_tvlvz) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!top_obj) {
+    	return 0;
+    }
+    int ret_ucl_object_compare_qsort_cztmj = ucl_object_compare_qsort(&ret_ucl_object_copy_tvlvz, &top_obj);
+    if (ret_ucl_object_compare_qsort_cztmj < 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    ucl_object_t *popped_obj = ucl_object_pop_key(top, key);
-    cleanup_ucl_object(popped_obj);
+    for (int i = UCL_EMIT_JSON; i < UCL_EMIT_MAX; i++) {
+        unsigned char *output = ucl_object_emit(top_obj, (enum ucl_emitter)i);
+        if (output != NULL) {
+            // Use the emitted output
+            free(output);
+        }
+    }
 
-    // Test ucl_object_lookup_len
-    const ucl_object_t *looked_up_obj = ucl_object_lookup_len(top, key, keylen);
-
-    // Test ucl_object_pop_keyl
-    ucl_object_t *popped_obj_l = ucl_object_pop_keyl(top, key, keylen);
-    cleanup_ucl_object(popped_obj_l);
-
-    cleanup_ucl_object(top);
-    free(key);
-    // Do not cleanup `elt` here as it may have been freed by libucl functions
+    // Step 5: Cleanup
+    ucl_parser_free(parser);
+    ucl_object_unref(top_obj);
 
     return 0;
 }

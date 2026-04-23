@@ -1,93 +1,120 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
-// ucl_parser_add_file at ucl_util.c:2054:6 in ucl.h
-// ucl_parser_get_comments at ucl_util.c:3915:1 in ucl.h
-// ucl_parser_get_object at ucl_util.c:590:1 in ucl.h
-// ucl_object_emit at ucl_emitter.c:661:1 in ucl.h
-// ucl_object_emit at ucl_emitter.c:661:1 in ucl.h
-// ucl_object_emit at ucl_emitter.c:661:1 in ucl.h
-// ucl_object_emit at ucl_emitter.c:661:1 in ucl.h
-// ucl_object_emit_memory_funcs at ucl_emitter_utils.c:378:1 in ucl.h
-// ucl_object_emit_full at ucl_emitter.c:694:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_parser_free at ucl_util.c:599:6 in ucl.h
+// ucl_object_toint at ucl_util.c:3497:1 in ucl.h
+// ucl_object_lookup_path at ucl_util.c:2931:1 in ucl.h
+// ucl_object_toint at ucl_util.c:3497:1 in ucl.h
+// ucl_object_lookup_path at ucl_util.c:2931:1 in ucl.h
+// ucl_object_toint at ucl_util.c:3497:1 in ucl.h
+// ucl_object_lookup_path at ucl_util.c:2931:1 in ucl.h
+// ucl_object_lookup_path at ucl_util.c:2931:1 in ucl.h
+// ucl_object_iterate_new at ucl_util.c:2806:1 in ucl.h
+// ucl_object_iterate_safe at ucl_util.c:2851:1 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <ucl.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+#include <ucl.h>
 
-static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static ucl_object_t *create_dummy_ucl_object() {
+    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
+    if (obj) {
+        obj->value.iv = 123; // Example integer value
+        obj->key = "dummy";
+        obj->keylen = strlen(obj->key);
+        obj->len = 1;
+        obj->ref = 1;
+        obj->flags = 0;
+        obj->type = UCL_INT;
+        obj->next = NULL;
+        obj->prev = NULL;
     }
+    return obj;
 }
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0; // Ensure there is at least some data
 
-    // Initialize parser and parse input data
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (!parser) return 0;
+    // Create a dummy UCL object for testing
+    ucl_object_t *obj = create_dummy_ucl_object();
+    if (!obj) return 0;
 
-    // Write data to dummy file
-    write_to_dummy_file(Data, Size);
+    // Convert the first byte to a path string
+    char path[2] = { (char)Data[0], '\0' };
 
-    // Load data into parser
-    ucl_parser_add_file(parser, "./dummy_file");
+    // Invoke ucl_object_toint
+    int64_t int_value = ucl_object_toint(obj);
 
-    // Get comments from parser
-    const ucl_object_t *comments = ucl_parser_get_comments(parser);
+    // Invoke ucl_object_lookup_path
+    const ucl_object_t *found_obj = ucl_object_lookup_path(obj, path);
 
-    // Get the top object
-    ucl_object_t *top = ucl_parser_get_object(parser);
-
-    if (top) {
-        // Emit object in different formats
-        unsigned char *emitted = ucl_object_emit(top, UCL_EMIT_JSON);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_CONFIG);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_YAML);
-        if (emitted) {
-            free(emitted);
-        }
-
-        emitted = ucl_object_emit(top, UCL_EMIT_MSGPACK);
-        if (emitted) {
-            free(emitted);
-        }
-
-        // Emit object using memory functions
-        void *pmem = NULL;
-        struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_memory_funcs(&pmem);
-        if (emitter_funcs) {
-            bool success = ucl_object_emit_full(top, UCL_EMIT_JSON, emitter_funcs, comments);
-            if (success && pmem) {
-                free(pmem);
-            }
-            if (emitter_funcs->ucl_emitter_free_func) {
-                emitter_funcs->ucl_emitter_free_func(emitter_funcs->ud);
-            }
-            free(emitter_funcs);
-        }
-
-        ucl_object_unref(top);
+    // Invoke ucl_object_toint again if a valid object is found
+    if (found_obj) {
+        int_value = ucl_object_toint(found_obj);
     }
 
-    ucl_parser_free(parser);
+    // Repeat invoking the functions as per the sequence
+    found_obj = ucl_object_lookup_path(obj, path);
+    if (found_obj) {
+        int_value = ucl_object_toint(found_obj);
+    }
+
+    found_obj = ucl_object_lookup_path(obj, path);
+    found_obj = ucl_object_lookup_path(obj, path);
+
+    // Create an iterator
+    ucl_object_iter_t iter = ucl_object_iterate_new(obj);
+    if (iter) {
+        // Safely iterate over the object
+        const ucl_object_t *iter_obj = ucl_object_iterate_safe(iter, true);
+        
+        // Free the iterator to prevent memory leak
+        free(iter);
+    }
+
+    // Clean up
+    free(obj);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

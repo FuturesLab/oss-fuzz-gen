@@ -1,23 +1,55 @@
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Declare a pointer to a void pointer
-    void *memory_pointer = NULL;
+    // Initialize a non-NULL pointer
+    void *memory_ptr = (void *)data;
 
     // Call the function-under-test
-    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_memory_funcs(&memory_pointer);
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_memory_funcs(&memory_ptr);
 
-    // Normally, you would use the `emitter_funcs` and `memory_pointer` here,
-    // but for the purpose of this fuzzing harness, we are only interested in
-    // calling the function to see if it handles the inputs correctly.
-
-    // Clean up if necessary
-    if (emitter_funcs != NULL) {
-        // Assuming there's a function to free or clean up emitter_funcs, if needed.
-        // Example: ucl_emitter_functions_free(emitter_funcs);
-    }
+    // To avoid unused variable warning
+    (void)emitter_funcs;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

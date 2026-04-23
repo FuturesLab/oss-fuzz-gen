@@ -1,36 +1,45 @@
 #include <sys/stat.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
+#include "ucl.h"
+
+// Ensure the necessary macro is defined for using certain UCL functions
+#define UCL_EMIT_JSON_COMPACT
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-  // Ensure size is greater than 0 to have at least one character for the key
-  if (size == 0) {
+    // Ensure size is sufficient for a key
+    if (size < 2) {
+        return 0;
+    }
+
+    // Initialize ucl_object_t
+    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+
+    // Create a key from the input data
+    size_t key_length = size / 2;
+    char *key = (char *)malloc(key_length + 1);
+    if (key == NULL) {
+        ucl_object_unref(obj);
+        return 0;
+    }
+    memcpy(key, data, key_length);
+    key[key_length] = '\0';
+
+    // Use the remaining data as a value
+    ucl_object_t *value = ucl_object_fromstring_common((const char *)(data + key_length), size - key_length, 0);
+    if (value != NULL) {
+        ucl_object_insert_key(obj, value, key, key_length, false);
+    }
+
+    // Call the function-under-test
+    bool result = ucl_object_delete_keyl(obj, key, key_length);
+
+    // Clean up
+    ucl_object_unref(obj);
+    free(key);
+
     return 0;
-  }
-
-  // Create a UCL object
-  ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
-
-  // Use the first part of the data as a key
-  char key[256];
-  size_t key_len = size < 255 ? size : 255;
-  memcpy(key, data, key_len);
-  key[key_len] = '\0'; // Ensure null-termination
-
-  // Add a dummy key-value pair to the object
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_insert_key with ucl_object_insert_key_merged
-  ucl_object_insert_key_merged(obj, ucl_object_fromstring("dummy_value"), key, key_len, false);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-  // Call the function-under-test
-  bool result = ucl_object_delete_key(obj, key);
-
-  // Clean up
-  ucl_object_unref(obj);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

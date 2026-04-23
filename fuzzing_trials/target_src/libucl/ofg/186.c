@@ -1,48 +1,65 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <ucl.h>
-#include <stdlib.h>
-#include <string.h>
+
+// Dummy variable handler function for fuzzing
+static const char* dummy_variable_handler(const char *var_name, size_t var_len, void *ud) {
+    return "dummy_value";
+}
 
 int LLVMFuzzerTestOneInput_186(const uint8_t *data, size_t size) {
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    const ucl_object_t *root_obj = NULL;
-    const ucl_object_t *result_obj = NULL;
-    char *key = NULL;
-    
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
+    struct ucl_parser *parser;
+    void *user_data = (void*)data; // Use data as user data
 
-    // Parse the input data as UCL
-    if (ucl_parser_add_chunk(parser, data, size)) {
-        root_obj = ucl_parser_get_object(parser);
-    }
+    // Initialize the parser
+    parser = ucl_parser_new(0);
 
-    // Ensure root_obj is not NULL
-    if (root_obj != NULL) {
-        // Use a portion of the data as a key
-        size_t key_length = size < 256 ? size : 256; // Limit key length
-        key = (char*)malloc(key_length + 1);
-        if (key != NULL) {
-            memcpy(key, data, key_length);
-            key[key_length] = '\0'; // Null-terminate the key
+    if (parser != NULL) {
+        // Set the variables handler
+        ucl_parser_set_variables_handler(parser, dummy_variable_handler, user_data);
 
-            // Call the function-under-test
-            result_obj = ucl_object_lookup_any(root_obj, key, (void*)data);
-        }
-    }
-
-    // Clean up
-    if (root_obj != NULL) {
-        ucl_object_unref(root_obj);
-    }
-    ucl_parser_free(parser);
-    if (key != NULL) {
-        free(key);
+        // Cleanup
+        ucl_parser_free(parser);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_186(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,43 +1,56 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    if (size == 0) {
+        return 0;
+    }
+
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Parse the input data
+    ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
+
+    if (obj != NULL) {
+        // Define a ucl_emitter value
+        enum ucl_emitter emitter_type = UCL_EMIT_JSON;
+
+        // Call the function-under-test
+        unsigned char *result = ucl_object_emit(obj, emitter_type);
+
+        // Free the result if it's not NULL
+        if (result != NULL) {
+            free(result);
+        }
+
+        // Free the UCL object
+        ucl_object_unref(obj);
+    }
+
+    // Clean up the parser
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_elt_append
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_elt_append_kqeao = ucl_elt_append(NULL, obj);
+    if (ret_ucl_elt_append_kqeao == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_default_priority to ucl_parser_add_chunk_priority
-  unsigned int ret_ucl_parser_get_column_pmvhe = ucl_parser_get_column(parser);
-  if (ret_ucl_parser_get_column_pmvhe < 0){
-  	return 0;
-  }
-  bool ret_ucl_parser_add_chunk_priority_lodbl = ucl_parser_add_chunk_priority(parser, NULL, (size_t )ret_ucl_parser_get_column_pmvhe, 64);
-  if (ret_ucl_parser_add_chunk_priority_lodbl == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

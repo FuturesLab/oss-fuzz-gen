@@ -1,75 +1,29 @@
 #include <sys/stat.h>
-#include <string.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <string.h>
 #include "ucl.h"
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *ucl_obj = NULL;
-    ucl_emitter_t emitter_type = UCL_EMIT_JSON; // Corrected type name
-
-    // Ensure the data is not empty
-    if (size == 0) {
+    // Ensure the size is sufficient to create a valid string
+    if (size < 1) {
         return 0;
     }
 
-    // Create a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
+    // Initialize UCL object
+    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
 
-    // Parse the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Get the UCL object
-    ucl_obj = ucl_parser_get_object(parser);
-    if (ucl_obj == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
+    // Use the data to create a key string
+    char key[size + 1];
+    memcpy(key, data, size);
+    key[size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    unsigned char *result = ucl_object_emit(ucl_obj, emitter_type);
+    bool result = ucl_object_delete_key(obj, key);
 
-    // Free allocated resources
-    if (result != NULL) {
-        free(result);
-    }
-    ucl_object_unref(ucl_obj);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_elt_append
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_comments_move
-    ucl_object_t* ret_ucl_object_ref_erqqt = ucl_object_ref(ucl_obj);
-    if (ret_ucl_object_ref_erqqt == NULL){
-    	return 0;
-    }
-    ucl_object_t* ret_ucl_object_fromdouble_fcwyt = ucl_object_fromdouble(size);
-    if (ret_ucl_object_fromdouble_fcwyt == NULL){
-    	return 0;
-    }
-    bool ret_ucl_comments_move_czxft = ucl_comments_move(ucl_obj, ret_ucl_object_ref_erqqt, ret_ucl_object_fromdouble_fcwyt);
-    if (ret_ucl_comments_move_czxft == 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_t* ret_ucl_object_fromdouble_hdhsj = ucl_object_fromdouble(size);
-    if (ret_ucl_object_fromdouble_hdhsj == NULL){
-    	return 0;
-    }
-    ucl_object_t* ret_ucl_elt_append_efsbd = ucl_elt_append(ucl_obj, ret_ucl_object_fromdouble_hdhsj);
-    if (ret_ucl_elt_append_efsbd == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_parser_free(parser);
+    // Clean up UCL object
+    ucl_object_unref(obj);
 
     return 0;
 }

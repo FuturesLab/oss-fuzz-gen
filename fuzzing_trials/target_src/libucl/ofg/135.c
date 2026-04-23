@@ -3,46 +3,72 @@
 #include <ucl.h>
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    ucl_object_t *root = NULL;
-    ucl_object_t *new_obj = NULL;
-    ucl_object_t *result = NULL;
-    unsigned int index = 0;
+    // Declare and initialize ucl_object_t pointers
+    ucl_object_t *obj1 = ucl_object_new();
+    ucl_object_t *obj2 = ucl_object_new();
 
-    if (parser == NULL) {
+    // Ensure that the objects are not NULL
+    if (obj1 == NULL || obj2 == NULL) {
         return 0;
     }
 
-    // Parse the input data
-    ucl_parser_add_chunk(parser, data, size);
-    root = ucl_parser_get_object(parser);
+    // Use the data to initialize the objects
+    ucl_object_t *parsed_obj1 = ucl_object_fromstring((const char *)data);
+    ucl_object_t *parsed_obj2 = ucl_object_fromstring((const char *)data);
 
-    // Check if the root object is an array
-    if (root != NULL && ucl_object_type(root) == UCL_ARRAY) {
-        // Create a new UCL object to replace an existing element
-        new_obj = ucl_object_fromstring("new_value");
-
-        // Use a small index for replacement
-        index = size % 10;  // Ensure index is within a reasonable range
-
-        // Call the function-under-test
-        result = ucl_array_replace_index(root, new_obj, index);
-
-        // Clean up the result if not NULL
-        if (result != NULL) {
-            ucl_object_unref(result);
-        }
+    if (parsed_obj1 != NULL) {
+        ucl_object_insert_key(obj1, parsed_obj1, "key1", 4, false);
     }
 
-    // Clean up
-    if (root != NULL) {
-        ucl_object_unref(root);
+    if (parsed_obj2 != NULL) {
+        ucl_object_insert_key(obj2, parsed_obj2, "key2", 4, false);
     }
-    if (new_obj != NULL) {
-        ucl_object_unref(new_obj);
-    }
-    ucl_parser_free(parser);
+
+    // Call the function under test
+    ucl_object_t *result = ucl_elt_append(obj1, obj2);
+
+    // Cleanup
+    ucl_object_unref(obj1);
+    ucl_object_unref(obj2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_135(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

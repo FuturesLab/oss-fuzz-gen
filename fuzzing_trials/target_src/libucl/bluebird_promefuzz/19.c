@@ -1,67 +1,64 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <stdio.h>
 #include "ucl.h"
-#include <stdbool.h>
 
-static void dummy_dtor(void *ud) {
-    // Dummy destructor
-}
+static ucl_object_t* create_random_ucl_object(const uint8_t *Data, size_t Size) {
+    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
+    if (obj == NULL) {
+        return NULL;
+    }
+    
+    memset(obj, 0, sizeof(ucl_object_t)); // Ensure all fields are zero-initialized
 
-static const char *dummy_emitter(void *ud) {
-    // Dummy emitter
-    return "dummy";
+    // Initialize the object with random data based on input
+    if (Size >= sizeof(int64_t)) {
+        obj->value.iv = *(int64_t *)Data;
+        obj->type = UCL_INT;
+    } else {
+        obj->value.dv = 0.0;
+        obj->type = UCL_FLOAT;
+    }
+    
+    obj->ref = 1;
+    return obj;
 }
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < sizeof(int64_t) * 2) {
+        return 0; // Insufficient data for meaningful fuzzing
+    }
+
+    ucl_object_t *array = create_random_ucl_object(Data, Size);
+    ucl_object_t *element = create_random_ucl_object(Data + sizeof(int64_t), Size - sizeof(int64_t));
+    
+    if (array == NULL || element == NULL) {
+        free(array);
+        free(element);
         return 0;
     }
 
-    // Fuzz ucl_object_typed_new
-    ucl_type_t type = (ucl_type_t)(Data[0] % (UCL_NULL + 1));
-    ucl_object_t *obj1 = ucl_object_typed_new(type);
+    // Initialize the array as an actual array type
+    array->type = UCL_ARRAY;
+    array->value.av = NULL; // Assume this is necessary for libucl's internal handling
 
-    // Fuzz ucl_object_string_to_type
-    char input[Size + 1];
-    memcpy(input, Data, Size);
-    input[Size] = '\0';
-    ucl_type_t res;
-    bool conversion_success = ucl_object_string_to_type(input, &res);
+    // Fuzz ucl_array_append
+    bool append_result = ucl_array_append(array, element);
 
-    // Fuzz ucl_object_new_full
-    unsigned priority = Data[0];
-    ucl_object_t *obj2 = ucl_object_new_full(type, priority);
-    if (obj2) {
-        ucl_object_unref(obj2);
+    // Fuzz ucl_array_delete
+    ucl_object_t *deleted_element = ucl_array_delete(array, element);
+
+    // Fuzz ucl_object_todouble
+    double result = ucl_object_todouble(element);
+
+    // Cleanup
+    if (deleted_element && deleted_element != element) {
+        ucl_object_unref(deleted_element);
     }
-
-    // Fuzz ucl_object_type_to_string
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_new_full to ucl_object_iterate_reset
-    const ucl_object_t mvdcgdzh;
-    memset(&mvdcgdzh, 0, sizeof(mvdcgdzh));
-    ucl_object_iter_t ret_ucl_object_iterate_new_modkc = ucl_object_iterate_new(&mvdcgdzh);
-    ucl_object_iter_t ret_ucl_object_iterate_reset_hklqx = ucl_object_iterate_reset(ret_ucl_object_iterate_new_modkc, obj2);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    const char *type_str = ucl_object_type_to_string(type);
-
-    // Fuzz ucl_object_new_userdata
-    void *user_data = (void *)Data; // Just use the data pointer as user data
-    ucl_object_t *obj3 = ucl_object_new_userdata(dummy_dtor, dummy_emitter, user_data);
-    if (obj3) {
-        ucl_object_unref(obj3);
-    }
-
-    // Fuzz ucl_object_type
-    if (obj1) {
-        ucl_type_t obj_type = ucl_object_type(obj1);
-        ucl_object_unref(obj1);
-    }
+    ucl_object_unref(element);
+    ucl_object_unref(array);
 
     return 0;
 }

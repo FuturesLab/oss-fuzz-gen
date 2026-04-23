@@ -1,45 +1,66 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
-#include <fcntl.h>
-#include <unistd.h>
 #include <stdint.h>
-#include <stdbool.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser;
-    int fd;
-    bool result;
-
-    // Create a temporary file
-    fd = open("/tmp/fuzz_temp_file", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-    if (fd < 0) {
+    if (size == 0) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-
-    // Reset file offset to the beginning
-    lseek(fd, 0, SEEK_SET);
-
-    // Initialize the UCL parser
-    parser = ucl_parser_new(0);
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
-        close(fd);
         return 0;
     }
 
-    // Call the function-under-test
-    result = ucl_parser_add_fd(parser, fd);
+    // Parse the input data
+    ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
 
-    // Clean up
+    if (obj != NULL) {
+        // Define a ucl_emitter value
+        enum ucl_emitter emitter_type = UCL_EMIT_JSON;
+
+        // Call the function-under-test
+        unsigned char *result = ucl_object_emit(obj, emitter_type);
+
+        // Free the result if it's not NULL
+        if (result != NULL) {
+            free(result);
+        }
+
+        // Free the UCL object
+        ucl_object_unref(obj);
+    }
+
+    // Clean up the parser
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_array_prepend
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_object_copy_jlrdp = ucl_object_copy(obj);
+    if (ret_ucl_object_copy_jlrdp == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_copy_jlrdp) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    bool ret_ucl_array_prepend_ayjwl = ucl_array_prepend(ret_ucl_object_copy_jlrdp, obj);
+    if (ret_ucl_array_prepend_ayjwl == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     ucl_parser_free(parser);
-    close(fd);
-    unlink("/tmp/fuzz_temp_file");
 
     return 0;
 }

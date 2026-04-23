@@ -1,43 +1,36 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    ucl_object_t *ucl_obj;
+    struct ucl_parser *parser;
+    const char *result;
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
+
+    // Use the input data to parse a UCL object
+    if (ucl_parser_add_chunk(parser, data, size)) {
+        ucl_obj = ucl_parser_get_object(parser);
+        if (ucl_obj != NULL) {
+            // Call the function-under-test
+            result = ucl_object_tostring(ucl_obj);
+
+            // Normally, you would do something with the result here
+            // For fuzzing, we're primarily interested in ensuring the function can handle the input
+
+            // Free the UCL object
+            ucl_object_unref(ucl_obj);
+        }
+    }
+
+    // Clean up the parser
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_add_fd
-  unsigned int ret_ucl_parser_get_column_vqyik = ucl_parser_get_column(NULL);
-  if (ret_ucl_parser_get_column_vqyik < 0){
-  	return 0;
-  }
-  bool ret_ucl_parser_add_fd_cgglp = ucl_parser_add_fd(parser, (int )ret_ucl_parser_get_column_vqyik);
-  if (ret_ucl_parser_add_fd_cgglp == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

@@ -1,34 +1,78 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <ucl.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
+    // Ensure the data size is sufficient for a null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Cast the input data to a string
-    const char *input_string = (const char *)data;
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
 
-    // Define a non-zero string flag for testing
-    ucl_string_flags_t flags = UCL_STRING_RAW;
+    // Parse the input data as UCL
+    ucl_parser_add_chunk(parser, data, size);
+
+    // Get the root object
+    const ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Prepare a string to search for in the UCL object
+    const char *key = "test_key";
 
     // Call the function-under-test
-    ucl_object_t *result = ucl_object_fromstring_common(input_string, size, flags);
+    const ucl_object_t *result = ucl_object_lookup_any(root, key, NULL);
 
-    // Clean up the result if it's not NULL
-    if (result != NULL) {
-        ucl_object_unref(result);
-    }
+    // Clean up
+    ucl_object_unref(root);
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_92(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

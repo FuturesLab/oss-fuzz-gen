@@ -1,84 +1,88 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
+#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include "ucl.h"
+#include <string.h>
 
-static ucl_object_t *create_random_ucl_array(const uint8_t *Data, size_t Size) {
-    ucl_object_t *array = ucl_object_typed_new(UCL_ARRAY);
-    for (size_t i = 0; i < Size; i++) {
-        ucl_object_t *obj = ucl_object_fromint(Data[i]);
-        ucl_array_append(array, obj);
-    }
-    return array;
+static ucl_object_t *create_test_object(void) {
+    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+    ucl_object_t *nested = ucl_object_typed_new(UCL_STRING);
+    nested->value.sv = strdup("test_value");
+    nested->len = strlen(nested->value.sv);
+    ucl_object_insert_key(obj, nested, "test_key", 0, false);
+    return obj;
 }
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) return 0;
+
+    // Create a test UCL object
+    ucl_object_t *obj = create_test_object();
+    if (!obj) return 0;
+
+    // Emit object to a string
+    unsigned char *emitted = ucl_object_emit(obj, UCL_EMIT_JSON);
+    if (emitted) {
+        free(emitted);
+    }
+
+    // Create a new parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (!parser) {
+        ucl_object_unref(obj);
         return 0;
     }
 
-    ucl_object_t *array = create_random_ucl_array(Data, Size);
-
-    // Fuzz ucl_array_replace_index
-    ucl_object_t *new_element = ucl_object_fromint(Data[0]);
-    unsigned int index = Data[0] % Size;
-    ucl_object_t *replaced = ucl_array_replace_index(array, new_element, index);
-    if (replaced) {
-        ucl_object_unref(replaced);
+    // Add string to parser
+    if (!ucl_parser_add_string(parser, (const char *)Data, Size)) {
+        const char *error = ucl_parser_get_error(parser);
+        if (error) {
+            // Handle error if needed
+        }
     }
 
-    // Fuzz ucl_array_pop_first
-    ucl_object_t *first = ucl_array_pop_first(array);
-    if (first) {
-        ucl_object_unref(first);
+    // Get error multiple times
+    for (int i = 0; i < 3; i++) {
+        const char *error = ucl_parser_get_error(parser);
+        if (error) {
+            // Handle error if needed
+        }
     }
 
-    // Fuzz ucl_array_size
-    unsigned int size = ucl_array_size(array);
-
-    // Fuzz ucl_array_find_index
-    const ucl_object_t *found = ucl_array_find_index(array, index);
-
-    // Fuzz ucl_array_index_of
-    unsigned int index_of = ucl_array_index_of(array, new_element);
-
-    // Fuzz ucl_array_pop_last
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_index_of to ucl_array_merge
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_index_of to ucl_object_iterate_with_error
-    ucl_object_iter_t ret_ucl_object_iterate_new_atjku = ucl_object_iterate_new(first);
-    unsigned int ret_ucl_object_get_priority_zymvv = ucl_object_get_priority(array);
-    if (ret_ucl_object_get_priority_zymvv < 0){
-    	return 0;
-    }
-    const ucl_object_t* ret_ucl_object_iterate_with_error_kxsim = ucl_object_iterate_with_error(new_element, &ret_ucl_object_iterate_new_atjku, 0, (int *)&ret_ucl_object_get_priority_zymvv);
-    if (ret_ucl_object_iterate_with_error_kxsim == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    bool ret_ucl_array_merge_najfj = ucl_array_merge(array, array, 1);
-    if (ret_ucl_array_merge_najfj == 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_t *last = ucl_array_pop_last(array);
-    if (last) {
-        ucl_object_unref(last);
+    // Get object from parser
+    ucl_object_t *parsed_obj = ucl_parser_get_object(parser);
+    if (parsed_obj) {
+        // Unref the object
+        ucl_object_unref(parsed_obj);
     }
 
-    // Cleanup
-    ucl_object_unref(array);
-    // new_element is already part of the array, no need to unref again
+    // Free the parser
+    ucl_parser_free(parser);
+
+    // Create another test UCL object for comparison
+    ucl_object_t *obj2 = create_test_object();
+    if (obj2) {
+        // Compare objects
+        int cmp_result = ucl_object_compare(obj, obj2);
+
+        // Emit object to a string
+        unsigned char *emitted2 = ucl_object_emit(obj2, UCL_EMIT_JSON);
+        if (emitted2) {
+            free(emitted2);
+        }
+
+        // Unref the second object
+        ucl_object_unref(obj2);
+    }
+
+    // Unref the initial object after all operations
+    ucl_object_unref(obj);
 
     return 0;
 }

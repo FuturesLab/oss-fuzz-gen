@@ -1,38 +1,62 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <ucl.h>
-#include <string.h>
-#include <stdlib.h> // Include for malloc and free
 
 int LLVMFuzzerTestOneInput_219(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a string
-    if (size < 2) {
+    struct ucl_parser *parser;
+
+    // Initialize the parser
+    parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+    if (parser == NULL) {
         return 0;
     }
 
-    // Initialize a UCL object
-    ucl_object_t *root = ucl_object_typed_new(UCL_OBJECT);
-
-    // Create a key-value pair in the UCL object
-    const char *key = "test_key";
-    ucl_object_insert_key(root, ucl_object_fromstring("test_value"), key, strlen(key), false);
-
-    // Use part of the input data as a key to lookup
-    size_t lookup_size = size - 1;
-    char *lookup_key = (char *)malloc(lookup_size + 1);
-    if (lookup_key == NULL) {
-        ucl_object_unref(root);
-        return 0;
+    // Feed data to the parser
+    if (size > 0) {
+        ucl_parser_add_chunk(parser, data, size);
     }
-    memcpy(lookup_key, data, lookup_size);
-    lookup_key[lookup_size] = '\0';
 
-    // Call the function-under-test
-    const ucl_object_t *result = ucl_object_lookup_len(root, lookup_key, lookup_size);
-
-    // Clean up
-    free(lookup_key);
-    ucl_object_unref(root);
+    // Free the parser
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_219(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

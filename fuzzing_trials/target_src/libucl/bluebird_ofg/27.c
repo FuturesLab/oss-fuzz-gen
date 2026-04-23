@@ -5,59 +5,27 @@
 #include "ucl.h"
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *ucl_obj = NULL;
-    ucl_emitter_t emitter_type = UCL_EMIT_JSON; // Corrected type name
+    struct ucl_parser *parser;
+    unsigned int level = 0;
+    ucl_object_t *obj;
 
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
+    // Initialize the parser
+    parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Parse the input data
+    // Feed the data into the parser
     if (!ucl_parser_add_chunk(parser, data, size)) {
         ucl_parser_free(parser);
         return 0;
     }
 
-    // Get the UCL object
-    ucl_obj = ucl_parser_get_object(parser);
-    if (ucl_obj == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
     // Call the function-under-test
-    unsigned char *result = ucl_object_emit(ucl_obj, emitter_type);
+    obj = ucl_parser_get_current_stack_object(parser, level);
 
-    // Free allocated resources
-    if (result != NULL) {
-        free(result);
-    }
-    ucl_object_unref(ucl_obj);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_elt_append
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_object_sort_keys
-    ucl_object_sort_keys(ucl_obj, 0);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_t* ret_ucl_object_fromdouble_hdhsj = ucl_object_fromdouble(size);
-    if (ret_ucl_object_fromdouble_hdhsj == NULL){
-    	return 0;
-    }
-    ucl_object_t* ret_ucl_elt_append_efsbd = ucl_elt_append(ucl_obj, ret_ucl_object_fromdouble_hdhsj);
-    if (ret_ucl_elt_append_efsbd == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Clean up
+    ucl_object_unref(obj);
     ucl_parser_free(parser);
 
     return 0;

@@ -1,40 +1,40 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "ucl.h"
+
+// Function-under-test
+bool ucl_object_toboolean(const ucl_object_t *obj);
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    ucl_object_t *ucl_obj;
+    struct ucl_parser *parser;
+
+    if (size == 0) {
+        return 0;
+    }
+
+    // Initialize a UCL parser
+    parser = ucl_parser_new(0);
+
+    // Try to parse the input data as a UCL object
+    if (ucl_parser_add_chunk(parser, data, size)) {
+        ucl_obj = ucl_parser_get_object(parser);
+        if (ucl_obj != NULL) {
+            // Call the function-under-test
+            bool result = ucl_object_toboolean(ucl_obj);
+
+            // Clean up
+            ucl_object_unref(ucl_obj);
+        }
+    }
+
+    // Clean up parser
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_set_filevars
-  unsigned char ret_ucl_parser_chunk_peek_pbezm = ucl_parser_chunk_peek(NULL);
-  bool ret_ucl_parser_set_filevars_jvvye = ucl_parser_set_filevars(parser, (const char *)&ret_ucl_parser_chunk_peek_pbezm, 1);
-  if (ret_ucl_parser_set_filevars_jvvye == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

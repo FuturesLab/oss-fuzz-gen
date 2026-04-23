@@ -1,39 +1,62 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-  // Ensure size is sufficient to create a non-empty string
-  if (size == 0) {
+    if (size < sizeof(int64_t)) {
+        return 0;
+    }
+
+    int64_t input_value;
+    // Copy the first 8 bytes from data to input_value
+    memcpy(&input_value, data, sizeof(int64_t));
+
+    // Call the function-under-test
+    ucl_object_t *obj = ucl_object_fromint(input_value);
+
+    // Clean up the created ucl_object_t
+    if (obj != NULL) {
+        ucl_object_unref(obj);
+    }
+
     return 0;
-  }
-
-  // Create a null-terminated string from the data
-  char *file_name = (char *)malloc(size + 1);
-  if (file_name == NULL) {
-    return 0;
-  }
-  memcpy(file_name, data, size);
-  file_name[size] = '\0';
-
-  // Initialize the parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    free(file_name);
-    return 0;
-  }
-
-  // Use a fixed priority for fuzzing
-  unsigned int priority = 1;
-
-  // Call the function under test
-  ucl_parser_add_file_priority(parser, file_name, priority);
-
-  // Clean up
-  ucl_parser_free(parser);
-  free(file_name);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_71(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

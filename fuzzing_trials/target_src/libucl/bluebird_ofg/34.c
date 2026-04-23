@@ -1,33 +1,36 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include "ucl.h"
 
-int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser = ucl_parser_new(0); // Use 'struct' here
-    ucl_object_t *obj = NULL;
-    const ucl_object_t *result = NULL;
-    unsigned int index = 0;
+// Define a comparison function for sorting
+int compare_ucl_objects(const ucl_object_t **a, const ucl_object_t **b) {
+    // Compare the two objects based on their keys
+    return ucl_object_compare(*a, *b);
+}
 
-    if (parser == NULL) {
-        return 0;
-    }
+int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
+    ucl_object_t *ucl_array;
+    struct ucl_parser *parser;
+    int (*compare_func)(const ucl_object_t **, const ucl_object_t **) = compare_ucl_objects;
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
 
     // Parse the input data
     if (ucl_parser_add_chunk(parser, data, size)) {
-        obj = ucl_parser_get_object(parser);
+        // Get the root object
+        ucl_array = ucl_parser_get_object(parser);
 
-        // Ensure the object is an array
-        if (obj != NULL && ucl_object_type(obj) == UCL_ARRAY) {
-            // Try different indices to find an element
-            for (index = 0; index < 5; ++index) {
-                result = ucl_array_find_index(obj, index);
-            }
+        // Check if the root object is an array
+        if (ucl_array && ucl_object_type(ucl_array) == UCL_ARRAY) {
+            // Sort the array using the comparison function
+            ucl_object_array_sort(ucl_array, compare_func);
         }
 
-        // Free the parsed object
-        ucl_object_unref(obj);
+        // Free the UCL object
+        ucl_object_unref(ucl_array);
     }
 
     // Clean up the parser

@@ -1,48 +1,82 @@
-#include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
+#include <ucl.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_132(const uint8_t *data, size_t size) {
-  // Ensure size is large enough to split into two non-empty strings
-  if (size < 2) {
-    return 0;
-  }
+    if (size == 0) {
+        return 0;
+    }
 
-  // Allocate memory for the parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
 
-  // Split the input data into two strings
-  size_t var_name_len = size / 2;
-  size_t var_value_len = size - var_name_len;
+    // Parse the input data
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-  char *var_name = (char *)malloc(var_name_len + 1);
-  char *var_value = (char *)malloc(var_value_len + 1);
+    // Get the UCL object
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
+    if (obj == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-  if (var_name == NULL || var_value == NULL) {
+    // Call the function-under-test
+    const char *result = ucl_object_tostring_forced(obj);
+
+    // Use the result to avoid compiler optimizations (e.g., print it)
+    if (result != NULL) {
+        printf("%s\n", result);
+    }
+
+    // Clean up
+    ucl_object_unref(obj);
     ucl_parser_free(parser);
-    free(var_name);
-    free(var_value);
+
     return 0;
-  }
-
-  memcpy(var_name, data, var_name_len);
-  var_name[var_name_len] = '\0';
-
-  memcpy(var_value, data + var_name_len, var_value_len);
-  var_value[var_value_len] = '\0';
-
-  // Call the function under test
-  ucl_parser_register_variable(parser, var_name, var_value);
-
-  // Clean up
-  ucl_parser_free(parser);
-  free(var_name);
-  free(var_value);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_132(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

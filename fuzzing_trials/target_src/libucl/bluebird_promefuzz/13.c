@@ -1,88 +1,67 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include "ucl.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <string.h>
-
-static ucl_object_t* create_ucl_object_from_data(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return NULL;
-    }
-    // Use a portion of data to determine the type
-    ucl_type_t type = (ucl_type_t)(Data[0] % (UCL_NULL + 1));
-    return ucl_object_typed_new(type);
-}
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    // Initialize parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (!parser) {
         return 0;
     }
 
-    // Create a top level UCL object of type UCL_OBJECT
-    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
-    if (!top) {
+    // Parse the input data
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        ucl_parser_free(parser);
         return 0;
     }
 
-    // Create an element UCL object from input data
-    ucl_object_t *element = create_ucl_object_from_data(Data, Size);
-    if (!element) {
-        ucl_object_unref(top);
-        return 0;
-    }
+    // 1. Invoke ucl_parser_get_comments
+    const ucl_object_t *comments = ucl_parser_get_comments(parser);
 
-    // Use part of the data as a key
-    const char *key = (const char *)Data;
-    size_t keylen = Size < 256 ? Size : 255; // Limit key length to 255
-    bool copy_key = true;
+    // 2. Invoke ucl_parser_get_object
+    ucl_object_t *top_object = ucl_parser_get_object(parser);
 
-    // Replace key in the top object
-    bool replaced = ucl_object_replace_key(top, element, key, keylen, copy_key);
-
-    // Create another element from a string
-    ucl_object_t *str_obj = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE);
-    if (str_obj) {
-        ucl_object_insert_key(top, str_obj, "inserted_key_1", 14, true);
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_object_lookup_any
-        struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_itybx = ucl_object_emit_memory_funcs((void **)&top);
-        if (ret_ucl_object_emit_memory_funcs_itybx == NULL){
-        	return 0;
+    // 3. Invoke ucl_object_emit_file_funcs
+    FILE *dummy_file = fopen("./dummy_file", "w+");
+    if (dummy_file) {
+        struct ucl_emitter_functions *file_funcs = ucl_object_emit_file_funcs(dummy_file);
+        if (file_funcs) {
+            // Use file_funcs if needed
+            if (file_funcs->ucl_emitter_free_func) {
+                file_funcs->ucl_emitter_free_func(file_funcs->ud);
+            }
+            free(file_funcs);
         }
-        const ucl_object_t* ret_ucl_object_lookup_any_axaje = ucl_object_lookup_any(str_obj, &top);
-        if (ret_ucl_object_lookup_any_axaje == NULL){
-        	return 0;
+        fclose(dummy_file);
+    }
+
+    // 4. Invoke ucl_object_emit_fd_funcs
+    int fd = open("./dummy_file", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd != -1) {
+        struct ucl_emitter_functions *fd_funcs = ucl_object_emit_fd_funcs(fd);
+        if (fd_funcs) {
+            // Use fd_funcs if needed
+            if (fd_funcs->ucl_emitter_free_func) {
+                fd_funcs->ucl_emitter_free_func(fd_funcs->ud);
+            }
+            free(fd_funcs);
         }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
-
-    // Insert another element
-    ucl_object_t *str_obj2 = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE_BOOLEAN);
-    if (str_obj2) {
-        ucl_object_insert_key(top, str_obj2, "inserted_key_2", 14, true);
+        close(fd);
     }
 
-    // Insert yet another element
-    ucl_object_t *str_obj3 = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE_INT);
-    if (str_obj3) {
-        ucl_object_insert_key(top, str_obj3, "inserted_key_3", 14, true);
+    // Cleanup
+    if (top_object) {
+        ucl_object_unref(top_object);
     }
-
-    // Create a final UCL object with a specific type
-    ucl_object_t *final_obj = ucl_object_typed_new(UCL_STRING);
-    if (final_obj) {
-        ucl_object_unref(final_obj);
-    }
-
-    // Clean up
-    ucl_object_unref(top);
+    ucl_parser_free(parser);
 
     return 0;
 }

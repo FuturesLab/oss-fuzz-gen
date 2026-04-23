@@ -1,49 +1,40 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
+
+    // Parse the input data
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Get the root object from the parser
+    const ucl_object_t *root_obj = ucl_parser_get_object(parser);
+
+    if (root_obj != NULL) {
+        // Initialize size variable for ucl_object_tolstring
+        size_t str_size = 0;
+
+        // Call the function-under-test
+        const char *str = ucl_object_tolstring(root_obj, &str_size);
+
+        // Free the string if it was allocated
+        if (str != NULL) {
+            free((void *)str);
+        }
+    }
+
+    // Clean up
+    ucl_object_unref(root_obj);
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_register_context_macro
-  struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_wxpaw = ucl_object_emit_memory_funcs((void **)&parser);
-  if (ret_ucl_object_emit_memory_funcs_wxpaw == NULL){
-  	return 0;
-  }
-  FILE ypqgdieu;
-  memset(&ypqgdieu, 0, sizeof(ypqgdieu));
-  struct ucl_emitter_functions* ret_ucl_object_emit_file_funcs_fxdqs = ucl_object_emit_file_funcs(&ypqgdieu);
-  if (ret_ucl_object_emit_file_funcs_fxdqs == NULL){
-  	return 0;
-  }
-  bool ret_ucl_parser_register_context_macro_laoqa = ucl_parser_register_context_macro(parser, &parser, NULL, (void *)&ypqgdieu);
-  if (ret_ucl_parser_register_context_macro_laoqa == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

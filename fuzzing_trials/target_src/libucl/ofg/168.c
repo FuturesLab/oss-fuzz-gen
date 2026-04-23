@@ -1,42 +1,69 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <ucl.h>
 
+// Define a simple include tracer function
+void include_tracer(const char *filename, void *ud) {
+    // For fuzzing purposes, we can just print the filename
+    // In a real application, you might want to do more complex tracing
+    (void)ud; // Unused parameter
+    printf("Including file: %s\n", filename);
+}
+
 int LLVMFuzzerTestOneInput_168(const uint8_t *data, size_t size) {
-    // Initialize variables
-    ucl_object_t *obj;
-    const char *key;
-    size_t key_len;
-    
-    // Ensure the size is large enough to extract a key
-    if (size < 1) {
-        return 0;
-    }
-    
-    // Allocate a new UCL object
-    obj = ucl_object_new();
+    struct ucl_parser *parser;
+    void *user_data = (void *)data; // Use the input data as user data
 
-    // Use the first byte of data as the key length, ensuring it's within bounds
-    key_len = data[0] % size;
-    
-    // Ensure there's enough data for the key
-    if (key_len + 1 > size) {
-        ucl_object_unref(obj);
-        return 0;
+    // Initialize the parser
+    parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0; // Return if parser creation fails
     }
-
-    // Extract the key from the data
-    key = (const char *)(data + 1);
 
     // Call the function-under-test
-    ucl_object_t *result = ucl_object_pop_keyl(obj, key, key_len);
+    ucl_parser_set_include_tracer(parser, include_tracer, user_data);
 
     // Clean up
-    if (result != NULL) {
-        ucl_object_unref(result);
-    }
-    ucl_object_unref(obj);
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_168(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,86 +1,73 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <sys/stat.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+#include "ucl.h"
+
+static ucl_object_t *create_dummy_ucl_object() {
+    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
+    if (obj) {
+        obj->value.iv = 123; // Example integer value
+        obj->key = "dummy";
+        obj->keylen = strlen(obj->key);
+        obj->len = 1;
+        obj->ref = 1;
+        obj->flags = 0;
+        obj->type = UCL_INT;
+        obj->next = NULL;
+        obj->prev = NULL;
+    }
+    return obj;
+}
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size < 1) return 0; // Ensure there is at least some data
+
+    // Create a dummy UCL object for testing
+    ucl_object_t *obj = create_dummy_ucl_object();
+    if (!obj) return 0;
+
+    // Convert the first byte to a path string
+    char path[2] = { (char)Data[0], '\0' };
+
+    // Invoke ucl_object_toint
+    int64_t int_value = ucl_object_toint(obj);
+
+    // Invoke ucl_object_lookup_path
+    const ucl_object_t *found_obj = ucl_object_lookup_path(obj, path);
+
+    // Invoke ucl_object_toint again if a valid object is found
+    if (found_obj) {
+        int_value = ucl_object_toint(found_obj);
     }
 
-    // Step 1: Create a new UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
+    // Repeat invoking the functions as per the sequence
+    found_obj = ucl_object_lookup_path(obj, path);
+    if (found_obj) {
+        int_value = ucl_object_toint(found_obj);
     }
 
-    // Step 2: Add chunk to the parser
-    if (!ucl_parser_add_chunk(parser, Data, Size)) {
-        // Handle parsing error
-        const char *error = ucl_parser_get_error(parser);
-        if (error != NULL) {
-            // Normally, you might log the error, but for fuzzing, we ignore it
-        }
-        ucl_parser_free(parser);
-        return 0;
+    found_obj = ucl_object_lookup_path(obj, path);
+    found_obj = ucl_object_lookup_path(obj, path);
+
+    // Create an iterator
+    ucl_object_iter_t iter = ucl_object_iterate_new(obj);
+    if (iter) {
+        // Safely iterate over the object
+        const ucl_object_t *iter_obj = ucl_object_iterate_safe(iter, true);
+        
+        // Free the iterator to prevent memory leak
+        free(iter);
     }
 
-    // Step 3: Get the top-level object
-    ucl_object_t *obj = ucl_parser_get_object(parser);
-    if (obj == NULL) {
-        // Handle error in getting object
-        const char *error = ucl_parser_get_error(parser);
-        if (error != NULL) {
-            // Normally, you might log the error, but for fuzzing, we ignore it
-        }
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Step 4: Serialize the object in various formats
-    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
-    if (json_output != NULL) {
-        free(json_output);
-    }
-
-    unsigned char *config_output = ucl_object_emit(obj, UCL_EMIT_CONFIG);
-    if (config_output != NULL) {
-        free(config_output);
-    }
-
-    unsigned char *yaml_output = ucl_object_emit(obj, UCL_EMIT_YAML);
-    if (yaml_output != NULL) {
-        free(yaml_output);
-    }
-
-    unsigned char *msgpack_output = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
-    if (msgpack_output != NULL) {
-        free(msgpack_output);
-    }
-
-    // Step 5: Cleanup
-    ucl_object_unref(obj);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_object_compare_qsort
-    ucl_object_t* ret_ucl_object_copy_uixca = ucl_object_copy(obj);
-    if (ret_ucl_object_copy_uixca == NULL){
-    	return 0;
-    }
-    int ret_ucl_object_compare_qsort_wjbpv = ucl_object_compare_qsort(&ret_ucl_object_copy_uixca, &obj);
-    if (ret_ucl_object_compare_qsort_wjbpv < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_parser_free(parser);
-
+    // Clean up
+    free(obj);
     return 0;
 }
 #ifdef INC_MAIN

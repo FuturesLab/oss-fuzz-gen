@@ -1,43 +1,42 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdbool.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Parse the input data
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Get the root object
+    const ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Create an iterator
+    ucl_object_iter_t iter = ucl_object_iterate_new(root);
+
+    // Use the function-under-test
+    bool expand_values = true;
+    const ucl_object_t *obj = ucl_object_iterate_safe(iter, expand_values);
+
+    // Clean up
+    ucl_object_iterate_free(iter);
+    ucl_object_unref(root);
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_insert_chunk
-  unsigned int ret_ucl_array_size_hiyuq = ucl_array_size(NULL);
-  if (ret_ucl_array_size_hiyuq < 0){
-  	return 0;
-  }
-  bool ret_ucl_parser_insert_chunk_zxveq = ucl_parser_insert_chunk(parser, (const unsigned char *)data, (size_t )ret_ucl_array_size_hiyuq);
-  if (ret_ucl_parser_insert_chunk_zxveq == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

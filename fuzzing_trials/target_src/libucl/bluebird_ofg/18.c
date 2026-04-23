@@ -1,57 +1,35 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include "ucl.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stddef.h>
+#include <stdbool.h>
+#include "ucl.h" // Ensure the UCL library is included
+#include <stdlib.h> // Include for malloc and free
+#include <string.h> // Include for memcpy
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
+    struct ucl_parser *parser;
+    const char *input_string;
+
+    // Initialize the parser
+    parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
+
+    // Ensure the data is null-terminated for safe string operations
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-
-    // Initialize UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
-
-    // Parse the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Get the root object
-    ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Create an iterator
-    ucl_object_iter_t iter = ucl_object_iterate_new(root);
-
-    // Choose a valid iterate type
-    enum ucl_iterate_type iterate_type = UCL_ITERATE_BOTH;
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
     // Call the function-under-test
-    const ucl_object_t *result = ucl_object_iterate_full(iter, iterate_type);
+    ucl_parser_add_string(parser, null_terminated_data, size);
 
     // Clean up
-    ucl_object_iterate_free(iter);
-    ucl_object_unref(root);
     ucl_parser_free(parser);
+    free(null_terminated_data);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,21 +1,21 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *f = fopen("./dummy_file", "wb");
-    if (f) {
-        fwrite(Data, 1, Size, f);
-        fclose(f);
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
@@ -24,71 +24,27 @@ int LLVMFuzzerTestOneInput_48(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Step 1: Create a new UCL object
-    ucl_object_t *top_obj = ucl_object_typed_new(UCL_OBJECT);
-    if (top_obj == NULL) {
-        return 0;
-    }
-
-    // Step 2: Insert keys into the UCL object
-    ucl_object_t *int_obj = ucl_object_typed_new(UCL_INT);
-    ucl_object_t *str_obj = ucl_object_typed_new(UCL_STRING);
-    ucl_object_t *bool_obj = ucl_object_typed_new(UCL_BOOLEAN);
-    ucl_object_t *null_obj = ucl_object_typed_new(UCL_NULL);
-
-    if (int_obj && str_obj && bool_obj && null_obj) {
-        ucl_object_insert_key(top_obj, int_obj, "int_key", 7, true);
-        ucl_object_insert_key(top_obj, str_obj, "str_key", 7, true);
-        ucl_object_insert_key(top_obj, bool_obj, "bool_key", 8, true);
-        ucl_object_insert_key(top_obj, null_obj, "null_key", 8, true);
-    } else {
-        if (int_obj) ucl_object_unref(int_obj);
-        if (str_obj) ucl_object_unref(str_obj);
-        if (bool_obj) ucl_object_unref(bool_obj);
-        if (null_obj) ucl_object_unref(null_obj);
-        ucl_object_unref(top_obj);
-        return 0;
-    }
-
-    // Step 3: Emit the object
-    size_t emitted_len = 0;
-    unsigned char *emitted_str = ucl_object_emit_len(top_obj, UCL_EMIT_JSON, &emitted_len);
-    if (emitted_str) {
-        // Use the emitted string in some way if needed
-        free(emitted_str);
-    }
-
-    // Step 4: Create a new UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
-        ucl_object_unref(top_obj);
         return 0;
     }
 
-    // Step 5: Add chunk to parser
-    if (!ucl_parser_add_chunk_full(parser, Data, Size, 0, UCL_DUPLICATE_APPEND, UCL_PARSE_UCL)) {
-        const char *error = ucl_parser_get_error(parser);
-        if (error) {
-            // Handle the error if needed
-        }
-    }
+    const char *var_name = "test_var";
+    const char *var_value = "test_value";
+    ucl_parser_register_variable(parser, var_name, var_value);
 
-    // Step 6: Retrieve the object from parser
-    ucl_object_t *parsed_obj = ucl_parser_get_object(parser);
-    if (parsed_obj) {
-        size_t parsed_emitted_len = 0;
-        unsigned char *parsed_emitted_str = ucl_object_emit_len(parsed_obj, UCL_EMIT_JSON, &parsed_emitted_len);
-        if (parsed_emitted_str) {
-            // Use the emitted string in some way if needed
-            free(parsed_emitted_str);
-        }
-        ucl_object_unref(parsed_obj);
-    }
+    write_dummy_file(Data, Size);
+    ucl_parser_set_filevars(parser, "./dummy_file", false);
 
-    // Step 7: Clean up
+    unsigned priority = Data[0] & 0x0F; // Use only 4 least significant bits
+    enum ucl_duplicate_strategy strat = (enum ucl_duplicate_strategy)((Data[0] >> 4) % 4);
+    enum ucl_parse_type parse_type = (enum ucl_parse_type)((Data[0] >> 6) % 4);
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_parser_add_chunk_full
+    ucl_parser_add_chunk_full(parser, NULL, Size, priority, strat, parse_type);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
     ucl_parser_free(parser);
-    ucl_object_unref(top_obj);
-
     return 0;
 }
 #ifdef INC_MAIN

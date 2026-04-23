@@ -1,26 +1,73 @@
-#include "ucl.h"
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>  // Include for malloc and free
+#include <string.h>  // Include for memcpy
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
+    // Ensure that size is large enough to have meaningful input
+    if (size < 2) {
         return 0;
     }
 
-    // Ensure that the data is not NULL and size is greater than 0
-    if (data != NULL && size > 0) {
-        // Call the function-under-test
-        bool result = ucl_parser_add_chunk(parser, data, size);
+    // Create a ucl_object_t from the data
+    ucl_object_t *ucl_obj = ucl_object_fromstring((const char *)data);
 
-        // Optionally, handle the result if needed
-        (void)result; // Suppress unused variable warning
+    // Use a portion of the data as the key for lookup
+    size_t key_len = size / 2;
+    char *key = (char *)malloc(key_len + 1);
+    if (key == NULL) {
+        ucl_object_unref(ucl_obj);
+        return 0;
     }
+    memcpy(key, data, key_len);
+    key[key_len] = '\0'; // Null-terminate the key
 
-    // Free the parser to avoid memory leaks
-    ucl_parser_free(parser);
+    // Call the function-under-test
+    const ucl_object_t *result = ucl_object_lookup_any(ucl_obj, key, NULL);
+
+    // Clean up
+    free(key);
+    ucl_object_unref(ucl_obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_93(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

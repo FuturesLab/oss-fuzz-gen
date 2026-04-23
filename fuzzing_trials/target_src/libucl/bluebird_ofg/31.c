@@ -1,40 +1,50 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    struct ucl_parser *parser;
+    int fd;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If file creation fails, exit the fuzzer
+    }
+
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // If writing fails, clean up and exit
+    }
+
+    // Reset file offset to the beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+    if (parser == NULL) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // If parser creation fails, clean up and exit
+    }
+
+    // Call the function-under-test
+    ucl_parser_add_fd(parser, fd);
+
+    // Clean up
+    ucl_parser_free(parser);
+    close(fd);
+    unlink(tmpl);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_set_variables_handler
-  unsigned int ret_ucl_parser_get_linenum_zzzej = ucl_parser_get_linenum(parser);
-  if (ret_ucl_parser_get_linenum_zzzej < 0){
-  	return 0;
-  }
-  ucl_parser_set_variables_handler(parser, NULL, (void *)parser);
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

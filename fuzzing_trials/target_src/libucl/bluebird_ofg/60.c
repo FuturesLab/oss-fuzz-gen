@@ -1,37 +1,40 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    // Ensure the data is large enough to be used
+    if (size == 0) {
+        return 0;
+    }
+
+    // Allocate memory for ucl_object_t
+    ucl_object_t *obj = ucl_object_new();
+
+    // Initialize the ucl_object_t with data
+    // Assuming data is a valid representation for the ucl_object_t
+    // This is just a placeholder as the actual initialization will depend on the library specifics
+    obj->key = (char *)data;
+    obj->keylen = size;
+
+    // Call the function-under-test
+    double result = ucl_object_todouble(obj);
+
+    // Clean up
+    ucl_object_unref(obj);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_register_variable
-  ucl_parser_register_variable(parser, (const char *)"r", NULL);
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

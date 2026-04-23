@@ -1,27 +1,74 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-    // Create a new UCL object
-    ucl_object_t *ucl_array = ucl_object_typed_new(UCL_ARRAY);
+    // Initialize the UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    const ucl_object_t *obj1 = NULL;
+    const ucl_object_t *obj2 = NULL;
+    const ucl_object_t *result;
 
-    // Add some elements to the UCL array
-    for (size_t i = 0; i < size; ++i) {
-        ucl_object_t *obj = ucl_object_fromint((int64_t)data[i]);
-        ucl_array_append(ucl_array, obj);
+    // Ensure the input data is not empty
+    if (size == 0) {
+        return 0;
     }
 
-    // Call the function-under-test
-    ucl_object_t *popped_obj = ucl_array_pop_last(ucl_array);
-
-    // Free the popped object if it is not NULL
-    if (popped_obj != NULL) {
-        ucl_object_unref(popped_obj);
+    // Attempt to parse the input data into a UCL object
+    if (ucl_parser_add_chunk(parser, data, size)) {
+        obj1 = ucl_parser_get_object(parser);
     }
 
-    // Free the UCL array
-    ucl_object_unref(ucl_array);
+    // Use the same object for both parameters for simplicity
+    obj2 = obj1;
+
+    // Call the function under test
+    result = ucl_comments_find(obj1, obj2);
+
+    // Clean up
+    if (obj1) {
+        ucl_object_unref(obj1);
+    }
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_126(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

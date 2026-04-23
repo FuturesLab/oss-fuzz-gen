@@ -1,53 +1,32 @@
 #include <sys/stat.h>
-#include "ucl.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-  // Ensure the size is sufficient to split into two parts
-  if (size < 2) {
-    return 0;
-  }
+    ucl_object_t *obj;
+    size_t reserve_size;
 
-  // Split the input data into two parts for two ucl_object_t objects
-  size_t mid = size / 2;
+    // Ensure that the size is non-zero to avoid unnecessary calls with zero size.
+    if (size == 0) {
+        return 0;
+    }
 
-  // Create two ucl_parser objects
-  struct ucl_parser *parser1 = ucl_parser_new(0);
-  struct ucl_parser *parser2 = ucl_parser_new(0);
+    // Initialize a UCL object
+    obj = ucl_object_typed_new(UCL_OBJECT);
 
-  // Add string data to the parsers
-  ucl_parser_add_string(parser1, (const char *)data, mid);
-  ucl_parser_add_string(parser2, (const char *)(data + mid), size - mid);
+    // Use the first byte of data to determine the reserve size
+    reserve_size = (size_t)data[0];
 
-  // Get ucl_object_t objects from the parsers
-  const ucl_object_t *obj1 = ucl_parser_get_object(parser1);
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_array_prepend
-  ucl_object_t* ret_ucl_object_fromint_gfbqe = ucl_object_fromint(64);
-  if (ret_ucl_object_fromint_gfbqe == NULL){
-  	return 0;
-  }
-  bool ret_ucl_array_prepend_ogivl = ucl_array_prepend(ret_ucl_object_fromint_gfbqe, obj1);
-  if (ret_ucl_array_prepend_ogivl == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  const ucl_object_t *obj2 = ucl_parser_get_object(parser2);
-
-  // Ensure both objects are not NULL before comparison
-  if (obj1 != NULL && obj2 != NULL) {
     // Call the function-under-test
-    int result = ucl_object_compare(obj1, obj2);
-  }
+    bool result = ucl_object_reserve(obj, reserve_size);
 
-  // Free the parsers
-  ucl_parser_free(parser1);
-  ucl_parser_free(parser2);
+    // Clean up the UCL object
+    ucl_object_unref(obj);
 
-  return 0;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

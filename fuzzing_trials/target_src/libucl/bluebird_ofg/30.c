@@ -1,37 +1,36 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include "ucl.h"
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *obj = ucl_object_new();
-    ucl_emitter_t emitter = UCL_EMIT_JSON_COMPACT;
-    unsigned char *result;
+    // Declare and initialize ucl_object_t pointers
+    ucl_object_t *obj1 = ucl_object_new();
+    ucl_object_t *obj2 = ucl_object_new();
+    ucl_object_t *obj3 = ucl_object_new();
 
-    // Ensure the data is not empty
+    // Ensure the objects are initialized with some data
     if (size > 0) {
-        // Create a UCL parser
-        struct ucl_parser *parser = ucl_parser_new(0);
-
-        // Feed data to the parser
-        if (ucl_parser_add_chunk(parser, data, size)) {
-            // Get the UCL object
-            obj = ucl_parser_get_object(parser);
-        }
-
-        // Free the parser
-        ucl_parser_free(parser);
+        // Use the provided data to initialize the objects
+        ucl_object_fromstring_common((const char *)data, size, 0);
+        ucl_object_fromstring_common((const char *)data, size, 0);
+        ucl_object_fromstring_common((const char *)data, size, 0);
+    } else {
+        // Default initialization if size is 0
+        ucl_object_fromstring_common("default1", 8, 0);
+        ucl_object_fromstring_common("default2", 8, 0);
+        ucl_object_fromstring_common("default3", 8, 0);
     }
 
     // Call the function-under-test
-    result = ucl_object_emit(obj, emitter);
+    bool result = ucl_comments_move(obj1, obj2, obj3);
 
     // Clean up
-    if (result != NULL) {
-        ucl_object_unref(obj);
-    }
+    ucl_object_unref(obj1);
+    ucl_object_unref(obj2);
+    ucl_object_unref(obj3);
 
     return 0;
 }

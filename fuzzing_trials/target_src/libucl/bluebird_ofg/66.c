@@ -4,71 +4,37 @@
 #include <stdlib.h>
 #include "ucl.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
+    // Initialize the UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    const ucl_object_t *obj1 = NULL;
+    const ucl_object_t *obj2 = NULL;
+    const ucl_object_t *result;
+
+    // Ensure the input data is not empty
     if (size == 0) {
         return 0;
     }
 
-    // Initialize UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
+    // Attempt to parse the input data into a UCL object
+    if (ucl_parser_add_chunk(parser, data, size)) {
+        obj1 = ucl_parser_get_object(parser);
     }
 
-    // Parse the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
-        ucl_parser_free(parser);
-        return 0;
-    }
+    // Use the same object for both parameters for simplicity
+    obj2 = obj1;
 
-    // Get the root object
-    ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Create an iterator
-    ucl_object_iter_t iter = ucl_object_iterate_new(root);
-
-    // Choose a valid iterate type
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_iterate_new to ucl_object_iterate_reset
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_iterate_new to ucl_object_iterate_safe
-    const ucl_object_t* ret_ucl_object_iterate_safe_tzmnf = ucl_object_iterate_safe(iter, 0);
-    if (ret_ucl_object_iterate_safe_tzmnf == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_t* ret_ucl_object_fromdouble_cudgk = ucl_object_fromdouble(0);
-    if (ret_ucl_object_fromdouble_cudgk == NULL){
-    	return 0;
-    }
-    ucl_object_iter_t ret_ucl_object_iterate_reset_degsg = ucl_object_iterate_reset(iter, ret_ucl_object_fromdouble_cudgk);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    enum ucl_iterate_type iterate_type = UCL_ITERATE_BOTH;
-
-    // Call the function-under-test
-    const ucl_object_t *result = ucl_object_iterate_full(iter, iterate_type);
+    // Call the function under test
+    result = ucl_comments_find(obj1, obj2);
 
     // Clean up
-    ucl_object_iterate_free(iter);
-    ucl_object_unref(root);
+    if (obj1) {
+        ucl_object_unref(obj1);
+    }
     ucl_parser_free(parser);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

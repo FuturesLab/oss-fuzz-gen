@@ -1,44 +1,54 @@
 #include <sys/stat.h>
-#include "ucl.h"
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Initialize UCL parser
+    struct ucl_parser *parser1 = ucl_parser_new(0);
+    struct ucl_parser *parser2 = ucl_parser_new(0);
+
+    // Ensure the parsers are not NULL
+    if (parser1 == NULL || parser2 == NULL) {
+        if (parser1 != NULL) {
+            ucl_parser_free(parser1);
+        }
+        if (parser2 != NULL) {
+            ucl_parser_free(parser2);
+        }
         return 0;
     }
 
-    // Create a temporary file to store the input data
-    char filename[] = "/tmp/fuzz_input_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
-        return 0;
-    }
+    // Parse the input data into UCL objects
+    ucl_parser_add_chunk(parser1, data, size);
+    ucl_parser_add_chunk(parser2, data, size);
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(filename);
-        return 0;
-    }
-    close(fd);
+    // Get the UCL objects
+    ucl_object_t *obj1 = ucl_parser_get_object(parser1);
+    ucl_object_t *obj2 = ucl_parser_get_object(parser2);
 
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        unlink(filename);
+    // Ensure the objects are not NULL
+    if (obj1 == NULL || obj2 == NULL) {
+        if (obj1 != NULL) {
+            ucl_object_unref(obj1);
+        }
+        if (obj2 != NULL) {
+            ucl_object_unref(obj2);
+        }
+        ucl_parser_free(parser1);
+        ucl_parser_free(parser2);
         return 0;
     }
 
     // Call the function under test
-    ucl_parser_add_file(parser, filename);
+    bool merge_result = ucl_object_merge(obj1, obj2, true);
 
     // Clean up
-    ucl_parser_free(parser);
-    unlink(filename);
+    ucl_object_unref(obj1);
+    ucl_object_unref(obj2);
+    ucl_parser_free(parser1);
+    ucl_parser_free(parser2);
 
     return 0;
 }

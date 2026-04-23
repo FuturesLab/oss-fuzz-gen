@@ -1,36 +1,47 @@
 #include <sys/stat.h>
-#include "ucl.h"
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
+#include "ucl.h"
+
+// Define an enumeration type for the sort flags
+typedef enum {
+    UCL_OBJECT_KEYS_SORT_FLAGS_NONE = 0,
+    UCL_OBJECT_KEYS_SORT_FLAGS_CASE_INSENSITIVE = 1,
+    UCL_OBJECT_KEYS_SORT_FLAGS_REVERSE = 2
+} ucl_object_keys_sort_flags;
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-  // Ensure size is greater than 0 to have at least one character for the key
-  if (size == 0) {
+    ucl_object_t *ucl_obj;
+    ucl_object_keys_sort_flags sort_flags;
+
+    // Initialize a UCL object
+    ucl_obj = ucl_object_typed_new(UCL_OBJECT);
+
+    // Ensure the UCL object is not NULL
+    if (ucl_obj == NULL) {
+        return 0;
+    }
+
+    // Populate the UCL object with some data
+    // This is a simple example, you can add more complex data if needed
+    ucl_object_insert_key(ucl_obj, ucl_object_fromstring("value1"), "key1", 0, false);
+    ucl_object_insert_key(ucl_obj, ucl_object_fromstring("value2"), "key2", 0, false);
+
+    // Set the sort flags based on the input data
+    if (size > 0) {
+        sort_flags = (ucl_object_keys_sort_flags)(data[0] % 3); // 3 possible flags
+    } else {
+        sort_flags = UCL_OBJECT_KEYS_SORT_FLAGS_NONE;
+    }
+
+    // Call the function-under-test
+    ucl_object_sort_keys(ucl_obj, sort_flags);
+
+    // Clean up
+    ucl_object_unref(ucl_obj);
+
     return 0;
-  }
-
-  // Create a UCL object
-  ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
-
-  // Use the first part of the data as a key
-  char key[256];
-  size_t key_len = size < 255 ? size : 255;
-  memcpy(key, data, key_len);
-  key[key_len] = '\0'; // Ensure null-termination
-
-  // Add a dummy key-value pair to the object
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_insert_key with ucl_object_replace_key
-  ucl_object_replace_key(obj, ucl_object_fromstring("dummy_value"), key, key_len, false);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-  // Call the function-under-test
-  bool result = ucl_object_delete_key(obj, key);
-
-  // Clean up
-  ucl_object_unref(obj);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

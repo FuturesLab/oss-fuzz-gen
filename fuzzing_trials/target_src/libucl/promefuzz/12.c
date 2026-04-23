@@ -1,23 +1,19 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_lookup at ucl_util.c:2673:1 in ucl.h
-// ucl_object_lookup at ucl_util.c:2673:1 in ucl.h
-// ucl_comments_add at ucl_util.c:3961:6 in ucl.h
-// ucl_comments_add at ucl_util.c:3961:6 in ucl.h
-// ucl_comments_find at ucl_util.c:3925:1 in ucl.h
-// ucl_comments_find at ucl_util.c:3925:1 in ucl.h
-// ucl_comments_move at ucl_util.c:3936:6 in ucl.h
+// ucl_object_lookup at ucl_util.c:2671:1 in ucl.h
+// ucl_object_lookup at ucl_util.c:2671:1 in ucl.h
+// ucl_comments_add at ucl_util.c:3983:6 in ucl.h
+// ucl_comments_find at ucl_util.c:3947:1 in ucl.h
+// ucl_comments_find at ucl_util.c:3947:1 in ucl.h
+// ucl_comments_move at ucl_util.c:3958:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ucl.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
-static ucl_object_t* create_ucl_object(const char* key, const char* value) {
-    ucl_object_t* obj = (ucl_object_t*)malloc(sizeof(ucl_object_t));
+static ucl_object_t* create_dummy_ucl_object(const char *key, const char *value) {
+    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
     if (obj) {
         obj->key = key;
         obj->value.sv = value;
@@ -26,41 +22,94 @@ static ucl_object_t* create_ucl_object(const char* key, const char* value) {
     return obj;
 }
 
-static void free_ucl_object(ucl_object_t* obj) {
-    if (obj) {
-        free(obj);
-    }
-}
-
 int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 3) return 0; // Ensure there's enough data to split into strings
 
-    const char* key1 = "key1";
-    const char* key2 = "key2";
-    const char* comment1 = "comment1";
-    const char* comment2 = "comment2";
+    // Split input data into two parts for keys and comments
+    size_t key1_len = Data[0] % (Size - 2) + 1; // Ensure non-zero length
+    size_t key2_len = Data[1] % (Size - key1_len - 1) + 1;
+    size_t comment_len = Size - key1_len - key2_len - 2;
 
-    ucl_object_t* obj = create_ucl_object(key1, (const char*)Data);
-    ucl_object_t* obj2 = create_ucl_object(key2, (const char*)Data);
+    if (key1_len + key2_len + 2 > Size || comment_len > Size) return 0; // Additional check to prevent overflow
 
-    if (obj == NULL || obj2 == NULL) {
-        free_ucl_object(obj);
-        free_ucl_object(obj2);
-        return 0;
-    }
-    
-    const ucl_object_t* found_obj1 = ucl_object_lookup(obj, key1);
-    const ucl_object_t* found_obj2 = ucl_object_lookup(obj2, key2);
+    const char *key1 = (const char *)Data + 2;
+    const char *key2 = (const char *)Data + 2 + key1_len;
+    const char *comment = (const char *)Data + 2 + key1_len + key2_len;
 
-    ucl_comments_add(obj, found_obj1, comment1);
-    ucl_comments_add(obj2, found_obj2, comment2);
+    // Ensure null-termination of strings
+    char *key1_str = strndup(key1, key1_len);
+    char *key2_str = strndup(key2, key2_len);
+    char *comment_str = strndup(comment, comment_len);
 
-    const ucl_object_t* found_comment1 = ucl_comments_find(obj, found_obj1);
-    const ucl_object_t* found_comment2 = ucl_comments_find(obj2, found_obj2);
+    if (!key1_str || !key2_str || !comment_str) goto cleanup;
 
-    ucl_comments_move(obj, found_obj1, found_obj2);
+    // Create dummy UCL objects
+    ucl_object_t *obj1 = create_dummy_ucl_object(key1_str, "value1");
+    ucl_object_t *obj2 = create_dummy_ucl_object(key2_str, "value2");
+    ucl_object_t *comments = create_dummy_ucl_object(NULL, NULL);
 
-    free_ucl_object(obj);
-    free_ucl_object(obj2);
+    if (!obj1 || !obj2 || !comments) goto cleanup;
+
+    // Test ucl_object_lookup
+    (void)ucl_object_lookup(obj1, key1_str);
+    (void)ucl_object_lookup(obj2, key2_str);
+
+    // Test ucl_comments_add
+    ucl_comments_add(comments, obj1, comment_str);
+
+    // Test ucl_comments_find
+    (void)ucl_comments_find(comments, obj1);
+    (void)ucl_comments_find(comments, obj2);
+
+    // Test ucl_comments_move
+    (void)ucl_comments_move(comments, obj1, obj2);
+
+cleanup:
+    free(obj1);
+    free(obj2);
+    free(comments);
+    free(key1_str);
+    free(key2_str);
+    free(comment_str);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

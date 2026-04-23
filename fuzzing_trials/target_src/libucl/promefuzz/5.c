@@ -1,77 +1,129 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
-// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_array_prepend at ucl_util.c:3163:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_copy at ucl_util.c:3692:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_array_index_of at ucl_util.c:3355:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2998:1 in ucl.h
+// ucl_object_fromstring_common at ucl_util.c:2225:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2531:6 in ucl.h
+// ucl_object_fromstring_common at ucl_util.c:2225:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2531:6 in ucl.h
+// ucl_object_fromstring_common at ucl_util.c:2225:1 in ucl.h
+// ucl_object_insert_key at ucl_util.c:2531:6 in ucl.h
+// ucl_object_emit_file_funcs at ucl_emitter_utils.c:442:1 in ucl.h
+// ucl_object_emit_streamline_new at ucl_emitter_streamline.c:63:1 in ucl.h
+// ucl_object_emit_streamline_new at ucl_emitter_streamline.c:63:1 in ucl.h
+// ucl_object_emit_streamline_new at ucl_emitter_streamline.c:63:1 in ucl.h
+// ucl_object_emit_streamline_new at ucl_emitter_streamline.c:63:1 in ucl.h
+// ucl_object_emit_streamline_start_container at ucl_emitter_streamline.c:90:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdint.h>
-#include <stdbool.h>
+#include <string.h>
 #include <ucl.h>
 
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *fp = fopen("./dummy_file", "wb");
+    if (fp != NULL) {
+        fwrite(Data, 1, Size, fp);
+        fclose(fp);
+    }
+}
+
 int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Prepare the environment
+    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+    if (!obj) return 0;
+
+    const char *str = (const char *)Data;
+    size_t len = Size;
+    enum ucl_string_flags flags = UCL_STRING_PARSE;
+
+    // Convert string to UCL object
+    ucl_object_t *string_obj1 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj1) goto cleanup;
+
+    // Insert key-value pair
+    if (!ucl_object_insert_key(obj, string_obj1, "key1", 4, true)) goto cleanup;
+
+    ucl_object_t *string_obj2 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj2) goto cleanup;
+
+    if (!ucl_object_insert_key(obj, string_obj2, "key2", 4, true)) goto cleanup;
+
+    ucl_object_t *string_obj3 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj3) goto cleanup;
+
+    if (!ucl_object_insert_key(obj, string_obj3, "key3", 4, true)) goto cleanup;
+
+    write_dummy_file(Data, Size);
+
+    FILE *fp = fopen("./dummy_file", "r");
+    if (!fp) goto cleanup;
+
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
+    if (!emitter_funcs) {
+        fclose(fp);
+        goto cleanup;
     }
 
-    // Prepare a dummy string from input data
-    char *dummy_string = (char *)malloc(Size + 1);
-    if (dummy_string == NULL) {
-        return 0;
-    }
-    memcpy(dummy_string, Data, Size);
-    dummy_string[Size] = '\0';
-
-    // Create a UCL object from the string
-    ucl_object_t *str_obj = ucl_object_fromstring(dummy_string);
-    if (str_obj == NULL) {
-        free(dummy_string);
-        return 0;
+    struct ucl_emitter_context *ctx = ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    if (!ctx) {
+        fclose(fp);
+        goto cleanup;
     }
 
-    // Create a UCL array object
-    ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
-    if (array_obj == NULL) {
-        ucl_object_unref(str_obj);
-        free(dummy_string);
-        return 0;
-    }
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
 
-    // Prepend the string object to the array
-    bool prepended = ucl_array_prepend(array_obj, str_obj);
-    if (!prepended) {
-        ucl_object_unref(str_obj);
-        ucl_object_unref(array_obj);
-        free(dummy_string);
-        return 0;
-    }
+    ucl_object_emit_streamline_start_container(ctx, obj);
 
-    // Copy the string object
-    ucl_object_t *copy_obj = ucl_object_copy(str_obj);
-    if (copy_obj == NULL) {
-        ucl_object_unref(array_obj);
-        free(dummy_string);
-        return 0;
-    }
+    fclose(fp);
 
-    // Find the index of the copied object in the array
-    unsigned int index = ucl_array_index_of(array_obj, copy_obj);
-
-    // Cleanup
-    ucl_object_unref(copy_obj);
-    ucl_object_unref(array_obj);
-    free(dummy_string);
-
+cleanup:
+    ucl_object_unref(obj);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,33 +1,24 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-  // If size is 0 we need a null-terminated string.
-  // We dont null-terminate the string and by the design
-  // of the API passing 0 as size with non null-terminated string
-  // gives undefined behavior.
-  if (size == 0) {
+    if (size < sizeof(int)) {
+        return 0;
+    }
+
+    // Extract an integer from the input data
+    int fd = *(int *)data;
+
+    // Call the function-under-test
+    struct ucl_emitter_functions *result = ucl_object_emit_fd_funcs(fd);
+
+    // Normally, you would do something with the result here, but since
+    // we are only interested in fuzzing, we'll just ensure the function is called.
+
     return 0;
-  }
-  
-  struct ucl_parser *parser;
-  parser = ucl_parser_new(0);
-
-  ucl_parser_add_string(parser, (char *)data, size);
-
-  if (ucl_parser_get_error(parser) != NULL) {
-    ucl_parser_free(parser);
-    return 0;
-  }
-
-  // Call the function-under-test
-  ucl_parser_chunk_skip(parser);
-
-  ucl_parser_free(parser);
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

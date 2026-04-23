@@ -1,11 +1,15 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Create a new UCL parser
+    if (size == 0) {
+        return 0;
+    }
+
+    // Initialize UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
@@ -13,23 +17,58 @@ int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
 
     // Parse the input data
     ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
 
-    // Get the root UCL object
-    ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root == NULL) {
-        ucl_parser_free(parser);
-        return 0;
+    if (obj != NULL) {
+        // Define a ucl_emitter value
+        enum ucl_emitter emitter_type = UCL_EMIT_JSON;
+
+        // Call the function-under-test
+        unsigned char *result = ucl_object_emit(obj, emitter_type);
+
+        // Free the result if it's not NULL
+        if (result != NULL) {
+            free(result);
+        }
+
+        // Free the UCL object
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_parser_register_macro
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!parser) {
+        	return 0;
+        }
+        unsigned char ret_ucl_parser_chunk_peek_whrry = ucl_parser_chunk_peek(parser);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!obj) {
+        	return 0;
+        }
+        ucl_object_t* ret_ucl_array_pop_last_vvrdm = ucl_array_pop_last(obj);
+        if (ret_ucl_array_pop_last_vvrdm == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!parser) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!result) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!obj) {
+        	return 0;
+        }
+        bool ret_ucl_parser_register_macro_tvbjx = ucl_parser_register_macro(parser, (const char *)result, NULL, (void *)obj);
+        if (ret_ucl_parser_register_macro_tvbjx == 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        ucl_object_unref(obj);
     }
 
-    // Create a dummy object to search for in the array
-    ucl_object_t *search_obj = ucl_object_fromstring("test");
-
-    // Call the function-under-test
-    unsigned int index = ucl_array_index_of(root, search_obj);
-
-    // Clean up
-    ucl_object_unref(search_obj);
-    ucl_object_unref(root);
+    // Clean up the parser
     ucl_parser_free(parser);
 
     return 0;

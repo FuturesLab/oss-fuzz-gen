@@ -1,28 +1,55 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
-#include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include "ucl.h"
+
+// Function-under-test
+// Ensure the function signature matches the one declared in the ucl.h
+// No need to redefine it here as it's already declared in the included header
+// bool ucl_parser_add_fd_full(struct ucl_parser *parser, int fd, unsigned int priority,
+//                             enum ucl_duplicate_strategy strategy,
+//                             enum ucl_parse_type parse_type);
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Ensure that size is non-zero to avoid undefined behavior with string functions
-    if (size == 0) {
-        return 0;
-    }
-
     struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
+    int fd;
+    unsigned int priority = 0;
+    enum ucl_duplicate_strategy strategy;
+    enum ucl_parse_type parse_type;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+
+    if (size < 1) {
+        ucl_parser_free(parser);
         return 0;
     }
 
-    // Add the input data to the parser
-    ucl_parser_add_string(parser, (const char *)data, size);
+    // Create a temporary file and write the fuzz data to it
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+    write(fd, data, size);
+    lseek(fd, 0, SEEK_SET);
 
-    // Retrieve the current stack object with a sample unsigned int value
-    unsigned int sample_value = 1;
-    ucl_object_t *obj = ucl_parser_get_current_stack_object(parser, sample_value);
+    // Set the strategy and parse_type based on the data
+    strategy = (enum ucl_duplicate_strategy)(data[0] % 3);
+    parse_type = (enum ucl_parse_type)(data[0] % 3);
 
-    // Free the parser
+    // Call the function-under-test
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of ucl_parser_add_fd_full
+    ucl_parser_add_fd_full(parser, fd, priority, strategy, UCL_PARSE_AUTO);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    // Cleanup
+    close(fd);
+    unlink(tmpl);
     ucl_parser_free(parser);
 
     return 0;

@@ -1,47 +1,22 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
-static ucl_object_t* create_dummy_object() {
-    ucl_object_t* obj = (ucl_object_t*)malloc(sizeof(ucl_object_t));
-    if (obj) {
-        memset(obj, 0, sizeof(ucl_object_t));
-        obj->type = UCL_OBJECT;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    return obj;
-}
-
-static int dummy_emitter_append_character(unsigned char c, size_t nchars, void *ud) {
-    // Dummy implementation
-    return 0;
-}
-
-static int dummy_emitter_append_len(unsigned const char *str, size_t len, void *ud) {
-    // Dummy implementation
-    return 0;
-}
-
-static int dummy_emitter_append_int(int64_t elt, void *ud) {
-    // Dummy implementation
-    return 0;
-}
-
-static int dummy_emitter_append_double(double elt, void *ud) {
-    // Dummy implementation
-    return 0;
-}
-
-static void dummy_emitter_free_func(void *ud) {
-    // Dummy implementation
 }
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
@@ -49,53 +24,27 @@ int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Prepare dummy objects
-    ucl_object_t *top = create_dummy_object();
-    ucl_object_t *elt = create_dummy_object();
-    ucl_object_t *comments = create_dummy_object();
-
-    // Copy key
-    char key[256];
-    size_t keylen = (Size < 256) ? Size : 255;
-    memcpy(key, Data, keylen);
-    key[keylen] = '\0';
-
-    // Test ucl_object_replace_key
-    ucl_object_replace_key(top, elt, key, keylen, true);
-
-    // Test ucl_object_fromstring_common
-    ucl_object_t *str_obj = ucl_object_fromstring_common((const char *)Data, Size, UCL_STRING_PARSE);
-
-    // Test ucl_object_tostring
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_tostring with ucl_object_tostring_forced
-    const char *str = ucl_object_tostring_forced(str_obj);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    // Test ucl_object_emit_full
-    struct ucl_emitter_functions emitter = {
-        .ucl_emitter_append_character = dummy_emitter_append_character,
-        .ucl_emitter_append_len = dummy_emitter_append_len,
-        .ucl_emitter_append_int = dummy_emitter_append_int,
-        .ucl_emitter_append_double = dummy_emitter_append_double,
-        .ucl_emitter_free_func = dummy_emitter_free_func,
-        .ud = NULL
-    };
-    ucl_object_emit_full(top, UCL_EMIT_JSON, &emitter, comments);
-
-    // Test ucl_object_key
-    const char *obj_key = ucl_object_key(top);
-
-    // Test ucl_object_lookup_path_char
-    const ucl_object_t *path_obj = ucl_object_lookup_path_char(top, key, '.');
-
-    // Cleanup
-    free(top);
-    free(elt);
-    free(comments);
-    if (str_obj) {
-        ucl_object_unref(str_obj);
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
     }
 
+    const char *var_name = "test_var";
+    const char *var_value = "test_value";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ucl_parser_register_variable
+    ucl_parser_register_variable(parser, var_name, NULL);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    write_dummy_file(Data, Size);
+    ucl_parser_set_filevars(parser, "./dummy_file", false);
+
+    unsigned priority = Data[0] & 0x0F; // Use only 4 least significant bits
+    enum ucl_duplicate_strategy strat = (enum ucl_duplicate_strategy)((Data[0] >> 4) % 4);
+    enum ucl_parse_type parse_type = (enum ucl_parse_type)((Data[0] >> 6) % 4);
+
+    ucl_parser_add_chunk_full(parser, Data, Size, priority, strat, parse_type);
+
+    ucl_parser_free(parser);
     return 0;
 }
 #ifdef INC_MAIN

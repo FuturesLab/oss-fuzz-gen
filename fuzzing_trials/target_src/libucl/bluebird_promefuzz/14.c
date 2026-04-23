@@ -1,91 +1,70 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "ucl.h"
-#include <stdbool.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
 
-static void fuzz_ucl_parser_set_filevars(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        // Use part of the data as a filename
-        char *filename = strndup((const char *)Data, Size);
-        bool need_expand = Data[0] % 2; // Randomize need_expand
-        ucl_parser_set_filevars(parser, filename, need_expand);
-        free(filename);
-    } else {
-        ucl_parser_set_filevars(parser, NULL, false);
+static ucl_object_t* create_dummy_ucl_object(const char *key, const char *value) {
+    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
+    if (obj) {
+        obj->key = key;
+        obj->value.sv = value;
+        obj->keylen = key ? strlen(key) : 0;
     }
-}
-
-static void fuzz_ucl_parser_add_string_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    unsigned priority = Data[0] % 16; // Priority is limited to 4 bits
-    // Ensure the data is null-terminated
-    char *data_copy = (char *)malloc(Size + 1);
-    if (data_copy != NULL) {
-        memcpy(data_copy, Data, Size);
-        data_copy[Size] = '\0';
-        ucl_parser_add_string_priority(parser, data_copy, Size, priority);
-        free(data_copy);
-    }
-}
-
-static void fuzz_ucl_parser_add_fd(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    int fd = open("./dummy_file", O_RDWR | O_CREAT, 0666);
-    if (fd != -1) {
-        write(fd, Data, Size);
-        lseek(fd, 0, SEEK_SET); // Reset file descriptor position
-        ucl_parser_add_fd(parser, fd);
-        close(fd);
-    }
-}
-
-static void fuzz_ucl_parser_add_file_full(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    if (Size > 2) { // Ensure we have enough bytes for indices
-        char *filename = strndup((const char *)Data, Size);
-        unsigned priority = Data[0] % 16;
-        enum ucl_duplicate_strategy strat = Data[1] % 4;
-        enum ucl_parse_type parse_type = Data[2] % 4;
-        ucl_parser_add_file_full(parser, filename, priority, strat, parse_type);
-        free(filename);
-    }
-}
-
-static void fuzz_ucl_parser_add_file_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        char *filename = strndup((const char *)Data, Size);
-        unsigned priority = Data[0] % 16;
-        ucl_parser_add_file_priority(parser, filename, priority);
-        free(filename);
-    }
-}
-
-static void fuzz_ucl_parser_set_default_priority(struct ucl_parser *parser, const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        unsigned prio = Data[0] % 17; // Priority range is 0 to 16
-        ucl_parser_set_default_priority(parser, prio);
-    }
+    return obj;
 }
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    struct ucl_parser *parser = ucl_parser_new(0);
+    if (Size < 3) return 0; // Ensure there's enough data to split into strings
 
-    if (parser != NULL) {
-        fuzz_ucl_parser_set_filevars(parser, Data, Size);
-        fuzz_ucl_parser_add_string_priority(parser, Data, Size);
-        fuzz_ucl_parser_add_fd(parser, Data, Size);
-        fuzz_ucl_parser_add_file_full(parser, Data, Size);
-        fuzz_ucl_parser_add_file_priority(parser, Data, Size);
-        fuzz_ucl_parser_set_default_priority(parser, Data, Size);
+    // Split input data into two parts for keys and comments
+    size_t key1_len = Data[0] % (Size - 2) + 1; // Ensure non-zero length
+    size_t key2_len = Data[1] % (Size - key1_len - 1) + 1;
+    size_t comment_len = Size - key1_len - key2_len - 2;
 
-        ucl_parser_free(parser);
-    }
+    if (key1_len + key2_len + 2 > Size || comment_len > Size) return 0; // Additional check to prevent overflow
+
+    const char *key1 = (const char *)Data + 2;
+    const char *key2 = (const char *)Data + 2 + key1_len;
+    const char *comment = (const char *)Data + 2 + key1_len + key2_len;
+
+    // Ensure null-termination of strings
+    char *key1_str = strndup(key1, key1_len);
+    char *key2_str = strndup(key2, key2_len);
+    char *comment_str = strndup(comment, comment_len);
+
+    if (!key1_str || !key2_str || !comment_str) goto cleanup;
+
+    // Create dummy UCL objects
+    ucl_object_t *obj1 = create_dummy_ucl_object(key1_str, "value1");
+    ucl_object_t *obj2 = create_dummy_ucl_object(key2_str, "value2");
+    ucl_object_t *comments = create_dummy_ucl_object(NULL, NULL);
+
+    if (!obj1 || !obj2 || !comments) goto cleanup;
+
+    // Test ucl_object_lookup
+    (void)ucl_object_lookup(obj1, key1_str);
+    (void)ucl_object_lookup(obj2, key2_str);
+
+    // Test ucl_comments_add
+    ucl_comments_add(comments, obj1, comment_str);
+
+    // Test ucl_comments_find
+    (void)ucl_comments_find(comments, obj1);
+    (void)ucl_comments_find(comments, obj2);
+
+    // Test ucl_comments_move
+    (void)ucl_comments_move(comments, obj1, obj2);
+
+cleanup:
+    free(obj1);
+    free(obj2);
+    free(comments);
+    free(key1_str);
+    free(key2_str);
+    free(comment_str);
 
     return 0;
 }

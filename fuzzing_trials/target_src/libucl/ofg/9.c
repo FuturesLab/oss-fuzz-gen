@@ -1,35 +1,88 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <string.h>
 #include <ucl.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < 2) {
+    struct ucl_parser *parser;
+    int fd;
+    unsigned int priority = 0; // Example priority value
+    enum ucl_duplicate_strategy duplicate_strategy = UCL_DUPLICATE_APPEND; // Example strategy
+    enum ucl_parse_type parse_type = UCL_PARSE_UCL; // Example parse type
+
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize ucl_object_t pointers
-    ucl_object_t *obj = ucl_object_new();
-    ucl_object_t *new_obj = ucl_object_new();
-
-    // Use a portion of the data as a key
-    const char *key = (const char *)data;
-    size_t key_len = size / 2; // Use half of the data as the key length
-    if (key_len == 0) {
-        key_len = 1; // Ensure key length is not zero
+    // Write the fuzz data to the file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
     }
 
-    // Use the remaining data as a boolean value
-    bool replace = (bool)(data[size - 1] % 2);
+    // Reset the file offset to the beginning
+    lseek(fd, 0, SEEK_SET);
 
-    // Call the function under test
-    bool result = ucl_object_replace_key(obj, new_obj, key, key_len, replace);
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Call the function-under-test
+    ucl_parser_add_fd_full(parser, fd, priority, duplicate_strategy, parse_type);
 
     // Clean up
-    ucl_object_unref(obj);
-    ucl_object_unref(new_obj);
+    ucl_parser_free(parser);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,87 +1,107 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "ucl.h"
-#include <stdbool.h>
+#include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <string.h>
+#include "ucl.h"
 
-static void test_ucl_parser_add_string(struct ucl_parser *parser, const uint8_t *data, size_t size) {
-    if (parser) {
-        // Ensure the data is null-terminated if size is 0
-        char *null_terminated_data = (char *)malloc(size + 1);
-        if (null_terminated_data) {
-            memcpy(null_terminated_data, data, size);
-            null_terminated_data[size] = '\0';
-
-            // Try adding the string with the exact size
-            ucl_parser_add_string(parser, null_terminated_data, size);
-
-            // Try adding the string assuming it's null-terminated
-            ucl_parser_add_string(parser, null_terminated_data, 0);
-
-            free(null_terminated_data);
-        }
-    }
-}
-
-static void test_ucl_parser_add_fd(struct ucl_parser *parser, const uint8_t *data, size_t size) {
-    if (parser) {
-        int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-        if (fd != -1) {
-            write(fd, data, size);
-            lseek(fd, 0, SEEK_SET);
-            ucl_parser_add_fd(parser, fd);
-            close(fd);
-        }
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *fp = fopen("./dummy_file", "wb");
+    if (fp != NULL) {
+        fwrite(Data, 1, Size, fp);
+        fclose(fp);
     }
 }
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *Data, size_t Size) {
-    struct ucl_parser *parser = ucl_parser_new(0);
-
-    if (parser) {
-        // Fuzz ucl_parser_add_string
-        test_ucl_parser_add_string(parser, Data, Size);
-
-        // Fuzz ucl_parser_add_fd
-        test_ucl_parser_add_fd(parser, Data, Size);
-
-        // Fuzz ucl_parser_get_default_priority
-        int priority = ucl_parser_get_default_priority(parser);
-
-        // Fuzz ucl_parser_get_error_code
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_default_priority to ucl_parser_register_macro
-        struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_lttzc = ucl_object_emit_memory_funcs((void **)&parser);
-        if (ret_ucl_object_emit_memory_funcs_lttzc == NULL){
-        	return 0;
-        }
-        struct ucl_emitter_functions* ret_ucl_object_emit_fd_funcs_zhpja = ucl_object_emit_fd_funcs(0);
-        if (ret_ucl_object_emit_fd_funcs_zhpja == NULL){
-        	return 0;
-        }
-        bool ret_ucl_parser_register_macro_kilzy = ucl_parser_register_macro(parser, &parser, NULL, (void *)ret_ucl_object_emit_fd_funcs_zhpja);
-        if (ret_ucl_parser_register_macro_kilzy == 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        int error_code = ucl_parser_get_error_code(parser);
-
-        // Fuzz ucl_parser_get_error
-        const char *error_str = ucl_parser_get_error(parser);
-
-        // Clean up
-        ucl_parser_free(parser);
+    if (Size < 1) {
+        return 0;
     }
 
+    // Prepare the environment
+    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+    if (!obj) {
+        return 0;
+    }
+
+    const char *str = (const char *)Data;
+    size_t len = Size;
+    enum ucl_string_flags flags = UCL_STRING_PARSE;
+
+    // Convert string to UCL object
+    ucl_object_t *string_obj1 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj1) {
+        goto cleanup;
+    }
+
+    // Insert key-value pair
+    if (!ucl_object_insert_key(obj, string_obj1, "key1", 4, true)) {
+        goto cleanup;
+    }
+
+    ucl_object_t *string_obj2 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj2) {
+        goto cleanup;
+    }
+
+    if (!ucl_object_insert_key(obj, string_obj2, "key2", 4, true)) {
+        goto cleanup;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromstring_common to ucl_elt_append
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!string_obj2) {
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_elt_append_yyjpv = ucl_elt_append(NULL, string_obj2);
+    if (ret_ucl_elt_append_yyjpv == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_t *string_obj3 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj3) {
+        goto cleanup;
+    }
+
+    if (!ucl_object_insert_key(obj, string_obj3, "key3", 4, true)) {
+        goto cleanup;
+    }
+
+    write_dummy_file(Data, Size);
+
+    FILE *fp = fopen("./dummy_file", "r");
+    if (!fp) {
+        goto cleanup;
+    }
+
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
+    if (!emitter_funcs) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    struct ucl_emitter_context *ctx = ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    if (!ctx) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+
+    ucl_object_emit_streamline_start_container(ctx, obj);
+
+    fclose(fp);
+
+cleanup:
+    ucl_object_unref(obj);
     return 0;
 }
 #ifdef INC_MAIN

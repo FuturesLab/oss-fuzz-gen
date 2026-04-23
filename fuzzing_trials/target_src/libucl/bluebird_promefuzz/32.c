@@ -1,95 +1,119 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "ucl.h"
+#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
+#include "ucl.h"
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *fp = fopen("./dummy_file", "wb");
+    if (fp != NULL) {
+        fwrite(Data, 1, Size, fp);
+        fclose(fp);
+    }
+}
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Step 1: Create a new UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
+    // Prepare the environment
+    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+    if (!obj) {
         return 0;
     }
 
-    // Step 2: Add chunk to the parser
-    if (!ucl_parser_add_chunk(parser, Data, Size)) {
-        // Handle parsing error
-        const char *error = ucl_parser_get_error(parser);
-        if (error != NULL) {
-            // Normally, you might log the error, but for fuzzing, we ignore it
-        }
-        ucl_parser_free(parser);
-        return 0;
-    }
 
-    // Step 3: Get the top-level object
-    ucl_object_t *obj = ucl_parser_get_object(parser);
-    if (obj == NULL) {
-        // Handle error in getting object
-        const char *error = ucl_parser_get_error(parser);
-        if (error != NULL) {
-            // Normally, you might log the error, but for fuzzing, we ignore it
-        }
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Step 4: Serialize the object in various formats
-    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
-    if (json_output != NULL) {
-        free(json_output);
-    }
-
-    unsigned char *config_output = ucl_object_emit(obj, UCL_EMIT_CONFIG);
-    if (config_output != NULL) {
-        free(config_output);
-    }
-
-    unsigned char *yaml_output = ucl_object_emit(obj, UCL_EMIT_YAML);
-    if (yaml_output != NULL) {
-        free(yaml_output);
-    }
-
-    unsigned char *msgpack_output = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
-    if (msgpack_output != NULL) {
-        free(msgpack_output);
-    }
-
-    // Step 5: Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_comments_add
-    ucl_object_t* ret_ucl_array_pop_last_qxpyy = ucl_array_pop_last(obj);
-    if (ret_ucl_array_pop_last_qxpyy == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_typed_new to ucl_array_replace_index
+    ucl_object_t* ret_ucl_object_fromint_jnknk = ucl_object_fromint(1);
+    if (ret_ucl_object_fromint_jnknk == NULL){
     	return 0;
     }
-    ucl_object_t* ret_ucl_object_fromdouble_ozslk = ucl_object_fromdouble(-1);
-    if (ret_ucl_object_fromdouble_ozslk == NULL){
+    unsigned int ret_ucl_parser_get_linenum_adehs = ucl_parser_get_linenum(NULL);
+    if (ret_ucl_parser_get_linenum_adehs < 0){
     	return 0;
     }
-    ucl_comments_add(obj, ret_ucl_object_fromdouble_ozslk, (const char *)json_output);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_comments_add to ucl_object_merge
-    bool ret_ucl_object_merge_rriiu = ucl_object_merge(obj, obj, 0);
-    if (ret_ucl_object_merge_rriiu == 0){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_fromint_jnknk) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_array_replace_index_knfpd = ucl_array_replace_index(ret_ucl_object_fromint_jnknk, obj, ret_ucl_parser_get_linenum_adehs);
+    if (ret_ucl_array_replace_index_knfpd == NULL){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
+    const char *str = (const char *)Data;
+    size_t len = Size;
+    enum ucl_string_flags flags = UCL_STRING_PARSE;
+
+    // Convert string to UCL object
+    ucl_object_t *string_obj1 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj1) {
+        goto cleanup;
+    }
+
+    // Insert key-value pair
+    if (!ucl_object_insert_key(obj, string_obj1, "key1", 4, true)) {
+        goto cleanup;
+    }
+
+    ucl_object_t *string_obj2 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj2) {
+        goto cleanup;
+    }
+
+    if (!ucl_object_insert_key(obj, string_obj2, "key2", 4, true)) {
+        goto cleanup;
+    }
+
+    ucl_object_t *string_obj3 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj3) {
+        goto cleanup;
+    }
+
+    if (!ucl_object_insert_key(obj, string_obj3, "key3", 4, true)) {
+        goto cleanup;
+    }
+
+    write_dummy_file(Data, Size);
+
+    FILE *fp = fopen("./dummy_file", "r");
+    if (!fp) {
+        goto cleanup;
+    }
+
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
+    if (!emitter_funcs) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    struct ucl_emitter_context *ctx = ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    if (!ctx) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+
+    ucl_object_emit_streamline_start_container(ctx, obj);
+
+    fclose(fp);
+
+cleanup:
     ucl_object_unref(obj);
-    ucl_parser_free(parser);
-
     return 0;
 }
 #ifdef INC_MAIN

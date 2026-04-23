@@ -1,52 +1,53 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    struct ucl_parser *parser;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    bool result;
+
+    // Ensure that the size is non-zero to create a valid file
+    if (size == 0) {
+        return 0;
+    }
+
+    // Create a temporary file from the fuzz data
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor as it is not needed anymore
+    close(fd);
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test with the temporary file
+    result = ucl_parser_set_filevars(parser, tmpl, true);
+
+    // Clean up
+    ucl_parser_free(parser);
+    unlink(tmpl);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_set_include_tracer
-  ucl_object_t* ret_ucl_object_fromint_fwskr = ucl_object_fromint(64);
-  if (ret_ucl_object_fromint_fwskr == NULL){
-  	return 0;
-  }
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromint to ucl_object_delete_key
-  char* ret_ucl_copy_value_trash_xxcxm = ucl_copy_value_trash(ret_ucl_object_fromint_fwskr);
-  if (ret_ucl_copy_value_trash_xxcxm == NULL){
-  	return 0;
-  }
-  bool ret_ucl_object_delete_key_cihne = ucl_object_delete_key(ret_ucl_object_fromint_fwskr, ret_ucl_copy_value_trash_xxcxm);
-  if (ret_ucl_object_delete_key_cihne == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_set_include_tracer(parser, NULL, (void *)ret_ucl_object_fromint_fwskr);
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

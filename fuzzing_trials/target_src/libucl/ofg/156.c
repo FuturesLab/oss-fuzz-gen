@@ -1,40 +1,65 @@
-#include "ucl.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-
-// Define the function pointer types if they are not defined in "ucl.h"
-typedef void (*ucl_emitter_append_character_t)(void *, const char);
-typedef void (*ucl_emitter_append_len_t)(void *, const char *, size_t);
-typedef void (*ucl_emitter_free_func_t)(void *);
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
-    // Allocate memory for ucl_emitter_functions structure
-    struct ucl_emitter_functions *emitter_funcs = (struct ucl_emitter_functions *)malloc(sizeof(struct ucl_emitter_functions));
-    if (emitter_funcs == NULL) {
-        return 0;
+    // Create a UCL parser
+    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+
+    if (parser == NULL) {
+        return 0; // Exit if parser creation failed
     }
 
-    // Initialize the structure with function pointers or dummy functions
-    emitter_funcs->ucl_emitter_append_character = (ucl_emitter_append_character_t)malloc(sizeof(void *));
-    emitter_funcs->ucl_emitter_append_len = (ucl_emitter_append_len_t)malloc(sizeof(void *));
-    emitter_funcs->ucl_emitter_free_func = (ucl_emitter_free_func_t)malloc(sizeof(void *));
-    emitter_funcs->ud = (void *)malloc(1);
-
-    if (emitter_funcs->ucl_emitter_append_character == NULL ||
-        emitter_funcs->ucl_emitter_append_len == NULL ||
-        emitter_funcs->ucl_emitter_free_func == NULL ||
-        emitter_funcs->ud == NULL) {
-        free(emitter_funcs);
-        return 0;
+    // Ensure the parser has some data to work with
+    if (size > 0) {
+        // Parse the input data
+        ucl_parser_add_chunk(parser, data, size);
     }
 
     // Call the function-under-test
-    ucl_object_emit_funcs_free(emitter_funcs);
+    ucl_parser_clear_error(parser);
 
-    // Free allocated memory
-    free(emitter_funcs->ud);
-    free(emitter_funcs);
+    // Clean up
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_156(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

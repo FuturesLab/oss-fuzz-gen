@@ -1,78 +1,59 @@
 #include <sys/stat.h>
 #include <string.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include "ucl.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// Function-under-test
+// Ensure the function signature matches the one declared in the ucl.h
+// No need to redefine it here as it's already declared in the included header
+// bool ucl_parser_add_fd_full(struct ucl_parser *parser, int fd, unsigned int priority,
+//                             enum ucl_duplicate_strategy strategy,
+//                             enum ucl_parse_type parse_type);
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
-
-    // Initialize UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
+    int fd;
+    unsigned int priority = 0;
+    enum ucl_duplicate_strategy strategy;
+    enum ucl_parse_type parse_type;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
 
-    // Parse the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
+    if (size < 1) {
         ucl_parser_free(parser);
         return 0;
     }
 
-    // Get the root object
-    ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root == NULL) {
+    // Create a temporary file and write the fuzz data to it
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
         ucl_parser_free(parser);
         return 0;
     }
+    write(fd, data, size);
+    lseek(fd, 0, SEEK_SET);
 
-    // Create an iterator
-    ucl_object_iter_t iter = ucl_object_iterate_new(root);
-
-    // Choose a valid iterate type
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_iterate_new to ucl_object_iterate_reset
-    ucl_object_t* ret_ucl_object_fromdouble_cudgk = ucl_object_fromdouble(0);
-    if (ret_ucl_object_fromdouble_cudgk == NULL){
-    	return 0;
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromdouble to ucl_object_emit_full
-    struct ucl_emitter_functions* ret_ucl_object_emit_fd_funcs_dizjd = ucl_object_emit_fd_funcs(0);
-    if (ret_ucl_object_emit_fd_funcs_dizjd == NULL){
-    	return 0;
-    }
-    bool ret_ucl_object_emit_full_tuxiq = ucl_object_emit_full(root, 0, ret_ucl_object_emit_fd_funcs_dizjd, ret_ucl_object_fromdouble_cudgk);
-    if (ret_ucl_object_emit_full_tuxiq == 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_iter_t ret_ucl_object_iterate_reset_degsg = ucl_object_iterate_reset(iter, ret_ucl_object_fromdouble_cudgk);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    enum ucl_iterate_type iterate_type = UCL_ITERATE_BOTH;
+    // Set the strategy and parse_type based on the data
+    strategy = (enum ucl_duplicate_strategy)(data[0] % 3);
+    parse_type = (enum ucl_parse_type)(data[0] % 3);
 
     // Call the function-under-test
-    const ucl_object_t *result = ucl_object_iterate_full(iter, iterate_type);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of ucl_parser_add_fd_full
+    ucl_parser_add_fd_full(parser, fd, priority, UCL_DUPLICATE_ERROR, parse_type);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Clean up
-    ucl_object_iterate_free(iter);
-    ucl_object_unref(root);
+    // Cleanup
+    close(fd);
+    unlink(tmpl);
     ucl_parser_free(parser);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

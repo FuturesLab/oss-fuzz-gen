@@ -1,37 +1,77 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include <stdlib.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
+    struct ucl_parser *parser;
+    ucl_object_t *obj;
 
-    // Create a ucl_parser and parse the input data
-    struct ucl_parser *parser = ucl_parser_new(0);
+    // Initialize the UCL parser
+    parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
+
+    // Check if the parser was created successfully
     if (parser == NULL) {
         return 0;
     }
 
-    ucl_parser_add_chunk(parser, data, size);
-
-    // Get the root object from the parser
-    const ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root == NULL) {
+    // Feed the input data to the parser
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        // If parsing fails, clean up and return
         ucl_parser_free(parser);
         return 0;
     }
 
-    // Prepare an int64_t variable to store the conversion result
-    int64_t result = 0;
+    // Retrieve the parsed UCL object
+    obj = ucl_parser_get_object(parser);
 
-    // Call the function-under-test
-    bool conversion_success = ucl_object_toint_safe(root, &result);
+    // Perform any operations with the parsed object here
+    // For fuzzing purposes, we can just check if the object is not NULL
+    if (obj != NULL) {
+        // Free the UCL object
+        ucl_object_unref(obj);
+    }
 
-    // Cleanup
-    ucl_object_unref(root);
+    // Free the parser
     ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

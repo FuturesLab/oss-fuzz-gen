@@ -1,41 +1,58 @@
 #include <sys/stat.h>
-#include "ucl.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include "ucl.h"
+
+// Function-under-test
+// Ensure the function signature matches the one declared in the ucl.h
+// No need to redefine it here as it's already declared in the included header
+// bool ucl_parser_add_fd_full(struct ucl_parser *parser, int fd, unsigned int priority,
+//                             enum ucl_duplicate_strategy strategy,
+//                             enum ucl_parse_type parse_type);
 
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-  // Ensure the size is sufficient to split into two parts
-  if (size < 2) {
-    return 0;
-  }
+    struct ucl_parser *parser = ucl_parser_new(0);
+    int fd;
+    unsigned int priority = 0;
+    enum ucl_duplicate_strategy strategy;
+    enum ucl_parse_type parse_type;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
 
-  // Split the input data into two parts for two ucl_object_t objects
-  size_t mid = size / 2;
+    if (size < 1) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-  // Create two ucl_parser objects
-  struct ucl_parser *parser1 = ucl_parser_new(0);
-  struct ucl_parser *parser2 = ucl_parser_new(0);
+    // Create a temporary file and write the fuzz data to it
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+    write(fd, data, size);
+    lseek(fd, 0, SEEK_SET);
 
-  // Add string data to the parsers
-  ucl_parser_add_string(parser1, (const char *)data, mid);
-  ucl_parser_add_string(parser2, (const char *)(data + mid), size - mid);
+    // Set the strategy and parse_type based on the data
+    strategy = (enum ucl_duplicate_strategy)(data[0] % 3);
+    parse_type = (enum ucl_parse_type)(data[0] % 3);
 
-  // Get ucl_object_t objects from the parsers
-  const ucl_object_t *obj1 = ucl_parser_get_object(parser1);
-  const ucl_object_t *obj2 = ucl_parser_get_object(parser2);
-
-  // Ensure both objects are not NULL before comparison
-  if (obj1 != NULL && obj2 != NULL) {
     // Call the function-under-test
-    int result = ucl_object_compare(obj1, obj2);
-  }
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_parser_add_fd_full
+    ucl_parser_add_fd_full(parser, 1, priority, strategy, parse_type);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-  // Free the parsers
-  ucl_parser_free(parser1);
-  ucl_parser_free(parser2);
+    // Cleanup
+    close(fd);
+    unlink(tmpl);
+    ucl_parser_free(parser);
 
-  return 0;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

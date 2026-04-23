@@ -1,22 +1,22 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "ucl.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
-static ucl_object_t *create_random_ucl_array(const uint8_t *Data, size_t Size) {
-    ucl_object_t *array = ucl_object_typed_new(UCL_ARRAY);
-    for (size_t i = 0; i < Size; i++) {
-        ucl_object_t *obj = ucl_object_fromint(Data[i]);
-        ucl_array_append(array, obj);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    return array;
 }
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
@@ -24,57 +24,28 @@ int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    ucl_object_t *array = create_random_ucl_array(Data, Size);
-
-    // Fuzz ucl_array_replace_index
-    ucl_object_t *new_element = ucl_object_fromint(Data[0]);
-    unsigned int index = Data[0] % Size;
-    ucl_object_t *replaced = ucl_array_replace_index(array, new_element, index);
-    if (replaced) {
-        ucl_object_unref(replaced);
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_array_replace_index
-        ucl_object_t* ret_ucl_object_fromstring_nasge = ucl_object_fromstring((const char *)"r");
-        if (ret_ucl_object_fromstring_nasge == NULL){
-        	return 0;
-        }
-        double ret_ucl_object_todouble_vripy = ucl_object_todouble(new_element);
-        if (ret_ucl_object_todouble_vripy < 0){
-        	return 0;
-        }
-        ucl_object_t* ret_ucl_array_replace_index_zuubv = ucl_array_replace_index(ret_ucl_object_fromstring_nasge, replaced, (unsigned int )ret_ucl_object_todouble_vripy);
-        if (ret_ucl_array_replace_index_zuubv == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
-
-    // Fuzz ucl_array_pop_first
-    ucl_object_t *first = ucl_array_pop_first(array);
-    if (first) {
-        ucl_object_unref(first);
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
     }
 
-    // Fuzz ucl_array_size
-    unsigned int size = ucl_array_size(array);
+    const char *var_name = "test_var";
+    const char *var_value = "test_value";
+    ucl_parser_register_variable(parser, var_name, var_value);
 
-    // Fuzz ucl_array_find_index
-    const ucl_object_t *found = ucl_array_find_index(array, index);
+    write_dummy_file(Data, Size);
+    ucl_parser_set_filevars(parser, "./dummy_file", false);
 
-    // Fuzz ucl_array_index_of
-    unsigned int index_of = ucl_array_index_of(array, new_element);
+    unsigned priority = Data[0] & 0x0F; // Use only 4 least significant bits
+    enum ucl_duplicate_strategy strat = (enum ucl_duplicate_strategy)((Data[0] >> 4) % 4);
+    enum ucl_parse_type parse_type = (enum ucl_parse_type)((Data[0] >> 6) % 4);
 
-    // Fuzz ucl_array_pop_last
-    ucl_object_t *last = ucl_array_pop_last(array);
-    if (last) {
-        ucl_object_unref(last);
-    }
+    char tlijegop[1024] = "jhhwm";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_parser_add_chunk_full
+    ucl_parser_add_chunk_full(parser, tlijegop, Size, priority, strat, parse_type);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Cleanup
-    ucl_object_unref(array);
-    // new_element is already part of the array, no need to unref again
-
+    ucl_parser_free(parser);
     return 0;
 }
 #ifdef INC_MAIN

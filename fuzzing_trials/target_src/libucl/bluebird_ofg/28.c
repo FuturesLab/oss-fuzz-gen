@@ -1,51 +1,40 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
     // Initialize the UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
-    const ucl_object_t *root = NULL;
-    const ucl_object_t *comment = NULL;
-    
-    // Ensure the data is not empty
-    if (size == 0) {
-        ucl_parser_free(parser);
+    if (parser == NULL) {
         return 0;
     }
 
     // Parse the input data
     ucl_parser_add_chunk(parser, data, size);
 
-    // Get the root object
-    root = ucl_parser_get_object(parser);
-
-    // Create a dummy key object to search for comments
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_array_merge
-    ucl_object_t* ret_ucl_object_ref_ifzmf = ucl_object_ref(root);
-    if (ret_ucl_object_ref_ifzmf == NULL){
-    	return 0;
+    // Get the root UCL object
+    ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
     }
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ucl_array_merge
-    bool ret_ucl_array_merge_gnfhw = ucl_array_merge(root, ret_ucl_object_ref_ifzmf, 1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (ret_ucl_array_merge_gnfhw == 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_t *key = ucl_object_fromstring("dummy_key");
 
-    // Call the function-under-test
-    comment = ucl_comments_find(root, key);
+    // Create a new UCL object to replace with
+    ucl_object_t *new_obj = ucl_object_fromstring("replacement");
+
+    // Choose an index to replace
+    unsigned int index = size > 0 ? data[0] % 10 : 0; // Simple way to choose index
+
+    // Call the function under test
+    ucl_object_t *result = ucl_array_replace_index(root, new_obj, index);
 
     // Clean up
+    if (result != NULL) {
+        ucl_object_unref(result);
+    }
     ucl_object_unref(root);
-    ucl_object_unref(key);
     ucl_parser_free(parser);
 
     return 0;

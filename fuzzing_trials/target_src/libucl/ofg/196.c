@@ -1,20 +1,66 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_196(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    ucl_object_t *obj = ucl_object_new();
-
-    // Simulate usage of the created object
-    if (obj != NULL) {
-        // Example of feeding non-null input to the function under test
-        // Adjust the number of arguments to match the function declaration
-        ucl_object_fromstring_common((const char *)data, size, 0);
-
-        // Free the object after use
-        ucl_object_unref(obj);
+    // Ensure the size is sufficient to extract an unsigned int
+    if (size < sizeof(unsigned int)) {
+        return 0;
     }
+
+    // Create a ucl_parser object
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Extract an unsigned int from the data
+    unsigned int priority = *(unsigned int *)data;
+
+    // Call the function-under-test
+    bool result = ucl_parser_set_default_priority(parser, priority);
+
+    // Clean up
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_196(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

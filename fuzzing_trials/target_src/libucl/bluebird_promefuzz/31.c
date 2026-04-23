@@ -1,46 +1,75 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
-#include <unistd.h>
 #include "ucl.h"
-
-static bool dummy_variable_handler(const unsigned char *data, size_t data_len, unsigned char **result, unsigned long *result_len, bool *need_free, void *ud) {
-    // Dummy handler function for unknown variables
-    *result = NULL;
-    *result_len = 0;
-    *need_free = false;
-    return true;
-}
+#include <stdint.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    struct ucl_parser *parser = ucl_parser_new(0);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
+    struct ucl_parser *parser = ucl_parser_new(-1);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (parser == NULL) {
         return 0;
     }
 
-    // Test ucl_parser_add_chunk_full
-    ucl_parser_add_chunk_full(parser, Data, Size, 0, UCL_DUPLICATE_APPEND, UCL_PARSE_UCL);
-
-    // Test ucl_parser_set_filevars
-    ucl_parser_set_filevars(parser, "./dummy_file", true);
-
-    // Test ucl_parser_set_variables_handler
-    ucl_parser_set_variables_handler(parser, dummy_variable_handler, NULL);
-
-    // Test ucl_parser_get_error
-    const char *error = ucl_parser_get_error(parser);
-    if (error != NULL) {
-        printf("Parser error: %s\n", error);
+    // Simulate parsing input data
+    if (Size > 0) {
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file != NULL) {
+            fwrite(Data, 1, Size, file);
+            fclose(file);
+            ucl_parser_add_file(parser, "./dummy_file");
+        }
     }
 
-    // Test ucl_parser_clear_error
+    // Fuzz ucl_parser_get_column
+    unsigned column = ucl_parser_get_column(parser);
+
+    // Fuzz ucl_parser_get_linenum
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_column to ucl_parser_add_fd_full
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!parser) {
+    	return 0;
+    }
+    const char* ret_ucl_parser_get_cur_file_tfayy = ucl_parser_get_cur_file(parser);
+    if (ret_ucl_parser_get_cur_file_tfayy == NULL){
+    	return 0;
+    }
+    int64_t ret_ucl_object_toint_cvgjt = ucl_object_toint(NULL);
+    if (ret_ucl_object_toint_cvgjt < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!parser) {
+    	return 0;
+    }
+    bool ret_ucl_parser_add_fd_full_elhsw = ucl_parser_add_fd_full(parser, (int )column, (unsigned int )ret_ucl_object_toint_cvgjt, UCL_DUPLICATE_ERROR, UCL_PARSE_UCL);
+    if (ret_ucl_parser_add_fd_full_elhsw == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    unsigned linenum = ucl_parser_get_linenum(parser);
+
+    // Fuzz ucl_parser_clear_error
     ucl_parser_clear_error(parser);
 
-    // Cleanup
+    // Fuzz ucl_parser_get_error_code
+    int error_code = ucl_parser_get_error_code(parser);
+
+    // Fuzz ucl_parser_get_object
+    ucl_object_t *obj = ucl_parser_get_object(parser);
+
+    // Fuzz ucl_object_unref only if obj is not NULL
+    if (obj != NULL) {
+        ucl_object_unref(obj);
+    }
+
+    // Fuzz ucl_parser_free
     ucl_parser_free(parser);
 
     return 0;

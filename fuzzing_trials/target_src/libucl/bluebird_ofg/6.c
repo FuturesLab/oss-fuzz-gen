@@ -1,61 +1,52 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "ucl.h"
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to split into a path and data
-    if (size < 2) {
-        return 0;
-    }
+    struct ucl_parser *parser;
 
-    // Split the input data into two parts: one for the path and one for the UCL object
-    size_t path_size = size / 2;
-    size_t ucl_data_size = size - path_size;
-
-    // Create a null-terminated string for the path
-    char *path = (char *)malloc(path_size + 1);
-    if (path == NULL) {
-        return 0;
-    }
-    memcpy(path, data, path_size);
-    path[path_size] = '\0';
-
-    // Create a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
     if (parser == NULL) {
-        free(path);
         return 0;
     }
 
-    // Parse the UCL data
-    ucl_parser_add_chunk(parser, data + path_size, ucl_data_size);
-
-    // Get the root UCL object
-    const ucl_object_t *root = ucl_parser_get_object(parser);
-    if (root != NULL) {
-        // Call the function-under-test
-        const ucl_object_t *result = ucl_object_lookup_path(root, path);
-
-        // Optionally, perform some checks or operations with 'result'
-        (void)result; // Suppress unused variable warning
+    // Feed the parser with input data
+    if (size > 0) {
+        ucl_parser_add_chunk(parser, data, size);
     }
+
+    // Call the function-under-test
+    unsigned char result = ucl_parser_chunk_peek(parser);
 
     // Clean up
-    ucl_object_unref(root);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_comments_add
-    ucl_object_t* ret_ucl_object_fromint_gktcn = ucl_object_fromint(1);
-    if (ret_ucl_object_fromint_gktcn == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_chunk_peek to ucl_parser_insert_chunk
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!parser) {
     	return 0;
     }
-    ucl_comments_add(ret_ucl_object_fromint_gktcn, root, (const char *)"w");
+    int ret_ucl_parser_get_error_code_mrztj = ucl_parser_get_error_code(parser);
+    if (ret_ucl_parser_get_error_code_mrztj < 0){
+    	return 0;
+    }
+    unsigned int ret_ucl_parser_get_linenum_uwaro = ucl_parser_get_linenum(NULL);
+    if (ret_ucl_parser_get_linenum_uwaro < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!parser) {
+    	return 0;
+    }
+    bool ret_ucl_parser_insert_chunk_jkfvy = ucl_parser_insert_chunk(parser, &result, (size_t )ret_ucl_parser_get_linenum_uwaro);
+    if (ret_ucl_parser_insert_chunk_jkfvy == 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
     
     ucl_parser_free(parser);
-    free(path);
 
     return 0;
 }

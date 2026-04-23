@@ -1,31 +1,37 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // If size is 0 we need a null-terminated string.
-    // We don't null-terminate the string and by the design
-    // of the API passing 0 as size with non null-terminated string
-    // gives undefined behavior.
-    if (size == 0) {
-        return 0;
+    ucl_object_t *ucl_obj;
+    struct ucl_parser *parser;
+    const char *result;
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
+
+    // Use the input data to parse a UCL object
+    if (ucl_parser_add_chunk(parser, data, size)) {
+        ucl_obj = ucl_parser_get_object(parser);
+        if (ucl_obj != NULL) {
+            // Call the function-under-test
+            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_tostring with ucl_object_tostring_forced
+            result = ucl_object_tostring_forced(ucl_obj);
+            // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+            // Normally, you would do something with the result here
+            // For fuzzing, we're primarily interested in ensuring the function can handle the input
+
+            // Free the UCL object
+            ucl_object_unref(ucl_obj);
+        }
     }
 
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
-
-    ucl_parser_add_string(parser, (char *)data, size);
-
-    if (ucl_parser_get_error(parser) == NULL) {
-        // Call the function under test
-        unsigned char result = ucl_parser_chunk_peek(parser);
-    }
-
+    // Clean up the parser
     ucl_parser_free(parser);
+
     return 0;
 }
 #ifdef INC_MAIN

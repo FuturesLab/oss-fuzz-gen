@@ -1,113 +1,67 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include "ucl.h"
-
-static ucl_object_t *create_random_ucl_object() {
-    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
-    if (obj) {
-        memset(obj, 0, sizeof(ucl_object_t));
-        obj->type = UCL_OBJECT;
-    }
-    return obj;
-}
-
-static void free_ucl_object(ucl_object_t *obj) {
-    if (obj) {
-        free(obj);
-    }
-}
+#include <stdint.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
-    // Prepare dummy UCL objects
-    ucl_object_t *top = create_random_ucl_object();
-    ucl_object_t *elt = create_random_ucl_object();
-    ucl_object_t *replace_elt = create_random_ucl_object();
-    ucl_object_t *merged_elt = create_random_ucl_object();
-
-    if (!top || !elt || !replace_elt || !merged_elt) {
-        free_ucl_object(top);
-        free_ucl_object(elt);
-        free_ucl_object(replace_elt);
-        free_ucl_object(merged_elt);
-        return 0;
+    // Simulate parsing input data
+    if (Size > 0) {
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file != NULL) {
+            fwrite(Data, 1, Size, file);
+            fclose(file);
+            ucl_parser_add_file(parser, "./dummy_file");
+        }
     }
 
-    // Prepare a key
-    char *key = (char *)malloc(Size + 1);
-    if (!key) {
-        free_ucl_object(top);
-        free_ucl_object(elt);
-        free_ucl_object(replace_elt);
-        free_ucl_object(merged_elt);
-        return 0;
-    }
-    memcpy(key, Data, Size);
-    key[Size] = '\0'; // Ensure null-termination
-    size_t keylen = Size;
-    bool copy_key = Data[0] % 2 == 0;
+    // Fuzz ucl_parser_get_column
+    unsigned column = ucl_parser_get_column(parser);
 
-    // Test ucl_object_insert_key
-    ucl_object_insert_key(top, elt, key, keylen, copy_key);
+    // Fuzz ucl_parser_get_linenum
 
-    // Test ucl_object_replace_key
-    ucl_object_replace_key(top, replace_elt, key, keylen, copy_key);
-
-    // Test ucl_object_delete_key
-    ucl_object_delete_key(top, key);
-
-    // Test ucl_object_lookup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_delete_key to ucl_array_delete
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_delete_key to ucl_object_insert_key_merged
-    ucl_object_t* ret_ucl_object_fromstring_fnesx = ucl_object_fromstring((const char *)"w");
-    if (ret_ucl_object_fromstring_fnesx == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_column to ucl_object_fromstring_common
+    char *ugrydekb[1024] = {"avgkh", NULL};
+    struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_kndhl = ucl_object_emit_memory_funcs(ugrydekb);
+    if (ret_ucl_object_emit_memory_funcs_kndhl == NULL){
     	return 0;
     }
-    bool ret_ucl_object_insert_key_merged_wobla = ucl_object_insert_key_merged(top, ret_ucl_object_fromstring_fnesx, (const char *)Data, Size, 1);
-    if (ret_ucl_object_insert_key_merged_wobla == 0){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ugrydekb) {
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_object_fromstring_common_gwibg = ucl_object_fromstring_common((const char *)*ugrydekb, (size_t )column, UCL_STRING_ESCAPE);
+    if (ret_ucl_object_fromstring_common_gwibg == NULL){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    ucl_object_t* ret_ucl_object_fromint_hlbif = ucl_object_fromint(-1);
-    if (ret_ucl_object_fromint_hlbif == NULL){
-    	return 0;
-    }
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_array_delete with ucl_elt_append
-    ucl_object_t* ret_ucl_array_delete_mrych = ucl_elt_append(ret_ucl_object_fromint_hlbif, top);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    if (ret_ucl_array_delete_mrych == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_lookup(top, key);
+    unsigned linenum = ucl_parser_get_linenum(parser);
 
-    // Test ucl_object_insert_key_merged
-    ucl_object_insert_key_merged(top, merged_elt, key, keylen, copy_key);
+    // Fuzz ucl_parser_clear_error
+    ucl_parser_clear_error(parser);
 
-    // Test ucl_object_pop_key
-    ucl_object_t *popped = ucl_object_pop_key(top, key);
-    if (popped && popped != elt && popped != replace_elt && popped != merged_elt) {
-        free_ucl_object(popped);
+    // Fuzz ucl_parser_get_error_code
+    int error_code = ucl_parser_get_error_code(parser);
+
+    // Fuzz ucl_parser_get_object
+    ucl_object_t *obj = ucl_parser_get_object(parser);
+
+    // Fuzz ucl_object_unref only if obj is not NULL
+    if (obj != NULL) {
+        ucl_object_unref(obj);
     }
 
-    // Cleanup
-    free(key);
-    free_ucl_object(top);
-    free_ucl_object(elt);
-    free_ucl_object(replace_elt);
-    free_ucl_object(merged_elt);
+    // Fuzz ucl_parser_free
+    ucl_parser_free(parser);
 
     return 0;
 }

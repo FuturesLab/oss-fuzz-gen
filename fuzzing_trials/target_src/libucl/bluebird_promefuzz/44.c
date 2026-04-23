@@ -1,118 +1,87 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include "ucl.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    // Step 1: Prepare the environment
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
-    // Create a new UCL object of type UCL_OBJECT
-    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
-    if (top == NULL) {
+    // Step 2: Add chunk to parser
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        // Cleanup if adding chunk fails
+        ucl_parser_free(parser);
         return 0;
     }
 
-    // Convert the input data to a string
-    const char *str = (const char *)Data;
-    size_t len = Size;
+    // Step 3: Get the top object from the parser
+    ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    if (top_obj == NULL) {
+        // Retrieve and print error if object retrieval fails
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            fprintf(stderr, "Error: %s\n", error);
+        }
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-    // Create UCL objects from strings
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_object_fromstring_common
-    ucl_object_t *elt1 = ucl_object_fromstring_common(NULL, len, UCL_STRING_TRIM);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    ucl_object_t *elt2 = ucl_object_fromstring_common(str, len, UCL_STRING_PARSE);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromstring_common to ucl_object_emit_full
-    struct ucl_emitter_functions* ret_ucl_object_emit_fd_funcs_dasmt = ucl_object_emit_fd_funcs(UCL_PRIORITY_MAX);
-    if (ret_ucl_object_emit_fd_funcs_dasmt == NULL){
-    	return 0;
-    }
-    const ucl_object_t xvqkyeqj;
-    memset(&xvqkyeqj, 0, sizeof(xvqkyeqj));
-    ucl_object_t* ret_ucl_object_copy_eiaip = ucl_object_copy(&xvqkyeqj);
-    if (ret_ucl_object_copy_eiaip == NULL){
-    	return 0;
-    }
-    bool ret_ucl_object_emit_full_zpbxr = ucl_object_emit_full(elt2, 0, ret_ucl_object_emit_fd_funcs_dasmt, ret_ucl_object_copy_eiaip);
-    if (ret_ucl_object_emit_full_zpbxr == 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
+    // Step 4: Emit the object in various formats
+    for (int i = UCL_EMIT_JSON; i < UCL_EMIT_MAX; i++) {
+        unsigned char *output = ucl_object_emit(top_obj, (enum ucl_emitter)i);
+        if (output != NULL) {
+            // Use the emitted output
+            free(output);
+        }
     
-    ucl_object_t *elt3 = ucl_object_fromstring_common(str, len, UCL_STRING_ESCAPE);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_parser_insert_chunk
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!parser) {
+        	return 0;
+        }
+        int ret_ucl_parser_get_default_priority_rkitt = ucl_parser_get_default_priority(parser);
+        if (ret_ucl_parser_get_default_priority_rkitt < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!top_obj) {
+        	return 0;
+        }
+        unsigned int ret_ucl_array_size_ovbvn = ucl_array_size(top_obj);
+        if (ret_ucl_array_size_ovbvn < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!parser) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!output) {
+        	return 0;
+        }
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_parser_insert_chunk
+        bool ret_ucl_parser_insert_chunk_bjbke = ucl_parser_insert_chunk(parser, (const unsigned char *)Data, (size_t)ret_ucl_array_size_ovbvn);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+        if (ret_ucl_parser_insert_chunk_bjbke == 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
-    // Insert keys into the UCL object
-    ucl_object_insert_key(top, elt1, "key1", 4, true);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_comments_find
-    ucl_object_t* ret_ucl_object_fromint_nvyco = ucl_object_fromint(UCL_PRIORITY_MIN);
-    if (ret_ucl_object_fromint_nvyco == NULL){
-    	return 0;
-    }
-    const ucl_object_t* ret_ucl_comments_find_ssnjs = ucl_comments_find(ret_ucl_object_fromint_nvyco, elt1);
-    if (ret_ucl_comments_find_ssnjs == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_insert_key(top, elt2, "key2", 4, true);
-    ucl_object_insert_key(top, elt3, "key3", 4, true);
-
-    // Open a dummy file for writing
-    FILE *fp = fopen("./dummy_file", "w");
-    if (fp == NULL) {
-        ucl_object_unref(top);
-        return 0;
-    }
-
-    // Get emitter functions for file output
-    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
-    if (emitter_funcs == NULL) {
-        fclose(fp);
-        ucl_object_unref(top);
-        return 0;
-    }
-
-    // Create and manage streamlined UCL emitters
-    struct ucl_emitter_context *ctx1 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON, emitter_funcs);
-    struct ucl_emitter_context *ctx2 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON_COMPACT, emitter_funcs);
-    struct ucl_emitter_context *ctx3 = ucl_object_emit_streamline_new(top, UCL_EMIT_CONFIG, emitter_funcs);
-    struct ucl_emitter_context *ctx4 = ucl_object_emit_streamline_new(top, UCL_EMIT_YAML, emitter_funcs);
-
-    // Create a new UCL object of type UCL_ARRAY
-    ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
-    if (array_obj != NULL) {
-        // Start a container for streamlined output
-        ucl_object_emit_streamline_start_container(ctx1, array_obj);
-        ucl_object_emit_streamline_start_container(ctx2, array_obj);
-        ucl_object_emit_streamline_start_container(ctx3, array_obj);
-        ucl_object_emit_streamline_start_container(ctx4, array_obj);
-    }
-
-    // Cleanup
-    if (ctx1) {
-        ucl_object_emit_streamline_finish(ctx1);
-    }
-    if (ctx2) {
-        ucl_object_emit_streamline_finish(ctx2);
-    }
-    if (ctx3) {
-        ucl_object_emit_streamline_finish(ctx3);
-    }
-    if (ctx4) {
-        ucl_object_emit_streamline_finish(ctx4);
-    }
-    if (array_obj) {
-        ucl_object_unref(array_obj);
-    }
-    fclose(fp);
-    ucl_object_unref(top);
+    // Step 5: Cleanup
+    ucl_parser_free(parser);
+    ucl_object_unref(top_obj);
 
     return 0;
 }

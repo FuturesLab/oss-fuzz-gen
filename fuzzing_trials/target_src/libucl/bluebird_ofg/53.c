@@ -1,42 +1,42 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    struct ucl_parser *parser;
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Try to parse the input data
+    ucl_parser_add_chunk(parser, data, size);
+
+    // Call the function-under-test
+    const char *cur_file = ucl_parser_get_cur_file(parser);
+
+    // Check the returned file name (if any) for debugging purposes
+    if (cur_file != NULL) {
+        // Normally you might log this or perform further checks
+    }
+
+    // Clean up the parser
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_add_chunk
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_parser_add_chunk with ucl_parser_insert_chunk
-  bool ret_ucl_parser_add_chunk_obekm = ucl_parser_insert_chunk(parser, (const unsigned char *)"w", size);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-  if (ret_ucl_parser_add_chunk_obekm == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,46 +1,40 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-  if (size == 0) {
-    return 0;
-  }
+    if (size == 0) {
+        return 0;
+    }
 
-  // Create a ucl_parser and parse the input data
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
 
-  ucl_parser_add_string(parser, (const char *)data, size);
+    // Parse the input data
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-  if (ucl_parser_get_error(parser) != NULL) {
+    // Get the root object
+    const ucl_object_t *root = ucl_parser_get_object(parser);
+    if (root == NULL) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Call the function under test
+    const ucl_object_t *tail = ucl_array_tail(root);
+
+    // Clean up
+    ucl_object_unref(root);
     ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Get the root object from the parser
-  const ucl_object_t *root = ucl_parser_get_object(parser);
-  if (root == NULL) {
-    ucl_parser_free(parser);
-    return 0;
-  }
-
-  // Prepare a size_t variable to store the key length
-  size_t key_length = 0;
-
-  // Call the function-under-test
-  const char *key = ucl_object_keyl(root, &key_length);
-
-  // Free resources
-  ucl_object_unref(root);
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

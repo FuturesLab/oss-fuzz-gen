@@ -1,88 +1,69 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "ucl.h"
-#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-static void test_ucl_parser_add_string(struct ucl_parser *parser, const uint8_t *data, size_t size) {
-    if (parser) {
-        // Ensure the data is null-terminated if size is 0
-        char *null_terminated_data = (char *)malloc(size + 1);
-        if (null_terminated_data) {
-            memcpy(null_terminated_data, data, size);
-            null_terminated_data[size] = '\0';
-
-            // Try adding the string with the exact size
-            ucl_parser_add_string(parser, null_terminated_data, size);
-
-            // Try adding the string assuming it's null-terminated
-            ucl_parser_add_string(parser, null_terminated_data, 0);
-
-            free(null_terminated_data);
-        }
-    }
-}
-
-static void test_ucl_parser_add_fd(struct ucl_parser *parser, const uint8_t *data, size_t size) {
-    if (parser) {
-        int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-        if (fd != -1) {
-            write(fd, data, size);
-            lseek(fd, 0, SEEK_SET);
-            ucl_parser_add_fd(parser, fd);
-            close(fd);
-        }
-    }
-}
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
-    struct ucl_parser *parser = ucl_parser_new(-1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-    if (parser) {
-        // Fuzz ucl_parser_add_string
-        test_ucl_parser_add_string(parser, Data, Size);
-
-        // Fuzz ucl_parser_add_fd
-        test_ucl_parser_add_fd(parser, Data, Size);
-
-        // Fuzz ucl_parser_get_default_priority
-        int priority = ucl_parser_get_default_priority(parser);
-
-        // Fuzz ucl_parser_get_error_code
-        int error_code = ucl_parser_get_error_code(parser);
-
-        // Fuzz ucl_parser_get_error
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_error_code to ucl_parser_register_macro
-        const ucl_object_t* ret_ucl_parser_get_comments_zzmcv = ucl_parser_get_comments(parser);
-        if (ret_ucl_parser_get_comments_zzmcv == NULL){
-        	return 0;
-        }
-        char* ret_ucl_copy_key_trash_tktfu = ucl_copy_key_trash(NULL);
-        if (ret_ucl_copy_key_trash_tktfu == NULL){
-        	return 0;
-        }
-        bool ret_ucl_parser_register_macro_tdxyy = ucl_parser_register_macro(parser, ret_ucl_copy_key_trash_tktfu, NULL, (void *)parser);
-        if (ret_ucl_parser_register_macro_tdxyy == 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        const char *error_str = ucl_parser_get_error(parser);
-
-        // Clean up
-        ucl_parser_free(parser);
+    // Step 1: Prepare the environment
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
     }
+
+    // Step 2: Add chunk to parser
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        // Cleanup if adding chunk fails
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Step 3: Get the top object from the parser
+    ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    if (top_obj == NULL) {
+        // Retrieve and print error if object retrieval fails
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            fprintf(stderr, "Error: %s\n", error);
+        }
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Step 4: Emit the object in various formats
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from ucl_parser_get_object to ucl_array_index_of using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!top_obj) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!top_obj) {
+    	return 0;
+    }
+    unsigned int ret_ucl_array_index_of_msxbw = ucl_array_index_of(top_obj, top_obj);
+    if (ret_ucl_array_index_of_msxbw < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    for (int i = UCL_EMIT_JSON; i < UCL_EMIT_MAX; i++) {
+        unsigned char *output = ucl_object_emit(top_obj, (enum ucl_emitter)i);
+        if (output != NULL) {
+            // Use the emitted output
+            free(output);
+        }
+    }
+
+    // Step 5: Cleanup
+    ucl_parser_free(parser);
+    ucl_object_unref(top_obj);
 
     return 0;
 }
