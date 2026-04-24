@@ -1,11 +1,14 @@
 // This fuzz driver is generated for library json-c, aiming to fuzz the following functions:
-// array_list_new2 at arraylist.c:44:20 in arraylist.h
-// array_list_put_idx at arraylist.c:150:5 in arraylist.h
-// array_list_del_idx at arraylist.c:206:5 in arraylist.h
-// array_list_length at arraylist.c:201:8 in arraylist.h
-// array_list_get_idx at arraylist.c:74:7 in arraylist.h
-// array_list_shrink at arraylist.c:106:5 in arraylist.h
-// array_list_free at arraylist.c:64:13 in arraylist.h
+// json_tokener_parse at json_tokener.c:219:21 in json_tokener.h
+// json_object_to_file_ext at json_util.c:163:5 in json_util.h
+// json_util_get_last_err at json_util.c:65:13 in json_util.h
+// json_object_to_fd at json_util.c:187:5 in json_util.h
+// json_util_get_last_err at json_util.c:65:13 in json_util.h
+// json_object_object_get_ex at json_object.c:617:11 in json_object.h
+// json_object_to_json_string_ext at json_object.c:434:13 in json_object.h
+// json_object_to_json_string_length at json_object.c:408:13 in json_object.h
+// json_object_to_json_string at json_object.c:441:13 in json_object.h
+// json_object_put at json_object.c:272:5 in json_object.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,57 +18,107 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include "arraylist.h"
-
-static void free_fn(void *data) {
-    // Example free function for array_list_new2
-    free(data);
-}
+#include <json_util.h>
+#include <json_object.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <json_tokener.h>
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(size_t) * 3) {
-        return 0;
+    if (Size == 0) return 0;
+
+    // Ensure Data is null-terminated before passing to json_tokener_parse
+    std::vector<uint8_t> data_with_null(Data, Data + Size);
+    data_with_null.push_back('\0');
+
+    struct json_object *obj = json_tokener_parse((const char*)data_with_null.data());
+    if (!obj) return 0;
+
+    // Test json_object_to_file_ext
+    const char *filename = "./dummy_file";
+    int flags = 0;
+    int ret = json_object_to_file_ext(filename, obj, flags);
+    if (ret == -1) {
+        std::cerr << "json_object_to_file_ext failed: " << json_util_get_last_err() << std::endl;
     }
 
-    // Extract parameters from the input data
-    size_t idx1 = reinterpret_cast<const size_t*>(Data)[0];
-    size_t idx2 = reinterpret_cast<const size_t*>(Data)[1];
-    size_t count = reinterpret_cast<const size_t*>(Data)[2];
-    Data += sizeof(size_t) * 3;
-    Size -= sizeof(size_t) * 3;
-
-    // Create a dummy array_list
-    struct array_list *list = array_list_new2(free_fn, 10);
-    if (!list) {
-        return 0;
+    // Test json_object_to_fd
+    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd != -1) {
+        ret = json_object_to_fd(fd, obj, flags);
+        if (ret == -1) {
+            std::cerr << "json_object_to_fd failed: " << json_util_get_last_err() << std::endl;
+        }
+        close(fd);
     }
 
-    // Test array_list_put_idx
-    void *data = malloc(Size);
-    if (data) {
-        memcpy(data, Data, Size);
-        array_list_put_idx(list, idx1, data);
+    // Test json_object_object_get_ex
+    struct json_object *value = nullptr;
+    const char *key = "key";
+    int found = json_object_object_get_ex(obj, key, &value);
+    if (found) {
+        // Do something with value if needed
     }
 
-    // Test array_list_del_idx
-    array_list_del_idx(list, idx2, count);
-
-    // Test array_list_length
-    size_t length = array_list_length(list);
-
-    // Test array_list_get_idx
-    if (length > 0) {
-        void *element = array_list_get_idx(list, idx1 % length);
+    // Test json_object_to_json_string_ext
+    const char *json_str_ext = json_object_to_json_string_ext(obj, flags);
+    if (json_str_ext) {
+        // Do something with json_str_ext if needed
     }
 
-    // Test array_list_shrink
-    array_list_shrink(list, 5);
+    // Test json_object_to_json_string_length
+    size_t length = 0;
+    const char *json_str_length = json_object_to_json_string_length(obj, flags, &length);
+    if (json_str_length) {
+        // Do something with json_str_length if needed
+    }
 
-    // Cleanup
-    array_list_free(list);
+    // Test json_object_to_json_string
+    const char *json_str = json_object_to_json_string(obj);
+    if (json_str) {
+        // Do something with json_str if needed
+    }
 
+    json_object_put(obj);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

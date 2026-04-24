@@ -1,11 +1,12 @@
 // This fuzz driver is generated for library json-c, aiming to fuzz the following functions:
-// json_parse_uint64 at json_util.c:260:5 in json_util.h
-// json_parse_int64 at json_util.c:243:5 in json_util.h
-// json_object_new_int64 at json_object.c:799:21 in json_object.h
-// json_object_get_int64 at json_object.c:819:9 in json_object.h
-// json_object_get_uint64 at json_object.c:872:10 in json_object.h
-// json_object_int_inc at json_object.c:943:5 in json_object.h
-// json_object_put at json_object.c:272:5 in json_object.h
+// array_list_new2 at arraylist.c:44:20 in arraylist.h
+// array_list_free at arraylist.c:64:13 in arraylist.h
+// array_list_insert_idx at arraylist.c:128:5 in arraylist.h
+// array_list_free at arraylist.c:64:13 in arraylist.h
+// array_list_add at arraylist.c:175:5 in arraylist.h
+// array_list_free at arraylist.c:64:13 in arraylist.h
+// array_list_put_idx at arraylist.c:150:5 in arraylist.h
+// array_list_free at arraylist.c:64:13 in arraylist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,51 +16,109 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include "arraylist.h"
+}
+
 #include <cstdint>
 #include <cstdlib>
-#include <cerrno>
-#include <cstring>
-#include <json_util.h>
-#include <json_object.h>
-#include <limits.h>
+
+static void dummy_free(void *data) {
+    // Dummy free function for demonstration purposes.
+    // Normally, you would free any allocated resources here.
+}
 
 extern "C" int LLVMFuzzerTestOneInput_94(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Create a null-terminated string from the input data
-    char *inputStr = static_cast<char *>(malloc(Size + 1));
-    if (!inputStr) return 0;
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
-
-    // Fuzz json_parse_uint64
-    uint64_t uint64_val;
-    json_parse_uint64(inputStr, &uint64_val);
-
-    // Fuzz json_parse_int64
-    int64_t int64_val;
-    json_parse_int64(inputStr, &int64_val);
-
-    // Fuzz json_object_new_int64
-    struct json_object *jsonObj = json_object_new_int64(int64_val);
-
-    if (jsonObj) {
-        // Fuzz json_object_get_int64
-        errno = 0;
-        json_object_get_int64(jsonObj);
-
-        // Fuzz json_object_get_uint64
-        errno = 0;
-        json_object_get_uint64(jsonObj);
-
-        // Fuzz json_object_int_inc with a random increment value
-        int64_t inc_val = static_cast<int64_t>(Data[0]);
-        json_object_int_inc(jsonObj, inc_val);
-
-        // Proper cleanup
-        json_object_put(jsonObj);
+    if (Size < 1) {
+        return 0;
     }
 
-    free(inputStr);
+    // Use the first byte of data to decide initial size for array_list_new2
+    int initial_size = Data[0];
+
+    // Create a new array_list using array_list_new2
+    struct array_list *al = array_list_new2(dummy_free, initial_size);
+    if (!al) {
+        return 0;
+    }
+
+    // Insert data into the array list at various indices
+    for (size_t i = 1; i < Size; ++i) {
+        void *data = malloc(1);  // Allocate dummy data
+        if (!data) {
+            array_list_free(al);
+            return 0;
+        }
+
+        // Try to insert at index i
+        array_list_insert_idx(al, i % (initial_size + 1), data);
+    }
+
+    // Add data to the end of the array list
+    for (size_t i = 1; i < Size; ++i) {
+        void *data = malloc(1);  // Allocate dummy data
+        if (!data) {
+            array_list_free(al);
+            return 0;
+        }
+
+        // Try to add data to the end of the list
+        array_list_add(al, data);
+    }
+
+    // Put data at specific indices
+    for (size_t i = 1; i < Size; ++i) {
+        void *data = malloc(1);  // Allocate dummy data
+        if (!data) {
+            array_list_free(al);
+            return 0;
+        }
+
+        // Try to put data at index i
+        array_list_put_idx(al, i % (initial_size + 1), data);
+    }
+
+    // Free the array list
+    array_list_free(al);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_94(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

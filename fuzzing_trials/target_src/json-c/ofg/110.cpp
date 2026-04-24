@@ -1,38 +1,79 @@
 #include <fuzzer/FuzzedDataProvider.h>
+#include <cstdio>
+#include <cstring>
+#include <unistd.h> // For close() and remove()
+
+// Include the necessary headers from json-c
 #include "/src/json-c/json_object.h"
 #include "/src/json-c/json_tokener.h"
-#include <cstddef>
-#include <cstdint>
-#include <vector>
+#include "/src/json-c/json_util.h" // Include the header instead of the implementation file
 
 extern "C" int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Initialize FuzzedDataProvider with input data
+    // Initialize FuzzedDataProvider
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Consume a portion of the data to create a json_object for the array
-    std::string array_data = fuzzed_data.ConsumeRandomLengthString();
-    struct json_object *json_array = json_tokener_parse(array_data.c_str());
-    if (!json_array) {
-        return 0; // Exit if json_array creation failed
+    // Create a temporary file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Exit if file creation fails
     }
+    close(fd); // Close the file descriptor, we'll use the filename
 
-    // Consume a size_t index
-    size_t index = fuzzed_data.ConsumeIntegral<size_t>();
+    // Create a JSON object
+    struct json_object *jobj = json_tokener_parse(
+        fuzzed_data.ConsumeRemainingBytesAsString().c_str());
 
-    // Consume remaining data to create another json_object
-    std::string obj_data = fuzzed_data.ConsumeRemainingBytesAsString();
-    struct json_object *json_obj = json_tokener_parse(obj_data.c_str());
-    if (!json_obj) {
-        json_object_put(json_array); // Clean up before exiting
-        return 0; // Exit if json_obj creation failed
+    if (jobj == nullptr) {
+        remove(tmpl);
+        return 0; // Exit if JSON parsing fails
     }
 
     // Call the function-under-test
-    json_object_array_put_idx(json_array, index, json_obj);
+    json_object_to_file(tmpl, jobj);
 
-    // Clean up
-    json_object_put(json_array);
-    json_object_put(json_obj);
+    // Cleanup
+    json_object_put(jobj);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_110(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

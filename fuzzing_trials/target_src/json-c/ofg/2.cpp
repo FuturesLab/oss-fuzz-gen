@@ -1,50 +1,65 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include "/src/json-c/arraylist.h" // Include the header for array_list_length
+#include <cstdint>
+#include <cstddef>
+#include <string>
 
-// Function-under-test
-size_t array_list_length(struct array_list *);
+// Include the correct headers for the json-c library
+#include "/src/json-c/json_object.h"
+#include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
+    // Initialize FuzzedDataProvider with the given data and size
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create an instance of struct array_list
-    struct array_list list;
+    // Consume a random length string from the fuzzed data to create a JSON object
+    std::string json_string = fuzzed_data.ConsumeRandomLengthString();
 
-    // Initialize the array_list fields
-    list.length = fuzzed_data.ConsumeIntegral<size_t>();
-    list.size = fuzzed_data.ConsumeIntegral<size_t>();
+    // Parse the JSON string to create a json_object
+    struct json_object *json_obj = json_tokener_parse(json_string.c_str());
 
-    // Allocate memory for the array, ensuring it's not NULL
-    list.array = static_cast<void **>(malloc(list.size * sizeof(void *)));
-    if (list.array == nullptr) {
-        return 0; // Exit if memory allocation failed
+    // Call the function-under-test with the created json_object
+    if (json_obj != NULL) {
+        json_object_put(json_obj);
     }
-
-    // Fill the array with non-null pointers
-    for (size_t i = 0; i < list.size; ++i) {
-        list.array[i] = malloc(1); // Allocate a byte for each element
-        if (list.array[i] == nullptr) {
-            // If allocation fails, clean up and exit
-            for (size_t j = 0; j < i; ++j) {
-                free(list.array[j]);
-            }
-            free(list.array);
-            return 0;
-        }
-    }
-
-    // Call the function-under-test
-    size_t result = array_list_length(&list);
-
-    // Clean up allocated memory
-    for (size_t i = 0; i < list.size; ++i) {
-        free(list.array[i]);
-    }
-    free(list.array);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

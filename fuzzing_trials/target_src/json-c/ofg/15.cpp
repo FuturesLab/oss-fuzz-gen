@@ -1,7 +1,7 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <json-c/json_tokener.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "/src/json-c/json_tokener.h"
+#include <cstdlib>
+#include <string>
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
     // Initialize FuzzedDataProvider with the input data
@@ -9,26 +9,58 @@ extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
 
     // Create a json_tokener object
     struct json_tokener *tok = json_tokener_new();
-
-    // Ensure tokener is not NULL
-    if (tok == nullptr) {
-        return 0;
+    if (!tok) {
+        return 0; // Return if json_tokener_new fails
     }
 
-    // Consume a random length string from the fuzzed data
-    std::string json_string = fuzzed_data.ConsumeRandomLengthString();
-
-    // Parse the JSON string
-    json_object *jobj = json_tokener_parse_ex(tok, json_string.c_str(), json_string.size());
+    // Consume a string from the fuzzed data to simulate JSON parsing
+    std::string json_string = fuzzed_data.ConsumeRemainingBytesAsString();
+    json_tokener_parse_ex(tok, json_string.c_str(), json_string.size());
 
     // Call the function-under-test
-    json_tokener_error error = json_tokener_get_error(tok);
+    enum json_tokener_error error = json_tokener_get_error(tok);
 
     // Clean up
-    if (jobj != nullptr) {
-        json_object_put(jobj);
-    }
     json_tokener_free(tok);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

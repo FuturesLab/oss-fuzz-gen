@@ -1,31 +1,82 @@
 #include <fuzzer/FuzzedDataProvider.h>
+#include "/src/json-c/json_object.h" // Correct path for json-c library
 #include <cstddef>
 #include <cstdint>
-#include <string>
+#include <cstring>
+#include <vector>
 
-// Include the correct headers from the json-c library
-#include "/src/json-c/json_object.h"
-#include "/src/json-c/json_tokener.h"
+// Example serializer function
+int example_serializer(struct json_object *obj, struct printbuf *pb, int level, int flags) {
+    return sprintbuf(pb, "{}"); // Simple example appending an empty JSON object
+}
+
+// Example delete function
+void example_delete(struct json_object *obj, void *ptr) {
+    // Example delete function that does nothing
+}
 
 extern "C" int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Create a FuzzedDataProvider to extract data from the fuzzing input
-    FuzzedDataProvider fuzzed_data_provider(data, size);
+    FuzzedDataProvider fuzzed_data(data, size);
 
-    // Consume a random length string to create a JSON object
-    std::string json_string = fuzzed_data_provider.ConsumeRandomLengthString();
+    // Create a json_object
+    json_object *jsonObj = json_object_new_object();
 
-    // Parse the JSON string into a json_object
-    struct json_object *json_obj = json_tokener_parse(json_string.c_str());
+    // Function pointers
+    json_object_to_json_string_fn *to_json_fn = example_serializer;
+    json_object_delete_fn *delete_fn = example_delete;
 
-    // If parsing was successful and the json_obj is not NULL, call the function
-    if (json_obj != NULL) {
-        // Assuming json_object_get_array is a function that needs to be tested
-        // Since json_object_get_array is not a standard function in json-c, this line is commented out
-        // struct array_list *result = json_object_get_array(json_obj);
+    // Consume some bytes for a void pointer, we will just use it as a dummy pointer
+    std::string dummy_data = fuzzed_data.ConsumeRandomLengthString(size);
 
-        // Clean up the json_object to avoid memory leaks
-        json_object_put(json_obj);
+    // Ensure the size of the string is equal to the argument given to ConsumeRandomLengthString
+    if (dummy_data.size() <= size) {
+        void *userdata = const_cast<char*>(dummy_data.data());
+
+        // Call the function-under-test
+        json_object_set_serializer(jsonObj, to_json_fn, userdata, delete_fn);
     }
+
+    // Cleanup
+    json_object_put(jsonObj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_84(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

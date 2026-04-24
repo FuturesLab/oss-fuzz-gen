@@ -1,58 +1,69 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-
-// Define the array_list structure
-struct array_list {
-    void **array;
-    size_t size;
-    size_t capacity;
-};
-
-// Function to free the memory allocated for an array_list
-void array_list_free(struct array_list *list) {
-    if (!list || !list->array) return;
-    for (size_t i = 0; i < list->size; ++i) {
-        free(list->array[i]);
-    }
-    free(list->array);
-    list->array = NULL;
-    list->size = 0;
-    list->capacity = 0;
-}
+#include "/src/json-c/json_object.h"
+#include "/src/json-c/json_tokener.h"
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+#include <string>
 
 extern "C" int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create a new array_list
-    struct array_list list;
+    // Consume a portion of the input data to create the first JSON object
+    std::string first_json_string = fuzzed_data.ConsumeRandomLengthString(size / 2);
+    struct json_object *json_obj1 = json_tokener_parse(first_json_string.c_str());
 
-    // Initialize the size and capacity
-    list.size = fuzzed_data.ConsumeIntegralInRange<size_t>(1, 100);
-    list.capacity = fuzzed_data.ConsumeIntegralInRange<size_t>(list.size, 200);
+    // Consume the remaining input data to create the second JSON object
+    std::string second_json_string = fuzzed_data.ConsumeRemainingBytesAsString();
+    struct json_object *json_obj2 = json_tokener_parse(second_json_string.c_str());
 
-    // Allocate memory for the array
-    list.array = static_cast<void **>(malloc(list.capacity * sizeof(void *)));
-    if (!list.array) {
-        return 0; // If allocation fails, exit early
+    if (json_obj1 && json_obj2) {
+        // Call the function-under-test
+        json_object_equal(json_obj1, json_obj2);
     }
 
-    // Fill the array with non-null pointers
-    for (size_t i = 0; i < list.size; ++i) {
-        list.array[i] = malloc(1); // Allocate 1 byte for each element
-        if (!list.array[i]) {
-            // If allocation fails, free previously allocated memory and exit
-            for (size_t j = 0; j < i; ++j) {
-                free(list.array[j]);
-            }
-            free(list.array);
-            return 0;
-        }
-    }
-
-    // Call the function-under-test
-    array_list_free(&list);
+    // Clean up
+    if (json_obj1) json_object_put(json_obj1);
+    if (json_obj2) json_object_put(json_obj2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_72(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

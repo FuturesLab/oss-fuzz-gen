@@ -1,54 +1,80 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "fuzzer/FuzzedDataProvider.h"
-#include <cstdint>
-#include <cstddef>
-#include <vector>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string>
-#include "/src/json-c/linkhash.h" // Correct path for the required header
-
-// Function-under-test
-int lh_table_insert(struct lh_table *, const void *, const void *);
-
-// Function to initialize a dummy lh_table
-struct lh_table* initialize_lh_table_36() {
-  // Properly initialize the lh_table using json-c API
-  return lh_kchar_table_new(16, NULL); // Corrected function call with 2 arguments
-}
+#include "/src/json-c/json_object.h"
+#include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-  FuzzedDataProvider fuzzed_data(data, size);
+  FuzzedDataProvider fuzzed_data_provider(data, size);
 
-  // Create and initialize a dummy lh_table object
-  struct lh_table *table = initialize_lh_table_36();
-  if (!table) {
-    return 0; // Handle initialization failure
+  // Create a json_object from a string
+  std::string json_string = fuzzed_data_provider.ConsumeRandomLengthString();
+  struct json_object *source_json = json_tokener_parse(json_string.c_str());
+
+  // Prepare the destination json_object pointer
+  struct json_object *dest_json = NULL;
+
+  // Define a shallow copy function with the correct signature
+  json_c_shallow_copy_fn *shallow_copy_fn = [](struct json_object *src, struct json_object *parent, const char *key, unsigned long index, struct json_object **dst) -> int {
+    *dst = json_object_get(src);
+    return (*dst != NULL) ? 0 : -1;
+  };
+
+  // Call the function under test
+  if (source_json != NULL) {
+    json_object_deep_copy(source_json, &dest_json, shallow_copy_fn);
   }
 
-  // Consume a random length string for the key and value from the fuzzed data
-  std::string key = fuzzed_data.ConsumeRandomLengthString(100);
-  std::string value = fuzzed_data.ConsumeRandomLengthString(100);
-
-  // Ensure that key and value are not empty
-  if (key.empty() || value.empty()) {
-    lh_table_free(table); // Free the table if no valid input
-    return 0;
+  // Clean up
+  if (source_json != NULL) {
+    json_object_put(source_json);
   }
-
-  // Call the function-under-test
-  lh_table_insert(table, key.data(), value.data());
-
-  // Cleanup: free the table after use
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lh_table_insert to json_object_set_userdata
-  struct json_object* ret_json_object_new_array_ext_kjhmt = json_object_new_array_ext(-1);
-  if (ret_json_object_new_array_ext_kjhmt == NULL){
-  	return 0;
+  if (dest_json != NULL) {
+    json_object_put(dest_json);
   }
-
-  json_object_set_userdata(ret_json_object_new_array_ext_kjhmt, (void *)table, NULL);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  lh_table_free(table);
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_36(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

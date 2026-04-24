@@ -1,30 +1,82 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include "/src/json-c/json_object.h"
-#include <stddef.h>
-#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <string>
+#include "/src/json-c/json_object.h" // Include for json_object functions
+#include "/src/json-c/json_tokener.h" // Include for json_tokener_parse
+#include "/src/json-c/json_util.h" // Include for declarations of json_object_to_fd and other utility functions
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-  FuzzedDataProvider fuzzed_data(data, size);
+    // Initialize FuzzedDataProvider
+    FuzzedDataProvider fuzzed_data(data, size);
 
-  // Create a json_object
-  struct json_object *json_obj1 = json_object_new_object();
-  struct json_object *json_obj2 = json_object_new_object();
+    // Create a temporary file for the file descriptor
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If mkstemp fails, exit early
+    }
 
-  // Consume a string for the key
-  std::string key = fuzzed_data.ConsumeRandomLengthString();
-  const char *key_cstr = key.c_str();
+    // Ensure the file descriptor is valid by opening it
+    fcntl(fd, F_SETFD, FD_CLOEXEC);
 
-  // Consume a string for the value and convert it to a json_object
-  std::string value_str = fuzzed_data.ConsumeRandomLengthString();
-  struct json_object *value_obj = json_object_new_string(value_str.c_str());
+    // Consume some bytes to create a JSON object
+    std::string json_str = fuzzed_data.ConsumeRandomLengthString();
+    struct json_object *jobj = json_tokener_parse(json_str.c_str());
+    if (jobj == nullptr) {
+        close(fd);
+        return 0; // If parsing fails, exit early
+    }
 
-  // Call the function-under-test
-  json_object_object_add(json_obj1, key_cstr, value_obj);
+    // Consume an integer for the flag
+    int flag = fuzzed_data.ConsumeIntegral<int>();
 
-  // Clean up
-  json_object_put(json_obj1);
-  json_object_put(json_obj2);
+    // Call the function-under-test
+    json_object_to_fd(fd, jobj, flag);
 
-  return 0;
+    // Clean up
+    json_object_put(jobj);
+    close(fd);
+    unlink(tmpl); // Remove the temporary file
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

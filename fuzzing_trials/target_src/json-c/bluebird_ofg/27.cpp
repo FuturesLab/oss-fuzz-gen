@@ -1,56 +1,86 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "fuzzer/FuzzedDataProvider.h"
+#include <string>
 #include "/src/json-c/json_object.h"
 #include "/src/json-c/json_tokener.h"
-#include <stddef.h>
-#include <stdint.h>
+#include "/src/json-c/json_util.h"
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
+    // Initialize the FuzzedDataProvider with the input data
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create a source json_object from the fuzzed data
-    std::string json_string = fuzzed_data.ConsumeRandomLengthString(fuzzed_data.remaining_bytes());
-    struct json_object *src = json_tokener_parse(json_string.c_str());
+    // Extract a boolean value from the fuzzed data
+    json_bool bool_value = fuzzed_data.ConsumeBool();
 
-    // Prepare a destination json_object pointer
-    struct json_object *dst = nullptr;
+    // Create a JSON object with the boolean value
+    struct json_object *json_obj = json_object_new_boolean(bool_value);
 
-    // Define a shallow copy function pointer, set to nullptr for default behavior
-    json_c_shallow_copy_fn *shallow_copy_fn = nullptr;
+    // Extract a string from the fuzzed data with a reasonable length limit
+    std::string json_string = fuzzed_data.ConsumeRandomLengthString(1024);
 
-    // Call the function-under-test
+    // Ensure the string is not empty before attempting to parse
+    if (!json_string.empty()) {
+        // Attempt to parse the string as a JSON object
+        struct json_object *parsed_obj = json_tokener_parse(json_string.c_str());
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_tokener_parse to json_object_set_int64
-    uint64_t ret_json_object_get_uint64_tdijy = json_object_get_uint64(src);
-    if (ret_json_object_get_uint64_tdijy < 0){
-    	return 0;
-    }
+        // If parsing was successful, perform operations on the parsed object
+        if (parsed_obj != nullptr) {
+            // Add the boolean JSON object to the parsed JSON object
+            json_object_object_add(parsed_obj, "bool_value", json_obj);
 
-    int ret_json_object_set_int64_uvsjp = json_object_set_int64(src, (int64_t )ret_json_object_get_uint64_tdijy);
-    if (ret_json_object_set_int64_uvsjp < 0){
-    	return 0;
-    }
+            // Serialize the JSON object back to a string
+            const char *serialized = json_object_to_json_string(parsed_obj);
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    json_object_deep_copy(src, &dst, shallow_copy_fn);
-
-    // Clean up
-    if (src) {
-        json_object_put(src);
-    }
-    if (dst) {
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_deep_copy to json_object_set_double
-
-    int ret_json_object_set_double_vnfzm = json_object_set_double(dst, JSON_C_TO_STRING_SPACED);
-    if (ret_json_object_set_double_vnfzm < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-        json_object_put(dst);
+            // Clean up the parsed JSON object
+            json_object_put(parsed_obj);
+        } else {
+            // Clean up the boolean JSON object if parsing failed
+            json_object_put(json_obj);
+        }
+    } else {
+        // Clean up the boolean JSON object if the string is empty
+        json_object_put(json_obj);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

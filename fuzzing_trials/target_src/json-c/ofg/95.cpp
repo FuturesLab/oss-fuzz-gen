@@ -1,45 +1,59 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
-extern "C" {
-    struct lh_entry {
-        struct lh_entry *next;
-        struct lh_entry *prev;
-        void *k;
-        const void *v;
-        unsigned k_is_constant:1;
-    };
-
-    struct lh_table {
-        int size;
-        int count;
-        struct lh_entry *head;
-        struct lh_entry *tail;
-        struct lh_entry *table;
-        void *free_fn;
-        void *resize_fn;
-        unsigned char *buckets;
-    };
-
-    int lh_table_length(struct lh_table *);
-}
+#include "/src/json-c/json_object.h" // Correct path for json-c library
 
 extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
+    // Initialize the FuzzedDataProvider with the input data
     FuzzedDataProvider fuzzed_data(data, size);
 
-    struct lh_table table;
-    table.size = fuzzed_data.ConsumeIntegral<int>();
-    table.count = fuzzed_data.ConsumeIntegral<int>();
-    table.head = reinterpret_cast<struct lh_entry*>(fuzzed_data.ConsumeIntegral<uintptr_t>());
-    table.tail = reinterpret_cast<struct lh_entry*>(fuzzed_data.ConsumeIntegral<uintptr_t>());
-    table.table = reinterpret_cast<struct lh_entry*>(fuzzed_data.ConsumeIntegral<uintptr_t>());
-    table.free_fn = reinterpret_cast<void*>(fuzzed_data.ConsumeIntegral<uintptr_t>());
-    table.resize_fn = reinterpret_cast<void*>(fuzzed_data.ConsumeIntegral<uintptr_t>());
-    table.buckets = reinterpret_cast<unsigned char*>(fuzzed_data.ConsumeIntegral<uintptr_t>());
+    // Consume an integer value for the function parameter
+    int array_size = fuzzed_data.ConsumeIntegral<int>();
 
-    int length = lh_table_length(&table);
+    // Call the function-under-test with the fuzzed parameter
+    struct json_object *json_array = json_object_new_array_ext(array_size);
+
+    // Clean up the created json_object to prevent memory leaks
+    if (json_array != nullptr) {
+        json_object_put(json_array);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_95(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

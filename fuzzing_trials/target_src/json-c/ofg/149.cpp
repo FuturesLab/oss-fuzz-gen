@@ -1,20 +1,70 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include "/src/json-c/json_object.h"
+#include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_149(const uint8_t *data, size_t size) {
-    // Create a FuzzedDataProvider to generate inputs
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create a new JSON object using the function-under-test
-    struct json_object *new_obj = json_object_new_object();
+    // Create a json_tokener object
+    struct json_tokener *tokener = json_tokener_new();
 
-    // Use the fuzzed data to add a string to the JSON object
-    std::string key = fuzzed_data.ConsumeRandomLengthString(10);
-    std::string value = fuzzed_data.ConsumeRandomLengthString(50);
-    json_object_object_add(new_obj, key.c_str(), json_object_new_string(value.c_str()));
+    // Check if tokener is not null
+    if (tokener == nullptr) {
+        return 0;
+    }
 
-    // Clean up the allocated JSON object
-    json_object_put(new_obj);
+    // Use the fuzzed data to create a JSON string
+    std::string json_string = fuzzed_data.ConsumeRandomLengthString();
+
+    // Parse the JSON string
+    json_object *jobj = json_tokener_parse_ex(tokener, json_string.c_str(), json_string.length());
+
+    // Check if parsing was successful
+    if (jobj != nullptr) {
+        // Free the json_object
+        json_object_put(jobj);
+    }
+
+    // Free the json_tokener object
+    json_tokener_free(tokener);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_149(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

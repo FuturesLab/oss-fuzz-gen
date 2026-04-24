@@ -1,7 +1,6 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "fuzzer/FuzzedDataProvider.h"
-#include <stdint.h>
-#include <vector>
-#include <string>
 #include "/src/json-c/json_object.h"
 #include "/src/json-c/json_tokener.h"
 
@@ -9,35 +8,65 @@ extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
     // Initialize FuzzedDataProvider with the input data
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create a json_object from the remaining bytes
-    std::vector<uint8_t> json_bytes = fuzzed_data.ConsumeRemainingBytes<uint8_t>();
-    
-    // Ensure the json_bytes vector is null-terminated for safe string conversion
-    json_bytes.push_back('\0');
-    
-    struct json_object *jobj = json_tokener_parse(reinterpret_cast<const char*>(json_bytes.data()));
+    // Consume a string from the fuzzed data, which could represent a JSON string
+    std::string json_string = fuzzed_data.ConsumeRandomLengthString(size);
 
-    // If parsing failed, return early
-    if (jobj == nullptr) {
-        return 0;
+    // Attempt to parse the JSON string into a json_object
+    struct json_object *json_obj = json_tokener_parse(json_string.c_str());
+
+    // If parsing was successful, perform some operations on the json_object
+    if (json_obj != nullptr) {
+        // Get a string representation of the JSON object
+        const char *json_str = json_object_to_json_string(json_obj);
+
+        // Check if the JSON object is an int and retrieve its value
+        if (json_object_is_type(json_obj, json_type_int)) {
+            int64_t int_value = json_object_get_int64(json_obj);
+            // Optionally, perform some operations with int_value
+        }
+
+        // Clean up the created json_object to avoid memory leaks
+        json_object_put(json_obj);
     }
-
-    // Consume an int64_t value from the fuzzed data
-    int64_t increment_value = fuzzed_data.ConsumeIntegral<int64_t>();
-
-    // Check if the json_object is of integer type before calling json_object_int_inc
-    if (json_object_is_type(jobj, json_type_int)) {
-        // Call the function-under-test
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of json_object_int_inc
-        json_object_int_inc(jobj, JSON_C_OBJECT_ADD_CONSTANT_KEY);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    }
-
-    // Decrement reference count to free the json_object
-    json_object_put(jobj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -11,110 +13,103 @@
 #include "/src/json-c/json_object.h"
 #include <fcntl.h>
 #include <unistd.h>
-#include <cstdint>
-#include <cstdlib>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <cstdio>
-
-static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    // Step 1: Write data to a dummy file
-    write_to_dummy_file(Data, Size);
+    // Create a temporary file for testing file descriptor functions
+    const char *filename = "./dummy_file";
+    int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Step 2: Test json_object_from_file
-    struct json_object *obj = json_object_from_file("./dummy_file");
-    if (obj) {
-        // Step 3: Test json_object_to_json_string_length
-        size_t length;
-        const char *json_str = json_object_to_json_string_length(obj, JSON_C_TO_STRING_PLAIN, &length);
+    // Write input data to the file
+    if (write(fd, Data, Size) != (ssize_t)Size) {
+        close(fd);
+        return 0;
+    }
 
-        // Step 4: Test json_object_to_json_string_ext
+    // Reset file descriptor position
+    lseek(fd, 0, SEEK_SET);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_to_json_string_length to json_object_from_fd_ex
-        uint64_t ret_json_object_get_uint64_nxvfo = json_object_get_uint64(obj);
-        if (ret_json_object_get_uint64_nxvfo < 0){
-        	return 0;
-        }
+    // Test json_object_from_fd
+    struct json_object *obj_from_fd = json_object_from_fd(fd);
+    if (obj_from_fd) {
+        // Test json_object_to_fd
+        json_object_to_fd(fd, obj_from_fd, JSON_C_TO_STRING_PLAIN);
 
-        struct json_object* ret_json_object_from_fd_ex_lgxhg = json_object_from_fd_ex((int )length, (int )ret_json_object_get_uint64_nxvfo);
-        if (ret_json_object_from_fd_ex_lgxhg == NULL){
-        	return 0;
-        }
+        // Test json_object_set_boolean
+        json_object_set_boolean(obj_from_fd, 1);
 
-        // End mutation: Producer.APPEND_MUTATOR
+        // Test json_object_object_add_ex
+        struct json_object *new_obj = json_object_new_object();
+        json_object_object_add_ex(new_obj, "key", obj_from_fd, JSON_C_OBJECT_ADD_KEY_IS_NEW);
 
-        const char *json_str_ext = json_object_to_json_string_ext(obj, JSON_C_TO_STRING_PRETTY);
-
-        // Step 5: Test json_object_to_file
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_to_json_string_ext to json_object_set_uint64
-        uint64_t ret_json_object_get_uint64_dxvbj = json_object_get_uint64(NULL);
-        if (ret_json_object_get_uint64_dxvbj < 0){
-        	return 0;
-        }
-
-        int ret_json_object_set_uint64_nzxvi = json_object_set_uint64(obj, ret_json_object_get_uint64_dxvbj);
-        if (ret_json_object_set_uint64_nzxvi < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        int result = json_object_to_file("./dummy_file", obj);
-
-        // Step 6: Test json_object_to_fd
-        int fd = open("./dummy_file", O_WRONLY | O_CREAT, 0644);
-        if (fd != -1) {
-
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of json_object_to_fd
-            result = json_object_to_fd(fd, obj, 64);
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-            close(fd);
-        }
-
-        // Step 7: Test json_object_to_file_ext
-        result = json_object_to_file_ext("./dummy_file", obj, JSON_C_TO_STRING_PRETTY);
+        // Test json_object_to_file
+        json_object_to_file(filename, new_obj);
 
         // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_from_file to json_object_set_userdata
-    struct json_object* ret_json_object_new_boolean_yzuro = json_object_new_boolean(0);
-    if (ret_json_object_new_boolean_yzuro == NULL){
-    	return 0;
+        json_object_put(new_obj);
     }
 
-    json_object_set_userdata(obj, (void *)ret_json_object_new_boolean_yzuro, NULL);
+    // Reset file descriptor position
+    lseek(fd, 0, SEEK_SET);
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_set_userdata to json_object_object_get_ex
-    void* ret_json_object_get_userdata_zytxf = json_object_get_userdata(obj);
-    if (ret_json_object_get_userdata_zytxf == NULL){
-    	return 0;
-    }
-    struct json_object* ret_json_object_new_int64_cziuo = json_object_new_int64(Size);
-    if (ret_json_object_new_int64_cziuo == NULL){
-    	return 0;
+    // Test json_object_from_fd_ex
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of json_object_from_fd_ex
+    struct json_object *obj_from_fd_ex = json_object_from_fd_ex(fd, JSON_C_OPTION_GLOBAL);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (obj_from_fd_ex) {
+        json_object_put(obj_from_fd_ex);
     }
 
-    int ret_json_object_object_get_ex_bxmxs = json_object_object_get_ex(obj, (const char *)ret_json_object_get_userdata_zytxf, &ret_json_object_new_int64_cziuo);
-    if (ret_json_object_object_get_ex_bxmxs < 0){
-    	return 0;
-    }
+    // Close the file descriptor
+    close(fd);
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-        json_object_put(obj);
-    }
+    // Remove the temporary file
+    remove(filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

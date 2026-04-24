@@ -1,28 +1,72 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "fuzzer/FuzzedDataProvider.h"
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <string>
 
-extern "C" int json_c_set_serialization_double_format(const char *, int);
+// Include the correct json-c headers
+#include "/src/json-c/json_object.h"
+#include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Initialize the FuzzedDataProvider with the input data
-    FuzzedDataProvider fuzzed_data_provider(data, size);
+    // Initialize FuzzedDataProvider with the input data
+    FuzzedDataProvider fuzzed_data(data, size);
 
-    // Consume a string for the first parameter
-    std::string format_string = fuzzed_data_provider.ConsumeRandomLengthString();
-    const char *format_cstr = format_string.c_str();
+    // Consume a string from the fuzzed data
+    std::string json_string = fuzzed_data.ConsumeRemainingBytesAsString();
 
-    // Consume an integer for the second parameter
-    int num_digits = fuzzed_data_provider.ConsumeIntegral<int>();
+    // Parse the JSON string to a json_object
+    struct json_object *jobj = json_tokener_parse(json_string.c_str());
 
-    // Call the function under test
+    // Ensure the json_object is not NULL
+    if (jobj != nullptr) {
+        // Call the function-under-test
+        int64_t result = json_object_get_int64(jobj);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of json_c_set_serialization_double_format
-    json_c_set_serialization_double_format(NULL, num_digits);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+        // Free the json_object
+        json_object_put(jobj);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

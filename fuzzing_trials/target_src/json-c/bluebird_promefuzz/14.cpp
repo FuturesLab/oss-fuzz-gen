@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -11,64 +13,107 @@ extern "C" {
 #include "/src/json-c/json_util.h"
 #include "/src/json-c/json_object.h"
 #include <errno.h>
-#include <stdint.h>
-#include <math.h>
 }
 
-#include "fuzzer/FuzzedDataProvider.h"
-#include <string>
+#include <cstdint>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    FuzzedDataProvider fuzzed_data(Data, Size);
-
-    // Fuzzing json_object_new_double_s
-    double double_value = fuzzed_data.ConsumeFloatingPoint<double>();
-    std::string double_string = fuzzed_data.ConsumeRandomLengthString(100);
-    struct json_object *obj_double_s = json_object_new_double_s(double_value, double_string.c_str());
-    if (obj_double_s) {
-        json_object_put(obj_double_s);
+    if (Size < 1) {
+        return 0;
     }
 
-    // Fuzzing json_object_get_double
-    struct json_object *obj_double = json_object_new_double(double_value);
-    if (obj_double) {
+    // 1. Fuzz json_object_new_int64
+    int64_t int64_input;
+    if (Size >= sizeof(int64_t)) {
+        memcpy(&int64_input, Data, sizeof(int64_t));
+        struct json_object *obj = json_object_new_int64(int64_input);
+        if (obj) {
+            json_object_put(obj); // Cleanup
+        }
+    }
+
+    // 2. Fuzz json_object_get_int64
+    struct json_object *int_obj = json_object_new_int64(0); // Create a dummy object
+    if (int_obj) {
         errno = 0;
-        double retrieved_double = json_object_get_double(obj_double);
-        if (errno != 0) {
-            // Handle error
-        }
-        json_object_put(obj_double);
+        json_object_get_int64(int_obj);
+        json_object_put(int_obj); // Cleanup
     }
 
-    // Fuzzing json_object_set_double
-    struct json_object *obj_set_double = json_object_new_double(double_value);
-    if (obj_set_double) {
-        double new_double_value = fuzzed_data.ConsumeFloatingPoint<double>();
-        int set_result = json_object_set_double(obj_set_double, new_double_value);
-        if (set_result != 0) {
-            // Successfully set the double value
-        }
-        json_object_put(obj_set_double);
+    // 3. Fuzz json_parse_int64
+    char *str_input = new char[Size + 1];
+    memcpy(str_input, Data, Size);
+    str_input[Size] = '\0'; // Null-terminate
+    int64_t parsed_value;
+    json_parse_int64(str_input, &parsed_value);
+    delete[] str_input; // Cleanup
+
+    // 4. Fuzz json_parse_uint64
+    // Ensure null-termination for safe string operations
+    char *u_str_input = new char[Size + 1];
+    memcpy(u_str_input, Data, Size);
+    u_str_input[Size] = '\0'; // Null-terminate
+    uint64_t parsed_uvalue;
+    json_parse_uint64(u_str_input, &parsed_uvalue);
+    delete[] u_str_input; // Cleanup
+
+    // 5. Fuzz json_object_int_inc
+    struct json_object *inc_obj = json_object_new_int64(0); // Create a dummy object
+    if (inc_obj) {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function json_object_int_inc with json_object_set_int64
+        json_object_set_int64(inc_obj, int64_input);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        json_object_put(inc_obj); // Cleanup
     }
 
-    // Fuzzing json_parse_double
-    std::string parse_double_string = fuzzed_data.ConsumeRandomLengthString(100);
-    double parsed_double;
-    int parse_result = json_parse_double(parse_double_string.c_str(), &parsed_double);
-    if (parse_result == 0) {
-        // Successfully parsed the double
-    }
-
-    // Fuzzing json_object_get_uint64
-    struct json_object *obj_uint64 = json_object_new_double(double_value);
-    if (obj_uint64) {
-        errno = 0;
-        uint64_t retrieved_uint64 = json_object_get_uint64(obj_uint64);
-        if (errno != 0) {
-            // Handle error
-        }
-        json_object_put(obj_uint64);
+    // 6. Fuzz json_type_to_name
+    enum json_type types[] = {
+        json_type_null, json_type_boolean, json_type_double,
+        json_type_int, json_type_object, json_type_array, json_type_string
+    };
+    for (auto type : types) {
+        json_type_to_name(type);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

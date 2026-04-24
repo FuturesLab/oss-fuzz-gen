@@ -1,23 +1,65 @@
 #include <fuzzer/FuzzedDataProvider.h>
+#include "/src/json-c/json_object.h"
 #include <cstddef>
 #include <cstdint>
 #include <string>
 
-extern "C" int json_c_set_serialization_double_format(const char *, int);
-
 extern "C" int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
-    // Initialize the FuzzedDataProvider with the input data
-    FuzzedDataProvider fuzzed_data_provider(data, size);
+    // Initialize FuzzedDataProvider with the fuzzing data
+    FuzzedDataProvider fuzzed_data(data, size);
 
-    // Consume a string for the first parameter
-    std::string format_string = fuzzed_data_provider.ConsumeRandomLengthString();
-    const char *format_cstr = format_string.c_str();
+    // Consume a random length string from the fuzzed data
+    std::string str = fuzzed_data.ConsumeRandomLengthString();
 
-    // Consume an integer for the second parameter
-    int num_digits = fuzzed_data_provider.ConsumeIntegral<int>();
+    // Consume an integer for the string length
+    int str_len = fuzzed_data.ConsumeIntegralInRange<int>(0, str.size());
 
-    // Call the function under test
-    json_c_set_serialization_double_format(format_cstr, num_digits);
+    // Call the function-under-test
+    struct json_object *json_obj = json_object_new_string_len(str.c_str(), str_len);
+
+    // Clean up the created json_object
+    if (json_obj != nullptr) {
+        json_object_put(json_obj);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_147(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,38 +1,78 @@
 #include <fuzzer/FuzzedDataProvider.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string>
 #include "/src/json-c/json_object.h"
 #include "/src/json-c/json_tokener.h"
-#include <cstddef>
-#include <cstdint>
 
 extern "C" int LLVMFuzzerTestOneInput_101(const uint8_t *data, size_t size) {
-    // Initialize FuzzedDataProvider with input data
-    FuzzedDataProvider fuzzed_data(data, size);
+  FuzzedDataProvider fuzzed_data_provider(data, size);
 
-    // Consume a random length string to create a JSON object
-    std::string json_string = fuzzed_data.ConsumeRandomLengthString(1024);
+  // Create a json_object from a string
+  std::string json_string = fuzzed_data_provider.ConsumeRandomLengthString();
+  struct json_object *source_json = json_tokener_parse(json_string.c_str());
 
-    // Parse the JSON string to a JSON object
-    struct json_object *json_obj = json_tokener_parse(json_string.c_str());
+  // Prepare the destination json_object pointer
+  struct json_object *dest_json = NULL;
 
-    // Ensure the JSON object is an array
-    if (!json_obj || !json_object_is_type(json_obj, json_type_array)) {
-        if (json_obj) {
-            json_object_put(json_obj); // Free the JSON object if not NULL
-        }
-        return 0;
-    }
+  // Define a shallow copy function with the correct signature
+  json_c_shallow_copy_fn *shallow_copy_fn = [](struct json_object *src, struct json_object *parent, const char *key, unsigned long index, struct json_object **dst) -> int {
+    *dst = json_object_get(src);
+    return (*dst != NULL) ? 0 : -1;
+  };
 
-    // Get the length of the JSON array
-    size_t array_length = json_object_array_length(json_obj);
+  // Call the function under test
+  if (source_json != NULL) {
+    json_object_deep_copy(source_json, &dest_json, shallow_copy_fn);
+  }
 
-    // Consume an index within the range of the array length
-    size_t index = fuzzed_data.ConsumeIntegralInRange<size_t>(0, array_length > 0 ? array_length - 1 : 0);
+  // Clean up
+  if (source_json != NULL) {
+    json_object_put(source_json);
+  }
+  if (dest_json != NULL) {
+    json_object_put(dest_json);
+  }
 
-    // Call the function-under-test
-    struct json_object *result = json_object_array_get_idx(json_obj, index);
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-    // Clean up
-    json_object_put(json_obj);
+    if(argc < 2)
+        exit(0);
 
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_101(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

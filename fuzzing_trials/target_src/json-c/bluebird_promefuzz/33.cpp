@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,110 +8,122 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "/src/json-c/json_util.h"
+extern "C" {
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "/src/json-c/linkhash.h"
 #include "/src/json-c/json_object.h"
-#include <fcntl.h>
-#include <unistd.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio>
-
-static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+#include "/src/json-c/json_tokener.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size) {
-    // Step 1: Write data to a dummy file
-    write_to_dummy_file(Data, Size);
-
-    // Step 2: Test json_object_from_file
-    struct json_object *obj = json_object_from_file("./dummy_file");
-    if (obj) {
-        // Step 3: Test json_object_to_json_string_length
-        size_t length;
-        const char *json_str = json_object_to_json_string_length(obj, JSON_C_TO_STRING_PLAIN, &length);
-
-        // Step 4: Test json_object_to_json_string_ext
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_to_json_string_length to json_object_double_to_json_string
-        struct printbuf qrivridm;
-        memset(&qrivridm, 0, sizeof(qrivridm));
-
-        int ret_json_object_double_to_json_string_rxxjk = json_object_double_to_json_string(obj, &qrivridm, JSON_OBJECT_DEF_HASH_ENTRIES, 1);
-        if (ret_json_object_double_to_json_string_rxxjk < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_double_to_json_string to json_object_array_get_idx
-        struct json_object* ret_json_object_new_array_dnybf = json_object_new_array();
-        if (ret_json_object_new_array_dnybf == NULL){
-        	return 0;
-        }
-
-        struct json_object* ret_json_object_array_get_idx_gkhpe = json_object_array_get_idx(ret_json_object_new_array_dnybf, (size_t )ret_json_object_double_to_json_string_rxxjk);
-        if (ret_json_object_array_get_idx_gkhpe == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        const char *json_str_ext = json_object_to_json_string_ext(obj, JSON_C_TO_STRING_PRETTY);
-
-        // Step 5: Test json_object_to_file
-        int result = json_object_to_file("./dummy_file", obj);
-
-        // Step 6: Test json_object_to_fd
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_to_file to json_object_array_insert_idx
-        struct json_object* ret_json_object_new_array_ext_mnihs = json_object_new_array_ext(JSON_C_OPTION_THREAD);
-        if (ret_json_object_new_array_ext_mnihs == NULL){
-        	return 0;
-        }
-        struct json_object* ret_json_object_get_amobz = json_object_get(obj);
-        if (ret_json_object_get_amobz == NULL){
-        	return 0;
-        }
-
-        int ret_json_object_array_insert_idx_aydwt = json_object_array_insert_idx(ret_json_object_new_array_ext_mnihs, (size_t )result, ret_json_object_get_amobz);
-        if (ret_json_object_array_insert_idx_aydwt < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        int fd = open("./dummy_file", O_WRONLY | O_CREAT, 0644);
-        if (fd != -1) {
-            result = json_object_to_fd(fd, obj, JSON_C_TO_STRING_PLAIN);
-            close(fd);
-        }
-
-        // Step 7: Test json_object_to_file_ext
-        result = json_object_to_file_ext("./dummy_file", obj, JSON_C_TO_STRING_PRETTY);
-
-        // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_from_file to json_object_set_int
-    int64_t ret_json_object_get_int64_nekgb = json_object_get_int64(obj);
-    if (ret_json_object_get_int64_nekgb < 0){
-    	return 0;
+    if (Size < 1) {
+        return 0;
     }
 
-    int ret_json_object_set_int_pquiw = json_object_set_int(obj, (int )ret_json_object_get_int64_nekgb);
-    if (ret_json_object_set_int_pquiw < 0){
-    	return 0;
+    // Ensure the input is null-terminated
+    std::vector<uint8_t> input(Data, Data + Size);
+    input.push_back('\0');
+
+    // Create a dummy JSON object
+    json_object *jobj = json_tokener_parse((const char *)input.data());
+    if (!jobj) {
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-        json_object_put(obj);
+    // Retrieve the linked hash table from the JSON object
+    lh_table *table = json_object_get_object(jobj);
+    if (!table) {
+        json_object_put(jobj);
+        return 0;
     }
 
+    // Test lh_table_head function
+    lh_entry *entry = lh_table_head(table);
+    if (entry) {
+        // Test lh_entry_prev function
+        lh_entry *prev_entry = lh_entry_prev(entry);
+
+        // Test lh_entry_next function
+        lh_entry *next_entry = lh_entry_next(entry);
+
+        // Test lh_entry_k function
+        void *key = lh_entry_k(entry);
+
+        // Test lh_entry_v function
+        void *value = lh_entry_v(entry);
+
+        // Test lh_table_lookup_entry_w_hash function
+        if (key) {
+            unsigned long hash = table->hash_fn(key);
+            lh_entry *lookup_entry = lh_table_lookup_entry_w_hash(table, key, hash);
+        
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lh_table_lookup_entry_w_hash to lh_table_lookup_ex
+            struct lh_table ytwmfjbb;
+            memset(&ytwmfjbb, 0, sizeof(ytwmfjbb));
+            int ret_lh_table_length_xeckt = lh_table_length(&ytwmfjbb);
+            if (ret_lh_table_length_xeckt < 0){
+            	return 0;
+            }
+            void* ret_json_object_get_userdata_lyhzq = json_object_get_userdata(NULL);
+            if (ret_json_object_get_userdata_lyhzq == NULL){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!table) {
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!ret_json_object_get_userdata_lyhzq) {
+            	return 0;
+            }
+            json_bool ret_lh_table_lookup_ex_aersk = lh_table_lookup_ex(&ytwmfjbb, (const void *)table, &ret_json_object_get_userdata_lyhzq);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+}
+    }
+
+    // Clean up
+    json_object_put(jobj);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,41 +1,61 @@
 #include <fuzzer/FuzzedDataProvider.h>
+#include "/src/json-c/json_object.h"
+#include "/src/json-c/json_tokener.h"
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-
-// Assuming the definition of struct array_list and related functions are provided elsewhere
-struct array_list {
-    void **array;
-    size_t length;
-    size_t capacity;
-};
-
-extern "C" size_t array_list_length(struct array_list *);
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    FuzzedDataProvider fuzzed_data(data, size);
+  FuzzedDataProvider stream(data, size);
 
-    // Create a dummy array_list structure
-    struct array_list list;
-    list.length = fuzzed_data.ConsumeIntegralInRange<size_t>(0, 1000);
-    list.capacity = fuzzed_data.ConsumeIntegralInRange<size_t>(list.length, 2000);
+  // Consume a random length string to use as JSON data
+  std::string json_string = stream.ConsumeRandomLengthString();
 
-    // Allocate memory for the array
-    list.array = static_cast<void **>(malloc(list.capacity * sizeof(void *)));
-    if (list.array == nullptr) {
-        return 0; // Exit if memory allocation fails
-    }
+  // Parse the JSON string to create a json_object
+  struct json_object *json_obj = json_tokener_parse(json_string.c_str());
 
-    // Populate the array with non-null pointers
-    for (size_t i = 0; i < list.length; ++i) {
-        list.array[i] = &list; // Point to the list itself to ensure non-null pointers
-    }
+  // Call the function-under-test
+  if (json_obj != nullptr) {
+    json_object_put(json_obj);
+  }
 
-    // Call the function-under-test
-    size_t result = array_list_length(&list);
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-    // Free the allocated memory
-    free(list.array);
+    if(argc < 2)
+        exit(0);
 
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif
