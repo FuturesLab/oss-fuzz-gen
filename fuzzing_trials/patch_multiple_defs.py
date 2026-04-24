@@ -20,15 +20,17 @@ if __name__ == "__main__":
 
     funcs_defined_multiple_times = extract_multiple_defs(build_log)
     for name in funcs_defined_multiple_times:
-        pattern = rf'\b{name}[[:space:]]*\([^)]*\)[[:space:]]*\{{'
+        pattern = rf'{name}\s*\([^)]*\)\s*\{{'
+
         find_definitions_cmd = [
             "grep",
-            "-R", "-l", "-E",
+            "-R", "-l", "-P", "-z",
             pattern,
             f"fuzzing_trials/target_src/{library_name}/{appr}"
         ]
 
         proc = sp.run(find_definitions_cmd, stdout=sp.PIPE, stderr=sp.PIPE, text=True)
+
         files = proc.stdout.split("\n")
         for filename in files:
             if not filename:
