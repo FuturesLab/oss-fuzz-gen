@@ -1,37 +1,45 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure we have enough data to work with
+    if (size < sizeof(hid_t) + sizeof(size_t) + 1) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Extract hid_t from the input data
+    hid_t attr_id = *(const hid_t *)data;
+    data += sizeof(hid_t);
+    size -= sizeof(hid_t);
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Extract size_t from the input data
+    size_t buf_size = *(const size_t *)data;
+    data += sizeof(size_t);
+    size -= sizeof(size_t);
+
+    // Ensure the buffer size is within the remaining data size
+    if (buf_size > size) {
+        buf_size = size;
+    }
+
+    // Allocate a buffer for the name
+    char *name_buf = (char *)malloc(buf_size + 1);
+    if (name_buf == NULL) {
         return 0;
     }
+
+    // Copy the remaining data into the buffer
+    memcpy(name_buf, data, buf_size);
+    name_buf[buf_size] = '\0';  // Null-terminate the buffer
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    ssize_t name_len = H5Aget_name(attr_id, buf_size, name_buf);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aread
-    hid_t ret_H5Dget_space_wczrb = H5Dget_space(0);
-    hid_t ret_H5Dget_space_aobhz = H5Dget_space(0);
-    herr_t ret_H5Aread_eiidg = H5Aread(ret_H5Dget_space_wczrb, ret_H5Dget_space_aobhz, (void *)name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Free allocated memory
+    free(name_buf);
 
     return 0;
 }

@@ -1,46 +1,83 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <stdlib.h> /* Include for malloc and free */
-#include "ares.h"
-#include "ares_dns_record.h" /* Include for ares_dns_record_t */
+#include <arpa/inet.h>
+#include <ares.h>
 
-/* Define the ares_dns_record structure as it was not fully defined in the header */
-struct ares_dns_record {
-  // Assuming some fields for demonstration purposes
-  int some_field;
-  char another_field[256];
-};
+static void nameinfo_callback(void *arg, int status, int timeouts, char *node, char *service) {
+  (void)arg; // Suppress unused parameter warning
+  (void)status; // Suppress unused parameter warning
+  (void)timeouts; // Suppress unused parameter warning
+  (void)node; // Suppress unused parameter warning
+  (void)service; // Suppress unused parameter warning
+}
 
-/* Ensure the function is correctly defined for the fuzzing engine */
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-  /* Ensure there's enough data to extract meaningful inputs */
-  if (size < 2) {
-    return 0;
+  ares_channel channel;
+  struct sockaddr_in sa;
+  ares_socklen_t salen = sizeof(sa);
+  int flags_int = 0;
+  void *arg = NULL;
+
+  // Initialize the sockaddr_in structure
+  sa.sin_family = AF_INET;
+  sa.sin_port = htons(80); // Arbitrary port number
+  if (size >= sizeof(sa.sin_addr.s_addr)) {
+    memcpy(&sa.sin_addr.s_addr, data, sizeof(sa.sin_addr.s_addr));
+  } else {
+    sa.sin_addr.s_addr = INADDR_ANY;
   }
 
-  /* Initialize the dnsrec structure */
-  struct ares_dns_record dnsrec;
-  memset(&dnsrec, 0, sizeof(struct ares_dns_record));
+  // Initialize ares library and create a channel
+  if (ares_library_init(ARES_LIB_INIT_ALL) == ARES_SUCCESS) {
+    if (ares_init(&channel) == ARES_SUCCESS) {
+      // Call the function-under-test
+      ares_getnameinfo(channel, (struct sockaddr *)&sa, salen, flags_int, nameinfo_callback, arg);
 
-  /* Use the first byte of the data as the index */
-  size_t idx = data[0];
-
-  /* Use the rest of the data as the name, ensuring it's null-terminated */
-  const char *name = (const char *)(data + 1);
-  size_t name_length = size - 1;
-  char *name_buffer = (char *)malloc(name_length + 1);
-  if (!name_buffer) {
-    return 0;
+      // Cleanup
+      ares_destroy(channel);
+    }
+    ares_library_cleanup();
   }
-  memcpy(name_buffer, name, name_length);
-  name_buffer[name_length] = '\0';
-
-  /* Call the function under test */
-  ares_status_t status = ares_dns_record_query_set_name(&dnsrec, idx, name_buffer);
-
-  /* Free allocated memory */
-  free(name_buffer);
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

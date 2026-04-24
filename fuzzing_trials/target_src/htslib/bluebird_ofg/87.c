@@ -1,90 +1,73 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <sys/stat.h>
-
-// Function signature for the function-under-test
-int sam_index_build(const char *filename, int option);
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include "htslib/hts.h"
+#include "/src/htslib/htslib/kstring.h" // Include this for hts_opt related functions
 
 int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    // Ensure the fuzz data is not empty
+    // Ensure that the input size is sufficient for creating a valid string
     if (size == 0) {
         return 0;
     }
 
-    // Create a temporary file to store the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        perror("mkstemp failed");
+    // Allocate memory for hts_opt pointer
+    hts_opt *options = NULL;
+
+    // Allocate memory for the string and copy data into it
+    char *opt_str = (char *)malloc(size + 1);
+    if (opt_str == NULL) {
         return 0;
     }
+    memcpy(opt_str, data, size);
+    opt_str[size] = '\0'; // Null-terminate the string
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        perror("write failed");
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
+    // Call the function-under-test
+    hts_opt_add(&options, opt_str);
 
-    // Ensure the file is closed before being used by the function-under-test
-    close(fd);
-
-    // Set appropriate permissions for the temporary file
-    chmod(tmpl, S_IRUSR | S_IWUSR);
-
-    // Call the function-under-test with the temporary file and a non-zero option
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sam_index_build
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sam_index_build
-    int result = sam_index_build(tmpl, -1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (result != 0) {
-        fprintf(stderr, "sam_index_build failed with error code: %d\n", result);
-    }
-
-    // Clean up the temporary file
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_index_build to bam_auxB2f
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_close with hts_flush
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_flush with hts_close
-    int ret_hts_close_jvvvq = hts_close(NULL);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_hts_close_jvvvq < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bam_auxB2f
-    const uint8_t evdlygxb = -1;
-    double ret_bam_auxB2f_fcngy = bam_auxB2f(&evdlygxb, (uint32_t)ret_hts_close_jvvvq);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_bam_auxB2f_fcngy < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    unlink(tmpl);
+    // Clean up
+    free(opt_str);
+    hts_opt_free(options);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_87(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

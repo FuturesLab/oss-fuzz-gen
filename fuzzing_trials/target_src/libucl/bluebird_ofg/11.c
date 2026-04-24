@@ -1,57 +1,47 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "ucl.h"
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    ucl_object_t *root = NULL;
-    ucl_object_t *new_obj = NULL;
-    unsigned int index = 0;
+    // Ensure the input size is sufficient for testing
+    if (size < 2) {
+        return 0;
+    }
 
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Parse the input data
+    // Parse the input data into a UCL object
     ucl_parser_add_chunk(parser, data, size);
-
-    // Get the root object
-    root = ucl_parser_get_object(parser);
-
-    // Create a new UCL object to replace
-    new_obj = ucl_object_fromstring("replacement");
-
-    // Ensure root is not NULL and is an array
-    if (root != NULL && ucl_object_type(root) == UCL_ARRAY) {
-        // Call the function-under-test
-        ucl_object_t *result = ucl_array_replace_index(root, new_obj, index);
-
-        // Clean up the result if it's not the same as new_obj
-        if (result != new_obj) {
-            ucl_object_unref(result);
-        }
+    const ucl_object_t *ucl_obj = ucl_parser_get_object(parser);
+    if (ucl_obj == NULL) {
+        ucl_parser_free(parser);
+        return 0;
     }
 
+    // Prepare a path string from the input data
+    size_t path_len = size / 2;
+    char *path = (char *)malloc(path_len + 1);
+    if (path == NULL) {
+        ucl_object_unref(ucl_obj);
+        ucl_parser_free(parser);
+        return 0;
+    }
+    memcpy(path, data + path_len, path_len);
+    path[path_len] = '\0';
+
+    // Call the function-under-test
+    const ucl_object_t *result = ucl_object_lookup_path(ucl_obj, path);
+
     // Clean up
-    if (root != NULL) {
-        ucl_object_unref(root);
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_object_reserve
-        unsigned int ret_ucl_parser_get_column_xfztv = ucl_parser_get_column(parser);
-        if (ret_ucl_parser_get_column_xfztv < 0){
-        	return 0;
-        }
-        bool ret_ucl_object_reserve_svzmt = ucl_object_reserve(root, (size_t )ret_ucl_parser_get_column_xfztv);
-        if (ret_ucl_object_reserve_svzmt == 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
-    ucl_object_unref(new_obj);
+    free(path);
+    ucl_object_unref(ucl_obj);
     ucl_parser_free(parser);
 
     return 0;

@@ -1,88 +1,109 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
-static ucl_object_t* create_ucl_object_from_data(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return NULL;
-    }
-    // Use a portion of data to determine the type
-    ucl_type_t type = (ucl_type_t)(Data[0] % (UCL_NULL + 1));
-    return ucl_object_typed_new(type);
-}
-
 int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    // Step 1: Prepare the environment
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
-    // Create a top level UCL object of type UCL_OBJECT
-    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
-    if (!top) {
+    // Step 2: Add chunk to parser
+    if (!ucl_parser_add_chunk(parser, Data, Size)) {
+        // Cleanup if adding chunk fails
+        ucl_parser_free(parser);
         return 0;
     }
 
-    // Create an element UCL object from input data
-    ucl_object_t *element = create_ucl_object_from_data(Data, Size);
-    if (!element) {
-        ucl_object_unref(top);
+    // Step 3: Get the top object from the parser
+    ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    if (top_obj == NULL) {
+        // Retrieve and print error if object retrieval fails
+        const char *error = ucl_parser_get_error(parser);
+        if (error != NULL) {
+            fprintf(stderr, "Error: %s\n", error);
+        }
+        ucl_parser_free(parser);
         return 0;
     }
 
-    // Use part of the data as a key
-    const char *key = (const char *)Data;
-    size_t keylen = Size < 256 ? Size : 255; // Limit key length to 255
-    bool copy_key = true;
+    // Step 4: Emit the object in various formats
 
-    // Replace key in the top object
-    bool replaced = ucl_object_replace_key(top, element, key, keylen, copy_key);
-
-    // Create another element from a string
-    ucl_object_t *str_obj = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE);
-    if (str_obj) {
-        ucl_object_insert_key(top, str_obj, "inserted_key_1", 14, true);
-    }
-
-    // Insert another element
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromstring_common to ucl_array_append
-    ucl_object_t* ret_ucl_object_copy_kpcbp = ucl_object_copy(element);
-    if (ret_ucl_object_copy_kpcbp == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_array_prepend
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!top_obj) {
     	return 0;
     }
-    bool ret_ucl_array_append_jrdqw = ucl_array_append(str_obj, ret_ucl_object_copy_kpcbp);
-    if (ret_ucl_array_append_jrdqw == 0){
+    ucl_object_t* ret_ucl_object_copy_ukzzb = ucl_object_copy(top_obj);
+    if (ret_ucl_object_copy_ukzzb == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_copy_ukzzb) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!top_obj) {
+    	return 0;
+    }
+    bool ret_ucl_array_prepend_scqth = ucl_array_prepend(ret_ucl_object_copy_ukzzb, top_obj);
+    if (ret_ucl_array_prepend_scqth == 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    ucl_object_t *str_obj2 = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE_BOOLEAN);
-    if (str_obj2) {
-        ucl_object_insert_key(top, str_obj2, "inserted_key_2", 14, true);
-    }
+    for (int i = UCL_EMIT_JSON; i < UCL_EMIT_MAX; i++) {
+        unsigned char *output = ucl_object_emit(top_obj, (enum ucl_emitter)i);
+        if (output != NULL) {
+            // Use the emitted output
+            free(output);
+        }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_parser_insert_chunk
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!parser) {
+        	return 0;
+        }
+        int ret_ucl_parser_get_default_priority_rkitt = ucl_parser_get_default_priority(parser);
+        if (ret_ucl_parser_get_default_priority_rkitt < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!top_obj) {
+        	return 0;
+        }
+        unsigned int ret_ucl_array_size_ovbvn = ucl_array_size(top_obj);
+        if (ret_ucl_array_size_ovbvn < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!parser) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!output) {
+        	return 0;
+        }
+        bool ret_ucl_parser_insert_chunk_bjbke = ucl_parser_insert_chunk(parser, output, (size_t )ret_ucl_array_size_ovbvn);
+        if (ret_ucl_parser_insert_chunk_bjbke == 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
-    // Insert yet another element
-    ucl_object_t *str_obj3 = ucl_object_fromstring_common(key, keylen, UCL_STRING_PARSE_INT);
-    if (str_obj3) {
-        ucl_object_insert_key(top, str_obj3, "inserted_key_3", 14, true);
-    }
-
-    // Create a final UCL object with a specific type
-    ucl_object_t *final_obj = ucl_object_typed_new(UCL_STRING);
-    if (final_obj) {
-        ucl_object_unref(final_obj);
-    }
-
-    // Clean up
-    ucl_object_unref(top);
+    // Step 5: Cleanup
+    ucl_parser_free(parser);
+    ucl_object_unref(top_obj);
 
     return 0;
 }

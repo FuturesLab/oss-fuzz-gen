@@ -1,61 +1,71 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include "htslib/sam.h" // Correct path for the header file where bam_aux_del is declared
+
+// Assuming the definition of hts_base_mod_state is available
+typedef struct {
+    // Placeholder structure members
+    int dummy;
+} hts_base_mod_state;
+
+// Function prototype
+int bam_mods_query_type(hts_base_mod_state *, int, int *, int *, char *);
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to perform meaningful operations
-    if (size < 4) { // Ensure there is enough data to form a valid tag and some auxiliary data
-        return 0;
-    }
+    // Initialize the parameters
+    hts_base_mod_state mod_state;
+    int query_type = size > 0 ? data[0] : 0; // Use the first byte of data as the query type
+    int result1 = 0;
+    int result2 = 0;
+    char buffer[256];
 
-    // Allocate memory for bam1_t structure
-    bam1_t *bam = bam_init1();
-    if (bam == NULL) {
-        return 0;
-    }
-
-    // Allocate memory for the bam data
-    bam->data = (uint8_t *)malloc(size);
-    if (bam->data == NULL) {
-        bam_destroy1(bam);
-        return 0;
-    }
-    memcpy(bam->data, data, size);
-    bam->l_data = size;
-
-    // Ensure bam1_t structure is properly initialized
-    bam->m_data = size; // Set the maximum allocated size of the data buffer
-    bam->core.l_qname = 1; // Set a valid value for the length of the query name
-    bam->core.n_cigar = 0; // Set a valid value for the number of CIGAR operations
-    bam->core.l_qseq = 0; // Set a valid value for the length of the sequence
-
-    // Allocate memory for the auxiliary data pointer
-    uint8_t *aux_data = (uint8_t *)malloc(size - 2); // Allocate enough space for the auxiliary data excluding the tag
-    if (aux_data == NULL) {
-        free(bam->data);
-        bam_destroy1(bam);
-        return 0;
-    }
-    memcpy(aux_data, data + 2, size - 2); // Copy auxiliary data, skipping the first 2 bytes (for the tag)
+    // Ensure the buffer is null-terminated and not empty
+    size_t copy_size = size < sizeof(buffer) - 1 ? size : sizeof(buffer) - 1;
+    memcpy(buffer, data, copy_size);
+    buffer[copy_size] = '\0';
 
     // Call the function-under-test
-    // Ensure that bam_aux_del is called with a valid tag
-    char tag[3] = { data[0], data[1], '\0' }; // Extract a valid tag from the first two bytes of data
-    int result = bam_aux_del(bam, tag);
-    // Check if bam_aux_del was successful and handle accordingly
-    if (result == 0) {
-        // If deletion was successful, we should not free aux_data again
-        aux_data = NULL;
-    }
-
-    // Clean up
-    if (aux_data != NULL) {
-        free(aux_data);
-    }
-    // Remove the double-free issue by ensuring bam->data is only freed once
-    bam_destroy1(bam);
+    bam_mods_query_type(&mod_state, query_type, &result1, &result2, buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

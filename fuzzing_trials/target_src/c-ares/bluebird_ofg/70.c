@@ -1,68 +1,82 @@
-#include "stddef.h"
+#include <string.h>
+#include <sys/stat.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include "ares.h"
 
-// Define a different name for the callback function to avoid conflict
-void my_ares_callback_70(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-  // Handle the callback, for fuzzing purposes we do nothing
-}
-
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-  ares_channel channel; // Corrected from ares_channel_t to ares_channel
-  int status = ares_library_init(ARES_LIB_INIT_ALL);
-  if (status != ARES_SUCCESS) {
+  ares_channel channel;
+  struct ares_options options;
+  int optmask = 0;
+
+  /* Initialize the ares library */
+  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
     return 0;
   }
 
-  status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
+  /* Set up ares options */
+  options.timeout = 5000; /* 5 seconds timeout */
+  options.tries = 3;      /* Number of tries */
+  optmask |= ARES_OPT_TIMEOUTMS | ARES_OPT_TRIES;
+
+  /* Initialize ares channel */
+  if (ares_init_options(&channel, &options, optmask) != ARES_SUCCESS) {
     ares_library_cleanup();
     return 0;
   }
 
-  // Create a copy of the input data to use as the query buffer
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_init to ares_reinit
-
-  ares_status_t ret_ares_reinit_gutfk = ares_reinit(channel);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  unsigned char *qbuf = (unsigned char *)malloc(size);
-  if (qbuf == NULL) {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_destroy with ares_cancel
-    ares_cancel(channel);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    ares_library_cleanup();
-    return 0;
+  /* Use the fuzzing data to determine the timeout */
+  int timeout_ms = 0;
+  if (size >= sizeof(int)) {
+    timeout_ms = *(int *)data;
   }
-  memcpy(qbuf, data, size);
 
-  // Call ares_send with the provided data
-  ares_send(channel, qbuf, (int)size, my_ares_callback_70, NULL);
+  /* Call the function under test */
+  ares_queue_wait_empty(channel, timeout_ms);
 
-  // Clean up
-  free(qbuf);
-
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_destroy with ares_cancel
-  ares_cancel(channel);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_cancel to ares_search_dnsrec
-  char ret_ares_strerror_oamko = ares_strerror(ARES_LIB_INIT_NONE);
-
-  ares_status_t ret_ares_search_dnsrec_blyzv = ares_search_dnsrec(channel, NULL, NULL, (void *)&ret_ares_strerror_oamko);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
+  /* Clean up */
+  ares_destroy(channel);
   ares_library_cleanup();
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_70(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

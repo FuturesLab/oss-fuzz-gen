@@ -1,53 +1,118 @@
-#include "stddef.h"
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
+#include <arpa/inet.h>
 #include "ares.h"
+#include <netdb.h>
 
-// Define a different name for the callback function to avoid conflict
-void my_ares_callback_67(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-  // Handle the callback, for fuzzing purposes we do nothing
+static void test_callback(void *arg, int status, int timeouts, struct hostent *host) {
+  // Callback function for ares_gethostbyname
+  // This function can be used to handle the result of the DNS query.
+  (void)arg;
+  (void)status;
+  (void)timeouts;
+  (void)host;
 }
 
-int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-  ares_channel channel; // Corrected from ares_channel_t to ares_channel
+int LLVMFuzzerTestOneInput_67(const unsigned char *data, size_t size) {
+  ares_channel channel;
+  struct ares_options options;
+  int optmask = 0;
+  int status;
 
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ares_library_init
-  int status = ares_library_init(ARES_OPT_NOROTATE);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+  // Initialize ares library
+  status = ares_library_init(ARES_LIB_INIT_ALL);
   if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  status = ares_init(&channel);
+  // Initialize ares channel
+  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_init_options
+  status = ares_init_options(&channel, &options, ARES_OPT_SERVER_FAILOVER);
+  // End mutation: Producer.REPLACE_ARG_MUTATOR
   if (status != ARES_SUCCESS) {
     ares_library_cleanup();
     return 0;
   }
 
-  // Create a copy of the input data to use as the query buffer
-  unsigned char *qbuf = (unsigned char *)malloc(size);
-  if (qbuf == NULL) {
+  // Ensure the input data is null-terminated for use as a string
+
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_init_options to ares_dup
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  ares_status_t ret_ares_reinit_lynnt = ares_reinit(channel);
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  int ret_ares_dup_wnmyn = ares_dup(&channel, channel);
+  if (ret_ares_dup_wnmyn < 0){
+  	return 0;
+  }
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  char *name = (char *)malloc(size + 1);
+  if (!name) {
     ares_destroy(channel);
     ares_library_cleanup();
     return 0;
   }
-  memcpy(qbuf, data, size);
+  memcpy(name, data, size);
+  name[size] = '\0';
 
-  // Call ares_send with the provided data
-  ares_send(channel, qbuf, (int)size, my_ares_callback_67, NULL);
+  // Use ares_gethostbyname with the provided data
+  ares_gethostbyname(channel, name, AF_INET, test_callback, NULL);
 
-  // Clean up
-  free(qbuf);
-
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_destroy with ares_cancel
-  ares_cancel(channel);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+  // Cleanup
+  ares_destroy(channel);
   ares_library_cleanup();
+  free(name);
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_67(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

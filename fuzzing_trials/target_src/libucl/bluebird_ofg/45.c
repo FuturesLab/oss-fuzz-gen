@@ -1,29 +1,35 @@
 #include <sys/stat.h>
-#include <string.h>
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include "ucl.h" // Assuming the UCL library provides this header
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // If size is 0 we need a null-terminated string.
-    // We don't null-terminate the string and by the design
-    // of the API passing 0 as size with non null-terminated string
-    // gives undefined behavior.
-    if (size == 0) {
-        return 0;
+    // Initialize a ucl_object_t object
+    ucl_object_t *obj = ucl_object_new_full(UCL_OBJECT, 0);
+    
+    // Create a size_t variable to hold the length of the key
+    size_t key_length = 0;
+
+    // If data is non-empty, try to parse it into the UCL object
+    if (size > 0) {
+        // Use the data to create a string and add it as a key to the object
+        char *key = (char *)malloc(size + 1);
+        if (key != NULL) {
+            memcpy(key, data, size);
+            key[size] = '\0'; // Null-terminate the string
+
+            // Add the key to the UCL object
+            ucl_object_insert_key(obj, ucl_object_fromstring("value"), key, size, true);
+        }
     }
 
-    struct ucl_parser *parser;
-    parser = ucl_parser_new(0);
-
-    // Add the input data to the parser
-    ucl_parser_add_string(parser, (char *)data, size);
-
     // Call the function-under-test
-    int error_code = ucl_parser_get_error_code(parser);
+    const char *key_str = ucl_object_keyl(obj, &key_length);
 
-    // Free the parser
-    ucl_parser_free(parser);
+    // Clean up
+    ucl_object_unref(obj);
 
     return 0;
 }

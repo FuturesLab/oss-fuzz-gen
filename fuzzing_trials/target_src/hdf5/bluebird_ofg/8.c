@@ -1,31 +1,53 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
+    // Ensure that the size is sufficient for a valid string
+    if (size < 1) {
+        return 0;
+    }
+
+    // Create a temporary file to serve as an HDF5 file
+    hid_t file_id;
+    char file_name[] = "tempfile.h5";
+    file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Ensure the file was created successfully
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Create a group within the file
+    hid_t group_id;
+    group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Ensure the group was created successfully
+    if (group_id < 0) {
+        H5Fclose(file_id);
         return 0;
     }
 
     // Create a null-terminated string from the input data
-    char filename[size + 1];
-    for (size_t i = 0; i < size; i++) {
-        filename[i] = (char)data[i];
+    char *group_name = (char *)malloc(size + 1);
+    if (group_name == NULL) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
     }
-    filename[size] = '\0';
-
-    // Use a valid file access property list identifier
-    hid_t fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-    if (fapl_id < 0) {
-        return 0; // Failed to create property list, exit
-    }
+    memcpy(group_name, data, size);
+    group_name[size] = '\0';
 
     // Call the function-under-test
-    H5Fdelete(filename, fapl_id);
+    H5Gunlink(file_id, group_name);
 
-    // Close the property list
-    H5Pclose(fapl_id);
+    // Clean up
+    free(group_name);
+    H5Gclose(group_id);
+    H5Fclose(file_id);
 
     return 0;
 }

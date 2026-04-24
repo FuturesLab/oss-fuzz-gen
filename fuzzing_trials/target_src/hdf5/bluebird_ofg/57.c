@@ -1,33 +1,44 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for a null-terminated string
-    if (size < 2) {
+    // Declare and initialize variables
+    hid_t file_id;
+    char *path;
+    char *comment;
+    herr_t status;
+
+    // Ensure size is sufficient to create strings
+    if (size < 4) return 0;
+
+    // Create a temporary file in memory
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
+
+    // Allocate memory for path and comment
+    path = (char *)malloc((size / 2) + 1);
+    comment = (char *)malloc((size / 2) + 1);
+    if (path == NULL || comment == NULL) {
+        H5Fclose(file_id);
         return 0;
     }
 
-    // Allocate memory for the file name string
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        return 0;
-    }
-
-    // Copy data into filename and null-terminate it
-    memcpy(filename, data, size);
-    filename[size] = '\0';
-
-    // Use a valid hid_t for fapl_id, H5P_DEFAULT is often used for default property lists
-    hid_t fapl_id = H5P_DEFAULT;
+    // Copy data into path and comment, ensuring null-termination
+    memcpy(path, data, size / 2);
+    path[size / 2] = '\0';
+    memcpy(comment, data + (size / 2), size / 2);
+    comment[size / 2] = '\0';
 
     // Call the function-under-test
-    htri_t result = H5Fis_accessible(filename, fapl_id);
+    status = H5Gset_comment(file_id, path, comment);
 
-    // Free allocated memory
-    free(filename);
+    // Cleanup
+    free(path);
+    free(comment);
+    H5Fclose(file_id);
 
     return 0;
 }

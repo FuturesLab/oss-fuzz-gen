@@ -3,16 +3,58 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_232(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t loc_id = 1; // Assuming a valid non-zero hid_t
-    const char *obj_name = "example_object";
-    const char *old_attr_name = "old_attribute";
-    const char *new_attr_name = "new_attribute";
-    hid_t lapl_id = 1; // Assuming a valid non-zero hid_t
+    // Ensure size is sufficient to extract a hid_t from the data
+    if (size < sizeof(hid_t)) {
+        return 0;
+    }
+
+    // Extract a hid_t from the input data
+    hid_t attribute_id = *(const hid_t *)data;
 
     // Call the function-under-test
-    herr_t result = H5Arename_by_name(loc_id, obj_name, old_attr_name, new_attr_name, lapl_id);
+    hsize_t storage_size = H5Aget_storage_size(attribute_id);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Use the result to avoid the compiler optimizing away the call
+    (void)storage_size;
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_232(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

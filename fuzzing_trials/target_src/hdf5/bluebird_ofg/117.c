@@ -1,36 +1,26 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    // Declare and initialize variables
+    hid_t file_id;
+    hsize_t increment_size;
+
+    // Ensure size is large enough to extract values
+    if (size < sizeof(hid_t) + sizeof(hsize_t)) {
         return 0;
-    } // Adjust size as needed for your parameters
-
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
-
-    // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
-
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        H5Fclose(file_id);
     }
 
+    // Extract values from the input data
+    file_id = *((hid_t *)data);
+    increment_size = *((hsize_t *)(data + sizeof(hid_t)));
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fstart_swmr_write
-    herr_t ret_H5Fstart_swmr_write_lmkhk = H5Fstart_swmr_write(file_id);
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Call the function-under-test
+    H5Fincrement_filesize(file_id, increment_size);
+
     return 0;
 }
 #ifdef INC_MAIN

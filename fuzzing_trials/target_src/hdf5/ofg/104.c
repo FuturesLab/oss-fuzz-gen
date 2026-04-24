@@ -1,34 +1,61 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t group_id = H5I_INVALID_HID; // Invalid ID for fuzzing purposes
-    const char *name = "fuzz_link_name"; // Non-NULL constant string
-    size_t size_hint = 1024; // Arbitrary non-zero size
-    char *linkval = (char *)malloc(size_hint);
-
-    if (linkval == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Ensure that the size is sufficient to create a valid hid_t
+    if (size < sizeof(hid_t)) {
+        return 0;
     }
 
-    // Ensure the linkval buffer is initialized
-    memset(linkval, 0, size_hint);
-
-    // Use the input data for fuzzing purposes
-    if (size > 0) {
-        // Copy data into linkval to simulate a fuzzing input
-        size_t copy_size = size < size_hint ? size : size_hint - 1;
-        memcpy(linkval, data, copy_size);
-    }
+    // Extract a hid_t from the input data
+    hid_t file_id = *((hid_t *)data);
 
     // Call the function-under-test
-    herr_t result = H5Gget_linkval(group_id, name, size_hint, linkval);
+    hid_t plist_id = H5Fget_access_plist(file_id);
 
-    // Clean up
-    free(linkval);
+    // Close the property list if it was successfully created
+    if (plist_id >= 0) {
+        H5Pclose(plist_id);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_104(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

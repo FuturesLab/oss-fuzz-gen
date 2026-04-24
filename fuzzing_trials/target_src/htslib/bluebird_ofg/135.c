@@ -1,59 +1,67 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>  // for close() and unlink()
-#include "htslib/sam.h"
-#include "/src/htslib/htslib/bgzf.h"
-#include <string.h>  // for strlen()
+#include <string.h>
+#include "htslib/hts.h"
+#include "/src/htslib/htslib/hts_defs.h" // Include this if hts_parse_reg64 is defined here
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    BGZF *bgzf = NULL;
-    sam_hdr_t *sam_hdr = NULL;
-    int result = 0;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-
-    if (fd == -1) {
-        return 0;  // If we can't create a temp file, exit early
-    }
-
-    // Open the temporary file with BGZF
-    bgzf = bgzf_fdopen(fd, "w");
-    if (bgzf == NULL) {
-        close(fd);
+    // Ensure the data is null-terminated for string operations
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
         return 0;
     }
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Ensure the input data is null-terminated before passing to sam_hdr_parse
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        bgzf_close(bgzf);
-        return 0;
-    }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    // Create a sam_hdr_t object from the input data
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sam_hdr_parse
-    sam_hdr = sam_hdr_parse(BAM_CMATCH, null_terminated_data);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    free(null_terminated_data);
-
-    if (sam_hdr == NULL) {
-        bgzf_close(bgzf);
-        return 0;
-    }
+    hts_pos_t beg = 0;
+    hts_pos_t end = 0;
 
     // Call the function-under-test
-    result = bam_hdr_write(bgzf, sam_hdr);
+    const char *result = hts_parse_reg64(input, &beg, &end);
 
     // Clean up
-    sam_hdr_destroy(sam_hdr);
-    bgzf_close(bgzf);
-    unlink(tmpl);  // Remove the temporary file
+    free(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_135(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

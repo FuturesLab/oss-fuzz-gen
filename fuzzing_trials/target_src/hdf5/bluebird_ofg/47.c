@@ -1,37 +1,58 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "hdf5.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h> // Include the standard I/O library for mkstemp
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
+    if (size < 2) {
+        return 0; // Ensure there's enough data for the strings
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Create a temporary file to simulate file input
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
+    if (fd == -1) {
+        return 0; // Failed to create temporary file
     }
+
+    // Close the file descriptor as we will use HDF5 functions to handle the file
+    close(fd);
+
+    // Create a new HDF5 file using the template filename
+    hid_t file_id = H5Fcreate(tmpl, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        unlink(tmpl);
+        return 0; // Failed to create an HDF5 file
+    }
+
+    // Close the file to prepare for reopening
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Freset_page_buffering_stats
+    H5Freset_page_buffering_stats(file_id);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Reopen the file to get a valid file_id
+    file_id = H5Fopen(tmpl, H5F_ACC_RDWR, H5P_DEFAULT);
+    if (file_id < 0) {
+        unlink(tmpl);
+        return 0; // Failed to open the file
+    }
+
+    // Prepare parameters for H5Freopen_async
+    unsigned int flags = (unsigned int)data[0]; // Use first byte as flags
+    hid_t dxpl_id = (hid_t)data[1]; // Use second byte as dxpl_id
+    hid_t es_id = H5P_DEFAULT; // Use a default event set ID
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hid_t result = H5Freopen_async(file_id, es_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Glink2
-    hid_t ret_H5Dget_space_codda = H5Dget_space(0);
-    hid_t ret_H5Aget_space_ovdni = H5Aget_space(0);
-    herr_t ret_H5Glink2_rerdu = H5Glink2(ret_H5Dget_space_codda, name_buffer, 0, ret_H5Aget_space_ovdni, (const char *)data);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Close the file and clean up
+    H5Fclose(file_id);
+    unlink(tmpl);
 
     return 0;
 }

@@ -1,45 +1,59 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "hdf5.h"
+
+// Dummy operator function for H5Aiterate1
+herr_t dummy_operator_12(hid_t location_id, const char *attr_name, const H5A_info_t *ainfo, void *op_data) {
+    // This is a simple operator function that does nothing
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
     // Initialize variables
     hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
+    unsigned int index = 0;
+    void *op_data = NULL;
 
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+    // Ensure that the size is sufficient to create a valid HDF5 file
+    if (size < 1) {
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
+    // Create a temporary file to use with HDF5
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Create a new HDF5 file using the temporary filename
+    file_id = H5Fcreate(tmpl, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        unlink(tmpl);
+        return 0;
     }
 
     // Call the function-under-test
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fget_filesize with H5Gget_num_objs
+    H5Aiterate1(file_id, &index, dummy_operator_12, op_data);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fget_dset_no_attrs_hint
-    _Bool dgvvjele;
-    memset(&dgvvjele, 0, sizeof(dgvvjele));
-    herr_t ret_H5Fget_dset_no_attrs_hint_fracw = H5Fget_dset_no_attrs_hint(file_id, &dgvvjele);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    status = H5Gget_num_objs(file_id, &filesize);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    // Close the file
+    // Close the HDF5 file
     H5Fclose(file_id);
 
-    // Return success
+    // Remove the temporary file
+    unlink(tmpl);
+
     return 0;
 }
 #ifdef INC_MAIN

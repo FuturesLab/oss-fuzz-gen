@@ -1,71 +1,140 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include "htslib/sam.h"
-#include "/src/htslib/htslib/kstring.h"
+#include <unistd.h>
+#include "htslib/hts.h"
+#include "/src/htslib/htslib/thread_pool.h"
+#include "htslib/sam.h" // Include for SAM/BAM/CRAM file operations
+
+// Function to create a temporary file from the fuzzing input
+static htsFile* create_temp_file_from_input(const uint8_t *data, size_t size) {
+    char filename[] = "/tmp/fuzz_input_XXXXXX";
+    int fd = mkstemp(filename);
+    if (fd == -1) {
+        return NULL;
+    }
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(filename);
+        return NULL;
+    }
+    close(fd);
+
+    // Open the file with htslib
+    htsFile *file = hts_open(filename, "r");
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from hts_open to hts_set_cache_size using the plateau pool
+    int cache_size = *((int *)data);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    hts_set_cache_size(file, cache_size);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    unlink(filename); // Remove the file after opening
+    return file;
+}
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Initialize kstring_t
-    kstring_t ks;
-    ks.l = size;
-    ks.m = size + 1; // Ensure there is space for a null terminator
-    ks.s = (char *)malloc(ks.m);
-    if (ks.s == NULL) {
-        return 0;
-    } // Exit if memory allocation fails
-    memcpy(ks.s, data, size);
-    ks.s[size] = '\0'; // Null terminate the string
-
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        free(ks.s);
-        return 0; // Exit if header initialization fails
+    // Check if the input size is reasonable for a SAM/BAM/CRAM file
+    if (size < 4) {
+        return 0; // Return early if the input size is too small
     }
 
-    // Initialize bam1_t
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        sam_hdr_destroy(hdr);
-        free(ks.s);
-        return 0; // Exit if bam1_t initialization fails
+    // Create a temporary file from the input data
+    htsFile *file = create_temp_file_from_input(data, size);
+    if (file == NULL) {
+        return 0; // If file opening fails, return early
     }
+    
+    htsThreadPool thread_pool;
+    struct hts_tpool *tpool = hts_tpool_init(2); // Initialize a thread pool with 2 threads
+    if (tpool == NULL) {
+        hts_close(file);
+        return 0; // If thread pool initialization fails, return early
+    }
+    thread_pool.pool = tpool;
+    thread_pool.qsize = 0; // Default queue size
 
     // Call the function-under-test
-    sam_parse1(&ks, hdr, b);
+    int result = hts_set_thread_pool(file, &thread_pool);
+    if (result != 0) {
+        hts_tpool_destroy(tpool);
+        hts_close(file);
+        return 0; // If setting the thread pool fails, return early
+    }
+
+    // Read the header to ensure the file is valid
+    bam_hdr_t *header = sam_hdr_read(file);
+    if (header == NULL) {
+        hts_tpool_destroy(tpool);
+        hts_close(file);
+        return 0; // If reading the header fails, return early
+    }
+
+    // Perform operations that require the thread pool
+    bam1_t *aln = bam_init1();
+    if (aln == NULL) {
+        bam_hdr_destroy(header);
+        hts_tpool_destroy(tpool);
+        hts_close(file);
+        return 0; // If bam initialization fails, return early
+    }
+
+    while (sam_read1(file, header, aln) >= 0) {
+        // Process each alignment
+    }
+    bam_destroy1(aln);
+    bam_hdr_destroy(header);
+
+    // Ensure all operations are completed before destroying the thread pool
 
     // Clean up
-    bam_destroy1(b);
-    sam_hdr_destroy(hdr);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_destroy to sam_hdr_update_line
-    const uint8_t bjcqmbxp = -1;
-    char* ret_bam_aux2Z_mwfoi = bam_aux2Z(&bjcqmbxp);
-    if (ret_bam_aux2Z_mwfoi == NULL){
-    	return 0;
-    }
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bam_flag2str
-    char* ret_bam_flag2str_nwfjm = bam_flag2str(BAM_CBACK);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_bam_flag2str_nwfjm == NULL){
-    	return 0;
-    }
-    char* ret_bam_flag2str_ndbsn = bam_flag2str(BAM_FPROPER_PAIR);
-    if (ret_bam_flag2str_ndbsn == NULL){
-    	return 0;
-    }
-
-    int ret_sam_hdr_update_line_pefzp = sam_hdr_update_line(hdr, ret_bam_aux2Z_mwfoi, ret_bam_flag2str_nwfjm, ret_bam_flag2str_ndbsn);
-    if (ret_sam_hdr_update_line_pefzp < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(ks.s);
+    hts_close(file);
+    hts_tpool_destroy(tpool);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_50(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

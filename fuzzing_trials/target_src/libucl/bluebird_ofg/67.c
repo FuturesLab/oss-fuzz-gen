@@ -1,19 +1,16 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
     // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    const ucl_object_t *root = NULL;
-    const ucl_object_t *comment = NULL;
-    
-    // Ensure the data is not empty
-    if (size == 0) {
-        ucl_parser_free(parser);
+    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
+    ucl_object_t *root = NULL;
+    ucl_object_t *new_obj = NULL;
+
+    if (parser == NULL) {
         return 0;
     }
 
@@ -23,15 +20,21 @@ int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
     // Get the root object
     root = ucl_parser_get_object(parser);
 
-    // Create a dummy key object to search for comments
-    ucl_object_t *key = ucl_object_fromstring("dummy_key");
+    // Create a new UCL object to append
+    new_obj = ucl_object_fromstring("fuzzed_object");
 
-    // Call the function-under-test
-    comment = ucl_comments_find(root, key);
+    if (root != NULL && new_obj != NULL) {
+        // Call the function-under-test
+        ucl_array_append(root, new_obj);
+    }
 
     // Clean up
-    ucl_object_unref(root);
-    ucl_object_unref(key);
+    if (root != NULL) {
+        ucl_object_unref(root);
+    }
+    if (new_obj != NULL) {
+        ucl_object_unref(new_obj);
+    }
     ucl_parser_free(parser);
 
     return 0;

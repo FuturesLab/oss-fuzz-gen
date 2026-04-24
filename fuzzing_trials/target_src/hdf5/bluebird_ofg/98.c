@@ -1,36 +1,35 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    if (size < 10) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Use the first byte of data as a simple way to initialize hid_t variables
+    hid_t dset_id = (hid_t)data[0];
+    hid_t mem_type_id = (hid_t)data[1];
+    hid_t mem_space_id = (hid_t)data[2];
+    hid_t file_space_id = (hid_t)data[3];
+    hid_t dxpl_id = (hid_t)data[4];
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Allocate memory for the buffer and ensure it's not NULL
+    void *buf = malloc(1);
+    if (buf == NULL) {
         return 0;
     }
 
-    // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    // Use the first byte of data to initialize es_id
+    hid_t es_id = (hid_t)data[5];
 
-    // Clean up
+    // Call the function-under-test using the macro which automatically fills in app_file, app_func, and app_line
+    herr_t result = H5Dread_async(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf, es_id);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aget_info_by_name
-    hid_t ret_H5Aget_type_rzruu = H5Aget_type(0);
-    herr_t ret_H5Aget_info_by_name_jghvr = H5Aget_info_by_name(ret_H5Aget_type_rzruu, (const char *)"w", name_buffer, NULL, 0);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Free allocated memory
+    free(buf);
 
     return 0;
 }

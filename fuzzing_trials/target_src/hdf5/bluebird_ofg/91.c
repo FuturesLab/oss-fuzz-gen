@@ -1,41 +1,31 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure there's enough data for the strings and other parameters
+    if (size < 10) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Extracting strings from the input data
+    const char *attr_name = (const char *)data;
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Extract unsigned int and hid_t values from the data
+    unsigned int crt_int = data[1];
+    hid_t loc_id = (hid_t)data[2];
+    hid_t type_id = (hid_t)data[3];
+    hid_t space_id = (hid_t)data[4];
+    hid_t acpl_id = (hid_t)data[5];
+    hid_t aapl_id = (hid_t)data[6];
+    hid_t es_id = (hid_t)data[7];
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hid_t result = H5Acreate_async(loc_id, attr_name, type_id, space_id, acpl_id, aapl_id, es_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Dcreate2
-    hid_t ret_H5Fget_access_plist_cpszn = H5Fget_access_plist(0);
-    hid_t ret_H5Aget_create_plist_gbtaa = H5Aget_create_plist(0);
-    hid_t ret_H5Freopen_bhbfw = H5Freopen(0);
-    hid_t ret_H5Dget_type_jwgoc = H5Dget_type(0);
-    hid_t ret_H5Aget_create_plist_lnimx = H5Aget_create_plist(0);
-    hid_t ret_H5Dcreate2_lqxdc = H5Dcreate2(ret_H5Fget_access_plist_cpszn, name_buffer, ret_H5Aget_create_plist_gbtaa, ret_H5Freopen_bhbfw, ret_H5Dget_type_jwgoc, 0, ret_H5Aget_create_plist_lnimx);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
-
+    // Return 0 to indicate the fuzzer can continue
     return 0;
 }
 #ifdef INC_MAIN

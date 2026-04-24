@@ -1,70 +1,121 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+#include "htslib/sam.h"
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/tbx.h" // Include the tabix library for index functions
+#include "/src/htslib/htslib/hts_defs.h" // Include for HTS_FMT_CSI
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for our needs
-    if (size < 5) {
+    // Ensure the input size is sufficient for meaningful fuzzing
+    if (size < 3) {
         return 0;
     }
 
-    // Use the first byte of data as an integer parameter
-    int param_int = (int)data[0];
+    // Create a mock hts_idx_t object
+    // Provide appropriate values for offset0, min_shift, and n_lvls
+    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 14, 5);
 
-    // Use the rest of the data as a string, ensuring it's null-terminated
-    size_t string_size = size - 1;
-    char *param_str = (char *)malloc(string_size + 1);
-    if (param_str == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(param_str, data + 1, string_size);
-    param_str[string_size] = '\0';
+    // Create a mock sam_hdr_t object
+    sam_hdr_t *hdr = sam_hdr_init();
 
-    // Initialize htsFile and tbx_t structures
-    htsFile *file = hts_open(param_str, "r");
-    if (file == NULL) {
-        free(param_str);
-        return 0; // Failed to open file
-    }
+    // Prepare a query string from the input data
+    // Ensure null termination
+    char *query = (char *)malloc(size + 1);
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    tbx_t *tbx = tbx_index_load(param_str);
-    if (tbx == NULL) {
-        hts_close(file);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_close to hts_crc32
-
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of hts_crc32
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of hts_crc32
-        uint32_t ret_hts_crc32_pbfiu = hts_crc32(HTS_FMT_TBI, (const void *)file, FT_GZ);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        if (ret_hts_crc32_pbfiu < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        free(param_str);
-        return 0; // Failed to load index
-    }
-
-    // Call a function that utilizes the index, e.g., tbx_name2id
-    int result = tbx_name2id(tbx, param_str);
+    // Call the function-under-test
+    hts_itr_t *itr = sam_itr_querys(idx, hdr, query);
 
     // Clean up
-    tbx_destroy(tbx);
-    hts_close(file);
-    free(param_str);
+    if (itr != NULL) {
+        hts_itr_destroy(itr);
+    }
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sam_itr_querys to sam_itr_regions using the plateau pool
+    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
+    unsigned int flags = 0;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!idx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hdr) {
+    	return 0;
+    }
+    hts_itr_t* ret_sam_itr_regions_zbfnj = sam_itr_regions(idx, hdr, reglist, flags);
+    if (ret_sam_itr_regions_zbfnj == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_itr_regions to hts_itr_multi_cram
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!idx) {
+    	return 0;
+    }
+    int ret_hts_idx_fmt_nhfsr = hts_idx_fmt(idx);
+    if (ret_hts_idx_fmt_nhfsr < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!idx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sam_itr_regions_zbfnj) {
+    	return 0;
+    }
+    int ret_hts_itr_multi_cram_dtdau = hts_itr_multi_cram(idx, ret_sam_itr_regions_zbfnj);
+    if (ret_hts_itr_multi_cram_dtdau < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_idx_destroy(idx);
+    sam_hdr_destroy(hdr);
+    free(query);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

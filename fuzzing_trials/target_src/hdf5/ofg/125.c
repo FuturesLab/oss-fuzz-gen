@@ -1,23 +1,65 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
+herr_t my_operator_125(void *elem, hid_t type_id, unsigned ndim, const hsize_t *point, void *operator_data) {
+    // Example operator function, does nothing
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_125(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract parameters
-    if (size < sizeof(hid_t) + sizeof(unsigned int)) {
+    if (size < sizeof(hid_t) * 2) {
         return 0;
     }
 
-    // Extract parameters from data
-    hid_t file_id = *(const hid_t *)data;
-    unsigned int types = *(const unsigned int *)(data + sizeof(hid_t));
+    // Initialize the parameters for H5Diterate
+    void *buf = (void *)data;
+    hid_t type_id = *((hid_t *)data);
+    hid_t space_id = *(((hid_t *)data) + 1);
+    H5D_operator_t op = my_operator_125;
+    void *operator_data = NULL;
 
     // Call the function-under-test
-    ssize_t obj_count = H5Fget_obj_count(file_id, types);
-
-    // Use obj_count in some way to avoid compiler optimizations removing the call
-    if (obj_count < 0) {
-        // Handle error case if needed
-    }
+    H5Diterate(buf, type_id, space_id, op, operator_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_125(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

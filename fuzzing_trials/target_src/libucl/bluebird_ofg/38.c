@@ -1,81 +1,67 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include "ucl.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *obj = ucl_object_new();
-    enum ucl_object_keys_sort_flags sort_flags = UCL_SORT_KEYS_ICASE; // Corrected the enum value
+    if (size == 0) {
+        return 0;
+    }
 
-    // Ensure that the data is not empty
-    if (size > 0 && obj != NULL) {
-        // Create a UCL parser
-        struct ucl_parser *parser = ucl_parser_new(0);
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
 
-        // Parse the input data
-        if (ucl_parser_add_chunk(parser, data, size)) {
-            // Get the top-level object
-            const ucl_object_t *top = ucl_parser_get_object(parser);
+    // Parse the input data
+    ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
 
-            // Copy the parsed object to our object
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_merge with ucl_array_merge
+    if (obj != NULL) {
+        // Define a ucl_emitter value
+        enum ucl_emitter emitter_type = UCL_EMIT_JSON;
 
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_merge
-            bool ret_ucl_object_merge_bazrs = ucl_object_merge(top, obj, 0);
-            if (ret_ucl_object_merge_bazrs == 0){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            ucl_array_merge(obj, (ucl_object_t *)top, true);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_merge to ucl_copy_value_trash
+        // Call the function-under-test
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_object_emit
+        unsigned char *result = ucl_object_emit(obj, UCL_EMIT_CONFIG);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_merge to ucl_object_iterate_with_error
-            ucl_object_iter_t ret_ucl_object_iterate_new_zlgjh = ucl_object_iterate_new(top);
-            const ucl_object_t wsoreibg;
-            memset(&wsoreibg, 0, sizeof(wsoreibg));
-            double ret_ucl_object_todouble_eaora = ucl_object_todouble(&wsoreibg);
-            if (ret_ucl_object_todouble_eaora < 0){
-            	return 0;
-            }
-            const ucl_object_t* ret_ucl_object_iterate_with_error_qpovf = ucl_object_iterate_with_error(obj, &ret_ucl_object_iterate_new_zlgjh, 1, (int *)&ret_ucl_object_todouble_eaora);
-            if (ret_ucl_object_iterate_with_error_qpovf == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            char* ret_ucl_copy_value_trash_sdsey = ucl_copy_value_trash(obj);
-            if (ret_ucl_copy_value_trash_sdsey == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-}
+        // Free the result if it's not NULL
+        if (result != NULL) {
+            free(result);
+        }
 
-        // Free the parser
-        ucl_parser_free(parser);
-
-        // Call the function under test
-        ucl_object_sort_keys(obj, sort_flags);
-
-        // Clean up
+        // Free the UCL object
         ucl_object_unref(obj);
     }
 
+    // Clean up the parser
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_merge
+    ucl_object_t* ret_ucl_object_typed_new_qtgpa = ucl_object_typed_new(0);
+    if (ret_ucl_object_typed_new_qtgpa == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_typed_new_qtgpa) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    bool ret_ucl_object_merge_zuikq = ucl_object_merge(ret_ucl_object_typed_new_qtgpa, obj, 0);
+    if (ret_ucl_object_merge_zuikq == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_parser_free(parser);
+
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

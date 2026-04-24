@@ -1,29 +1,66 @@
+#include <hdf5.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <hdf5.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_201(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    herr_t result;
-    hid_t dataset_id;
-    hsize_t chunk_offset[2] = {1, 1}; // Assuming a 2D dataset for simplicity
-    hsize_t storage_size;
+    // Ensure there is enough data to extract parameters
+    if (size < 10) return 0;
 
-    // Ensure the data size is sufficient to mimic dataset_id
-    if (size < sizeof(hid_t)) {
-        return 0;
-    }
-
-    // Mimic dataset_id using data
-    dataset_id = *((hid_t *)data);
+    // Extract parameters from data
+    hid_t attr_id = (hid_t)data[0];
+    hid_t type_id = (hid_t)data[1];
+    hid_t es_id = (hid_t)data[2];
+    
+    // Ensure the rest of the data is not empty
+    if (size <= 3) return 0;
+    
+    // Use remaining data as the buffer for the void pointer
+    const void *buf = (const void *)(data + 3);
+    size_t buf_size = size - 3;
 
     // Call the function-under-test
-    result = H5Dget_chunk_storage_size(dataset_id, chunk_offset, &storage_size);
+    herr_t result = H5Awrite_async(attr_id, type_id, buf, es_id);
 
-    // Use the result and storage_size to avoid compiler optimizations
-    if (result >= 0) {
-        // Do something with storage_size if needed
-    }
-
+    // Return 0 to indicate the fuzzer can continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_201(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

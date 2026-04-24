@@ -1,50 +1,87 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <htslib/hts.h>
-#include <htslib/hts_defs.h>
-#include <htslib/bgzf.h>
-#include <htslib/kstring.h>
-#include <htslib/tbx.h>
-
-// Dummy implementations for function pointers
-static int dummy_name2id(void *hdr, const char *name) {
-    return 0; // Dummy implementation
-}
-
-static int dummy_itr_query_func(hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t end, hts_itr_t *iter) {
-    return 0; // Dummy implementation
-}
-
-static int dummy_readrec_func(BGZF *fp, void *hdr, void *data, int *tid, int64_t *beg, int64_t *end, int *is_rev, kstring_t *str) {
-    return 0; // Dummy implementation
-}
 
 int LLVMFuzzerTestOneInput_100(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
+    // Ensure the size is sufficient for two null-terminated strings
+    if (size < 4) return 0;
 
-    // Create a dummy hts_idx_t pointer
-    hts_idx_t *dummy_idx = NULL; // Initialize as NULL
+    // Allocate memory for the filename and mode strings
+    char filename[256];
+    char mode[4];
 
-    // Use the data as a string for the query
-    char *query = (char *)malloc(size + 1);
-    if (query == NULL) {
-        return 0;
-    }
-    memcpy(query, data, size);
-    query[size] = '\0';
+    // Copy data to filename and mode, ensuring null-termination
+    size_t filename_len = (size < 255) ? size : 255;
+    memcpy(filename, data, filename_len);
+    filename[filename_len] = '\0';
 
-    // Call the function under test
-    hts_itr_t *itr = hts_itr_querys(dummy_idx, query, dummy_name2id, NULL, dummy_itr_query_func, dummy_readrec_func);
+    size_t mode_len = (size - filename_len < 3) ? size - filename_len : 3;
+    memcpy(mode, data + filename_len, mode_len);
+    mode[mode_len] = '\0';
+
+    // Ensure filename is not empty
+    if (filename[0] == '\0') return 0;
+
+    // Create a temporary file to use as the filename
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) return 0;
+
+    // Write the data to the temporary file
+    write(fd, data, size);
+    close(fd);
+
+    // Call the function-under-test
+    htsFile *file = hts_open(tmpl, mode);
 
     // Clean up
-    free(query);
-    if (itr) {
-        hts_itr_destroy(itr);
+    if (file != NULL) {
+        hts_close(file);
     }
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_100(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

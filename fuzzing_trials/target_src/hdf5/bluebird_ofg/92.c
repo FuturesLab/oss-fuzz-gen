@@ -1,37 +1,22 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
+    if (size < 6) {
+        return 0; // Ensure there's enough data for all parameters
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Prepare parameters for H5Arename_async
+    hid_t loc_id = 1; // Example non-negative integer
+    const char *old_name = "old_attribute_name";
+    const char *new_name = "new_attribute_name";
+    hid_t es_id = 2; // Example non-negative integer
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Giterate
-    hid_t ret_H5Aget_type_fapvf = H5Aget_type(0);
-    int qboczlng = -1;
-    herr_t ret_H5Giterate_hgovv = H5Giterate(ret_H5Aget_type_fapvf, name_buffer, &qboczlng, NULL, NULL);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    H5Arename_async(loc_id, old_name, new_name, es_id);
 
     return 0;
 }

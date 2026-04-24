@@ -1,37 +1,62 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
-        return 0;
-    } // Adjust size as needed for your parameters
+    // Declare and initialize variables
+    hid_t file_id, dataset_id, dataspace_id;
+    _Bool is_enabled = 0;
+    _Bool is_active = 0;
+    herr_t status;
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
-
-    // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
-
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        H5Fclose(file_id);
+    // Create a new file using default properties.
+    file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Unable to create file, exit early
     }
 
+    // Define a simple dataspace with a single dimension
+    hsize_t dims[1] = {size};
+    dataspace_id = H5Screate_simple(1, dims, NULL);
+    if (dataspace_id < 0) {
+        H5Fclose(file_id);
+        return 0; // Unable to create dataspace, exit early
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fget_fileno
-    unsigned long llzsehnd = size;
-    herr_t ret_H5Fget_fileno_hhoqh = H5Fget_fileno(file_id, &llzsehnd);
+    // Create a dataset within the file
+    dataset_id = H5Dcreate2(file_id, "fuzz_dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0; // Unable to create dataset, exit early
+    }
+
+    // Write the input data to the dataset
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Awrite
+    hid_t ret_H5Dget_type_ylulv = H5Dget_type(dataset_id);
+    herr_t ret_H5Awrite_ifbjf = H5Awrite(ret_H5Dget_type_ylulv, dataset_id, (const void *)"w");
     // End mutation: Producer.APPEND_MUTATOR
     
+    status = H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+    if (status < 0) {
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0; // Unable to write data, exit early
+    }
+
+    // Call the function-under-test
+    status = H5Fget_mdc_logging_status(file_id, &is_enabled, &is_active);
+
+    // Close the dataset and dataspace
+    H5Dclose(dataset_id);
+    H5Sclose(dataspace_id);
+
+    // Close the file
+    H5Fclose(file_id);
+
     return 0;
 }
 #ifdef INC_MAIN

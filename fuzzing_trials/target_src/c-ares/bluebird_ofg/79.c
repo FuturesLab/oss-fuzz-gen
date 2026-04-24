@@ -1,66 +1,131 @@
-#include "stddef.h"
+#include <sys/stat.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #include "ares.h"
 
-// Define a different name for the callback function to avoid conflict
-void my_ares_callback_79(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-  // Handle the callback, for fuzzing purposes we do nothing
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-  ares_channel channel; // Corrected from ares_channel_t to ares_channel
-  int status = ares_library_init(ARES_LIB_INIT_ALL);
-  if (status != ARES_SUCCESS) {
-    return 0;
-  }
+    /* Initialize the ares library */
+    ares_library_init(ARES_LIB_INIT_ALL);
 
+    /* Create a channel */
+    ares_channel channel;
+    struct ares_options options;
+    int optmask = 0;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_init_options
+    int status = ares_init_options(&channel, &options, ARES_NI_SCTP);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (status != ARES_SUCCESS) {
+        return 0;
+    }
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_library_init to ares_parse_a_reply
-  int epwtmldk = 1;
-  char ret_ares_version_saneo = ares_version(&epwtmldk);
-  int asjefudg = 1;
+    /* Ensure the data is null-terminated for use as a CSV string */
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_version to ares_getnameinfo
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_init_options to ares_inet_ntop
+    size_t ret_ares_queue_active_queries_znxjt = ares_queue_active_queries(NULL);
+    if (ret_ares_queue_active_queries_znxjt < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!channel) {
+    	return 0;
+    }
+    char ret_ares_get_servers_csv_aajno = ares_get_servers_csv(channel);
+    char ret_ares_inet_ntop_qwjlm = ares_inet_ntop((int )ret_ares_queue_active_queries_znxjt, (void *)&options, &ret_ares_get_servers_csv_aajno, 0);
+    // End mutation: Producer.APPEND_MUTATOR
+    
 
-  ares_getnameinfo(NULL, NULL, 0, ARES_OPT_QUERY_CACHE, NULL, (void *)&epwtmldk);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_inet_ntop to ares_expand_string
+    char ret_ares_strerror_aowrp = ares_strerror(ARES_OPT_UDP_MAX_QUERIES);
+    unsigned short ret_ares_dns_record_get_flags_lpsoq = ares_dns_record_get_flags(&options);
+    if (ret_ares_dns_record_get_flags_lpsoq < 0){
+    	return 0;
+    }
 
-  // End mutation: Producer.APPEND_MUTATOR
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_dns_record_get_flags to ares_dns_record_rr_add
+    char ret_ares_dns_class_tostr_fhvtn = ares_dns_class_tostr(0);
+    ares_dns_rec_type_t ret_ares_dns_rr_get_type_derro = ares_dns_rr_get_type(NULL);
+    ares_dns_class_t ret_ares_dns_rr_get_class_mdpfv = ares_dns_rr_get_class(&options);
+    size_t ret_ares_dns_record_query_cnt_fqrbw = ares_dns_record_query_cnt(&options);
+    if (ret_ares_dns_record_query_cnt_fqrbw < 0){
+    	return 0;
+    }
+    ares_status_t ret_ares_dns_record_rr_add_kspov = ares_dns_record_rr_add(&options, &options, 0, &ret_ares_dns_class_tostr_fhvtn, ret_ares_dns_rr_get_type_derro, ret_ares_dns_rr_get_class_mdpfv, (unsigned int )ret_ares_dns_record_query_cnt_fqrbw);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    size_t ret_ares_dns_record_query_cnt_kvwtn = ares_dns_record_query_cnt(NULL);
+    if (ret_ares_dns_record_query_cnt_kvwtn < 0){
+    	return 0;
+    }
+    int ret_ares_expand_string_tjtnu = ares_expand_string((unsigned char *)&ret_ares_strerror_aowrp, &options, (int )ret_ares_dns_record_get_flags_lpsoq, &options, (long *)&ret_ares_dns_record_query_cnt_kvwtn);
+    if (ret_ares_expand_string_tjtnu < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *csv = (char *)malloc(size + 1);
+    if (!csv) {
+        ares_destroy(channel);
+        return 0;
+    }
+    memcpy(csv, data, size);
+    csv[size] = '\0';
 
-  char ret_ares_version_vtsmy = ares_version(&asjefudg);
-  struct ares_addrttl bxqdungy;
-  memset(&bxqdungy, 0, sizeof(bxqdungy));
+    /* Call the function-under-test */
+    ares_set_servers_ports_csv(channel, csv);
 
-  int ret_ares_parse_a_reply_aawos = ares_parse_a_reply((unsigned char *)&ret_ares_version_saneo, status, NULL, &bxqdungy, &asjefudg);
-  if (ret_ares_parse_a_reply_aawos < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
-  }
-
-  // Create a copy of the input data to use as the query buffer
-  unsigned char *qbuf = (unsigned char *)malloc(size);
-  if (qbuf == NULL) {
+    /* Clean up */
+    free(csv);
     ares_destroy(channel);
     ares_library_cleanup();
+
     return 0;
-  }
-  memcpy(qbuf, data, size);
-
-  // Call ares_send with the provided data
-  ares_send(channel, qbuf, (int)size, my_ares_callback_79, NULL);
-
-  // Clean up
-  free(qbuf);
-  ares_destroy(channel);
-  ares_library_cleanup();
-
-  return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_79(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

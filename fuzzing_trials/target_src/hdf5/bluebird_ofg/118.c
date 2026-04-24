@@ -1,32 +1,21 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    // Ensure the size is sufficient for extracting the necessary parameters
+    if (size < sizeof(hid_t) + sizeof(bool)) {
         return 0;
-    } // Adjust size as needed for your parameters
+    }
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Extract hid_t and bool from the data
+    hid_t file_id = *((hid_t *)data);
+    bool no_attrs_hint = *((bool *)(data + sizeof(hid_t)));
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
-
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Drefresh
-        H5Drefresh(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    H5Fset_dset_no_attrs_hint(file_id, no_attrs_hint);
 
     return 0;
 }

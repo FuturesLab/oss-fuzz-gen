@@ -1,25 +1,81 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_200(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t loc_id = H5P_DEFAULT;  // Using default property list as a placeholder
-    const char *obj_name = "test_object";
-    const char *attr_name = "test_attribute";
-    hid_t type_id = H5T_NATIVE_INT;  // Using native integer type as a placeholder
-    hid_t space_id = H5S_SCALAR;     // Using scalar dataspace as a placeholder
-    hid_t acpl_id = H5P_DEFAULT;     // Using default attribute creation property list
-    hid_t aapl_id = H5P_DEFAULT;     // Using default attribute access property list
-    hid_t lapl_id = H5P_DEFAULT;     // Using default link access property list
+    // Initialize HDF5 library
+    H5open();
+
+    // Create a memory buffer to hold the data for the fuzzing input
+    char *object_name = (char *)malloc(size + 1);
+    char *attr_name = (char *)malloc(size + 1);
+
+    // Ensure the memory allocation was successful
+    if (object_name == NULL || attr_name == NULL) {
+        free(object_name);
+        free(attr_name);
+        return 0;
+    }
+
+    // Copy data to the object_name and attr_name, ensuring they are null-terminated
+    memcpy(object_name, data, size);
+    object_name[size] = '\0';
+    memcpy(attr_name, data, size);
+    attr_name[size] = '\0';
+
+    // Use a valid hid_t identifier for the location and lapl_id
+    hid_t loc_id = H5P_DEFAULT; // Default property list ID
+    hid_t lapl_id = H5P_DEFAULT; // Default link access property list ID
 
     // Call the function-under-test
-    hid_t attribute_id = H5Acreate_by_name(loc_id, obj_name, attr_name, type_id, space_id, acpl_id, aapl_id, lapl_id);
+    htri_t result = H5Aexists_by_name(loc_id, object_name, attr_name, lapl_id);
 
-    // Close the attribute if it was created successfully
-    if (attribute_id >= 0) {
-        H5Aclose(attribute_id);
-    }
+    // Clean up
+    free(object_name);
+    free(attr_name);
+
+    // Close HDF5 library
+    H5close();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_200(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

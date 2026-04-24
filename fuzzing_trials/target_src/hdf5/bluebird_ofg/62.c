@@ -1,38 +1,35 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure the input size is sufficient for extracting strings and other parameters
+    if (size < 20) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Extract strings from the input data
+    const char *location = (const char *)data;
+    const char *attr_name = (const char *)(data + 5);
+    const char *object_name = (const char *)(data + 10);
+    const char *attr_name2 = (const char *)(data + 15);
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
+    // Extract unsigned int and hid_t values from the input data
+    unsigned int idx_type = (unsigned int)data[0];
+    hid_t loc_id = (hid_t)data[1];
+    hid_t lapl_id = (hid_t)data[2];
+    hid_t aapl_id = (hid_t)data[3];
+    hid_t es_id = (hid_t)data[4];
+
+    // Call the function-under-test with the correct number of arguments
+    hid_t result = H5Aopen_by_name_async(loc_id, object_name, attr_name, aapl_id, lapl_id, es_id);
+
+    // Use the result in some way to avoid compiler optimizations that might skip the function call
+    if (result >= 0) {
+        H5Aclose(result);
     }
-
-    // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Adelete_by_idx
-    hid_t ret_H5Fget_access_plist_ujcbj = H5Fget_access_plist(0);
-    hsize_t ret_H5Aget_storage_size_qqymp = H5Aget_storage_size(0);
-    hid_t ret_H5Fget_create_plist_tdrln = H5Fget_create_plist(0);
-    herr_t ret_H5Adelete_by_idx_wgxdq = H5Adelete_by_idx(ret_H5Fget_access_plist_ujcbj, name_buffer, 0, 0, ret_H5Aget_storage_size_qqymp, ret_H5Fget_create_plist_tdrln);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
 
     return 0;
 }

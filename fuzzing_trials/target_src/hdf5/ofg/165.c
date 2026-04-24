@@ -1,39 +1,62 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <hdf5.h>
 #include <stdlib.h>
-#include <string.h>
+#include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_165(const uint8_t *data, size_t size) {
-    hid_t file_id;
-    hid_t group_id;
-    char group_name[256];
-    size_t name_len;
-
-    // Ensure we have enough data to work with
-    if (size < 2) {
+    // Ensure the size is sufficient to extract an hid_t value
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Open a new HDF5 file to work with
-    file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0;
+    // Extract an hid_t value from the input data
+    hid_t file_id = *(const hid_t *)data;
+
+    // Call the function-under-test with the extracted hid_t
+    hid_t plist_id = H5Fget_create_plist(file_id);
+
+    // Close the property list if it was successfully created
+    if (plist_id >= 0) {
+        H5Pclose(plist_id);
     }
-
-    // Copy data to group_name ensuring null-termination
-    name_len = size < 255 ? size : 255;
-    memcpy(group_name, data, name_len);
-    group_name[name_len] = '\0';
-
-    // Call the function-under-test
-    group_id = H5Gcreate1(file_id, group_name, name_len);
-
-    // Close the group and file if they were successfully created
-    if (group_id >= 0) {
-        H5Gclose(group_id);
-    }
-    H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_165(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

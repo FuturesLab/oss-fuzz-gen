@@ -1,56 +1,134 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include <sys/select.h>
+#include <stdio.h>
 #include "ares.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void ares_getaddrinfo_callback(void *arg, int status, int timeouts, struct ares_addrinfo *res) {
+  (void)arg;
+  (void)timeouts;
+  if (res) {
+    ares_freeaddrinfo(res);
+  }
 }
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+  if (Size < sizeof(int)) {
+    return 0;
+  }
 
-    // Create a dummy ares_channel by initializing a pointer
-    ares_channel channel = NULL;
+  int init_flags = *(int *)Data;
+  Data += sizeof(int);
+  Size -= sizeof(int);
 
-    // Step 1: ares_destroy
+  if (ares_library_init(init_flags) != ARES_SUCCESS) {
+    return 0;
+  }
+
+  const char *error_message;
+  if (Size >= sizeof(int)) {
+    int error_code = *(int *)Data;
+    error_message = ares_strerror(error_code);
+    (void)error_message;
+    Data += sizeof(int);
+    Size -= sizeof(int);
+  }
+
+  ares_channel_t *channel = NULL;
+  struct ares_options options;
+  memset(&options, 0, sizeof(options));
+  int optmask = 0;
+
+  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_init_options
+  if (ares_init_options(&channel, &options, ARES_OPT_MAXTIMEOUTMS) == ARES_SUCCESS) {
+  // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (Size >= sizeof(int)) {
+      int error_code = *(int *)Data;
+      // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ares_strerror
+      error_message = ares_strerror(Size);
+      // End mutation: Producer.REPLACE_ARG_MUTATOR
+      (void)error_message;
+      Data += sizeof(int);
+      Size -= sizeof(int);
+    }
+
+    char *servers_csv = ares_get_servers_csv(channel);
+    if (servers_csv) {
+      ares_free_string(servers_csv);
+    }
+
+    // Ensure node and service are null-terminated
+    const char *node = NULL;
+    const char *service = NULL;
+    if (Size > 0) {
+      size_t node_len = strnlen((const char *)Data, Size);
+      if (node_len < Size) {
+        node = (const char *)Data;
+        Data += node_len + 1;
+        Size -= (node_len + 1);
+      }
+    }
+
+    if (Size > 0) {
+      size_t service_len = strnlen((const char *)Data, Size);
+      if (service_len < Size) {
+        service = (const char *)Data;
+        Data += service_len + 1;
+        Size -= (service_len + 1);
+      }
+    }
+
+    struct ares_addrinfo_hints hints;
+    memset(&hints, 0, sizeof(hints));
+
+    if (node || service) { // Ensure at least one of them is non-null
+      ares_getaddrinfo(channel, node, service, &hints, ares_getaddrinfo_callback, NULL);
+    }
+
     ares_destroy(channel);
+  }
 
-    // Prepare for ares_expand_name and ares_expand_string
-    unsigned char *expanded_name = NULL;
-    unsigned char *expanded_string = NULL;
-    long enclen_name = 0;
-    long enclen_string = 0;
+  ares_library_cleanup();
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-    // Step 2: ares_expand_name
-    if (Size > 2) {
-        ares_expand_name(Data, Data, Size, (char **)&expanded_name, &enclen_name);
-    }
+    if(argc < 2)
+        exit(0);
 
-    // Step 3: ares_expand_string
-    if (Size > 3) {
-        ares_expand_string(Data, Data, Size, &expanded_string, &enclen_string);
-    }
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-    // Step 4: ares_fds
-    fd_set read_fds, write_fds;
-    FD_ZERO(&read_fds);
-    FD_ZERO(&write_fds);
-    ares_fds(channel, &read_fds, &write_fds);
+    fseek(f, 0, SEEK_END);
 
-    // Cleanup
-    if (expanded_name) ares_free_string(expanded_name);
-    if (expanded_string) ares_free_string(expanded_string);
+    size = ftell(f);
+    rewind(f);
 
-    // Handle file-based input if necessary
-    write_dummy_file(Data, Size);
+    if(size < 1 + 1)
+        exit(0);
 
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

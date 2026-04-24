@@ -1,44 +1,94 @@
+#include <sys/stat.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h"
-#include "/src/htslib/htslib/kstring.h"
+#include <unistd.h> // For close, unlink
+#include <fcntl.h>  // For mkstemp
+#include "htslib/hfile.h" // Correct path for hfile.h
 
-extern int bam_plp_insertion(const bam_pileup1_t *, kstring_t *, int *);
-
+// Remove the 'extern "C"' linkage specification as it is not needed in C
 int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a bam_pileup1_t object
-    if (size < sizeof(bam_pileup1_t) + 1) {  // Ensure there's at least one byte for kstring_t
+    // Ensure that we have enough data to extract meaningful values
+    if (size < sizeof(off_t) + sizeof(int)) {
         return 0;
     }
 
-    // Create a bam_pileup1_t object
-    bam_pileup1_t pileup;
-    memcpy(&pileup, data, sizeof(bam_pileup1_t));
-
-    // Create a kstring_t object
-    kstring_t str;
-    str.l = 0;
-    str.m = size - sizeof(bam_pileup1_t);
-    str.s = (char *)malloc(str.m + 1);  // Allocate an extra byte for null-termination
-    if (str.s == NULL) {
+    // Create a temporary file to work with hFILE
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-    memcpy(str.s, data + sizeof(bam_pileup1_t), str.m);
-    str.s[str.m] = '\0';  // Null-terminate the string
 
-    // Create an integer pointer
-    int result = 0;
-    int *result_ptr = &result;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Initialize the bam_pileup1_t object to prevent undefined behavior
-    memset(&pileup, 0, sizeof(bam_pileup1_t));
+    // Open the temporary file as an hFILE
+    hFILE *hfile = hopen(tmpl, "rb");
+    if (hfile == NULL) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Extract an off_t value from the data
+    off_t offset = *((off_t *)data);
+
+    // Extract an int value from the data
+    int whence = *((int *)(data + sizeof(off_t)));
 
     // Call the function-under-test
-    bam_plp_insertion(&pileup, &str, result_ptr);
+    off_t result = hseek(hfile, offset, whence);
 
     // Clean up
-    free(str.s);
+    hclose(hfile);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_95(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

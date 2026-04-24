@@ -1,104 +1,62 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include "ucl.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Create a new UCL object of type UCL_OBJECT
-    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
-    if (top == NULL) {
-        return 0;
-    }
+    // Ensure null-terminated string for ucl_object_fromstring
+    char *string1 = (char *)malloc(Size + 1);
+    if (!string1) return 0;
+    memcpy(string1, Data, Size);
+    string1[Size] = '\0';
 
-    // Convert the input data to a string
-    const char *str = (const char *)Data;
-    size_t len = Size;
+    ucl_object_t *obj1 = ucl_object_fromstring(string1);
+    ucl_object_t *array1 = ucl_object_fromstring("[]");
+    ucl_object_t *array2 = ucl_object_fromstring("[]");
 
-    // Create UCL objects from strings
-    ucl_object_t *elt1 = ucl_object_fromstring_common(str, len, UCL_STRING_TRIM);
+    if (array1 && array2 && obj1) {
+        // Merge two arrays
+        ucl_array_merge(array1, array2, true);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromstring_common to ucl_object_tolstring_safe
-    char *ihwrpmgt[1024] = {"gymta", NULL};
-    struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_qipxe = ucl_object_emit_memory_funcs(ihwrpmgt);
-    if (ret_ucl_object_emit_memory_funcs_qipxe == NULL){
-    	return 0;
-    }
-    int64_t ret_ucl_object_toint_otpkr = ucl_object_toint(NULL);
-    if (ret_ucl_object_toint_otpkr < 0){
-    	return 0;
-    }
-    bool ret_ucl_object_tolstring_safe_nvgyz = ucl_object_tolstring_safe(elt1, (const char **)ihwrpmgt, (size_t *)&ret_ucl_object_toint_otpkr);
-    if (ret_ucl_object_tolstring_safe_nvgyz == 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_t *elt2 = ucl_object_fromstring_common(str, len, UCL_STRING_PARSE);
-    ucl_object_t *elt3 = ucl_object_fromstring_common(str, len, UCL_STRING_ESCAPE);
+        // Insert object into array
+        ucl_object_insert_key(array1, obj1, "key1", 0, true);
 
-    // Insert keys into the UCL object
-    ucl_object_insert_key(top, elt1, "key1", 4, true);
-    ucl_object_insert_key(top, elt2, "key2", 4, true);
-    ucl_object_insert_key(top, elt3, "key3", 4, true);
+        // Create another object from string
+        ucl_object_t *obj2 = ucl_object_fromstring(string1);
+        if (obj2) {
+            // Insert second object into array
+            ucl_object_insert_key(array1, obj2, "key2", 0, true);
 
-    // Open a dummy file for writing
-    FILE *fp = fopen("./dummy_file", "w");
-    if (fp == NULL) {
-        ucl_object_unref(top);
-        return 0;
-    }
-
-    // Get emitter functions for file output
-    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
-    if (emitter_funcs == NULL) {
-        fclose(fp);
-        ucl_object_unref(top);
-        return 0;
-    }
-
-    // Create and manage streamlined UCL emitters
-    struct ucl_emitter_context *ctx1 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON, emitter_funcs);
-    struct ucl_emitter_context *ctx2 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON_COMPACT, emitter_funcs);
-    struct ucl_emitter_context *ctx3 = ucl_object_emit_streamline_new(top, UCL_EMIT_CONFIG, emitter_funcs);
-    struct ucl_emitter_context *ctx4 = ucl_object_emit_streamline_new(top, UCL_EMIT_YAML, emitter_funcs);
-
-    // Create a new UCL object of type UCL_ARRAY
-    ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
-    if (array_obj != NULL) {
-        // Start a container for streamlined output
-        ucl_object_emit_streamline_start_container(ctx1, array_obj);
-        ucl_object_emit_streamline_start_container(ctx2, array_obj);
-        ucl_object_emit_streamline_start_container(ctx3, array_obj);
-        ucl_object_emit_streamline_start_container(ctx4, array_obj);
+            // Delete key from array
+            ucl_object_delete_key(array1, "key1");
+        }
     }
 
     // Cleanup
-    if (ctx1) {
-        ucl_object_emit_streamline_finish(ctx1);
-    }
-    if (ctx2) {
-        ucl_object_emit_streamline_finish(ctx2);
-    }
-    if (ctx3) {
-        ucl_object_emit_streamline_finish(ctx3);
-    }
-    if (ctx4) {
-        ucl_object_emit_streamline_finish(ctx4);
-    }
-    if (array_obj) {
-        ucl_object_unref(array_obj);
-    }
-    fclose(fp);
-    ucl_object_unref(top);
+    if (array1) ucl_object_unref(array1);
+    if (array2) ucl_object_unref(array2);
+    if (obj1) ucl_object_unref(obj1);
 
+    free(string1);
     return 0;
 }
 #ifdef INC_MAIN

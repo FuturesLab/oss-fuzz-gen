@@ -1,37 +1,56 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
+#include <stddef.h>
+#include <stdio.h>
 
+// Function-under-test declaration
+const char * hts_version();
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    bam1_t *bam_record = bam_init1();
-    
-    if (bam_record == NULL || size == 0) {
-        return 0;
-    }
-
-    // Initialize bam_record's data
-    bam_record->data = (uint8_t *)malloc(size);
-    if (bam_record->data == NULL) {
-        bam_destroy1(bam_record);
-        return 0;
-    }
-    memcpy(bam_record->data, data, size);
-    bam_record->l_data = size;  // Corrected from data_len to l_data
-    bam_record->m_data = size;
-
-    // Set core fields to non-zero values to avoid null dereferencing
-    bam_record->core.l_qname = 1;  // Length of query name
-    bam_record->core.n_cigar = 1;  // Number of CIGAR operations
-    bam_record->core.l_qseq = 1;   // Length of query sequence
-
     // Call the function-under-test
-    hts_pos_t end_position = bam_endpos(bam_record);
+    const char *version = hts_version();
 
-    // Clean up
-    // Remove the manual free of bam_record->data as bam_destroy1 will handle it
-    bam_destroy1(bam_record);
+    // Print the version for debugging purposes (optional)
+    printf("HTS Version: %s\n", version);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

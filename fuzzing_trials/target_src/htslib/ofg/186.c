@@ -1,46 +1,72 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>  // Include this for close() and write()
-#include <fcntl.h>   // Include this for mkstemp()
+#include <string.h>
 #include <htslib/sam.h>
-#include <htslib/bgzf.h>
 
 int LLVMFuzzerTestOneInput_186(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+
+    // Ensure the data is not empty
+    if (size == 0) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
+    // Create a null-terminated string from the input data
+    char *line_name = (char *)malloc(size + 1);
+    memcpy(line_name, data, size);
+    line_name[size] = '\0';
 
-    // Open the temporary file with BGZF
-    BGZF *bgzf = bgzf_open(tmpl, "r");
-    if (bgzf == NULL) {
-        return 0;
-    }
-
-    // Initialize bam1_t structure
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        bgzf_close(bgzf);
-        return 0;
-    }
+    // Use a fixed integer for the third parameter
+    int index = 0;
 
     // Call the function-under-test
-    bam_read1(bgzf, b);
+    const char *result = sam_hdr_line_name(hdr, line_name, index);
 
     // Clean up
-    bam_destroy1(b);
-    bgzf_close(bgzf);
-    remove(tmpl);
+    free(line_name);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_186(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

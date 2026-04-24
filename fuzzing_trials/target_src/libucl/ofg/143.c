@@ -1,27 +1,66 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
-#include <ucl.h>
+#include <stdlib.h>
 #include <string.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
-    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
-    const char *key = "example_key";
-    size_t keylen = strlen(key);
-    bool merge = true;
-
-    // Ensure the data is not NULL and has a reasonable size
-    if (size > 0 && data != NULL) {
-        // Insert the data into the object
-        ucl_object_t *data_obj = ucl_object_fromstring((const char *)data);
-        ucl_object_insert_key_merged(top, data_obj, key, keylen, merge);
+    // Ensure the input data is null-terminated to be used as a string
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0;
     }
 
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the string
+
+    // Call the function-under-test
+    ucl_object_t *result = ucl_object_fromstring(input);
+
     // Clean up
-    ucl_object_unref(top);
-    ucl_object_unref(obj);
+    if (result != NULL) {
+        ucl_object_unref(result);
+    }
+    free(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_143(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

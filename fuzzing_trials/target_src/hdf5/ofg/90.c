@@ -3,26 +3,60 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract meaningful values
-    if (size < sizeof(hid_t) * 2 + sizeof(hsize_t)) {
-        return 0;
-    }
-
-    // Initialize variables
-    hid_t dset_id = *((hid_t *)data); // Extract hid_t from data
-    hid_t fspace_id = *((hid_t *)(data + sizeof(hid_t))); // Extract another hid_t
-    hsize_t index = *((hsize_t *)(data + sizeof(hid_t) * 2)); // Extract hsize_t
-
-    // Initialize pointers for function call
-    hsize_t offset[H5S_MAX_RANK] = {0}; // Assuming a maximum rank
+    // Declare and initialize the variables needed for the function call
+    hid_t dataset_id = 0; // Assuming a valid dataset_id is 0 for fuzzing
+    hsize_t coord[2] = {0, 0}; // Initialize with 0,0 for simplicity
     unsigned int filter_mask = 0;
     haddr_t addr = 0;
     hsize_t size_out = 0;
 
-    // Call the function-under-test
-    herr_t result = H5Dget_chunk_info(dset_id, fspace_id, index, offset, &filter_mask, &addr, &size_out);
+    // Ensure there's enough data to populate the coordinates
+    if (size >= sizeof(hsize_t) * 2) {
+        coord[0] = ((const hsize_t *)data)[0];
+        coord[1] = ((const hsize_t *)data)[1];
+    }
 
-    // Use the result in some way (e.g., logging, further processing) if necessary
-    // For the purpose of fuzzing, we just return 0
+    // Call the function-under-test
+    H5Dget_chunk_info_by_coord(dataset_id, coord, &filter_mask, &addr, &size_out);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_90(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

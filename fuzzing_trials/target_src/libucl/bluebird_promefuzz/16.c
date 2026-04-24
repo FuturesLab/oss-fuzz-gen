@@ -1,110 +1,82 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include "ucl.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static ucl_object_t *create_dummy_ucl_object(const uint8_t *Data, size_t Size) {
+    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
+    if (obj == NULL) {
+        return NULL;
+    }
+    obj->key = (const char *)Data;
+    obj->keylen = Size;
+    obj->value.sv = (const char *)Data;
+    obj->len = Size;  // Ensure length is set correctly for the string
+    obj->type = UCL_STRING;
+    return obj;
+}
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Create a new UCL object of type UCL_OBJECT
-    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
-    if (top == NULL) {
+    ucl_object_t *root = create_dummy_ucl_object(Data, Size);
+    if (root == NULL) {
         return 0;
     }
 
-    // Convert the input data to a string
-    const char *str = (const char *)Data;
-    size_t len = Size;
+    const char *key = "dummy_key";
+    const ucl_object_t *lookup_result1 = ucl_object_lookup(root, key);
+    const ucl_object_t *lookup_result2 = ucl_object_lookup(root, key);
+    const ucl_object_t *lookup_result3 = ucl_object_lookup(root, key);
 
-    // Create UCL objects from strings
-    ucl_object_t *elt1 = ucl_object_fromstring_common(str, len, UCL_STRING_TRIM);
-    ucl_object_t *elt2 = ucl_object_fromstring_common(str, len, UCL_STRING_PARSE);
-    ucl_object_t *elt3 = ucl_object_fromstring_common(str, len, UCL_STRING_ESCAPE);
+    struct ucl_schema_error err;
+    bool is_valid = ucl_object_validate(root, root, &err);
 
-    // Insert keys into the UCL object
-    ucl_object_insert_key(top, elt1, "key1", 4, true);
-    ucl_object_insert_key(top, elt2, "key2", 4, true);
+    bool bool_value1 = ucl_object_toboolean(root);
+    const char *string_value = ucl_object_tostring(root);
+    bool bool_value2 = ucl_object_toboolean(root);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_object_merge
-    ucl_object_t* ret_ucl_object_copy_ocdww = ucl_object_copy(top);
-    if (ret_ucl_object_copy_ocdww == NULL){
+    unsigned char *json_output = ucl_object_emit(root, UCL_EMIT_JSON);
+    unsigned char *config_output = ucl_object_emit(root, UCL_EMIT_CONFIG);
+
+    if (json_output) {
+        free(json_output);
+    }
+    if (config_output) {
+        free(config_output);
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_object_lookup_any
+    ucl_object_t* ret_ucl_object_frombool_bnfmy = ucl_object_frombool(0);
+    if (ret_ucl_object_frombool_bnfmy == NULL){
     	return 0;
     }
-    bool ret_ucl_object_merge_zfvin = ucl_object_merge(ret_ucl_object_copy_ocdww, elt2, 0);
-    if (ret_ucl_object_merge_zfvin == 0){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_frombool_bnfmy) {
     	return 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_insert_key(top, elt3, "key3", 4, true);
-
-    // Open a dummy file for writing
-    FILE *fp = fopen("./dummy_file", "w");
-    if (fp == NULL) {
-        ucl_object_unref(top);
-        return 0;
-    }
-
-    // Get emitter functions for file output
-    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
-    if (emitter_funcs == NULL) {
-        fclose(fp);
-        ucl_object_unref(top);
-        return 0;
-    }
-
-    // Create and manage streamlined UCL emitters
-    struct ucl_emitter_context *ctx1 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON, emitter_funcs);
-    struct ucl_emitter_context *ctx2 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON_COMPACT, emitter_funcs);
-    struct ucl_emitter_context *ctx3 = ucl_object_emit_streamline_new(top, UCL_EMIT_CONFIG, emitter_funcs);
-    struct ucl_emitter_context *ctx4 = ucl_object_emit_streamline_new(top, UCL_EMIT_YAML, emitter_funcs);
-
-    // Create a new UCL object of type UCL_ARRAY
-    ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
-    if (array_obj != NULL) {
-        // Start a container for streamlined output
-        ucl_object_emit_streamline_start_container(ctx1, array_obj);
-        ucl_object_emit_streamline_start_container(ctx2, array_obj);
-        ucl_object_emit_streamline_start_container(ctx3, array_obj);
-        ucl_object_emit_streamline_start_container(ctx4, array_obj);
-    }
-
-    // Cleanup
-    if (ctx1) {
-        ucl_object_emit_streamline_finish(ctx1);
-    }
-    if (ctx2) {
-        ucl_object_emit_streamline_finish(ctx2);
-    }
-    if (ctx3) {
-        ucl_object_emit_streamline_finish(ctx3);
-    }
-    if (ctx4) {
-        ucl_object_emit_streamline_finish(ctx4);
-    }
-    if (array_obj) {
-        ucl_object_unref(array_obj);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_typed_new to ucl_comments_move
-    ucl_object_t* ret_ucl_object_copy_oyyqb = ucl_object_copy(top);
-    if (ret_ucl_object_copy_oyyqb == NULL){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!config_output) {
     	return 0;
     }
-    bool ret_ucl_comments_move_nznyx = ucl_comments_move(ret_ucl_object_copy_oyyqb, array_obj, ret_ucl_object_copy_ocdww);
-    if (ret_ucl_comments_move_nznyx == 0){
+    const ucl_object_t* ret_ucl_object_lookup_any_njkuk = ucl_object_lookup_any(ret_ucl_object_frombool_bnfmy, (const char *)config_output);
+    if (ret_ucl_object_lookup_any_njkuk == NULL){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    fclose(fp);
-    ucl_object_unref(top);
+    free(root);
 
     return 0;
 }

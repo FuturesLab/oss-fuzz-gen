@@ -1,32 +1,39 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-  // Ensure size is not zero to avoid undefined behavior with non-null-terminated strings
-  if (size == 0) {
+    // Ensure the size is sufficient for the test
+    if (size < 3) {
+        return 0;
+    }
+
+    // Initialize the UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Parse the input data as UCL
+    ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *root_obj = ucl_parser_get_object(parser);
+
+    // Prepare a path and delimiter for the lookup function
+    const char *path = (const char *)data;
+    char delimiter = (char)data[size - 1];
+
+    // Call the function-under-test
+    const ucl_object_t *result = ucl_object_lookup_path_char(root_obj, path, delimiter);
+
+    // Cleanup
+    if (root_obj != NULL) {
+        ucl_object_unref(root_obj);
+    }
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  unsigned int line_number = ucl_parser_get_linenum(parser);
-
-  // Use the result to prevent compiler optimizations that remove the call
-  if (line_number == 0) {
-    // Do something trivial
-  }
-
-  ucl_parser_free(parser);
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

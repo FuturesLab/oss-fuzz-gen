@@ -1,59 +1,67 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "hdf5.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
-
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
-        hid_t ret_H5Freopen_jkojw = H5Freopen(file_id);
-        hsize_t ret_H5Dget_storage_size_txvkk = H5Dget_storage_size(0);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dget_storage_size to H5Aiterate_by_name
-        hid_t ret_H5Aget_type_ozqqh = H5Aget_type(file_id);
-        herr_t ret_H5Aiterate_by_name_dgbrx = H5Aiterate_by_name(dataset_id, (const char *)data, 0, 0, &ret_H5Dget_storage_size_txvkk, NULL, (void *)"r", ret_H5Aget_type_ozqqh);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        herr_t ret_H5Dget_num_chunks_rqphk = H5Dget_num_chunks(dataset_id, ret_H5Freopen_jkojw, &ret_H5Dget_storage_size_txvkk);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
     }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Define the flags and file access property list
+    unsigned int flags = H5F_ACC_RDONLY; // Read-only access
+    hid_t fapl_id = H5P_DEFAULT; // Default file access property list
 
     // Call the function-under-test
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of H5Fopen
+    hid_t file_id = H5Fopen(tmpl, 1, fapl_id);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Gget_objtype_by_idx
-    H5G_obj_t ret_H5Gget_objtype_by_idx_yhuzp = H5Gget_objtype_by_idx(file_id, 0);
-    // End mutation: Producer.APPEND_MUTATOR
+    // If the file was opened successfully, close it
+    if (file_id >= 0) {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fformat_convert
+        H5Fformat_convert(file_id);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
+
+    // Clean up the temporary file
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from H5Fopen to H5Fmount using the plateau pool
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from H5Fopen to H5Dcreate2 using the plateau pool
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from H5Fopen to H5Acreate2 using the plateau pool
+    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t ret_H5Acreate2_bsidq = H5Acreate2(group_id, "test_attr", file_id, file_id, file_id, file_id);
+    // End mutation: Producer.SPLICE_MUTATOR
     
-    status = H5Fget_filesize(file_id, &filesize);
-
-    // Close the file
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_filesize to H5Gget_objtype_by_idx
-    H5G_obj_t ret_H5Gget_objtype_by_idx_lofto = H5Gget_objtype_by_idx(file_id, filesize);
-    // End mutation: Producer.APPEND_MUTATOR
+    hsize_t dims[1] = {size};
+    hid_t space_id = H5Screate_simple(1, dims, NULL);
+    hid_t ret_H5Dcreate2_kdnha = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // End mutation: Producer.SPLICE_MUTATOR
     
-    H5Fclose(file_id);
+    hid_t plist_id = H5P_DEFAULT;
+    herr_t ret_H5Fmount_oxzis = H5Fmount(file_id, "/mount_point", file_id, plist_id);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    unlink(tmpl);
 
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

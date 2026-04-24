@@ -1,54 +1,70 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include "/src/htslib/htslib/sam.h"  // Correct path for bam1_t and related functions
+#include <htslib/sam.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
-    // Initialize two bam1_t structures
-    bam1_t *dest = bam_init1();
-    bam1_t *src = bam_init1();
-
-    if (dest == NULL || src == NULL) {
-        if (dest != NULL) bam_destroy1(dest);
-        if (src != NULL) bam_destroy1(src);
+    // We can't use sizeof(hts_idx_t) because it's an incomplete type.
+    // Instead, we assume a minimum size required for the rest of the data.
+    const size_t min_size = sizeof(int) + 2 * sizeof(hts_pos_t);
+    
+    if (size < min_size) {
         return 0;
     }
 
-    // Fill the source bam1_t with some data from the input
-    // Ensure that the data field is properly allocated
-    if (size > 0) {
-        // Allocate memory for src->data if necessary
-        if (src->m_data < size) {
-            uint8_t *new_data = realloc(src->data, size);
-            if (new_data == NULL) {
-                bam_destroy1(dest);
-                bam_destroy1(src);
-                return 0;
-            }
-            src->data = new_data;
-            src->m_data = size;
-        }
-        memcpy(src->data, data, size);
-        src->l_data = size;
-    }
+    // Initialize the parameters for sam_itr_queryi
+    // We skip the part of the data that would represent hts_idx_t
+    const hts_idx_t *idx = NULL; // We cannot derive this from data directly.
+    int tid = *((int *)(data));
+    hts_pos_t beg = *((hts_pos_t *)(data + sizeof(int)));
+    hts_pos_t end = *((hts_pos_t *)(data + sizeof(int) + sizeof(hts_pos_t)));
 
     // Call the function-under-test
-    bam1_t *result = bam_copy1(dest, src);
+    hts_itr_t *itr = sam_itr_queryi(idx, tid, beg, end);
 
-    // Ensure that the function under test is effectively invoked
-    if (result == NULL) {
-        // Handle the case where bam_copy1 fails
-        bam_destroy1(dest);
-        bam_destroy1(src);
-        return 0;
-    }
-
-    // Clean up
-    bam_destroy1(dest);
-    bam_destroy1(src);
-    if (result != dest) {
-        bam_destroy1(result);
+    // Clean up if necessary
+    if (itr != NULL) {
+        hts_itr_destroy(itr);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_147(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,40 +1,64 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    // Initialize HDF5 library
+    H5open();
+
+    // Create a temporary file to work with
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
-    } // Adjust size as needed for your parameters
-
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
-
-    // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
-
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        H5Fclose(file_id);
     }
 
+    // Create a group in the file
+    hid_t group_id = H5Gcreate(file_id, "/group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Dget_chunk_info
-    hid_t ret_H5Aget_create_plist_eoazu = H5Aget_create_plist(0);
-    hsize_t nzpshhhi;
-    memset(&nzpshhhi, 0, sizeof(nzpshhhi));
-    unsigned int awpuvjyr = 1;
-    herr_t ret_H5Dget_chunk_info_jbczd = H5Dget_chunk_info(ret_H5Aget_create_plist_eoazu, file_id, 0, &nzpshhhi, &awpuvjyr, NULL, NULL);
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Ensure we have enough data to work with
+    if (size < 2) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Split the data into two parts for source and destination names
+    size_t mid = size / 2;
+    char *src_name = (char *)malloc(mid + 1);
+    char *dst_name = (char *)malloc(size - mid + 1);
+
+    if (src_name == NULL || dst_name == NULL) {
+        free(src_name);
+        free(dst_name);
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    memcpy(src_name, data, mid);
+    src_name[mid] = '\0';
+
+    memcpy(dst_name, data + mid, size - mid);
+    dst_name[size - mid] = '\0';
+
+    // Call the function-under-test
+    herr_t status = H5Gmove(group_id, src_name, dst_name);
+
+    // Clean up
+    free(src_name);
+    free(dst_name);
+    H5Gclose(group_id);
+    H5Fclose(file_id);
+
+    // Close HDF5 library
+    H5close();
+
     return 0;
 }
 #ifdef INC_MAIN

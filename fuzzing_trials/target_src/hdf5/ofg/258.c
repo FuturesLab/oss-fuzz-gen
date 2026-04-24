@@ -1,28 +1,87 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
+#include <unistd.h>  // For mkstemp
+#include <stdio.h>   // For perror
+#include <fcntl.h>   // For open
+#include <string.h>  // For memset
 
 int LLVMFuzzerTestOneInput_258(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
-
-    // Ensure size is sufficient for two hid_t values
-    if (size < 2 * sizeof(hid_t)) {
+    // Ensure the data size is sufficient for our needs
+    if (size < 4) {
         return 0;
     }
 
-    // Extract two hid_t values from the input data
-    hid_t dataset_id = *((hid_t *)data);
-    hid_t fspace_id = *((hid_t *)(data + sizeof(hid_t)));
+    // Create temporary file names for the parameters
+    char file_name[] = "/tmp/h5fuzzfileXXXXXX";
+    int fd = mkstemp(file_name);
+    if (fd == -1) {
+        perror("mkstemp");
+        return 0;
+    }
+    close(fd);
 
-    // Initialize hsize_t variable for the number of chunks
-    hsize_t num_chunks = 0;
+    // Extract values from the data for the parameters
+    unsigned int flags = data[0];
+    hid_t object_id = (hid_t)data[1];
+    H5F_scope_t scope = (H5F_scope_t)data[2];
+    hid_t es_id = (hid_t)data[3];
+
+    // Open the file to ensure object_id is valid
+    object_id = H5Fopen(file_name, flags, H5P_DEFAULT);
+    if (object_id < 0) {
+        unlink(file_name);
+        return 0;
+    }
 
     // Call the function-under-test
-    herr_t result = H5Dget_num_chunks(dataset_id, fspace_id, &num_chunks);
+    herr_t result = H5Fflush_async(object_id, scope, es_id);
 
-    // Close HDF5 library
-    H5close();
+    // Close the file
+    H5Fclose(object_id);
 
+    // Clean up temporary file
+    unlink(file_name);
+
+    // Return 0 to indicate success
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_258(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,42 +1,65 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <hdf5.h>
-
-herr_t dummy_operator_121(hid_t location_id, const char *attr_name, const H5A_info_t *ainfo, void *op_data) {
-    // This is a dummy operator function for testing purposes
-    return 0;
-}
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t loc_id = H5I_INVALID_HID;
-    H5_index_t idx_type = H5_INDEX_NAME;
-    H5_iter_order_t order = H5_ITER_INC;
-    hsize_t idx = 0;
-    H5A_operator2_t op = dummy_operator_121;
-    void *op_data = NULL;
-
-    // Ensure loc_id is valid for fuzzing
-    loc_id = H5Fopen("dummy_file.h5", H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (loc_id < 0) {
+    // Ensure that the input size is sufficient for the parameters
+    if (size < 3) {
         return 0;
     }
 
-    // Use the input data to influence the fuzzing process
-    if (size > 0) {
-        idx_type = (H5_index_t)(data[0] % 3); // Assuming there are 3 possible index types
-    }
-    if (size > 1) {
-        order = (H5_iter_order_t)(data[1] % 3); // Assuming there are 3 possible orders
-    }
+    // Initialize the parameters
+    hid_t dset_id = (hid_t)data[0];
+    hid_t es_id = (hid_t)data[1];
 
     // Call the function-under-test
-    herr_t result = H5Aiterate2(loc_id, idx_type, order, &idx, op, op_data);
+    herr_t result = H5Dclose_async(dset_id, es_id);
 
-    // Close the file if it was opened
-    if (loc_id >= 0) {
-        H5Fclose(loc_id);
+    // Use the result in some way to avoid compiler optimizations
+    if (result < 0) {
+        // Handle error if needed
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_121(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

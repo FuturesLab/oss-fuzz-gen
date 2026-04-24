@@ -1,39 +1,28 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include "ucl.h"
+
+// Define a dummy variable handler function
+ucl_object_t *dummy_variable_handler(const char *var, size_t var_len, void *ud) {
+    // For simplicity, return NULL or a simple object
+    return ucl_object_fromstring("dummy_value");
+}
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    struct ucl_parser *parser = ucl_parser_new(0);
+    void *user_data = (void *)data; // Use the input data as user data
+
+    if (parser != NULL) {
+        // Call the function-under-test
+        ucl_parser_set_variables_handler(parser, dummy_variable_handler, user_data);
+
+        // Clean up
+        ucl_parser_free(parser);
+    }
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_add_fd
-  bool ret_ucl_parser_add_fd_iotwe = ucl_parser_add_fd(parser, size);
-  if (ret_ucl_parser_add_fd_iotwe == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

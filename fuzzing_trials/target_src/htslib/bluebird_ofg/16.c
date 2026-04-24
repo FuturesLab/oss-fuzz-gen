@@ -1,64 +1,78 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // Include this for the close() and remove() functions
+#include <unistd.h>  // Include this for close() and unlink()
+#include <fcntl.h>   // Include this for mkstemp()
 #include "htslib/hts.h"
-#include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    // Create a temporary file to store the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    close(fd);
 
-    // Open the temporary file as an htsFile
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        remove(tmpl);
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        unlink(tmpl);
         return 0;
     }
 
-    // Define index and format strings
-    const char *index = "index.bai"; // Example index filename
-    const char *format = "bai";      // Example format
-
     // Call the function-under-test
+    hts_close(file);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of sam_index_load3
-    const char uptyclzw[1024] = "vmllt";
-    hts_idx_t *index_result = sam_index_load3(hts_file, tmpl, uptyclzw, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-    if (index_result) {
-        hts_idx_destroy(index_result);
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_destroy to sam_itr_regions
-        hts_reglist_t vscqohrb;
-        memset(&vscqohrb, 0, sizeof(vscqohrb));
-
-        hts_itr_t* ret_sam_itr_regions_bxudg = sam_itr_regions(index_result, NULL, &vscqohrb, BAM_CDIFF);
-        if (ret_sam_itr_regions_bxudg == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-}
-    hts_close(hts_file);
-    remove(tmpl);
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

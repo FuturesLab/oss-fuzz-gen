@@ -1,77 +1,36 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include "ucl.h"
 
-#ifdef __cplusplus
-extern "C" {
+// Define UCL_TYPE_MAX if it's not defined in the ucl.h
+#ifndef UCL_TYPE_MAX
+#define UCL_TYPE_MAX 10 // Assuming 10 is the maximum value for ucl_type_t, adjust as necessary
 #endif
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *obj = ucl_object_new();
-    enum ucl_object_keys_sort_flags sort_flags = UCL_SORT_KEYS_ICASE; // Corrected the enum value
+    // Ensure size is sufficient to extract the necessary parameters
+    if (size < sizeof(ucl_type_t) + sizeof(unsigned int)) {
+        return 0;
+    }
 
-    // Ensure that the data is not empty
-    if (size > 0 && obj != NULL) {
-        // Create a UCL parser
-        struct ucl_parser *parser = ucl_parser_new(0);
+    // Extract the ucl_type_t from the data
+    ucl_type_t type = (ucl_type_t)(data[0] % UCL_TYPE_MAX); // Ensure valid ucl_type_t
 
-        // Parse the input data
-        if (ucl_parser_add_chunk(parser, data, size)) {
-            // Get the top-level object
-            const ucl_object_t *top = ucl_parser_get_object(parser);
+    // Extract the unsigned int from the data
+    unsigned int priority = *((unsigned int *)(data + 1));
 
-            // Copy the parsed object to our object
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_merge with ucl_array_merge
+    // Call the function-under-test
+    ucl_object_t *obj = ucl_object_new_full(type, priority);
 
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_merge
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_object_merge
-            bool ret_ucl_object_merge_bazrs = ucl_object_merge(top, top, 0);
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-            if (ret_ucl_object_merge_bazrs == 0){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_merge to ucl_array_delete
-            ucl_object_unref(top);
-            ucl_object_t* ret_ucl_array_delete_ybddw = ucl_array_delete(top, top);
-            if (ret_ucl_array_delete_ybddw == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            ucl_array_merge(obj, (ucl_object_t *)top, true);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_merge to ucl_copy_value_trash
-            char* ret_ucl_copy_value_trash_sdsey = ucl_copy_value_trash(obj);
-            if (ret_ucl_copy_value_trash_sdsey == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-}
-
-        // Free the parser
-        ucl_parser_free(parser);
-
-        // Call the function under test
-        ucl_object_sort_keys(obj, sort_flags);
-
-        // Clean up
+    // Clean up
+    if (obj != NULL) {
         ucl_object_unref(obj);
     }
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,31 +1,76 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
+#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_257(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
-
-    // Declare and initialize variables
-    hid_t dataset_id = H5I_INVALID_HID;  // Invalid ID to start with
-    hid_t file_space_id = H5I_INVALID_HID;  // Invalid ID to start with
-    hsize_t num_chunks = 0;
-
-    // Ensure the data size is sufficient to create valid IDs
-    if (size >= sizeof(hid_t) * 2) {
-        // Use the data to create IDs, casting to hid_t
-        dataset_id = *((hid_t*)data);
-        file_space_id = *((hid_t*)(data + sizeof(hid_t)));
-
-        // Call the function-under-test
-        herr_t status = H5Dget_num_chunks(dataset_id, file_space_id, &num_chunks);
-
-        // Optionally, handle the status or num_chunks if needed
-        (void)status;  // Suppress unused variable warning
+    // Create a temporary file to store the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Close HDF5 library
-    H5close();
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Initialize a valid hid_t value
+    hid_t fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    if (fapl_id < 0) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Call the function under test
+    htri_t result = H5Fis_accessible(tmpl, fapl_id);
+
+    // Clean up
+    H5Pclose(fapl_id);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_257(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

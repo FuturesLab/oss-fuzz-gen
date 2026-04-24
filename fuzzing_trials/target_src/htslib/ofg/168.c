@@ -1,44 +1,94 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h> // Include for close and unlink
+#include <fcntl.h>  // Include for mkstemp
+#include "/src/htslib/htslib/hfile.h" // Correct path for hfile.h
 
-// Function signature for the function-under-test
-int sam_open_mode(char *, const char *, const char *);
-
-// Fuzzing harness for the function-under-test
 int LLVMFuzzerTestOneInput_168(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to split into three parts
-    if (size < 3) {
+    // Ensure the data is large enough for meaningful testing
+    if (size < 2) return 0;
+
+    // Create a temporary file and write the fuzz data to it
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) return 0;
+
+    FILE *file = fdopen(fd, "wb+");
+    if (file == NULL) {
+        close(fd);
         return 0;
     }
 
-    // Split the input data into three parts
-    size_t part1_size = size / 3;
-    size_t part2_size = (size - part1_size) / 2;
-    size_t part3_size = size - part1_size - part2_size;
+    fwrite(data, 1, size, file);
+    fflush(file);
+    fseek(file, 0, SEEK_SET);
 
-    // Allocate memory for each part and ensure null-termination
-    char *part1 = (char *)malloc(part1_size + 1);
-    char *part2 = (char *)malloc(part2_size + 1);
-    char *part3 = (char *)malloc(part3_size + 1);
+    // Open the file using hts_open, which is a valid function in htslib
+    hFILE *hfile = hopen(tmpl, "rb");
+    if (hfile == NULL) {
+        fclose(file);
+        return 0;
+    }
 
-    // Copy data into each part and null-terminate
-    memcpy(part1, data, part1_size);
-    part1[part1_size] = '\0';
-
-    memcpy(part2, data + part1_size, part2_size);
-    part2[part2_size] = '\0';
-
-    memcpy(part3, data + part1_size + part2_size, part3_size);
-    part3[part3_size] = '\0';
+    // Allocate a buffer for hgetdelim
+    size_t buffer_size = size + 1;
+    char *buffer = (char *)malloc(buffer_size);
+    if (buffer == NULL) {
+        hclose(hfile);
+        fclose(file);
+        return 0;
+    }
 
     // Call the function-under-test
-    sam_open_mode(part1, part2, part3);
+    ssize_t result = hgetdelim(buffer, buffer_size, '\n', hfile);
 
-    // Free allocated memory
-    free(part1);
-    free(part2);
-    free(part3);
+    // Clean up
+    free(buffer);
+    hclose(hfile);
+    fclose(file);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_168(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

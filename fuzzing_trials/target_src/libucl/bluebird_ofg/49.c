@@ -1,38 +1,35 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-  // If size is 0 we need a null-terminated string.
-  // We don't null-terminate the string and by the design
-  // of the API passing 0 as size with a non-null-terminated string
-  // gives undefined behavior.
-  if (size == 0) {
+    struct ucl_parser *parser;
+    unsigned int priority;
+
+    // Initialize the parser
+    parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Ensure size is sufficient to extract an unsigned int
+    if (size < sizeof(unsigned int)) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Extract an unsigned int from the data
+    priority = *(unsigned int *)data;
+
+    // Call the function-under-test
+    ucl_parser_set_default_priority(parser, priority);
+
+    // Clean up
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  struct ucl_parser *parser;
-  const ucl_object_t *obj;
-
-  // Create a new UCL parser
-  parser = ucl_parser_new(0);
-
-  // Add the input data as a string to the parser
-  ucl_parser_add_string(parser, (char *)data, size);
-
-  // Get the parsed object
-  obj = ucl_parser_get_object(parser);
-
-  // Call the function-under-test
-  unsigned int array_size = ucl_array_size(obj);
-
-  // Free the parser and the object
-  ucl_object_unref(obj);
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

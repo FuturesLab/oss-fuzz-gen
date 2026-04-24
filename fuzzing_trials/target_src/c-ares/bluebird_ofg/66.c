@@ -1,48 +1,73 @@
-#include "stddef.h"
+#include <sys/stat.h>
+#include <arpa/inet.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include "ares.h"
 
-// Define a different name for the callback function to avoid conflict
-void my_ares_callback_66(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-  // Handle the callback, for fuzzing purposes we do nothing
-}
-
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-  ares_channel channel; // Corrected from ares_channel_t to ares_channel
+    if (size < 1) {
+        return 0;
+    }
 
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ares_library_init
-  int status = ares_library_init(ARES_AI_IDN);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
+    /* Extract the address family from the input data */
+    int af = data[0] % 2 == 0 ? AF_INET : AF_INET6;
 
+    /* Prepare the source buffer */
+    unsigned char src[16] = {0}; // 16 bytes to accommodate both IPv4 and IPv6
+    size_t src_size = (af == AF_INET) ? 4 : 16;
 
-  if (status != ARES_SUCCESS) {
+    if (size < 1 + src_size) {
+        return 0;
+    }
+
+    /* Copy the appropriate number of bytes to the source buffer */
+    memcpy(src, data + 1, src_size);
+
+    /* Prepare the destination buffer */
+    char dst[INET6_ADDRSTRLEN] = {0}; // INET6_ADDRSTRLEN is large enough for both IPv4 and IPv6
+
+    /* Call the function-under-test */
+    ares_inet_ntop(af, src, dst, INET6_ADDRSTRLEN);
+
     return 0;
-  }
-
-  status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
-  }
-
-  // Create a copy of the input data to use as the query buffer
-  unsigned char *qbuf = (unsigned char *)malloc(size);
-  if (qbuf == NULL) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
-  }
-  memcpy(qbuf, data, size);
-
-  // Call ares_send with the provided data
-  ares_send(channel, qbuf, (int)size, my_ares_callback_66, NULL);
-
-  // Clean up
-  free(qbuf);
-  ares_destroy(channel);
-  ares_library_cleanup();
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_66(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

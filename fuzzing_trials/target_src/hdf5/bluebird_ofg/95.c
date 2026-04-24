@@ -1,39 +1,26 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure the data size is large enough to extract required parameters
+    if (size < 10) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Extract parameters from the data
+    hid_t dset_id = (hid_t)data[0];
+    hid_t mem_type_id = (hid_t)data[1];
+    hid_t mem_space_id = (hid_t)data[2];
+    hid_t file_space_id = (hid_t)data[3];
+    hid_t dxpl_id = (hid_t)data[4];
+    const void *buf = (const void *)(data + 5);
+    hid_t es_id = (hid_t)data[6];
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aiterate_by_name
-    hid_t ret_H5Aget_space_hpiuj = H5Aget_space(0);
-    hid_t ret_H5Dget_type_qfdjg = H5Dget_type(0);
-    hsize_t sshwdwxg;
-    memset(&sshwdwxg, 0, sizeof(sshwdwxg));
-    herr_t ret_H5Aiterate_by_name_ajkhq = H5Aiterate_by_name(ret_H5Aget_space_hpiuj, name_buffer, 0, 0, &sshwdwxg, NULL, NULL, ret_H5Dget_type_qfdjg);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    herr_t result = H5Dwrite_async(dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf, es_id);
 
     return 0;
 }

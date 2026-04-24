@@ -1,32 +1,62 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "hdf5.h"
 #include <string.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
+    // Ensure the data size is sufficient for two null-terminated strings
+    if (size < 4) {
         return 0;
-    } // Adjust size as needed for your parameters
+    }
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Create a temporary HDF5 file
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Create two groups in the file
+    hid_t group1_id = H5Gcreate2(file_id, "/group1", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t group2_id = H5Gcreate2(file_id, "/group2", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    if (group1_id < 0 || group2_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Split data into two strings
+    size_t len1 = data[0] % (size - 1) + 1; // Ensure at least 1 character
+    size_t len2 = size - len1 - 1;
+
+    char *name1 = (char *)malloc(len1 + 1);
+    char *name2 = (char *)malloc(len2 + 1);
+
+    if (name1 == NULL || name2 == NULL) {
+        free(name1);
+        free(name2);
+        H5Gclose(group1_id);
+        H5Gclose(group2_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    memcpy(name1, data + 1, len1);
+    name1[len1] = '\0';
+
+    memcpy(name2, data + 1 + len1, len2);
+    name2[len2] = '\0';
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+    H5Gmove2(group1_id, name1, group2_id, name2);
 
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Fstart_swmr_write
-        H5Fstart_swmr_write(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    // Clean up
+    free(name1);
+    free(name2);
+    H5Gclose(group1_id);
+    H5Gclose(group2_id);
+    H5Fclose(file_id);
 
     return 0;
 }

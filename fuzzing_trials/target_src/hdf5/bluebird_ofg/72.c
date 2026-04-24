@@ -1,35 +1,57 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Check if the input data is not null and has a minimum size
+    if (data == NULL || size < 1) {
+        return 0;
+    }
+    
+    // Initialize HDF5 library
+    H5open();
+
+    // Create a temporary file to store the HDF5 data
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Create a simple dataset
+    hsize_t dims[1] = {size};
+    hid_t space_id = H5Screate_simple(1, dims, NULL);
+    if (space_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    hid_t dset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dset_id < 0) {
+        H5Sclose(space_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Write the input data to the dataset
+    herr_t status = H5Dwrite(dset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+    if (status < 0) {
+        H5Dclose(dset_id);
+        H5Sclose(space_id);
+        H5Fclose(file_id);
         return 0;
     }
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    H5Dformat_convert(dset_id);
 
     // Clean up
+    H5Dclose(dset_id);
+    H5Sclose(space_id);
+    H5Fclose(file_id);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aget_name
-    ssize_t ret_H5Aget_name_bxprj = H5Aget_name(0, H5F_FAMILY_DEFAULT, name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Close HDF5 library
+    H5close();
 
     return 0;
 }

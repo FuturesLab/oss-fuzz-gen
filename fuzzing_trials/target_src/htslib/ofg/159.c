@@ -1,57 +1,96 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdio.h>
+#include <string.h> // Include for strdup and memcpy
 #include <htslib/sam.h>
-#include <htslib/hts.h>
+#include <htslib/kstring.h>
 
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    close(fd);
+    // Initialize bam_hdr_t
+    bam_hdr_t hdr;
+    hdr.n_targets = 1;
+    hdr.target_len = (uint32_t *)malloc(sizeof(uint32_t));
+    hdr.target_len[0] = 1000;
+    hdr.target_name = (char **)malloc(sizeof(char *));
+    hdr.target_name[0] = strdup("chr1");
 
-    // Open the temporary file as an htsFile
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        unlink(tmpl);
-        return 0;
-    }
+    // Initialize bam1_t
+    bam1_t *b = bam_init1();
+    b->core.tid = 0;
+    b->core.pos = 0;
+    b->core.qual = 20;
+    b->core.l_qname = 10;
+    b->core.flag = 0;
+    b->core.n_cigar = 1;
+    b->core.l_qseq = 100;
+    b->core.mtid = -1;
+    b->core.mpos = -1;
+    b->core.isize = 0;
 
-    // Initialize the sam_hdr_t and bam1_t structures
-    sam_hdr_t *header = sam_hdr_read(hts_file);
-    if (!header) {
-        hts_close(hts_file);
-        unlink(tmpl);
+    // Allocate memory for data
+    b->data = (uint8_t *)malloc(size + 10);
+    if (b->data == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
         return 0;
     }
+    memcpy(b->data, data, size);
+    b->l_data = size;
 
-    bam1_t *alignment = bam_init1();
-    if (!alignment) {
-        sam_hdr_destroy(header);
-        hts_close(hts_file);
-        unlink(tmpl);
-        return 0;
-    }
+    // Initialize kstring_t
+    kstring_t str;
+    str.l = 0;
+    str.m = 0;
+    str.s = NULL;
 
     // Call the function-under-test
-    sam_read1(hts_file, header, alignment);
+    int result = sam_format1(&hdr, b, &str);
 
     // Clean up
-    bam_destroy1(alignment);
-    sam_hdr_destroy(header);
-    hts_close(hts_file);
-    unlink(tmpl);
+    free(hdr.target_name[0]);
+    free(hdr.target_name);
+    free(hdr.target_len);
+    free(b->data);
+    bam_destroy1(b);
+    free(str.s);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_159(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

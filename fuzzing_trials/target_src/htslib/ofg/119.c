@@ -1,39 +1,57 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include <htslib/hts.h>
 
-// Function prototype for the hypothetical hts_opt functions
-typedef struct hts_opt hts_opt;
-int hts_opt_add(hts_opt **opt, const char *opt_str);
-void hts_opt_free(hts_opt *opt);
-
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for a null-terminated string
-    if (size < 1) {
+    hts_md5_context *ctx = hts_md5_init();
+    if (ctx == NULL) {
         return 0;
     }
 
-    // Allocate memory for hts_opt pointer
-    hts_opt *opt = NULL;
-
-    // Allocate memory for a null-terminated string
-    char *opt_str = (char *)malloc(size + 1);
-    if (opt_str == NULL) {
-        return 0;
-    }
-
-    // Copy the input data to opt_str and null-terminate it
-    memcpy(opt_str, data, size);
-    opt_str[size] = '\0';
+    // Simulate some operations with the context
+    hts_md5_update(ctx, data, size);
 
     // Call the function-under-test
-    hts_opt_add(&opt, opt_str);
-
-    // Clean up
-    free(opt_str);
-    hts_opt_free(opt);
+    hts_md5_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_119(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

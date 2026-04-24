@@ -1,64 +1,69 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-// Assuming hFILE is a struct, you may need to adjust this according to the actual definition
-typedef struct {
-    char *data;
-    size_t size;
-} hFILE;
-
-// Mock implementation of hfile_mem_get_buffer, replace with actual implementation
-char *hfile_mem_get_buffer_20(hFILE *file, size_t *size) {
-    if (file == NULL || size == NULL) {
-        return NULL;
-    }
-    *size = file->size;
-    return file->data;
-}
+#include <htslib/hts.h>
+#include <htslib/hts_defs.h>
+#include <htslib/tbx.h>
+#include "/src/htslib/htslib/tbx.h"  // Use this path for hts_itr_query
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Ensure the data size is at least enough to create a hFILE object
-    if (size < sizeof(hFILE)) {
+    // Ensure the input size is sufficient for our needs
+    if (size < sizeof(int) + 2 * sizeof(hts_pos_t)) {
         return 0;
     }
 
-    // Allocate memory for hFILE and initialize it with fuzzing data
-    hFILE *file = (hFILE *)malloc(sizeof(hFILE));
-    if (file == NULL) {
-        return 0;
-    }
+    // Initialize variables
+    const hts_idx_t *idx = NULL;  // Initialize as NULL, as we can't directly cast from data
+    int tid = *(const int *)(data);
+    hts_pos_t beg = *(const hts_pos_t *)(data + sizeof(int));
+    hts_pos_t end = *(const hts_pos_t *)(data + sizeof(int) + sizeof(hts_pos_t));
+    hts_readrec_func *readrec_func = NULL;  // Assuming a NULL function pointer for fuzzing
 
-    // Copy data to a new buffer to avoid modifying the input data directly
-    char *data_copy = (char *)malloc(size);
-    if (data_copy == NULL) {
-        free(file);
-        return 0;
-    }
-    memcpy(data_copy, data, size);
-
-    // Initialize hFILE with fuzz data
-    file->data = data_copy;
-    file->size = size;
-
-    // Allocate memory for size_t
-    size_t buffer_size;
-    
     // Call the function-under-test
-    char *buffer = hfile_mem_get_buffer_20(file, &buffer_size);
+    hts_itr_t *itr = hts_itr_query(idx, tid, beg, end, readrec_func);
 
-    // Check if buffer is not NULL and use buffer_size
-    if (buffer != NULL && buffer_size > 0) {
-        // Perform some operations on buffer to ensure code coverage
-        // For example, print the first byte if buffer_size is greater than 0
-        printf("First byte: %c\n", buffer[0]);
+    // Clean up if necessary
+    if (itr != NULL) {
+        hts_itr_destroy(itr);
     }
-
-    // Clean up
-    free(file->data);
-    free(file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

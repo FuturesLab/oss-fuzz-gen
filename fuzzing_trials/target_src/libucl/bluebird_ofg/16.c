@@ -1,36 +1,51 @@
 #include <sys/stat.h>
-#include "ucl.h"
+#include <string.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
+    struct ucl_parser *parser;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+
+    // Ensure the size is not zero to avoid writing empty data
     if (size == 0) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
 
-    ucl_type_t type;
-    bool result = ucl_object_string_to_type(input_data, &type);
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Create a new UCL parser
+    parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test with the temporary file
+    ucl_parser_add_file(parser, tmpl);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_string_to_type to ucl_object_typed_new
-    ucl_object_t* ret_ucl_object_typed_new_pxcmh = ucl_object_typed_new(type);
-    if (ret_ucl_object_typed_new_pxcmh == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(input_data);
+    ucl_parser_free(parser);
+    unlink(tmpl);
 
     return 0;
 }

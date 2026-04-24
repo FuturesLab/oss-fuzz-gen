@@ -1,43 +1,88 @@
-#include "ucl.h"
-#include <stdint.h>
 #include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include <stddef.h>
+#include <stdint.h>
+#include "/src/libucl/include/ucl.h"
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
+    // Declare and initialize variables
+    ucl_object_t *obj1 = NULL;
+    ucl_object_t *obj2 = NULL;
+    bool merge_result = false;
+
+    // Ensure that the data is not empty
+    if (size > 0) {
+        // Create a UCL parser
+        struct ucl_parser *parser = ucl_parser_new(0);
+
+        // Parse the input data into the first UCL object
+        if (ucl_parser_add_chunk(parser, data, size)) {
+            obj1 = ucl_parser_get_object(parser);
+        }
+
+        // Clean up the parser and create a new one for the second object
+        ucl_parser_free(parser);
+        parser = ucl_parser_new(0);
+
+        // Parse the input data into the second UCL object
+        if (ucl_parser_add_chunk(parser, data, size)) {
+            obj2 = ucl_parser_get_object(parser);
+        }
+
+        // Clean up the parser
+        ucl_parser_free(parser);
     }
 
-    // Create a temporary file to store the input data
-    char filename[] = "/tmp/fuzz_input_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
-        return 0;
+    // Call the function-under-test if both objects are created
+    if (obj1 && obj2) {
+        merge_result = ucl_array_merge(obj1, obj2, true);
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(filename);
-        return 0;
+    // Clean up UCL objects
+    if (obj1) {
+        ucl_object_unref(obj1);
     }
-    close(fd);
-
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        unlink(filename);
-        return 0;
+    if (obj2) {
+        ucl_object_unref(obj2);
     }
-
-    // Call the function under test
-    ucl_parser_add_file(parser, filename);
-
-    // Clean up
-    ucl_parser_free(parser);
-    unlink(filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

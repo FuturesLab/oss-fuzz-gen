@@ -1,27 +1,85 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <htslib/hts.h>
+#include <string.h>
+#include <stdlib.h>
+
+// Function-under-test declaration
+char *sam_open_mode_opts(const char *path, const char *mode, const char *opts);
 
 int LLVMFuzzerTestOneInput_203(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to fill the htsFormat structure
-    if (size < sizeof(htsFormat)) {
+    // Ensure we have enough data to extract three non-NULL strings
+    if (size < 3) {
         return 0;
     }
 
-    // Cast the input data to an htsFormat pointer
-    const htsFormat *format = (const htsFormat *)data;
+    // Split the input data into three parts
+    size_t part_size = size / 3;
+    size_t remainder = size % 3;
+
+    // Allocate memory for the strings
+    char *path = (char *)malloc(part_size + 1);
+    char *mode = (char *)malloc(part_size + 1);
+    char *opts = (char *)malloc(part_size + remainder + 1);
+
+    // Copy data into the strings and null-terminate them
+    memcpy(path, data, part_size);
+    path[part_size] = '\0';
+
+    memcpy(mode, data + part_size, part_size);
+    mode[part_size] = '\0';
+
+    memcpy(opts, data + 2 * part_size, part_size + remainder);
+    opts[part_size + remainder] = '\0';
 
     // Call the function-under-test
-    const char *extension = hts_format_file_extension(format);
+    char *result = sam_open_mode_opts(path, mode, opts);
 
-    // Use the extension in some way to avoid compiler optimizations removing the call
-    if (extension != NULL) {
-        // Do something trivial with the extension, like checking its length
-        size_t ext_length = 0;
-        while (extension[ext_length] != '\0') {
-            ext_length++;
-        }
-    }
+    // Free the allocated memory
+    free(path);
+    free(mode);
+    free(opts);
+
+    // Free the result if it's dynamically allocated (assuming it needs to be freed)
+    free(result);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_203(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

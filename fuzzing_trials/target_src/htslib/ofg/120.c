@@ -1,37 +1,62 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include <htslib/hts.h>
 
-// Declare the fuzzing function without 'extern "C"' as this is C code
 int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
-    // Ensure the input data is not empty
-    if (size == 0) {
-        return 0;
+    hts_md5_context *ctx;
+
+    // Initialize the MD5 context
+    ctx = hts_md5_init();
+    if (ctx == NULL) {
+        return 0; // If initialization fails, return early
     }
 
-    // Allocate memory for hts_opt pointer
-    hts_opt *opt = NULL;
-
-    // Create a null-terminated string from the input data
-    char *opt_string = (char *)malloc(size + 1);
-    if (opt_string == NULL) {
-        return 0;
+    // Simulate some operations on the MD5 context if size is non-zero
+    if (size > 0) {
+        hts_md5_update(ctx, data, size);
     }
-    memcpy(opt_string, data, size);
-    opt_string[size] = '\0';
 
     // Call the function-under-test
-    int result = hts_opt_add(&opt, opt_string);
-
-    // Free allocated memory
-    free(opt_string);
-
-    // Clean up hts_opt if necessary
-    if (opt != NULL) {
-        hts_opt_free(opt);
-    }
+    hts_md5_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_120(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

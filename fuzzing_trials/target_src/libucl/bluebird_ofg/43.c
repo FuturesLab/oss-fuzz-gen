@@ -1,43 +1,71 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    if (size == 0) {
+        return 0;
+    }
+
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Parse the input data
+    ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
+
+    if (obj != NULL) {
+        // Define a ucl_emitter value
+        enum ucl_emitter emitter_type = UCL_EMIT_JSON;
+
+        // Call the function-under-test
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_object_emit
+        unsigned char *result = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+        // Free the result if it's not NULL
+        if (result != NULL) {
+            free(result);
+        }
+
+        // Free the UCL object
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_object_tolstring_safe
+        const char duklvuza[1024] = "efgte";
+        ucl_object_t* ret_ucl_object_fromstring_naewe = ucl_object_fromstring(duklvuza);
+        if (ret_ucl_object_fromstring_naewe == NULL){
+        	return 0;
+        }
+        int64_t ret_ucl_object_toint_fktpb = ucl_object_toint(NULL);
+        if (ret_ucl_object_toint_fktpb < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_ucl_object_fromstring_naewe) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!result) {
+        	return 0;
+        }
+        bool ret_ucl_object_tolstring_safe_jmlcw = ucl_object_tolstring_safe(ret_ucl_object_fromstring_naewe, (const char **)&result, (size_t *)&ret_ucl_object_toint_fktpb);
+        if (ret_ucl_object_tolstring_safe_jmlcw == 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        ucl_object_unref(obj);
+    }
+
+    // Clean up the parser
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_set_default_priority
-  unsigned int ret_ucl_parser_get_column_updii = ucl_parser_get_column(parser);
-  if (ret_ucl_parser_get_column_updii < 0){
-  	return 0;
-  }
-  bool ret_ucl_parser_set_default_priority_ukxja = ucl_parser_set_default_priority(parser, ret_ucl_parser_get_column_updii);
-  if (ret_ucl_parser_set_default_priority_ukxja == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

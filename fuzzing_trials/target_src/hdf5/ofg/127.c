@@ -1,19 +1,64 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_127(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    hid_t dset_id = 1; // Example dataset identifier, should be a valid HDF5 dataset ID
-    hid_t dxpl_id = 1; // Example dataset transfer property list identifier, should be valid
-    hsize_t offset[2] = {0, 0}; // Example offset, assuming a 2D dataset
-    uint32_t filter_mask = 0; // Example filter mask
-    void *chunk_data = (void *)data; // Use the input data as the chunk data
-    size_t nbytes = size; // Size of the chunk data
+    // Check if the input size is sufficient for creating a valid HDF5 attribute
+    if (size < sizeof(hid_t) + sizeof(H5A_info_t)) {
+        return 0;
+    }
+
+    // Extract a valid attribute ID from the input data
+    hid_t attribute_id = *(const hid_t *)data;
+    data += sizeof(hid_t);
+    size -= sizeof(hid_t);
+
+    // Declare the attribute info structure
+    H5A_info_t ainfo;
 
     // Call the function-under-test
-    herr_t result = H5Dread_chunk2(dset_id, dxpl_id, offset, &filter_mask, chunk_data, &nbytes);
+    herr_t result = H5Aget_info(attribute_id, &ainfo);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Use the result to avoid unused variable warning
+    (void)result;
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_127(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

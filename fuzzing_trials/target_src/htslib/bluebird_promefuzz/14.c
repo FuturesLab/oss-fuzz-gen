@@ -1,14 +1,21 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "htslib/hts.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 #include "htslib/hfile.h"
-#include "htslib/sam.h"
+
+#define DUMMY_FILE "./dummy_file"
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
+    FILE *file = fopen(DUMMY_FILE, "wb");
     if (file) {
         fwrite(Data, 1, Size, file);
         fclose(file);
@@ -16,75 +23,86 @@ static void write_dummy_file(const uint8_t *Data, size_t Size) {
 }
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
+    // Prepare dummy file with input data
     write_dummy_file(Data, Size);
 
-    // Open a file stream using hopen
+    // Attempt to open the dummy file using hopen
+    hFILE *file = hopen(DUMMY_FILE, "rb");
+    if (!file) return 0;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hopen
-    const char mrjvvofh[1024] = "tsmty";
-    hFILE *hfile = hopen("./dummy_file", mrjvvofh);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Set a random block size
+    size_t block_size = Size % 1024 + 1; // Block size between 1 and 1024
+    hfile_set_blksize(file, block_size);
 
+    // Prepare a buffer for hwrite
+    char buffer[1024];
+    size_t to_write = Size < sizeof(buffer) ? Size : sizeof(buffer);
 
-    if (!hfile) {
+    // Attempt to write data to the file
+    ssize_t written = hwrite(file, Data, to_write);
+
+    // Check for errors using herrno
+    if (herrno(file)) {
+        hclose_abruptly(file);
         return 0;
     }
 
-    // Open a htsFile using hts_hopen
+    // Close the file abruptly
+    hclose_abruptly(file);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hopen to hgetdelim
-    char* ret_bam_flag2str_aeogi = bam_flag2str(-1);
-    if (ret_bam_flag2str_aeogi == NULL){
-    	return 0;
+    // Attempt to open a file descriptor using hdopen
+    int fd = open(DUMMY_FILE, O_RDONLY);
+    if (fd != -1) {
+        hFILE *fd_file = hdopen(fd, "rb");
+        if (fd_file) {
+            // Perform some operations
+            hfile_set_blksize(fd_file, block_size);
+            hclose_abruptly(fd_file);
+        } else {
+            close(fd);
+        }
     }
-
-    ssize_t ret_hgetdelim_cdwob = hgetdelim(ret_bam_flag2str_aeogi, BAM_FREVERSE, BAM_FREAD1, hfile);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hgetdelim to hts_open_format
-
-    htsFile* ret_hts_open_format_fvwvk = hts_open_format(ret_bam_flag2str_aeogi, ret_bam_flag2str_aeogi, NULL);
-    if (ret_hts_open_format_fvwvk == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htsFile *hts_fp = hts_hopen(hfile, "./dummy_file", "r");
-    if (!hts_fp) {
-        hclose(hfile); // Close hFILE only if hts_hopen fails
-        return 0;
-    }
-
-    // Read SAM/BAM/CRAM header
-    sam_hdr_t *header = sam_hdr_read(hts_fp);
-    if (header) {
-        sam_hdr_destroy(header);
-    }
-
-    // Close the htsFile
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to sam_hdr_count_lines
-    const uint8_t hervkuau = 0;
-    char* ret_bam_aux2Z_zgbfo = bam_aux2Z(&hervkuau);
-    if (ret_bam_aux2Z_zgbfo == NULL){
-    	return 0;
-    }
-
-    int ret_sam_hdr_count_lines_utrml = sam_hdr_count_lines(header, ret_bam_aux2Z_zgbfo);
-    if (ret_sam_hdr_count_lines_utrml < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hts_close(hts_fp); // This will also close the underlying hFILE
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

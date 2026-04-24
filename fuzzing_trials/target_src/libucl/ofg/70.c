@@ -1,31 +1,62 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
 #include <ucl.h>
 
-// Dummy handler function for the macro
-bool dummy_macro_handler_70(struct ucl_parser *parser, const char *macro, void *ud) {
-    return true;
-}
-
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser;
-    const char *macro_name = "example_macro";
-    void *user_data = (void *)data;  // Use the input data as user data
+    // Declare and initialize the int64_t variable
+    int64_t input_value = 0;
 
-    // Initialize the parser
-    parser = ucl_parser_new(0);
-
-    // Ensure the parser is created successfully
-    if (parser == NULL) {
-        return 0;
+    // Ensure that we have at least 8 bytes to form an int64_t
+    if (size >= sizeof(int64_t)) {
+        // Copy the first 8 bytes from data into input_value
+        input_value = *(const int64_t *)data;
     }
 
     // Call the function-under-test
-    ucl_parser_register_context_macro(parser, macro_name, dummy_macro_handler_70, user_data);
+    ucl_object_t *result = ucl_object_fromint(input_value);
 
-    // Clean up the parser
-    ucl_parser_free(parser);
+    // Clean up if necessary
+    if (result != NULL) {
+        ucl_object_unref(result);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_70(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

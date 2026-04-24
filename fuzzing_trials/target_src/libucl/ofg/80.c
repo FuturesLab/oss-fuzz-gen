@@ -1,25 +1,66 @@
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-  // Create a new UCL parser instance
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0; // Return if parser creation fails
-  }
+    struct ucl_parser *parser;
+    const char *error;
 
-  // Ensure that the data is not NULL and size is greater than 0
-  if (data != NULL && size > 0) {
-    // Call the function-under-test
-    bool result = ucl_parser_insert_chunk(parser, data, size);
+    // Initialize the UCL parser
+    parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
 
-    // You can check the result if needed
-    (void)result; // Suppress unused variable warning
-  }
+    if (parser != NULL) {
+        // Simulate parsing input data
+        ucl_parser_add_chunk(parser, data, size);
 
-  // Free the UCL parser instance
-  ucl_parser_free(parser);
+        // Call the function-under-test
+        error = ucl_parser_get_error(parser);
 
-  return 0;
+        // Normally, you would do something with the error string here,
+        // but for fuzzing, we just ensure the function is called.
+
+        // Clean up the parser
+        ucl_parser_free(parser);
+    }
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_80(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,39 +1,88 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include "htslib/sam.h"  // Correct header file for bam1_t and bam_aux_append
+#include <string.h>
+#include "htslib/hts.h"
+#include "/src/htslib/htslib/regidx.h" // Include the necessary header for hts_reglist_t
 
 int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    // Define and initialize variables
-    bam1_t *bam_record = bam_init1();
-    const char *tag = "XX";  // Example tag, must be 2 characters
-    char type = 'A';  // Example type, could be 'A', 'i', 'f', etc.
-    int len = (size > 0) ? (int)size : 1;  // Length of data, ensure it's at least 1
-    const uint8_t *value = data;  // Use the input data as the value
-
-    // Ensure bam_record is not NULL
-    if (bam_record == NULL) {
-        return 0;
+    if (size == 0) {
+        return 0; // Exit early if size is zero to prevent unnecessary operations
     }
 
-    // Check if the input data is valid for the specified type
-    if (type == 'A' && len != 1) {
-        bam_destroy1(bam_record);
-        return 0;
+    // Allocate memory for hts_reglist_t
+    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
+    if (reglist == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Call the function-under-test
-    int result = bam_aux_append(bam_record, tag, type, len, value);
-
-    // Check the result of the function call
-    if (result < 0) {
-        fprintf(stderr, "bam_aux_append failed\n");
+    // Initialize the hts_reglist_t structure
+    reglist->reg = (char *)malloc(size + 1);
+    if (reglist->reg == NULL) {
+        free(reglist);
+        return 0; // Exit if memory allocation fails
     }
+    memcpy((char *)reglist->reg, data, size);
+    ((char *)reglist->reg)[size] = '\0'; // Null-terminate the string
+
+    reglist->intervals = (hts_pair_pos_t *)malloc(sizeof(hts_pair_pos_t));
+    if (reglist->intervals == NULL) {
+        free((char *)reglist->reg);
+        free(reglist);
+        return 0; // Exit if memory allocation fails
+    }
+    reglist->count = 1; // Set the count of intervals
+
+    // Properly initialize the interval to avoid use-after-free
+    reglist->intervals[0].beg = 0;
+    reglist->intervals[0].end = size; // Set some valid range
+
+    // Call the function under test
+    // Note: hts_reglist_free should handle freeing reglist->reg and reglist->intervals
+    hts_reglist_free(reglist, 1);
 
     // Clean up
-    bam_destroy1(bam_record);
+    // Remove the manual free of reglist, as hts_reglist_free should handle it
+    // free(reglist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_85(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

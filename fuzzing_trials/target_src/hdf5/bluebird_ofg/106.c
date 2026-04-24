@@ -1,35 +1,20 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
-    }
+    // Ensure there's enough data to extract parameters
+    if (size < 2) return 0;
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Extract parameters from data
+    unsigned int options = data[0];
+    hid_t attribute_id = (hid_t)data[1];
+    hid_t es_id = (hid_t)data[1];  // Use the same byte for simplicity
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Fget_file_image
-    ssize_t ret_H5Fget_file_image_mdlgi = H5Fget_file_image(0, (void *)name_buffer, 1);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    H5Aclose_async(attribute_id, es_id);
 
     return 0;
 }

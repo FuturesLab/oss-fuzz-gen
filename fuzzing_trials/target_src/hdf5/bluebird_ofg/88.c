@@ -1,31 +1,27 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to contain a non-empty string and additional parameters
-    if (size < 5) {
+    // Ensure there's enough data to extract necessary parameters
+    if (size < 10) {
         return 0;
     }
 
-    // Use the data to create a null-terminated string for the file name
-    char filename[256];
-    size_t filename_len = (size < sizeof(filename) - 1) ? size : sizeof(filename) - 1;
-    memcpy(filename, data, filename_len);
-    filename[filename_len] = '\0';
+    // Extract parameters from data
+    const char *loc_name = (const char *)data;
+    const char *old_attr_name = (const char *)(data + 1);
+    unsigned int idx_type = (unsigned int)data[2];
+    hid_t loc_id = (hid_t)data[3];
+    const char *new_attr_name = (const char *)(data + 4);
+    const char *obj_name = (const char *)(data + 5);
+    hid_t lapl_id = (hid_t)data[6];
+    hid_t es_id = (hid_t)data[7];
 
-    // Extract the flags and fapl_id from the data
-    unsigned int flags = (unsigned int)data[filename_len % size];
-    hid_t fapl_id = (hid_t)data[(filename_len + 1) % size];
-
-    // Call the function-under-test
-    hid_t file_id = H5Fopen(filename, flags, fapl_id);
-
-    // If the file was successfully opened, close it
-    if (file_id >= 0) {
-        H5Fclose(file_id);
-    }
+    // Call the function under test
+    herr_t result = H5Arename_by_name_async(loc_id, obj_name, old_attr_name, new_attr_name, lapl_id, es_id);
 
     return 0;
 }

@@ -1,57 +1,87 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include "htslib/sam.h"
-#include "/src/htslib/htslib/kstring.h"
+#include <stdlib.h>
+#include "htslib/sam.h"  // Include the necessary header for bam1_t
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < 4) {
+    // Ensure there is enough data to extract meaningful inputs
+    if (size < 5) {
         return 0;
     }
 
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
+    // Initialize bam1_t structure
+    bam1_t *bam_record = bam_init1();
+    if (bam_record == NULL) {
         return 0;
     }
 
-    // Prepare a dummy header string
-    const char *header_text = "@HD\tVN:1.0\n";
-    if (sam_hdr_add_lines(hdr, header_text, strlen(header_text)) < 0) {
-        sam_hdr_destroy(hdr);
+    // Extract a tag from the input data
+    char tag[3];
+    memcpy(tag, data, 2);
+    tag[2] = '\0';  // Null-terminate the tag string
+
+    // Extract a type from the input data
+    char type = (char)data[2];
+
+    // Extract a length from the input data
+    int length = (int)data[3];
+
+    // Ensure length is not negative or too large
+    if (length < 0 || length > (int)(size - 4)) {
+        bam_destroy1(bam_record);
         return 0;
     }
 
-    // Extract parts of the input data for parameters
-    const char *type = (const char *)data;
-    int type_len = 2; // Assuming the type is 2 characters long
-    if (size < type_len + 2) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    int id = data[type_len]; // Use the next byte as an int
-    const char *tag = (const char *)(data + type_len + 1);
-    int tag_len = 2; // Assuming the tag is 2 characters long
-    if (size < type_len + 1 + tag_len) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    // Initialize kstring_t
-    kstring_t ks;
-    ks.l = 0;
-    ks.m = 0;
-    ks.s = NULL;
+    // Extract the value from the input data
+    const uint8_t *value = data + 4;
 
     // Call the function-under-test
-    int result = sam_hdr_find_tag_pos(hdr, type, id, tag, &ks);
+    int result = bam_aux_append(bam_record, tag, type, length, value);
 
     // Clean up
-    sam_hdr_destroy(hdr);
-    free(ks.s);
+    bam_destroy1(bam_record);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_62(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

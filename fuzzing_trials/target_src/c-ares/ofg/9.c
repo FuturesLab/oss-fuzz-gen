@@ -1,52 +1,68 @@
-#include <ares.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <netdb.h> // Include for struct hostent
-#include <sys/socket.h> // Include for AF_INET
+#include "ares.h"
 
-static void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
-  /* Dummy callback function to satisfy the ares_gethostbyname signature */
-  (void)arg;
-  (void)status;
-  (void)timeouts;
-  (void)host;
-}
-
-int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-  ares_channel channel;
-  int status = ares_library_init(ARES_LIB_INIT_ALL);
-  if (status != ARES_SUCCESS) {
-    return 0;
+int LLVMFuzzerTestOneInput_9(const unsigned char *data, size_t size) {
+  if (size < 2) {
+    return 0; // Not enough data to proceed
   }
 
-  status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
+  // Split the input data into two parts: encoded and abuf
+  size_t half_size = size / 2;
+  const unsigned char *encoded = data;
+  const unsigned char *abuf = data + half_size;
+  int alen = (int)(size - half_size);
+
+  char *s = NULL;
+  long enclen = 0;
+
+  // Call the function-under-test
+  ares_expand_name(encoded, abuf, alen, &s, &enclen);
+
+  // Free the allocated memory if any
+  if (s) {
+    ares_free_string(s);
   }
-
-  char *name = (char *)malloc(size + 1);
-  if (!name) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
-  }
-
-  memcpy(name, data, size);
-  name[size] = '\0';
-
-  int family = AF_INET;  // Use AF_INET as a default family
-
-  ares_gethostbyname(channel, name, family, dummy_callback, NULL);
-
-  // Process events to ensure the callback is called
-  ares_process_fd(channel, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
-
-  free(name);
-  ares_destroy(channel);
-  ares_library_cleanup();
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

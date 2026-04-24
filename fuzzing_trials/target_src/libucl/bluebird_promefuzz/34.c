@@ -1,83 +1,66 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
 #include "ucl.h"
-
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
+#include <stdint.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    // Step 1: Write input data to a dummy file
-    write_dummy_file(Data, Size);
-
-    // Step 2: Initialize a UCL parser and parse the dummy file
-    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
-    if (!parser) {
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
-    if (!ucl_parser_add_file(parser, "./dummy_file")) {
-        ucl_parser_free(parser);
-        return 0;
+    // Simulate parsing input data
+    if (Size > 0) {
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file != NULL) {
+            fwrite(Data, 1, Size, file);
+            fclose(file);
+            ucl_parser_add_file(parser, "./dummy_file");
+        }
     }
 
-    // Step 3: Obtain the root object
-    const ucl_object_t *root = ucl_parser_get_object(parser);
-    if (!root) {
-        ucl_parser_free(parser);
-        return 0;
+    // Fuzz ucl_parser_get_column
+    unsigned column = ucl_parser_get_column(parser);
+
+    // Fuzz ucl_parser_get_linenum
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_column to ucl_object_fromstring_common
+    char *ugrydekb[1024] = {"avgkh", NULL};
+    struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_kndhl = ucl_object_emit_memory_funcs(ugrydekb);
+    if (ret_ucl_object_emit_memory_funcs_kndhl == NULL){
+    	return 0;
     }
-
-    // Step 4: Invoke the target functions
-    const char *path = "some.path"; // Example path for lookup
-    const ucl_object_t *obj;
-
-    // ucl_object_toint
-    int64_t intValue = ucl_object_toint(root);
-
-    // ucl_object_lookup_path
-    obj = ucl_object_lookup_path(root, path);
-
-    // Repeated calls to explore different paths
-    intValue = ucl_object_toint(obj);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_toint to ucl_object_fromlstring
-    ucl_object_t* ret_ucl_object_fromlstring_obdzt = ucl_object_fromlstring(NULL, (size_t )intValue);
-    if (ret_ucl_object_fromlstring_obdzt == NULL){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ugrydekb) {
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_object_fromstring_common_wuukh = ucl_object_fromstring_common((const char *)*ugrydekb, (size_t )column, UCL_STRING_TRIM);
+    if (ret_ucl_object_fromstring_common_wuukh == NULL){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    obj = ucl_object_lookup_path(root, path);
-    intValue = ucl_object_toint(obj);
-    obj = ucl_object_lookup_path(root, path);
-    obj = ucl_object_lookup_path(root, path);
+    unsigned linenum = ucl_parser_get_linenum(parser);
 
-    // ucl_object_iterate_new
-    ucl_object_iter_t iter = ucl_object_iterate_new(root);
+    // Fuzz ucl_parser_clear_error
+    ucl_parser_clear_error(parser);
 
-    // ucl_object_iterate_safe
-    const ucl_object_t *nextObj = ucl_object_iterate_safe(iter, true);
+    // Fuzz ucl_parser_get_error_code
+    int error_code = ucl_parser_get_error_code(parser);
 
-    // Step 5: Cleanup
-    if (iter) {
-        // Assuming there is a function to free the iterator
-        // Since the API doesn't provide a direct way to free the iterator,
-        // this is a placeholder for the correct cleanup function.
-        // ucl_object_iterate_free(iter);
+    // Fuzz ucl_parser_get_object
+    ucl_object_t *obj = ucl_parser_get_object(parser);
+
+    // Fuzz ucl_object_unref only if obj is not NULL
+    if (obj != NULL) {
+        ucl_object_unref(obj);
     }
-    ucl_object_unref(root);
+
+    // Fuzz ucl_parser_free
     ucl_parser_free(parser);
 
     return 0;

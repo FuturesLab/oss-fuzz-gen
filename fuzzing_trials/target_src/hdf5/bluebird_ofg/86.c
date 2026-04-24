@@ -1,32 +1,66 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include "hdf5.h"
 
+// Corrected the C++ linkage specification for C code
 int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
-        return 0;
-    } // Adjust size as needed for your parameters
+    // Initialize the HDF5 library
+    H5open();
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Create a temporary file to use with HDF5
+    char tmpl[] = "/tmp/hdf5fileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    close(fd);
+
+    // Create an HDF5 file
+    hid_t file_id = H5Fcreate(tmpl, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Create a group in the file
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from H5Fcreate to H5Fget_intent using the plateau pool
+    unsigned int intent = 0;
+    herr_t ret_H5Fget_intent_phuzs = H5Fget_intent(file_id, &intent);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Ensure the data is null-terminated before using it as a string
+    char *obj_name = (char *)malloc(size + 1);
+    if (obj_name == NULL) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+    memcpy(obj_name, data, size);
+    obj_name[size] = '\0';
+
+    // Prepare the H5G_stat_t structure
+    H5G_stat_t statbuf;
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+    herr_t status = H5Gget_objinfo(group_id, obj_name, true, &statbuf);
 
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fclose with H5Aclose
-        H5Aclose(file_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    // Clean up
+    free(obj_name);
+    H5Gclose(group_id);
+    H5Fclose(file_id);
+    remove(tmpl);
+
+    // Close the HDF5 library
+    H5close();
 
     return 0;
 }

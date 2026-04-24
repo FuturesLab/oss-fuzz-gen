@@ -1,19 +1,80 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
-
-// Assume the function is declared in some header file
-uint32_t hts_crc32(uint32_t crc, const void *buf, size_t len);
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // For mkstemp, write, close, remove
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_269(const uint8_t *data, size_t size) {
-    // Initialize crc with a non-zero value for better testing coverage
-    uint32_t crc = 0xFFFFFFFF;
+    // Ensure data size is sufficient for creating two non-empty filenames
+    if (size < 4) return 0;
 
-    // Call the function-under-test with the provided data
-    uint32_t result = hts_crc32(crc, (const void *)data, size);
+    // Create temporary files for the input filenames
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
 
-    // Optionally print the result for debugging purposes
-    printf("CRC32 Result: %u\n", result);
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) close(fd1);
+        if (fd2 != -1) close(fd2);
+        return 0;
+    }
+
+    // Write some data to the first file
+    write(fd1, data, size / 2);
+    write(fd2, data + size / 2, size - size / 2);
+
+    // Close the file descriptors
+    close(fd1);
+    close(fd2);
+
+    // Call the function under test
+    hts_idx_t *idx = hts_idx_load2(tmpl1, tmpl2);
+
+    // Clean up
+    if (idx) hts_idx_destroy(idx);
+    remove(tmpl1);
+    remove(tmpl2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_269(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

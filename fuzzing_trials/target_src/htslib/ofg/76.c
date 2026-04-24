@@ -1,38 +1,77 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-
-// Assuming bam_plp_t and DW_TAG_subroutine_typeInfinite are defined somewhere
-typedef struct {
-    // Placeholder structure for bam_plp_t
-    int dummy;
-} bam_plp_t;
-
-typedef struct {
-    // Placeholder structure for DW_TAG_subroutine_typeInfinite
-    int dummy;
-} DW_TAG_subroutine_typeInfinite;
-
-// Function-under-test
-void bam_plp_constructor(bam_plp_t *plp, DW_TAG_subroutine_typeInfinite *loop);
+#include <string.h>
+#include <unistd.h>  // For mkstemp, write, close, remove
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to initialize the structures
-    if (size < sizeof(bam_plp_t) + sizeof(DW_TAG_subroutine_typeInfinite)) {
-        return 0; // Not enough data to proceed
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Initialize the parameters for bam_plp_constructor
-    bam_plp_t plp;
-    DW_TAG_subroutine_typeInfinite loop;
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        remove(tmpl);
+        return 0;
+    }
+    close(fd);
 
-    // Use the data to initialize the structures
-    // Assuming the first part of the data is for bam_plp_t and the second part is for DW_TAG_subroutine_typeInfinite
-    memcpy(&plp, data, sizeof(bam_plp_t));
-    memcpy(&loop, data + sizeof(bam_plp_t), sizeof(DW_TAG_subroutine_typeInfinite));
+    // Set a non-zero flag for the function call
+    int flags = 1;
 
     // Call the function-under-test
-    bam_plp_constructor(&plp, &loop);
+    hts_idx_t *index = hts_idx_load(tmpl, flags);
+
+    // Clean up
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_76(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

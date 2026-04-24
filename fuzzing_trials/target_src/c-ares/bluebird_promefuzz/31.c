@@ -1,107 +1,95 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <stdio.h>
 #include "ares.h"
-#include <pthread.h>
+#include <arpa/inet.h>
 
-// Forward declaration of custom callbacks
-static void query_enqueue_callback(void *arg);
-static void pending_write_callback(void *arg);
+static void fuzz_ares_strerror(int code) {
+    const char *error_message = ares_strerror(code);
+    (void)error_message; // Suppress unused variable warning
+}
 
-// Custom socket functions
-static ares_socket_t custom_socket(int domain, int type, int protocol, void *user_data);
-static int custom_close(ares_socket_t sock, void *user_data);
-static int custom_connect(ares_socket_t sock, const struct sockaddr *address, ares_socklen_t address_len, void *user_data);
-static ares_ssize_t custom_recvfrom(ares_socket_t sock, void *buffer, size_t length, int flags, struct sockaddr *address, ares_socklen_t *address_len, void *user_data);
-static ares_ssize_t custom_sendto(ares_socket_t sock, const void *buffer, size_t length, int flags, const struct sockaddr *address, ares_socklen_t address_len, void *user_data);
+static void fuzz_ares_inet_ntop(int af, const void *src, size_t src_size) {
+    char dst[INET6_ADDRSTRLEN];
+    if (src_size >= sizeof(struct in_addr) && af == AF_INET) {
+        ares_inet_ntop(af, src, dst, INET_ADDRSTRLEN);
+    } else if (src_size >= sizeof(struct in6_addr) && af == AF_INET6) {
+        ares_inet_ntop(af, src, dst, INET6_ADDRSTRLEN);
+    }
+}
+
+static void fuzz_ares_freeaddrinfo() {
+    struct ares_addrinfo *ai = (struct ares_addrinfo *)malloc(sizeof(struct ares_addrinfo));
+    if (!ai) return;
+
+    ai->cnames = NULL;
+    ai->nodes = NULL;
+    ai->name = (char *)malloc(10); // Allocate some memory for the name
+    if (ai->name) {
+        strncpy(ai->name, "test", 10); // Initialize the allocated memory
+    }
+
+    // Free the allocated memory using ares_freeaddrinfo
+    ares_freeaddrinfo(ai);
+}
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-  ares_channel channel;
-  int status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
+    if (Size < 1) return 0;
+
+    // Fuzz ares_strerror
+    int error_code = Data[0];
+    fuzz_ares_strerror(error_code);
+
+    // Fuzz ares_inet_ntop
+    if (Size > 1) {
+        int af = Data[1] % 3 == 0 ? AF_INET : AF_INET6; // Randomly choose between AF_INET and AF_INET6
+        fuzz_ares_inet_ntop(af, Data + 2, Size - 2);
+    }
+
+    // Fuzz ares_freeaddrinfo
+    fuzz_ares_freeaddrinfo();
+
     return 0;
-  }
-
-  // Test ares_queue_wait_empty
-  int timeout_ms = -1;
-  if (Size > 0) {
-    timeout_ms = Data[0];
-  }
-  ares_status_t queue_status = ares_queue_wait_empty(channel, timeout_ms);
-  if (queue_status == ARES_SUCCESS) {
-    printf("Queue is empty\n");
-  } else if (queue_status == ARES_ETIMEOUT) {
-    printf("Timeout expired\n");
-  } else if (queue_status == ARES_ENOTIMP) {
-    printf("Not implemented\n");
-  }
-
-  // Test ares_set_query_enqueue_cb
-  ares_set_query_enqueue_cb(channel, query_enqueue_callback, NULL);
-
-  // Test ares_set_pending_write_cb
-  ares_set_pending_write_cb(channel, pending_write_callback, NULL);
-
-  // Test ares_process_pending_write
-  ares_process_pending_write(channel);
-
-  // Test ares_process_fds
-  ares_fd_events_t events[1];
-  memset(events, 0, sizeof(events));
-  ares_status_t fds_status = ares_process_fds(channel, events, 1, 0);
-  if (fds_status == ARES_SUCCESS) {
-    printf("Processed fds successfully\n");
-  }
-
-  // Test ares_set_socket_functions_ex
-  struct ares_socket_functions_ex funcs = {
-    .version = 1,
-    .asocket = custom_socket,
-    .aclose = custom_close,
-    .aconnect = custom_connect,
-    .arecvfrom = custom_recvfrom,
-    .asendto = custom_sendto
-  };
-  ares_status_t socket_status = ares_set_socket_functions_ex(channel, &funcs, NULL);
-  if (socket_status == ARES_SUCCESS) {
-    printf("Set socket functions successfully\n");
-  }
-
-  ares_destroy(channel);
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-static void query_enqueue_callback(void *arg) {
-  // Placeholder for query enqueue callback
-}
+    if(argc < 2)
+        exit(0);
 
-static void pending_write_callback(void *arg) {
-  // Placeholder for pending write callback
-}
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-static ares_socket_t custom_socket(int domain, int type, int protocol, void *user_data) {
-  // Custom socket function
-  return socket(domain, type, protocol);
-}
+    fseek(f, 0, SEEK_END);
 
-static int custom_close(ares_socket_t sock, void *user_data) {
-  // Custom close function
-  return close(sock);
-}
+    size = ftell(f);
+    rewind(f);
 
-static int custom_connect(ares_socket_t sock, const struct sockaddr *address, ares_socklen_t address_len, void *user_data) {
-  // Custom connect function
-  return connect(sock, address, address_len);
-}
+    if(size < 1 + 1)
+        exit(0);
 
-static ares_ssize_t custom_recvfrom(ares_socket_t sock, void *buffer, size_t length, int flags, struct sockaddr *address, ares_socklen_t *address_len, void *user_data) {
-  // Custom recvfrom function
-  return recvfrom(sock, buffer, length, flags, address, address_len);
-}
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
 
-static ares_ssize_t custom_sendto(ares_socket_t sock, const void *buffer, size_t length, int flags, const struct sockaddr *address, ares_socklen_t address_len, void *user_data) {
-  // Custom sendto function
-  return sendto(sock, buffer, length, flags, address, address_len);
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
+#endif

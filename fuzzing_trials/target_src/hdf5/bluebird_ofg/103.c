@@ -1,40 +1,23 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
+    // Define and initialize parameters for H5Dwrite_multi_async
+    size_t count = 1;
+    hid_t dset_id[1] = {H5I_INVALID_HID};
+    hid_t mem_type_id[1] = {H5T_NATIVE_INT};
+    hid_t mem_space_id[1] = {H5S_ALL};
+    hid_t file_space_id[1] = {H5S_ALL};
+    hid_t dxpl_id = H5P_DEFAULT;
+    const void *buf[1] = {data};
+    hid_t es_id = H5ES_NONE;
 
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
-    }
+    // Call the function-under-test without the first three arguments
+    herr_t status = H5Dwrite_multi_async(count, dset_id, mem_type_id, mem_space_id, file_space_id, dxpl_id, buf, es_id);
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of H5Dwrite
-        H5Dwrite(dataset_id, dataset_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
-    }
-
-    // Call the function-under-test
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Fget_filesize with H5Gget_num_objs
-    status = H5Gget_num_objs(file_id, &filesize);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    // Close the file
-    H5Fclose(file_id);
-
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

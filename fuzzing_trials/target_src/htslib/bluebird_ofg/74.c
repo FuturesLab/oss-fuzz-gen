@@ -1,141 +1,88 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include "htslib/hts.h"
+#include <string.h>
 #include "htslib/sam.h"
 
-// Function to handle the fuzz input
+extern int sam_hdr_find_line_id(sam_hdr_t *, const char *, const char *, const char *, kstring_t *);
+
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    // Check if the input size is reasonable
-    if (size < 4) { // Arbitrary small size to avoid processing very small inputs
-        return 0;
-    }
+    // Ensure the size is large enough to split into parts
+    if (size < 4) return 0;
 
-    // Initialize htsFile with a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) return 0;
 
-    // Open the file with htslib
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        remove(tmpl);
-        return 0;
-    }
+    // Split data into parts for the function parameters
+    size_t part_size = size / 4;
+    const char *type = (const char *)data;
+    const char *id = (const char *)(data + part_size);
+    const char *val = (const char *)(data + 2 * part_size);
+    const char *str = (const char *)(data + 3 * part_size);
 
-    // Read the header
+    // Ensure null-termination for strings
+    char *type_str = strndup(type, part_size);
+    char *id_str = strndup(id, part_size);
+    char *val_str = strndup(val, part_size);
+    char *str_str = strndup(str, size - 3 * part_size);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to sam_idx_init
-    sam_hdr_t* ret_sam_hdr_read_wzuqv = sam_hdr_read(hts_file);
-    if (ret_sam_hdr_read_wzuqv == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to sam_hdr_pg_id
-
-    const char* ret_sam_hdr_pg_id_sxdca = sam_hdr_pg_id(ret_sam_hdr_read_wzuqv, (const char *)"r");
-    if (ret_sam_hdr_pg_id_sxdca == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_sam_idx_init_jfwmq = sam_idx_init(hts_file, ret_sam_hdr_read_wzuqv, HTS_FEATURE_CONFIGURE, (const char *)"w");
-    if (ret_sam_idx_init_jfwmq < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    bam_hdr_t *header = sam_hdr_read(hts_file);
-    if (!header) {
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize an iterator
-    hts_idx_t *idx = sam_index_load(hts_file, tmpl);
-    if (!idx) {
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_index_load to sam_itr_regions
-    sam_hdr_destroy(header);
-
-    hts_itr_t* ret_sam_itr_regions_ldvwd = sam_itr_regions(idx, header, NULL, BAM_USER_OWNS_DATA);
-    if (ret_sam_itr_regions_ldvwd == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    hts_itr_t *itr = sam_itr_queryi(idx, HTS_IDX_NOCOOR, 0, 0);
-    if (!itr) {
-        hts_idx_destroy(idx);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_destroy to sam_itr_queryi
-        uint8_t* ret_bam_aux_first_ywdqi = bam_aux_first(NULL);
-        if (ret_bam_aux_first_ywdqi == NULL){
-        	return 0;
-        }
-
-        hts_itr_t* ret_sam_itr_queryi_trnjl = sam_itr_queryi(idx, HTS_IDX_NOCOOR, (int64_t )*ret_bam_aux_first_ywdqi, -1);
-        if (ret_sam_itr_queryi_trnjl == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize a buffer for the third parameter
-    bam1_t *b = bam_init1();
-    if (!b) {
-        hts_itr_destroy(itr);
-        hts_idx_destroy(idx);
-        bam_hdr_destroy(header);
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_close with sam_idx_save
-        sam_idx_save(hts_file);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        remove(tmpl);
-        return 0;
-    }
+    // Initialize kstring_t
+    kstring_t ks;
+    ks.l = 0;
+    ks.m = 0;
+    ks.s = NULL;
 
     // Call the function-under-test
-    while (sam_itr_next(hts_file, itr, b) >= 0) {
-        // Process each record (for fuzzing, we don't need to do anything here)
-    }
+    int result = sam_hdr_find_line_id(hdr, type_str, id_str, val_str, &ks);
 
     // Clean up
-    bam_destroy1(b);
-    hts_itr_destroy(itr);
-    hts_idx_destroy(idx);
-    bam_hdr_destroy(header);
-    hts_close(hts_file);
-    remove(tmpl);
+    free(type_str);
+    free(id_str);
+    free(val_str);
+    free(str_str);
+    free(ks.s);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_74(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

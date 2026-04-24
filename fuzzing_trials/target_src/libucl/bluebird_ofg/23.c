@@ -1,82 +1,59 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdbool.h>
 #include "ucl.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *obj = ucl_object_new();
-    enum ucl_object_keys_sort_flags sort_flags = UCL_SORT_KEYS_ICASE; // Corrected the enum value
-
-    // Ensure that the data is not empty
-    if (size > 0 && obj != NULL) {
-        // Create a UCL parser
-        struct ucl_parser *parser = ucl_parser_new(0);
-
-        // Parse the input data
-        if (ucl_parser_add_chunk(parser, data, size)) {
-            // Get the top-level object
-            const ucl_object_t *top = ucl_parser_get_object(parser);
-
-            // Copy the parsed object to our object
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_merge with ucl_array_merge
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_merge
-            bool ret_ucl_object_merge_nlsfz = ucl_object_merge(top, obj, 1);
-            if (ret_ucl_object_merge_nlsfz == 0){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            ucl_array_merge(obj, (ucl_object_t *)top, true);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_merge to ucl_copy_value_trash
-            char* ret_ucl_copy_value_trash_sdsey = ucl_copy_value_trash(obj);
-            if (ret_ucl_copy_value_trash_sdsey == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-}
-
-        // Free the parser
-        ucl_parser_free(parser);
-
-        // Call the function under test
-        ucl_object_sort_keys(obj, sort_flags);
-
-        // Clean up
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_sort_keys to ucl_object_emit_full
-        ucl_object_t* ret_ucl_object_frombool_sislv = ucl_object_frombool(1);
-        if (ret_ucl_object_frombool_sislv == NULL){
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    ucl_object_t *obj = NULL;
+    int64_t result = 0;
+    
+    // Parse the input data
+    if (parser != NULL && ucl_parser_add_chunk(parser, data, size)) {
+        obj = ucl_parser_get_object(parser);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_elt_append
+        ucl_object_t* ret_ucl_object_new_ffprr = ucl_object_new();
+        if (ret_ucl_object_new_ffprr == NULL){
         	return 0;
         }
-        struct ucl_emitter_functions* ret_ucl_object_emit_fd_funcs_bwmob = ucl_object_emit_fd_funcs(UCL_PRIORITY_MIN);
-        if (ret_ucl_object_emit_fd_funcs_bwmob == NULL){
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_ucl_object_new_ffprr) {
         	return 0;
         }
-        bool ret_ucl_object_emit_full_lefoi = ucl_object_emit_full(ret_ucl_object_frombool_sislv, 0, ret_ucl_object_emit_fd_funcs_bwmob, obj);
-        if (ret_ucl_object_emit_full_lefoi == 0){
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!obj) {
+        	return 0;
+        }
+        ucl_object_t* ret_ucl_elt_append_mrmws = ucl_elt_append(ret_ucl_object_new_ffprr, obj);
+        if (ret_ucl_elt_append_mrmws == NULL){
         	return 0;
         }
         // End mutation: Producer.APPEND_MUTATOR
         
+}
+
+    // Ensure obj is not NULL before calling the function-under-test
+    if (obj != NULL) {
+        // Call the function-under-test
+        bool success = ucl_object_toint_safe(obj, &result);
+        
+        // Use the result to avoid unused variable warning
+        if (success) {
+            // Do something with result if necessary
+        }
+    }
+
+    // Cleanup
+    if (obj != NULL) {
         ucl_object_unref(obj);
     }
+    ucl_parser_free(parser);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

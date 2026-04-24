@@ -1,32 +1,65 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include "/src/htslib/htslib/sam.h" // Correct path for the header file with bam_plp_t and bam_plp_auto_f
 
-// A simple implementation of bam_plp_auto_f for testing purposes
-int my_bam_plp_auto_f(void *data) {
-    // Implement a simple version of the function
-    return 0; // Return 0 for simplicity
-}
+// Function-under-test declaration
+char * bam_flag2str(int flag);
 
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    // Ensure data is not NULL and size is greater than zero
-    if (data == NULL || size == 0) {
+    // Ensure the input size is sufficient to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize a void pointer with the data
-    void *user_data = (void *)data;
+    // Extract an integer from the input data
+    int flag = *((int *)data);
 
     // Call the function-under-test
-    bam_plp_t plp = bam_plp_init(my_bam_plp_auto_f, user_data);
+    char *result = bam_flag2str(flag);
 
-    // Normally, you would do something with the plp object here, but for fuzzing purposes,
-    // we are only interested in calling the function and ensuring it handles the input correctly.
-
-    // Clean up if necessary (depends on the implementation of bam_plp_t)
-    // For example, if bam_plp_t requires freeing resources, do it here.
-    // bam_plp_destroy(plp); // Uncomment if such a function exists
+    // Free the result if necessary
+    if (result != NULL) {
+        free(result);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_74(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,45 +1,73 @@
+#include <ares.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h> // Include for memcpy
-#include "ares.h"
-#include "ares_dns_record.h" // Include for ares_dns_rr_t and ares_dns_rr_key_t
+#include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h>  // For htonl and AF_INET
 
-// Define the struct ares_dns_rr to resolve the incomplete type error
-struct ares_dns_rr {
-    // Add necessary fields here based on the library's implementation
-    // For example:
-    ares_dns_rr_key_t key;
-    unsigned int value;
-};
-
-// Declare the fuzzer test function with C linkage
-#ifdef __cplusplus
-extern "C" {
-#endif
-int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size);
-#ifdef __cplusplus
-}
-#endif
-
-// Function to be tested by the fuzzer
 int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    /* Ensure the input data is large enough to extract necessary values */
-    if (size < sizeof(ares_dns_rr_key_t) + sizeof(unsigned int)) {
+    // Initialize the ares library
+    if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
         return 0;
     }
 
-    /* Initialize variables */
-    struct ares_dns_rr dns_rr; // Use struct keyword to define dns_rr
-    ares_dns_rr_key_t key;
-    unsigned int val;
+    ares_channel channel;
+    if (ares_init(&channel) != ARES_SUCCESS) {
+        ares_library_cleanup();
+        return 0;
+    }
 
-    /* Extract values from the input data using memcpy to avoid alignment issues */
-    memcpy(&key, data, sizeof(ares_dns_rr_key_t));
-    memcpy(&val, data + sizeof(ares_dns_rr_key_t), sizeof(unsigned int));
+    // Create a dummy server list
+    struct ares_addr_node server;
+    memset(&server, 0, sizeof(server));
+    server.family = AF_INET;
+    server.addr.addr4.s_addr = htonl(0x7F000001); // 127.0.0.1
 
-    /* Call the function-under-test */
-    ares_status_t status = ares_dns_rr_set_u32(&dns_rr, key, val);
+    // Call the function-under-test
+    ares_set_servers(&channel, &server);
 
-    /* Return the status to ensure the function was called */
-    return (int)status; // Explicitly cast to int to handle sign conversion warning
+    // Clean up
+    ares_destroy(channel);
+    ares_library_cleanup();
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

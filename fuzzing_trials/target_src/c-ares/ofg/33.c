@@ -1,34 +1,72 @@
-#include <ares.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/socket.h>
+#include <string.h>
+#include <ares.h>
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-  ares_channel channel;
-  int status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    return 0;
-  }
+    ares_channel channel;
+    struct ares_options options;
+    int optmask = 0;
 
-  /* Create a pair of connected sockets */
-  int fd[2];
-  if (socketpair(AF_UNIX, SOCK_STREAM, 0, fd) != 0) {
+    /* Initialize ares library */
+    if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
+        return 0;
+    }
+
+    /* Initialize ares channel */
+    if (ares_init_options(&channel, &options, optmask) != ARES_SUCCESS) {
+        ares_library_cleanup();
+        return 0;
+    }
+
+    /* Ensure the size is at least 16 bytes for a valid IPv6 address */
+    if (size >= 16) {
+        /* Call the function-under-test */
+        ares_set_local_ip6(channel, data);
+    }
+
+    /* Cleanup */
     ares_destroy(channel);
+    ares_library_cleanup();
+
     return 0;
-  }
-
-  /* Write data to the socket to simulate activity */
-  write(fd[1], data, size);
-
-  /* Call the function-under-test */
-  ares_process_fd(channel, fd[0], fd[1]);
-
-  /* Clean up */
-  close(fd[0]);
-  close(fd[1]);
-  ares_destroy(channel);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

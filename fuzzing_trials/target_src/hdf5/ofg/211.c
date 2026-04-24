@@ -1,31 +1,63 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stdbool.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_211(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract parameters
-    if (size < 10) {
+    // Ensure the input size is sufficient for our needs
+    if (size < sizeof(hid_t) + sizeof(bool)) {
         return 0;
     }
 
-    // Extract parameters from the input data
-    hid_t loc_id = (hid_t)data[0];
-    const char *old_name = (const char *)(data + 1);
-    const char *new_name = (const char *)(data + 2);
-    hid_t es_id = (hid_t)data[3];
+    // Extract hid_t from the input data
+    hid_t file_id = *(const hid_t *)data;
 
-    // Ensure strings are null-terminated
-    char old_name_buf[2];
-    char new_name_buf[2];
-
-    old_name_buf[0] = old_name[0];
-    old_name_buf[1] = '\0';
-
-    new_name_buf[0] = new_name[0];
-    new_name_buf[1] = '\0';
+    // Extract bool from the input data
+    bool no_attrs_hint = *(const bool *)(data + sizeof(hid_t));
 
     // Call the function under test
-    herr_t result = H5Arename_async(loc_id, old_name_buf, new_name_buf, es_id);
+    herr_t result = H5Fset_dset_no_attrs_hint(file_id, no_attrs_hint);
+
+    // Use the result in some way to avoid any compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_211(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

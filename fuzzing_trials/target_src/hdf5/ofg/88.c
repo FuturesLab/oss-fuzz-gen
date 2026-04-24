@@ -1,30 +1,67 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include string.h for memcpy
 #include <hdf5.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function-under-test
-    hid_t dataset_id = 1; // Example dataset identifier, should be valid in real scenarios
-    hid_t mem_type_id = H5T_NATIVE_INT; // Memory datatype identifier
-    hid_t mem_space_id = H5S_ALL; // Memory dataspace identifier
-    hid_t file_space_id = H5S_ALL; // File dataspace identifier
-    hid_t plist_id = H5P_DEFAULT; // Property list identifier
+    // Ensure the data size is sufficient for the inputs
+    if (size < 4) return 0; // Adjusted to 4 since only 4 bytes are needed
 
-    // Allocate a buffer for data reading
-    void *buffer = malloc(size);
-    if (buffer == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
+    // Extract parts of the data for different parameters
+    hid_t attr_id = (hid_t)data[0]; // Use a byte for the attribute ID
+    hid_t dtype_id = (hid_t)data[1]; // Use a byte for the datatype ID
+    unsigned int buf_size = (unsigned int)data[2]; // Use a byte for the buffer size
+    hid_t es_id = (hid_t)data[3]; // Use a byte for the event set ID
 
-    // Copy input data to the buffer
-    memcpy(buffer, data, size);
+    // Allocate memory for the buffer
+    void *buf = malloc(buf_size);
+    if (buf == NULL) return 0;
 
-    // Call the function-under-test
-    herr_t status = H5Dread(dataset_id, mem_type_id, mem_space_id, file_space_id, plist_id, buffer);
+    // Call the function-under-test with the correct number of arguments
+    herr_t result = H5Aread_async(attr_id, dtype_id, buf, es_id);
 
     // Free the allocated buffer
-    free(buffer);
+    free(buf);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_88(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

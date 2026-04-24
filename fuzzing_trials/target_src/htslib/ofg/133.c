@@ -1,45 +1,58 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
-#include <stdio.h>
-
-// Mock implementation of hts_feature_string to take input data
-// This is a placeholder, replace it with the actual implementation
-const char *hts_feature_string_133(const uint8_t *data, size_t size) {
-    // For demonstration, let's assume the input data is a string
-    // In a real scenario, this function would process the data meaningfully
-    static char buffer[256];
-    size_t copy_size = size < sizeof(buffer) - 1 ? size : sizeof(buffer) - 1;
-    memcpy(buffer, data, copy_size);
-    buffer[copy_size] = '\0';
-    return buffer;
-}
+#include <stddef.h>
+#include "/src/htslib/htslib/hts.h"  // Include the correct path for the htslib header
 
 int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    // Ensure the input data is not null and has a meaningful size
-    if (data == NULL || size == 0) {
-        return 0;
-    }
-    
-    // Call the function-under-test with input data
-    const char *features = hts_feature_string_133(data, size);
+    // Call the function-under-test
+    hts_md5_context *ctx = hts_md5_init();
 
-    // Process the returned feature string to potentially trigger different code paths
-    if (features != NULL) {
-        size_t length = strlen(features);
-        if (length > 0) {
-            // Perform some operations based on the content of the features string
-            // For example, check for specific substrings or patterns
-            if (strstr(features, "feature1") != NULL) {
-                // Do something specific if "feature1" is found
-                printf("Feature1 detected!\n");
-            }
-            if (strstr(features, "feature2") != NULL) {
-                // Do something specific if "feature2" is found
-                printf("Feature2 detected!\n");
-            }
-        }
+    // Ensure the context is not NULL
+    if (ctx != NULL) {
+        // Feed the input data to the MD5 context
+        hts_md5_update(ctx, data, size);
+
+        // Clean up the context after use
+        hts_md5_destroy(ctx);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_133(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

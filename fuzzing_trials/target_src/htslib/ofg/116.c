@@ -1,45 +1,86 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h> // Include for close() and remove()
+#include <fcntl.h>  // Include for mkstemp()
+#include <htslib/sam.h>
+#include <htslib/hts.h>
 
-// Assuming hFILE is a structure that needs to be defined
-typedef struct {
-    char *buffer;
-    size_t size;
-} hFILE;
-
-// Function-under-test declaration
-char * hfile_mem_steal_buffer(hFILE *file, size_t *size);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    // Allocate and initialize an hFILE structure
-    hFILE file;
-    file.size = size;
-    file.buffer = (char *)malloc(size + 1);
-    
-    if (file.buffer == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Failed to create a temporary file
     }
 
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(file.buffer, data, size);
-    file.buffer[size] = '\0';
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        remove(tmpl);
+        return 0; // Failed to write data to the file
+    }
 
-    // Allocate a size_t variable for the second parameter
-    size_t stolen_size = 0;
+    // Close the file descriptor
+    close(fd);
+
+    // Open the file using hts_open
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        remove(tmpl);
+        return 0; // Failed to open the file
+    }
 
     // Call the function-under-test
-    char *stolen_buffer = hfile_mem_steal_buffer(&file, &stolen_size);
+    hts_idx_t *index = sam_index_load(hts_file, tmpl);
 
-    // Free the stolen buffer if it's not NULL
-    if (stolen_buffer != NULL) {
-        free(stolen_buffer);
+    // Clean up
+    if (index != NULL) {
+        hts_idx_destroy(index);
     }
-
-    // Free the original buffer
-    free(file.buffer);
+    hts_close(hts_file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_116(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

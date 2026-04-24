@@ -1,36 +1,48 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Initialize the HDF5 library
+    H5open();
+
+    // Create a file to work with
+    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Create a dataspace
+    hsize_t dims[1] = {10}; // Example dimension
+    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+    if (dataspace_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Create a dataset
+    hid_t dataset_id = H5Dcreate2(file_id, "fuzz_dataset", H5T_NATIVE_INT, dataspace_id,
+                                  H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
         return 0;
     }
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    H5Dflush(dataset_id);
 
-    // Clean up
+    // Close the dataset and dataspace
+    H5Dclose(dataset_id);
+    H5Sclose(dataspace_id);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Dset_extent_async
-    const char wyvblvtx[1024] = "wbphm";
-    herr_t ret_H5Dset_extent_async_dyriu = H5Dset_extent_async(wyvblvtx, name_buffer, H5G_NLIBTYPES);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Close the file
+    H5Fclose(file_id);
+
+    // Close the HDF5 library
+    H5close();
 
     return 0;
 }

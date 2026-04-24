@@ -1,36 +1,41 @@
 #include <sys/stat.h>
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Ensure the input size is sufficient for a null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
+    // Allocate memory for the input string and ensure it's null-terminated
+    char *input_string = (char *)malloc(size + 1);
+    if (input_string == NULL) {
         return 0;
     }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
+    memcpy(input_string, data, size);
+    input_string[size] = '\0';
 
+    // Initialize ucl_type_t variable
     ucl_type_t type;
-    bool result = ucl_object_string_to_type(input_data, &type);
+
+    // Call the function-under-test
+    bool result = ucl_object_string_to_type(input_string, &type);
 
     // Clean up
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_string_to_type to ucl_object_type_to_string
-    const char* ret_ucl_object_type_to_string_jjunz = ucl_object_type_to_string(type);
-    if (ret_ucl_object_type_to_string_jjunz == NULL){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from ucl_object_string_to_type to ucl_object_type_to_string using the plateau pool
+    const char* ret_ucl_object_type_to_string_nxjon = ucl_object_type_to_string(type);
+    if (ret_ucl_object_type_to_string_nxjon == NULL){
     	return 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
+    // End mutation: Producer.SPLICE_MUTATOR
     
-    free(input_data);
+    free(input_string);
 
     return 0;
 }

@@ -1,25 +1,86 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h> // Include for close() and unlink()
+#include <fcntl.h>  // Include for mkstemp()
+#include <htslib/bgzf.h>
 #include <htslib/sam.h>
-#include <htslib/hts.h>
 
-// Remove 'extern "C"' for C compatibility
 int LLVMFuzzerTestOneInput_233(const uint8_t *data, size_t size) {
-    // Initialize the variables needed for bam_mplp64_auto
-    bam_mplp_t mplp = bam_mplp_init(0, NULL, NULL); // Initialize with 0 iterators
-    int tid = 0;
-    hts_pos_t pos = 0;
-    int n_plp = 0;
-    const bam_pileup1_t *plp = NULL;
-
-    // Check if data and size are valid before using them
-    if (data != NULL && size > 0) {
-        // Call the function-under-test
-        int result = bam_mplp64_auto(mplp, &tid, &pos, &n_plp, &plp);
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    // Open the temporary file with BGZF
+    BGZF *bgzf = bgzf_open(tmpl, "r");
+    if (bgzf == NULL) {
+        return 0;
+    }
+
+    // Initialize bam1_t structure
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        bgzf_close(bgzf);
+        return 0;
+    }
+
+    // Call the function-under-test
+    bam_read1(bgzf, b);
+
     // Clean up
-    bam_mplp_destroy(mplp);
+    bam_destroy1(b);
+    bgzf_close(bgzf);
+    unlink(tmpl); // Use unlink instead of remove for POSIX compliance
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_233(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

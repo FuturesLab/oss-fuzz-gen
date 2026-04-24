@@ -1,83 +1,169 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "ucl.h"
-#include <stdbool.h>
+#include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <string.h>
+#include "ucl.h"
 
-static void test_ucl_parser_add_string(struct ucl_parser *parser, const uint8_t *data, size_t size) {
-    if (parser) {
-        // Ensure the data is null-terminated if size is 0
-        char *null_terminated_data = (char *)malloc(size + 1);
-        if (null_terminated_data) {
-            memcpy(null_terminated_data, data, size);
-            null_terminated_data[size] = '\0';
-
-            // Try adding the string with the exact size
-            ucl_parser_add_string(parser, null_terminated_data, size);
-
-            // Try adding the string assuming it's null-terminated
-            ucl_parser_add_string(parser, null_terminated_data, 0);
-
-            free(null_terminated_data);
-        }
-    }
-}
-
-static void test_ucl_parser_add_fd(struct ucl_parser *parser, const uint8_t *data, size_t size) {
-    if (parser) {
-        int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-        if (fd != -1) {
-            write(fd, data, size);
-            lseek(fd, 0, SEEK_SET);
-            ucl_parser_add_fd(parser, fd);
-            close(fd);
-        }
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *fp = fopen("./dummy_file", "wb");
+    if (fp != NULL) {
+        fwrite(Data, 1, Size, fp);
+        fclose(fp);
     }
 }
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *Data, size_t Size) {
-    struct ucl_parser *parser = ucl_parser_new(0);
-
-    if (parser) {
-        // Fuzz ucl_parser_add_string
-        test_ucl_parser_add_string(parser, Data, Size);
-
-        // Fuzz ucl_parser_add_fd
-        test_ucl_parser_add_fd(parser, Data, Size);
-
-        // Fuzz ucl_parser_get_default_priority
-        int priority = ucl_parser_get_default_priority(parser);
-
-        // Fuzz ucl_parser_get_error_code
-        int error_code = ucl_parser_get_error_code(parser);
-
-        // Fuzz ucl_parser_get_error
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_error_code to ucl_parser_add_string
-        double ret_ucl_object_todouble_csubv = ucl_object_todouble(NULL);
-        if (ret_ucl_object_todouble_csubv < 0){
-        	return 0;
-        }
-        bool ret_ucl_parser_add_string_xuupd = ucl_parser_add_string(parser, NULL, (size_t )ret_ucl_object_todouble_csubv);
-        if (ret_ucl_parser_add_string_xuupd == 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        const char *error_str = ucl_parser_get_error(parser);
-
-        // Clean up
-        ucl_parser_free(parser);
+    if (Size < 1) {
+        return 0;
     }
 
+    // Prepare the environment
+    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+    if (!obj) {
+        return 0;
+    }
+
+    const char *str = (const char *)Data;
+    size_t len = Size;
+    enum ucl_string_flags flags = UCL_STRING_PARSE;
+
+    // Convert string to UCL object
+    ucl_object_t *string_obj1 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj1) {
+        goto cleanup;
+    }
+
+    // Insert key-value pair
+    if (!ucl_object_insert_key(obj, string_obj1, "key1", 4, true)) {
+        goto cleanup;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_object_insert_key_merged
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from ucl_object_fromstring_common to ucl_object_iterate_with_error using the plateau pool
+    ucl_object_iter_t iter = NULL;
+    int error = 0;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!string_obj1) {
+    	return 0;
+    }
+    const ucl_object_t* ret_ucl_object_iterate_with_error_oheta = ucl_object_iterate_with_error(string_obj1, &iter, true, &error);
+    if (ret_ucl_object_iterate_with_error_oheta == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    ucl_object_t* ret_ucl_object_ref_woitg = ucl_object_ref(obj);
+    if (ret_ucl_object_ref_woitg == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    char* ret_ucl_copy_value_trash_wgeys = ucl_copy_value_trash(obj);
+    if (ret_ucl_copy_value_trash_wgeys == NULL){
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_copy_value_trash to ucl_object_tostring_safe
+    ucl_object_t* ret_ucl_object_fromint_czjsd = ucl_object_fromint(UCL_PRIORITY_MIN);
+    if (ret_ucl_object_fromint_czjsd == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_fromint_czjsd) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_copy_value_trash_wgeys) {
+    	return 0;
+    }
+    bool ret_ucl_object_tostring_safe_hlhtg = ucl_object_tostring_safe(ret_ucl_object_fromint_czjsd, &ret_ucl_copy_value_trash_wgeys);
+    if (ret_ucl_object_tostring_safe_hlhtg == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    double ret_ucl_object_todouble_wgwaf = ucl_object_todouble(NULL);
+    if (ret_ucl_object_todouble_wgwaf < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_ref_woitg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!string_obj1) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_copy_value_trash_wgeys) {
+    	return 0;
+    }
+    bool ret_ucl_object_insert_key_merged_eowpt = ucl_object_insert_key_merged(ret_ucl_object_ref_woitg, string_obj1, ret_ucl_copy_value_trash_wgeys, (size_t )ret_ucl_object_todouble_wgwaf, 1);
+    if (ret_ucl_object_insert_key_merged_eowpt == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_t *string_obj2 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj2) {
+        goto cleanup;
+    }
+
+    if (!ucl_object_insert_key(obj, string_obj2, "key2", 4, true)) {
+        goto cleanup;
+    }
+
+    ucl_object_t *string_obj3 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj3) {
+        goto cleanup;
+    }
+
+    if (!ucl_object_insert_key(obj, string_obj3, "key3", 4, true)) {
+        goto cleanup;
+    }
+
+    write_dummy_file(Data, Size);
+
+    FILE *fp = fopen("./dummy_file", "r");
+    if (!fp) {
+        goto cleanup;
+    }
+
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
+    if (!emitter_funcs) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    struct ucl_emitter_context *ctx = ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    if (!ctx) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+
+    ucl_object_emit_streamline_start_container(ctx, obj);
+
+    fclose(fp);
+
+cleanup:
+    ucl_object_unref(obj);
     return 0;
 }
 #ifdef INC_MAIN

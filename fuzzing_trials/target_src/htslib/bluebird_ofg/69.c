@@ -1,40 +1,87 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include "htslib/sam.h"
-#include "htslib/hts.h"
+#include <string.h>
+#include "htslib/sam.h" // Correct path for sam_hdr_t definition
+#include "htslib/hts.h" // Correct path for kstring_t definition
 
-// Function-under-test
-int bam_next_basemod(const bam1_t *, hts_base_mod_state *, hts_base_mod *, int, int *);
-
-// Remove extern "C" as this is not valid in C files
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Initialize bam1_t structure
-    bam1_t *bam_record = bam_init1();
-    if (!bam_record) return 0;
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return 0; // Exit if initialization fails
+    }
 
-    // Initialize hts_base_mod_state structure
-    hts_base_mod_state *mod_state = hts_base_mod_state_alloc();
-    if (!mod_state) {
-        bam_destroy1(bam_record);
+    // Ensure the input data is not empty
+    if (size == 0) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
-    // Initialize hts_base_mod structure
-    hts_base_mod mod;
-    mod.modified_base = 'C';  // Example base modification
-    mod.strand = 0;           // Example strand
+    // Create a null-terminated string from the input data
+    char *str = (char *)malloc(size + 1);
+    if (str == NULL) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+    memcpy(str, data, size);
+    str[size] = '\0';
 
-    // Initialize other parameters
-    int max_mods = 10;        // Example maximum number of modifications
-    int n_mods = 0;           // Number of modifications found
+    // Initialize kstring_t
+    kstring_t ks;
+    ks.l = 0;
+    ks.m = 0;
+    ks.s = NULL;
 
-    // Call the function-under-test
-    int result = bam_next_basemod(bam_record, mod_state, &mod, max_mods, &n_mods);
+    // Call the function under test with various positions
+    for (int pos = 0; pos < 10; ++pos) {
+        sam_hdr_find_line_pos(hdr, str, pos, &ks);
+    }
 
     // Clean up
-    hts_base_mod_state_free(mod_state);
-    bam_destroy1(bam_record);
+    free(str);
+    free(ks.s);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_69(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

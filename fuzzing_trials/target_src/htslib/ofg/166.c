@@ -1,43 +1,66 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h>
+#include <stddef.h>
 
+// Function-under-test declaration
+const char * hts_test_feature(unsigned int feature);
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_166(const uint8_t *data, size_t size) {
-    // Initialize parameters for sam_hdr_remove_lines
-    sam_hdr_t *hdr = sam_hdr_init();
-    const char *type = "SQ";  // Example type, can vary
-    const char *key = "SN";   // Example key, can vary
-    void *iter = NULL;        // Example iterator, can vary
-
-    // Ensure the data is not empty
-    if (size == 0) {
-        sam_hdr_destroy(hdr);
+    // Ensure there is enough data to extract an unsigned int
+    if (size < sizeof(unsigned int)) {
         return 0;
     }
 
-    // Create a temporary copy of the data to use as a header text
-    char *header_text = (char *)malloc(size + 1);
-    if (header_text == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    memcpy(header_text, data, size);
-    header_text[size] = '\0';
-
-    // Try to parse the header from the data
-    if (sam_hdr_add_lines(hdr, header_text, 0) < 0) {
-        free(header_text);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
+    // Extract an unsigned int from the input data
+    unsigned int feature = *((unsigned int *)data);
 
     // Call the function-under-test
-    sam_hdr_remove_lines(hdr, type, key, iter);
+    const char *result = hts_test_feature(feature);
 
-    // Clean up
-    free(header_text);
-    sam_hdr_destroy(hdr);
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (result != NULL) {
+        // For example, just check the first character
+        volatile char first_char = result[0];
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_166(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,87 +1,58 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "ucl.h"
-#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdbool.h>
+#include "ucl.h"
 
-static void test_ucl_parser_add_string(struct ucl_parser *parser, const uint8_t *data, size_t size) {
-    if (parser) {
-        // Ensure the data is null-terminated if size is 0
-        char *null_terminated_data = (char *)malloc(size + 1);
-        if (null_terminated_data) {
-            memcpy(null_terminated_data, data, size);
-            null_terminated_data[size] = '\0';
-
-            // Try adding the string with the exact size
-            ucl_parser_add_string(parser, null_terminated_data, size);
-
-            // Try adding the string assuming it's null-terminated
-            ucl_parser_add_string(parser, null_terminated_data, 0);
-
-            free(null_terminated_data);
-        }
+static ucl_object_t* create_random_ucl_object(const uint8_t *Data, size_t Size, size_t *Offset) {
+    if (*Offset >= Size) return NULL;
+    
+    ucl_type_t type = (ucl_type_t)(Data[*Offset] % (UCL_NULL + 1));
+    (*Offset)++;
+    
+    unsigned priority = 0;
+    if (*Offset < Size) {
+        priority = Data[*Offset];
+        (*Offset)++;
     }
-}
 
-static void test_ucl_parser_add_fd(struct ucl_parser *parser, const uint8_t *data, size_t size) {
-    if (parser) {
-        int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-        if (fd != -1) {
-            write(fd, data, size);
-            lseek(fd, 0, SEEK_SET);
-            ucl_parser_add_fd(parser, fd);
-            close(fd);
-        }
-    }
+    return ucl_object_new_full(type, priority);
 }
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    struct ucl_parser *parser = ucl_parser_new(0);
+    if (Size < 2) return 0;
 
-    if (parser) {
-        // Fuzz ucl_parser_add_string
-        test_ucl_parser_add_string(parser, Data, Size);
+    size_t offset = 0;
 
-        // Fuzz ucl_parser_add_fd
-        test_ucl_parser_add_fd(parser, Data, Size);
+    // Create UCL objects
+    ucl_object_t *obj1 = create_random_ucl_object(Data, Size, &offset);
+    ucl_object_t *obj2 = create_random_ucl_object(Data, Size, &offset);
 
-        // Fuzz ucl_parser_get_default_priority
-        int priority = ucl_parser_get_default_priority(parser);
+    if (obj1 && obj2) {
+        // Merge objects
+        bool copy = Data[offset % Size] % 2 == 0;
+        ucl_object_merge(obj1, obj2, copy);
 
-        // Fuzz ucl_parser_get_error_code
-        int error_code = ucl_parser_get_error_code(parser);
-
-        // Fuzz ucl_parser_get_error
-        const char *error_str = ucl_parser_get_error(parser);
-
-        // Clean up
-        ucl_parser_free(parser);
+        // Append obj2 to obj1 if obj1 is an array
+        if (obj1->type == UCL_ARRAY) {
+            ucl_array_append(obj1, obj2);
+        } else {
+            // Unreference obj2 if not appended to avoid double free
+            ucl_object_unref(obj2);
+        }
+    } else {
+        // Unreference obj2 if it was created but obj1 was not
+        if (obj2) ucl_object_unref(obj2);
     }
 
+    // Unreference obj1
+    if (obj1) ucl_object_unref(obj1);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_add_fd_full
-    unsigned int ret_ucl_object_get_priority_ncjzd = ucl_object_get_priority(NULL);
-    if (ret_ucl_object_get_priority_ncjzd < 0){
-    	return 0;
-    }
-    unsigned int ret_ucl_parser_get_linenum_sglzf = ucl_parser_get_linenum(NULL);
-    if (ret_ucl_parser_get_linenum_sglzf < 0){
-    	return 0;
-    }
-    bool ret_ucl_parser_add_fd_full_qohtz = ucl_parser_add_fd_full(parser, (int )ret_ucl_object_get_priority_ncjzd, ret_ucl_parser_get_linenum_sglzf, 0, 0);
-    if (ret_ucl_parser_add_fd_full_qohtz == 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
     return 0;
 }
 #ifdef INC_MAIN

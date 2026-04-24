@@ -1,103 +1,111 @@
 // This fuzz driver is generated for library cares, aiming to fuzz the following functions:
 // ares_init at ares_init.c:67:5 in ares.h
-// ares_dns_record_create at ares_dns_record.c:52:15 in ares_dns_record.h
-// ares_destroy at ares_destroy.c:32:6 in ares.h
-// ares_dns_record_query_add at ares_dns_record.c:252:15 in ares_dns_record.h
-// ares_dns_record_rr_add at ares_dns_record.c:396:15 in ares_dns_record.h
-// ares_dns_record_query_get at ares_dns_record.c:323:15 in ares_dns_record.h
-// ares_search_dnsrec at ares_search.c:473:15 in ares.h
-// ares_send_dnsrec at ares_send.c:227:15 in ares.h
-// ares_dns_record_destroy at ares_dns_record.c:223:6 in ares_dns_record.h
+// ares_fds at ares_fds.c:30:5 in ares.h
+// ares_timeout at ares_timeout.c:146:17 in ares.h
+// ares_cancel at ares_cancel.c:34:6 in ares.h
+// ares_timeout at ares_timeout.c:146:17 in ares.h
+// ares_process at ares_process.c:321:6 in ares.h
 // ares_destroy at ares_destroy.c:32:6 in ares.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/select.h>
 #include <ares.h>
-#include <ares_dns_record.h>
 
-static void dummy_callback(void *arg, int status, int timeouts, unsigned char *abuf, int alen) {
-    // Dummy callback function for ares_search_dnsrec and ares_send_dnsrec
+static void initialize_fd_sets(fd_set *read_fds, fd_set *write_fds) {
+    FD_ZERO(read_fds);
+    FD_ZERO(write_fds);
+}
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
-    ares_channel_t *channel = NULL;
-    ares_dns_record_t *dnsrec = NULL;
-    unsigned short qid = 0;
-    const char *name = NULL;
-    ares_dns_rec_type_t qtype;
-    ares_dns_class_t qclass;
-    ares_dns_rr_t *rr_out;
-    ares_dns_section_t sect = 0;
-    unsigned int ttl = 0;
-    unsigned short id = 0;
-    unsigned short flags = 0;
-    ares_dns_opcode_t opcode = 0;
-    ares_dns_rcode_t rcode = 0;
-    size_t idx = 0;
+    ares_channel channel;
+    struct timeval maxtv, tv;
+    fd_set read_fds, write_fds;
+    int nfds;
 
-    // Initialize ares channel
     if (ares_init(&channel) != ARES_SUCCESS) {
         return 0;
     }
 
-    // Initialize DNS record
-    if (ares_dns_record_create(&dnsrec, id, flags, opcode, rcode) != ARES_SUCCESS) {
-        ares_destroy(channel);
-        return 0;
+    initialize_fd_sets(&read_fds, &write_fds);
+
+    // Step 1: Call ares_fds
+    nfds = ares_fds(channel, &read_fds, &write_fds);
+
+    // Step 2: Call ares_timeout
+    maxtv.tv_sec = 5;
+    maxtv.tv_usec = 0;
+    ares_timeout(channel, &maxtv, &tv);
+
+    // Step 3: Call ares_cancel
+    ares_cancel(channel);
+
+    // Step 4: Call ares_timeout again
+    ares_timeout(channel, &maxtv, &tv);
+
+    // Step 5: Call ares_process
+    if (nfds > 0) {
+        select(nfds, &read_fds, &write_fds, NULL, &tv);
+        ares_process(channel, &read_fds, &write_fds);
     }
 
-    // Fuzz ares_dns_record_query_add
-    if (Size > 0) {
-        char *name_buf = (char *)malloc(Size + 1);
-        if (name_buf) {
-            memcpy(name_buf, Data, Size);
-            name_buf[Size] = '\0';
-            qtype = (ares_dns_rec_type_t)(Data[0] % 256);
-            qclass = (ares_dns_class_t)(Data[0] % 256);
-            ares_dns_record_query_add(dnsrec, name_buf, qtype, qclass);
-            free(name_buf);
-        }
-    }
+    // Cleanup
+    ares_destroy(channel);
 
-    // Fuzz ares_dns_record_rr_add
-    if (Size > 1) {
-        char *name_buf = (char *)malloc(Size + 1);
-        if (name_buf) {
-            memcpy(name_buf, Data, Size);
-            name_buf[Size] = '\0';
-            qtype = (ares_dns_rec_type_t)(Data[1] % 256);
-            qclass = (ares_dns_class_t)(Data[1] % 256);
-            ttl = Data[1];
-            ares_dns_record_rr_add(&rr_out, dnsrec, sect, name_buf, qtype, qclass, ttl);
-            free(name_buf);
-        }
-    }
-
-    // Fuzz ares_dns_record_query_get
-    if (Size > 2) {
-        idx = Data[2] % 256;
-        ares_dns_record_query_get(dnsrec, idx, &name, &qtype, &qclass);
-    }
-
-    // Fuzz ares_search_dnsrec
-    if (Size > 3) {
-        ares_search_dnsrec(channel, dnsrec, dummy_callback, NULL);
-    }
-
-    // Fuzz ares_send_dnsrec
-    if (Size > 4) {
-        ares_send_dnsrec(channel, dnsrec, dummy_callback, NULL, &qid);
-    }
-
-    // Clean up
-    if (dnsrec) {
-        ares_dns_record_destroy(dnsrec);
-    }
-    if (channel) {
-        ares_destroy(channel);
-    }
+    // If the input data is required to be written to a file
+    write_dummy_file(Data, Size);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

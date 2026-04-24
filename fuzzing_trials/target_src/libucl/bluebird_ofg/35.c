@@ -1,59 +1,31 @@
 #include <sys/stat.h>
-#include "ucl.h"
-#include <stddef.h>
-#include <stdint.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-  // Ensure there is enough data to split for key and value
-  if (size < 2) {
-    return 0;
-  }
+    struct ucl_parser *parser;
 
-  // Initialize a ucl_parser
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
-  struct ucl_parser *parser = ucl_parser_new(size);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-  if (parser == NULL) {
-    return 0;
-  }
+    // Initialize the parser
+    parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
 
-  // Add data to the parser
-  ucl_parser_add_chunk(parser, data, size);
+    // Ensure the parser is not NULL
+    if (parser == NULL) {
+        return 0;
+    }
 
-  // Get the top object from the parser
-  ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    // Feed the data into the parser
+    ucl_parser_add_chunk(parser, data, size);
 
-  // Ensure top_obj is not NULL
-  if (top_obj == NULL) {
+    // Call the function-under-test
+    bool result = ucl_parser_chunk_skip(parser);
+
+    // Clean up
     ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Use the first byte of data as the length of the key
-  size_t key_len = data[0] % size;
-  if (key_len == 0) {
-    key_len = 1; // Ensure key length is at least 1
-  }
-
-  // Extract the key from the data
-  char key[key_len + 1];
-  memcpy(key, data + 1, key_len);
-  key[key_len] = '\0'; // Null-terminate the key
-
-  // Call the function-under-test
-  ucl_object_t *popped_obj = ucl_object_pop_key(top_obj, key);
-
-  // Free the popped object if it exists
-  if (popped_obj != NULL) {
-    ucl_object_unref(popped_obj);
-  }
-
-  // Clean up
-  ucl_object_unref(top_obj);
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

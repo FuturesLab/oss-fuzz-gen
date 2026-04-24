@@ -1,33 +1,71 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <ucl.h>
+
+// Define dummy user data destructor and emitter functions
+void dummy_dtor_44(void *ud) {
+    // Dummy destructor, does nothing
+}
+
+void dummy_emitter_44(void *ud) {
+    // Dummy emitter, does nothing
+}
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    if (size < 2) {
+    // Ensure the data is not NULL and has a positive size
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Create two ucl_object_t arrays
-    ucl_object_t *obj1 = ucl_object_new();
-    ucl_object_t *obj2 = ucl_object_new();
+    // Use the data as a pointer for the user data
+    void *user_data = (void *)data;
 
-    // Initialize the objects as arrays
-    ucl_object_t *array1 = ucl_object_typed_new(UCL_ARRAY);
-    ucl_object_t *array2 = ucl_object_typed_new(UCL_ARRAY);
+    // Call the function-under-test
+    ucl_object_t *obj = ucl_object_new_userdata(dummy_dtor_44, dummy_emitter_44, user_data);
 
-    // Add the input data to the arrays
-    ucl_object_t *element1 = ucl_object_fromstring_common((const char *)data, size / 2, 0);
-    ucl_object_t *element2 = ucl_object_fromstring_common((const char *)(data + size / 2), size - size / 2, 0);
-
-    ucl_array_append(array1, element1);
-    ucl_array_append(array2, element2);
-
-    // Merge the arrays
-    bool merge_result = ucl_array_merge(array1, array2, true);
-
-    // Clean up
-    ucl_object_unref(array1);
-    ucl_object_unref(array2);
+    // Clean up if needed (assuming ucl_object_unref is a valid cleanup function)
+    if (obj != NULL) {
+        ucl_object_unref(obj);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

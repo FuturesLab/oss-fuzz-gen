@@ -1,64 +1,96 @@
-#include "ares.h"
-#include "stddef.h"
+#include <sys/stat.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-#include <netdb.h>  // Include this for the definition of struct hostent
-#include <sys/socket.h>  // Include this for AF_INET and AF_INET6
+#include <stdlib.h>
+#include "ares.h"
 
-/* Callback function for ares_gethostbyname */
-static void host_callback(void *arg, int status, int timeouts, struct hostent *host) {
-  /* Handle the callback results here */
-  (void)arg;
-  (void)status;
-  (void)timeouts;
-  (void)host;
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-  /* Initialize c-ares library */
-  ares_library_init(ARES_LIB_INIT_ALL);
+    /* Initialize the ares library */
+    ares_library_init(ARES_LIB_INIT_ALL);
 
-  ares_channel channel;
-  int status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    return 0;
-  }
+    /* Create a channel */
+    ares_channel channel;
+    struct ares_options options;
+    int optmask = 0;
+    int status = ares_init_options(&channel, &options, optmask);
+    if (status != ARES_SUCCESS) {
+        return 0;
+    }
 
-  /* Ensure the data is null-terminated for use as a string */
+    /* Ensure the data is null-terminated for use as a CSV string */
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_init to ares_set_servers_ports_csv
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_init_options to ares_inet_ntop
+    unsigned short ret_ares_dns_record_get_flags_kyvwh = ares_dns_record_get_flags(NULL);
+    if (ret_ares_dns_record_get_flags_kyvwh < 0){
+    	return 0;
+    }
+    char ret_ares_dns_rr_key_tostr_vnjnu = ares_dns_rr_key_tostr(0);
+    char ret_ares_inet_ntop_wgsug = ares_inet_ntop((int )ret_ares_dns_record_get_flags_kyvwh, (void *)&options, &ret_ares_dns_rr_key_tostr_vnjnu, 0);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *csv = (char *)malloc(size + 1);
+    if (!csv) {
+        ares_destroy(channel);
+        return 0;
+    }
+    memcpy(csv, data, size);
+    csv[size] = '\0';
 
+    /* Call the function-under-test */
+    ares_set_servers_ports_csv(channel, csv);
 
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_set_servers_ports_csv with ares_set_sortlist
-  int ret_ares_set_servers_ports_csv_aoogs = ares_set_sortlist(channel, NULL);
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-  if (ret_ares_set_servers_ports_csv_aoogs < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  char *name = (char *)malloc(size + 1);
-  if (name == NULL) {
+    /* Clean up */
+    free(csv);
     ares_destroy(channel);
+    ares_library_cleanup();
+
     return 0;
-  }
-  memcpy(name, data, size);
-  name[size] = '\0';
-
-  /* Define the family (AF_INET or AF_INET6) */
-  int family = AF_INET;  /* or AF_INET6 */
-
-  /* Call the function-under-test */
-  ares_gethostbyname(channel, name, family, host_callback, NULL);
-
-  /* Clean up */
-  ares_destroy(channel);
-  free(name);
-  ares_library_cleanup();
-
-  return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_71(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

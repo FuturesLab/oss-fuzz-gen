@@ -1,41 +1,89 @@
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h> // Include for memcpy
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a temporary file to work with
-    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create a file, exit early
+    // Ensure there is enough data for all parameters
+    if (size < sizeof(hid_t) * 2 + sizeof(H5_index_t) + sizeof(H5_iter_order_t) + sizeof(hsize_t) + 1) {
+        return 0;
     }
 
-    // Use the input data to create a dataset
-    if (size > 0) {
-        hsize_t dims[1] = {size};
-        hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
-        if (dataspace_id >= 0) {
-            hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            if (dataset_id >= 0) {
-                // Write the input data to the dataset
-                H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-                H5Dclose(dataset_id);
-            }
-            H5Sclose(dataspace_id);
-        }
+    // Extract parameters from the data
+    size_t offset = 0;
+
+    hid_t loc_id = *(const hid_t *)(data + offset);
+    offset += sizeof(hid_t);
+
+    // Ensure the name is null-terminated
+    size_t name_len = size - offset - sizeof(H5_index_t) - sizeof(H5_iter_order_t) - sizeof(hsize_t) - sizeof(hid_t);
+    if (name_len <= 0) {
+        return 0;
     }
-
-    // Close the file
-    herr_t status = H5Fclose(file_id);
-
-    // Check the status (optional, just to ensure it was closed properly)
-    if (status < 0) {
-        // Handle error if needed
+    char *name = (char *)malloc(name_len + 1);
+    if (!name) {
+        return 0;
     }
+    memcpy(name, data + offset, name_len);
+    name[name_len] = '\0';
+    offset += name_len;
 
-    // Clean up: close the HDF5 library
-    H5close();
+    H5_index_t idx_type = *(const H5_index_t *)(data + offset);
+    offset += sizeof(H5_index_t);
+
+    H5_iter_order_t order = *(const H5_iter_order_t *)(data + offset);
+    offset += sizeof(H5_iter_order_t);
+
+    hsize_t n = *(const hsize_t *)(data + offset);
+    offset += sizeof(hsize_t);
+
+    hid_t lapl_id = *(const hid_t *)(data + offset);
+    offset += sizeof(hid_t);
+
+    // Call the function-under-test
+    H5Adelete_by_idx(loc_id, name, idx_type, order, n, lapl_id);
+
+    // Free allocated memory
+    free(name);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_110(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

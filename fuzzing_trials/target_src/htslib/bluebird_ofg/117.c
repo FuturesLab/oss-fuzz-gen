@@ -1,125 +1,98 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
 #include "htslib/hts.h"
-#include "htslib/sam.h"
+#include "htslib/sam.h" // Include additional library for hts_idx_t related operations
 
-// Function to handle the fuzz input
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Check if the input size is reasonable
-    if (size < 4) { // Arbitrary small size to avoid processing very small inputs
-        return 0;
+    // Check if the size is sufficient for creating a valid hts_idx_t object
+    if (size < 1) {
+        return 0; // Not enough data to proceed
     }
 
-    // Initialize htsFile with a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the file with htslib
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Read the header
-    bam_hdr_t *header = sam_hdr_read(hts_file);
-    if (!header) {
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize an iterator
-    hts_idx_t *idx = sam_index_load(hts_file, tmpl);
-    if (!idx) {
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sam_itr_queryi
-    hts_itr_t *itr = sam_itr_queryi(idx, HTS_IDX_NOCOOR, 0, BAM_FPAIRED);
+    // Initialize variables
+    // Provide required arguments for hts_idx_init
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hts_idx_init
+    hts_idx_t *idx = hts_idx_init(0, FT_UNKN, 0, 14, 5); // Initialize an index object with arbitrary values
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (!itr) {
-        hts_idx_destroy(idx);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_destroy to sam_itr_queryi
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_destroy to hts_idx_save_as
-        char* ret_bam_flag2str_qyyba = bam_flag2str(BAM_FREVERSE);
-        if (ret_bam_flag2str_qyyba == NULL){
-        	return 0;
-        }
-        const uint8_t arpbykaq = 0;
-        char* ret_bam_aux2Z_mnzyp = bam_aux2Z(&arpbykaq);
-        if (ret_bam_aux2Z_mnzyp == NULL){
-        	return 0;
-        }
-
-        int ret_hts_idx_save_as_sdrgw = hts_idx_save_as(idx, ret_bam_flag2str_qyyba, ret_bam_aux2Z_mnzyp, BAM_CEQUAL);
-        if (ret_hts_idx_save_as_sdrgw < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        int ret_hclose_mdagy = hclose(NULL);
-        if (ret_hclose_mdagy < 0){
-        	return 0;
-        }
-
-        hts_itr_t* ret_sam_itr_queryi_ifaaj = sam_itr_queryi(idx, BAM_FUNMAP, BAM_CMATCH, (int64_t )ret_hclose_mdagy);
-        if (ret_sam_itr_queryi_ifaaj == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
+    if (!idx) {
+        return 0; // Failed to initialize index
     }
 
-    // Initialize a buffer for the third parameter
-    bam1_t *b = bam_init1();
-    if (!b) {
-        hts_itr_destroy(itr);
-        hts_idx_destroy(idx);
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        remove(tmpl);
-        return 0;
+    int tid = 0; // Set tid to 0 for testing
+    uint64_t mapped = 0; // Initialize mapped to 0
+    uint64_t unmapped = 0; // Initialize unmapped to 0
+
+    // Simulate adding data to the index to avoid using an uninitialized index
+    // This is a mock operation to simulate a realistic scenario
+    hts_pos_t pos = 0;
+    for (size_t i = 0; i < size; ++i) {
+        pos += data[i];
+        // Correct the number of arguments for hts_idx_push
+        hts_idx_push(idx, tid, pos, pos + 1, 0, 1); // Provide an offset of 0 and is_mapped as 1
     }
+    hts_idx_finish(idx, pos);
 
     // Call the function-under-test
-    while (sam_itr_next(hts_file, itr, b) >= 0) {
-        // Process each record (for fuzzing, we don't need to do anything here)
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from hts_idx_finish to hts_itr_multi_cram using the plateau pool
+    hts_itr_t *itr = hts_itr_query(idx, 0, 0, 0, 0);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!idx) {
+    	return 0;
     }
+    int ret_hts_itr_multi_cram_neipx = hts_itr_multi_cram(idx, itr);
+    if (ret_hts_itr_multi_cram_neipx < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int result = hts_idx_get_stat(idx, tid, &mapped, &unmapped);
 
     // Clean up
-    bam_destroy1(b);
-    hts_itr_destroy(itr);
     hts_idx_destroy(idx);
-    bam_hdr_destroy(header);
-    hts_close(hts_file);
-    remove(tmpl);
 
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_117(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

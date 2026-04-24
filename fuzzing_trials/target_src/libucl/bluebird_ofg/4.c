@@ -1,89 +1,84 @@
 #include <sys/stat.h>
 #include <string.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include "ucl.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *obj = ucl_object_new();
-    enum ucl_object_keys_sort_flags sort_flags = UCL_SORT_KEYS_ICASE; // Corrected the enum value
-
-    // Ensure that the data is not empty
-    if (size > 0 && obj != NULL) {
-        // Create a UCL parser
-        struct ucl_parser *parser = ucl_parser_new(0);
-
-        // Parse the input data
-        if (ucl_parser_add_chunk(parser, data, size)) {
-            // Get the top-level object
-            const ucl_object_t *top = ucl_parser_get_object(parser);
-
-            // Copy the parsed object to our object
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_merge with ucl_array_merge
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_merge
-            bool ret_ucl_object_merge_bazrs = ucl_object_merge(top, obj, 0);
-            if (ret_ucl_object_merge_bazrs == 0){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_merge to ucl_array_delete
-            ucl_object_unref(top);
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_array_delete
-            ucl_object_t* ret_ucl_array_delete_ybddw = ucl_array_delete(top, obj);
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-            if (ret_ucl_array_delete_ybddw == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            ucl_array_merge(obj, (ucl_object_t *)top, true);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_merge to ucl_copy_value_trash
-            char* ret_ucl_copy_value_trash_sdsey = ucl_copy_value_trash(obj);
-            if (ret_ucl_copy_value_trash_sdsey == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_copy_value_trash to ucl_object_lookup_any
-            ucl_object_t* ret_ucl_object_ref_hmroa = ucl_object_ref(top);
-            if (ret_ucl_object_ref_hmroa == NULL){
-            	return 0;
-            }
-            const ucl_object_t* ret_ucl_object_lookup_any_lbceg = ucl_object_lookup_any(ret_ucl_object_ref_hmroa, ret_ucl_copy_value_trash_sdsey);
-            if (ret_ucl_object_lookup_any_lbceg == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-}
-
-        // Free the parser
-        ucl_parser_free(parser);
-
-        // Call the function under test
-        ucl_object_sort_keys(obj, sort_flags);
-
-        // Clean up
-        ucl_object_unref(obj);
+    // Ensure the size is at least 1 to extract a flag
+    if (size < 1) {
+        return 0;
     }
 
+    // Extract the flag from the data
+    enum ucl_string_flags flags = (enum ucl_string_flags)data[0];
+
+    // Ensure the string is not empty
+    const char *inputString = (const char *)(data + 1);
+    size_t stringSize = size - 1;
+
+    // Call the function under test
+    ucl_object_t *result = ucl_object_fromstring_common(inputString, stringSize, flags);
+
+    // Clean up the result if needed
+    if (result != NULL) {
+        ucl_object_unref(result);
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromstring_common to ucl_comments_find
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromstring_common to ucl_object_iterate_reset
+    const ucl_object_t sijnrwmg;
+    memset(&sijnrwmg, 0, sizeof(sijnrwmg));
+    ucl_object_iter_t ret_ucl_object_iterate_new_pwigb = ucl_object_iterate_new(&sijnrwmg);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!result) {
+    	return 0;
+    }
+    ucl_object_iter_t ret_ucl_object_iterate_reset_fcmlo = ucl_object_iterate_reset(ret_ucl_object_iterate_new_pwigb, result);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_iterate_reset to ucl_object_iterate_with_error
+    ucl_object_t* ret_ucl_object_new_odvlb = ucl_object_new();
+    if (ret_ucl_object_new_odvlb == NULL){
+    	return 0;
+    }
+    unsigned int ret_ucl_parser_get_column_tvmiu = ucl_parser_get_column(NULL);
+    if (ret_ucl_parser_get_column_tvmiu < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_new_odvlb) {
+    	return 0;
+    }
+    const ucl_object_t* ret_ucl_object_iterate_with_error_jcfcj = ucl_object_iterate_with_error(ret_ucl_object_new_odvlb, &ret_ucl_object_iterate_reset_fcmlo, 1, (int *)&ret_ucl_parser_get_column_tvmiu);
+    if (ret_ucl_object_iterate_with_error_jcfcj == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_t* ret_ucl_object_fromdouble_vehal = ucl_object_fromdouble(UCL_PRIORITY_MIN);
+    if (ret_ucl_object_fromdouble_vehal == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_fromdouble_vehal) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!result) {
+    	return 0;
+    }
+    const ucl_object_t* ret_ucl_comments_find_vdvrm = ucl_comments_find(ret_ucl_object_fromdouble_vehal, result);
+    if (ret_ucl_comments_find_vdvrm == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

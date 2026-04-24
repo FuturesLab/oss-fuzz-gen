@@ -1,79 +1,99 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
-#include <string.h>
-#include <stdlib.h>
-#include "stdio.h"
-#include "stdio.h"
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <sys/select.h>
 #include "ares.h"
 
-static void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
-    // Dummy callback function for ares_gethostbyname
+static void fuzz_ares_destroy(ares_channel channel) {
+    ares_destroy(channel);
+}
+
+static int fuzz_ares_expand_name(const unsigned char *encoded, const unsigned char *abuf, int alen) {
+    char *s = NULL;
+    long enclen = 0;
+    int result = ares_expand_name(encoded, abuf, alen, &s, &enclen);
+    if (result == ARES_SUCCESS) {
+        ares_free_string(s);
+    }
+    return result;
+}
+
+static int fuzz_ares_expand_string(const unsigned char *encoded, const unsigned char *abuf, int alen) {
+    unsigned char *s = NULL;
+    long enclen = 0;
+    int result = ares_expand_string(encoded, abuf, alen, &s, &enclen);
+    if (result == ARES_SUCCESS) {
+        ares_free_string(s);
+    }
+    return result;
+}
+
+static int fuzz_ares_fds(ares_channel channel) {
+    fd_set read_fds, write_fds;
+    FD_ZERO(&read_fds);
+    FD_ZERO(&write_fds);
+    return ares_fds(channel, &read_fds, &write_fds);
 }
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    ares_channel channel;
+    int status = ares_init(&channel);
+    if (status != ARES_SUCCESS) {
         return 0;
     }
 
-    ares_channel_t *channel = NULL;
-    ares_channel_t *dup_channel = NULL;
-    struct hostent *host = NULL;
-    int status;
-    char csv_servers[256];
-    char csv_ports[256];
-    char hostname[256];
-
-    // Initialize ares library
-    if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
-        return 0;
+    if (Size > 2) {
+        fuzz_ares_expand_name(Data, Data, Size);
     }
 
-    // Create a channel
-    if (ares_init(&channel) != ARES_SUCCESS) {
-        ares_library_cleanup();
-        return 0;
+    if (Size > 1) {
+        fuzz_ares_expand_string(Data, Data, Size);
     }
 
-    // Prepare CSV strings and hostname from Data
-    size_t csv_size = (Size < 255) ? Size : 255;
-    memcpy(csv_servers, Data, csv_size);
-    csv_servers[csv_size] = '\0';
-    memcpy(csv_ports, Data, csv_size);
-    csv_ports[csv_size] = '\0';
-    memcpy(hostname, Data, csv_size);
-    hostname[csv_size] = '\0';
+    fuzz_ares_fds(channel);
 
-    // Test ares_set_servers_ports_csv
-    ares_set_servers_ports_csv(channel, csv_ports);
-
-    // Test ares_set_servers_csv
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_set_servers_csv with ares_set_sortlist
-    ares_set_sortlist(channel, csv_servers);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Test ares_gethostbyname
-    ares_gethostbyname(channel, hostname, AF_INET, dummy_callback, NULL);
-
-    // Test ares_gethostbyname_file
-    status = ares_gethostbyname_file(channel, hostname, AF_INET, &host);
-    if (status == ARES_SUCCESS && host != NULL) {
-        ares_free_hostent(host);
-    }
-
-    // Test ares_dup
-    status = ares_dup(&dup_channel, channel);
-    if (status == ARES_SUCCESS && dup_channel != NULL) {
-        ares_destroy(dup_channel);
-    }
-
-    // Cleanup
-    ares_destroy(channel);
-    ares_library_cleanup();
-
+    fuzz_ares_destroy(channel);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

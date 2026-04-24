@@ -1,38 +1,65 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
 
+// Function-under-test declaration
+int hisremote(const char *);
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_150(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = NULL;
-    char *header_text = NULL;
-
-    // Ensure the data is not empty and create a null-terminated string
-    if (size > 0) {
-        header_text = (char *)malloc(size + 1);
-        if (header_text == NULL) {
-            return 0; // Memory allocation failed
-        }
-        memcpy(header_text, data, size);
-        header_text[size] = '\0'; // Null-terminate the string
-
-        // Parse the header text into a sam_hdr_t structure
-        hdr = sam_hdr_parse(size, header_text);
-        if (hdr != NULL) {
-            // Call the function-under-test
-            int nref = sam_hdr_nref(hdr);
-            // Print or use the result if needed
-            printf("Number of reference sequences: %d\n", nref);
-
-            // Free the header structure
-            sam_hdr_destroy(hdr);
-        }
-
-        // Free the allocated header text
-        free(header_text);
+    // Ensure the data is null-terminated
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
+
+    // Call the function-under-test
+    hisremote(null_terminated_data);
+
+    // Free the allocated memory
+    free(null_terminated_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_150(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

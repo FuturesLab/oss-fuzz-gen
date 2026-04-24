@@ -1,30 +1,63 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include <htslib/hts.h>
+#include <stddef.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to create an hts_itr_t object
-    if (size < sizeof(hts_itr_t)) {
+    // Ensure there is at least enough data for one uint32_t element
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Allocate memory for hts_itr_t
-    hts_itr_t *itr = (hts_itr_t *)malloc(sizeof(hts_itr_t));
-    if (itr == NULL) {
-        return 0;
-    }
+    // Calculate the number of uint32_t elements we can use from the input data
+    int n_cigar = size / sizeof(uint32_t);
 
-    // Initialize hts_itr_t with fuzz data
-    // Note: This is a simplified example and assumes hts_itr_t can be initialized this way
-    // In a real scenario, you would need to properly initialize the structure
-    memcpy(itr, data, sizeof(hts_itr_t));
+    // Cast the input data to a uint32_t pointer
+    const uint32_t *cigar = (const uint32_t *)data;
 
     // Call the function-under-test
-    hts_itr_destroy(itr);
+    hts_pos_t result = bam_cigar2rlen(n_cigar, cigar);
 
-    // Normally, hts_itr_destroy would free the memory, but if it doesn't, ensure to free it
-    // free(itr); // Uncomment if hts_itr_destroy does not free the memory
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_98(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

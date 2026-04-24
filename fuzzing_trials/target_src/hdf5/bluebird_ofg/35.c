@@ -1,37 +1,57 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
+    // Declare and initialize variables
+    hid_t file_id, dataset_id, dataspace_id;
+    _Bool is_enabled = 0;
+    _Bool is_active = 0;
+    herr_t status;
+
+    // Create a new file using default properties.
+    file_id = H5Fcreate("fuzz_test_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Unable to create file, exit early
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Define a simple dataspace with a single dimension
+    hsize_t dims[1] = {size};
+    dataspace_id = H5Screate_simple(1, dims, NULL);
+    if (dataspace_id < 0) {
+        H5Fclose(file_id);
+        return 0; // Unable to create dataspace, exit early
+    }
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
+    // Create a dataset within the file
+    dataset_id = H5Dcreate2(file_id, "fuzz_dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0; // Unable to create dataset, exit early
+    }
+
+    // Write the input data to the dataset
+    status = H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+    if (status < 0) {
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0; // Unable to write data, exit early
     }
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    status = H5Fget_mdc_logging_status(file_id, &is_enabled, &is_active);
 
-    // Clean up
+    // Close the dataset and dataspace
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dclose with H5Drefresh
+    H5Drefresh(dataset_id);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    H5Sclose(dataspace_id);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Arename_by_name
-    hid_t ret_H5Dget_space_fbgrf = H5Dget_space(0);
-    hid_t ret_H5Dget_type_vvmdn = H5Dget_type(0);
-    herr_t ret_H5Arename_by_name_pggbn = H5Arename_by_name(ret_H5Dget_space_fbgrf, NULL, name_buffer, (const char *)"r", ret_H5Dget_type_vvmdn);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Close the file
+    H5Fclose(file_id);
 
     return 0;
 }

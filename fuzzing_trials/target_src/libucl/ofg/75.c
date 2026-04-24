@@ -1,24 +1,65 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <unistd.h>
+#include <stdlib.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Ensure we have some data to work with
-    if (size < sizeof(int)) {
+    struct ucl_parser *parser;
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
-    // Use the first bytes of data to construct an integer
-    int fd = *(int *)data;
+    // Feed the parser with input data
+    if (size > 0) {
+        ucl_parser_add_chunk(parser, data, size);
+    }
 
     // Call the function-under-test
-    struct ucl_emitter_functions *funcs = ucl_object_emit_fd_funcs(fd);
+    unsigned char result = ucl_parser_chunk_peek(parser);
 
-    // Clean up if needed (depending on the implementation of ucl_object_emit_fd_funcs)
-    if (funcs != NULL) {
-        // Assuming there's a function to free or clean up the ucl_emitter_functions
-        // For example: ucl_emitter_functions_free(funcs);
-    }
+    // Clean up
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_75(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,41 +1,96 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <hdf5.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h> // Include the necessary header for mkstemp
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    hid_t file_id;
-    void *buffer;
-    ssize_t result;
-
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a temporary HDF5 file in memory
-    file_id = H5Fcreate("tempfile", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        // Unable to create file, exit the fuzzer
+    // Ensure the input size is sufficient for file name and other parameters
+    if (size < 3) {
         return 0;
     }
 
-    // Allocate a buffer with the size of the input data
-    buffer = malloc(size);
-    if (buffer == NULL) {
-        // Memory allocation failed, close the file and exit
-        H5Fclose(file_id);
+    // Create a temporary file for the filename parameter
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
+    close(fd);
 
-    // Copy input data to the buffer
-    memcpy(buffer, data, size);
+    // Use part of the input data for the file access property list
+    unsigned int flags = (unsigned int)data[0] % 4; // Limit flags to valid values (0-3 for H5F_ACC_TRUNC, etc.)
+    hid_t fcpl_id = H5Pcreate(H5P_FILE_CREATE); // Create a file creation property list
+    hid_t fapl_id = H5Pcreate(H5P_FILE_ACCESS); // Create a file access property list
 
-    // Call the function-under-test
-    result = H5Fget_file_image(file_id, buffer, size);
+    // Use some of the input data to set properties, if applicable
+    // For example, set the userblock size if the input size allows
+    if (size > 4) {
+        hsize_t userblock_size = (hsize_t)data[1] * 512; // Example: set userblock size
+        H5Pset_userblock(fcpl_id, userblock_size);
+    }
 
-    // Clean up
-    free(buffer);
-    H5Fclose(file_id);
-    H5close();
+    // Create dummy strings for parameters
+    const char *name = tmpl;
+    hid_t lapl_id = H5P_DEFAULT;
+    hid_t dapl_id = H5P_DEFAULT;
+    hid_t es_id = H5P_DEFAULT; // Add an event set ID, assuming H5P_DEFAULT is reasonable
+
+    // Call the function-under-test with the correct number of arguments
+    hid_t result = H5Fcreate_async(name, flags, fcpl_id, fapl_id, es_id);
+
+    // Check for success and perform further operations if needed
+    if (result >= 0) {
+        // File was successfully created, perform additional operations if desired
+        H5Fclose(result); // Close the file to clean up
+    }
+
+    // Clean up property lists
+    H5Pclose(fcpl_id);
+    H5Pclose(fapl_id);
+
+    // Clean up temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_135(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,25 +1,87 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for the function
-    const char *loc_name = "location_name";
-    const char *attr_name = "attribute_name";
-    unsigned int aapl_id = 0; // Use default property list
-    hid_t lapl_id = H5P_DEFAULT; // Use default link access property list
-    hid_t es_id = H5ES_NONE; // Use default event set identifier
-    hid_t async_id = H5I_INVALID_HID; // Use an invalid ID initially
-
-    // Ensure the data size is sufficient for creating a valid hid_t
-    if (size >= sizeof(hid_t)) {
-        // Cast the first few bytes of data to a hid_t for testing
-        hid_t loc_id = *(const hid_t *)data;
-
-        // Call the function-under-test with the correct number of arguments
-        async_id = H5Aopen_by_name_async(loc_id, loc_name, attr_name, aapl_id, lapl_id, es_id);
+    // Initialize HDF5 library
+    if (H5open() < 0) {
+        return 0;
     }
+
+    // Create a temporary file to work with
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;
+    }
+
+    // Create a group in the file
+    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Ensure that the data size is sufficient to create a comment
+    if (size < 1) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Create a comment buffer and copy data into it
+    char *comment = (char *)malloc(size + 1);
+    if (comment == NULL) {
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+    memcpy(comment, data, size);
+    comment[size] = '\0'; // Null-terminate the comment
+
+    // Set a comment for the group
+    if (H5Oset_comment(group_id, comment) < 0) {
+        free(comment);
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Prepare a buffer to retrieve the comment
+    size_t comment_size = size + 1;
+    char *retrieved_comment = (char *)malloc(comment_size);
+    if (retrieved_comment == NULL) {
+        free(comment);
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Call the function-under-test
+    H5Gget_comment(group_id, "/test_group", comment_size, retrieved_comment);
+
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Gget_comment to H5Arename_by_name
+    hid_t ret_H5Freopen_txudy = H5Freopen(file_id);
+    hid_t ret_H5Dget_access_plist_hedpd = H5Dget_access_plist(file_id);
+    const char aegsboou[1024] = "qvmbd";
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!retrieved_comment) {
+    	return 0;
+    }
+    herr_t ret_H5Arename_by_name_rnrdu = H5Arename_by_name(ret_H5Freopen_txudy, retrieved_comment, retrieved_comment, aegsboou, ret_H5Dget_access_plist_hedpd);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(retrieved_comment);
+    free(comment);
+    H5Gclose(group_id);
+    H5Fclose(file_id);
+
+    // Close the HDF5 library
+    H5close();
 
     return 0;
 }

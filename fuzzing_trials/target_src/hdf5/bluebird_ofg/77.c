@@ -1,37 +1,27 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
-    }
+    // Initialize the parameters for H5Gget_objname_by_idx
+    hid_t group_id = H5I_INVALID_HID;  // Invalid ID for demonstration
+    hsize_t idx = 0;
+    char name_buf[256];
+    size_t buf_size = sizeof(name_buf);
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
+    // Ensure data is large enough to extract meaningful values
+    if (size >= sizeof(hid_t) + sizeof(hsize_t)) {
+        // Extract values from the input data
+        memcpy(&group_id, data, sizeof(hid_t));
+        memcpy(&idx, data + sizeof(hid_t), sizeof(hsize_t));
     }
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    ssize_t name_len = H5Gget_objname_by_idx(group_id, idx, name_buf, buf_size);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Dchunk_iter
-    hid_t ret_H5Aget_space_kowki = H5Aget_space(0);
-    hid_t ret_H5Freopen_vzmnp = H5Freopen(0);
-    herr_t ret_H5Dchunk_iter_wcxag = H5Dchunk_iter(ret_H5Aget_space_kowki, ret_H5Freopen_vzmnp, NULL, (void *)name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Optionally, you can use name_len or name_buf for further processing
 
     return 0;
 }

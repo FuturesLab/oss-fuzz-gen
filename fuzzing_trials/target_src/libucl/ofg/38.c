@@ -1,34 +1,76 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to create a key for testing
+    // Ensure there is enough data to split into two parts for two ucl_object_t objects
     if (size < 2) {
         return 0;
     }
 
-    // Create a ucl_object_t for testing
-    ucl_object_t *obj = ucl_object_new();
+    // Create two ucl_parser objects
+    struct ucl_parser *parser1 = ucl_parser_new(0);
+    struct ucl_parser *parser2 = ucl_parser_new(0);
 
-    // Create a key from the input data
-    char key[256];
-    size_t key_length = size < 255 ? size : 255;
-    memcpy(key, data, key_length);
-    key[key_length] = '\0'; // Ensure null-termination
+    // Split the input data into two parts
+    size_t half_size = size / 2;
 
-    // Add a key-value pair to the object
-    ucl_object_insert_key(obj, ucl_object_fromstring("test_value"), key, key_length, false);
+    // Parse the first half of the data into the first ucl_object_t
+    ucl_parser_add_chunk(parser1, data, half_size);
+    const ucl_object_t *obj1 = ucl_parser_get_object(parser1);
+
+    // Parse the second half of the data into the second ucl_object_t
+    ucl_parser_add_chunk(parser2, data + half_size, size - half_size);
+    const ucl_object_t *obj2 = ucl_parser_get_object(parser2);
 
     // Call the function-under-test
-    ucl_object_t *popped_obj = ucl_object_pop_key(obj, key);
+    if (obj1 != NULL && obj2 != NULL) {
+        int result = ucl_object_compare(obj1, obj2);
+    }
 
     // Clean up
-    if (popped_obj) {
-        ucl_object_unref(popped_obj);
-    }
-    ucl_object_unref(obj);
+    ucl_object_unref(obj1);
+    ucl_object_unref(obj2);
+    ucl_parser_free(parser1);
+    ucl_parser_free(parser2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

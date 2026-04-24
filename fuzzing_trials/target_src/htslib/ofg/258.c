@@ -1,53 +1,78 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <htslib/sam.h>
-#include <htslib/hts.h>
-#include <htslib/bgzf.h>
-
-// Define constants for hts_idx_init
-#define DUMMY_OFFSET0 0
-#define DUMMY_MIN_SHIFT 14
-#define DUMMY_N_LVLS 5
 
 int LLVMFuzzerTestOneInput_258(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to contain a null-terminated string
-    if (size < 1) {
+    // Ensure size is sufficient for meaningful input
+    if (size < 2) {
         return 0;
     }
 
-    // Create a temporary null-terminated string from the input data
-    char *region = (char *)malloc(size + 1);
-    if (!region) {
+    // Create a sam_hdr_t object
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
-    memcpy(region, data, size);
-    region[size] = '\0';
 
-    // Initialize dummy hts_idx_t and sam_hdr_t
-    // Use hts_idx_init and sam_hdr_init for proper initialization
-    hts_idx_t *dummy_idx = hts_idx_init(0, HTS_FMT_CSI, DUMMY_OFFSET0, DUMMY_MIN_SHIFT, DUMMY_N_LVLS);
-    sam_hdr_t *dummy_hdr = sam_hdr_init();
-
-    if (!dummy_idx || !dummy_hdr) {
-        free(region);
-        if (dummy_idx) hts_idx_destroy(dummy_idx);
-        if (dummy_hdr) sam_hdr_destroy(dummy_hdr);
+    // Allocate memory for the string, ensuring it's null-terminated
+    char *pg_str = (char *)malloc(size + 1);
+    if (pg_str == NULL) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
+
+    // Copy data into the string and null-terminate
+    memcpy(pg_str, data, size);
+    pg_str[size] = '\0';
 
     // Call the function-under-test
-    hts_itr_t *itr = sam_itr_querys(dummy_idx, dummy_hdr, region);
+    sam_hdr_add_pg(hdr, pg_str, NULL);
 
-    // Clean up
-    if (itr) {
-        hts_itr_destroy(itr);
-    }
-    free(region);
-    hts_idx_destroy(dummy_idx);
-    sam_hdr_destroy(dummy_hdr);
+    // Cleanup
+    free(pg_str);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_258(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

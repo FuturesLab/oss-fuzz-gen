@@ -1,30 +1,71 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for a key
-    if (size < 1) {
-        return 0;
+    ucl_object_t *ucl_obj;
+    struct ucl_parser *parser;
+    const char *result;
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
+
+    // Use the input data to parse a UCL object
+    if (ucl_parser_add_chunk(parser, data, size)) {
+        ucl_obj = ucl_parser_get_object(parser);
+        if (ucl_obj != NULL) {
+            // Call the function-under-test
+            result = ucl_object_tostring(ucl_obj);
+
+            // Normally, you would do something with the result here
+            // For fuzzing, we're primarily interested in ensuring the function can handle the input
+
+            // Free the UCL object
+            ucl_object_unref(ucl_obj);
+        }
     }
 
-    // Create a ucl_object_t
-    ucl_object_t *obj = ucl_object_new();
-
-    // Add a key-value pair to the object for testing deletion
-    const char *key = "test_key";
-    ucl_object_insert_key(obj, ucl_object_fromstring("test_value"), key, strlen(key), false);
-
-    // Prepare a key from the data
-    const char *key_to_delete = (const char *)data;
-    size_t key_len = size;
-
-    // Call the function-under-test
-    bool result = ucl_object_delete_keyl(obj, key_to_delete, key_len);
-
-    // Cleanup
-    ucl_object_unref(obj);
+    // Clean up the parser
+    ucl_parser_free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_50(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

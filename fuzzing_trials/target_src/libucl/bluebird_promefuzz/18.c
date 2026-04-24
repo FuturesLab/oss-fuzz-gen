@@ -1,85 +1,60 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "ucl.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
+#include <stdbool.h>
+
+static ucl_object_t* create_dummy_ucl_object() {
+    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
+    if (obj) {
+        obj->type = UCL_OBJECT;
+        obj->value.ov = NULL;
+        obj->key = NULL;
+        obj->next = NULL;
+        obj->prev = NULL;
+        obj->keylen = 0;
+        obj->len = 0;
+        obj->ref = 1;
+        obj->flags = 0;
+    }
+    return obj;
+}
+
+static ucl_object_iter_t create_dummy_iterator(ucl_object_t *obj) {
+    // Use the library's function to create a valid iterator for the object
+    return ucl_object_iterate_new(obj);
+}
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) return 0; // Ensure there is at least some data
+
+    // Create a dummy UCL object
+    ucl_object_t *ucl_obj = create_dummy_ucl_object();
+    if (!ucl_obj) return 0;
+
+    // Create a valid iterator using the UCL object
+    ucl_object_iter_t iter = create_dummy_iterator(ucl_obj);
+    if (!iter) {
+        free(ucl_obj);
         return 0;
     }
 
-    // Step 1: Create a new UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
-
-    // Step 2: Add chunk to the parser
-    if (!ucl_parser_add_chunk(parser, Data, Size)) {
-        // Handle parsing error
-        const char *error = ucl_parser_get_error(parser);
-        if (error != NULL) {
-            // Normally, you might log the error, but for fuzzing, we ignore it
+    // Iterate and check exceptions
+    for (int i = 0; i < 4; i++) {
+        const ucl_object_t *next_obj = ucl_object_iterate_safe(iter, Data[0] % 2);
+        if (ucl_object_iter_chk_excpn(iter)) {
+            break; // Exit if an exception occurred
         }
-        ucl_parser_free(parser);
-        return 0;
+        ucl_type_t obj_type = ucl_object_type(next_obj);
+        (void)obj_type; // Use obj_type to avoid unused variable warning
     }
 
-    // Step 3: Get the top-level object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_get_current_stack_object
-    int64_t ret_ucl_object_toint_orebi = ucl_object_toint(NULL);
-    if (ret_ucl_object_toint_orebi < 0){
-    	return 0;
-    }
-    ucl_object_t* ret_ucl_parser_get_current_stack_object_dugmi = ucl_parser_get_current_stack_object(parser, (unsigned int )ret_ucl_object_toint_orebi);
-    if (ret_ucl_parser_get_current_stack_object_dugmi == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_t *obj = ucl_parser_get_object(parser);
-    if (obj == NULL) {
-        // Handle error in getting object
-        const char *error = ucl_parser_get_error(parser);
-        if (error != NULL) {
-            // Normally, you might log the error, but for fuzzing, we ignore it
-        }
-        ucl_parser_free(parser);
-        return 0;
-    }
-
-    // Step 4: Serialize the object in various formats
-    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
-    if (json_output != NULL) {
-        free(json_output);
-    }
-
-    unsigned char *config_output = ucl_object_emit(obj, UCL_EMIT_CONFIG);
-    if (config_output != NULL) {
-        free(config_output);
-    }
-
-    unsigned char *yaml_output = ucl_object_emit(obj, UCL_EMIT_YAML);
-    if (yaml_output != NULL) {
-        free(yaml_output);
-    }
-
-    unsigned char *msgpack_output = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
-    if (msgpack_output != NULL) {
-        free(msgpack_output);
-    }
-
-    // Step 5: Cleanup
-    ucl_object_unref(obj);
-    ucl_parser_free(parser);
+    // Free the iterator
+    ucl_object_iterate_free(iter);
+    free(ucl_obj);
 
     return 0;
 }

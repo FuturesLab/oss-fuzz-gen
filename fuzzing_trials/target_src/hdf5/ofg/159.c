@@ -2,29 +2,59 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
+    // Ensure that the size is sufficient to create a valid hid_t identifier
+    if (size < sizeof(hid_t)) {
+        return 0;
+    }
 
-    // Create a file in memory using core driver
-    hid_t file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-    // Create a dataspace
-    hsize_t dims[1] = {10};
-    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
-
-    // Create a dataset
-    hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Extract a hid_t identifier from the input data
+    hid_t file_id = *((hid_t *)data);
 
     // Call the function-under-test
-    herr_t status = H5Dflush(dataset_id);
+    herr_t result = H5Fstart_swmr_write(file_id);
 
-    // Cleanup
-    H5Dclose(dataset_id);
-    H5Sclose(dataspace_id);
-    H5Fclose(file_id);
-
-    // Close HDF5 library
-    H5close();
+    // Handle the result if necessary (e.g., for debugging purposes)
+    // Note: In a fuzzing harness, we typically don't need to handle the result
+    // unless we want to log or debug specific outcomes.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_159(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

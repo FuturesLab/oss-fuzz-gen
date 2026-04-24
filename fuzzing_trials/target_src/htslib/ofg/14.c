@@ -1,20 +1,62 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/hts.h> // Ensure this header is available for hts_md5_context
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Initialize the md5 context using the correct function
-    hts_md5_context *md5_ctx = hts_md5_init();
-    if (md5_ctx == NULL) {
-        return 0; // Exit if initialization fails
+    // Declare and initialize variables
+    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 0, 0);
+    uint64_t final_offset = 0;
+
+    // Ensure size is sufficient to extract a uint64_t value
+    if (size >= sizeof(uint64_t)) {
+        // Use the first 8 bytes of data to set final_offset
+        final_offset = *(const uint64_t *)data;
     }
 
     // Call the function-under-test
-    hts_md5_update(md5_ctx, data, (unsigned long)size);
+    hts_idx_finish(idx, final_offset);
 
-    // Clean up and free the md5 context
-    hts_md5_destroy(md5_ctx);
+    // Clean up
+    hts_idx_destroy(idx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

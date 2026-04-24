@@ -1,57 +1,92 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <htslib/hts.h>
 #include <string.h>
-#include "htslib/sam.h"
-#include "htslib/kstring.h"
+
+// Function to create a copy of a string literal
+char *copy_string_literal(const char *str) {
+    size_t len = strlen(str) + 1;
+    char *copy = (char *)malloc(len);
+    if (copy != NULL) {
+        strncpy(copy, str, len);
+    }
+    return copy;
+}
 
 int LLVMFuzzerTestOneInput_201(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < 4) {
+    // Allocate memory for hts_reglist_t
+    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
+    if (reglist == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+
+    // Initialize the hts_reglist_t structure with some non-NULL values
+    reglist->reg = copy_string_literal("test_reg");
+    if (reglist->reg == NULL) {
+        free(reglist);
         return 0;
     }
 
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
+    reglist->intervals = (hts_pair_pos_t *)malloc(sizeof(hts_pair_pos_t));
+    if (reglist->intervals == NULL) {
+        free(reglist->reg);
+        free(reglist);
         return 0;
     }
+    reglist->intervals[0].beg = 0;
+    reglist->intervals[0].end = 100;
+    reglist->count = 1;
+    reglist->min_beg = 0;
+    reglist->max_end = 100;
 
-    // Prepare a dummy header string
-    const char *header_text = "@HD\tVN:1.0\n";
-    if (sam_hdr_add_lines(hdr, header_text, strlen(header_text)) < 0) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    // Extract parts of the input data for parameters
-    const char *type = (const char *)data;
-    int type_len = 2; // Assuming the type is 2 characters long
-    if (size < type_len + 2) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    int id = data[type_len]; // Use the next byte as an int
-    const char *tag = (const char *)(data + type_len + 1);
-    int tag_len = 2; // Assuming the tag is 2 characters long
-    if (size < type_len + 1 + tag_len) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    // Initialize kstring_t
-    kstring_t ks;
-    ks.l = 0;
-    ks.m = 0;
-    ks.s = NULL;
+    // Use the first byte of the data as an integer parameter
+    int is_sorted = size > 0 ? data[0] % 2 : 0;
 
     // Call the function-under-test
-    int result = sam_hdr_find_tag_pos(hdr, type, id, tag, &ks);
+    hts_reglist_free(reglist, is_sorted);
 
-    // Clean up
-    sam_hdr_destroy(hdr);
-    free(ks.s);
+    // Free allocated memory
+    // Note: No need to free reglist->reg and reglist->intervals as hts_reglist_free should handle it
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_201(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

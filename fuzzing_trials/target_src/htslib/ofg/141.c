@@ -1,38 +1,78 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/hts.h>
-#include <htslib/cram.h>
-#include <htslib/sam.h> // Include the sam.h header for complete type definitions
+#include <htslib/sam.h>
+
+extern int bam_aux_update_float(bam1_t *, const char *, float);
 
 int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating objects
-    if (size < sizeof(hts_itr_t)) {
+    // Ensure the input size is sufficient for the operation
+    if (size < sizeof(float) + 2) {
         return 0;
     }
 
-    // Allocate memory for hts_itr_t
-    hts_itr_t *itr = (hts_itr_t *)malloc(sizeof(hts_itr_t));
-
-    if (itr == NULL) {
-        free(itr);
+    // Allocate and initialize bam1_t structure
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
         return 0;
     }
 
-    // Initialize hts_itr_t with dummy data
-    // Note: In a real-world scenario, these would be initialized with valid data
-    // For fuzzing purposes, we use the provided data to fill the structures
-    memcpy(itr, data, sizeof(hts_itr_t));
+    // Extract a float value from the input data
+    float f;
+    memcpy(&f, data, sizeof(float));
 
-    // Since hts_idx_t is an incomplete type, we cannot allocate or use it directly.
-    // Instead, we assume that the function under test can handle a NULL index.
-    hts_idx_t *idx = NULL;
+    // Extract a two-character tag from the input data
+    char tag[3];
+    tag[0] = (char)data[sizeof(float)];
+    tag[1] = (char)data[sizeof(float) + 1];
+    tag[2] = '\0';
 
-    // Call the function-under-test
-    int result = hts_itr_multi_cram(idx, itr);
+    // Call the function under test
+    bam_aux_update_float(b, tag, f);
 
-    // Free allocated memory
-    free(itr);
+    // Clean up
+    bam_destroy1(b);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_141(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,71 +1,64 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "ucl.h"
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-static void dummy_dtor(void *ud) {
-    // Dummy destructor
-}
-
-static const char *dummy_emitter(void *ud) {
-    // Dummy emitter
-    return "dummy";
+static ucl_object_t *create_dummy_ucl_object(const uint8_t *Data, size_t Size) {
+    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
+    if (obj == NULL) {
+        return NULL;
+    }
+    obj->key = (const char *)Data;
+    obj->keylen = Size;
+    obj->value.sv = (const char *)Data;
+    obj->len = Size;  // Ensure length is set correctly for the string
+    obj->type = UCL_STRING;
+    return obj;
 }
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Fuzz ucl_object_typed_new
-    ucl_type_t type = (ucl_type_t)(Data[0] % (UCL_NULL + 1));
-    ucl_object_t *obj1 = ucl_object_typed_new(type);
-
-    // Fuzz ucl_object_string_to_type
-    char input[Size + 1];
-    memcpy(input, Data, Size);
-    input[Size] = '\0';
-    ucl_type_t res;
-    bool conversion_success = ucl_object_string_to_type(input, &res);
-
-    // Fuzz ucl_object_new_full
-    unsigned priority = Data[0];
-    ucl_object_t *obj2 = ucl_object_new_full(type, priority);
-    if (obj2) {
-        ucl_object_unref(obj2);
+    ucl_object_t *root = create_dummy_ucl_object(Data, Size);
+    if (root == NULL) {
+        return 0;
     }
 
-    // Fuzz ucl_object_type_to_string
-    const char *type_str = ucl_object_type_to_string(type);
+    const char *key = "dummy_key";
+    const ucl_object_t *lookup_result1 = ucl_object_lookup(root, key);
+    const ucl_object_t *lookup_result2 = ucl_object_lookup(root, key);
+    const ucl_object_t *lookup_result3 = ucl_object_lookup(root, key);
 
-    // Fuzz ucl_object_new_userdata
-    void *user_data = (void *)Data; // Just use the data pointer as user data
-    ucl_object_t *obj3 = ucl_object_new_userdata(dummy_dtor, dummy_emitter, user_data);
-    if (obj3) {
-        ucl_object_unref(obj3);
+    struct ucl_schema_error err;
+    bool is_valid = ucl_object_validate(root, root, &err);
+
+    bool bool_value1 = ucl_object_toboolean(root);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_tostring with ucl_object_tostring_forced
+    const char *string_value = ucl_object_tostring_forced(root);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    bool bool_value2 = ucl_object_toboolean(root);
+
+    unsigned char *json_output = ucl_object_emit(root, UCL_EMIT_JSON);
+    unsigned char *config_output = ucl_object_emit(root, UCL_EMIT_CONFIG);
+
+    if (json_output) {
+        free(json_output);
+    }
+    if (config_output) {
+        free(config_output);
     }
 
-    // Fuzz ucl_object_type
-    if (obj1) {
-        ucl_type_t obj_type = ucl_object_type(obj1);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_type to ucl_object_new_full
-        int64_t ret_ucl_object_toint_ejipp = ucl_object_toint(obj1);
-        if (ret_ucl_object_toint_ejipp < 0){
-        	return 0;
-        }
-        ucl_object_t* ret_ucl_object_new_full_nxgfx = ucl_object_new_full(obj_type, (unsigned int )ret_ucl_object_toint_ejipp);
-        if (ret_ucl_object_new_full_nxgfx == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        ucl_object_unref(obj1);
-    }
+    free(root);
 
     return 0;
 }

@@ -1,89 +1,113 @@
-#include "ares.h"
-#include "stddef.h"
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
+#include <stddef.h>
 #include <string.h>
-#include <netdb.h>  // Include this for the definition of struct hostent
-#include <sys/socket.h>  // Include this for AF_INET and AF_INET6
+#include <stdlib.h>
+#include <arpa/inet.h>
+#include "ares.h"
+#include <netdb.h>
 
-/* Callback function for ares_gethostbyname */
-static void host_callback(void *arg, int status, int timeouts, struct hostent *host) {
-  /* Handle the callback results here */
+static void test_callback(void *arg, int status, int timeouts, struct hostent *host) {
+  // Callback function for ares_gethostbyname
+  // This function can be used to handle the result of the DNS query.
   (void)arg;
   (void)status;
   (void)timeouts;
   (void)host;
 }
 
-int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-  /* Initialize c-ares library */
-  ares_library_init(ARES_LIB_INIT_ALL);
-
+int LLVMFuzzerTestOneInput_45(const unsigned char *data, size_t size) {
   ares_channel channel;
-  int status = ares_init(&channel);
+  struct ares_options options;
+  int optmask = 0;
+  int status;
+
+  // Initialize ares library
+  status = ares_library_init(ARES_LIB_INIT_ALL);
   if (status != ARES_SUCCESS) {
     return 0;
   }
 
-  /* Ensure the data is null-terminated for use as a string */
+  // Initialize ares channel
+  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_init_options
+  status = ares_init_options(&channel, &options, ARES_AI_IDN_ALLOW_UNASSIGNED);
+  // End mutation: Producer.REPLACE_ARG_MUTATOR
+  if (status != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return 0;
+  }
+
+  // Ensure the input data is null-terminated for use as a string
+
+  // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from ares_init_options to ares_dup using the plateau pool
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!channel) {
+  	return 0;
+  }
+  int ret_ares_dup_nggiu = ares_dup(&channel, channel);
+  if (ret_ares_dup_nggiu < 0){
+  	return 0;
+  }
+  // End mutation: Producer.SPLICE_MUTATOR
+  
   char *name = (char *)malloc(size + 1);
-  if (name == NULL) {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ares_destroy with ares_cancel
-    ares_cancel(channel);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+  if (!name) {
+    ares_destroy(channel);
+    ares_library_cleanup();
     return 0;
   }
   memcpy(name, data, size);
   name[size] = '\0';
 
-  /* Define the family (AF_INET or AF_INET6) */
-  int family = AF_INET;  /* or AF_INET6 */
+  // Use ares_gethostbyname with the provided data
+  ares_gethostbyname(channel, name, AF_INET, test_callback, NULL);
 
-  /* Call the function-under-test */
-  ares_gethostbyname(channel, name, family, host_callback, NULL);
-
-  /* Clean up */
+  // Cleanup
   ares_destroy(channel);
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_destroy to ares_init_options
-  struct ares_options hcdxewpz;
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_destroy to ares_set_socket_callback
-  int ret_ares_init_jhmpv = ares_init(&channel);
-  if (ret_ares_init_jhmpv < 0){
-  	return 0;
-  }
-
-  ares_set_socket_callback(channel, NULL, (void *)channel);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_set_socket_callback to ares_inet_ntop
-
-  char ret_ares_inet_ntop_rqzea = ares_inet_ntop(ARES_FLAG_PRIMARY, (void *)channel, channel, 0);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  memset(&hcdxewpz, 0, sizeof(hcdxewpz));
-
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_init_options
-  int ret_ares_init_options_wurqn = ares_init_options(&channel, &hcdxewpz, size);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-  if (ret_ares_init_options_wurqn < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  free(name);
   ares_library_cleanup();
+  free(name);
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

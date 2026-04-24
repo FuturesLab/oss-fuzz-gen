@@ -1,88 +1,125 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "ucl.h"
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
-    // Step 1: Create a new UCL parser
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
-    struct ucl_parser *parser = ucl_parser_new(Size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Step 1: Prepare the environment
+    struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
-    // Step 2: Add chunk to the parser
+    // Step 2: Add chunk to parser
     if (!ucl_parser_add_chunk(parser, Data, Size)) {
-        // Handle parsing error
+        // Cleanup if adding chunk fails
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Step 3: Get the top object from the parser
+    ucl_object_t *top_obj = ucl_parser_get_object(parser);
+    if (top_obj == NULL) {
+        // Retrieve and print error if object retrieval fails
         const char *error = ucl_parser_get_error(parser);
         if (error != NULL) {
-            // Normally, you might log the error, but for fuzzing, we ignore it
+            fprintf(stderr, "Error: %s\n", error);
         }
         ucl_parser_free(parser);
         return 0;
     }
 
-    // Step 3: Get the top-level object
-    ucl_object_t *obj = ucl_parser_get_object(parser);
-    if (obj == NULL) {
-        // Handle error in getting object
-        const char *error = ucl_parser_get_error(parser);
-        if (error != NULL) {
-            // Normally, you might log the error, but for fuzzing, we ignore it
+    // Step 4: Emit the object in various formats
+    for (int i = UCL_EMIT_JSON; i < UCL_EMIT_MAX; i++) {
+        unsigned char *output = ucl_object_emit(top_obj, (enum ucl_emitter)i);
+        if (output != NULL) {
+            // Use the emitted output
+            free(output);
         }
-        ucl_parser_free(parser);
-        return 0;
-    }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_parser_insert_chunk
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!parser) {
+        	return 0;
+        }
+        int ret_ucl_parser_get_default_priority_rkitt = ucl_parser_get_default_priority(parser);
+        if (ret_ucl_parser_get_default_priority_rkitt < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!top_obj) {
+        	return 0;
+        }
+        unsigned int ret_ucl_array_size_ovbvn = ucl_array_size(top_obj);
+        if (ret_ucl_array_size_ovbvn < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!parser) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!output) {
+        	return 0;
+        }
 
-    // Step 4: Serialize the object in various formats
-    unsigned char *json_output = ucl_object_emit(obj, UCL_EMIT_JSON);
-    if (json_output != NULL) {
-        free(json_output);
-    }
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_size to ucl_object_fromlstring
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!top_obj) {
+        	return 0;
+        }
 
-    unsigned char *config_output = ucl_object_emit(obj, UCL_EMIT_CONFIG);
-    if (config_output != NULL) {
-        free(config_output);
-    }
-
-    unsigned char *yaml_output = ucl_object_emit(obj, UCL_EMIT_YAML);
-    if (yaml_output != NULL) {
-        free(yaml_output);
-    }
-
-    unsigned char *msgpack_output = ucl_object_emit(obj, UCL_EMIT_MSGPACK);
-    if (msgpack_output != NULL) {
-        free(msgpack_output);
-    }
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_size to ucl_object_reserve
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!top_obj) {
+        	return 0;
+        }
+        ucl_object_t* ret_ucl_object_copy_tveuj = ucl_object_copy(top_obj);
+        if (ret_ucl_object_copy_tveuj == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_ucl_object_copy_tveuj) {
+        	return 0;
+        }
+        bool ret_ucl_object_reserve_dpimb = ucl_object_reserve(ret_ucl_object_copy_tveuj, (size_t )ret_ucl_array_size_ovbvn);
+        if (ret_ucl_object_reserve_dpimb == 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        char* ret_ucl_copy_value_trash_xkyki = ucl_copy_value_trash(top_obj);
+        if (ret_ucl_copy_value_trash_xkyki == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_ucl_copy_value_trash_xkyki) {
+        	return 0;
+        }
+        ucl_object_t* ret_ucl_object_fromlstring_qteck = ucl_object_fromlstring(ret_ucl_copy_value_trash_xkyki, (size_t )ret_ucl_array_size_ovbvn);
+        if (ret_ucl_object_fromlstring_qteck == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        bool ret_ucl_parser_insert_chunk_bjbke = ucl_parser_insert_chunk(parser, output, (size_t )ret_ucl_array_size_ovbvn);
+        if (ret_ucl_parser_insert_chunk_bjbke == 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
     // Step 5: Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit to ucl_comments_add
-    ucl_object_t* ret_ucl_array_pop_last_qxpyy = ucl_array_pop_last(obj);
-    if (ret_ucl_array_pop_last_qxpyy == NULL){
-    	return 0;
-    }
-    ucl_object_t* ret_ucl_object_fromdouble_ozslk = ucl_object_fromdouble(-1);
-    if (ret_ucl_object_fromdouble_ozslk == NULL){
-    	return 0;
-    }
-    ucl_comments_add(obj, ret_ucl_object_fromdouble_ozslk, (const char *)json_output);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_unref(obj);
     ucl_parser_free(parser);
+    ucl_object_unref(top_obj);
 
     return 0;
 }

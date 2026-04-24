@@ -1,36 +1,36 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
-    }
+    // Ensure that the data size is sufficient for creating a null-terminated string
+    if (size < 1) return 0;
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Create a null-terminated string from the input data
+    char *attr_name = (char *)malloc(size + 1);
+    if (attr_name == NULL) return 0;
+    memcpy(attr_name, data, size);
+    attr_name[size] = '\0';
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Initialize a valid hid_t object for testing
+    hid_t file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        free(attr_name);
         return 0;
     }
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hid_t attribute_id = H5Aopen_name(file_id, attr_name);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Glink
-    hid_t ret_H5Aget_space_qzjvp = H5Aget_space(0);
-    herr_t ret_H5Glink_oniqk = H5Glink(ret_H5Aget_space_qzjvp, 0, name_buffer, (const char *)"r");
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Clean up resources
+    if (attribute_id >= 0) {
+        H5Aclose(attribute_id);
+    }
+    H5Fclose(file_id);
+    free(attr_name);
 
     return 0;
 }

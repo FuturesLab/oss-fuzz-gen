@@ -1,38 +1,41 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include "ucl.h"
-#include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for our needs
-    if (size < 3) {
+    // Ensure there is enough data to split into two parts for two ucl_object_t objects
+    if (size < 2) {
         return 0;
     }
 
-    // Create a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        return 0;
-    }
+    // Create two ucl_parser objects
+    struct ucl_parser *parser1 = ucl_parser_new(0);
+    struct ucl_parser *parser2 = ucl_parser_new(0);
 
-    // Parse the input data as a UCL object
-    ucl_parser_add_chunk(parser, data, size);
-    const ucl_object_t *root = ucl_parser_get_object(parser);
+    // Split the input data into two parts
+    size_t half_size = size / 2;
 
-    // Prepare a non-NULL path string and separator
-    const char *path = "example.path";
-    const char separator = '.';
+    // Parse the first half of the data into the first ucl_object_t
+    ucl_parser_add_chunk(parser1, data, half_size);
+    const ucl_object_t *obj1 = ucl_parser_get_object(parser1);
+
+    // Parse the second half of the data into the second ucl_object_t
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_add_chunk
+    ucl_parser_add_chunk(parser1, data + half_size, size - half_size);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    const ucl_object_t *obj2 = ucl_parser_get_object(parser2);
 
     // Call the function-under-test
-    const ucl_object_t *result = ucl_object_lookup_path_char(root, path, separator);
+    if (obj1 != NULL && obj2 != NULL) {
+        int result = ucl_object_compare(obj1, obj2);
+    }
 
     // Clean up
-    if (root != NULL) {
-        ucl_object_unref(root);
-    }
-    ucl_parser_free(parser);
+    ucl_object_unref(obj1);
+    ucl_object_unref(obj2);
+    ucl_parser_free(parser1);
+    ucl_parser_free(parser2);
 
     return 0;
 }

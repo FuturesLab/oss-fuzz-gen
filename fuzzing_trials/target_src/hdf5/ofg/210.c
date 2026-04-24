@@ -1,28 +1,61 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_210(const uint8_t *data, size_t size) {
-    // Ensure the data size is large enough to extract necessary values
-    if (size < 20) {
-        return 0;
+    // Declare and initialize variables
+    hid_t file_id;
+    _Bool attr_hint = 0; // Initialize with a default value
+
+    // Create a temporary HDF5 file to obtain a valid hid_t
+    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Exit if the file creation fails
     }
 
-    // Extract values from data
-    const char *name1 = (const char *)data;
-    unsigned int crt_intmd = data[1];
-    hid_t loc_id = (hid_t)data[2];
-    const char *type_name = (const char *)(data + 3);
-    hid_t type_id = (hid_t)data[4];
-    hid_t space_id = (hid_t)data[5];
-    hid_t acpl_id = (hid_t)data[6];
-    hid_t aapl_id = (hid_t)data[7];
-    hid_t es_id = (hid_t)data[8];
+    // Call the function-under-test
+    herr_t result = H5Fget_dset_no_attrs_hint(file_id, &attr_hint);
 
-    // Call the function under test
-    hid_t result = H5Acreate_async(loc_id, name1, type_id, space_id, acpl_id, aapl_id, es_id);
-
-    // Optionally, you can add checks or further operations on the result here
+    // Close the HDF5 file
+    H5Fclose(file_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_210(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

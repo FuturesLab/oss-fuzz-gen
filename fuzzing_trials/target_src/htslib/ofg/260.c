@@ -1,57 +1,81 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <htslib/sam.h>
-#include <htslib/hts.h>
-#include <htslib/bgzf.h> // Include necessary for hts_idx_load and sam_hdr_read
 
 int LLVMFuzzerTestOneInput_260(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for creating a non-empty string
-    if (size < 2) return 0;
-
-    // Create a null-terminated string from the input data
-    size_t str_size = size - 1;
-    char *region = (char *)malloc(str_size + 1);
-    if (region == NULL) {
-        return 0;
-    }
-    memcpy(region, data, str_size);
-    region[str_size] = '\0';
-
-    // Create an array of strings
-    char *regions[] = {region};
-
-    // Open a dummy BGZF file to create a valid htsFile pointer
-    BGZF *bgzf = bgzf_open("/dev/null", "r");
-    if (bgzf == NULL) {
-        free(region);
+    // Check if size is sufficient to extract necessary components
+    if (size < 3) {
         return 0;
     }
 
-    // Load a dummy index and header
-    hts_idx_t *idx = hts_idx_load("/dev/null", HTS_FMT_BAI);
-    sam_hdr_t *hdr = sam_hdr_read(bgzf);
-
-    if (idx == NULL || hdr == NULL) {
-        free(region);
-        if (idx) hts_idx_destroy(idx);
-        if (hdr) sam_hdr_destroy(hdr);
-        bgzf_close(bgzf);
+    // Initialize a sam_hdr_t object
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
+
+    // Use part of the data as a string for the second parameter
+    // Ensure string is null-terminated
+    size_t str_len = size - 2;
+    char *str = (char *)malloc(str_len + 1);
+    if (str == NULL) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+    memcpy(str, data, str_len);
+    str[str_len] = '\0';
+
+    // Use part of the data as an integer for the third parameter
+    int pos = (int)data[size - 1];
 
     // Call the function-under-test
-    hts_itr_t *itr = sam_itr_regarray(idx, hdr, regions, 1);
+    sam_hdr_remove_line_pos(hdr, str, pos);
 
     // Clean up
-    free(region);
-    hts_idx_destroy(idx);
+    free(str);
     sam_hdr_destroy(hdr);
-    bgzf_close(bgzf);
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
-    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_260(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,45 +1,88 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h"
+#include <unistd.h>
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = sam_hdr_init();
-    const char *type = "HD";  // Example SAM header type
-    const char *id = "VN";    // Example ID
-    const char *val = "1.0";  // Example value
+    // Ensure the size is sufficient for two null-terminated strings
+    if (size < 4) return 0;
 
-    // Check if the header was initialized successfully
-    if (hdr == NULL) {
-        return 0;
-    }
+    // Allocate memory for the filename and mode strings
+    char filename[256];
+    char mode[4];
 
-    // Add a dummy line to the header to ensure there's something to remove
-    if (sam_hdr_add_line(hdr, type, "ID", id, "VN", val, NULL) < 0) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
+    // Copy data to filename and mode, ensuring null-termination
+    size_t filename_len = (size < 255) ? size : 255;
+    memcpy(filename, data, filename_len);
+    filename[filename_len] = '\0';
 
-    // Ensure the data is not null and has a reasonable size
-    if (data != NULL && size > 0) {
-        // Attempt to use the input data as part of the ID or value
-        char *dynamic_id = strndup((const char *)data, size > 10 ? 10 : size);
-        char *dynamic_val = strndup((const char *)data + (size > 10 ? 10 : 0), size > 20 ? 10 : size - (size > 10 ? 10 : 0));
+    size_t mode_len = (size - filename_len < 3) ? size - filename_len : 3;
+    memcpy(mode, data + filename_len, mode_len);
+    mode[mode_len] = '\0';
 
-        if (dynamic_id && dynamic_val) {
-            // Add another line using dynamic data
-            sam_hdr_add_line(hdr, type, "ID", dynamic_id, "VN", dynamic_val, NULL);
+    // Ensure filename is not empty
+    if (filename[0] == '\0') return 0;
 
-            // Call the function-under-test with dynamic data
-            sam_hdr_remove_line_id(hdr, type, dynamic_id, dynamic_val);
-        }
+    // Create a temporary file to use as the filename
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) return 0;
 
-        free(dynamic_id);
-        free(dynamic_val);
-    }
+    // Write the data to the temporary file
+    write(fd, data, size);
+    close(fd);
+
+    // Call the function-under-test
+    htsFile *file = hts_open(tmpl, mode);
 
     // Clean up
-    sam_hdr_destroy(hdr);
+    if (file != NULL) {
+        hts_close(file);
+    }
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,34 +1,85 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <htslib/sam.h>
 
-// Assume the function is declared in some header file
-int hfile_list_schemes(const char *input, const char **schemes, int *num_schemes);
+// Dummy function to act as bam_plp_auto_f
+int dummy_func_142(void *data, bam1_t *b) {
+    // Simulate processing by initializing bam1_t with some data
+    if (b == NULL) {
+        return -1; // Return -1 to indicate no more data
+    }
+
+    // Populate bam1_t with some dummy data
+    b->core.tid = 0; // Dummy reference sequence ID
+    b->core.pos = 0; // Dummy position
+    b->core.l_qname = 0; // Dummy query name length
+    b->core.flag = 0; // Dummy flag
+    b->core.n_cigar = 0; // Dummy CIGAR length
+    b->core.l_qseq = 0; // Dummy query sequence length
+    b->core.mtid = 0; // Dummy mate reference sequence ID
+    b->core.mpos = 0; // Dummy mate position
+    b->core.isize = 0; // Dummy insert size
+
+    return 1; // Return 1 to indicate data is available
+}
 
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for meaningful input
-    if (size < 2) {
-        return 0;
+    bam_mplp_t mplp = NULL;
+
+    // Create an array of pointers for data
+    void *data_array[1] = { NULL };
+
+    // Initialize bam_mplp_t with the correct number of arguments
+    mplp = bam_mplp_init(1, dummy_func_142, data_array);
+
+    if (mplp == NULL) {
+        return 0; // If initialization fails, return early
     }
 
-    // Allocate memory for input string and copy data into it
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        return 0;
-    }
-    memcpy(input, data, size);
-    input[size] = '\0';  // Null-terminate the string
+    // Call the function-under-test with the initialized mplp
+    int result = bam_mplp_init_overlaps(mplp);
 
-    // Prepare the schemes array and num_schemes
-    const char *schemes[10];  // Arbitrary size for demonstration
-    int num_schemes = 0;
-
-    // Call the function-under-test
-    int result = hfile_list_schemes(input, schemes, &num_schemes);
-
-    // Free allocated memory
-    free(input);
+    // Clean up
+    bam_mplp_destroy(mplp);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_142(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,91 +1,169 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <stdio.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <string.h>
 #include "ucl.h"
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    FILE *fp = fopen("./dummy_file", "wb");
+    if (fp != NULL) {
+        fwrite(Data, 1, Size, fp);
+        fclose(fp);
     }
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    // Step 1: Write input data to a dummy file
-    write_dummy_file(Data, Size);
-
-    // Step 2: Initialize a UCL parser and parse the dummy file
-    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
-    if (!parser) {
+    if (Size < 1) {
         return 0;
     }
 
-    if (!ucl_parser_add_file(parser, "./dummy_file")) {
-        ucl_parser_free(parser);
+    // Prepare the environment
+    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+    if (!obj) {
         return 0;
     }
 
-    // Step 3: Obtain the root object
-    const ucl_object_t *root = ucl_parser_get_object(parser);
-    if (!root) {
-        ucl_parser_free(parser);
-        return 0;
+    const char *str = (const char *)Data;
+    size_t len = Size;
+    enum ucl_string_flags flags = UCL_STRING_PARSE;
+
+    // Convert string to UCL object
+    ucl_object_t *string_obj1 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj1) {
+        goto cleanup;
     }
 
-    // Step 4: Invoke the target functions
-    const char *path = "some.path"; // Example path for lookup
-    const ucl_object_t *obj;
+    // Insert key-value pair
+    if (!ucl_object_insert_key(obj, string_obj1, "key1", 4, true)) {
+        goto cleanup;
+    }
 
-    // ucl_object_toint
-    int64_t intValue = ucl_object_toint(root);
 
-    // ucl_object_lookup_path
-    obj = ucl_object_lookup_path(root, path);
-
-    // Repeated calls to explore different paths
-    intValue = ucl_object_toint(obj);
-    obj = ucl_object_lookup_path(root, path);
-    intValue = ucl_object_toint(obj);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_toint to ucl_object_iterate_with_error
-    ucl_object_t* ret_ucl_object_fromdouble_rgtez = ucl_object_fromdouble(-1);
-    if (ret_ucl_object_fromdouble_rgtez == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_object_insert_key_merged
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
     	return 0;
     }
-    ucl_object_iter_t oeffsdfa;
-    memset(&oeffsdfa, 0, sizeof(oeffsdfa));
-    const ucl_object_t* ret_ucl_object_iterate_with_error_rowwi = ucl_object_iterate_with_error(ret_ucl_object_fromdouble_rgtez, &oeffsdfa, 1, (int *)&intValue);
-    if (ret_ucl_object_iterate_with_error_rowwi == NULL){
+    ucl_object_t* ret_ucl_object_ref_woitg = ucl_object_ref(obj);
+    if (ret_ucl_object_ref_woitg == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    char* ret_ucl_copy_value_trash_wgeys = ucl_copy_value_trash(obj);
+    if (ret_ucl_copy_value_trash_wgeys == NULL){
+    	return 0;
+    }
+    double ret_ucl_object_todouble_wgwaf = ucl_object_todouble(NULL);
+    if (ret_ucl_object_todouble_wgwaf < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_ref_woitg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!string_obj1) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_copy_value_trash_wgeys) {
+    	return 0;
+    }
+    bool ret_ucl_object_insert_key_merged_eowpt = ucl_object_insert_key_merged(ret_ucl_object_ref_woitg, string_obj1, ret_ucl_copy_value_trash_wgeys, (size_t )ret_ucl_object_todouble_wgwaf, 1);
+    if (ret_ucl_object_insert_key_merged_eowpt == 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    obj = ucl_object_lookup_path(root, path);
-    obj = ucl_object_lookup_path(root, path);
-
-    // ucl_object_iterate_new
-    ucl_object_iter_t iter = ucl_object_iterate_new(root);
-
-    // ucl_object_iterate_safe
-    const ucl_object_t *nextObj = ucl_object_iterate_safe(iter, true);
-
-    // Step 5: Cleanup
-    if (iter) {
-        // Assuming there is a function to free the iterator
-        // Since the API doesn't provide a direct way to free the iterator,
-        // this is a placeholder for the correct cleanup function.
-        // ucl_object_iterate_free(iter);
+    ucl_object_t *string_obj2 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj2) {
+        goto cleanup;
     }
-    ucl_object_unref(root);
-    ucl_parser_free(parser);
 
+    if (!ucl_object_insert_key(obj, string_obj2, "key2", 4, true)) {
+        goto cleanup;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_object_iterate_reset
+    ucl_object_iter_t ret_ucl_object_iterate_new_svlaj = ucl_object_iterate_new(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!string_obj2) {
+    	return 0;
+    }
+    ucl_object_iter_t ret_ucl_object_iterate_reset_tumbv = ucl_object_iterate_reset(ret_ucl_object_iterate_new_svlaj, string_obj2);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_iterate_reset to ucl_object_iterate_with_error
+    ucl_object_t* ret_ucl_object_fromstring_zhhei = ucl_object_fromstring((const char *)"w");
+    if (ret_ucl_object_fromstring_zhhei == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!string_obj2) {
+    	return 0;
+    }
+    int64_t ret_ucl_object_toint_grtdx = ucl_object_toint(string_obj2);
+    if (ret_ucl_object_toint_grtdx < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_fromstring_zhhei) {
+    	return 0;
+    }
+    const ucl_object_t* ret_ucl_object_iterate_with_error_ncycp = ucl_object_iterate_with_error(ret_ucl_object_fromstring_zhhei, &ret_ucl_object_iterate_reset_tumbv, 0, (int *)&ret_ucl_object_toint_grtdx);
+    if (ret_ucl_object_iterate_with_error_ncycp == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_object_t *string_obj3 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj3) {
+        goto cleanup;
+    }
+
+    if (!ucl_object_insert_key(obj, string_obj3, "key3", 4, true)) {
+        goto cleanup;
+    }
+
+    write_dummy_file(Data, Size);
+
+    FILE *fp = fopen("./dummy_file", "r");
+    if (!fp) {
+        goto cleanup;
+    }
+
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
+    if (!emitter_funcs) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    struct ucl_emitter_context *ctx = ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    if (!ctx) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+
+    ucl_object_emit_streamline_start_container(ctx, obj);
+
+    fclose(fp);
+
+cleanup:
+    ucl_object_unref(obj);
     return 0;
 }
 #ifdef INC_MAIN

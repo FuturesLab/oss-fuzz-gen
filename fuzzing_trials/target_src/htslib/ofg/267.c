@@ -1,50 +1,83 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <htslib/hts.h>
-#include <htslib/tbx.h> // Include the tabix library for index functions
+#include <htslib/sam.h>
+#include <htslib/kstring.h>
 
 int LLVMFuzzerTestOneInput_267(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for our needs
+    // Check if the size is sufficient to extract multiple strings
     if (size < 5) {
         return 0;
     }
 
-    // Use the first byte of data as an integer parameter
-    int param_int = (int)data[0];
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
 
-    // Use the rest of the data as a string, ensuring it's null-terminated
-    size_t string_size = size - 1;
-    char *param_str = (char *)malloc(string_size + 1);
-    if (param_str == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(param_str, data + 1, string_size);
-    param_str[string_size] = '\0';
-
-    // Initialize htsFile and tbx_t structures
-    htsFile *file = hts_open(param_str, "r");
-    if (file == NULL) {
-        free(param_str);
-        return 0; // Failed to open file
+    // Create and initialize kstring_t
+    kstring_t ks;
+    ks.l = 0;
+    ks.m = size;
+    ks.s = (char *)malloc(size);
+    if (ks.s == NULL) {
+        sam_hdr_destroy(hdr);
+        return 0;
     }
 
-    tbx_t *tbx = tbx_index_load(param_str);
-    if (tbx == NULL) {
-        hts_close(file);
-        free(param_str);
-        return 0; // Failed to load index
-    }
+    // Copy data into kstring_t
+    memcpy(ks.s, data, size);
 
-    // Call a function that utilizes the index, e.g., tbx_name2id
-    int result = tbx_name2id(tbx, param_str);
+    // Extract strings from the data
+    const char *str1 = (const char *)data;
+    const char *str2 = (const char *)(data + 1);
+    const char *str3 = (const char *)(data + 2);
+    const char *str4 = (const char *)(data + 3);
+
+    // Call the function-under-test
+    int result = sam_hdr_find_tag_id(hdr, str1, str2, str3, str4, &ks);
 
     // Clean up
-    tbx_destroy(tbx);
-    hts_close(file);
-    free(param_str);
+    free(ks.s);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_267(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

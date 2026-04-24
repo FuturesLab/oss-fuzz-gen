@@ -1,39 +1,32 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
+    // Ensure the input size is sufficient for splitting into multiple strings.
+    if (size < 6) return 0;
+
+    // Split the input data into parts for the function parameters.
+    size_t part_size = size / 3;
+    const char *file_name = (const char *)data;
+    const char *dataset_name = (const char *)(data + part_size);
+    const char *async_name = (const char *)(data + 2 * part_size);
+
+    // Initialize other parameters.
+    hid_t loc_id = H5P_DEFAULT; // Assuming a default location identifier
+    hid_t dapl_id = H5P_DEFAULT;
+    hid_t es_id = H5P_DEFAULT; // Assuming a default event stack identifier
+
+    // Call the function-under-test.
+    // Corrected the function call to match the expected number of arguments.
+    hid_t result = H5Dopen_async(loc_id, dataset_name, dapl_id, es_id);
+
+    // Close the dataset if it was successfully opened.
+    if (result >= 0) {
+        H5Dclose(result);
     }
-
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
-
-    // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Dwrite_chunk
-    hid_t ret_H5Fget_create_plist_fhtwj = H5Fget_create_plist(0);
-    hid_t ret_H5Dget_type_hygth = H5Dget_type(0);
-    const hsize_t swxwhaem;
-    memset(&swxwhaem, 0, sizeof(swxwhaem));
-    herr_t ret_H5Dwrite_chunk_ilnog = H5Dwrite_chunk(ret_H5Fget_create_plist_fhtwj, ret_H5Dget_type_hygth, H5G_NTYPES, &swxwhaem, -1, (const void *)name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
 
     return 0;
 }

@@ -1,73 +1,91 @@
 // This fuzz driver is generated for library cares, aiming to fuzz the following functions:
-// ares_init at ares_init.c:67:5 in ares.h
-// ares_threadsafety at ares_threads.c:632:13 in ares.h
-// ares_reinit at ares_init.c:407:15 in ares.h
-// ares_set_local_ip4 at ares_init.c:546:6 in ares.h
-// ares_getnameinfo at ares_getnameinfo.c:188:6 in ares.h
-// ares_set_local_dev at ares_init.c:568:6 in ares.h
-// ares_cancel at ares_cancel.c:34:6 in ares.h
-// ares_destroy at ares_destroy.c:32:6 in ares.h
+// ares_library_initialized at ares_library_init.c:161:5 in ares.h
+// ares_library_init at ares_library_init.c:108:5 in ares.h
+// ares_library_initialized at ares_library_init.c:161:5 in ares.h
+// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
+// ares_library_cleanup at ares_library_init.c:139:6 in ares.h
+// ares_library_initialized at ares_library_init.c:161:5 in ares.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <ares.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <pthread.h>
-
-static void dummy_callback(void *arg, int status, int timeouts, struct hostent *host) {
-  (void)arg;
-  (void)status;
-  (void)timeouts;
-  (void)host;
-}
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
-  if (Size < sizeof(unsigned int)) {
+    // Check if the library is initialized
+    int init_state = ares_library_initialized();
+    if (init_state != ARES_SUCCESS && init_state != ARES_ENOTINITIALIZED) {
+        return 0; // Unexpected state, exit
+    }
+
+    // Initialize the library
+    int flags = 0;
+    if (Size > 0) {
+        flags = Data[0]; // Use the first byte of data as flags
+    }
+    int init_result = ares_library_init(flags);
+    if (init_result != ARES_SUCCESS) {
+        return 0; // Initialization failed, exit
+    }
+
+    // Check if the library is initialized again
+    init_state = ares_library_initialized();
+    if (init_state != ARES_SUCCESS) {
+        ares_library_cleanup();
+        return 0; // Initialization check failed, exit
+    }
+
+    // Cleanup the library
+    ares_library_cleanup();
+
+    // Final check to see if the library is properly cleaned up
+    init_state = ares_library_initialized();
+    if (init_state != ARES_ENOTINITIALIZED) {
+        return 0; // Cleanup failed, exit
+    }
+
     return 0;
-  }
-
-  // Initialize ares_channel
-  ares_channel channel;
-  int init_status = ares_init(&channel);
-  if (init_status != ARES_SUCCESS) {
-    return 0;
-  }
-
-  // Set up dummy data
-  unsigned int local_ip = *(unsigned int *)Data;
-  const char *local_dev_name = "dummy_device";
-  struct sockaddr_in sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sin_family = AF_INET;
-  sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  ares_socklen_t salen = sizeof(sa);
-  int flags = 0;
-
-  // Test ares_threadsafety
-  ares_bool_t thread_safe = ares_threadsafety();
-  (void)thread_safe;
-
-  // Test ares_reinit
-  ares_status_t reinit_status = ares_reinit(channel);
-  (void)reinit_status;
-
-  // Test ares_set_local_ip4
-  ares_set_local_ip4(channel, local_ip);
-
-  // Test ares_getnameinfo
-  ares_getnameinfo(channel, (const struct sockaddr *)&sa, salen, flags, dummy_callback, NULL);
-
-  // Test ares_set_local_dev
-  ares_set_local_dev(channel, local_dev_name);
-
-  // Test ares_cancel
-  ares_cancel(channel);
-
-  // Clean up
-  ares_destroy(channel);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,38 +1,66 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_244(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t attribute_id = H5I_INVALID_HID; // Invalid ID for testing
-    char old_name[256];
-    char new_name[256];
+    // Declare and initialize variables
+    hid_t file_id = H5I_INVALID_HID;  // Invalid file identifier for testing
+    size_t max_size = 0;
+    size_t min_clean_size = 0;
+    size_t cur_size = 0;
+    int cur_num_entries = 0;
 
-    // Ensure the data size is sufficient for two names
-    if (size < 2) {
+    // Ensure data is not null and size is greater than zero
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Copy data into old_name and new_name
-    size_t half_size = size / 2;
-    size_t old_name_len = (half_size < 255) ? half_size : 255;
-    size_t new_name_len = ((size - half_size) < 255) ? (size - half_size) : 255;
-
-    memcpy(old_name, data, old_name_len);
-    old_name[old_name_len] = '\0';
-
-    memcpy(new_name, data + half_size, new_name_len);
-    new_name[new_name_len] = '\0';
-
     // Call the function-under-test
-    herr_t result = H5Arename(attribute_id, old_name, new_name);
+    herr_t result = H5Fget_mdc_size(file_id, &max_size, &min_clean_size, &cur_size, &cur_num_entries);
 
-    // Use the result in some way to avoid optimization out
+    // Check the result, though in fuzzing we don't need to take specific action
     if (result < 0) {
-        fprintf(stderr, "H5Arename failed\n");
+        // Handle error if needed, but for fuzzing, we generally don't
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_244(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

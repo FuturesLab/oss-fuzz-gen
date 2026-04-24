@@ -1,20 +1,80 @@
 #include <stdint.h>
 #include <stddef.h>
-
-// Function-under-test declaration
-int64_t bam_auxB2i(const uint8_t *data, uint32_t size);
+#include <htslib/sam.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_175(const uint8_t *data, size_t size) {
-    // Ensure that the size fits within the range of a uint32_t
-    if (size > UINT32_MAX) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Call the function-under-test with the given data and size
-    int64_t result = bam_auxB2i(data, (uint32_t)size);
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    if (fwrite(data, 1, size, file) != size) {
+        fclose(file);
+        unlink(tmpl);
+        return 0;
+    }
 
+    fclose(file);
+
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (hts_file != NULL) {
+        sam_hdr_t *header = sam_hdr_read(hts_file);
+        if (header != NULL) {
+            sam_hdr_destroy(header);
+        }
+        hts_close(hts_file);
+    }
+
+    unlink(tmpl);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_175(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,48 +1,62 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <htslib/sam.h> // Ensure you have htslib installed and properly linked
-#include <htslib/kstring.h> // Include the kstring.h header for kstring_t
+
+// Assuming the function bam_aux2A is declared in some header file
+// #include "bam.h" // Include the appropriate header file if available
+
+// Mockup of the function-under-test for demonstration purposes
+char bam_aux2A(const uint8_t *data);
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
+    // Ensure the data is not NULL and size is greater than 0
+    if (data == NULL || size == 0) {
         return 0;
     }
-
-    // Create a valid SAM header to ensure the function under test has something to work with
-    kstring_t hdr_str = {0, 0, NULL};
-    ksprintf(&hdr_str, "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:248956422\n");
-    if (sam_hdr_add_lines(hdr, hdr_str.s, hdr_str.l) != 0) {
-        free(hdr_str.s);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    free(hdr_str.s);
-
-    const char *type = "SQ"; // Example type, can be varied
-    const char *id = "SN";   // Example id, can be varied
-    const char *val = "chr1"; // Example value, can be varied
-    kstring_t ks;
-    ks.l = 0;
-    ks.m = size;
-    ks.s = (char *)malloc(size + 1);
-    if (!ks.s) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    memcpy(ks.s, data, size);
-    ks.s[size] = '\0';
 
     // Call the function-under-test
-    int result = sam_hdr_find_line_id(hdr, type, id, val, &ks);
+    char result = bam_aux2A(data);
 
-    // Cleanup
-    free(ks.s);
-    sam_hdr_destroy(hdr);
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_137(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,20 +1,79 @@
-#include "ucl.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <ucl.h>
 
-// Function for fuzzing
 int LLVMFuzzerTestOneInput_214(const uint8_t *data, size_t size) {
-  // Initialize a ucl_object_t object
-  ucl_object_t *obj = ucl_object_new();
+    struct ucl_parser *parser;
+    const char *macro_name;
+    ucl_macro_handler handler;
+    void *user_data;
 
-  // Ensure the size parameter is non-zero for meaningful testing
-  size_t reserve_size = size > 0 ? size : 1;
+    // Initialize the parser
+    parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+    if (parser == NULL) {
+        return 0;
+    }
 
-  // Call the function-under-test
-  bool result = ucl_object_reserve(obj, reserve_size);
+    // Ensure size is sufficient for a non-empty macro name
+    if (size < 2) {
+        ucl_parser_free(parser);
+        return 0;
+    }
 
-  // Clean up
-  ucl_object_unref(obj);
+    // Use the first byte of data as the macro name
+    macro_name = (const char *)data;
 
-  return 0;
+    // Use the second byte of data to determine the handler
+    handler = (ucl_macro_handler)(uintptr_t)data[1];
+
+    // Use the rest of the data as user_data
+    user_data = (void *)(data + 2);
+
+    // Register the macro with the parser
+    ucl_parser_register_macro(parser, macro_name, handler, user_data);
+
+    // Clean up
+    ucl_parser_free(parser);
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_214(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

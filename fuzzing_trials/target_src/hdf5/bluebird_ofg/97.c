@@ -1,40 +1,30 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    if (size < sizeof(hsize_t)) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Initialize variables
+    hid_t dset_id = 1; // Assuming a valid dataset ID
+    hid_t fspace_id = 1; // Assuming a valid file space ID
+    hsize_t index = *(const hsize_t *)data;
+    hsize_t offset[H5S_MAX_RANK] = {0}; // Assuming a maximum rank
+    unsigned int filter_mask = 0;
+    haddr_t addr = 0;
+    hsize_t size_out = 0;
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    herr_t result = H5Dget_chunk_info(dset_id, fspace_id, index, offset, &filter_mask, &addr, &size_out);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Dwrite_multi
-    hid_t ret_H5Aget_create_plist_tprck = H5Aget_create_plist(0);
-    hid_t ret_H5Fget_access_plist_wduwa = H5Fget_access_plist(0);
-    hid_t ret_H5Fget_create_plist_falje = H5Fget_create_plist(0);
-    hid_t enrjfubs;
-    memset(&enrjfubs, 0, sizeof(enrjfubs));
-    herr_t ret_H5Dwrite_multi_cfkpd = H5Dwrite_multi(size, &enrjfubs, &ret_H5Aget_create_plist_tprck, &ret_H5Fget_access_plist_wduwa, &ret_H5Fget_create_plist_falje, 0, (const void **)&name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Check the result (not necessary for fuzzing, but useful for debugging)
+    if (result < 0) {
+        // Handle error if needed
+    }
 
     return 0;
 }

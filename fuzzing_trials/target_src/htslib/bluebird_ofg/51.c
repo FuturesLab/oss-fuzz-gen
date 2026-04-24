@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -7,49 +9,131 @@
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
     htsFile *file = NULL;
-    hts_itr_t *itr = NULL;
-    void *data_out = malloc(1024); // Allocate memory for the output data
+    bam_hdr_t *header = NULL;
+    bam1_t *alignment = bam_init1();
+    int result = 0;
 
-    if (size < 1) {
-        free(data_out);
+    if (alignment == NULL) {
         return 0;
     }
 
-    // Create a temporary file to store the input data
+    // Create a temporary file to use with hts_open
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        free(data_out);
+        bam_destroy1(alignment);
         return 0;
     }
-    
-    // Write the input data to the temporary file
-    write(fd, data, size);
-    close(fd);
 
-    // Open the temporary file with htslib
+    // Write the fuzz data to the file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        bam_destroy1(alignment);
+        return 0;
+    }
+
+    // Open the temporary file with hts_open
     file = hts_open(tmpl, "r");
     if (file == NULL) {
-        free(data_out);
+        close(fd);
+        unlink(tmpl);
+        bam_destroy1(alignment);
         return 0;
     }
 
-    // Initialize the iterator (this is just a placeholder, actual initialization may vary)
-    itr = (hts_itr_t *)malloc(sizeof(hts_itr_t));
-    if (itr == NULL) {
-        hts_close(file);
-        free(data_out);
-        return 0;
+    // Attempt to read the header and alignment from the file
+    header = sam_hdr_read(file);
+    if (header != NULL) {
+        while (sam_read1(file, header, alignment) >= 0) {
+            // Process the alignment (this is where code coverage can increase)
+        }
+        bam_hdr_destroy(header);
     }
 
-    // Call the function-under-test
-    hts_itr_multi_next(file, itr, data_out);
+    // Cleanup
 
-    // Clean up
-    free(itr);
-    hts_close(file);
-    free(data_out);
-    unlink(tmpl); // Remove the temporary file
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_read1 to sam_idx_init
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!file) {
+        	return 0;
+        }
+        const htsFormat* ret_hts_get_format_iuwml = hts_get_format(file);
+        if (ret_hts_get_format_iuwml == NULL){
+        	return 0;
+        }
+        const uint8_t chilkgir = size;
+        int64_t ret_bam_aux2i_bhpdv = bam_aux2i(&chilkgir);
+        if (ret_bam_aux2i_bhpdv < 0){
+        	return 0;
+        }
+        char* ret_bam_flag2str_pskng = bam_flag2str(HTS_IDX_SAVE_REMOTE);
+        if (ret_bam_flag2str_pskng == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!file) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!header) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_bam_flag2str_pskng) {
+        	return 0;
+        }
+        int ret_sam_idx_init_tutev = sam_idx_init(file, header, (int )ret_bam_aux2i_bhpdv, ret_bam_flag2str_pskng);
+        if (ret_sam_idx_init_tutev < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_close with sam_idx_save
+    sam_idx_save(file);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    close(fd);
+    unlink(tmpl);
+    bam_destroy1(alignment);
 
+    return result;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_51(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

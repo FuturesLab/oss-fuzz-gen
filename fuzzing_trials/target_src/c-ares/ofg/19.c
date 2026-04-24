@@ -1,38 +1,60 @@
 #include <stddef.h>
-#include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
-#include "ares.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <ares.h>
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-  if (size < 2) {
+  /* Ensure that the size is sufficient to extract an ares_dns_rcode_t value */
+  if (size < sizeof(ares_dns_rcode_t)) {
     return 0;
   }
 
-  /* Split the input data into two parts for encoded and abuf */
-  size_t half_size = size / 2;
-  const unsigned char *encoded = data;
-  const unsigned char *abuf = data + half_size;
-  int alen = (int)(size - half_size);
+  /* Extract ares_dns_rcode_t value from the input data */
+  ares_dns_rcode_t rcode = *(ares_dns_rcode_t *)data;
 
-  unsigned char *s = NULL;
-  long enclen = 0;
+  /* Call the function-under-test */
+  char *result = ares_dns_rcode_tostr(rcode);
 
-  /* Call the function under test */
-  int result = ares_expand_string(encoded, abuf, alen, &s, &enclen);
-
-  /* Free the allocated string if the function was successful */
-  if (result == ARES_SUCCESS && s != NULL) {
-    ares_free_string(s);
-  }
+  /* Use the result (if needed) or simply return */
+  /* Note: The result is a string literal, so no need to free it */
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

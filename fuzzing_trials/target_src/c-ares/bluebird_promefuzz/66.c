@@ -1,94 +1,151 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
+#include <stdio.h>
 #include "ares.h"
 
-static void initialize_options(struct ares_options *options, int *optmask) {
-    memset(options, 0, sizeof(struct ares_options));
-    *optmask = 0;
-    // Set some default values for options if needed
-    options->flags = ARES_FLAG_USEVC;
-    options->timeout = 5000; // 5 seconds
-    options->tries = 3;
-    *optmask = ARES_OPT_FLAGS | ARES_OPT_TIMEOUTMS | ARES_OPT_TRIES;
+static void ares_getaddrinfo_callback(void *arg, int status, int timeouts, struct ares_addrinfo *res) {
+  (void)arg;
+  (void)timeouts;
+  if (res) {
+    ares_freeaddrinfo(res);
+  }
 }
 
 int LLVMFuzzerTestOneInput_66(const uint8_t *Data, size_t Size) {
-    ares_channel_t *channel = NULL;
-    struct ares_options options;
-    int optmask;
-    int status;
+  if (Size < sizeof(int)) {
+    return 0;
+  }
 
-    initialize_options(&options, &optmask);
+  int init_flags = *(int *)Data;
+  Data += sizeof(int);
+  Size -= sizeof(int);
 
-    status = ares_init_options(&channel, &options, optmask);
-    if (status != ARES_SUCCESS) {
-        return 0;
+  if (ares_library_init(init_flags) != ARES_SUCCESS) {
+    return 0;
+  }
+
+  const char *error_message;
+  if (Size >= sizeof(int)) {
+    int error_code = *(int *)Data;
+    error_message = ares_strerror(error_code);
+    (void)error_message;
+    Data += sizeof(int);
+    Size -= sizeof(int);
+  }
+
+  ares_channel_t *channel = NULL;
+  struct ares_options options;
+  memset(&options, 0, sizeof(options));
+  int optmask = 0;
+
+  if (ares_init_options(&channel, &options, optmask) == ARES_SUCCESS) {
+    if (Size >= sizeof(int)) {
+      int error_code = *(int *)Data;
+      error_message = ares_strerror(error_code);
+      (void)error_message;
+      Data += sizeof(int);
+      Size -= sizeof(int);
     }
 
-    ares_destroy(channel);
+    char *servers_csv = ares_get_servers_csv(channel);
+    if (servers_csv) {
+      ares_free_string(servers_csv);
+    }
 
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_init_options
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ares_init_options
-    status = ares_init_options(&channel, &options, ARES_OPT_UDP_MAX_QUERIES);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (status != ARES_SUCCESS) {
-        return 0;
+    // Ensure node and service are null-terminated
+    const char *node = NULL;
+    const char *service = NULL;
+    if (Size > 0) {
+      size_t node_len = strnlen((const char *)Data, Size);
+      if (node_len < Size) {
+        node = (const char *)Data;
+        Data += node_len + 1;
+        Size -= (node_len + 1);
+      }
     }
 
     if (Size > 0) {
-        char *servers = (char *)malloc(Size + 1);
-        if (servers) {
-            memcpy(servers, Data, Size);
-            servers[Size] = '\0';
-            ares_set_servers_csv(channel, servers);
-            free(servers);
-        }
-
-        char *sortlist = (char *)malloc(Size + 1);
-        if (sortlist) {
-            memcpy(sortlist, Data, Size);
-            sortlist[Size] = '\0';
-            ares_set_sortlist(channel, sortlist);
-            free(sortlist);
-        }
+      size_t service_len = strnlen((const char *)Data, Size);
+      if (service_len < Size) {
+        service = (const char *)Data;
+        Data += service_len + 1;
+        Size -= (service_len + 1);
+      }
     }
 
-    ares_channel_t *dup_channel = NULL;
-    ares_dup(&dup_channel, channel);
-    if (dup_channel) {
-        ares_destroy(dup_channel);
-    }
+    struct ares_addrinfo_hints hints;
+    memset(&hints, 0, sizeof(hints));
 
-    struct ares_options saved_options;
-    int saved_optmask;
-    status = ares_save_options(channel, &saved_options, &saved_optmask);
-    if (status == ARES_SUCCESS) {
-        ares_destroy_options(&saved_options);
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_destroy to ares_set_servers_ports
-    struct ares_addr_port_node agxtpyrg;
-    memset(&agxtpyrg, 0, sizeof(agxtpyrg));
-
-    int ret_ares_set_servers_ports_fsmhb = ares_set_servers_ports(channel, &agxtpyrg);
-    if (ret_ares_set_servers_ports_fsmhb < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
+    if (node || service) { // Ensure at least one of them is non-null
+      ares_getaddrinfo(channel, node, service, &hints, ares_getaddrinfo_callback, NULL);
+    
+      // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_getaddrinfo to ares_expand_string
+      char ret_ares_version_dfaef = ares_version(NULL);
+      unsigned short ret_ares_dns_record_get_flags_iijky = ares_dns_record_get_flags(NULL);
+      if (ret_ares_dns_record_get_flags_iijky < 0){
+      	return 0;
+      }
+      unsigned short ret_ares_dns_record_get_id_rhpiv = ares_dns_record_get_id(NULL);
+      if (ret_ares_dns_record_get_id_rhpiv < 0){
+      	return 0;
+      }
+      // Ensure dataflow is valid (i.e., non-null)
+      if (!service) {
+      	return 0;
+      }
+      int ret_ares_expand_string_fgnss = ares_expand_string((unsigned char *)&ret_ares_version_dfaef, (unsigned char *)service, (int )ret_ares_dns_record_get_flags_iijky, (unsigned char **)Data, (long *)&ret_ares_dns_record_get_id_rhpiv);
+      if (ret_ares_expand_string_fgnss < 0){
+      	return 0;
+      }
+      // End mutation: Producer.APPEND_MUTATOR
+      
+}
 
     ares_destroy(channel);
+  }
 
+  ares_library_cleanup();
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_66(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

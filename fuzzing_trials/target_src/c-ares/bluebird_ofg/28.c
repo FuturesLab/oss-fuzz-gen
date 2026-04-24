@@ -1,64 +1,68 @@
-#include "stddef.h"
+#include <sys/stat.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <stdlib.h>
-
+#include <arpa/inet.h>
+#include <stdlib.h>  // Include this for malloc and free
 #include "ares.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-  if (size == 0) {
+    /* Ensure data is null-terminated */
+    char *src = (char *)malloc(size + 1);
+    if (!src) {
+        return 0;
+    }
+    memcpy(src, data, size);
+    src[size] = '\0';
+
+    /* Prepare destination buffer */
+    struct in6_addr dst;
+
+    /* Test with AF_INET (IPv4) */
+    ares_inet_pton(AF_INET, src, &dst);
+
+    /* Test with AF_INET6 (IPv6) */
+    ares_inet_pton(AF_INET6, src, &dst);
+
+    free(src);
     return 0;
-  }
-
-  /* Initialize ares library */
-  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
-    return 0;
-  }
-
-  ares_channel channel;
-  int status = ares_init(&channel);
-  if (status != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
-  }
-
-  /* Allocate memory for the CSV string and ensure it's null-terminated */
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ares_init to ares_parse_caa_reply
-  char ret_ares_strerror_qvogg = ares_strerror(ARES_GETSOCK_MAXNUM);
-  struct ares_caa_reply *asmqismg;
-  memset(&asmqismg, 0, sizeof(asmqismg));
-
-  int ret_ares_parse_caa_reply_sxhix = ares_parse_caa_reply((unsigned char *)&ret_ares_strerror_qvogg, status, &asmqismg);
-  if (ret_ares_parse_caa_reply_sxhix < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  char *csv = (char *)malloc(size + 1);
-  if (!csv) {
-    ares_destroy(channel);
-    ares_library_cleanup();
-    return 0;
-  }
-  memcpy(csv, data, size);
-  csv[size] = '\0';
-
-  /* Call the function under test */
-  ares_set_servers_ports_csv(channel, csv);
-
-  /* Clean up */
-  free(csv);
-  ares_destroy(channel);
-  ares_library_cleanup();
-
-  return 0;
 }
-#ifdef __cplusplus
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

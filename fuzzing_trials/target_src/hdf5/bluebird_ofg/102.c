@@ -1,35 +1,26 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for a null-terminated string
-    if (size < 2) {
+    // Ensure the size is large enough to extract necessary parameters
+    if (size < 3) {
         return 0;
     }
 
-    // Allocate memory for the file name string
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        return 0;
-    }
+    // Extract parameters from the input data
+    const char *app_file = __FILE__; // Use the current file name
+    const char *app_func = __func__; // Use the current function name
+    unsigned int app_line = __LINE__; // Use the current line number
 
-    // Copy data into filename and null-terminate it
-    memcpy(filename, data, size);
-    filename[size] = '\0';
-
-    // Use a valid hid_t for fapl_id, H5P_DEFAULT is often used for default property lists
-    hid_t fapl_id = H5P_DEFAULT;
+    // Create dummy hid_t values
+    hid_t es_id = (hid_t)data[1];
+    hid_t file_id = (hid_t)data[2];
 
     // Call the function-under-test
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of H5Fis_accessible
-    htri_t result = H5Fis_accessible((const char *)"w", fapl_id);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-    // Free allocated memory
-    free(filename);
+    H5Fclose_async(file_id, es_id);
 
     return 0;
 }

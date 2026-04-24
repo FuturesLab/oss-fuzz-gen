@@ -1,50 +1,63 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
-// Dummy operation function for H5Dchunk_iter
-herr_t dummy_chunk_iter_op(void *elem, hid_t type_id, hsize_t *coords, void *op_data) {
-    // Perform some simple operation on the data, for example, just return 0
-    return 0;
-}
-
 int LLVMFuzzerTestOneInput_273(const uint8_t *data, size_t size) {
-    // Initialize HDF5 library
-    H5open();
-
-    // Create a dummy HDF5 file and dataset to get valid hid_t values
-    hid_t file_id = H5Fcreate("dummy.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file
+    // Ensure the size is large enough to extract necessary parameters
+    if (size < 3) {
+        return 0;
     }
 
-    hsize_t dims[1] = {10};
-    hid_t space_id = H5Screate_simple(1, dims, NULL);
-    if (space_id < 0) {
-        H5Fclose(file_id);
-        return 0; // Failed to create dataspace
-    }
+    // Extract parameters from the input data
+    const char *app_file = __FILE__; // Use the current file name
+    const char *app_func = __func__; // Use the current function name
+    unsigned int app_line = __LINE__; // Use the current line number
 
-    hid_t dset_id = H5Dcreate2(file_id, "dummy_dataset", H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dset_id < 0) {
-        H5Sclose(space_id);
-        H5Fclose(file_id);
-        return 0; // Failed to create dataset
-    }
-
-    // Prepare user data for the operation
-    void *user_data = (void *)data;
+    // Create dummy hid_t values
+    hid_t es_id = (hid_t)data[1];
+    hid_t file_id = (hid_t)data[2];
 
     // Call the function-under-test
-    herr_t status = H5Dchunk_iter(dset_id, H5P_DEFAULT, dummy_chunk_iter_op, user_data);
-
-    // Clean up
-    H5Dclose(dset_id);
-    H5Sclose(space_id);
-    H5Fclose(file_id);
-
-    // Close HDF5 library
-    H5close();
+    H5Fclose_async(file_id, es_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_273(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

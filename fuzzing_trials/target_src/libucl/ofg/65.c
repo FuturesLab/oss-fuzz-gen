@@ -1,47 +1,92 @@
 #include <stdint.h>
-#include <stdbool.h>
 #include <stddef.h>
+#include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include "ucl.h"  // Assuming this header file contains necessary declarations
-
-// Define static functions for emitter functions
-static void ucl_emitter_append_character(unsigned char c, size_t len, void *ud) {
-    // Dummy function implementation
-}
-
-static void ucl_emitter_append_len(const unsigned char *str, size_t len, void *ud) {
-    // Dummy function implementation
-}
-
-static void ucl_emitter_free_func(void *ud) {
-    // Dummy function implementation
-}
+#include <unistd.h>  // Include for close() and unlink()
+#include <fcntl.h>   // Include for mkstemp()
+#include <sys/types.h> // Include for ssize_t
+#include <ucl.h>
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Initialize variables
-    ucl_object_t *obj1 = ucl_object_new();
-    ucl_object_t *obj2 = ucl_object_new();
-    ucl_emitter_t emitter_type = UCL_EMIT_JSON; // Assuming UCL_EMIT_JSON is a valid enum value
-    struct ucl_emitter_functions emitter_funcs;
+    struct ucl_parser *parser;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    unsigned int priority = 0;
 
-    // Initialize emitter functions with static functions
-    emitter_funcs.ucl_emitter_append_character = ucl_emitter_append_character;
-    emitter_funcs.ucl_emitter_append_len = ucl_emitter_append_len;
-    emitter_funcs.ucl_emitter_free_func = ucl_emitter_free_func;
-
-    // Ensure the data is not NULL
-    if (size > 0 && data != NULL) {
-        // Set some data to the ucl objects for testing
-        ucl_object_insert_key(obj1, ucl_object_fromstring((const char *)data), "key1", 4, false);
-        ucl_object_insert_key(obj2, ucl_object_fromstring((const char *)data), "key2", 4, false);
-
-        // Call the function under test
-        bool result = ucl_object_emit_full(obj1, emitter_type, &emitter_funcs, obj2);
-
-        // Clean up
-        ucl_object_unref(obj1);
-        ucl_object_unref(obj2);
+    // Ensure the data is not empty
+    if (size == 0) {
+        return 0;
     }
+
+    // Initialize UCL parser
+    parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Create a temporary file and write data to it
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Write the fuzzing data to the file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Fuzz the function with the temporary file
+    ucl_parser_add_file_priority(parser, tmpl, priority);
+
+    // Clean up
+    ucl_parser_free(parser);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_65(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

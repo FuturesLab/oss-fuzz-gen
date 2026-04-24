@@ -1,70 +1,103 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-// Function prototype for the function-under-test
-int sam_index_build3(const char *fn, const char *fnidx, int min_shift, int n_threads);
+#include "htslib/hts.h"
+#include "htslib/sam.h" // Include additional library for hts_idx_t related operations
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Check if the input size is too small to be meaningful
+    // Check if the size is sufficient for creating a valid hts_idx_t object
     if (size < 1) {
-        return 0; // Exit if no data is provided
+        return 0; // Not enough data to proceed
     }
 
-    // Create temporary files to simulate filenames
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    // Ensure the temporary files are created successfully
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) {
-                close(fd1);
-        }
-        if (fd2 != -1) {
-                close(fd2);
-        }
-        return 0; // Exit if file creation fails
+    // Initialize variables
+    // Provide required arguments for hts_idx_init
+    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_BAI, 0, 14, 5); // Initialize an index object with arbitrary values
+    if (!idx) {
+        return 0; // Failed to initialize index
     }
 
-    // Write fuzz data to the first temporary file
-    ssize_t written = write(fd1, data, size);
-    if (written == -1 || written != size) {
-        close(fd1);
-        close(fd2);
-        unlink(tmpl1);
-        unlink(tmpl2);
-        return 0; // Exit if writing fails
-    }
-    close(fd1);
+    int tid = 0; // Set tid to 0 for testing
+    uint64_t mapped = 0; // Initialize mapped to 0
+    uint64_t unmapped = 0; // Initialize unmapped to 0
 
-    // Initialize parameters for the function-under-test
-    const char *fn = tmpl1;
-    const char *fnidx = tmpl2;
-    int min_shift = 1;  // Example value, can be varied
-    int n_threads = 2;  // Example value, can be varied
+    // Simulate adding data to the index to avoid using an uninitialized index
+    // This is a mock operation to simulate a realistic scenario
+    hts_pos_t pos = 0;
+    for (size_t i = 0; i < size; ++i) {
+        pos += data[i];
+        // Correct the number of arguments for hts_idx_push
+        hts_idx_push(idx, tid, pos, pos + 1, 0, 1); // Provide an offset of 0 and is_mapped as 1
+    }
+    hts_idx_finish(idx, pos);
 
     // Call the function-under-test
+    int result = hts_idx_get_stat(idx, tid, &mapped, &unmapped);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sam_index_build3
-    int result = sam_index_build3(fn, fnidx, min_shift, -1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Clean up
 
-
-
-    // Check the result of the function-under-test
-    if (result != 0) {
-        fprintf(stderr, "Function sam_index_build3 failed with error code: %d\n", result);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_get_stat to hts_idx_get_meta
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!idx) {
+    	return 0;
     }
+    int ret_hts_idx_fmt_dlaxu = hts_idx_fmt(idx);
+    if (ret_hts_idx_fmt_dlaxu < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!idx) {
+    	return 0;
+    }
+    uint8_t* ret_hts_idx_get_meta_cxqsu = hts_idx_get_meta(idx, (uint32_t *)&unmapped);
+    if (ret_hts_idx_get_meta_cxqsu == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_idx_destroy(idx);
 
-    // Clean up temporary files
-    unlink(tmpl1);
-    unlink(tmpl2);
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_113(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

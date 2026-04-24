@@ -3,23 +3,60 @@
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract parameters
-    if (size < sizeof(unsigned int) + 3 * sizeof(hid_t) + 1) {
+    // Declare and initialize variables
+    hid_t attribute_id = H5Acreate2(H5P_DEFAULT, "fuzz_attribute", H5T_NATIVE_INT, H5Screate(H5S_SCALAR), H5P_DEFAULT, H5P_DEFAULT);
+    hid_t mem_type_id = H5T_NATIVE_INT;
+    int value = 0; // Example value to write
+
+    // Ensure the attribute is created successfully
+    if (attribute_id < 0) {
         return 0;
     }
 
-    // Extract parameters from data
-    const char *attr_name = (const char *)data;
-    unsigned int idx_type = *(unsigned int *)(data + 1);
-    hid_t loc_id = *(hid_t *)(data + 1 + sizeof(unsigned int));
-    hid_t aapl_id = *(hid_t *)(data + 1 + sizeof(unsigned int) + sizeof(hid_t));
-    hid_t es_id = *(hid_t *)(data + 1 + sizeof(unsigned int) + 2 * sizeof(hid_t));
+    // Call the function-under-test
+    H5Awrite(attribute_id, mem_type_id, &value);
 
-    // Call the function-under-test with the correct number of arguments
-    hid_t result = H5Aopen_async(loc_id, attr_name, aapl_id, es_id);
-
-    // Use the result to avoid unused variable warning
-    (void)result;
+    // Close the attribute to release resources
+    H5Aclose(attribute_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_73(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

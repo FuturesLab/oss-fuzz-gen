@@ -1,47 +1,87 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "htslib/hts.h"
+#include "htslib/sam.h"
+
+// Dummy function to act as bam_plp_auto_f
+int dummy_func(void *data, bam1_t *b) {
+    // Simulate processing by initializing bam1_t with some data
+    if (b == NULL) {
+        return -1; // Return -1 to indicate no more data
+    }
+
+    // Populate bam1_t with some dummy data
+    b->core.tid = 0; // Dummy reference sequence ID
+    b->core.pos = 0; // Dummy position
+    b->core.l_qname = 0; // Dummy query name length
+    b->core.flag = 0; // Dummy flag
+    b->core.n_cigar = 0; // Dummy CIGAR length
+    b->core.l_qseq = 0; // Dummy query sequence length
+    b->core.mtid = 0; // Dummy mate reference sequence ID
+    b->core.mpos = 0; // Dummy mate position
+    b->core.isize = 0; // Dummy insert size
+
+    return 1; // Return 1 to indicate data is available
+}
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    htsFile *file = NULL;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    bam_mplp_t mplp = NULL;
+
+    // Create an array of pointers for data
+    void *data_array[1] = { NULL };
+
+    // Initialize bam_mplp_t with the correct number of arguments
+    mplp = bam_mplp_init(1, dummy_func, data_array);
+
+    if (mplp == NULL) {
+        return 0; // If initialization fails, return early
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
+    // Call the function-under-test with the initialized mplp
+    int result = bam_mplp_init_overlaps(mplp);
 
-    // Open the temporary file with hts_open
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hts_open
-    const char uizqxllp[1024] = "crdjp";
-    file = hts_open(tmpl, uizqxllp);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (file == NULL) {
-        return 0;
-    }
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_flush with hts_check_EOF
-    hts_check_EOF(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Close the file and clean up
-    hts_close(file);
-    unlink(tmpl);
+    // Clean up
+    bam_mplp_destroy(mplp);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

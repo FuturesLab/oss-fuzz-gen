@@ -1,87 +1,88 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stddef.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stdio.h"
-#include <arpa/inet.h>
 #include "ares.h"
-#include "/src/c-ares/include/ares_dns_record.h"
 
-static void fuzz_ares_inet_ntop(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(struct in_addr)) return;
-
-    int af = AF_INET;
-    char dst[INET6_ADDRSTRLEN];
-    const void *src = (const void *)Data;
-
-    if (Size >= sizeof(struct in6_addr)) {
-        af = AF_INET6;
-        src = (const void *)Data;
-    }
-
-    ares_inet_ntop(af, src, dst, sizeof(dst));
+static void dummy_host_callback(void *arg, int status, int timeouts, const struct hostent *host) {
+    // Dummy callback function for ares_gethostbyname
 }
 
-static void fuzz_ares_dns_rr_get_addr(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(ares_dns_rr_key_t)) return;
-
-    const ares_dns_rr_t *dns_rr = NULL; // Assuming valid pointer setup elsewhere
-    ares_dns_rr_key_t key = (ares_dns_rr_key_t)Data[Size - 1];
-
-    ares_dns_rr_get_addr(dns_rr, key);
-}
-
-static void fuzz_ares_dns_addr_to_ptr(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(struct ares_addr)) return;
-
-    const struct ares_addr *addr = (const struct ares_addr *)Data;
-    char *result = ares_dns_addr_to_ptr(addr);
-    if (result) {
-        ares_free_string(result);
-    }
-}
-
-static void fuzz_ares_dns_parse(const uint8_t *Data, size_t Size) {
-    ares_dns_record_t *dnsrec = NULL;
-    unsigned int flags = 0; // You can modify flags as needed
-
-    ares_dns_parse(Data, Size, flags, &dnsrec);
-    if (dnsrec) {
-        ares_dns_record_destroy(dnsrec);
-    }
-}
-
-static void fuzz_ares_dns_pton(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    char ipaddr[INET6_ADDRSTRLEN];
-    size_t copy_size = Size > INET6_ADDRSTRLEN - 1 ? INET6_ADDRSTRLEN - 1 : Size;
-    memcpy(ipaddr, Data, copy_size);
-    ipaddr[copy_size] = '\0';
-
-    struct ares_addr addr;
-    addr.family = AF_UNSPEC;
-    size_t out_len;
-
-    ares_dns_pton(ipaddr, &addr, &out_len);
-}
-
-static void fuzz_ares_dns_rr_get_addr6(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(ares_dns_rr_key_t)) return;
-
-    const ares_dns_rr_t *dns_rr = NULL; // Assuming valid pointer setup elsewhere
-    ares_dns_rr_key_t key = (ares_dns_rr_key_t)Data[Size - 1];
-
-    ares_dns_rr_get_addr6(dns_rr, key);
+static void dummy_server_state_callback(const char *server, ares_bool_t up, int errcode, void *user_data) {
+    // Dummy server state callback function
 }
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    fuzz_ares_inet_ntop(Data, Size);
-    fuzz_ares_dns_rr_get_addr(Data, Size);
-    fuzz_ares_dns_addr_to_ptr(Data, Size);
-    fuzz_ares_dns_parse(Data, Size);
-    fuzz_ares_dns_pton(Data, Size);
-    fuzz_ares_dns_rr_get_addr6(Data, Size);
+    if (Size == 0) {
+        return 0;
+    }
+
+    ares_channel_t *channel;
+    int status = ares_init(&channel);
+    if (status != ARES_SUCCESS) {
+        return 0;
+    }
+
+    // ares_get_servers_csv
+    char *servers_csv = ares_get_servers_csv(channel);
+    if (servers_csv != NULL) {
+        ares_free_string(servers_csv);
+    }
+
+    // ares_set_server_state_callback
+    ares_set_server_state_callback(channel, dummy_server_state_callback, NULL);
+
+    // Prepare a hostname from input data
+    char hostname[256];
+    size_t hostname_len = Size < 255 ? Size : 255;
+    memcpy(hostname, Data, hostname_len);
+    hostname[hostname_len] = '\0';
+
+    // ares_gethostbyname
+    ares_gethostbyname(channel, hostname, AF_INET, dummy_host_callback, NULL);
+
+    // Cleanup
+    ares_destroy(channel);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,70 +1,105 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
-#include <fcntl.h>
+#include "htslib/sam.h"
+#include "/src/htslib/htslib/bgzf.h"
 
-// Function prototype for the function-under-test
-int sam_index_build3(const char *fn, const char *fnidx, int min_shift, int n_threads);
-
+// Fuzzing harness for bam_hdr_write function
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Check if the input size is too small to be meaningful
-    if (size < 1) {
-        return 0; // Exit if no data is provided
+    // Create a temporary file to simulate a BGZF file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Create temporary files to simulate filenames
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
+    // Open the temporary file as a BGZF file
+    BGZF *bgzf = bgzf_fdopen(fd, "w");
+    if (bgzf == NULL) {
+        close(fd);
+        return 0;
+    }
 
-    // Ensure the temporary files are created successfully
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) {
-                close(fd1);
+    // Initialize a sam_hdr_t structure
+    sam_hdr_t *header = sam_hdr_init();
+    if (header == NULL) {
+        bgzf_close(bgzf);
+        return 0;
+    }
+
+    // Use the input data to populate the header
+    // Assume the input data is a null-terminated string for simplicity
+    if (size > 0) {
+        char *header_data = (char *)malloc(size + 1);
+        if (header_data == NULL) {
+            sam_hdr_destroy(header);
+            bgzf_close(bgzf);
+            return 0;
         }
-        if (fd2 != -1) {
-                close(fd2);
+        memcpy(header_data, data, size);
+        header_data[size] = '\0'; // Ensure null-termination
+
+        // Attempt to parse the input data as SAM header lines
+        if (sam_hdr_add_lines(header, header_data, size) < 0) {
+            // If parsing fails, clean up and return
+            free(header_data);
+            sam_hdr_destroy(header);
+            bgzf_close(bgzf);
+            return 0;
         }
-        return 0; // Exit if file creation fails
-    }
 
-    // Write fuzz data to the first temporary file
-    ssize_t written = write(fd1, data, size);
-    if (written == -1 || written != size) {
-        close(fd1);
-        close(fd2);
-        unlink(tmpl1);
-        unlink(tmpl2);
-        return 0; // Exit if writing fails
+        free(header_data);
     }
-    close(fd1);
-
-    // Initialize parameters for the function-under-test
-    const char *fn = tmpl1;
-    const char *fnidx = tmpl2;
-    int min_shift = 1;  // Example value, can be varied
-    int n_threads = 2;  // Example value, can be varied
 
     // Call the function-under-test
+    bam_hdr_write(bgzf, header);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sam_index_build3
-    int result = sam_index_build3(fn, (const char *)"r", min_shift, n_threads);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Check the result of the function-under-test
-    if (result != 0) {
-        fprintf(stderr, "Function sam_index_build3 failed with error code: %d\n", result);
-    }
-
-    // Clean up temporary files
-    unlink(tmpl1);
-    unlink(tmpl2);
+    // Clean up
+    sam_hdr_destroy(header);
+    bgzf_close(bgzf);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

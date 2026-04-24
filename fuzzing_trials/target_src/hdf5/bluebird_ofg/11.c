@@ -1,45 +1,57 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "hdf5.h"
 
-// Dummy operator function to be used with H5Diterate
-herr_t dummy_operator(void *elem, hid_t type_id, hsize_t ndim, const hsize_t *point, void *operator_data) {
-    // Perform some operation on the element
-    return 0; // Return 0 to continue iteration
-}
-
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
+    // Initialize variables
+    hid_t loc_id = H5I_INVALID_HID;  // Invalid ID for initialization
+    const char *obj_name = "test_object";
+    const char *attr_name = "test_attribute";
+    H5A_info_t ainfo;
+    hid_t lapl_id = H5P_DEFAULT;  // Default link access property list
+
+    // Create a temporary HDF5 file for testing
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0;  // Return if file creation fails
     }
 
-    // Initialize the HDF5 library
-    H5open();
-
-    // Create a simple memory buffer to iterate over
-    void *buffer = malloc(size);
-    if (buffer == NULL) {
-        return 0;
+    // Create a group in the file
+    loc_id = H5Gcreate(file_id, obj_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (loc_id < 0) {
+        H5Fclose(file_id);
+        return 0;  // Return if group creation fails
     }
-    memcpy(buffer, data, size);
 
-    // Create a dummy datatype and dataspace
-    hid_t dtype_id = H5Tcopy(H5T_NATIVE_INT);
-    hid_t dspace_id = H5Screate_simple(1, (const hsize_t *)&size, NULL);
+    // Create an attribute in the group
+    hid_t space_id = H5Screate(H5S_SCALAR);
+    hid_t attr_id = H5Acreate(loc_id, attr_name, H5T_NATIVE_INT, space_id, H5P_DEFAULT, H5P_DEFAULT);
+    if (attr_id < 0) {
+        H5Gclose(loc_id);
+        H5Fclose(file_id);
+        return 0;  // Return if attribute creation fails
+    }
 
-    // Call H5Diterate with the dummy operator
-    H5Diterate(buffer, dtype_id, dspace_id, dummy_operator, NULL);
+    // Write some data to the attribute
+    if (size >= sizeof(int)) {
+        H5Awrite(attr_id, H5T_NATIVE_INT, data);
+    }
+
+    // Close the attribute and dataspace
+    H5Aclose(attr_id);
+    H5Sclose(space_id);
+
+    // Call the function-under-test
+    herr_t status = H5Aget_info_by_name(loc_id, obj_name, attr_name, &ainfo, lapl_id);
 
     // Clean up
-    H5Tclose(dtype_id);
-    H5Sclose(dspace_id);
-    free(buffer);
+    H5Gclose(loc_id);
+    H5Fclose(file_id);
 
-    // Close the HDF5 library
-    H5close();
+    // Remove the temporary file
+    remove("tempfile.h5");
 
     return 0;
 }

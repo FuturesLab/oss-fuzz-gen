@@ -1,28 +1,60 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_233(const uint8_t *data, size_t size) {
-    // Ensure the data size is large enough to extract necessary parameters
-    if (size < 7) {
+    // Ensure that the size is sufficient to extract an hid_t value
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Prepare parameters for H5Acreate_by_name_async
-    const char *loc_name = "location_name";
-    const char *attr_name = "attribute_name";
-    unsigned int crt_intmd = (unsigned int)data[0];
-    hid_t loc_id = (hid_t)data[1];
-    hid_t type_id = (hid_t)data[2];
-    hid_t space_id = (hid_t)data[3];
-    hid_t acpl_id = (hid_t)data[4];
-    hid_t aapl_id = (hid_t)data[5];
-    hid_t lapl_id = (hid_t)data[6];
-    hid_t es_id = (hid_t)data[7 % size]; // Ensure index is within bounds
+    // Extract an hid_t value from the input data
+    hid_t attribute_id = *(const hid_t *)data;
 
-    // Correct the function call by removing extra arguments
-    hid_t result = H5Acreate_by_name_async(loc_id, loc_name, attr_name, type_id, space_id, acpl_id, aapl_id, lapl_id, es_id);
+    // Call the function-under-test
+    hsize_t storage_size = H5Aget_storage_size(attribute_id);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Use the result in some way (e.g., print it, but here we just use it to avoid compiler warnings)
+    (void)storage_size;
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_233(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,38 +1,60 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h> // Include the necessary header for mkstemp
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
-
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+    // Ensure the input size is sufficient for file name and other parameters
+    if (size < 3) {
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function H5Dclose with H5Dformat_convert
-        H5Dformat_convert(dataset_id);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        H5Sclose(dataspace_id);
+    // Create a temporary file for the filename parameter
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    close(fd);
+
+    // Use part of the input data for the file access property list
+    unsigned int flags = (unsigned int)data[0] % 4; // Limit flags to valid values (0-3 for H5F_ACC_TRUNC, etc.)
+    hid_t fcpl_id = H5Pcreate(H5P_FILE_CREATE); // Create a file creation property list
+    hid_t fapl_id = H5Pcreate(H5P_FILE_ACCESS); // Create a file access property list
+
+    // Use some of the input data to set properties, if applicable
+    // For example, set the userblock size if the input size allows
+    if (size > 4) {
+        hsize_t userblock_size = (hsize_t)data[1] * 512; // Example: set userblock size
+        H5Pset_userblock(fcpl_id, userblock_size);
     }
 
-    // Call the function-under-test
-    status = H5Fget_filesize(file_id, &filesize);
+    // Create dummy strings for parameters
+    const char *name = tmpl;
+    hid_t lapl_id = H5P_DEFAULT;
+    hid_t dapl_id = H5P_DEFAULT;
+    hid_t es_id = H5P_DEFAULT; // Add an event set ID, assuming H5P_DEFAULT is reasonable
 
-    // Close the file
-    H5Fclose(file_id);
+    // Call the function-under-test with the correct number of arguments
+    hid_t result = H5Fcreate_async(name, flags, fcpl_id, fapl_id, es_id);
 
-    // Return success
+    // Check for success and perform further operations if needed
+    if (result >= 0) {
+        // File was successfully created, perform additional operations if desired
+        H5Fclose(result); // Close the file to clean up
+    }
+
+    // Clean up property lists
+    H5Pclose(fcpl_id);
+    H5Pclose(fapl_id);
+
+    // Clean up temporary file
+    unlink(tmpl);
+
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,32 +1,79 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include <ucl.h>
 
-// Dummy macro handler function
-bool dummy_macro_handler_134(struct ucl_parser *parser, const unsigned char *data,
-                         size_t len, const ucl_object_t *args, void *ud) {
-    return true;
-}
-
 int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    struct ucl_parser *parser;
-    const char *macro_name = "test_macro";
-    void *user_data = (void *)0x1;  // Non-NULL user data
+    ucl_object_t *obj = ucl_object_new_full(UCL_ARRAY, 0);
 
-    // Initialize the parser
-    parser = ucl_parser_new(0);
+    // Ensure that we have some data to work with
+    if (size > 0) {
+        // Create a temporary string from the data
+        char *temp_data = (char *)malloc(size + 1);
+        if (temp_data == NULL) {
+            return 0; // Exit if memory allocation fails
+        }
+        memcpy(temp_data, data, size);
+        temp_data[size] = '\0';
 
-    // Ensure the parser is not NULL
-    if (parser == NULL) {
-        return 0;
+        // Parse the data into a UCL object
+        struct ucl_parser *parser = ucl_parser_new(0);
+        if (ucl_parser_add_string(parser, temp_data, size)) {
+            ucl_object_t *parsed_obj = ucl_parser_get_object(parser);
+            if (parsed_obj != NULL) {
+                // If successfully parsed, add to the array
+                ucl_array_append(obj, parsed_obj);
+                ucl_object_unref(parsed_obj);
+            }
+        }
+        ucl_parser_free(parser);
+        free(temp_data);
     }
 
-    // Register the macro
-    ucl_parser_register_macro(parser, macro_name, dummy_macro_handler_134, user_data);
+    // Call the function-under-test
+    const ucl_object_t *tail = ucl_array_tail(obj);
 
     // Clean up
-    ucl_parser_free(parser);
+    ucl_object_unref(obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_134(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

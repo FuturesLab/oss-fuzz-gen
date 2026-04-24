@@ -1,96 +1,70 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include "ucl.h"
+#include <stdint.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
         return 0;
     }
 
-    // Create a new UCL object of type UCL_OBJECT
-    ucl_object_t *top = ucl_object_typed_new(UCL_OBJECT);
-    if (top == NULL) {
-        return 0;
+    // Simulate parsing input data
+    if (Size > 0) {
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file != NULL) {
+            fwrite(Data, 1, Size, file);
+            fclose(file);
+            ucl_parser_add_file(parser, "./dummy_file");
+        }
     }
 
-    // Convert the input data to a string
-    const char *str = (const char *)Data;
-    size_t len = Size;
+    // Fuzz ucl_parser_get_column
+    unsigned column = ucl_parser_get_column(parser);
 
-    // Create UCL objects from strings
-    ucl_object_t *elt1 = ucl_object_fromstring_common(str, len, UCL_STRING_TRIM);
-    ucl_object_t *elt2 = ucl_object_fromstring_common(str, len, UCL_STRING_PARSE);
-    ucl_object_t *elt3 = ucl_object_fromstring_common(str, len, UCL_STRING_ESCAPE);
+    // Fuzz ucl_parser_get_linenum
 
-    // Insert keys into the UCL object
-    ucl_object_insert_key(top, elt1, "key1", 4, true);
-    ucl_object_insert_key(top, elt2, "key2", 4, true);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_insert_key to ucl_object_merge
-    ucl_object_t gqxxuelx;
-    memset(&gqxxuelx, 0, sizeof(gqxxuelx));
-    bool ret_ucl_object_merge_tuuzo = ucl_object_merge(&gqxxuelx, top, 0);
-    if (ret_ucl_object_merge_tuuzo == 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_column to ucl_parser_get_current_stack_object
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!parser) {
+    	return 0;
+    }
+    const char* ret_ucl_parser_get_cur_file_xshvr = ucl_parser_get_cur_file(parser);
+    if (ret_ucl_parser_get_cur_file_xshvr == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!parser) {
+    	return 0;
+    }
+    ucl_object_t* ret_ucl_parser_get_current_stack_object_ehgnq = ucl_parser_get_current_stack_object(parser, column);
+    if (ret_ucl_parser_get_current_stack_object_ehgnq == NULL){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    ucl_object_insert_key(top, elt3, "key3", 4, true);
+    unsigned linenum = ucl_parser_get_linenum(parser);
 
-    // Open a dummy file for writing
-    FILE *fp = fopen("./dummy_file", "w");
-    if (fp == NULL) {
-        ucl_object_unref(top);
-        return 0;
-    }
+    // Fuzz ucl_parser_clear_error
+    ucl_parser_clear_error(parser);
 
-    // Get emitter functions for file output
-    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
-    if (emitter_funcs == NULL) {
-        fclose(fp);
-        ucl_object_unref(top);
-        return 0;
-    }
+    // Fuzz ucl_parser_get_error_code
+    int error_code = ucl_parser_get_error_code(parser);
 
-    // Create and manage streamlined UCL emitters
-    struct ucl_emitter_context *ctx1 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON, emitter_funcs);
-    struct ucl_emitter_context *ctx2 = ucl_object_emit_streamline_new(top, UCL_EMIT_JSON_COMPACT, emitter_funcs);
-    struct ucl_emitter_context *ctx3 = ucl_object_emit_streamline_new(top, UCL_EMIT_CONFIG, emitter_funcs);
-    struct ucl_emitter_context *ctx4 = ucl_object_emit_streamline_new(top, UCL_EMIT_YAML, emitter_funcs);
+    // Fuzz ucl_parser_get_object
+    ucl_object_t *obj = ucl_parser_get_object(parser);
 
-    // Create a new UCL object of type UCL_ARRAY
-    ucl_object_t *array_obj = ucl_object_typed_new(UCL_ARRAY);
-    if (array_obj != NULL) {
-        // Start a container for streamlined output
-        ucl_object_emit_streamline_start_container(ctx1, array_obj);
-        ucl_object_emit_streamline_start_container(ctx2, array_obj);
-        ucl_object_emit_streamline_start_container(ctx3, array_obj);
-        ucl_object_emit_streamline_start_container(ctx4, array_obj);
+    // Fuzz ucl_object_unref only if obj is not NULL
+    if (obj != NULL) {
+        ucl_object_unref(obj);
     }
 
-    // Cleanup
-    if (ctx1) {
-        ucl_object_emit_streamline_finish(ctx1);
-    }
-    if (ctx2) {
-        ucl_object_emit_streamline_finish(ctx2);
-    }
-    if (ctx3) {
-        ucl_object_emit_streamline_finish(ctx3);
-    }
-    if (ctx4) {
-        ucl_object_emit_streamline_finish(ctx4);
-    }
-    if (array_obj) {
-        ucl_object_unref(array_obj);
-    }
-    fclose(fp);
-    ucl_object_unref(top);
+    // Fuzz ucl_parser_free
+    ucl_parser_free(parser);
 
     return 0;
 }

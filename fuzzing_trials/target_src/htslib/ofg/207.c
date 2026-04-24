@@ -1,49 +1,76 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>  // Added for memcpy
-#include <unistd.h>  // Added for off_t
-#include "/src/htslib/htslib/hfile.h"  // Corrected path for hfile.h
+#include <htslib/hts.h>
 
+// Fuzzing harness for hts_itr_destroy
 int LLVMFuzzerTestOneInput_207(const uint8_t *data, size_t size) {
-    if (size < sizeof(off_t) + sizeof(int)) {
-        return 0; // Not enough data to proceed
-    }
+    // Initialize a hts_itr_t pointer
+    hts_itr_t *itr = (hts_itr_t *)malloc(sizeof(hts_itr_t));
 
-    // Create a temporary file to use with hFILE
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
+    // Ensure the pointer is not NULL
+    if (itr == NULL) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    fwrite(data, 1, size, temp_file);
-    rewind(temp_file);
-
-    // Open the temporary file as an hFILE
-    hFILE *hfile = hopen(temp_file, "r");
-    if (hfile == NULL) {
-        fclose(temp_file);
-        return 0;
+    // Populate the hts_itr_t structure with some data
+    // Here we are using the input data to fill the structure
+    // This is a simple example; in practice, you might need to
+    // set specific fields based on the expected usage of the structure
+    if (size >= sizeof(hts_itr_t)) {
+        *itr = *(hts_itr_t *)data;
+    } else {
+        // If the input data is smaller than the size of hts_itr_t,
+        // just fill what we can and zero the rest
+        memcpy(itr, data, size);
+        memset(((uint8_t *)itr) + size, 0, sizeof(hts_itr_t) - size);
     }
-
-    // Extract off_t and int from the data
-    off_t offset;
-    int whence;
-
-    // Assuming the first sizeof(off_t) bytes are for offset
-    memcpy(&offset, data, sizeof(off_t));
-
-    // The next sizeof(int) bytes are for whence
-    memcpy(&whence, data + sizeof(off_t), sizeof(int));
 
     // Call the function-under-test
-    hseek(hfile, offset, whence);
+    hts_itr_destroy(itr);
 
-    // Clean up
-    hclose(hfile);
-    fclose(temp_file);
+    // Free the allocated memory
+    // Note: hts_itr_destroy should handle freeing internal resources,
+    // so we only free the outer structure here
+    free(itr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_207(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

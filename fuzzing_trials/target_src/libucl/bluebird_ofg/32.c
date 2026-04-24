@@ -1,45 +1,52 @@
 #include <sys/stat.h>
-#include <string.h>
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "ucl.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    struct ucl_parser *parser;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    bool result;
+
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Call the function-under-test
+    const char riuuqfuk[1024] = "ywslf";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_parser_add_file_priority
+    result = ucl_parser_add_file_priority(parser, riuuqfuk, 0);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    // Clean up
+    ucl_parser_free(parser);
+    unlink(tmpl);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
-  struct ucl_parser *parser = ucl_parser_new(size);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_default_priority to ucl_set_include_path
-  ucl_object_t* ret_ucl_parser_get_object_plruy = ucl_parser_get_object(parser);
-  if (ret_ucl_parser_get_object_plruy == NULL){
-  	return 0;
-  }
-  bool ret_ucl_set_include_path_ogztd = ucl_set_include_path(parser, ret_ucl_parser_get_object_plruy);
-  if (ret_ucl_set_include_path_ogztd == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

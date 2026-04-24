@@ -1,36 +1,91 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/tbx.h"  // Include necessary library for hts_idx_t
+#include "htslib/sam.h"
+#include "/src/htslib/cram/cram.h"  // Include this for hts_idx_t and hts_itr_t definitions
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Initialize parameters for hts_idx_set_meta
-    // Adjust the parameters to match the function signature of hts_idx_init
-    uint64_t offset0 = 0; // Dummy offset
-    int min_shift = 14; // Default minimum shift for CSI
-    int n_lvls = 5; // Default number of levels for CSI
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, offset0, min_shift, n_lvls); // Create an index with dummy parameters
-    
-    // Ensure l_meta is not zero and does not exceed the size of data
-    uint32_t l_meta = size > 4 ? *(uint32_t *)data % size : 1; 
-    uint8_t *meta = (uint8_t *)malloc(l_meta); // Allocate memory for meta data
-    if (meta == NULL) return 0; // Check for allocation failure
-    int is_copy = 1; // Set is_copy to a non-zero value
+    // Ensure we have enough data to work with
+    if (size < 1) {
+        return 0;
+    }
 
-    // Copy data to meta, ensuring no overflow
-    if (size > 0) {
-        size_t copy_size = l_meta < size ? l_meta : size;
-        for (size_t i = 0; i < copy_size; i++) {
-            meta[i] = data[i];
-        }
+    // Create a memory stream from the input data
+    htsFile *file = hts_open_format("data://", "r", NULL);
+    if (!file) {
+        return 0;
+    }
+
+    // Initialize index and iterator
+    hts_idx_t *idx = hts_idx_load("data://", HTS_FMT_CRAI);
+    if (!idx) {
+        hts_close(file);
+        return 0;
+    }
+
+    hts_itr_t *itr = hts_itr_query(idx, 0, 0, 0, 0);
+    if (!itr) {
+        hts_idx_destroy(idx);
+        hts_close(file);
+        return 0;
     }
 
     // Call the function-under-test
-    hts_idx_set_meta(idx, l_meta, meta, is_copy);
+    int result = hts_itr_multi_cram(idx, itr);
 
     // Clean up
+    hts_itr_destroy(itr);
     hts_idx_destroy(idx);
-    free(meta);
+    hts_close(file);
 
+    return result;
+}
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_84(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

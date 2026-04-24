@@ -1,73 +1,83 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <stdio.h>
-#include <unistd.h>  // for close() and unlink()
-#include "htslib/sam.h"
-#include "/src/htslib/htslib/bgzf.h"
-#include <string.h>  // for strlen()
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>  // Include for mkstemp function
+#include "htslib/hts.h"  // Ensure the correct path to the htslib header
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    BGZF *bgzf = NULL;
-    sam_hdr_t *sam_hdr = NULL;
-    int result = 0;
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
-
     if (fd == -1) {
-        return 0;  // If we can't create a temp file, exit early
+        return 0;
     }
 
-    // Open the temporary file with BGZF
-    bgzf = bgzf_fdopen(fd, "w");
-    if (bgzf == NULL) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
+        unlink(tmpl);
         return 0;
     }
 
-    // Ensure the input data is null-terminated before passing to sam_hdr_parse
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        bgzf_close(bgzf);
-        return 0;
-    }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
+    // Close the file descriptor
+    close(fd);
 
-    // Create a sam_hdr_t object from the input data
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sam_hdr_parse
-    sam_hdr = sam_hdr_parse(BAM_CMATCH, null_terminated_data);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_parse to sam_hdr_count_lines
-    char* ret_bam_flag2str_smzle = bam_flag2str(BAM_CBACK);
-    if (ret_bam_flag2str_smzle == NULL){
-    	return 0;
-    }
-
-    int ret_sam_hdr_count_lines_nulxc = sam_hdr_count_lines(sam_hdr, ret_bam_flag2str_smzle);
-    if (ret_sam_hdr_count_lines_nulxc < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(null_terminated_data);
-
-    if (sam_hdr == NULL) {
-        bgzf_close(bgzf);
-        return 0;
-    }
+    // Prepare the second argument for hts_readlines
+    int num_lines = 0;
 
     // Call the function-under-test
-    result = bam_hdr_write(bgzf, sam_hdr);
+    char **lines = hts_readlines(tmpl, &num_lines);
 
     // Clean up
-    sam_hdr_destroy(sam_hdr);
-    bgzf_close(bgzf);
-    unlink(tmpl);  // Remove the temporary file
+    if (lines != NULL) {
+        for (int i = 0; i < num_lines; ++i) {
+            free(lines[i]);
+        }
+        free(lines);
+    }
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

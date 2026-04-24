@@ -1,24 +1,19 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdbool.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
 #include "ucl.h"
 
-static ucl_object_t *create_random_ucl_object() {
-    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
-    if (obj) {
-        memset(obj, 0, sizeof(ucl_object_t));
-        obj->type = UCL_OBJECT;
-    }
-    return obj;
-}
-
-static void free_ucl_object(ucl_object_t *obj) {
-    if (obj) {
-        free(obj);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *fp = fopen("./dummy_file", "wb");
+    if (fp != NULL) {
+        fwrite(Data, 1, Size, fp);
+        fclose(fp);
     }
 }
 
@@ -27,74 +22,94 @@ int LLVMFuzzerTestOneInput_54(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Prepare dummy UCL objects
-    ucl_object_t *top = create_random_ucl_object();
-    ucl_object_t *elt = create_random_ucl_object();
-    ucl_object_t *replace_elt = create_random_ucl_object();
-    ucl_object_t *merged_elt = create_random_ucl_object();
-
-    if (!top || !elt || !replace_elt || !merged_elt) {
-        free_ucl_object(top);
-        free_ucl_object(elt);
-        free_ucl_object(replace_elt);
-        free_ucl_object(merged_elt);
+    // Prepare the environment
+    ucl_object_t *obj = ucl_object_typed_new(UCL_OBJECT);
+    if (!obj) {
         return 0;
     }
 
-    // Prepare a key
-    char *key = (char *)malloc(Size + 1);
-    if (!key) {
-        free_ucl_object(top);
-        free_ucl_object(elt);
-        free_ucl_object(replace_elt);
-        free_ucl_object(merged_elt);
-        return 0;
+    const char *str = (const char *)Data;
+    size_t len = Size;
+    enum ucl_string_flags flags = UCL_STRING_PARSE;
+
+    // Convert string to UCL object
+    ucl_object_t *string_obj1 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj1) {
+        goto cleanup;
     }
-    memcpy(key, Data, Size);
-    key[Size] = '\0'; // Ensure null-termination
-    size_t keylen = Size;
-    bool copy_key = Data[0] % 2 == 0;
 
-    // Test ucl_object_insert_key
-    ucl_object_insert_key(top, elt, key, keylen, copy_key);
+    // Insert key-value pair
+    if (!ucl_object_insert_key(obj, string_obj1, "key1", 4, true)) {
+        goto cleanup;
+    }
 
-    // Test ucl_object_replace_key
-    ucl_object_replace_key(top, replace_elt, key, keylen, copy_key);
 
-    // Test ucl_object_delete_key
-    ucl_object_delete_key(top, key);
-
-    // Test ucl_object_lookup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_delete_key to ucl_array_delete
-    ucl_object_t* ret_ucl_object_fromint_hlbif = ucl_object_fromint(-1);
-    if (ret_ucl_object_fromint_hlbif == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_fromstring_common to ucl_object_compare_qsort
+    ucl_object_t* ret_ucl_object_fromint_fkeyk = ucl_object_fromint(0);
+    if (ret_ucl_object_fromint_fkeyk == NULL){
     	return 0;
     }
-    ucl_object_t* ret_ucl_array_delete_mrych = ucl_array_delete(ret_ucl_object_fromint_hlbif, top);
-    if (ret_ucl_array_delete_mrych == NULL){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_fromint_fkeyk) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!string_obj1) {
+    	return 0;
+    }
+    int ret_ucl_object_compare_qsort_jtyfw = ucl_object_compare_qsort(&ret_ucl_object_fromint_fkeyk, &string_obj1);
+    if (ret_ucl_object_compare_qsort_jtyfw < 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    ucl_object_lookup(top, key);
-
-    // Test ucl_object_insert_key_merged
-    ucl_object_insert_key_merged(top, merged_elt, key, keylen, copy_key);
-
-    // Test ucl_object_pop_key
-    ucl_object_t *popped = ucl_object_pop_key(top, key);
-    if (popped && popped != elt && popped != replace_elt && popped != merged_elt) {
-        free_ucl_object(popped);
+    ucl_object_t *string_obj2 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj2) {
+        goto cleanup;
     }
 
-    // Cleanup
-    free(key);
-    free_ucl_object(top);
-    free_ucl_object(elt);
-    free_ucl_object(replace_elt);
-    free_ucl_object(merged_elt);
+    if (!ucl_object_insert_key(obj, string_obj2, "key2", 4, true)) {
+        goto cleanup;
+    }
 
+    ucl_object_t *string_obj3 = ucl_object_fromstring_common(str, len, flags);
+    if (!string_obj3) {
+        goto cleanup;
+    }
+
+    if (!ucl_object_insert_key(obj, string_obj3, "key3", 4, true)) {
+        goto cleanup;
+    }
+
+    write_dummy_file(Data, Size);
+
+    FILE *fp = fopen("./dummy_file", "r");
+    if (!fp) {
+        goto cleanup;
+    }
+
+    struct ucl_emitter_functions *emitter_funcs = ucl_object_emit_file_funcs(fp);
+    if (!emitter_funcs) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    struct ucl_emitter_context *ctx = ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    if (!ctx) {
+        fclose(fp);
+        goto cleanup;
+    }
+
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+    ucl_object_emit_streamline_new(obj, UCL_EMIT_JSON, emitter_funcs);
+
+    ucl_object_emit_streamline_start_container(ctx, obj);
+
+    fclose(fp);
+
+cleanup:
+    ucl_object_unref(obj);
     return 0;
 }
 #ifdef INC_MAIN

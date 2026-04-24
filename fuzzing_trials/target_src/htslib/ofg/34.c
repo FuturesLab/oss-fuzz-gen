@@ -1,31 +1,91 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
-
-extern ssize_t sam_parse_cigar(const char *, char **, uint32_t **, size_t *);
+#include <string.h>
+#include "/src/htslib/htslib/sam.h" // Correct path for sam_hdr_t
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated
-    char *cigar_string = (char *)malloc(size + 1);
-    if (cigar_string == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(cigar_string, data, size);
-    cigar_string[size] = '\0';
+    // Declare and initialize variables
+    sam_hdr_t *hdr = sam_hdr_init();
 
-    // Initialize the output parameters
-    char *end = NULL;
-    uint32_t *cigar_operations = NULL;
-    size_t num_operations = 0;
+    // Check if hdr is initialized successfully
+    if (hdr == NULL) {
+        return 0;
+    }
+
+    // Ensure there is enough data to extract key and value
+    if (size < 3) { // Minimum size to have at least a 1-char key and 1-char value
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    // Use the fuzzing data to create a key-value pair
+    size_t key_len = data[0] % (size - 2); // Ensure key length is within bounds
+    size_t value_len = size - 2 - key_len; // Remaining data for value
+
+    // Allocate memory for key and value
+    char *key = (char *)malloc(key_len + 1);
+    char *value = (char *)malloc(value_len + 1);
+
+    if (key == NULL || value == NULL) {
+        free(key);
+        free(value);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    // Copy data into key and value, and null-terminate them
+    memcpy(key, &data[1], key_len);
+    key[key_len] = '\0';
+    memcpy(value, &data[1 + key_len], value_len);
+    value[value_len] = '\0';
 
     // Call the function-under-test
-    ssize_t result = sam_parse_cigar(cigar_string, &end, &cigar_operations, &num_operations);
+    int result = sam_hdr_change_HD(hdr, key, value);
 
-    // Free allocated resources
-    free(cigar_string);
-    free(cigar_operations);
+    // Clean up
+    free(key);
+    free(value);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

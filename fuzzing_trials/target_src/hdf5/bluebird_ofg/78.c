@@ -1,36 +1,37 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract parameters.
-    if (size < 8) {
-        return 0;
-    } // Adjust size as needed for your parameters
+    // Ensure data has enough size for a null-terminated string
+    if (size < 2) return 0;
 
-    // Extract parameters from the data
-    const char *file_name = "testfile.h5"; // Static file name for testing
-    unsigned int create_mode = (unsigned int)data[0];
-    hid_t fcpl_id = (hid_t)(data[1] | (data[2] << 8));
-    hid_t fapl_id = (hid_t)(data[3] | (data[4] << 8));
-    hid_t es_id = (hid_t)(data[5] | (data[6] << 8));
+    // Create a temporary HDF5 file
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
+
+    // Create a group in the file to ensure the group exists
+    hid_t group_id = H5Gcreate2(file_id, "/test_group", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (group_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
+    H5Gclose(group_id);
+
+    // Prepare a string from the input data
+    char group_name[size];
+    memcpy(group_name, data, size - 1);
+    group_name[size - 1] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    hid_t file_id = H5Fcreate(file_name, create_mode, fcpl_id, fapl_id);
+    hid_t result = H5Gopen1(file_id, group_name);
 
-    // Close the file if it was successfully created
-    if (file_id >= 0) {
-        H5Fclose(file_id);
-    }
+    // Clean up
+    if (result >= 0) H5Gclose(result);
+    H5Fclose(file_id);
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fset_dset_no_attrs_hint
-    herr_t ret_H5Fset_dset_no_attrs_hint_vysxk = H5Fset_dset_no_attrs_hint(file_id, 1);
-    // End mutation: Producer.APPEND_MUTATOR
-    
     return 0;
 }
 #ifdef INC_MAIN

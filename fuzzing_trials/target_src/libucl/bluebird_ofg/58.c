@@ -1,38 +1,35 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
-#include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    struct ucl_parser *parser;
+    bool result;
+
+    // Initialize the UCL parser
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ucl_parser_new
+    parser = ucl_parser_new(UCL_PRIORITY_MAX);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Call the function-under-test
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_parser_add_chunk
+        result = ucl_parser_add_chunk(parser, NULL, size);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+    }
+
+    // Clean up the parser
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_add_string to ucl_parser_add_special_handler
-  struct ucl_parser_special_handler lzzrqdmn;
-  memset(&lzzrqdmn, 0, sizeof(lzzrqdmn));
-  ucl_parser_add_special_handler(parser, &lzzrqdmn);
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

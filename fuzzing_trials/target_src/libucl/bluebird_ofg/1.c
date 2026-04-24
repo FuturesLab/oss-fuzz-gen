@@ -5,62 +5,119 @@
 #include "ucl.h"
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *ucl_obj = NULL;
-    ucl_emitter_t emitter_type = UCL_EMIT_JSON; // Corrected type name
-
-    // Ensure the data is not empty
     if (size == 0) {
         return 0;
     }
 
-    // Create a UCL parser
+    // Initialize UCL parser
     struct ucl_parser *parser = ucl_parser_new(0);
     if (parser == NULL) {
         return 0;
     }
 
     // Parse the input data
-    if (!ucl_parser_add_chunk(parser, data, size)) {
-        ucl_parser_free(parser);
-        return 0;
+    ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
+
+    if (obj != NULL) {
+        // Define a ucl_emitter value
+        enum ucl_emitter emitter_type = UCL_EMIT_JSON;
+
+        // Call the function-under-test
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_object_emit
+        unsigned char *result = ucl_object_emit(obj, UCL_EMIT_CONFIG);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+        // Free the result if it's not NULL
+        if (result != NULL) {
+            free(result);
+        }
+
+        // Free the UCL object
+        ucl_object_unref(obj);
     }
 
-    // Get the UCL object
-    ucl_obj = ucl_parser_get_object(parser);
-    if (ucl_obj == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
+    // Clean up the parser
 
-    // Call the function-under-test
-    unsigned char *result = ucl_object_emit(ucl_obj, emitter_type);
-
-    // Free allocated resources
-    if (result != NULL) {
-        free(result);
-    }
-    ucl_object_unref(ucl_obj);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_elt_append
-    ucl_object_t* ret_ucl_object_fromdouble_hdhsj = ucl_object_fromdouble(size);
-    if (ret_ucl_object_fromdouble_hdhsj == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_set_include_path
+    struct ucl_parser* ret_ucl_parser_new_khqgc = ucl_parser_new(UCL_PRIORITY_MIN);
+    if (ret_ucl_parser_new_khqgc == NULL){
     	return 0;
     }
-    ucl_object_t* ret_ucl_elt_append_efsbd = ucl_elt_append(ucl_obj, ret_ucl_object_fromdouble_hdhsj);
-    if (ret_ucl_elt_append_efsbd == NULL){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_parser_new_khqgc) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    bool ret_ucl_set_include_path_opozz = ucl_set_include_path(ret_ucl_parser_new_khqgc, obj);
+    if (ret_ucl_set_include_path_opozz == 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_elt_append to ucl_object_pop_key
-    char* ret_ucl_copy_value_trash_jaime = ucl_copy_value_trash(ret_ucl_object_fromdouble_hdhsj);
-    if (ret_ucl_copy_value_trash_jaime == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_set_include_path to ucl_object_replace_key
+    ucl_object_t* ret_ucl_object_fromint_fhsqx = ucl_object_fromint(0);
+    if (ret_ucl_object_fromint_fhsqx == NULL){
     	return 0;
     }
-    ucl_object_t* ret_ucl_object_pop_key_csgss = ucl_object_pop_key(ret_ucl_object_fromdouble_hdhsj, ret_ucl_copy_value_trash_jaime);
-    if (ret_ucl_object_pop_key_csgss == NULL){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_parser_new_khqgc) {
+    	return 0;
+    }
+    struct ucl_emitter_functions* ret_ucl_object_emit_memory_funcs_unntq = ucl_object_emit_memory_funcs((void **)&ret_ucl_parser_new_khqgc);
+    if (ret_ucl_object_emit_memory_funcs_unntq == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_emit_memory_funcs to ucl_parser_register_macro
+    struct ucl_parser* ret_ucl_parser_new_odnny = ucl_parser_new(-1);
+    if (ret_ucl_parser_new_odnny == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_fromint_fhsqx) {
+    	return 0;
+    }
+    char* ret_ucl_copy_value_trash_hiaat = ucl_copy_value_trash(ret_ucl_object_fromint_fhsqx);
+    if (ret_ucl_copy_value_trash_hiaat == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_parser_new_odnny) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_copy_value_trash_hiaat) {
+    	return 0;
+    }
+    bool ret_ucl_parser_register_macro_ooqwh = ucl_parser_register_macro(ret_ucl_parser_new_odnny, &ret_ucl_parser_new_khqgc, &ret_ucl_parser_new_khqgc, (void *)ret_ucl_copy_value_trash_hiaat);
+    if (ret_ucl_parser_register_macro_ooqwh == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int64_t ret_ucl_object_toint_jauca = ucl_object_toint(obj);
+    if (ret_ucl_object_toint_jauca < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_fromint_fhsqx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    bool ret_ucl_object_replace_key_bmjin = ucl_object_replace_key(ret_ucl_object_fromint_fhsqx, obj, &ret_ucl_parser_new_khqgc, (size_t )ret_ucl_object_toint_jauca, 1);
+    if (ret_ucl_object_replace_key_bmjin == 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR

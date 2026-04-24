@@ -1,70 +1,91 @@
+#include <sys/stat.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // Include this for the close() and remove() functions
-#include "htslib/hts.h"
-#include "htslib/sam.h"
+
+// Function-under-test
+char *stringify_argv(int argc, char **argv);
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Ensure there is enough data to proceed
+    if (size < 2) return 0;
 
-    // Open the temporary file as an htsFile
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        remove(tmpl);
-        return 0;
-    }
+    // Determine the number of arguments
+    int argc = data[0] % 5 + 1; // Limit argc to a small number for testing
+    char **argv = (char **)malloc(argc * sizeof(char *));
+    if (!argv) return 0;
 
-    // Define index and format strings
-    const char *index = "index.bai"; // Example index filename
-    const char *format = "bai";      // Example format
+    size_t offset = 1;
+    for (int i = 0; i < argc; i++) {
+        // Ensure there is enough space for at least one character and null terminator
+        if (offset >= size - 1) {
+            argv[i] = strdup("");
+        } else {
+            size_t arg_len = (data[offset] % (size - offset)) + 1;
+            argv[i] = (char *)malloc(arg_len + 1);
+            if (!argv[i]) {
+                // Clean up previously allocated memory
+                for (int j = 0; j < i; j++) {
+                    free(argv[j]);
+                }
+                free(argv);
+                return 0;
+            }
+            memcpy(argv[i], &data[offset], arg_len);
+            argv[i][arg_len] = '\0';
+            offset += arg_len;
+        }
+    }
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of sam_index_load3
-    const char uptyclzw[1024] = "vmllt";
-    hts_idx_t *index_result = sam_index_load3(hts_file, tmpl, uptyclzw, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    char *result = stringify_argv(argc, argv);
 
     // Clean up
-    if (index_result) {
-        hts_idx_destroy(index_result);
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_destroy to sam_itr_regions
-        htsFile ybblcpbf;
-        memset(&ybblcpbf, 0, sizeof(ybblcpbf));
-        sam_hdr_t* ret_sam_hdr_read_qhfeg = sam_hdr_read(&ybblcpbf);
-        if (ret_sam_hdr_read_qhfeg == NULL){
-        	return 0;
-        }
-        hts_reglist_t vscqohrb;
-        memset(&vscqohrb, 0, sizeof(vscqohrb));
-
-        hts_itr_t* ret_sam_itr_regions_xizpk = sam_itr_regions(index_result, ret_sam_hdr_read_qhfeg, &vscqohrb, FT_VCF);
-        if (ret_sam_itr_regions_xizpk == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-}
-    hts_close(hts_file);
-    remove(tmpl);
+    if (result) free(result);
+    for (int i = 0; i < argc; i++) {
+        free(argv[i]);
+    }
+    free(argv);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

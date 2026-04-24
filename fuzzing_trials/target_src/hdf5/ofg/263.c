@@ -1,25 +1,56 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <hdf5.h>
 
 int LLVMFuzzerTestOneInput_263(const uint8_t *data, size_t size) {
-    // Initialize variables for the function call
-    hid_t loc_id = H5P_DEFAULT; // Using default property list
-    const char *obj_name = "example_object";
-    const char *attr_name = "example_attribute";
-    hid_t aapl_id = H5P_DEFAULT; // Using default attribute access property list
-    hid_t lapl_id = H5P_DEFAULT; // Using default link access property list
-
-    // Ensure the data is not empty before using it
-    if (size > 0) {
-        // Call the function-under-test
-        hid_t attr_id = H5Aopen_by_name(loc_id, obj_name, attr_name, aapl_id, lapl_id);
-
-        // Close the attribute if it was successfully opened
-        if (attr_id >= 0) {
-            H5Aclose(attr_id);
-        }
+    // Ensure that the size is sufficient to create a valid hid_t
+    if (size < sizeof(hid_t)) {
+        return 0;
     }
+
+    // Create a valid hid_t from the input data
+    hid_t dataset_id = *(const hid_t *)data;
+
+    // Call the function-under-test
+    H5Drefresh(dataset_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_263(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,80 +1,107 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
-// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
-// ucl_comments_find at ucl_util.c:3925:1 in ucl.h
-// ucl_comments_find at ucl_util.c:3925:1 in ucl.h
-// ucl_object_typed_new at ucl_util.c:2986:1 in ucl.h
-// ucl_object_fromstring at ucl_util.c:3078:1 in ucl.h
-// ucl_elt_append at ucl_util.c:3397:1 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
-// ucl_object_unref at ucl_util.c:3697:6 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3100:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3100:1 in ucl.h
+// ucl_array_append at ucl_util.c:3153:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3100:1 in ucl.h
+// ucl_array_replace_index at ucl_util.c:3400:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
+// ucl_object_lookup_path at ucl_util.c:2931:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ucl.h>
-
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file != NULL) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    // Step 1: Prepare the environment
-    ucl_object_t *comments = NULL;
-    ucl_object_t *srch = NULL;
-    ucl_object_t *new_object = NULL;
-    ucl_object_t *from_string = NULL;
-    ucl_object_t *result = NULL;
+    if (Size < 1) return 0;
 
-    // Step 2: Initialize objects
-    if (Size > 0) {
-        comments = ucl_object_typed_new(UCL_OBJECT);
-        srch = ucl_object_typed_new(UCL_OBJECT);
+    // Convert input data to a null-terminated string
+    char *input_string = (char *)malloc(Size + 1);
+    if (!input_string) return 0;
+    memcpy(input_string, Data, Size);
+    input_string[Size] = '\0';
 
-        // Use the data as keys for the objects
-        comments->key = (const char *)Data;
-        comments->keylen = Size;
-        
-        srch->key = (const char *)Data;
-        srch->keylen = Size;
+    // Create a UCL object from the input string
+    ucl_object_t *obj1 = ucl_object_fromstring(input_string);
+    if (obj1 == NULL) {
+        free(input_string);
+        return 0;
     }
 
-    // Step 3: Invoke the target functions
-    const ucl_object_t *found_comment = ucl_comments_find(comments, srch);
-    found_comment = ucl_comments_find(comments, srch);
+    // Initialize an array object
+    ucl_object_t *array = ucl_object_fromstring("[]");
 
-    if (Size > 0) {
-        new_object = ucl_object_typed_new((ucl_type_t)(Data[0] % (UCL_NULL + 1)));
-        if (new_object != NULL) {
-            // Ensure the string is null-terminated before passing it to ucl_object_fromstring
-            char *null_terminated_string = (char *)malloc(Size + 1);
-            if (null_terminated_string != NULL) {
-                memcpy(null_terminated_string, Data, Size);
-                null_terminated_string[Size] = '\0';
-                from_string = ucl_object_fromstring(null_terminated_string);
-                free(null_terminated_string);
-
-                if (from_string != NULL) {
-                    result = ucl_elt_append(NULL, from_string);
-                    // Avoid double free by setting from_string to NULL after appending
-                    from_string = NULL;
-                }
-            }
-        }
+    // Append the first object to the array
+    if (!ucl_array_append(array, obj1)) {
+        ucl_object_unref(obj1);
+        ucl_object_unref(array);
+        free(input_string);
+        return 0;
     }
 
-    // Step 4: Cleanup
-    if (comments) ucl_object_unref(comments);
-    if (srch) ucl_object_unref(srch);
-    if (new_object) ucl_object_unref(new_object);
-    if (result) ucl_object_unref(result);
+    // Replace index 0 in the array with a new object
+    ucl_object_t *obj2 = ucl_object_fromstring(input_string);
+    ucl_object_t *replaced = ucl_array_replace_index(array, obj2, 0);
+
+    // Unref the replaced object if it exists
+    if (replaced != NULL) {
+        ucl_object_unref(replaced);
+    }
+
+    // Lookup a path in the array
+    const ucl_object_t *lookup_result = ucl_object_lookup_path(array, "0");
+
+    // Cleanup
+    ucl_object_unref(array);
+    free(input_string);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

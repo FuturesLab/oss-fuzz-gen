@@ -1,63 +1,71 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/faidx.h"
 #include <string.h>
-#include <unistd.h>
+#include <stdlib.h> // Include stdlib.h for malloc and free
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    htsFile *file = NULL;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-    FILE *fp;
+    // Ensure that the data is null-terminated for string operations
+    if (size == 0) return 0;
 
-    // Create a temporary file
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Allocate memory for the null-terminated string
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) return 0;
 
-    // Write the fuzz data to the temporary file
-    fp = fdopen(fd, "wb");
-    if (fp == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, fp);
-    fclose(fp);
+    // Copy the data and add a null terminator
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Open the temporary file with hts_open
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hts_open
-    const char qksshzoi[1024] = "flfas";
-    file = hts_open(tmpl, qksshzoi);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (file == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Attempt to create an index for the file to ensure it's in a valid format
-    if (fai_build(tmpl) != 0) {
-        hts_close(file);
-        unlink(tmpl);
-        return 0;
-    }
+    // Initialize htsFormat structure
+    htsFormat format;
+    memset(&format, 0, sizeof(htsFormat));
 
     // Call the function-under-test
+    hts_parse_format(&format, null_terminated_data);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hts_set_fai_filename
-    hts_set_fai_filename(file, (const char *)"r");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-    hts_close(file);
-    unlink(tmpl);
+    // Cleanup
+    free(null_terminated_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

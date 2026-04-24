@@ -1,31 +1,69 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h> // Include this for memcpy
 #include <htslib/hts.h>
-#include <htslib/tbx.h> // Include this for hts_idx_t and related functions
 
 int LLVMFuzzerTestOneInput_162(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract multiple values
-    if (size < sizeof(int) + 2 * sizeof(hts_pos_t) + sizeof(uint64_t) + sizeof(int)) {
+    // Ensure that the data size is sufficient to extract an int
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize variables
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 0, 0); // Initialize with some default values
-    if (!idx) {
-        return 0; // Ensure idx is not NULL
+    // Create a temporary htsFile structure
+    htsFile *file = hts_open("temp.bam", "wb");
+    if (file == NULL) {
+        return 0;
     }
 
-    int tid = *(int *)data;
-    hts_pos_t beg = *(hts_pos_t *)(data + sizeof(int));
-    hts_pos_t end = *(hts_pos_t *)(data + sizeof(int) + sizeof(hts_pos_t));
-    uint64_t offset = *(uint64_t *)(data + sizeof(int) + 2 * sizeof(hts_pos_t));
-    int is_mapped = *(int *)(data + sizeof(int) + 2 * sizeof(hts_pos_t) + sizeof(uint64_t));
+    // Extract an int value from the data
+    int cache_size;
+    memcpy(&cache_size, data, sizeof(int));
 
     // Call the function-under-test
-    int result = hts_idx_push(idx, tid, beg, end, offset, is_mapped);
+    hts_set_cache_size(file, cache_size);
 
-    // Clean up
-    hts_idx_destroy(idx);
+    // Close the htsFile
+    hts_close(file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_162(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

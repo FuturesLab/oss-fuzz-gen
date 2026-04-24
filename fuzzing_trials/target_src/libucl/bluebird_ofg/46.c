@@ -1,40 +1,33 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    struct ucl_parser *parser;
+    const ucl_object_t *comments;
+
+    // Initialize the parser
+    parser = ucl_parser_new(UCL_PARSER_NO_FILEVARS);
+
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Feed the input data to the parser
+    if (!ucl_parser_add_chunk(parser, data, size)) {
+        ucl_parser_free(parser);
+        return 0;
+    }
+
+    // Call the function-under-test
+    comments = ucl_parser_get_comments(parser);
+
+    // Free the parser
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_set_include_tracer
-  ucl_object_t* ret_ucl_object_fromint_fwskr = ucl_object_fromint(64);
-  if (ret_ucl_object_fromint_fwskr == NULL){
-  	return 0;
-  }
-  ucl_parser_set_include_tracer(parser, NULL, (void *)ret_ucl_object_fromint_fwskr);
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

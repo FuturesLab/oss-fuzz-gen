@@ -1,37 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    hid_t dataset_id;
+    haddr_t offset;
+
+    // Ensure the input size is sufficient to create a valid HDF5 identifier
+    if (size < sizeof(hid_t)) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Initialize the HDF5 library
+    H5open();
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    // Use the first part of the data to create a hid_t object
+    dataset_id = *((hid_t*)data);
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    offset = H5Dget_offset(dataset_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aiterate1
-    hid_t ret_H5Dget_space_pibob = H5Dget_space(0);
-    unsigned int fuyqnitl = 0;
-    herr_t ret_H5Aiterate1_pnztu = H5Aiterate1(ret_H5Dget_space_pibob, &fuyqnitl, NULL, (void *)name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Close the HDF5 library
+    H5close();
 
     return 0;
 }

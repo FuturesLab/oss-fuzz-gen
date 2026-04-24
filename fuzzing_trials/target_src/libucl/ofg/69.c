@@ -1,43 +1,76 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include <stdlib.h>
 #include <ucl.h>
 
-// Example context macro handler function
-bool example_macro_handler(struct ucl_parser *parser, const char *macro, void *ud) {
-    // For the purpose of this fuzzing harness, the handler does not need to do anything meaningful
-    return true;
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
     struct ucl_parser *parser;
-    const char *macro_name;
-    ucl_context_macro_handler handler;
-    void *user_data;
 
-    // Initialize the parser
+    // Initialize the UCL parser
     parser = ucl_parser_new(0);
-
-    // Ensure we have enough data to create a non-null macro name
-    if (size < 1) {
-        ucl_parser_free(parser);
+    if (parser == NULL) {
         return 0;
     }
 
-    // Use the input data to create a macro name
-    macro_name = (const char *)data;
-
-    // Set the handler to the example handler
-    handler = example_macro_handler;
-
-    // Use the remaining data as user data
-    user_data = (void *)(data + 1);
+    // Try to parse the input data
+    ucl_parser_add_chunk(parser, data, size);
 
     // Call the function-under-test
-    ucl_parser_register_context_macro(parser, macro_name, handler, user_data);
+    const char *cur_file = ucl_parser_get_cur_file(parser);
 
-    // Clean up
+    // Check the returned file name (if any) for debugging purposes
+    if (cur_file != NULL) {
+        // Normally you might log this or perform further checks
+    }
+
+    // Clean up the parser
     ucl_parser_free(parser);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_69(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

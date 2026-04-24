@@ -1,45 +1,64 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdint.h>
+#include <stdio.h>
 
-// Assuming kstring_t is defined as follows:
-typedef struct {
-    size_t l, m;
-    char *s;
-} kstring_t;
-
-// Function signature for the function-under-test
-char * haddextension(struct kstring_t *, const char *, int, const char *);
+// Function-under-test declaration
+unsigned int hts_features(const uint8_t *data, size_t size);
 
 // Fuzzing harness
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    // Initialize kstring_t
-    kstring_t kstr;
-    kstr.l = size;
-    kstr.m = size + 1; // Allow space for null terminator
-    kstr.s = (char *)malloc(kstr.m);
-    if (kstr.s == NULL) {
-        return 0; // Failed to allocate memory
+    if (size == 0) {
+        return 0; // Avoid calling the function with no data
     }
-    memcpy(kstr.s, data, size);
-    kstr.s[size] = '\0'; // Null-terminate the string
 
-    // Initialize other parameters
-    const char *ext1 = "txt"; // Example extension
-    int flag = 1; // Example flag value
-    const char *ext2 = "bak"; // Another example extension
+    // Call the function-under-test with the provided data
+    unsigned int features = hts_features(data, size);
 
-    // Call the function-under-test
-    char *result = haddextension(&kstr, ext1, flag, ext2);
-
-    // Free allocated memory
-    free(kstr.s);
-
-    // Free the result if dynamically allocated
-    if (result != kstr.s) {
-        free(result);
+    // Use the result in some way to avoid compiler optimizations
+    // that might remove the call to the function-under-test
+    // For example, print the result or use it in a condition
+    if (features > 0) {
+        printf("Features: %u\n", features);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

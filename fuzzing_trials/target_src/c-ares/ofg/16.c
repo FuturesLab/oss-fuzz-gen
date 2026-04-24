@@ -1,60 +1,73 @@
-#include <ares.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <netinet/in.h>
-
-// Callback function for ares_getnameinfo
-static void nameinfo_callback(void *arg, int status, int timeouts, char *node, char *service) {
-  // Use parameters to avoid unused parameter warnings
-  (void)arg;
-  (void)status;
-  (void)timeouts;
-  (void)node;
-  (void)service;
-}
+#include <ares.h>
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-  if (size < sizeof(struct sockaddr_in)) {
-    return 0; // Not enough data to fill sockaddr_in
-  }
+    /* Declare variables */
+    ares_channel channel = NULL;
+    struct ares_options options;
+    int optmask = 0;
 
-  ares_channel channel;
-  struct ares_options options;
-  int optmask = 0;
+    /* Initialize options with some default values */
+    options.flags = ARES_FLAG_USEVC;
+    options.timeout = 5000;
+    options.tries = 3;
+    options.ndots = 1;
+    options.tcp_port = 53;
+    options.udp_port = 53;
 
-  // Initialize ares library
-  if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS) {
+    /* Set optmask to include the options we are using */
+    optmask = ARES_OPT_FLAGS | ARES_OPT_TIMEOUT | ARES_OPT_TRIES |
+              ARES_OPT_NDOTS | ARES_OPT_TCP_PORT | ARES_OPT_UDP_PORT;
+
+    /* Call the function-under-test */
+    int result = ares_init_options(&channel, &options, optmask);
+
+    /* Clean up the channel if it was initialized */
+    if (result == ARES_SUCCESS && channel != NULL) {
+        ares_destroy(channel);
+    }
+
     return 0;
-  }
-
-  // Initialize ares channel
-  if (ares_init_options(&channel, &options, optmask) != ARES_SUCCESS) {
-    ares_library_cleanup();
-    return 0;
-  }
-
-  // Prepare sockaddr_in structure
-  struct sockaddr_in sa;
-  memcpy(&sa, data, sizeof(struct sockaddr_in));
-  sa.sin_family = AF_INET; // Ensure the family is set to AF_INET
-
-  // Use the remaining data for flags and arg
-  int flags_int = 0;
-  void *arg = NULL;
-  if (size > sizeof(struct sockaddr_in)) {
-    flags_int = *(int *)(data + sizeof(struct sockaddr_in));
-  }
-  if (size > sizeof(struct sockaddr_in) + sizeof(int)) {
-    arg = (void *)(data + sizeof(struct sockaddr_in) + sizeof(int));
-  }
-
-  // Call the function-under-test
-  ares_getnameinfo(channel, (struct sockaddr *)&sa, sizeof(sa), flags_int, nameinfo_callback, arg);
-
-  // Clean up
-  ares_destroy(channel);
-  ares_library_cleanup();
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

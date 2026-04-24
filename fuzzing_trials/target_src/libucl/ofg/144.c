@@ -1,32 +1,72 @@
 #include <stdint.h>
-#include <stdbool.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ucl.h>
 
 int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for splitting into meaningful parts
-    if (size < 2) {
+    // Ensure the data is null-terminated before passing it to the function
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize ucl_object_t pointers
-    ucl_object_t *obj1 = ucl_object_new();
-    ucl_object_t *obj2 = ucl_object_new();
+    // Allocate memory for a null-terminated string
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0;
+    }
 
-    // Use the first byte to determine the boolean value
-    bool merge = data[0] % 2;
+    // Copy the data into the input buffer and null-terminate it
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Use the remaining bytes as a key
-    const char *key = (const char *)(data + 1);
-    size_t key_len = size - 1;
-
-    // Call the function under test
-    ucl_object_insert_key_merged(obj1, obj2, key, key_len, merge);
+    // Call the function-under-test
+    ucl_object_t *obj = ucl_object_fromstring(input);
 
     // Clean up
-    ucl_object_unref(obj1);
-    ucl_object_unref(obj2);
+    free(input);
+    if (obj != NULL) {
+        ucl_object_unref(obj);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_144(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

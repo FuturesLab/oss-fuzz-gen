@@ -1,37 +1,88 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <ucl.h>
 
 int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size) {
     struct ucl_parser *parser;
-    char *input_string;
-    unsigned int priority;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    bool result;
 
-    // Initialize the parser
+    // Ensure that the size is non-zero to create a valid file
+    if (size == 0) {
+        return 0;
+    }
+
+    // Create a temporary file from the fuzz data
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor as it is not needed anymore
+    close(fd);
+
+    // Initialize the UCL parser
     parser = ucl_parser_new(UCL_PARSER_DEFAULT);
     if (parser == NULL) {
         return 0;
     }
 
-    // Ensure that the input string is null-terminated
-    input_string = (char *)malloc(size + 1);
-    if (input_string == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-    memcpy(input_string, data, size);
-    input_string[size] = '\0';
-
-    // Set a fixed priority for fuzzing
-    priority = 1;
-
-    // Call the function-under-test
-    bool result = ucl_parser_add_string_priority(parser, input_string, size, priority);
+    // Call the function-under-test with the temporary file
+    result = ucl_parser_set_filevars(parser, tmpl, true);
 
     // Clean up
-    free(input_string);
     ucl_parser_free(parser);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_141(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

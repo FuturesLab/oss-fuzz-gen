@@ -1,43 +1,58 @@
-#include <stdint.h>
-#include "hdf5.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hid_t file_id = H5I_INVALID_HID; // Invalid file identifier
-    hsize_t increment_size = 0;
+    // Initialize HDF5 library
+    H5open();
 
-    // Ensure the data size is sufficient to extract necessary values
-    if (size < sizeof(hsize_t)) {
+    // Create a temporary HDF5 file
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
-    // Use the data to determine the increment size
-    increment_size = *((hsize_t *)data);
-
-    // Open an HDF5 file to get a valid file identifier
-    file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit
+    // Create a dataspace for the attribute
+    hsize_t dims[1] = {10};
+    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+    if (dataspace_id < 0) {
+        H5Fclose(file_id);
+        return 0;
     }
 
-    // Ensure the increment size is a meaningful value
-    if (increment_size == 0) {
-        increment_size = 1; // Set to a minimum increment size if zero
+    // Create a datatype for the attribute
+    hid_t datatype_id = H5Tcopy(H5T_NATIVE_INT);
+    if (datatype_id < 0) {
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0;
     }
+
+    // Create an attribute
+    hid_t attr_id = H5Acreate2(file_id, "attr", datatype_id, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
+    if (attr_id < 0) {
+        H5Tclose(datatype_id);
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Prepare a buffer to read data into
+    int buffer[10] = {0};
 
     // Call the function-under-test
-    herr_t status = H5Fincrement_filesize(file_id, increment_size);
+    herr_t status = H5Aread(attr_id, datatype_id, buffer);
 
-    // Check the status of the function call
-    if (status < 0) {
-        // Handle error if needed (e.g., log it, though not necessary for fuzzing)
-    }
-
-    // Close the HDF5 file
+    // Clean up resources
+    H5Aclose(attr_id);
+    H5Tclose(datatype_id);
+    H5Sclose(dataspace_id);
     H5Fclose(file_id);
+
+    // Close HDF5 library
+    H5close();
 
     return 0;
 }

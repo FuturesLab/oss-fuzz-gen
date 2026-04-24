@@ -1,41 +1,58 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h>
-#include "/src/htslib/hts_internal.h" // Correct path for hts_idx_t and related functions
+#include <stdlib.h>
+#include <htslib/hts.h>  // Include the correct header for hts_md5 functions
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to proceed
-    if (size < sizeof(uint64_t) + 1) {
-        return 0;
+    // Declare and initialize the hts_md5_context
+    hts_md5_context *md5_ctx = hts_md5_init();
+
+    // Ensure that the size is non-zero to avoid passing a NULL pointer
+    if (size > 0 && md5_ctx != NULL) {
+        // Call the function-under-test
+        hts_md5_update(md5_ctx, data, (unsigned long)size);
     }
 
-    // Initialize parameters for hts_idx_init
-    int n = 1;  // Number of reference sequences, must be > 0
-    int min_shift = 14;  // Minimum shift, typically 14 for BAM
-    uint64_t n_lvls = 5;  // Number of levels, typically 5 for BAM
-    int fmt = HTS_FMT_CSI;  // Format, HTS_FMT_CSI is a common choice
-    int flags = 0;  // Flags, 0 for default behavior
-
-    // Call the function-under-test
-    hts_idx_t *idx = hts_idx_init(n, min_shift, n_lvls, fmt, flags);
-
-    // Use the input data to simulate some operations on the index
-    if (idx != NULL) {
-        // Use the input data to create a fake bin and offset
-        uint64_t bin = data[0] % 37450; // A typical bin range for BAM
-        uint64_t offset = *((uint64_t *)(data + 1));
-
-        // Add an entry to the index
-        int is_mapped = 1;  // Assuming the entry is mapped
-        hts_idx_push(idx, 0, bin, offset, offset + 1, is_mapped);
-        
-        // Finalize the index to simulate a complete operation
-        hts_idx_finish(idx, UINT64_MAX);
-
-        // Clean up
-        hts_idx_destroy(idx);
-    }
+    // Clean up
+    hts_md5_destroy(md5_ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_93(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

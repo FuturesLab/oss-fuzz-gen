@@ -1,53 +1,98 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>  // Include for memcpy
+#include <unistd.h>  // Include for close and unlink
 #include "htslib/sam.h"
 
-// A simple callback function for bam_plp_init
-static int read_bam(void *data, bam1_t *b) {
-    // In a real scenario, this function would read a BAM record from a file or memory
-    // For fuzzing purposes, we simulate reading by returning 0 (end of data)
-    return -1; // Return -1 to indicate no more data, adjust as needed for testing
-}
-
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    // Initialize bam_plp_t with a simple callback
-    bam_plp_t plp = bam_plp_init(read_bam, NULL);
-    int tid = 0, pos = 0, n_plp = 0;
+    samFile *file = NULL;
+    sam_hdr_t *header = NULL;
+    int option = 0;  // Initialize with a default option value
 
-    if (size < sizeof(bam1_t)) {
-        bam_plp_destroy(plp);
+    // Create a temporary file to simulate a samFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;  // If file creation fails, exit
+    }
+
+    // Open the temporary file as a samFile
+    file = sam_open(tmpl, "w");
+    if (file == NULL) {
+        close(fd);
         return 0;
     }
 
-    // Simulate feeding data into bam_plp_t
-    // Normally, we'd parse 'data' into bam1_t records and push them into bam_plp_t
-    // For simplicity, we simulate this by creating a bam1_t record from the input data
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        bam_plp_destroy(plp);
+    // Initialize a sam_hdr_t object
+    header = sam_hdr_init();
+    if (header == NULL) {
+        sam_close(file);
+        close(fd);
         return 0;
     }
 
-    // Copy the input data into the bam1_t structure
-    memcpy(b->data, data, size < b->m_data ? size : b->m_data);
-
-    // Push the bam1_t record into the pileup
-    bam_plp_push(plp, b);
-
-    // Simulate a pileup process
-    const bam_pileup1_t *pileup = bam_plp_auto(plp, &tid, &pos, &n_plp);
-
-    // Check if the pileup is not NULL
-    if (pileup != NULL) {
-        // Process the pileup data
-        for (int i = 0; i < n_plp; ++i) {
-            // Access each pileup element (e.g., pileup[i].b)
-            // For fuzzing purposes, we do not need to do anything specific
+    // Set some data in the header using the input data
+    if (size > 0) {
+        // Use the input data to set the header text
+        char *header_text = (char *)malloc(size + 1);
+        if (header_text != NULL) {
+            memcpy(header_text, data, size);
+            header_text[size] = '\0';  // Null-terminate the string
+            sam_hdr_add_lines(header, header_text, size);
+            free(header_text);
         }
     }
 
-    bam_destroy1(b); // Clean up bam1_t
-    bam_plp_destroy(plp); // Clean up
+    // Call the function-under-test
+    int result = sam_hdr_set(file, header, option);
+
+    // Clean up
+    sam_hdr_destroy(header);
+    sam_close(file);
+    close(fd);
+    unlink(tmpl);  // Remove the temporary file
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_66(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

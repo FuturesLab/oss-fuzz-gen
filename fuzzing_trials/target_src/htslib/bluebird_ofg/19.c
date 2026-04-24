@@ -1,59 +1,86 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "htslib/sam.h"
+#include "/src/htslib/htslib/bgzf.h"
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Initialize a sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Check if the size is sufficient for creating a bam1_t structure
+    if (size < sizeof(bam1_t)) {
         return 0;
     }
 
-    // Create a buffer to store the header text
-    char *header_text = (char *)malloc(size + 1);
-    if (header_text == NULL) {
-        sam_hdr_destroy(hdr);
+    // Allocate memory for BGZF and bam1_t structures
+    BGZF *bgzf = bgzf_open("/dev/null", "w");
+    if (bgzf == NULL) {
         return 0;
     }
 
-    // Copy the fuzzer data into the header text buffer
-    memcpy(header_text, data, size);
-    header_text[size] = '\0'; // Null-terminate the string
-
-    // Parse the header text into the sam_hdr_t object
-    if (sam_hdr_add_lines(hdr, header_text, size) < 0) {
-        free(header_text);
-        sam_hdr_destroy(hdr);
+    bam1_t *bam_record = bam_init1();
+    if (bam_record == NULL) {
+        bgzf_close(bgzf);
         return 0;
     }
+
+    // Copy the input data into bam_record's data field
+    bam_record->data = (uint8_t *)malloc(size);
+    if (bam_record->data == NULL) {
+        bam_destroy1(bam_record);
+        bgzf_close(bgzf);
+        return 0;
+    }
+    memcpy(bam_record->data, data, size);
+    bam_record->l_data = size;
 
     // Call the function-under-test
-    sam_hdr_t *dup_hdr = sam_hdr_dup(hdr);
+    bam_write1(bgzf, bam_record);
 
     // Clean up
-    free(header_text);
-    sam_hdr_destroy(hdr);
-    if (dup_hdr != NULL) {
-        sam_hdr_destroy(dup_hdr);
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_destroy to sam_hdr_write
-        htsFile idrkpxnx;
-        memset(&idrkpxnx, 0, sizeof(idrkpxnx));
-        int ret_hts_check_EOF_ryhtu = hts_check_EOF(&idrkpxnx);
-        if (ret_hts_check_EOF_ryhtu < 0){
-        	return 0;
-        }
-
-        int ret_sam_hdr_write_aqpox = sam_hdr_write(&idrkpxnx, hdr);
-        if (ret_sam_hdr_write_aqpox < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-}
+    free(bam_record->data);
+    bam_record->data = NULL; // Set to NULL to prevent double-free
+    bam_destroy1(bam_record);
+    bgzf_close(bgzf);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

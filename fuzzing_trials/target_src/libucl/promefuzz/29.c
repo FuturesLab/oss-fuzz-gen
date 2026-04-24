@@ -1,56 +1,89 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_object_iterate_new at ucl_util.c:2794:1 in ucl.h
-// ucl_object_iterate_safe at ucl_util.c:2839:1 in ucl.h
-// ucl_object_iter_chk_excpn at ucl_util.c:2809:6 in ucl.h
-// ucl_object_type at ucl_util.c:3068:1 in ucl.h
-// ucl_object_iterate_free at ucl_util.c:2903:6 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2998:1 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2998:1 in ucl.h
+// ucl_comments_find at ucl_util.c:3947:1 in ucl.h
+// ucl_object_typed_new at ucl_util.c:2998:1 in ucl.h
+// ucl_object_fromstring at ucl_util.c:3100:1 in ucl.h
+// ucl_elt_append at ucl_util.c:3419:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <ucl.h>
-#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(ucl_object_t)) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Prepare the environment
-    ucl_object_t *obj = (ucl_object_t *)malloc(sizeof(ucl_object_t));
-    if (obj == NULL) {
-        return 0;
-    }
-    memcpy(obj, Data, sizeof(ucl_object_t));
+    // Prepare dummy data for fuzzing
+    const char *dummy_string = "dummy";
+    ucl_object_t *comments_obj = ucl_object_typed_new(UCL_OBJECT);
+    ucl_object_t *search_obj = ucl_object_typed_new(UCL_OBJECT);
 
-    // Ensure the object is valid before creating an iterator
-    obj->type = UCL_OBJECT; // Assuming a valid type for iteration
-    obj->value.ov = NULL;   // Assuming an empty object for safety
+    // Attempt to find comments
+    const ucl_object_t *comment = ucl_comments_find(comments_obj, search_obj);
+    (void)comment;
 
-    ucl_object_iter_t iter = ucl_object_iterate_new(obj);
-    if (iter == NULL) {
-        free(obj);
-        return 0;
-    }
+    // Create new UCL object from data
+    ucl_object_t *new_obj = ucl_object_typed_new((ucl_type_t)(Data[0] % (UCL_NULL + 1)));
 
-    const ucl_object_t *next_obj;
-    bool exception_occurred;
-    ucl_type_t obj_type;
+    // Create UCL object from string
+    ucl_object_t *str_obj = ucl_object_fromstring(dummy_string);
 
-    // Explore program states by invoking the functions in order
-    for (int i = 0; i < 4; i++) {
-        next_obj = ucl_object_iterate_safe(iter, true);
-        exception_occurred = ucl_object_iter_chk_excpn(iter);
-
-        if (!exception_occurred && next_obj != NULL) {
-            obj_type = ucl_object_type(next_obj);
-        }
-    }
+    // Append the string object to the new object
+    ucl_object_t *result_obj = ucl_elt_append(new_obj, str_obj);
+    (void)result_obj;
 
     // Cleanup
-    ucl_object_iterate_free(iter);
-    free(obj);
+    ucl_object_unref(comments_obj);
+    ucl_object_unref(search_obj);
+    ucl_object_unref(new_obj);
+    // Do not unref str_obj separately as it's now part of new_obj or result_obj
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

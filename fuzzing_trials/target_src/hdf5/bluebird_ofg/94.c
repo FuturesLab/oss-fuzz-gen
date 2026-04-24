@@ -1,36 +1,52 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Define the flags and file access property list
+    unsigned int flags = H5F_ACC_RDONLY; // Read-only access
+    hid_t fapl_id = H5P_DEFAULT; // Default file access property list
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hid_t file_id = H5Fopen(tmpl, flags, fapl_id);
 
-    // Clean up
+    // If the file was opened successfully, close it
+    if (file_id >= 0) {
+        H5Fclose(file_id);
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Gmove2
-    hid_t ret_H5Aget_space_yweav = H5Aget_space(0);
-    herr_t ret_H5Gmove2_clezy = H5Gmove2(0, (const char *)data, ret_H5Aget_space_yweav, name_buffer);
+    // Clean up the temporary file
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Dwrite_multi
+    hid_t ret_H5Aget_space_tztua = H5Aget_space(0);
+    hid_t ret_H5Aget_type_heqet = H5Aget_type(0);
+    hid_t ret_H5Aget_space_jukuv = H5Aget_space(0);
+    hid_t ret_H5Fget_access_plist_qfwft = H5Fget_access_plist(file_id);
+    herr_t ret_H5Dwrite_multi_woafl = H5Dwrite_multi(H5F_NUM_METADATA_READ_RETRY_TYPES, &file_id, &ret_H5Aget_space_tztua, &ret_H5Aget_type_heqet, &ret_H5Aget_space_jukuv, ret_H5Fget_access_plist_qfwft, NULL);
     // End mutation: Producer.APPEND_MUTATOR
     
-    free(name_buffer);
+    unlink(tmpl);
 
     return 0;
 }

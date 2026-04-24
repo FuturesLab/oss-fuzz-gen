@@ -1,80 +1,36 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "ucl.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *obj = ucl_object_new();
-    enum ucl_object_keys_sort_flags sort_flags = UCL_SORT_KEYS_ICASE; // Corrected the enum value
-
     // Ensure that the data is not empty
-    if (size > 0 && obj != NULL) {
-        // Create a UCL parser
-        struct ucl_parser *parser = ucl_parser_new(0);
+    if (size == 0) {
+        return 0;
+    }
 
-        // Parse the input data
-        if (ucl_parser_add_chunk(parser, data, size)) {
-            // Get the top-level object
-            const ucl_object_t *top = ucl_parser_get_object(parser);
+    // Convert the input data to a null-terminated string
+    char *input_string = (char *)malloc(size + 1);
+    if (input_string == NULL) {
+        return 0;
+    }
 
-            // Copy the parsed object to our object
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_object_merge with ucl_array_merge
+    memcpy(input_string, data, size);
+    input_string[size] = '\0';
 
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_merge
-            ucl_object_t jewfvtoo;
-            memset(&jewfvtoo, 0, sizeof(jewfvtoo));
-            bool ret_ucl_object_merge_mzsik = ucl_object_merge(top, &jewfvtoo, 0);
-            if (ret_ucl_object_merge_mzsik == 0){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            ucl_array_merge(obj, (ucl_object_t *)top, true);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_array_merge to ucl_copy_value_trash
-            char* ret_ucl_copy_value_trash_sdsey = ucl_copy_value_trash(obj);
-            if (ret_ucl_copy_value_trash_sdsey == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
+    // Call the function-under-test
+    ucl_object_t *obj = ucl_object_fromlstring(input_string, size);
 
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_copy_value_trash to ucl_object_fromlstring
-            unsigned int ret_ucl_array_size_uyhtg = ucl_array_size(NULL);
-            if (ret_ucl_array_size_uyhtg < 0){
-            	return 0;
-            }
-            ucl_object_t* ret_ucl_object_fromlstring_ioadc = ucl_object_fromlstring(ret_ucl_copy_value_trash_sdsey, (size_t )ret_ucl_array_size_uyhtg);
-            if (ret_ucl_object_fromlstring_ioadc == NULL){
-            	return 0;
-            }
-            // End mutation: Producer.APPEND_MUTATOR
-            
-}
-
-        // Free the parser
-        ucl_parser_free(parser);
-
-        // Call the function under test
-        ucl_object_sort_keys(obj, sort_flags);
-
-        // Clean up
+    // Clean up
+    if (obj != NULL) {
         ucl_object_unref(obj);
     }
+    free(input_string);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

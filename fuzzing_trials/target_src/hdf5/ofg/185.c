@@ -1,28 +1,57 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <hdf5.h>
-#include <H5ACpublic.h>
 
 int LLVMFuzzerTestOneInput_185(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract a valid hid_t
-    if (size < sizeof(hid_t)) {
-        return 0;
-    }
+    // Initialize variables
+    hid_t attribute_id = 1; // Assuming a valid non-zero ID for demonstration
+    const char *old_name = "old_attribute_name";
+    const char *new_name = "new_attribute_name";
 
-    // Extract a hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Call the function-under-test
+    herr_t result = H5Arename(attribute_id, old_name, new_name);
 
-    // Initialize the H5AC_cache_config_t structure
-    H5AC_cache_config_t config;
-    config.version = H5AC__CURR_CACHE_CONFIG_VERSION;
-
-    // Call the function under test
-    herr_t status = H5Fget_mdc_config(file_id, &config);
-
-    // Use the status in some way to prevent compiler optimizations
-    if (status < 0) {
-        // Handle error if needed
-    }
+    // Handle the result if necessary
+    // For fuzzing purposes, we typically don't need to do anything with the result
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_185(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

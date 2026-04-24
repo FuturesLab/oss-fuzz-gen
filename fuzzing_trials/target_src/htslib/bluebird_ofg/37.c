@@ -1,67 +1,86 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/tbx.h" // Include the tabix library for index functions
+#include <stdlib.h>
+
+// Function-under-test declaration
+char *sam_open_mode_opts(const char *path, const char *mode, const char *opts);
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for our needs
-    if (size < 5) {
+    // Ensure we have enough data to extract three non-NULL strings
+    if (size < 3) {
         return 0;
     }
 
-    // Use the first byte of data as an integer parameter
-    int param_int = (int)data[0];
+    // Split the input data into three parts
+    size_t part_size = size / 3;
+    size_t remainder = size % 3;
 
-    // Use the rest of the data as a string, ensuring it's null-terminated
-    size_t string_size = size - 1;
-    char *param_str = (char *)malloc(string_size + 1);
-    if (param_str == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(param_str, data + 1, string_size);
-    param_str[string_size] = '\0';
+    // Allocate memory for the strings
+    char *path = (char *)malloc(part_size + 1);
+    char *mode = (char *)malloc(part_size + 1);
+    char *opts = (char *)malloc(part_size + remainder + 1);
 
-    // Initialize htsFile and tbx_t structures
-    htsFile *file = hts_open(param_str, "r");
-    if (file == NULL) {
-        free(param_str);
-        return 0; // Failed to open file
-    }
+    // Copy data into the strings and null-terminate them
+    memcpy(path, data, part_size);
+    path[part_size] = '\0';
 
+    memcpy(mode, data + part_size, part_size);
+    mode[part_size] = '\0';
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to sam_index_load
-    const uint8_t dvtewrut = 64;
-    char ret_bam_aux2A_qdzih = bam_aux2A(&dvtewrut);
+    memcpy(opts, data + 2 * part_size, part_size + remainder);
+    opts[part_size + remainder] = '\0';
 
-    hts_idx_t* ret_sam_index_load_okezx = sam_index_load(file, &ret_bam_aux2A_qdzih);
-    if (ret_sam_index_load_okezx == NULL){
-    	return 0;
-    }
+    // Call the function-under-test
+    char *result = sam_open_mode_opts(path, mode, opts);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Free the allocated memory
+    free(path);
+    free(mode);
+    free(opts);
 
-    tbx_t *tbx = tbx_index_load(param_str);
-    if (tbx == NULL) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_close with hts_check_EOF
-        hts_check_EOF(file);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        free(param_str);
-        return 0; // Failed to load index
-    }
-
-    // Call a function that utilizes the index, e.g., tbx_name2id
-    int result = tbx_name2id(tbx, param_str);
-
-    // Clean up
-    tbx_destroy(tbx);
-    hts_close(file);
-    free(param_str);
+    // Free the result if it's dynamically allocated (assuming it needs to be freed)
+    free(result);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

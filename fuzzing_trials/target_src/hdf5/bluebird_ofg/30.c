@@ -1,36 +1,54 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Declare and initialize variables
+    hid_t dataset_id = H5I_INVALID_HID;
+    hid_t file_space_id = H5I_INVALID_HID;
+    hsize_t num_chunks = 0;
+
+    // Create a temporary HDF5 file and dataset for fuzzing
+    hid_t file_id = H5Fcreate("temp_fuzz_file.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Create a simple dataspace with a fixed size
+    hsize_t dims[1] = {10}; // Example dimension size
+    hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+    if (dataspace_id < 0) {
+        H5Fclose(file_id);
+        return 0;
+    }
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    // Create a dataset
+    dataset_id = H5Dcreate2(file_id, "fuzz_dataset", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return 0;
+    }
+
+    // Get the file space associated with the dataset
+    file_space_id = H5Dget_space(dataset_id);
+    if (file_space_id < 0) {
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
         return 0;
     }
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    herr_t result = H5Dget_num_chunks(dataset_id, file_space_id, &num_chunks);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Arename
-    hid_t ret_H5Aget_space_qrdiu = H5Aget_space(0);
-    herr_t ret_H5Arename_lecig = H5Arename(ret_H5Aget_space_qrdiu, (const char *)"r", name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Clean up resources
+    H5Sclose(file_space_id);
+    H5Dclose(dataset_id);
+    H5Sclose(dataspace_id);
+    H5Fclose(file_id);
 
     return 0;
 }

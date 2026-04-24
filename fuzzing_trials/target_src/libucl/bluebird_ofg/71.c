@@ -1,49 +1,66 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-  // If size is 0, there's no data to process
-  if (size == 0) {
+    if (size == 0) {
+        return 0;
+    }
+
+    // Initialize UCL parser
+    struct ucl_parser *parser = ucl_parser_new(0);
+    if (parser == NULL) {
+        return 0;
+    }
+
+    // Parse the input data
+    ucl_parser_add_chunk(parser, data, size);
+    const ucl_object_t *obj = ucl_parser_get_object(parser);
+
+    if (obj != NULL) {
+        // Define a ucl_emitter value
+        enum ucl_emitter emitter_type = UCL_EMIT_JSON;
+
+        // Call the function-under-test
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ucl_object_emit
+        unsigned char *result = ucl_object_emit(obj, UCL_EMIT_CONFIG);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+        // Free the result if it's not NULL
+        if (result != NULL) {
+            free(result);
+        }
+
+        // Free the UCL object
+        ucl_object_unref(obj);
+    }
+
+    // Clean up the parser
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_get_object to ucl_object_merge
+    ucl_object_t* ret_ucl_object_typed_new_qtgpa = ucl_object_typed_new(0);
+    if (ret_ucl_object_typed_new_qtgpa == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_ucl_object_typed_new_qtgpa) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    bool ret_ucl_object_merge_fdyqp = ucl_object_merge(ret_ucl_object_typed_new_qtgpa, obj, 1);
+    if (ret_ucl_object_merge_fdyqp == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ucl_parser_free(parser);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add data to the parser
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_parser_new to ucl_parser_add_string_priority
-  const ucl_object_t ohmwsiqq;
-  memset(&ohmwsiqq, 0, sizeof(ohmwsiqq));
-  char* ret_ucl_copy_value_trash_gazuq = ucl_copy_value_trash(&ohmwsiqq);
-  if (ret_ucl_copy_value_trash_gazuq == NULL){
-  	return 0;
-  }
-  unsigned int ret_ucl_parser_get_linenum_nnkwj = ucl_parser_get_linenum(parser);
-  if (ret_ucl_parser_get_linenum_nnkwj < 0){
-  	return 0;
-  }
-  bool ret_ucl_parser_add_string_priority_srrvj = ucl_parser_add_string_priority(parser, ret_ucl_copy_value_trash_gazuq, UCL_PRIORITY_MIN, ret_ucl_parser_get_linenum_nnkwj);
-  if (ret_ucl_parser_add_string_priority_srrvj == 0){
-  	return 0;
-  }
-  // End mutation: Producer.APPEND_MUTATOR
-  
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Call the function-under-test
-  int priority = ucl_parser_get_default_priority(parser);
-
-  // Free the parser
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

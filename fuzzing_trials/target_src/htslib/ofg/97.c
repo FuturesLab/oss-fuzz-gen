@@ -1,42 +1,63 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <htslib/sam.h>
-#include <htslib/kstring.h>
 
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Ensure there's enough data for at least one uint32_t
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Ensure the data is not empty and has enough size for strings
-    if (size < 5) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
+    // Calculate the number of uint32_t elements in the data
+    int n_cigar = size / sizeof(uint32_t);
 
-    // Allocate memory for strings
-    char str1[2], str2[2], str3[2], str4[2];
-    kstring_t ks = {0, 0, NULL};
-
-    // Initialize strings with non-null values
-    str1[0] = data[0];
-    str1[1] = '\0';
-    str2[0] = data[1];
-    str2[1] = '\0';
-    str3[0] = data[2];
-    str3[1] = '\0';
-    str4[0] = data[3];
-    str4[1] = '\0';
+    // Cast the data to an array of uint32_t
+    const uint32_t *cigar = (const uint32_t *)data;
 
     // Call the function-under-test
-    sam_hdr_find_tag_id(hdr, str1, str2, str3, str4, &ks);
+    hts_pos_t result = bam_cigar2rlen(n_cigar, cigar);
 
-    // Clean up
-    free(ks.s);
-    sam_hdr_destroy(hdr);
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_97(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

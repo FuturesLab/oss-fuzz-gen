@@ -1,71 +1,103 @@
 // This fuzz driver is generated for library libucl, aiming to fuzz the following functions:
-// ucl_parser_new at ucl_parser.c:2804:1 in ucl.h
-// ucl_parser_add_fd at ucl_util.c:2115:6 in ucl.h
-// ucl_parser_get_error at ucl_util.c:665:1 in ucl.h
-// ucl_parser_free at ucl_util.c:599:6 in ucl.h
-// ucl_parser_get_object at ucl_util.c:590:1 in ucl.h
-// ucl_object_ref at ucl_util.c:3591:1 in ucl.h
-// ucl_parser_free at ucl_util.c:599:6 in ucl.h
+// ucl_array_size at ucl_util.c:3345:1 in ucl.h
+// ucl_object_iterate_with_error at ucl_util.c:2715:1 in ucl.h
+// ucl_object_tolstring at ucl_util.c:3588:1 in ucl.h
+// ucl_object_iterate_end at ucl_util.c:2769:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
+// ucl_object_iterate_end at ucl_util.c:2769:1 in ucl.h
+// ucl_object_unref at ucl_util.c:3719:6 in ucl.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ucl.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+
+static ucl_object_t *create_dummy_ucl_object(const uint8_t *Data, size_t Size) {
+    ucl_object_t *obj = malloc(sizeof(ucl_object_t));
+    if (!obj) return NULL;
+
+    obj->type = UCL_ARRAY;
+    obj->value.av = NULL; // Set to NULL as we do not have a valid array
+    obj->len = 0; // Set length to 0 for safety
+    return obj;
+}
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    // Create a dummy file to write the fuzzing data
-    const char *filename = "./dummy_file";
-    int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0600);
-    if (fd < 0) {
-        return 0;
-    }
+    if (Size == 0) return 0;
 
-    // Write the fuzzing data to the dummy file
-    if (write(fd, Data, Size) != (ssize_t)Size) {
-        close(fd);
-        return 0;
-    }
+    ucl_object_t *ucl_obj = create_dummy_ucl_object(Data, Size);
+    if (!ucl_obj) return 0;
 
-    // Reset the file offset to the beginning
-    lseek(fd, 0, SEEK_SET);
+    // 1. ucl_array_size
+    unsigned int array_size = ucl_array_size(ucl_obj);
 
-    // Initialize the UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
-        close(fd);
-        return 0;
-    }
+    // 2. ucl_object_iterate_with_error
+    ucl_object_iter_t iter = NULL;
+    int error = 0;
+    const ucl_object_t *cur = ucl_object_iterate_with_error(ucl_obj, &iter, true, &error);
 
-    // Use ucl_parser_add_fd to load data from the file descriptor
-    if (!ucl_parser_add_fd(parser, fd)) {
-        // Handle parsing error
-        const char *error = ucl_parser_get_error(parser);
-        if (error != NULL) {
-            // Error handling logic can be added here
-        }
-        ucl_parser_free(parser);
-        close(fd);
-        return 0;
-    }
+    // 3. ucl_object_tolstring
+    size_t tlen = 0;
+    const char *string_rep = ucl_object_tolstring(cur, &tlen);
 
-    // Close the file descriptor as it's no longer needed
-    close(fd);
+    // 4. ucl_object_iterate_end
+    ucl_object_iterate_end(ucl_obj, &iter);
 
-    // Get the top-level object from the parser
-    ucl_object_t *obj = ucl_parser_get_object(parser);
-    if (obj != NULL) {
-        // Increase the reference count of the object
-        ucl_object_t *ref_obj = ucl_object_ref(obj);
-        if (ref_obj != NULL) {
-            // Additional logic can be added here to use ref_obj
-        }
-    }
+    // 5. ucl_object_unref
+    ucl_object_unref(ucl_obj);
 
-    // Free the parser
-    ucl_parser_free(parser);
+    // 6. ucl_object_iterate_end (again)
+    ucl_object_iterate_end(cur, &iter);
+
+    // 7. ucl_object_unref (again)
+    ucl_object_unref((ucl_object_t *)cur);
+
+    // Clean up
+    free(ucl_obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

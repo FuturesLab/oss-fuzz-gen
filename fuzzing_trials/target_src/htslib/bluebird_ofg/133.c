@@ -1,65 +1,86 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+#include <unistd.h>
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/tbx.h" // Include the tabix library for index functions
 
 int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for our needs
-    if (size < 5) {
+    // Ensure there is enough data to create two filenames
+    if (size < 4) {
         return 0;
     }
 
-    // Use the first byte of data as an integer parameter
-    int param_int = (int)data[0];
+    // Create temporary files for the two filenames
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
 
-    // Use the rest of the data as a string, ensuring it's null-terminated
-    size_t string_size = size - 1;
-    char *param_str = (char *)malloc(string_size + 1);
-    if (param_str == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(param_str, data + 1, string_size);
-    param_str[string_size] = '\0';
-
-    // Initialize htsFile and tbx_t structures
-    htsFile *file = hts_open(param_str, "r");
-    if (file == NULL) {
-        free(param_str);
-        return 0; // Failed to open file
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) close(fd1);
+        if (fd2 != -1) close(fd2);
+        return 0;
     }
 
-    tbx_t *tbx = tbx_index_load(param_str);
-    if (tbx == NULL) {
-        hts_close(file);
+    // Write some data to the files
+    write(fd1, data, size / 2);
+    write(fd2, data + size / 2, size - size / 2);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_close to hts_crc32
-        const uint8_t laxmkuuh = -1;
-        int64_t ret_bam_aux2i_jnhlw = bam_aux2i(&laxmkuuh);
-        if (ret_bam_aux2i_jnhlw < 0){
-        	return 0;
-        }
+    // Close the file descriptors
+    close(fd1);
+    close(fd2);
 
-        uint32_t ret_hts_crc32_nghrk = hts_crc32((uint32_t )ret_bam_aux2i_jnhlw, (const void *)file, FT_BCF);
-        if (ret_hts_crc32_nghrk < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        free(param_str);
-        return 0; // Failed to load index
-    }
-
-    // Call a function that utilizes the index, e.g., tbx_name2id
-    int result = tbx_name2id(tbx, param_str);
+    // Call the function-under-test
+    hts_idx_t *index = hts_idx_load2(tmpl1, tmpl2);
 
     // Clean up
-    tbx_destroy(tbx);
-    hts_close(file);
-    free(param_str);
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_133(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

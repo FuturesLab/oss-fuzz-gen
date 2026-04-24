@@ -1,25 +1,66 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <hdf5.h>
+#include <stdbool.h>
 
 int LLVMFuzzerTestOneInput_168(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    hid_t loc_id = H5P_DEFAULT; // Using default property list for location
-    const char *obj_name = "dataset"; // Example object name, must not be NULL
-    H5_index_t idx_type = H5_INDEX_NAME; // Example index type
-    H5_iter_order_t order = H5_ITER_INC; // Example iteration order
-    hsize_t n = 0; // Example index position
-    hid_t aapl_id = H5P_DEFAULT; // Using default property list for attribute access
-    hid_t lapl_id = H5P_DEFAULT; // Using default property list for link access
+    // Ensure we have enough data to work with
+    if (size < 10) return 0;
 
-    // Call the function-under-test
-    hid_t attr_id = H5Aopen_by_idx(loc_id, obj_name, idx_type, order, n, aapl_id, lapl_id);
+    // Initialize parameters for H5Aexists_by_name_async
+    const char *loc_name = "location"; // Example location name
+    const char *attr_name = "attribute"; // Example attribute name
+    unsigned int lapl_id = 0; // Example link access property list identifier
+    hid_t loc_id = H5I_INVALID_HID; // Invalid identifier for testing
+    _Bool exists = false; // Boolean to check if attribute exists
+    hid_t es_id = H5I_INVALID_HID; // Invalid identifier for event set
 
-    // Check if the attribute was opened successfully
-    if (attr_id >= 0) {
-        // Close the attribute if it was opened
-        H5Aclose(attr_id);
+    // Call the function-under-test with the correct number of arguments
+    herr_t result = H5Aexists_by_name_async(loc_id, loc_name, attr_name, &exists, lapl_id, es_id);
+
+    // Use the result to prevent optimization out
+    if (result != 0) {
+        // Handle error if needed
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_168(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

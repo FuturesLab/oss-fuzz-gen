@@ -1,37 +1,32 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
-    }
+    // Ensure the data size is sufficient to create a valid string
+    if (size < 1) return 0;
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Create a temporary HDF5 file
+    hid_t file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) return 0;
 
     // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
+    size_t buf_size = size < 256 ? size : 256; // Limit buffer size to 256
+    char *name_buf = (char *)malloc(buf_size);
+    if (name_buf == NULL) {
+        H5Fclose(file_id);
         return 0;
     }
 
     // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    ssize_t name_len = H5Fget_name(file_id, name_buf, buf_size);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Gget_objname_by_idx
-    hid_t ret_H5Freopen_rsfdg = H5Freopen(0);
-    hsize_t ret_H5Dget_storage_size_kculi = H5Dget_storage_size(0);
-    ssize_t ret_H5Gget_objname_by_idx_bkgqf = H5Gget_objname_by_idx(ret_H5Freopen_rsfdg, ret_H5Dget_storage_size_kculi, name_buffer, 1);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    free(name_buf);
+    H5Fclose(file_id);
+    remove("tempfile.h5");
 
     return 0;
 }

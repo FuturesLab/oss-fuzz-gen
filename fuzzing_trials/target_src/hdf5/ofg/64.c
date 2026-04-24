@@ -1,42 +1,60 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <hdf5.h>
-#include <stdlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    hid_t loc_id = H5I_INVALID_HID;
-    hid_t child_id = H5I_INVALID_HID;
-    hid_t plist_id = H5P_DEFAULT;
-    char *name = NULL;
+    // Define and initialize variables for the function parameters
+    const char *loc_name = "location_name";
+    H5_index_t index_type = H5_INDEX_NAME; // Assuming a valid index type
+    H5_iter_order_t order = H5_ITER_INC; // Assuming a valid iteration order
+    hsize_t n = 0; // Assuming a valid size
+    hid_t loc_id = 1; // Assuming a valid HDF5 identifier
+    hid_t aapl_id = 1; // Assuming a valid HDF5 identifier
+    hid_t lapl_id = 1; // Assuming a valid HDF5 identifier
+    hid_t es_id = 1; // Assuming a valid HDF5 identifier
 
-    // Ensure the data size is sufficient for creating a valid string
-    if (size > 0) {
-        // Allocate memory for the name parameter and copy data
-        name = (char *)malloc(size + 1);
-        if (name != NULL) {
-            memcpy(name, data, size);
-            name[size] = '\0'; // Null-terminate the string
-        }
-    }
+    // Call the function-under-test
+    hid_t result = H5Aopen_by_idx_async(loc_id, loc_name, index_type, order, n, aapl_id, lapl_id, es_id);
 
-    // Open a file to obtain valid hid_t identifiers
-    hid_t file_id = H5Fopen("testfile.h5", H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id >= 0) {
-        loc_id = file_id;
-        child_id = file_id; // Use the same file as both location and child for simplicity
-
-        // Call the function-under-test
-        H5Fmount(loc_id, name, child_id, plist_id);
-
-        // Close the file
-        H5Fclose(file_id);
-    }
-
-    // Free allocated memory
-    if (name != NULL) {
-        free(name);
-    }
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_64(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

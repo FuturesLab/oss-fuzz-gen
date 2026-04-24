@@ -1,31 +1,39 @@
 #include <sys/stat.h>
-#include <string.h>
-#include "ucl.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Ensure that size is non-zero to avoid undefined behavior with null-terminated strings
-    if (size == 0) {
+    // Ensure that size is sufficient to create meaningful inputs
+    if (size < 3) {
         return 0;
     }
 
-    struct ucl_parser *parser = ucl_parser_new(0);
-    if (parser == NULL) {
+    // Initialize ucl_object_t pointers
+    ucl_object_t *obj1 = ucl_object_new();
+    ucl_object_t *obj2 = ucl_object_new();
+
+    // Create a string for comments
+    char *comment = (char *)malloc(size + 1);
+    if (comment == NULL) {
+        ucl_object_unref(obj1);
+        ucl_object_unref(obj2);
         return 0;
     }
 
-    // Add the input data to the parser
-    ucl_parser_add_string(parser, (const char *)data, size);
+    // Copy data into the comment string and null-terminate it
+    memcpy(comment, data, size);
+    comment[size] = '\0';
 
     // Call the function-under-test
-    const ucl_object_t *comments = ucl_parser_get_comments(parser);
+    ucl_comments_add(obj1, obj2, comment);
 
-    // Perform any additional operations on comments if necessary
-    // For now, we just ensure that the function is called
-
-    // Free the parser
-    ucl_parser_free(parser);
+    // Clean up
+    free(comment);
+    ucl_object_unref(obj1);
+    ucl_object_unref(obj2);
 
     return 0;
 }

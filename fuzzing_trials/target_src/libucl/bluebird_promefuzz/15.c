@@ -1,81 +1,64 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "ucl.h"
+#include <stdint.h>
+#include <stddef.h>
 #include <stdbool.h>
+#include <string.h>
 
-static ucl_object_t *create_dummy_ucl_object() {
-    ucl_object_t *obj = ucl_object_new();
-    if (obj) {
-        ucl_object_insert_key(obj, ucl_object_fromstring("value1"), "key1", 0, false);
-        ucl_object_insert_key(obj, ucl_object_fromstring("value2"), "key2", 0, false);
-    }
-    return obj;
-}
+static void fuzz_ucl_object_functions(const uint8_t *Data, size_t Size) {
+    // Create a new UCL object
+    ucl_object_t *top = ucl_object_new_full(UCL_OBJECT, 0);
+    if (top == NULL) return;
 
-static ucl_object_t *create_dummy_ucl_array() {
-    ucl_object_t *arr = ucl_object_new_full(UCL_ARRAY, 0);
-    if (arr) {
-        ucl_array_append(arr, ucl_object_fromstring("elem1"));
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ucl_array_append with ucl_array_prepend
-        ucl_array_prepend(arr, ucl_object_fromstring("elem2"));
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Define a key for operations
+    const char *key = "test_key";
+    size_t key_len = strlen(key);
+
+    // Insert a new object with the key
+    ucl_object_t *new_obj = ucl_object_new_full(UCL_STRING, 0);
+    if (new_obj != NULL) {
+        new_obj->value.sv = "test_value";
+        ucl_object_insert_key(top, new_obj, key, key_len, true);
     }
-    return arr;
+
+    // Lookup the object by key
+    const ucl_object_t *found_obj = ucl_object_lookup_len(top, key, key_len);
+
+    // Pop the key
+    ucl_object_t *popped_obj1 = ucl_object_pop_key(top, key);
+    if (popped_obj1 != NULL) {
+        ucl_object_unref(popped_obj1);
+    }
+
+    // Pop the key again
+    ucl_object_t *popped_obj2 = ucl_object_pop_key(top, key);
+    if (popped_obj2 != NULL) {
+        ucl_object_unref(popped_obj2);
+    }
+
+    // Lookup the object by key again
+    found_obj = ucl_object_lookup_len(top, key, key_len);
+
+    // Create another new UCL object
+    ucl_object_t *another_obj = ucl_object_new_full(UCL_INT, 0);
+    if (another_obj != NULL) {
+        another_obj->value.iv = 12345;
+        ucl_object_insert_key(top, another_obj, key, 0, true);
+    }
+
+    // Cleanup
+    ucl_object_unref(top);
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Create dummy UCL objects
-    ucl_object_t *obj = create_dummy_ucl_object();
-    ucl_object_t *arr = create_dummy_ucl_array();
-
-    if (!obj || !arr) {
-        if (obj) {
-                ucl_object_unref(obj);
-        }
-        if (arr) {
-                ucl_object_unref(arr);
-        }
-        return 0;
-    }
-
-    // Prepare a null-terminated string from the input data
-    char path[256];
-    size_t path_len = (Size < sizeof(path) - 1) ? Size : sizeof(path) - 1;
-    memcpy(path, Data, path_len);
-    path[path_len] = '\0';
-
-    // Fuzz ucl_object_lookup_path
-    const ucl_object_t *result = ucl_object_lookup_path(obj, path);
-
-    // Fuzz ucl_object_replace_key
-    ucl_object_t *new_obj = ucl_object_fromstring("new_value");
-    if (new_obj) {
-        ucl_object_replace_key(obj, new_obj, path, path_len, true);
-    }
-
-    // Fuzz ucl_object_delete_key
-    ucl_object_delete_key(obj, path);
-
-    // Fuzz ucl_object_reserve
-    ucl_object_reserve(arr, path_len);
-
-    // Fuzz ucl_object_merge
-    ucl_object_merge(obj, arr, true);
-
-    // Fuzz ucl_object_type
-    ucl_type_t type = ucl_object_type(obj);
-
-    // Cleanup
-    ucl_object_unref(obj);
-    ucl_object_unref(arr);
+    fuzz_ucl_object_functions(Data, Size);
 
     return 0;
 }

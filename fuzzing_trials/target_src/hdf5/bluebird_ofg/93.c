@@ -1,38 +1,35 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "hdf5.h"
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
+    // Ensure data is large enough to extract necessary parameters
+    if (size < sizeof(hid_t) + sizeof(unsigned int) + sizeof(hsize_t)) {
         return 0;
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
+    // Extract parameters from data
+    unsigned int flags = *((unsigned int *)data);
+    data += sizeof(unsigned int);
 
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
-    }
+    hid_t dset_id = *((hid_t *)data);
+    data += sizeof(hid_t);
 
-    // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    hsize_t extent = *((hsize_t *)data);
 
-    // Clean up
+    // Create an array for extent
+    hsize_t extents[] = {extent};
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Aget_name_by_idx
-    hid_t ret_H5Dget_access_plist_imykz = H5Dget_access_plist(0);
-    hsize_t ret_H5Dget_storage_size_ornvz = H5Dget_storage_size(0);
-    hid_t ret_H5Dget_space_ivexw = H5Dget_space(0);
-    ssize_t ret_H5Aget_name_by_idx_ecciv = H5Aget_name_by_idx(ret_H5Dget_access_plist_imykz, name_buffer, 0, 0, ret_H5Dget_storage_size_ornvz, (char *)"w", H5F_FAMILY_DEFAULT, ret_H5Dget_space_ivexw);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Create a valid event set ID
+    hid_t es_id = H5EScreate();
+
+    // Call the function-under-test with the correct number of arguments
+    H5Dset_extent_async(dset_id, extents, es_id);
+
+    // Close the event set ID
+    H5ESclose(es_id);
 
     return 0;
 }

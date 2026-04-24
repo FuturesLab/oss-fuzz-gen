@@ -5,68 +5,26 @@
 #include "ucl.h"
 
 int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    ucl_object_t *ucl_obj = NULL;
-    ucl_emitter_t emitter_type = UCL_EMIT_JSON; // Corrected type name
+    struct ucl_parser *parser;
 
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize the UCL parser
+    parser = ucl_parser_new(0);
 
-    // Create a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(0);
+    // Ensure the parser is not NULL
     if (parser == NULL) {
         return 0;
     }
 
-    // Parse the input data
+    // Feed the input data to the parser
     if (!ucl_parser_add_chunk(parser, data, size)) {
         ucl_parser_free(parser);
         return 0;
     }
 
-    // Get the UCL object
-    ucl_obj = ucl_parser_get_object(parser);
-    if (ucl_obj == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-
     // Call the function-under-test
-    unsigned char *result = ucl_object_emit(ucl_obj, emitter_type);
+    int priority = ucl_parser_get_default_priority(parser);
 
-    // Free allocated resources
-    if (result != NULL) {
-        free(result);
-    }
-    ucl_object_unref(ucl_obj);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_elt_append
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ucl_object_unref to ucl_array_replace_index
-    const ucl_object_t inilmfvr;
-    memset(&inilmfvr, 0, sizeof(inilmfvr));
-    int64_t ret_ucl_object_toint_ofzrt = ucl_object_toint(&inilmfvr);
-    if (ret_ucl_object_toint_ofzrt < 0){
-    	return 0;
-    }
-    ucl_object_t* ret_ucl_array_replace_index_gxglp = ucl_array_replace_index(ucl_obj, NULL, (unsigned int )ret_ucl_object_toint_ofzrt);
-    if (ret_ucl_array_replace_index_gxglp == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    ucl_object_t* ret_ucl_object_fromdouble_hdhsj = ucl_object_fromdouble(size);
-    if (ret_ucl_object_fromdouble_hdhsj == NULL){
-    	return 0;
-    }
-    ucl_object_t* ret_ucl_elt_append_efsbd = ucl_elt_append(ucl_obj, ret_ucl_object_fromdouble_hdhsj);
-    if (ret_ucl_elt_append_efsbd == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Clean up
     ucl_parser_free(parser);
 
     return 0;

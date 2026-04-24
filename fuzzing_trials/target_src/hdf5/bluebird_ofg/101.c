@@ -1,49 +1,53 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "hdf5.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_101(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hid_t file_id;
-    hsize_t filesize;
-    herr_t status;
-
-    // Create a temporary file for testing
-    file_id = H5Fcreate("tempfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (file_id < 0) {
-        return 0; // Failed to create file, exit early
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Simulate writing data to the file to ensure it's not empty
-    if (size > 0) {
-        hid_t dataspace_id = H5Screate_simple(1, &size, NULL);
-        hid_t dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Dcreate2 to H5Dget_num_chunks
-        hid_t ret_H5Fget_access_plist_dqphx = H5Fget_access_plist(file_id);
-        herr_t ret_H5Dget_num_chunks_whmzj = H5Dget_num_chunks(ret_H5Fget_access_plist_dqphx, dataset_id, NULL);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        H5Dclose(dataset_id);
-        H5Sclose(dataspace_id);
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
     }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Define the flags and file access property list
+    unsigned int flags = H5F_ACC_RDONLY; // Read-only access
+    hid_t fapl_id = H5P_DEFAULT; // Default file access property list
 
     // Call the function-under-test
+    hid_t file_id = H5Fopen(tmpl, flags, fapl_id);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fcreate to H5Fmount
-    hid_t ret_H5Freopen_sdrpb = H5Freopen(file_id);
-    hid_t ret_H5Fget_access_plist_fkxev = H5Fget_access_plist(0);
-    herr_t ret_H5Fmount_ehdkc = H5Fmount(ret_H5Freopen_sdrpb, (const char *)data, file_id, ret_H5Fget_access_plist_fkxev);
+    // If the file was opened successfully, close it
+    if (file_id >= 0) {
+        H5Fclose(file_id);
+    }
+
+    // Clean up the temporary file
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fopen to H5Dread_multi
+    hid_t ret_H5Dget_create_plist_mcszh = H5Dget_create_plist(file_id);
+    hid_t ret_H5Dget_create_plist_azwbk = H5Dget_create_plist(0);
+    hid_t ret_H5Dget_space_iqtpi = H5Dget_space(file_id);
+    hid_t ret_H5Aget_space_hzstb = H5Aget_space(0);
+    herr_t ret_H5Dread_multi_ulyjx = H5Dread_multi(H5G_NTYPES, &file_id, &ret_H5Dget_create_plist_mcszh, &ret_H5Dget_create_plist_azwbk, &ret_H5Dget_space_iqtpi, ret_H5Aget_space_hzstb, (void **)"w");
     // End mutation: Producer.APPEND_MUTATOR
     
-    status = H5Fget_filesize(file_id, &filesize);
+    unlink(tmpl);
 
-    // Close the file
-    H5Fclose(file_id);
-
-    // Return success
     return 0;
 }
 #ifdef INC_MAIN

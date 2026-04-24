@@ -1,38 +1,43 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
 #include "hdf5.h"
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for testing
-    if (size < sizeof(hid_t) + 1) {
-        return 0;
+    hid_t file_id, dataset_id, dataspace_id;
+    herr_t status;
+    hsize_t dims[1];
+
+    // Create a new HDF5 file using default properties.
+    file_id = H5Fcreate("fuzz_test.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        return 0; // Failed to create file, exit early
     }
 
-    // Extract a valid hid_t from the input data
-    hid_t file_id = *((hid_t *)data);
-
-    // Allocate a buffer for the file name
-    size_t name_size = size - sizeof(hid_t);
-    char *name_buffer = (char *)malloc(name_size);
-    if (name_buffer == NULL) {
-        return 0;
+    // Use the input data to create a dataset
+    if (size > 0) {
+        dims[0] = size;
+        dataspace_id = H5Screate_simple(1, dims, NULL);
+        if (dataspace_id >= 0) {
+            dataset_id = H5Dcreate2(file_id, "dataset", H5T_NATIVE_UINT8, dataspace_id, 
+                                    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            if (dataset_id >= 0) {
+                // Write the input data to the dataset
+                H5Dwrite(dataset_id, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+                // Close the dataset
+                H5Dclose(dataset_id);
+            }
+            // Close the dataspace
+            H5Sclose(dataspace_id);
+        }
     }
 
-    // Call the function-under-test
-    ssize_t result = H5Fget_name(file_id, name_buffer, name_size);
+    // Call the function-under-test with the created file identifier
+    status = H5Fstop_mdc_logging(file_id);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from H5Fget_name to H5Giterate
-    hid_t ret_H5Aget_type_fapvf = H5Aget_type(0);
-    const char acgfvaeh[1024] = "tjqtf";
-    int qboczlng = 1;
-    herr_t ret_H5Giterate_aquza = H5Giterate(ret_H5Aget_type_fapvf, acgfvaeh, &qboczlng, NULL, (void *)name_buffer);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(name_buffer);
+    // Close the file
+    H5Fclose(file_id);
 
     return 0;
 }

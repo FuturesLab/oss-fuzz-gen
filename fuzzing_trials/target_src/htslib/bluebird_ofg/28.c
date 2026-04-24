@@ -1,65 +1,95 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/tbx.h" // Include the tabix library for index functions
+
+typedef struct {
+    size_t l, m;
+    char *s;
+} kstring_t;
+
+char * haddextension(kstring_t *str, const char *ext, int flag, const char *sep);
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for our needs
-    if (size < 5) {
-        return 0;
+    if (size < 4) {
+        return 0; // Ensure there's enough data for the inputs
     }
 
-    // Use the first byte of data as an integer parameter
-    int param_int = (int)data[0];
+    // Initialize kstring_t
+    kstring_t kstr;
+    kstr.l = size / 2;
+    kstr.m = size;
+    kstr.s = (char *)malloc(kstr.m + 1);
+    memcpy(kstr.s, data, kstr.l);
+    kstr.s[kstr.l] = '\0';
 
-    // Use the rest of the data as a string, ensuring it's null-terminated
-    size_t string_size = size - 1;
-    char *param_str = (char *)malloc(string_size + 1);
-    if (param_str == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(param_str, data + 1, string_size);
-    param_str[string_size] = '\0';
+    // Extract ext from the input data
+    const char *ext = (const char *)(data + kstr.l);
+    int ext_len = (size - kstr.l) / 2;
+    char *ext_str = (char *)malloc(ext_len + 1);
+    memcpy(ext_str, ext, ext_len);
+    ext_str[ext_len] = '\0';
 
-    // Initialize htsFile and tbx_t structures
-    htsFile *file = hts_open(param_str, "r");
-    if (file == NULL) {
-        free(param_str);
-        return 0; // Failed to open file
-    }
+    // Extract sep from the input data
+    const char *sep = (const char *)(data + kstr.l + ext_len);
+    int sep_len = size - kstr.l - ext_len;
+    char *sep_str = (char *)malloc(sep_len + 1);
+    memcpy(sep_str, sep, sep_len);
+    sep_str[sep_len] = '\0';
 
-    tbx_t *tbx = tbx_index_load(param_str);
-    if (tbx == NULL) {
-        hts_close(file);
+    // Use a fixed flag value for simplicity
+    int flag = 1;
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_close to hts_crc32
+    // Call the function-under-test
+    const char lyjraqsl[1024] = "yiqoy";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of haddextension
+    char *result = haddextension(&kstr, lyjraqsl, flag, sep_str);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of hts_crc32
-        uint32_t ret_hts_crc32_pbfiu = hts_crc32(HTS_PATH_SEPARATOR_STR, (const void *)file, FT_GZ);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        if (ret_hts_crc32_pbfiu < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        free(param_str);
-        return 0; // Failed to load index
-    }
-
-    // Call a function that utilizes the index, e.g., tbx_name2id
-    int result = tbx_name2id(tbx, param_str);
-
-    // Clean up
-    tbx_destroy(tbx);
-    hts_close(file);
-    free(param_str);
+    // Free allocated memory
+    free(kstr.s);
+    free(ext_str);
+    free(sep_str);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

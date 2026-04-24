@@ -1,47 +1,41 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include "ucl.h"
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    // Initialize a UCL parser
-    struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+    if (Size < 1) return 0;
 
-    // Create a dummy file and write the input data to it
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file == NULL) {
-        ucl_parser_free(parser);
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Prepare dummy data for fuzzing
+    const char *dummy_string = "dummy";
+    ucl_object_t *comments_obj = ucl_object_typed_new(UCL_OBJECT);
+    ucl_object_t *search_obj = ucl_object_typed_new(UCL_OBJECT);
 
-    // Parse the dummy file
-    if (!ucl_parser_add_file(parser, "./dummy_file")) {
-        // Handle parsing error
-        ucl_parser_get_error_code(parser);
-        ucl_parser_clear_error(parser);
-    }
+    // Attempt to find comments
+    const ucl_object_t *comment = ucl_comments_find(comments_obj, search_obj);
+    (void)comment;
 
-    // Call the target functions in the specified order
-    unsigned column = ucl_parser_get_column(parser);
-    unsigned linenum = ucl_parser_get_linenum(parser);
-    ucl_parser_clear_error(parser);
-    int error_code = ucl_parser_get_error_code(parser);
-    ucl_object_t *obj = ucl_parser_get_object(parser);
+    // Create new UCL object from data
+    ucl_object_t *new_obj = ucl_object_typed_new((ucl_type_t)(Data[0] % (UCL_NULL + 1)));
 
-    // If obj is not NULL, unref it once before freeing the parser
-    if (obj != NULL) {
-        ucl_object_unref(obj);
-    }
+    // Create UCL object from string
+    ucl_object_t *str_obj = ucl_object_fromstring(dummy_string);
 
-    ucl_parser_free(parser);
+    // Append the string object to the new object
+    ucl_object_t *result_obj = ucl_elt_append(new_obj, str_obj);
+    (void)result_obj;
 
-    // Clean up the dummy file
-    remove("./dummy_file");
+    // Cleanup
+    ucl_object_unref(comments_obj);
+    ucl_object_unref(search_obj);
+    ucl_object_unref(new_obj);
+    // Do not unref str_obj separately as it's now part of new_obj or result_obj
 
     return 0;
 }

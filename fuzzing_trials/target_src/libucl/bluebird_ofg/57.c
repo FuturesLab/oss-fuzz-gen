@@ -1,36 +1,49 @@
 #include <sys/stat.h>
 #include <string.h>
-#include "ucl.h"
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>  // Include for the bool type
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include "ucl.h"
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-  // Ensure that the size is sufficient to create a valid ucl_object_t
-  if (size == 0) {
+    struct ucl_parser *parser;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    FILE *file;
+    bool result;
+
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write data to the temporary file
+    file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Initialize the parser
+    parser = ucl_parser_new(0);
+
+    // Fuzz the function with different enumeration values
+    result = ucl_parser_add_file_full(parser, tmpl, 0, UCL_DUPLICATE_APPEND, UCL_PARSE_UCL);
+    result = ucl_parser_add_file_full(parser, tmpl, 0, UCL_DUPLICATE_REWRITE, UCL_PARSE_UCL); // Changed UCL_DUPLICATE_REPLACE to UCL_DUPLICATE_REWRITE and UCL_PARSE_JSON to UCL_PARSE_UCL
+    result = ucl_parser_add_file_full(parser, tmpl, 0, UCL_DUPLICATE_ERROR, UCL_PARSE_MSGPACK);
+
+    // Clean up
+    ucl_parser_free(parser);
+    unlink(tmpl);
+
     return 0;
-  }
-
-  // Create a new UCL parser
-  struct ucl_parser *parser = ucl_parser_new(0);
-  if (parser == NULL) {
-    return 0;
-  }
-
-  // Add the input data to the parser
-  ucl_parser_add_string(parser, (const char *)data, size);
-
-  // Get the UCL object from the parser
-  const ucl_object_t *obj = ucl_parser_get_object(parser);
-  if (obj != NULL) {
-    // Call the function under test
-    bool result = ucl_object_toboolean(obj);
-  }
-
-  // Clean up
-  ucl_parser_free(parser);
-
-  return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

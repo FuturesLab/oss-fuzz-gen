@@ -1,43 +1,63 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // For close() and unlink()
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h> // For hts_idx_t
-#include <htslib/bgzf.h> // For bgzf_t
-#include <htslib/sam.h> // For bam_hdr_t, bam1_t
+#include <htslib/sam.h> // Ensure that the htslib library is installed and included
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Declare and initialize the parameters for hts_idx_save
-    // Instead of allocating hts_idx_t directly, we will use a function that returns a valid index
-    // For demonstration purposes, we will create a simple BAM index
-    hts_idx_t *idx = bam_index_load("example.bam"); // Load an example BAM index
-    if (idx == NULL) {
-        return 0; // Failed to load index, exit the fuzzer
+    // Ensure that the size is appropriate for the input parameters
+    if (size < sizeof(uint32_t)) {
+        return 0;
     }
 
-    // Create a temporary filename to pass to hts_idx_save
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        hts_idx_destroy(idx);
-        return 0; // Failed to create a temporary file, exit the fuzzer
-    }
-    close(fd); // Close the file descriptor as we only need the filename
+    // Initialize the parameters for bam_cigar2qlen
+    int n_cigar = (int)(size / sizeof(uint32_t)); // Number of cigar operations
 
-    // Use the first byte of data as the int parameter, or default to 0
-    int int_param = (size > 0) ? data[0] : 0;
+    // Cast the data to a uint32_t pointer
+    const uint32_t *cigar = (const uint32_t *)data;
 
     // Call the function-under-test
-    if (hts_idx_save(idx, tmpl, int_param) != 0) {
-        // Handle the error if needed
-    }
+    hts_pos_t qlen = bam_cigar2qlen(n_cigar, cigar);
 
-    // Clean up
-    hts_idx_destroy(idx);
-    unlink(tmpl); // Remove the temporary file
+    // Use the result to avoid compiler optimizations that remove the function call
+    (void)qlen;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
