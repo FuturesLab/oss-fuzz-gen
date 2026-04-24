@@ -1,43 +1,38 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
 int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
   cJSON *json;
-  char *printed_json;
+  char *printed_json = NULL;
   int prebuffer;
   cJSON_bool format;
 
-  if (size < 1) return 0;
-
-  // Ensure the input is null-terminated
-  unsigned char *input = (unsigned char *)malloc(size + 1);
-  if (input == NULL) return 0;
-  memcpy(input, data, size);
-  input[size] = '\0';
+  // Check if the input size is sufficient
+  if (size < 2) return 0;
 
   // Parse the input data into a cJSON object
-  json = cJSON_Parse((const char *)input);
-  free(input);
+  json = cJSON_ParseWithLength((const char *)data, size);
 
-  if (json == NULL) return 0;
+  if (json == NULL) {
+    return 0;
+  }
 
-  // Set prebuffer and format values
-  prebuffer = 1; // Minimum prebuffer size
-  format = (cJSON_bool)(data[0] % 2); // Use the first byte to decide format
+  // Extract prebuffer and format from the input data
+  prebuffer = (int)data[0];
+  format = (cJSON_bool)(data[1] % 2);
 
   // Call the function-under-test
   printed_json = cJSON_PrintBuffered(json, prebuffer, format);
 
-  // Free the printed JSON string if it was created
+  // Free allocated memory
   if (printed_json != NULL) {
     free(printed_json);
   }
@@ -49,5 +44,44 @@ int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_48(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

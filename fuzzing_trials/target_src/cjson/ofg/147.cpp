@@ -12,6 +12,7 @@ int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size); /* required by
 
 int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
   cJSON *json;
+  const char *error_ptr;
 
   if (size == 0 || data[size - 1] != '\0') {
     return 0;
@@ -19,12 +20,10 @@ int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
 
   json = cJSON_Parse((const char *)data);
 
-  if (json == NULL) {
-    const char *error_ptr = cJSON_GetErrorPtr();
-    if (error_ptr != NULL) {
-      // Handle the error pointer if needed, for now just continue
-    }
-  } else {
+  // Call cJSON_GetErrorPtr to check for parsing errors
+  error_ptr = cJSON_GetErrorPtr();
+
+  if (json != NULL) {
     cJSON_Delete(json);
   }
 
@@ -32,5 +31,44 @@ int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_147(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

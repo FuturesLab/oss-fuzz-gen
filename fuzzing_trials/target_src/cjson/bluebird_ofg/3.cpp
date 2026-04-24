@@ -1,51 +1,94 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
-#include "../cJSON.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "../cJSON.h"
+
+int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
   if (size == 0) {
     return 0;
   }
 
-  // Allocate memory for a copy of the input data plus a null terminator
-  char *input_copy = (char *)malloc(size + 1);
-  if (input_copy == NULL) {
+  // Create a copy of the input data and ensure it is null-terminated
+  char *input_data = (char *)malloc(size + 1);
+  if (input_data == NULL) {
     return 0;
   }
-
-  // Copy the input data into the allocated memory
-  memcpy(input_copy, data, size);
-
-  // Ensure the input is null-terminated
-  input_copy[size] = '\0';
+  memcpy(input_data, data, size);
+  input_data[size] = '\0';
 
   // Call the function-under-test
-  cJSON_Minify(input_copy);
+  cJSON_Minify(input_data);
 
   // Free the allocated memory
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Minify to cJSON_HasObjectItem
-  cJSON* ret_cJSON_CreateBool_vqxak = cJSON_CreateBool(1);
-  if (ret_cJSON_CreateBool_vqxak == NULL){
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Minify to cJSON_DeleteItemFromObject
+  cJSON* ret_cJSON_CreateBool_whomz = cJSON_CreateBool(CJSON_VERSION_MINOR);
+  if (ret_cJSON_CreateBool_whomz == NULL){
   	return 0;
   }
-
-  cJSON_bool ret_cJSON_HasObjectItem_qawhl = cJSON_HasObjectItem(ret_cJSON_CreateBool_vqxak, input_copy);
-  if (ret_cJSON_HasObjectItem_qawhl < 0){
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!ret_cJSON_CreateBool_whomz) {
   	return 0;
   }
-
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!input_data) {
+  	return 0;
+  }
+  cJSON_DeleteItemFromObject(ret_cJSON_CreateBool_whomz, input_data);
   // End mutation: Producer.APPEND_MUTATOR
-
-  free(input_copy);
+  
+  free(input_data);
 
   return 0;
 }
+
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

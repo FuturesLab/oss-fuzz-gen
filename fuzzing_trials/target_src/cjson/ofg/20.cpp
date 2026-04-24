@@ -9,19 +9,23 @@ extern "C" {
 
 #include "../cJSON.h"
 
-int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size);
+int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    if (size < sizeof(size_t) * 2) {
+    if (size < sizeof(cJSON_Hooks)) {
         return 0;
     }
 
     cJSON_Hooks hooks;
-    size_t malloc_offset = *((size_t *)data) % (size - sizeof(size_t));
-    size_t free_offset = *((size_t *)(data + sizeof(size_t))) % (size - sizeof(size_t));
+    memcpy(&hooks, data, sizeof(cJSON_Hooks));
 
-    hooks.malloc_fn = (void *(*)(size_t))(data + malloc_offset);
-    hooks.free_fn = (void (*)(void *))(data + free_offset);
+    // Ensure that the malloc and free hooks are not NULL
+    if (hooks.malloc_fn == NULL) {
+        hooks.malloc_fn = malloc;
+    }
+    if (hooks.free_fn == NULL) {
+        hooks.free_fn = free;
+    }
 
     cJSON_InitHooks(&hooks);
 
@@ -29,5 +33,44 @@ int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

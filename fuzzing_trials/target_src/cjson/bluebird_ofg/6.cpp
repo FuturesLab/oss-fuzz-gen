@@ -1,72 +1,97 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "../cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size); /* required by C89 */
-
 int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    cJSON *json_array;
-    cJSON *detached_item;
-    size_t offset = 4;
-    int index;
+    if (size < 2) return 0;
 
-    if (size <= offset)
-        {
-        return 0;
-    }
-    if (data[size - 1] != '\0')
-        {
-        return 0;
-    }
+    // Create a root JSON object
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL) return 0;
 
-    // Parse the input data as a JSON array
-    json_array = cJSON_ParseWithOpts((const char *)data + offset, NULL, 1);
-
-    if (json_array == NULL || !cJSON_IsArray(json_array))
-        {
+    // Create a new JSON item to replace
+    cJSON *new_item = cJSON_CreateString("replacement");
+    if (new_item == NULL) {
+        cJSON_Delete(root);
         return 0;
     }
 
-    // Use the first 4 bytes of data to determine the index
-    index = (int)(data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24));
-
-    // Detach item from array
-    detached_item = cJSON_DetachItemFromArray(json_array, index);
-
-    // Free the detached item if it exists
-    if (detached_item != NULL) {
-        cJSON_Delete(detached_item);
+    // Use part of the input data as a key
+    size_t key_length = data[0] % (size - 1) + 1; // Ensure key_length is at least 1
+    char *key = (char *)malloc(key_length + 1);
+    if (key == NULL) {
+        cJSON_Delete(root);
+        cJSON_Delete(new_item);
+        return 0;
     }
+    memcpy(key, data + 1, key_length);
+    key[key_length] = '\0';
 
-    // Delete the JSON array
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Delete to cJSON_PrintPreallocated
-    cJSON_bool ret_cJSON_IsString_yupff = cJSON_IsString(json_array);
-    if (ret_cJSON_IsString_yupff < 0){
-    	return 0;
+    // Add an initial item to the object with the same key
+    cJSON *initial_item = cJSON_CreateString("initial");
+    if (initial_item == NULL) {
+        free(key);
+        cJSON_Delete(root);
+        cJSON_Delete(new_item);
+        return 0;
     }
-    cJSON_bool ret_cJSON_IsObject_iznio = cJSON_IsObject(json_array);
-    if (ret_cJSON_IsObject_iznio < 0){
-    	return 0;
-    }
+    cJSON_AddItemToObject(root, key, initial_item);
 
-    cJSON_bool ret_cJSON_PrintPreallocated_mnqhg = cJSON_PrintPreallocated(json_array, NULL, ret_cJSON_IsString_yupff, ret_cJSON_IsObject_iznio);
-    if (ret_cJSON_PrintPreallocated_mnqhg < 0){
-    	return 0;
-    }
+    // Call the function-under-test
+    cJSON_ReplaceItemInObject(root, key, new_item);
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cJSON_Delete(json_array);
+    // Cleanup
+    free(key);
+    cJSON_Delete(root);
 
     return 0;
 }
+
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

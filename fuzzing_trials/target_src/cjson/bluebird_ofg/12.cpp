@@ -1,61 +1,76 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stddef.h>
 #include "../cJSON.h"
 
-int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size); /* required by C89 */
-
-int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-  cJSON *json;
-  char *key;
-  size_t key_length;
-
-  if (size < 2) {
+extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
+  if (size < sizeof(int)) {
     return 0;
   }
 
-  // Ensure the data is null-terminated for safe string operations
-  char *input_data = (char *)malloc(size + 1);
-  if (input_data == NULL) {
-    return 0;
-  }
-  memcpy(input_data, data, size);
-  input_data[size] = '\0';
+  // Calculate the number of integers we can extract from the data
+  int num_integers = size / sizeof(int);
 
-  // Parse the input data as a JSON object
-  json = cJSON_Parse(input_data);
-  if (json == NULL) {
-    free(input_data);
+  // Allocate memory for the integer array
+  int *int_array = (int *)malloc(num_integers * sizeof(int));
+  if (int_array == NULL) {
     return 0;
   }
 
-  // Use a portion of the data as the key
-  key_length = size / 2;
-  key = (char *)malloc(key_length + 1);
-  if (key == NULL) {
-    cJSON_Delete(json);
-    free(input_data);
-    return 0;
+  // Copy data into the integer array
+  for (int i = 0; i < num_integers; ++i) {
+    int_array[i] = ((int *)data)[i];
   }
-  memcpy(key, data, key_length);
-  key[key_length] = '\0';
 
-  // Call the function under test
-  cJSON_DeleteItemFromObjectCaseSensitive(json, key);
+  // Call the function-under-test
+  cJSON *json_array = cJSON_CreateIntArray(int_array, num_integers);
 
   // Clean up
-  cJSON_Delete(json);
-  free(key);
-  free(input_data);
+  if (json_array != NULL) {
+    cJSON_Delete(json_array);
+  }
+  free(int_array);
 
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

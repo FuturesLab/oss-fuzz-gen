@@ -11,45 +11,82 @@ extern "C" {
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-  cJSON *json_object = NULL;
+  cJSON *json = NULL;
   cJSON *detached_item = NULL;
   char *key = NULL;
 
-  if (size < 2) {
+  if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }
 
-  // Ensure the data is null-terminated for string operations
-  char *input_data = (char *)malloc(size + 1);
-  if (input_data == NULL) {
-    return 0;
-  }
-  memcpy(input_data, data, size);
-  input_data[size] = '\0';
-
-  // Parse the data into a cJSON object
-  json_object = cJSON_Parse(input_data);
-  if (json_object == NULL) {
-    free(input_data);
+  // Parse the input data as a JSON object
+  json = cJSON_Parse((const char *)data);
+  if (json == NULL) {
     return 0;
   }
 
-  // Use part of the input data as a key, ensuring it's null-terminated
-  key = input_data;
+  // Use the first part of the data as a key
+  key = (char *)malloc(size);
+  if (key == NULL) {
+    cJSON_Delete(json);
+    return 0;
+  }
 
-  // Detach the item from the JSON object using the key
-  detached_item = cJSON_DetachItemFromObject(json_object, key);
+  memcpy(key, data, size);
+  key[size - 1] = '\0';
+
+  // Detach an item from the object using the key
+  detached_item = cJSON_DetachItemFromObject(json, key);
 
   // Clean up
   if (detached_item != NULL) {
     cJSON_Delete(detached_item);
   }
-  cJSON_Delete(json_object);
-  free(input_data);
+  cJSON_Delete(json);
+  free(key);
 
   return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,51 +11,69 @@
 #include <cstddef>
 #include "../cJSON.h"
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
+#include <string>
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    // Create a parent JSON object
+    cJSON *parent = cJSON_CreateObject();
+    if (!parent) {
+        return 0; // Exit if creation fails
     }
 
-    // Create a null-terminated string from the input data
-    char *jsonString = static_cast<char*>(malloc(Size + 1));
-    if (!jsonString) {
-        return 0;
-    }
-    memcpy(jsonString, Data, Size);
-    jsonString[Size] = '\0';
+    // Ensure the data is null-terminated for string operations
+    std::string name(reinterpret_cast<const char*>(Data), Size);
 
-    // Parse the JSON data
-    cJSON *json = cJSON_Parse(jsonString);
-    free(jsonString);
+    // Add a new JSON object as a child to the parent JSON object
+    cJSON *child = cJSON_AddObjectToObject(parent, name.c_str());
 
-    if (json == nullptr) {
-        return 0;
+    // Check if the child was added successfully
+    if (child) {
+        // Perform operations on the child if needed
+        // (For fuzzing, we simply create and add, no further operations)
     }
 
-    // Invoke the target functions
-    cJSON_IsFalse(json);
-    cJSON_IsObject(json);
-    cJSON_IsTrue(json);
-    cJSON_IsRaw(json);
-    cJSON_IsString(json);
-    cJSON_IsNull(json);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Delete to cJSON_DeleteItemFromArray
-    double ret_cJSON_GetNumberValue_awckb = cJSON_GetNumberValue(json);
-    if (ret_cJSON_GetNumberValue_awckb < 0){
-    	return 0;
-    }
-
-    cJSON_DeleteItemFromArray(json, (int )ret_cJSON_GetNumberValue_awckb);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cJSON_Delete(json);
+    // Clean up the parent object, which includes the child
+    cJSON_Delete(parent);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

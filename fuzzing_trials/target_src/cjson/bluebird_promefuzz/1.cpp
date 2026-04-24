@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,56 +9,95 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
+extern "C" {
 #include "../cJSON.h"
+}
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+
+static void handle_cjson_operations(const char *json, size_t size) {
+    const char *end_ptr = nullptr;
+    cJSON *parsed_json = cJSON_ParseWithOpts(json, &end_ptr, cJSON_True);
+
+    if (parsed_json == nullptr) {
+        return;
+    }
+
+    char *buffered_output = cJSON_PrintBuffered(parsed_json, 256, cJSON_True);
+    if (buffered_output) {
+        cJSON_Minify(buffered_output);
+        cJSON_free(buffered_output);
+    }
+
+    char *formatted_output = cJSON_Print(parsed_json);
+    if (formatted_output) {
+        cJSON_free(formatted_output);
+    }
+
+    char *unformatted_output = cJSON_PrintUnformatted(parsed_json);
+    if (unformatted_output) {
+        cJSON_free(unformatted_output);
+    }
+
+    cJSON_Delete(parsed_json);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    // Convert the input data to a string
-    char *inputStr = (char *)malloc(Size + 1);
-    if (!inputStr) return 0; // Exit if memory allocation fails
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
-
-    // Test cJSON_Parse
-    cJSON *parsedJson = cJSON_Parse(inputStr);
-    if (parsedJson) {
-        // Test cJSON_PrintUnformatted
-        char *unformattedStr = cJSON_PrintUnformatted(parsedJson);
-        if (unformattedStr) {
-            free(unformattedStr);
-        }
-
-        // Test cJSON_GetStringValue
-        cJSON_GetStringValue(parsedJson);
-
-        cJSON_Delete(parsedJson);
+    if (Size == 0) {
+        return 0;
     }
 
-    // Test cJSON_CreateRaw
-    cJSON *rawJson = cJSON_CreateRaw(inputStr);
-    if (rawJson) {
-        cJSON_Delete(rawJson);
+    char *json = static_cast<char *>(malloc(Size + 1));
+    if (json == nullptr) {
+        return 0;
     }
 
-    // Test cJSON_CreateStringReference
-    cJSON *stringRef = cJSON_CreateStringReference(inputStr);
-    if (stringRef) {
-        cJSON_Delete(stringRef);
-    }
+    memcpy(json, Data, Size);
+    json[Size] = '\0';
 
-    // Create a dummy cJSON object
-    cJSON *dummyObject = cJSON_CreateObject();
-    if (dummyObject) {
-        // Test cJSON_AddStringToObject
-        cJSON *addedString = cJSON_AddStringToObject(dummyObject, "key", inputStr);
-        if (addedString) {
-            // Successfully added, no action needed
-        }
-        cJSON_Delete(dummyObject);
-    }
+    handle_cjson_operations(json, Size);
 
-    free(inputStr);
+    free(json);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -11,37 +11,84 @@ extern "C" {
 int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size) {
-  cJSON *json;
-  char *key;
-  size_t offset = 1;
-
-  if (size <= offset)
+  if (size < 2) {
     return 0;
-  if (data[size - 1] != '\0')
+  }
+
+  // Create a null-terminated string from the input data
+  char *json_string = (char *)malloc(size + 1);
+  if (json_string == NULL) {
     return 0;
+  }
+  memcpy(json_string, data, size);
+  json_string[size] = '\0';
 
-  json = cJSON_Parse((const char *)data);
+  // Parse the JSON data
+  cJSON *json = cJSON_Parse(json_string);
+  free(json_string);
 
-  if (json == NULL)
+  if (json == NULL) {
     return 0;
+  }
 
-  key = (char *)malloc(size - offset + 1);
+  // Create a key string from the remaining data
+  char *key = (char *)malloc(size + 1);
   if (key == NULL) {
     cJSON_Delete(json);
     return 0;
   }
+  memcpy(key, data, size);
+  key[size] = '\0';
 
-  memcpy(key, data + offset, size - offset);
-  key[size - offset] = '\0';
-
+  // Call the function-under-test
   cJSON_bool result = cJSON_HasObjectItem(json, key);
 
-  free(key);
+  // Clean up
   cJSON_Delete(json);
+  free(key);
 
   return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_141(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

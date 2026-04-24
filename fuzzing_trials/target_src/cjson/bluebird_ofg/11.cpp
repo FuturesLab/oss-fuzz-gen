@@ -1,53 +1,76 @@
-#include "stdint.h"
-#include <stddef.h>
-#include "stdlib.h"
-#include "string.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "../cJSON.h"
 
-extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0;
-    }
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    // Determine the number of strings to create
-    int num_strings = data[0] % 10 + 1; // Limit the number of strings to 10 for simplicity
+int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
+  if (size < sizeof(float)) {
+    return 0;
+  }
 
-    // Allocate memory for the array of string pointers
-    const char **string_array = (const char **)malloc(num_strings * sizeof(char *));
-    if (string_array == NULL) {
-        return 0;
-    }
+  int num_floats = size / sizeof(float);
+  float *float_array = (float *)malloc(num_floats * sizeof(float));
+  if (float_array == NULL) {
+    return 0;
+  }
 
-    // Initialize each string in the array
-    size_t offset = 1;
-    for (int i = 0; i < num_strings; i++) {
-        if (offset >= size) {
-            string_array[i] = strdup(""); // Use an empty string if data is exhausted
-        } else {
-            size_t str_length = (data[offset] % (size - offset)) + 1;
-            char *str = (char *)malloc(str_length + 1);
-            if (str == NULL) {
-                string_array[i] = strdup("");
-            } else {
-                memcpy(str, data + offset, str_length);
-                str[str_length] = '\0';
-                string_array[i] = str;
-                offset += str_length;
-            }
-        }
-    }
+  memcpy(float_array, data, num_floats * sizeof(float));
 
-    // Call the function under test
-    cJSON *json_array = cJSON_CreateStringArray(string_array, num_strings);
+  cJSON *json_array = cJSON_CreateFloatArray(float_array, num_floats);
 
-    // Clean up
-    if (json_array != NULL) {
-        cJSON_Delete(json_array);
-    }
-    for (int i = 0; i < num_strings; i++) {
-        free((void *)string_array[i]);
-    }
-    free(string_array);
+  if (json_array != NULL) {
+    cJSON_Delete(json_array);
+  }
 
+  free(float_array);
+
+  return 0;
+}
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,25 +11,63 @@ extern "C" {
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    if (size < sizeof(size_t)) {
-        return 0;
-    }
-
-    // Extract a size_t value from the input data
-    size_t alloc_size;
-    memcpy(&alloc_size, data, sizeof(size_t));
-
-    // Call the function-under-test
-    void *allocated_memory = cJSON_malloc(alloc_size);
-
-    // If memory was successfully allocated, free it
-    if (allocated_memory != NULL) {
-        free(allocated_memory);
-    }
-
+  if (size == 0) {
     return 0;
+  }
+
+  // Use the first few bytes of data to determine the size for cJSON_malloc
+  size_t malloc_size = (size_t)data[0];
+
+  // Call the function-under-test
+  void *allocated_memory = cJSON_malloc(malloc_size);
+
+  // Free the allocated memory if it's not NULL
+  if (allocated_memory != NULL) {
+    free(allocated_memory);
+  }
+
+  return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_74(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

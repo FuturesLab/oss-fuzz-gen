@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,70 +11,76 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstddef>
-#include <cstring>
 #include "../cJSON.h"
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a JSON object
-    cJSON *root = cJSON_CreateObject();
-    if (root == nullptr) return 0;
-
-    // Add a string to the object
-    const char *key1 = "key1";
-    char *stringValue = new char[Size + 1];
-    memcpy(stringValue, Data, Size);
-    stringValue[Size] = '\0';
-    cJSON *stringItem = cJSON_AddStringToObject(root, key1, stringValue);
-    delete[] stringValue;
-    if (stringItem == nullptr) {
-        cJSON_Delete(root);
-        return 0;
+    // Create a cJSON object
+    cJSON *jsonObject = cJSON_CreateObject();
+    if (jsonObject == nullptr) {
+        return 0; // If creation fails, exit early
     }
 
-    // Add an array to the object
-    const char *arrayKey = "array";
-    cJSON *array = cJSON_AddArrayToObject(root, arrayKey);
-    if (array == nullptr) {
-        cJSON_Delete(root);
-        return 0;
+    // Prepare a key name from the input data
+    // Ensure the key name is null-terminated and has a reasonable length
+    size_t keyLength = Size < 256 ? Size : 255;
+    char key[256];
+    if (Size > 0) {
+        memcpy(key, Data, keyLength);
+        key[keyLength] = '\0';
+    } else {
+        key[0] = '\0';
     }
 
-    // Create another JSON object
-    cJSON *nestedObject = cJSON_CreateObject();
-    if (nestedObject == nullptr) {
-        cJSON_Delete(root);
-        return 0;
+    // Add a true value to the object with the given key
+    cJSON *addedItem = cJSON_AddTrueToObject(jsonObject, key);
+
+    // Check if the item was added successfully
+    if (addedItem == nullptr) {
+        cJSON_Delete(jsonObject);
+        return 0; // Exit if adding failed
     }
 
-    // Add numbers to the nested object
-    const char *numKey1 = "num1";
-    const char *numKey2 = "num2";
-    double num1 = static_cast<double>(Data[0]);
-    double num2 = static_cast<double>(Size);
-    if (cJSON_AddNumberToObject(nestedObject, numKey1, num1) == nullptr ||
-        cJSON_AddNumberToObject(nestedObject, numKey2, num2) == nullptr) {
-        cJSON_Delete(nestedObject);
-        cJSON_Delete(root);
-        return 0;
-    }
+    // Clean up the cJSON object
+    cJSON_Delete(jsonObject);
 
-    // Add the nested object to the array
-    if (!cJSON_AddItemToArray(array, nestedObject)) {
-        cJSON_Delete(nestedObject);
-        cJSON_Delete(root);
-        return 0;
-    }
-
-    // Print the JSON structure
-    char *jsonString = cJSON_Print(root);
-    if (jsonString != nullptr) {
-        // Normally, you would do something with jsonString
-        cJSON_free(jsonString);
-    }
-
-    // Cleanup
-    cJSON_Delete(root);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

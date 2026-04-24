@@ -1,50 +1,96 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
     if (size < 2) {
         return 0;
     }
 
-    // Create a JSON array
-    cJSON *json_array = cJSON_CreateArray();
-    if (json_array == NULL) {
+    // Split the input data for two JSON objects
+    size_t mid = size / 2;
+
+    // Create a null-terminated string for the first JSON object
+    char *json_data1 = (char *)malloc(mid + 1);
+    if (json_data1 == NULL) {
         return 0;
     }
+    memcpy(json_data1, data, mid);
+    json_data1[mid] = '\0';
 
-    // Add a few items to the array to ensure it has elements
-    cJSON_AddItemToArray(json_array, cJSON_CreateString("item1"));
-    cJSON_AddItemToArray(json_array, cJSON_CreateString("item2"));
-    cJSON_AddItemToArray(json_array, cJSON_CreateString("item3"));
-
-    // Use the first byte of data as the index
-    int index = data[0] % cJSON_GetArraySize(json_array);
-
-    // Parse the remaining data as a new cJSON item
-    cJSON *new_item = cJSON_ParseWithLength((const char *)(data + 1), size - 1);
-    if (new_item == NULL) {
-        cJSON_Delete(json_array);
+    // Create a null-terminated string for the second JSON object
+    char *json_data2 = (char *)malloc(size - mid + 1);
+    if (json_data2 == NULL) {
+        free(json_data1);
         return 0;
     }
+    memcpy(json_data2, data + mid, size - mid);
+    json_data2[size - mid] = '\0';
 
-    // Call the function-under-test
-    cJSON_bool result = cJSON_ReplaceItemInArray(json_array, index, new_item);
+    // Parse the JSON objects
+    cJSON *array = cJSON_Parse(json_data1);
+    cJSON *new_item = cJSON_Parse(json_data2);
+
+    // Check if parsing was successful
+    if (array != NULL && new_item != NULL) {
+        // Attempt to replace an item in the array
+        int index = 0; // Use a fixed index for simplicity
+        cJSON_ReplaceItemInArray(array, index, new_item);
+    }
 
     // Clean up
-    cJSON_Delete(json_array);
+    cJSON_Delete(array);
+    cJSON_Delete(new_item);
+    free(json_data1);
+    free(json_data2);
 
     return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_71(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

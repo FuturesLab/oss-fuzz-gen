@@ -1,6 +1,7 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,40 +12,92 @@ extern "C" {
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-  if (size == 0 || data[size - 1] != '\0') {
+  cJSON *json;
+  char *printed_json;
+  int prebuffer_size;
+  cJSON_bool formatted;
+
+  if (size < 1)
+    {
     return 0;
   }
 
-  cJSON *json = cJSON_Parse((const char *)data);
-  if (json == NULL) {
+  json = cJSON_ParseWithLength((const char *)data, size);
+  if (json == NULL)
+    {
     return 0;
   }
 
-  cJSON_bool is_raw = cJSON_IsRaw(json);
+  // Use the first byte of data to determine prebuffer_size and formatted
 
-  // Use the result of cJSON_IsRaw to avoid compiler warnings about unused variables
-  if (is_raw) {
-    // Do something if it's raw, though for fuzzing purposes, we don't need to do anything specific
-  }
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_IsRaw to cJSON_CreateIntArray
-  double ret_cJSON_GetNumberValue_dxvcr = cJSON_GetNumberValue(NULL);
-  if (ret_cJSON_GetNumberValue_dxvcr < 0){
+  // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from cJSON_ParseWithLength to cJSON_InsertItemInArray using the plateau pool
+  int index = data[0] % (size + 1);
+  cJSON *item = cJSON_CreateString("fuzz_item");
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!json) {
   	return 0;
   }
-
-  cJSON* ret_cJSON_CreateIntArray_kcyps = cJSON_CreateIntArray((const int *)&ret_cJSON_GetNumberValue_dxvcr, is_raw);
-  if (ret_cJSON_CreateIntArray_kcyps == NULL){
+  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cJSON_InsertItemInArray with cJSON_ReplaceItemInArray
+  cJSON_bool ret_cJSON_InsertItemInArray_evjal = cJSON_ReplaceItemInArray(json, index, item);
+  // End mutation: Producer.REPLACE_FUNC_MUTATOR
+  if (ret_cJSON_InsertItemInArray_evjal < 0){
   	return 0;
   }
+  // End mutation: Producer.SPLICE_MUTATOR
+  
+  prebuffer_size = data[0] % 256; // Ensure prebuffer_size is a positive integer
+  formatted = (data[0] % 2 == 0) ? 1 : 0; // Toggle formatted based on the first byte
 
-  // End mutation: Producer.APPEND_MUTATOR
+  printed_json = cJSON_PrintBuffered(json, prebuffer_size, formatted);
+
+  if (printed_json != NULL) {
+    free(printed_json);
+  }
 
   cJSON_Delete(json);
 
   return 0;
 }
+
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,34 +9,97 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 #include "../cJSON.h"
-}
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    // Create a cJSON object from the input data
-    cJSON *json = cJSON_ParseWithLength(reinterpret_cast<const char*>(Data), Size);
+    if (Size == 0) {
+        return 0;
+    }
 
-    // Fuzz cJSON_IsFalse
-    cJSON_IsFalse(json);
+    // Ensure the data is null-terminated
+    char *json_input = static_cast<char*>(malloc(Size + 1));
+    if (!json_input) {
+        return 0;
+    }
+    memcpy(json_input, Data, Size);
+    json_input[Size] = '\0';
 
-    // Fuzz cJSON_IsTrue
-    cJSON_IsTrue(json);
+    // Step 1: Parse the JSON input
+    cJSON *json = cJSON_Parse(json_input);
+    if (!json) {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cJSON_GetErrorPtr with cJSON_Version
+        const char *error_ptr = cJSON_Version();
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        if (error_ptr != nullptr) {
+            // Handle parse error if needed
+        }
+        free(json_input);
+        return 0;
+    }
 
-    // Fuzz cJSON_IsString
-    cJSON_IsString(json);
+    // Step 2: Retrieve an item by key (case-sensitive)
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(json, "key1");
+    if (item && cJSON_IsString(item)) {
+        // Process the string item if needed
+    }
 
-    // Fuzz cJSON_IsBool
-    cJSON_IsBool(json);
+    // Step 3: Retrieve another item by key (case-sensitive)
+    item = cJSON_GetObjectItemCaseSensitive(json, "key2");
+    if (item && cJSON_IsNumber(item)) {
+        // Process the number item if needed
+    }
 
-    // Fuzz cJSON_IsNull
-    cJSON_IsNull(json);
+    // Step 4: Retrieve yet another item by key (case-sensitive)
+    item = cJSON_GetObjectItemCaseSensitive(json, "key3");
+    if (item && cJSON_IsNumber(item)) {
+        // Process the number item if needed
+    }
 
-    // Fuzz cJSON_IsNumber
-    cJSON_IsNumber(json);
-
-    // Clean up
+    // Cleanup
     cJSON_Delete(json);
+    free(json_input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

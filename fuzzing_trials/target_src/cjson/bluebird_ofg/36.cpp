@@ -1,85 +1,81 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h> // Added to include malloc and free
+#include "../cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size);
-
 int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    if (size < 2) {
+    if (size == 0) {
         return 0;
     }
 
-    // Split the input data into two halves for two cJSON objects
-    size_t mid = size / 2;
-    const uint8_t *data1 = data;
-    size_t size1 = mid;
-    const uint8_t *data2 = data + mid;
-    size_t size2 = size - mid;
+    const char *parse_end = NULL;
+    cJSON_bool require_null_termination = cJSON_True; // or cJSON_False, try both
 
-    // Ensure both halves are null-terminated
-    char *json_str1 = (char *)malloc(size1 + 1);
-    char *json_str2 = (char *)malloc(size2 + 1);
-    if (json_str1 == NULL || json_str2 == NULL) {
-        free(json_str1);
-        free(json_str2);
+    // Ensure the input data is NULL-terminated
+    char *input_data = (char *)malloc(size + 1);
+    if (!input_data) {
         return 0;
     }
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
 
-    memcpy(json_str1, data1, size1);
-    json_str1[size1] = '\0';
-
-    memcpy(json_str2, data2, size2);
-    json_str2[size2] = '\0';
-
-    // Parse the two JSON strings
-    cJSON *json1 = cJSON_Parse(json_str1);
-    cJSON *json2 = cJSON_Parse(json_str2);
-
-    free(json_str1);
-    free(json_str2);
-
-    if (json1 == NULL || json2 == NULL) {
-        cJSON_Delete(json1);
-        cJSON_Delete(json2);
-        return 0;
-    }
-
-    // Use the first byte of the input data to determine the value of the case_sensitive parameter
-    cJSON_bool case_sensitive = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
-
-    // Call the function under test
-    cJSON_bool result = cJSON_Compare(json1, json2, case_sensitive);
+    // Call the function-under-test
+    cJSON *json = cJSON_ParseWithLengthOpts(input_data, size, &parse_end, require_null_termination);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Compare to cJSON_PrintBuffered
-    cJSON* ret_cJSON_CreateNull_ocezi = cJSON_CreateNull();
-    if (ret_cJSON_CreateNull_ocezi == NULL){
-    	return 0;
+    if (json != NULL) {
+        cJSON_Delete(json);
     }
-    cJSON_bool ret_cJSON_IsInvalid_uremj = cJSON_IsInvalid(json2);
-    if (ret_cJSON_IsInvalid_uremj < 0){
-    	return 0;
-    }
-
-    char* ret_cJSON_PrintBuffered_donmq = cJSON_PrintBuffered(ret_cJSON_CreateNull_ocezi, result, ret_cJSON_IsInvalid_uremj);
-    if (ret_cJSON_PrintBuffered_donmq == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cJSON_Delete(json1);
-    cJSON_Delete(json2);
+    free(input_data);
 
     return 0;
 }
+
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_36(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

@@ -1,6 +1,7 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,55 +12,74 @@ extern "C" {
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-  cJSON *json;
-  cJSON *duplicate;
-  size_t offset = 1;
-  cJSON_bool recurse;
-
-  if (size <= offset)
-    {
-    return 0;
-  }
-  if (data[size - 1] != '\0')
-    {
-    return 0;
-  }
-  if (data[0] != '1' && data[0] != '0')
-    {
+  if (size < 2) {
     return 0;
   }
 
-  recurse = data[0] == '1' ? 1 : 0;
+  // Ensure that the data is null-terminated for string operations
+  char *key = (char *)malloc(size + 1);
+  if (key == NULL) {
+    return 0;
+  }
+  memcpy(key, data, size);
+  key[size] = '\0';
 
-  json = cJSON_ParseWithOpts((const char *)data + offset, NULL, 1);
-  if (json == NULL)
-    {
+  // Create a new cJSON object
+  cJSON *json_object = cJSON_CreateObject();
+  if (json_object == NULL) {
+    free(key);
     return 0;
   }
 
-  duplicate = cJSON_Duplicate(json, recurse);
+  // Call the function-under-test
+  cJSON *array = cJSON_AddArrayToObject(json_object, key);
 
-  cJSON_Delete(json);
-  if (duplicate != NULL) {
+  // Cleanup
+  cJSON_Delete(json_object);
+  free(key);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Delete to cJSON_AddArrayToObject
-    char* ret_cJSON_PrintUnformatted_lnzjq = cJSON_PrintUnformatted(duplicate);
-    if (ret_cJSON_PrintUnformatted_lnzjq == NULL){
-    	return 0;
-    }
-
-    cJSON* ret_cJSON_AddArrayToObject_nxylg = cJSON_AddArrayToObject(duplicate, ret_cJSON_PrintUnformatted_lnzjq);
-    if (ret_cJSON_AddArrayToObject_nxylg == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cJSON_Delete(duplicate);
-  }
   return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

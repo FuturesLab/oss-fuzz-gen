@@ -1,6 +1,7 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,40 +12,66 @@ extern "C" {
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
+  cJSON *json;
+
   if (size == 0 || data[size - 1] != '\0') {
     return 0;
   }
 
-  cJSON *json = cJSON_Parse((const char *)data);
+  json = cJSON_Parse((const char *)data);
+
   if (json == NULL) {
     return 0;
   }
 
+  // Call the function-under-test
   cJSON_bool is_raw = cJSON_IsRaw(json);
 
-  // Use the result of cJSON_IsRaw to avoid compiler warnings about unused variables
-  if (is_raw) {
-    // Do something if it's raw, though for fuzzing purposes, we don't need to do anything specific
-  }
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_IsRaw to cJSON_CreateIntArray
-  cJSON_bool ret_cJSON_IsNull_mywyk = cJSON_IsNull(NULL);
-  if (ret_cJSON_IsNull_mywyk < 0){
-  	return 0;
-  }
-
-  cJSON* ret_cJSON_CreateIntArray_olnuc = cJSON_CreateIntArray(&ret_cJSON_IsNull_mywyk, is_raw);
-  if (ret_cJSON_CreateIntArray_olnuc == NULL){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
+  // Clean up
   cJSON_Delete(json);
 
   return 0;
 }
+
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif
