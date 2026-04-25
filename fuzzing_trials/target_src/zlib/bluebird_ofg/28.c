@@ -1,49 +1,87 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "zlib.h"
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
+    // Initialize z_stream structure
+    z_stream strm;
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+    strm.avail_in = 0;
+    strm.next_in = Z_NULL;
+
+    // Initialize gz_header structure
+    gz_header header;
+    header.text = 0;
+    header.time = 0;
+    header.xflags = 0;
+    header.os = 0;
+    header.extra = NULL;
+    header.extra_len = 0;
+    header.extra_max = 0;
+    header.name = NULL;
+    header.name_max = 0;
+    header.comment = NULL;
+    header.comm_max = 0;
+    header.hcrc = 0;
+    header.done = 0;
+
+    // Initialize inflate state
+    if (inflateInit2(&strm, 15 + 32) != Z_OK) {
         return 0;
     }
 
-    // Create a temporary file to use with gzopen
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
-        return 0;
-    }
+    // Set input data
+    strm.avail_in = size;
+    strm.next_in = (Bytef *)data;
 
-    // Convert the FILE* to a file descriptor
-    int fd = fileno(tempFile);
-
-    // Open a gzFile using the file descriptor
-    gzFile gzfile = gzdopen(fd, "wb");
-    if (gzfile == NULL) {
-        fclose(tempFile);
-        return 0;
-    }
-
-    // Ensure that the data is null-terminated for gzputs
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == NULL) {
-        gzclose(gzfile);
-        fclose(tempFile);
-        return 0;
-    }
-    memcpy(inputString, data, size);
-    inputString[size] = '\0';
-
-    // Call the function under test
-    gzputs(gzfile, inputString);
+    // Call the function-under-test
+    inflateGetHeader(&strm, &header);
 
     // Clean up
-    free(inputString);
-    gzclose(gzfile);
-    fclose(tempFile);
+    inflateEnd(&strm);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

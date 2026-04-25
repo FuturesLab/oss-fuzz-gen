@@ -1,87 +1,137 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "zlib.h"
 
-static unsigned int dummy_in_func(void *desc, z_const unsigned char **buf) {
-    *buf = (z_const unsigned char *)desc;
-    // Return the size of the input data instead of using strlen
-    return desc ? (unsigned int)*(size_t *)desc : 0;
-}
-
-static int dummy_out_func(void *desc, unsigned char *buf, unsigned len) {
-    FILE *out = (FILE *)desc;
-    return (int)fwrite(buf, 1, len, out);
+static void initialize_stream(z_streamp strm) {
+    memset(strm, 0, sizeof(z_stream));
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
 }
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    z_stream stream;
-    z_stream dest_stream;
-    int ret;
-
-    // Initialize dummy data
-    unsigned char window[32768];
-    FILE *dummy_file = fopen("./dummy_file", "wb+");
-    if (!dummy_file) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Initialize the stream
-    memset(&stream, 0, sizeof(stream));
-    stream.next_in = Data;
-    stream.avail_in = Size;
+    z_stream strm;
+    initialize_stream(&strm);
 
-    // Test inflateInit2_
-    ret = inflateInit2_(&stream, 15, ZLIB_VERSION, sizeof(z_stream));
+    int level = Z_DEFAULT_COMPRESSION;
+    int strategy = Z_DEFAULT_STRATEGY;
+    int ret = deflateInit_(&strm, level, ZLIB_VERSION, sizeof(z_stream));
     if (ret != Z_OK) {
-        goto cleanup;
+        return 0;
     }
 
-    // Test inflate
-    stream.next_out = (unsigned char *)malloc(Size);
-    if (!stream.next_out) {
-        goto cleanup;
+    uint8_t *out = malloc(Size);
+    if (!out) {
+        deflateEnd(&strm);
+        return 0;
     }
-    stream.avail_out = Size;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of inflate
+    strm.next_in = (z_const Bytef *)Data;
+    strm.avail_in = Size;
+    strm.next_out = out;
+    strm.avail_out = Size;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of inflate
-    inflate(&stream, Z_ERRNO);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of deflate
+    ret = deflate(&strm, Size);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (ret != Z_OK && ret != Z_BUF_ERROR) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
-
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of deflateParams
+    ret = deflateParams(&strm, Z_NO_COMPRESSION, Z_FILTERED);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (ret != Z_OK) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
+    ret = deflate(&strm, Z_SYNC_FLUSH);
+    if (ret != Z_OK && ret != Z_BUF_ERROR) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
-    free(stream.next_out);
-
-    // Test inflateCopy
-    memset(&dest_stream, 0, sizeof(dest_stream));
-    inflateCopy(&dest_stream, &stream);
-
-    // Test inflateBackInit_
-    inflateBackInit_(&stream, 15, window, ZLIB_VERSION, sizeof(z_stream));
-
-    // Test inflateBack
-    size_t input_size = Size;
-    stream.next_in = Data;
-    stream.avail_in = Size;
-    inflateBack(&stream, dummy_in_func, &input_size, dummy_out_func, dummy_file);
-
-    // Test inflateSyncPoint
-    inflateSyncPoint(&stream);
-
-cleanup:
-    inflateEnd(&stream);
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function inflateEnd with inflateSync
-    inflateSync(&dest_stream);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of deflateParams
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function deflateParams with deflatePrime
+    ret = deflatePrime(&strm, Z_BEST_COMPRESSION, ZLIB_VER_MINOR);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (ret != Z_OK) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
+    ret = deflate(&strm, Z_FINISH);
+    if (ret != Z_STREAM_END && ret != Z_OK && ret != Z_BUF_ERROR) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
-    fclose(dummy_file);
+    ret = deflate(&strm, Z_FINISH);
+    if (ret != Z_STREAM_END && ret != Z_OK && ret != Z_BUF_ERROR) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
+
+    deflateEnd(&strm);
+    free(out);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

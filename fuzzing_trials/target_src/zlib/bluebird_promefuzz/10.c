@@ -1,88 +1,112 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "zlib.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+#include "zlib.h"
 
-static void initialize_stream(z_stream *strm, const uint8_t *Data, size_t Size) {
-    memset(strm, 0, sizeof(z_stream));
-    strm->next_in = Data;
-    strm->avail_in = Size;
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
-}
-
-static void initialize_header(gz_header *head) {
-    memset(head, 0, sizeof(gz_header));
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    z_stream strm;
-    initialize_stream(&strm, Data, Size);
-
-    gz_header head;
-    initialize_header(&head);
-
-    int ret = inflateInit2_(&strm, MAX_WBITS + 16, ZLIB_VERSION, sizeof(z_stream));
-    if (ret != Z_OK) return 0;
-
-    ret = inflateGetHeader(&strm, &head);
-    if (ret != Z_OK) {
-        inflateEnd(&strm);
+    if (Size < 1) {
         return 0;
     }
 
-    unsigned char out[1024];
-    strm.next_out = out;
-    strm.avail_out = sizeof(out);
+    // Prepare the dummy file with the provided data
+    write_dummy_file(Data, Size);
 
-    ret = inflate(&strm, Z_NO_FLUSH);
-    if (ret != Z_OK && ret != Z_STREAM_END) {
-        inflateEnd(&strm);
+    // Open the file for writing in gzip format
+    const char wilfpfky[1024] = "kebot";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of gzopen
+    const char wdnnecjf[1024] = "ijoad";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of gzopen
+    const char tgehisft[1024] = "dhage";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of gzopen
+    gzFile gz_file = gzopen("./dummy_file", tgehisft);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (gz_file == NULL) {
         return 0;
     }
 
-    const Bytef dict[] = "dummy_dictionary";
-    ret = inflateSetDictionary(&strm, dict, sizeof(dict));
-    if (ret != Z_OK) {
-        inflateEnd(&strm);
-        return 0;
-    }
+    // Use gzputc to write a character
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzputc with gzflush
+    gzflush(gz_file, Data[0]);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-    ret = inflate(&strm, Z_FINISH);
-    if (ret != Z_OK && ret != Z_STREAM_END) {
-        inflateEnd(&strm);
-        return 0;
-    }
+    // Use gzputs to write a string (ensure null-termination)
+    char str[256];
+    size_t str_len = (Size < 255) ? Size : 255;
+    memcpy(str, Data, str_len);
+    str[str_len] = '\0';
+    gzputs(gz_file, str);
 
-    z_stream copy;
-    initialize_stream(&copy, NULL, 0);
+    // Check for errors
+    int errnum;
+    gzerror(gz_file, &errnum);
 
-    ret = inflateCopy(&copy, &strm);
-    if (ret != Z_OK) {
-        inflateEnd(&strm);
-        return 0;
-    }
+    // Use gzprintf to write formatted data
+    gzprintf(gz_file, "Formatted data: %d\n", Data[0]);
 
-    ret = inflateEnd(&copy);
-    if (ret != Z_OK) {
-        inflateEnd(&strm);
-        return 0;
-    }
+    // Check for errors again
+    gzerror(gz_file, &errnum);
 
-    ret = inflateReset2(&strm, MAX_WBITS);
-    if (ret != Z_OK) {
-        inflateEnd(&strm);
-        return 0;
-    }
+    // Seek to the beginning of the file
+    gzseek(gz_file, 0, SEEK_SET);
 
-    ret = inflateEnd(&strm);
+    // Close the file
+    gzclose(gz_file);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

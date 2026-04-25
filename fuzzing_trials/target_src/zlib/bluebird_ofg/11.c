@@ -1,57 +1,75 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include "zlib.h"
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    gzFile file;
-    off_t offset;
-    int whence;
-    off_t result;
+    z_stream source_stream;
+    z_stream dest_stream;
 
-    // Create a temporary file to work with
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    // Initialize the source stream
+    source_stream.zalloc = Z_NULL;
+    source_stream.zfree = Z_NULL;
+    source_stream.opaque = Z_NULL;
+    source_stream.avail_in = size;
+    source_stream.next_in = (Bytef *)data;
+
+    // Initialize the destination stream
+    dest_stream.zalloc = Z_NULL;
+    dest_stream.zfree = Z_NULL;
+    dest_stream.opaque = Z_NULL;
+
+    // Initialize the source stream for inflation
+    if (inflateInit(&source_stream) != Z_OK) {
         return 0;
     }
 
-    // Open a gzFile for writing to compress the input data
-    gzFile gzTempFile = gzdopen(fileno(tempFile), "wb");
-    if (gzTempFile == NULL) {
-        fclose(tempFile);
-        return 0;
-    }
+    // Call the function under test
+    inflateCopy(&dest_stream, &source_stream);
 
-    // Write the input data to the gzFile to compress it
-    gzwrite(gzTempFile, data, size);
-    gzclose(gzTempFile);
+    // Clean up the streams
+    inflateEnd(&source_stream);
+    inflateEnd(&dest_stream);
 
-    // Rewind the file to the beginning for reading
-    rewind(tempFile);
-
-    // Open the temporary file as a gzFile for reading
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of gzdopen
-    const char bqkgyiuk[1024] = "ovfwe";
-    file = gzdopen(fileno(tempFile), bqkgyiuk);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (file == NULL) {
-        fclose(tempFile);
-        return 0;
-    }
-
-    // Set offset and whence to some values for testing
-    offset = (off_t)(size / 2); // Use half of the size as an offset
-    whence = SEEK_SET; // Use SEEK_SET as the whence value
-
-    // Call the function-under-test
-    result = gzseek(file, offset, whence);
-
-    // Close the gzFile and the temporary file
-    gzclose(file);
-    fclose(tempFile);
-
-    // Return a non-zero value if gzseek fails to increase code coverage
-    return (result == -1) ? 1 : 0;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

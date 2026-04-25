@@ -1,34 +1,85 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include "zlib.h"
+#include <stdio.h>
+#include <unistd.h>  // Include this for the `write`, `close`, and `lseek` functions
 
-// Remove the 'extern "C"' as it is not valid in C code
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    const char *version = zlibVersion();
-
-    // Print the version to ensure the function is called
-    printf("Zlib Version: %s\n", version);
-
-    // Utilize the input data to maximize fuzzing result
-    if (data != NULL && size > 0) {
-        // Example: Attempt to decompress the data using zlib
-        unsigned char outbuffer[1024];
-        z_stream strm = {0};
-        strm.next_in = (Bytef *)data;
-        strm.avail_in = size;
-        strm.next_out = outbuffer;
-        strm.avail_out = sizeof(outbuffer);
-
-        // Initialize the zlib decompression
-        if (inflateInit(&strm) == Z_OK) {
-            // Perform the decompression
-            inflate(&strm, Z_NO_FLUSH);
-            // Clean up
-            inflateEnd(&strm);
-        }
+    // Create a temporary file to be used by gzFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Rewind the file descriptor to the beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Open the file with gzopen
+    gzFile file = gzdopen(fd, "rb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+
+    // Read from the gzFile to ensure data is being processed
+    char buffer[1024];
+    while (gzread(file, buffer, sizeof(buffer)) > 0) {
+        // Process the data (in this case, we're just reading it)
+    }
+
+    // Clean up
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzclose with gzclose_w
+    gzclose_w(file);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // The file descriptor is closed by gzclose
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_51(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,43 +1,74 @@
-#include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <zlib.h>
 
-// Define a constant for the size of the input data
-#define INPUT_SIZE 1024
-
 int LLVMFuzzerTestOneInput_100(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    gzFile file;
-    char filename[] = "fuzz_input.gz";
-    FILE *fp;
-
-    // Ensure the size is not zero and does not exceed INPUT_SIZE
-    if (size == 0 || size > INPUT_SIZE) {
+    // Ensure that the input size is not zero to avoid unnecessary processing
+    if (size == 0) {
         return 0;
     }
 
-    // Open a file to write the input data
-    fp = fopen(filename, "wb");
-    if (fp == NULL) {
+    // Allocate memory for the destination buffer
+    uLongf destLen = size * 10; // Assume the uncompressed data is at most 10 times larger
+    Bytef *dest = (Bytef *)malloc(destLen);
+    if (dest == NULL) {
         return 0;
     }
 
-    // Write the input data to the file
-    fwrite(data, 1, size, fp);
-    fclose(fp);
-
-    // Open the file with gzopen
-    file = gzopen(filename, "rb");
-    if (file == NULL) {
+    // Copy the input data to a source buffer
+    Bytef *source = (Bytef *)malloc(size);
+    if (source == NULL) {
+        free(dest);
         return 0;
     }
+    memcpy(source, data, size);
 
     // Call the function-under-test
-    off_t offset = gztell(file);
+    int result = uncompress(dest, &destLen, source, (uLong)size);
 
-    // Close the gzFile
-    gzclose(file);
+    // Free allocated memory
+    free(dest);
+    free(source);
 
-    // Return 0 to indicate successful execution
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_100(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

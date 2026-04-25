@@ -1,43 +1,62 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Initialize source and destination z_stream structures
-    z_stream source;
-    z_stream dest;
-
-    // Initialize the source stream with some default values
-    source.zalloc = Z_NULL;
-    source.zfree = Z_NULL;
-    source.opaque = Z_NULL;
-    source.avail_in = size;
-    source.next_in = (Bytef *)data;
-
-    // Initialize the destination stream with some default values
-    dest.zalloc = Z_NULL;
-    dest.zfree = Z_NULL;
-    dest.opaque = Z_NULL;
-    dest.avail_in = 0;
-    dest.next_in = Z_NULL;
-
-    // Initialize the source stream for deflation
-    if (deflateInit(&source, Z_DEFAULT_COMPRESSION) != Z_OK) {
+    // Ensure the input data is large enough to create an int64_t value
+    if (size < sizeof(int64_t)) {
         return 0;
     }
 
-    // Initialize the destination stream for deflation
-    if (deflateInit(&dest, Z_DEFAULT_COMPRESSION) != Z_OK) {
-        deflateEnd(&source);
-        return 0;
+    // Initialize the int64_t variable from the input data
+    int64_t offset = 0;
+    for (size_t i = 0; i < sizeof(int64_t); i++) {
+        offset = (offset << 8) | data[i];
     }
 
     // Call the function-under-test
-    deflateCopy(&dest, &source);
+    uLong result = crc32_combine_gen64(offset);
 
-    // Clean up the streams
-    deflateEnd(&source);
-    deflateEnd(&dest);
+    // Use the result in some way to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_80(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

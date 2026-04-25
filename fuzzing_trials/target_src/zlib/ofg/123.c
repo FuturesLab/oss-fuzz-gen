@@ -1,44 +1,79 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <zlib.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <zlib.h>
 
 int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a gzFile
-    const char* temp_filename = "temp.gz";
-    FILE *temp_file = fopen(temp_filename, "wb");
-    if (temp_file == NULL) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (fwrite(data, 1, size, temp_file) != size) {
-        fclose(temp_file);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
         return 0;
     }
-    fclose(temp_file);
 
-    // Open the temporary file as a gzFile
-    gzFile gz_file = gzopen(temp_filename, "rb");
+    // Rewind the file descriptor to the start
+    lseek(fd, 0, SEEK_SET);
+
+    // Open the temporary file with gzopen
+    gzFile gz_file = gzdopen(fd, "rb");
     if (gz_file == NULL) {
+        close(fd);
         return 0;
     }
 
-    // Read data from the gzFile to ensure the function under test is utilized
-    char buffer[1024];
-    while (gzread(gz_file, buffer, sizeof(buffer)) > 0) {
-        // Process the buffer if necessary
-    }
+    // Call gzungetc with a sample character and the gzFile
+    int character = 'A'; // Sample character to unget
+    gzungetc(character, gz_file);
 
-    // Call the function-under-test
-    off_t position = gztell(gz_file);
-
-    // Clean up
+    // Close the gzFile
     gzclose(gz_file);
-    remove(temp_filename);
 
+    // The file descriptor is automatically closed by gzclose
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_123(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

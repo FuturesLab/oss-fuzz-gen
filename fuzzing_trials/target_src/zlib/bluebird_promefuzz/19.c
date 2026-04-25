@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -6,92 +7,99 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "zlib.h"
 
-static void fuzz_compress2_z(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    int level = Data[0] % 10; // Compression level 0-9
-    const Bytef *source = (const Bytef *)(Data + 1);
-    z_size_t sourceLen = Size - 1;
-    z_size_t destLen = compressBound(sourceLen);
-    Bytef *dest = (Bytef *)malloc(destLen);
-
-    if (dest) {
-        compress2_z(dest, &destLen, source, sourceLen, level);
-        free(dest);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-}
-
-static void fuzz_uncompress2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    const Bytef *source = (const Bytef *)Data;
-    uLong sourceLen = Size;
-    uLongf destLen = sourceLen * 4; // Assume a max expansion factor
-    Bytef *dest = (Bytef *)malloc(destLen);
-
-    if (dest) {
-        uncompress2(dest, &destLen, source, &sourceLen);
-        free(dest);
-    }
-}
-
-static void fuzz_uncompress(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    const Bytef *source = (const Bytef *)Data;
-    uLong sourceLen = Size;
-    uLongf destLen = sourceLen * 4; // Assume a max expansion factor
-    Bytef *dest = (Bytef *)malloc(destLen);
-
-    if (dest) {
-        uncompress(dest, &destLen, source, sourceLen);
-        free(dest);
-    }
-}
-
-static void fuzz_compress2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    int level = Data[0] % 10; // Compression level 0-9
-    const Bytef *source = (const Bytef *)(Data + 1);
-    uLong sourceLen = Size - 1;
-    uLongf destLen = compressBound(sourceLen);
-    Bytef *dest = (Bytef *)malloc(destLen);
-
-    if (dest) {
-        compress2(dest, &destLen, source, sourceLen, level);
-        free(dest);
-    }
-}
-
-static void fuzz_compress(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    const Bytef *source = (const Bytef *)Data;
-    uLong sourceLen = Size;
-    uLongf destLen = compressBound(sourceLen);
-    Bytef *dest = (Bytef *)malloc(destLen);
-
-    if (dest) {
-        compress(dest, &destLen, source, sourceLen);
-        free(dest);
-    }
-}
-
-static void fuzz_zlibCompileFlags() {
-    zlibCompileFlags();
 }
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    fuzz_compress2_z(Data, Size);
-    fuzz_uncompress2(Data, Size);
-    fuzz_uncompress(Data, Size);
-    fuzz_compress2(Data, Size);
-    fuzz_compress(Data, Size);
-    fuzz_zlibCompileFlags();
+    if (Size < 1) {
+        return 0;
+    }
+
+    // Prepare the dummy file with the provided data
+    write_dummy_file(Data, Size);
+
+    // Open the file for writing in gzip format
+    gzFile gz_file = gzopen("./dummy_file", "wb");
+    if (gz_file == NULL) {
+        return 0;
+    }
+
+    // Use gzputc to write a character
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzputc with gzflush
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of gzflush
+    gzflush(gz_file, Z_STREAM_END);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Use gzputs to write a string (ensure null-termination)
+    char str[256];
+    size_t str_len = (Size < 255) ? Size : 255;
+    memcpy(str, Data, str_len);
+    str[str_len] = '\0';
+    gzputs(gz_file, str);
+
+    // Check for errors
+    int errnum;
+    gzerror(gz_file, &errnum);
+
+    // Use gzprintf to write formatted data
+    gzprintf(gz_file, "Formatted data: %d\n", Data[0]);
+
+    // Check for errors again
+    gzerror(gz_file, &errnum);
+
+    // Seek to the beginning of the file
+    gzseek(gz_file, 0, SEEK_SET);
+
+    // Close the file
+    gzclose(gz_file);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

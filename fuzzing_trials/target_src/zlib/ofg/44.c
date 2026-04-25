@@ -1,28 +1,62 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <zlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for required parameters
-    if (size < 4) {
+    // Ensure that the input size is sufficient to extract a uLong
+    if (size < sizeof(uLong)) {
         return 0;
     }
 
-    // Initialize z_stream structure
-    z_stream stream;
-    memset(&stream, 0, sizeof(stream));
-
-    // Extract parameters from data
-    int level = data[0] % 10;  // Compression level from 0 to 9
-    const char *version = ZLIB_VERSION;
-    int stream_size = (int)sizeof(z_stream);
+    // Extract a uLong from the input data
+    uLong input_value = 0;
+    for (size_t i = 0; i < sizeof(uLong); i++) {
+        input_value |= ((uLong)data[i]) << (i * 8);
+    }
 
     // Call the function-under-test
-    int result = deflateInit_(&stream, level, version, stream_size);
+    uLong result = compressBound(input_value);
 
-    // Clean up
-    deflateEnd(&stream);
+    // Use the result in some way to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

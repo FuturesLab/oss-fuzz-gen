@@ -1,33 +1,59 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    // Initialize a z_stream structure
-    z_stream stream;
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
+    // Ensure the size is greater than zero to perform meaningful operations
+    if (size > 0) {
+        // Compute the CRC32 checksum of the input data
+        uLong crc = crc32(0L, Z_NULL, 0); // Initialize the CRC value
+        crc = crc32(crc, data, size); // Update the CRC value with the input data
 
-    // Initialize input data for the z_stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = (uInt)size;
-
-    // Initialize output buffer
-    unsigned char out[1024];
-    stream.next_out = out;
-    stream.avail_out = sizeof(out);
-
-    // Initialize the inflate state
-    if (inflateInit(&stream) != Z_OK) {
-        return 0;
+        // Use the crc value for some operation to ensure it is not optimized away
+        if (crc != 0) {
+            // Perform a simple operation using the crc value
+            crc ^= crc; // This is just a dummy operation to use the crc value
+        }
     }
-
-    // Call the function under test with non-NULL parameters
-    int ret = inflateValidate(&stream, 1);
-
-    // Clean up
-    inflateEnd(&stream);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_76(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

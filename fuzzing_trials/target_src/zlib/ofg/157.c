@@ -3,29 +3,65 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
+    if (size < 1) {
+        return 0;
+    }
+
     z_stream stream;
-    int ret;
-    
-    // Initialize the z_stream structure
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
 
-    // Initialize the deflate process
-    ret = deflateInit(&stream, Z_DEFAULT_COMPRESSION);
-    if (ret != Z_OK) {
+    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
         return 0;
     }
 
-    // Ensure that the dictionary is not NULL and has a positive length
     const Bytef *dictionary = data;
     uInt dictLength = (uInt)size;
 
-    // Call the function under test
+    // Call the function-under-test
     deflateSetDictionary(&stream, dictionary, dictLength);
 
-    // Clean up the deflate stream
     deflateEnd(&stream);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_157(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

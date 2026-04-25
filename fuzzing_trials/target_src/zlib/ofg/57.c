@@ -1,13 +1,8 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to extract two integers for the function parameters
-    if (size < sizeof(int) * 2) {
-        return 0;
-    }
-
     // Initialize z_stream structure
     z_stream stream;
     stream.zalloc = Z_NULL;
@@ -19,9 +14,15 @@ int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Extract two integers from the input data
-    int bits = *(int *)(data);
-    int value = *(int *)(data + sizeof(int));
+    // Ensure there is enough data to extract two integers
+    if (size < 2) {
+        inflateEnd(&stream);
+        return 0;
+    }
+
+    // Extract values for bits and value from the input data
+    int bits = data[0] % 16;  // Limit bits to a maximum of 15
+    int value = data[1];
 
     // Call the function-under-test
     inflatePrime(&stream, bits, value);
@@ -31,3 +32,42 @@ int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_57(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

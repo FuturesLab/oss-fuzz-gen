@@ -1,30 +1,66 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this for size_t
+#include <stdio.h>
+#include <unistd.h>  // Include this for the definition of off64_t
 #include <zlib.h>
-#include <stdio.h>   // Include for logging
 
-// Define the function prototype for crc32_combine_gen64 if it's not declared in the included headers
-uLong crc32_combine_gen64(int64_t value);
+extern uLong crc32_combine_gen64(off_t len2);
 
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    // Ensure that the input size is at least the size of int64_t
-    if (size < sizeof(int64_t)) {
+    // Ensure there is enough data to construct an off_t value
+    if (size < sizeof(off_t)) {
         return 0;
     }
 
-    // Extract an int64_t value from the input data
-    int64_t input_value = 0;
-    for (size_t i = 0; i < sizeof(int64_t); ++i) {
-        input_value |= ((int64_t)data[i]) << (i * 8);
+    // Construct an off_t value from the input data
+    off_t len2 = 0;
+    for (size_t i = 0; i < sizeof(off_t); ++i) {
+        len2 = (len2 << 8) | data[i];
     }
 
-    // Log the input value to ensure it's varied
-    printf("Input value: %lld\n", (long long)input_value);
-
     // Call the function-under-test
-    uLong result = crc32_combine_gen64(input_value);
+    uLong result = crc32_combine_gen64(len2);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    // In this case, we just return it as an int
-    return (int)result;
+    // Print the result for debugging purposes (optional)
+    printf("crc32_combine_gen64(%lld) = %lu\n", (long long)len2, result);
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_79(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

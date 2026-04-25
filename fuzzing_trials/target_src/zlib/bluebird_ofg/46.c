@@ -1,43 +1,55 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include "zlib.h"
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to split into two strings
-    if (size < 2) {
-        return 0;
-    }
-
-    // Create a buffer for the file name and mode
-    char filename[256];
-    char mode[10];
-
-    // Copy data into the filename and mode, ensuring null termination
-    size_t filename_len = size / 2;
-    size_t mode_len = size - filename_len;
-
-    // Limit the filename and mode lengths to their respective buffer sizes
-    if (filename_len >= sizeof(filename)) {
-        filename_len = sizeof(filename) - 1;
-    }
-    if (mode_len >= sizeof(mode)) {
-        mode_len = sizeof(mode) - 1;
-    }
-
-    memcpy(filename, data, filename_len);
-    filename[filename_len] = '\0';
-
-    memcpy(mode, data + filename_len, mode_len);
-    mode[mode_len] = '\0';
-
     // Call the function-under-test
-    gzFile file = gzopen64(filename, mode);
+    const char *version = zlibVersion();
 
-    // If the file was successfully opened, close it
-    if (file != NULL) {
-        gzclose(file);
-    }
+    // Print the zlib version to ensure the function is called
+    printf("Zlib version: %s\n", version);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,56 +1,107 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include "zlib.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Initialize z_stream structure
-    z_stream stream;
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    stream.avail_in = 0;
-    stream.next_in = Z_NULL;
+    // Compress the input data
+    uLongf compressedSize = compressBound(size);
 
-    // Initialize inflate state
-    if (inflateInit(&stream) != Z_OK) {
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from compressBound to crc32_combine64
+    uLong ret_crc32_combine_gen_vaxdm = crc32_combine_gen(0);
+    uLong ret_crc32_combine64_rgxnx = crc32_combine64(ret_crc32_combine_gen_vaxdm, compressedSize, 0);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from crc32_combine64 to deflateBound
+    uLong ret_deflateBound_gbzvr = deflateBound(0, ret_crc32_combine64_rgxnx);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    uint8_t *compressedData = (uint8_t *)malloc(compressedSize);
+    if (compressedData == NULL) {
         return 0;
     }
 
-    // Set input data for the stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = size;
-
-    // Allocate a buffer for output
-    size_t output_buffer_size = size * 2; // Just an arbitrary size for output buffer
-    Bytef *output_buffer = (Bytef *)malloc(output_buffer_size);
-    if (output_buffer == NULL) {
-        inflateEnd(&stream);
+    if (compress(compressedData, &compressedSize, data, size) != Z_OK) {
+        free(compressedData);
         return 0;
     }
-    stream.next_out = output_buffer;
-    stream.avail_out = output_buffer_size;
 
-    // Perform inflation to fill the output buffer
-    int ret = inflate(&stream, Z_NO_FLUSH);
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        free(compressedData);
+        return 0;
+    }
+
+    // Write the compressed data to the temporary file
+    if (write(fd, compressedData, compressedSize) != (ssize_t)compressedSize) {
+        close(fd);
+        free(compressedData);
+        return 0;
+    }
+
+    // Close the file descriptor so that gzopen can open it
+    close(fd);
+    free(compressedData);
+
+    // Open the file with gzopen
+    gzFile gzfile = gzopen(tmpl, "rb");
+    if (gzfile == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
+    off_t offset = gztell(gzfile);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function inflateSyncPoint with inflateSync
-    int sync_point = inflateSync(&stream);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Close the gzFile
+    gzclose(gzfile);
 
-
-
-    // Clean up
-    inflateEnd(&stream);
-    free(output_buffer);
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }
-#ifdef __cplusplus
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

@@ -1,4 +1,19 @@
-#include <sys/stat.h>
+// This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
+// deflateInit_ at deflate.c:379:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
+// deflate at deflate.c:981:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
+// deflateParams at deflate.c:774:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
+// deflate at deflate.c:981:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
+// deflateParams at deflate.c:774:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
+// deflate at deflate.c:981:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
+// deflate at deflate.c:981:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -7,7 +22,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "zlib.h"
+#include <zlib.h>
 
 static void initialize_stream(z_streamp strm) {
     memset(strm, 0, sizeof(z_stream));
@@ -16,7 +31,7 @@ static void initialize_stream(z_streamp strm) {
     strm->opaque = Z_NULL;
 }
 
-int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
+int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
     }
@@ -49,9 +64,7 @@ int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of deflateParams
-    ret = deflateParams(&strm, Z_NO_COMPRESSION, Z_FILTERED);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    ret = deflateParams(&strm, Z_BEST_SPEED, Z_FILTERED);
     if (ret != Z_OK) {
         free(out);
         deflateEnd(&strm);
@@ -65,11 +78,7 @@ int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of deflateParams
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function deflateParams with deflatePrime
-    ret = deflatePrime(&strm, Z_BEST_COMPRESSION, ZLIB_VER_MINOR);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    ret = deflateParams(&strm, Z_BEST_COMPRESSION, Z_HUFFMAN_ONLY);
     if (ret != Z_OK) {
         free(out);
         deflateEnd(&strm);
@@ -126,7 +135,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

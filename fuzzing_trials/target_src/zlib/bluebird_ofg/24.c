@@ -1,39 +1,86 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include "zlib.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>  // Include for close() and remove()
+#include "zlib.h"
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Define and initialize variables for gzfread parameters
-    voidp buf = malloc(size);
-    if (buf == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    
-    z_size_t buf_size = size > 0 ? size : 1; // Ensure buf_size is not zero
-    z_size_t count = 1; // Read one block of buf_size
-
-    // Create a temporary file to simulate input for gzdopen
-    FILE *tmpFile = tmpfile();
-    if (tmpFile == NULL) {
-        free(buf);
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    fwrite(data, 1, size, tmpFile);
-    rewind(tmpFile);
+    // Write the fuzz data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
     // Open the temporary file as a gzFile
-    gzFile file = gzdopen(fileno(tmpFile), "rb");
-    if (file != NULL) {
-        // Call the function-under-test
-        gzfread(buf, buf_size, count, file);
-        gzclose(file); // Close the gzFile
+    gzFile gzfile = gzopen(tmpl, "rb");
+    if (gzfile == NULL) {
+        remove(tmpl);
+        return 0;
     }
 
-    fclose(tmpFile); // Close the temporary file
-    free(buf); // Free allocated memory
+    // Attempt to read from the gzFile to invoke the function under test
+    char buffer[1024];
+    while (gzread(gzfile, buffer, sizeof(buffer)) > 0) {
+        // Continue reading until EOF or error
+    }
+
+    // Clear any errors that might have occurred
+    gzclearerr(gzfile);
+
+    // Close the gzFile and remove the temporary file
+    gzclose(gzfile);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

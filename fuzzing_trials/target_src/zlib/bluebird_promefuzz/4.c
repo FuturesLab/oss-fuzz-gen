@@ -1,103 +1,107 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "zlib.h"
 
-static void fuzz_compress2_z(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    z_size_t destLen = compressBound_z(Size);
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (dest == NULL) return;
-
-    int level = Data[0] % 10; // Compression level between 0-9
-    int result = compress2_z(dest, &destLen, Data, Size, level);
-
-    if (result == Z_OK) {
-        // Optionally, test decompression if compression was successful
-        uLongf uncompressedLen = Size;
-        Bytef *uncompressed = (Bytef *)malloc(uncompressedLen);
-        if (uncompressed != NULL) {
-            uncompress(uncompressed, &uncompressedLen, dest, destLen);
-            free(uncompressed);
-        }
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-
-    free(dest);
-}
-
-static void fuzz_compress_z(const uint8_t *Data, size_t Size) {
-    z_size_t destLen = compressBound_z(Size);
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (dest == NULL) return;
-
-    int result = compress_z(dest, &destLen, Data, Size);
-
-    if (result == Z_OK) {
-        // Optionally, test decompression if compression was successful
-        uLongf uncompressedLen = Size;
-        Bytef *uncompressed = (Bytef *)malloc(uncompressedLen);
-        if (uncompressed != NULL) {
-            uncompress(uncompressed, &uncompressedLen, dest, destLen);
-            free(uncompressed);
-        }
-    }
-
-    free(dest);
-}
-
-static void fuzz_compress2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    uLongf destLen = compressBound(Size);
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (dest == NULL) return;
-
-    int level = Data[0] % 10; // Compression level between 0-9
-    int result = compress2(dest, &destLen, Data, Size, level);
-
-    if (result == Z_OK) {
-        // Optionally, test decompression if compression was successful
-        uLongf uncompressedLen = Size;
-        Bytef *uncompressed = (Bytef *)malloc(uncompressedLen);
-        if (uncompressed != NULL) {
-            uncompress(uncompressed, &uncompressedLen, dest, destLen);
-            free(uncompressed);
-        }
-    }
-
-    free(dest);
-}
-
-static void fuzz_compress(const uint8_t *Data, size_t Size) {
-    uLongf destLen = compressBound(Size);
-    Bytef *dest = (Bytef *)malloc(destLen);
-    if (dest == NULL) return;
-
-    int result = compress(dest, &destLen, Data, Size);
-
-    if (result == Z_OK) {
-        // Optionally, test decompression if compression was successful
-        uLongf uncompressedLen = Size;
-        Bytef *uncompressed = (Bytef *)malloc(uncompressedLen);
-        if (uncompressed != NULL) {
-            uncompress(uncompressed, &uncompressedLen, dest, destLen);
-            free(uncompressed);
-        }
-    }
-
-    free(dest);
 }
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    fuzz_compress2_z(Data, Size);
-    fuzz_compress_z(Data, Size);
-    fuzz_compress2(Data, Size);
-    fuzz_compress(Data, Size);
+    if (Size < 1) return 0;
+
+    // Write input data to a dummy file
+    write_dummy_file(Data, Size);
+
+    // Open the file with gzopen
+    gzFile file = gzopen("./dummy_file", "rb");
+    if (file == NULL) {
+        return 0;
+    }
+
+    // Prepare buffers
+    unsigned char buffer[1024];
+    char lineBuffer[256];
+    int errnum;
+
+    // gzread
+    gzread(file, buffer, sizeof(buffer));
+
+    // gzerror
+    gzerror(file, &errnum);
+
+    // gzseek
+    gzseek(file, 0, SEEK_SET);
+
+    // gztell
+    gztell(file);
+
+    // gztell again
+    gztell(file);
+
+    // gzgetc
+    gzgetc(file);
+
+    // gzungetc
+    gzungetc(Data[0], file);
+
+    // gzgets
+    gzgets(file, lineBuffer, sizeof(lineBuffer));
+
+    // gzerror again
+    gzerror(file, &errnum);
+
+    // Close the file
+    gzclose(file);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

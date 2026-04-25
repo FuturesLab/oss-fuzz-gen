@@ -1,48 +1,86 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <zlib.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include for close() and unlink()
+#include <fcntl.h>  // Include for mkstemp()
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    gzFile file;
-    z_off_t offset;
-    int whence;
-    z_off_t result;
-    char buffer[1024]; // Buffer to read data after seeking
-
-    // Create a temporary file to use with gzFile
-    const char *filename = "temp.gz";
-    FILE *tempFile = fopen(filename, "wb");
-    if (tempFile == NULL) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    fwrite(data, 1, size, tempFile);
-    fclose(tempFile);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Close the file descriptor as gzopen will open it separately
+    close(fd);
 
     // Open the temporary file with gzopen
-    file = gzopen(filename, "rb");
-    if (file == NULL) {
+    gzFile gzfile = gzopen(tmpl, "rb");
+    if (gzfile == NULL) {
+        unlink(tmpl);
         return 0;
     }
 
-    // Initialize offset and whence with non-NULL values
-    offset = (z_off_t)size / 2; // Arbitrary offset within the file size
-    whence = SEEK_SET; // Arbitrary choice for whence
+    // Use a fixed offset and whence for testing
+    off_t offset = 0;
+    int whence = SEEK_SET;
 
-    // Call the function-under-test
-    result = gzseek(file, offset, whence);
-
-    // Check if gzseek was successful
-    if (result != -1) {
-        // Read some data from the file after seeking
-        gzread(file, buffer, sizeof(buffer));
-    }
+    // Call the function under test
+    off_t result = gzseek(gzfile, offset, whence);
 
     // Clean up
-    gzclose(file);
-    remove(filename);
+    gzclose(gzfile);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_65(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,48 +1,83 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Ensure that we have enough data to initialize two z_stream structures
-    if (size < 2 * sizeof(z_stream)) {
+    if (size < 1) return 0;
+
+    // Initialize z_stream structure
+    z_stream stream;
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    stream.avail_in = size;
+    stream.next_in = (Bytef *)data;
+
+    // Initialize inflate state
+    if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
 
-    // Allocate and initialize two z_stream structures
-    z_stream strm1;
-    z_stream strm2;
-
-    memset(&strm1, 0, sizeof(z_stream));
-    memset(&strm2, 0, sizeof(z_stream));
-
-    // Initialize the first z_stream with some data
-    strm1.next_in = (Bytef *)data;
-    strm1.avail_in = size / 2;
-    strm1.next_out = (Bytef *)malloc(size);
-    strm1.avail_out = size;
-
-    // Initialize the second z_stream with some data
-    strm2.next_in = (Bytef *)(data + size / 2);
-    strm2.avail_in = size / 2;
-    strm2.next_out = (Bytef *)malloc(size);
-    strm2.avail_out = size;
-
-    // Initialize the first stream for inflation
-    if (inflateInit(&strm1) != Z_OK) {
-        free(strm1.next_out);
-        free(strm2.next_out);
-        return 0;
-    }
+    // Allocate and initialize gz_header structure
+    gz_header header;
+    header.text = 0;
+    header.time = 0;
+    header.xflags = 0;
+    header.os = 0;
+    header.extra = NULL;
+    header.extra_len = 0;
+    header.extra_max = 0;
+    header.name = NULL;
+    header.name_max = 0;
+    header.comment = NULL;
+    header.comm_max = 0;
+    header.hcrc = 0;
+    header.done = 0;
 
     // Call the function-under-test
-    inflateCopy(&strm2, &strm1);
+    inflateGetHeader(&stream, &header);
 
     // Clean up
-    inflateEnd(&strm1);
-    inflateEnd(&strm2);
-    free(strm1.next_out);
-    free(strm2.next_out);
+    inflateEnd(&stream);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_72(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

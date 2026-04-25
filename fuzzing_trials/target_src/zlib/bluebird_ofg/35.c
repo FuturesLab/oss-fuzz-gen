@@ -1,35 +1,93 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include "zlib.h"
+#include <unistd.h> // Include for mkstemp and close
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to extract four integers
-    if (size < sizeof(int) * 4) {
+    // Create a temporary file to simulate a gzFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize z_stream structure
-    z_stream stream;
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-
-    // Initialize the deflate stream
-    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+    // Open the temporary file with gzopen
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of gzdopen
+    gzFile gzfile = gzdopen(Z_BUF_ERROR, "wb");
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (gzfile == NULL) {
+        close(fd);
         return 0;
     }
 
-    // Extract four integers from the input data
-    int good_length = *(int *)(data);
-    int max_lazy = *(int *)(data + sizeof(int));
-    int nice_length = *(int *)(data + 2 * sizeof(int));
-    int max_chain = *(int *)(data + 3 * sizeof(int));
+    // Write the input data to the gzFile
+    if (gzwrite(gzfile, data, size) == 0) {
+        gzclose(gzfile);
+        return 0;
+    }
 
-    // Call the function-under-test
-    deflateTune(&stream, good_length, max_lazy, nice_length, max_chain);
+    // Call gzflush with a non-NULL gzFile and a valid flush parameter
 
-    // Clean up
-    deflateEnd(&stream);
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from gzdopen to gzsetparams using the plateau pool
+    int level = (size > 0) ? data[0] % 10 : 0;
+    int strategy = (size > 1) ? data[1] % 4 : 0;
+    int ret_gzsetparams_pxbfl = gzsetparams(gzfile, level, strategy);
+    if (ret_gzsetparams_pxbfl < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int flush = Z_SYNC_FLUSH; // Use a valid flush option
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzflush with gzputc
+    gzputc(gzfile, flush);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Close the gzFile
+    gzclose(gzfile);
+
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

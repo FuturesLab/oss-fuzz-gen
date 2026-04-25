@@ -1,47 +1,75 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include "zlib.h"
-#include <stdio.h> // Include the standard I/O library for file operations
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char filename[] = "/tmp/fuzz_input.gz";
-    FILE *file = fopen(filename, "wb");
-    if (!file) {
+    // Initialize z_stream structure
+    z_stream stream;
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+
+    // Initialize inflate state
+    if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
 
-    // Write the data to the file
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the file as a gzFile
-    gzFile gzfile = gzopen(filename, "rb");
-    if (!gzfile) {
+    // Ensure there is enough data to extract two integers
+    if (size < 2) {
+        inflateEnd(&stream);
         return 0;
     }
 
-    // Allocate a buffer for gzgets
-    int buf_size = 1024;
-    char *buffer = (char *)malloc(buf_size);
-    if (!buffer) {
-        gzclose(gzfile);
-        return 0;
-    }
+    // Extract values for bits and value from the input data
+    int bits = data[0] % 16;  // Limit bits to a maximum of 15
+    int value = data[1];
 
     // Call the function-under-test
-    gzgets(gzfile, buffer, buf_size);
+    inflatePrime(&stream, bits, value);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gzgets to crc32
-
-    uLong ret_crc32_kxfkn = crc32(ZLIB_VER_MAJOR, (const unsigned char *)buffer, 0);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(buffer);
-    gzclose(gzfile);
+    inflateEnd(&stream);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,98 +1,108 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "zlib.h"
 
-#define CHUNK 256
-
-static void write_dummy_file(const uint8_t *data, size_t size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(data, 1, size, file);
-        fclose(file);
-    }
+static void initialize_stream(z_streamp strm) {
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
+    strm->next_in = Z_NULL;
+    strm->avail_in = 0;
+    strm->next_out = Z_NULL;
+    strm->avail_out = 0;
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 3) {
+    if (Size < 1) {
         return 0;
     }
 
     z_stream strm;
-    memset(&strm, 0, sizeof(z_stream));
+    initialize_stream(&strm);
 
-    uint8_t out[CHUNK];
-    int ret;
-
-    // Initialize the deflate stream
-    ret = deflateInit_(&strm, Z_DEFAULT_COMPRESSION, ZLIB_VERSION, sizeof(z_stream));
+    int ret = inflateInit2_(&strm, 15, ZLIB_VERSION, sizeof(z_stream));
     if (ret != Z_OK) {
         return 0;
     }
 
-    // Prepare input data
-    strm.next_in = Data;
+    uLong crc = crc32(0L, Z_NULL, 0);
+
+    strm.next_in = (Bytef *)Data;
     strm.avail_in = Size;
 
-    // Prepare output buffer
-    strm.next_out = out;
-    strm.avail_out = CHUNK;
+    unsigned char out_buffer[1024];
+    strm.next_out = out_buffer;
+    strm.avail_out = sizeof(out_buffer);
 
-    // First deflate call
-    ret = deflate(&strm, Z_NO_FLUSH);
-    if (ret != Z_OK && ret != Z_BUF_ERROR) {
-        goto cleanup;
-    }
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function inflate with inflateValidate
+    ret = inflateValidate(&strm, Z_NO_FLUSH);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    crc = crc32(crc, out_buffer, sizeof(out_buffer) - strm.avail_out);
 
-    // Change deflate parameters
-    int level = Data[0] % 10; // Compression level 0-9
-    int strategy = Data[1] % 4; // Strategy 0-3
+    inflateEnd(&strm);
 
-    ret = deflateParams(&strm, level, strategy);
+    strm.next_in = (Bytef *)Data;
+    strm.avail_in = Size;
+    strm.next_out = out_buffer;
+    strm.avail_out = sizeof(out_buffer);
+
+    ret = deflateInit2_(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15, 8, Z_DEFAULT_STRATEGY, ZLIB_VERSION, sizeof(z_stream));
     if (ret != Z_OK) {
-        goto cleanup;
+        return 0;
     }
 
-    // Second deflate call
+    const Bytef dictionary[] = "dummy_dictionary";
+    deflateSetDictionary(&strm, dictionary, sizeof(dictionary));
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of deflate
-    ret = deflate(&strm, Z_FULL_FLUSH);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    deflatePrime(&strm, 3, 5);
 
-
-    if (ret != Z_OK && ret != Z_BUF_ERROR) {
-        goto cleanup;
-    }
-
-    // Change deflate parameters again
-    level = Data[2] % 10; // Compression level 0-9
-    strategy = Data[2] % 4; // Strategy 0-3
-
-    ret = deflateParams(&strm, level, strategy);
-    if (ret != Z_OK) {
-        goto cleanup;
-    }
-
-    // Third deflate call
-    ret = deflate(&strm, Z_PARTIAL_FLUSH);
-    if (ret != Z_OK && ret != Z_BUF_ERROR) {
-        goto cleanup;
-    }
-
-    // Fourth deflate call
-    ret = deflate(&strm, Z_FINISH);
-    if (ret != Z_STREAM_END && ret != Z_BUF_ERROR) {
-        goto cleanup;
-    }
-
-cleanup:
-    // Clean up and release resources
     deflateEnd(&strm);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,11 +1,10 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "zlib.h"
@@ -24,60 +23,109 @@ int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
 
     z_stream strm;
     initialize_stream(&strm);
-    int ret = inflateInit(&strm);
+
+    int level = Z_DEFAULT_COMPRESSION;
+    int strategy = Z_DEFAULT_STRATEGY;
+    int ret = deflateInit_(&strm, level, ZLIB_VERSION, sizeof(z_stream));
     if (ret != Z_OK) {
         return 0;
     }
 
-    z_stream strm_copy;
-    initialize_stream(&strm_copy);
+    uint8_t *out = malloc(Size);
+    if (!out) {
+        deflateEnd(&strm);
+        return 0;
+    }
 
-    uint8_t dummy_out[256];
-    strm.next_in = (Bytef *)Data;
-    strm.avail_in = (uInt)Size;
-    strm.next_out = dummy_out;
-    strm.avail_out = sizeof(dummy_out);
+    strm.next_in = (z_const Bytef *)Data;
+    strm.avail_in = Size;
+    strm.next_out = out;
+    strm.avail_out = Size;
 
-    int bits = Data[0] & 0x1F; // Use first byte for bits
-    int value = Data[0] >> 5;  // Use remaining bits for value
+    ret = deflate(&strm, Z_NO_FLUSH);
+    if (ret != Z_OK && ret != Z_BUF_ERROR) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
-    // Call inflatePrime
+    ret = deflateParams(&strm, Z_BEST_SPEED, Z_FILTERED);
+    if (ret != Z_OK) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of inflatePrime
-    inflatePrime(&strm, Z_DATA_ERROR, value);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    ret = deflate(&strm, Z_SYNC_FLUSH);
+    if (ret != Z_OK && ret != Z_BUF_ERROR) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
-
-
-    // Call inflateSync
-    inflateSync(&strm);
-
-    // Call inflate
-    inflate(&strm, Z_NO_FLUSH);
-
-    // Call inflateSync again
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function inflateSync with inflateEnd
-    inflateEnd(&strm);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function deflateParams with deflatePrime
+    ret = deflatePrime(&strm, Z_BEST_COMPRESSION, Z_HUFFMAN_ONLY);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (ret != Z_OK) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
+    ret = deflate(&strm, Z_FINISH);
+    if (ret != Z_STREAM_END && ret != Z_OK && ret != Z_BUF_ERROR) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
+    ret = deflate(&strm, Z_FINISH);
+    if (ret != Z_STREAM_END && ret != Z_OK && ret != Z_BUF_ERROR) {
+        free(out);
+        deflateEnd(&strm);
+        return 0;
+    }
 
-    // Call inflateSyncPoint
-    inflateSyncPoint(&strm);
-
-    // Call inflateCopy
-    inflateCopy(&strm_copy, &strm);
-
-    // Call inflateUndermine
-    inflateUndermine(&strm, 1);
-
-    // Call inflateMark
-    inflateMark(&strm);
-
-    // Call inflateEnd
-    inflateEnd(&strm);
-    inflateEnd(&strm_copy);
-
+    deflateEnd(&strm);
+    free(out);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

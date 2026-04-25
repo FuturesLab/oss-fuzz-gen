@@ -1,56 +1,94 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include "zlib.h"
+#include <string.h> // Include for memcpy
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    gzFile file;
-    off_t offset;
-    int whence;
-    off_t result;
+    z_stream stream;
+    int ret;
+    Bytef *dictionary;
+    uInt dictLength;
 
-    // Create a temporary file to work with
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    // Initialize the z_stream structure
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    stream.avail_in = 0;
+    stream.next_in = Z_NULL;
+
+    // Initialize inflate state
+    ret = inflateInit(&stream);
+    if (ret != Z_OK) {
         return 0;
     }
 
-    // Open a gzFile for writing to compress the input data
-    gzFile gzTempFile = gzdopen(fileno(tempFile), "wb");
-    if (gzTempFile == NULL) {
-        fclose(tempFile);
+    // Ensure size is not zero for dictionary
+    if (size == 0) {
+        inflateEnd(&stream);
         return 0;
     }
 
-    // Write the input data to the gzFile to compress it
-    gzwrite(gzTempFile, data, size);
-    gzclose(gzTempFile);
-
-    // Rewind the file to the beginning for reading
-    rewind(tempFile);
-
-    // Open the temporary file as a gzFile for reading
-    file = gzdopen(fileno(tempFile), "rb");
-    if (file == NULL) {
-        fclose(tempFile);
-        return 0;
-    }
-
-    // Set offset and whence to some values for testing
-    offset = (off_t)(size / 2); // Use half of the size as an offset
-    whence = SEEK_SET; // Use SEEK_SET as the whence value
+    // Use the input data as the dictionary
+    dictionary = (Bytef *)data;
+    dictLength = (uInt)size;
 
     // Call the function-under-test
-    result = gzseek(file, offset, whence);
+    inflateSetDictionary(&stream, dictionary, dictLength);
 
-    // Close the gzFile and the temporary file
+    // Prepare a buffer for decompression output
+    unsigned char out[4096];
+    stream.avail_out = sizeof(out);
+    stream.next_out = out;
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzclose with gzdirect
-    gzdirect(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Use the input data as compressed data for decompression
+    stream.avail_in = size;
+    stream.next_in = (Bytef *)data;
 
+    // Perform a decompression operation
+    ret = inflate(&stream, Z_NO_FLUSH);
 
-    fclose(tempFile);
+    // Clean up
+    inflateEnd(&stream);
 
-    // Return a non-zero value if gzseek fails to increase code coverage
-    return (result == -1) ? 1 : 0;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,73 +1,75 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "zlib.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include "unistd.h"
-#include <string.h>  // Include for memcpy()
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char filename[] = "/tmp/fuzz_gzoffset_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
+    // Initialize a z_stream structure
+    z_stream stream;
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+
+    // Initialize the deflate process
+    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
         return 0;
     }
 
-    // Compress the input data
-    uLongf compressedSize = compressBound(size);
-    uint8_t *compressedData = (uint8_t *)malloc(compressedSize);
-    if (compressedData == NULL) {
-        close(fd);
-        unlink(filename);
+    // Ensure size is large enough to extract two integers
+    if (size < 2) {
+        deflateEnd(&stream);
         return 0;
     }
 
-    if (compress(compressedData, &compressedSize, data, size) != Z_OK) {
-        free(compressedData);
-        close(fd);
-        unlink(filename);
-        return 0;
-    }
-
-    // Write the compressed data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        free(compressedData);
-        close(fd);
-        return 0;
-    }
-    fwrite(compressedData, 1, compressedSize, file);
-    fclose(file);
-    free(compressedData);
-
-    // Open the file as a gzFile
-    gzFile gzfile = gzopen(filename, "rb");
-    if (gzfile == NULL) {
-        unlink(filename);
-        return 0;
-    }
+    // Extract two integers from the data
+    int param1 = data[0] % 10; // Compression level (0-9)
+    int param2 = data[1] % 10; // Strategy (0-9)
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gzopen to gzsetparams
-    int ret_deflateResetKeep_vmjra = deflateResetKeep(0);
-    if (ret_deflateResetKeep_vmjra < 0){
-    	return 0;
-    }
-
-    int ret_gzsetparams_smeco = gzsetparams(gzfile, Z_DATA_ERROR, ret_deflateResetKeep_vmjra);
-    if (ret_gzsetparams_smeco < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    off_t offset = gzoffset(gzfile);
+    deflateParams(&stream, param1, param2);
 
     // Clean up
-    gzclose(gzfile);
-    unlink(filename);
+    deflateEnd(&stream);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_60(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
