@@ -1,59 +1,76 @@
-#include <cstring> // Include cstring for memcpy
-
-extern "C" {
-#include "/src/libvpx/vpx/vpx_encoder.h"
-#include "/src/libvpx/vpx/vp8cx.h"
-}
+#include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "vpx/vpx_decoder.h"
+#include "vpx/vp8dx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
+    if (size == 0) {
+        return 0; // No input data to process
+    }
+
     vpx_codec_ctx_t codec_ctx;
-    vpx_codec_enc_cfg_t enc_cfg;
-    vpx_image_t raw;
-    vpx_codec_err_t res;
+    vpx_codec_iface_t *iface = vpx_codec_vp8_dx(); // Use VP8 as the codec interface
+    vpx_codec_dec_cfg_t dec_cfg;
+    vpx_codec_flags_t flags = 0;
+    int ver = VPX_DECODER_ABI_VERSION;
 
-    // Initialize codec context and encoder configuration
-    res = vpx_codec_enc_config_default(vpx_codec_vp8_cx(), &enc_cfg, 0);
-    if (res != VPX_CODEC_OK) {
-        return 0;
-    }
+    // Initialize the decoder configuration with some default values
+    dec_cfg.threads = 1;
+    dec_cfg.w = 640; // Default width
+    dec_cfg.h = 480; // Default height
 
-    // Modify the encoder configuration based on the input data
-    if (size >= sizeof(vpx_codec_enc_cfg_t)) {
-        memcpy(&enc_cfg, data, sizeof(vpx_codec_enc_cfg_t));
-    }
+    // Call the function-under-test
+    vpx_codec_err_t result = vpx_codec_dec_init_ver(&codec_ctx, iface, &dec_cfg, flags, ver);
 
-    // Initialize the codec context
-    res = vpx_codec_enc_init(&codec_ctx, vpx_codec_vp8_cx(), &enc_cfg, 0);
-    if (res != VPX_CODEC_OK) {
-        return 0;
-    }
+    // If initialization was successful, decode the input data
+    if (result == VPX_CODEC_OK) {
+        // Decode the input data
+        vpx_codec_err_t decode_result = vpx_codec_decode(&codec_ctx, data, size, NULL, 0);
 
-    // Allocate and initialize a raw image
-    if (!vpx_img_alloc(&raw, VPX_IMG_FMT_I420, enc_cfg.g_w, enc_cfg.g_h, 1)) {
+        // Clean up the codec context
         vpx_codec_destroy(&codec_ctx);
-        return 0;
     }
-
-    // Ensure the input data is large enough to fill the image
-    if (size >= sizeof(vpx_codec_enc_cfg_t) + raw.d_w * raw.d_h * 3 / 2) {
-        memcpy(raw.planes[0], data + sizeof(vpx_codec_enc_cfg_t), raw.d_w * raw.d_h); // Y
-        memcpy(raw.planes[1], data + sizeof(vpx_codec_enc_cfg_t) + raw.d_w * raw.d_h, raw.d_w * raw.d_h / 4); // U
-        memcpy(raw.planes[2], data + sizeof(vpx_codec_enc_cfg_t) + raw.d_w * raw.d_h * 5 / 4, raw.d_w * raw.d_h / 4); // V
-    }
-
-    // Encode the frame
-    res = vpx_codec_encode(&codec_ctx, &raw, 0, 1, 0, VPX_DL_REALTIME);
-    
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_encode to vpx_codec_set_cx_data_buf
-
-    vpx_codec_err_t ret_vpx_codec_set_cx_data_buf_cfwdl = vpx_codec_set_cx_data_buf(&codec_ctx, NULL, -1, VPX_SS_MAX_LAYERS);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    vpx_img_free(&raw);
-    vpx_codec_destroy(&codec_ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

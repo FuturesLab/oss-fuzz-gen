@@ -1,47 +1,114 @@
-#include <cstdint>
-#include <cstdlib>
+#include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 extern "C" {
     #include "/src/libvpx/vpx/vpx_codec.h"
-    #include "vpx/vpx_decoder.h"
-    #include "vpx/vp8dx.h" // Include the necessary header for vpx_codec_vp8_dx
+    #include "/src/libvpx/vpx/vpx_encoder.h"
+    #include "/src/libvpx/vpx/vp8cx.h" // Include the specific header for VP8 codec
 }
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Initialize the codec context
+    if (size < 1) {
+        return 0;
+    }
+
     vpx_codec_ctx_t codec_ctx;
-    vpx_codec_dec_cfg_t cfg;
+    vpx_codec_iface_t *iface = vpx_codec_vp8_cx();
+    vpx_codec_enc_cfg_t cfg;
     vpx_codec_err_t res;
 
-    // Initialize the codec context with default configuration
-    res = vpx_codec_dec_init(&codec_ctx, vpx_codec_vp8_dx(), &cfg, 0);
+    // Initialize codec configuration
+    res = vpx_codec_enc_config_default(iface, &cfg, 0);
     if (res != VPX_CODEC_OK) {
         return 0;
     }
 
-    // Decode the input data
-    res = vpx_codec_decode(&codec_ctx, data, size, NULL, 0);
+    // Adjust the configuration based on input data
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_enc_config_default to vpx_codec_enc_config_set
+    vpx_codec_ctx_t rbmjmbph;
+    memset(&rbmjmbph, 0, sizeof(rbmjmbph));
+    vpx_codec_err_t ret_vpx_codec_enc_config_set_urpyz = vpx_codec_enc_config_set(&rbmjmbph, &cfg);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cfg.g_w = data[0] % 256 + 1; // Ensure width is at least 1
+    cfg.g_h = data[0] % 256 + 1; // Ensure height is at least 1
+
+    // Initialize codec context
+    res = vpx_codec_enc_init(&codec_ctx, iface, &cfg, 0);
     if (res != VPX_CODEC_OK) {
+        return 0;
+    }
+
+    // Create a dummy image
+    vpx_image_t img;
+    if (!vpx_img_alloc(&img, VPX_IMG_FMT_I420, cfg.g_w, cfg.g_h, 1)) {
         vpx_codec_destroy(&codec_ctx);
         return 0;
     }
 
-    // Initialize the iterator
+    // Feed the image to the encoder
+    res = vpx_codec_encode(&codec_ctx, &img, 0, 1, 0, VPX_DL_REALTIME);
+    if (res != VPX_CODEC_OK) {
+        vpx_img_free(&img);
+        vpx_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    // Retrieve the encoded data
     vpx_codec_iter_t iter = NULL;
-    vpx_image_t *img;
+    const vpx_codec_cx_pkt_t *pkt;
+    while ((pkt = vpx_codec_get_cx_data(&codec_ctx, &iter)) != NULL) {
+        if (pkt->kind == VPX_CODEC_CX_FRAME_PKT) {
+            // Process the encoded frame (e.g., save or analyze)
+        }
+    }
 
-    // Retrieve the decoded frame
-    img = vpx_codec_get_frame(&codec_ctx, &iter);
-
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_get_frame to vpx_codec_set_frame_buffer_functions
-
-    vpx_codec_err_t ret_vpx_codec_set_frame_buffer_functions_zrztk = vpx_codec_set_frame_buffer_functions(&codec_ctx, 0, 0, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Clean up
+    vpx_img_free(&img);
     vpx_codec_destroy(&codec_ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

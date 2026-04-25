@@ -1,10 +1,14 @@
 // This fuzz driver is generated for library libvpx, aiming to fuzz the following functions:
-// vpx_codec_vp9_dx at vp9_dx_iface.c:712:1 in vp8dx.h
+// vpx_codec_vp8_dx at vp8_dx_iface.c:726:1 in vp8dx.h
 // vpx_codec_dec_init_ver at vpx_decoder.c:24:17 in vpx_decoder.h
-// vpx_codec_register_put_frame_cb at vpx_decoder.c:133:17 in vpx_decoder.h
-// vpx_codec_decode at vpx_decoder.c:104:17 in vpx_decoder.h
-// vpx_codec_peek_stream_info at vpx_decoder.c:65:17 in vpx_decoder.h
-// vpx_codec_get_stream_info at vpx_decoder.c:85:17 in vpx_decoder.h
+// vpx_codec_get_frame at vpx_decoder.c:122:14 in vpx_decoder.h
+// vpx_img_wrap at vpx_image.c:168:14 in vpx_image.h
+// vpx_codec_get_preview_frame at vpx_encoder.c:314:20 in vpx_encoder.h
+// vpx_img_set_rect at vpx_image.c:176:5 in vpx_image.h
+// vpx_img_flip at vpx_image.c:229:6 in vpx_image.h
+// vpx_img_alloc at vpx_image.c:162:14 in vpx_image.h
+// vpx_img_free at vpx_image.c:252:6 in vpx_image.h
+// vpx_img_free at vpx_image.c:252:6 in vpx_image.h
 // vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
 #include <iostream>
 #include <sstream>
@@ -15,50 +19,106 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "vp8dx.h"
-#include "vpx_decoder.h"
-#include "vpx/vp8cx.h"
-}
-
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
-
-static void dummy_put_frame_cb(void *user_priv, const vpx_image_t *img) {
-  // Dummy callback function for put frame
-}
+#include <cstdlib>
+#include "vpx/vpx_image.h"
+#include "vpx/vp8dx.h"
+#include "vpx/vp8cx.h"
+#include "vpx/vpx_encoder.h"
+#include "vpx/vpx_decoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-  if (Size < 1) return 0;
+    if (Size < 1) return 0;
 
-  // Initialize codec interface
-  vpx_codec_iface_t *iface = vpx_codec_vp9_dx();
-  if (!iface) return 0;
+    // Initialize a codec context
+    vpx_codec_ctx_t codec_ctx;
+    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
+    if (vpx_codec_dec_init(&codec_ctx, iface, NULL, 0)) {
+        return 0; // Initialization failed
+    }
 
-  // Initialize codec context
-  vpx_codec_ctx_t ctx;
-  vpx_codec_dec_cfg_t cfg = {0};  // Default configuration
-  vpx_codec_err_t res = vpx_codec_dec_init_ver(&ctx, iface, &cfg, 0, VPX_DECODER_ABI_VERSION);
-  if (res != VPX_CODEC_OK) return 0;
+    // Prepare iterator for vpx_codec_get_frame
+    vpx_codec_iter_t iter = NULL;
+    vpx_codec_get_frame(&codec_ctx, &iter);
 
-  // Register dummy callback
-  vpx_codec_register_put_frame_cb(&ctx, dummy_put_frame_cb, nullptr);
+    // Use vpx_img_wrap
+    unsigned int d_w = (Data[0] % 0x08000000) + 1;
+    unsigned int d_h = (Data[0] % 0x08000000) + 1;
+    unsigned int stride_align = (Data[0] % 65536) + 1;
+    vpx_img_fmt_t fmt = static_cast<vpx_img_fmt_t>(Data[0] % 10);
 
-  // Decode data
-  vpx_codec_decode(&ctx, Data, static_cast<unsigned int>(Size), nullptr, 0);
+    vpx_image_t *wrapped_img = vpx_img_wrap(NULL, fmt, d_w, d_h, stride_align, const_cast<uint8_t*>(Data));
 
-  // Peek stream info
-  vpx_codec_stream_info_t si;
-  si.sz = sizeof(si);
-  vpx_codec_peek_stream_info(iface, Data, static_cast<unsigned int>(Size), &si);
+    // Use vpx_codec_get_preview_frame
+    const vpx_image_t *preview_img = vpx_codec_get_preview_frame(&codec_ctx);
 
-  // Get stream info
-  vpx_codec_get_stream_info(&ctx, &si);
+    // Use vpx_img_set_rect
+    if (wrapped_img) {
+        unsigned int x = 0;
+        unsigned int y = 0;
+        unsigned int w = wrapped_img->w;
+        unsigned int h = wrapped_img->h;
+        vpx_img_set_rect(wrapped_img, x, y, w, h);
+    }
 
-  // Cleanup
-  vpx_codec_destroy(&ctx);
+    // Use vpx_img_flip
+    if (wrapped_img) {
+        vpx_img_flip(wrapped_img);
+    }
 
-  return 0;
+    // Use vpx_img_alloc
+    vpx_image_t *allocated_img = vpx_img_alloc(NULL, fmt, d_w, d_h, stride_align);
+
+    // Cleanup
+    if (wrapped_img) {
+        vpx_img_free(wrapped_img);
+    }
+    if (allocated_img) {
+        vpx_img_free(allocated_img);
+    }
+    vpx_codec_destroy(&codec_ctx);
+
+    return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

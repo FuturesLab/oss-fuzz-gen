@@ -1,54 +1,70 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <cstring>  // Include for memset
-
-extern "C" {
-    #include <vpx/vpx_codec.h>
-    #include <vpx/vpx_decoder.h>
-    #include <vpx/vpx_image.h>
-
-    // Declare the function prototype for vpx_codec_get_preview_frame
-    const vpx_image_t *vpx_codec_get_preview_frame(vpx_codec_ctx_t *ctx);
-
-    // Declare the function prototype for vpx_codec_vp8_dx
-    vpx_codec_iface_t *vpx_codec_vp8_dx(void);
-}
+#include <cstdint>
+#include <cstdlib>
+#include <vpx/vpx_encoder.h>
+#include <vpx/vp8cx.h>
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to initialize vpx_codec_ctx_t and some input data
-    if (size < sizeof(vpx_codec_ctx_t) + 1) {
-        return 0;
-    }
-
-    // Initialize vpx_codec_ctx_t
+    // Declare and initialize variables
     vpx_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(vpx_codec_ctx_t));
+    vpx_codec_iface_t *iface = vpx_codec_vp8_cx(); // Use VP8 encoder interface
+    vpx_codec_enc_cfg_t cfg;
+    vpx_codec_flags_t flags = 0; // Default flags
+    int ver = VPX_ENCODER_ABI_VERSION; // Use the current ABI version
 
-    // Initialize codec with a decoder interface
-    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
-    if (vpx_codec_dec_init(&codec_ctx, iface, nullptr, 0)) {
-        return 0; // Initialization failed
+    // Initialize the codec configuration with default values
+    if (vpx_codec_enc_config_default(iface, &cfg, 0) != VPX_CODEC_OK) {
+        return 0; // Return if the default configuration cannot be initialized
     }
 
-    // Decode the input data
-    if (vpx_codec_decode(&codec_ctx, data, size, nullptr, 0)) {
-        vpx_codec_destroy(&codec_ctx);
-        return 0; // Decoding failed
-    }
+    // Modify configuration based on input data if needed
+    // For example, set cfg.g_w and cfg.g_h based on data size if applicable
 
     // Call the function-under-test
-    const vpx_image_t *image = vpx_codec_get_preview_frame(&codec_ctx);
+    vpx_codec_err_t res = vpx_codec_enc_init_ver(&codec_ctx, iface, &cfg, flags, ver);
 
-    // Use the result to prevent compiler optimizations
-    if (image != NULL) {
-        // Access some fields to simulate usage
-        (void)image->fmt;
-        (void)image->d_w;
-        (void)image->d_h;
+    // Clean up resources if initialization was successful
+    if (res == VPX_CODEC_OK) {
+        vpx_codec_destroy(&codec_ctx);
     }
-
-    // Clean up
-    vpx_codec_destroy(&codec_ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

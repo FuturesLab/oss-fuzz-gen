@@ -1,44 +1,92 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <vpx/vpx_encoder.h>
-#include <vpx/vp8cx.h>
+#include <cstdint>
+#include <cstdlib>
+#include <vpx/vpx_codec.h>
+#include <vpx/vpx_decoder.h>
+
+extern "C" {
+
+// Dummy callback functions for frame buffer operations
+int get_frame_buffer_cb(void *user_priv, size_t min_size, vpx_codec_frame_buffer_t *fb) {
+    if (fb == NULL) {
+        return -1;
+    }
+    fb->data = static_cast<uint8_t*>(malloc(min_size));
+    fb->size = min_size;
+    return (fb->data != NULL) ? 0 : -1;
+}
+
+int release_frame_buffer_cb(void *user_priv, vpx_codec_frame_buffer_t *fb) {
+    if (fb && fb->data) {
+        free(fb->data);
+        fb->data = NULL;
+    }
+    return 0;
+}
+
+// Declare the codec interface function
+const vpx_codec_iface_t *vpx_codec_vp8_dx(void);
+
+}
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
     vpx_codec_ctx_t codec_ctx;
-    vpx_codec_iface_t *codec_iface = vpx_codec_vp8_cx();
-    vpx_codec_enc_cfg_t enc_cfg;
-    int num_encoders = 1;
-    vpx_codec_flags_t flags = 0;
-    vpx_rational_t dsf = {1, 1}; // Default scale factor
-    int ver = VPX_ENCODER_ABI_VERSION;
+    vpx_codec_err_t err;
 
-    // Initialize the encoder configuration
-    if (vpx_codec_enc_config_default(codec_iface, &enc_cfg, 0) != VPX_CODEC_OK) {
-        return 0; // Exit if configuration initialization fails
-    }
-
-    // Adjust the configuration based on input data
-    if (size >= sizeof(enc_cfg.g_w) + sizeof(enc_cfg.g_h)) {
-        enc_cfg.g_w = data[0] | (data[1] << 8);
-        enc_cfg.g_h = data[2] | (data[3] << 8);
+    // Initialize the codec context to avoid passing NULL
+    err = vpx_codec_dec_init(&codec_ctx, vpx_codec_vp8_dx(), NULL, 0);
+    if (err != VPX_CODEC_OK) {
+        return 0;
     }
 
     // Call the function-under-test
-    vpx_codec_err_t res = vpx_codec_enc_init_multi_ver(&codec_ctx, codec_iface, &enc_cfg, num_encoders, flags, &dsf, ver);
+    err = vpx_codec_set_frame_buffer_functions(&codec_ctx, get_frame_buffer_cb, release_frame_buffer_cb, NULL);
 
-    // Encode a frame if initialization was successful
-    if (res == VPX_CODEC_OK) {
-        vpx_image_t raw;
-        if (vpx_img_alloc(&raw, VPX_IMG_FMT_I420, enc_cfg.g_w, enc_cfg.g_h, 1)) {
-            if (size > 0) {
-                // Feed some data to the encoder
-                vpx_codec_encode(&codec_ctx, &raw, 0, 1, 0, VPX_DL_REALTIME);
-            }
-            vpx_img_free(&raw);
-        }
-        vpx_codec_destroy(&codec_ctx);
+    // Decode the input data
+    if (err == VPX_CODEC_OK) {
+        err = vpx_codec_decode(&codec_ctx, data, size, NULL, 0);
     }
+
+    // Destroy the codec context to clean up
+    vpx_codec_destroy(&codec_ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

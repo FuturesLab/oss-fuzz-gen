@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,83 +9,106 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "vpx/vp8dx.h"
-#include "vpx/vpx_decoder.h"
-#include "/src/libvpx/vpx/vp8cx.h"
-}
-
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include "vpx/vpx_decoder.h"
+#include "vpx/vp8dx.h"
+#include "/src/libvpx/vpx/vpx_codec.h"
 
 static void dummy_put_frame_cb(void *user_priv, const vpx_image_t *img) {
-  // Dummy callback function for put frame
+  // Dummy callback function for frame completion
+}
+
+static void dummy_put_slice_cb(void *user_priv, const vpx_image_t *img,
+                               const vpx_image_rect_t *valid,
+                               const vpx_image_rect_t *update) {
+  // Dummy callback function for slice completion
+}
+
+static int dummy_get_frame_buffer(void *user_priv, size_t min_size,
+                                  vpx_codec_frame_buffer_t *fb) {
+  // Dummy callback function for getting frame buffer
+  return 0;
+}
+
+static int dummy_release_frame_buffer(void *user_priv,
+                                      vpx_codec_frame_buffer_t *fb) {
+  // Dummy callback function for releasing frame buffer
+  return 0;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-  if (Size < 1) {
-    return 0;
+  if (Size < 1) return 0;
+
+  vpx_codec_ctx_t codec;
+  vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
+  vpx_codec_err_t res = vpx_codec_dec_init(&codec, iface, NULL, 0);
+  if (res != VPX_CODEC_OK) return 0;
+
+  // Fuzz vpx_codec_register_put_frame_cb
+  vpx_codec_register_put_frame_cb(&codec, dummy_put_frame_cb, nullptr);
+
+  // Fuzz vpx_codec_register_put_slice_cb
+  vpx_codec_register_put_slice_cb(&codec, dummy_put_slice_cb, nullptr);
+
+  // Fuzz vpx_codec_set_frame_buffer_functions
+  vpx_codec_set_frame_buffer_functions(&codec, dummy_get_frame_buffer,
+                                       dummy_release_frame_buffer, nullptr);
+
+  // Fuzz vpx_codec_decode
+  vpx_codec_decode(&codec, Data, Size, nullptr, 0);
+
+  // Fuzz vpx_codec_get_frame
+  vpx_codec_iter_t iter = nullptr;
+  vpx_image_t *img;
+  while ((img = vpx_codec_get_frame(&codec, &iter)) != nullptr) {
+    // Process the image if necessary
   }
 
-  // Initialize codec interface
-  vpx_codec_iface_t *iface = vpx_codec_vp9_dx();
-  if (!iface) {
-    return 0;
-  }
+  // Fuzz vpx_codec_control_
+  vpx_codec_control_(&codec, 0);  // Use a dummy control ID
 
-  // Initialize codec context
-  vpx_codec_ctx_t ctx;
-  vpx_codec_dec_cfg_t cfg = {0};  // Default configuration
-  vpx_codec_err_t res = vpx_codec_dec_init_ver(&ctx, iface, &cfg, 0, VPX_DECODER_ABI_VERSION);
-  if (res != VPX_CODEC_OK) {
-    return 0;
-  }
-
-  // Register dummy callback
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_dec_init_ver to vpx_codec_peek_stream_info
-  const uint8_t qjrmudja = 0;
-
-  vpx_codec_err_t ret_vpx_codec_peek_stream_info_jigiz = vpx_codec_peek_stream_info(iface, &qjrmudja, 64, NULL);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_register_put_frame_cb(&ctx, dummy_put_frame_cb, nullptr);
-
-  // Decode data
-  vpx_codec_decode(&ctx, Data, static_cast<unsigned int>(Size), nullptr, 0);
-
-  // Peek stream info
-  vpx_codec_stream_info_t si;
-  si.sz = sizeof(si);
-  vpx_codec_peek_stream_info(iface, Data, static_cast<unsigned int>(Size), &si);
-
-  // Get stream info
-  vpx_codec_get_stream_info(&ctx, &si);
-
-  // Cleanup
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_get_stream_info to vpx_codec_set_cx_data_buf
-
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of vpx_codec_set_cx_data_buf
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_get_stream_info to vpx_codec_encode
-
-  vpx_codec_err_t ret_vpx_codec_encode_ztrku = vpx_codec_encode(&ctx, NULL, 64, 1, Size, VPX_SS_MAX_LAYERS);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_err_t ret_vpx_codec_set_cx_data_buf_vqtqn = vpx_codec_set_cx_data_buf(&ctx, NULL, VPX_EFLAG_CALCULATE_PSNR, 1);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_destroy(&ctx);
-
+  vpx_codec_destroy(&codec);
   return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

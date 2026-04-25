@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,50 +9,82 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstddef>
-#include <cstdint>
+#include <iostream>
 #include <fstream>
-#include "/src/libvpx/vpx/vpx_codec.h"
-#include "/src/libvpx/vpx/vp8cx.h"
-#include "/src/libvpx/vpx/vpx_encoder.h"
+#include <cstdint>
+#include <cstring>
 #include "vpx/vp8dx.h"
+#include "/src/libvpx/vpx/vpx_codec.h"
+#include "vpx/vpx_decoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(vpx_codec_enc_cfg_t)) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    vpx_codec_iface_t *iface_vp9 = vpx_codec_vp9_cx();
-    vpx_codec_iface_t *iface_vp8 = vpx_codec_vp8_cx();
+    vpx_codec_ctx_t codec;
+    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
+    vpx_codec_dec_cfg_t cfg = {0};  // Default configuration
+    vpx_codec_err_t res;
 
-    vpx_codec_enc_cfg_t cfg;
-    vpx_codec_err_t res = vpx_codec_enc_config_default(iface_vp9, &cfg, 0);
+    // Initialize codec
+    res = vpx_codec_dec_init_ver(&codec, iface, &cfg, 0, VPX_DECODER_ABI_VERSION);
     if (res != VPX_CODEC_OK) {
         return 0;
     }
 
-    vpx_codec_ctx_t codec_ctx;
-    res = vpx_codec_enc_init_ver(&codec_ctx, iface_vp9, &cfg, 0, VPX_ENCODER_ABI_VERSION);
+    // Decode data
+    res = vpx_codec_decode(&codec, Data, static_cast<unsigned int>(Size), nullptr, 0);
     if (res != VPX_CODEC_OK) {
+        vpx_codec_destroy(&codec);
         return 0;
     }
 
-    std::ofstream dummy_file("./dummy_file", std::ios::binary);
-    if (dummy_file.is_open()) {
-        dummy_file.write(reinterpret_cast<const char*>(Data), Size);
-        dummy_file.close();
+    // Get decoded frames
+    vpx_codec_iter_t iter = nullptr;
+    while (vpx_codec_get_frame(&codec, &iter) != nullptr) {
+        // Process the frame (no-op for fuzzing)
     }
 
-    const char *iface_name_vp9 = vpx_codec_iface_name(iface_vp9);
-    const char *iface_name_vp8 = vpx_codec_iface_name(iface_vp8);
-
-    res = vpx_codec_enc_config_set(&codec_ctx, &cfg);
-    if (res != VPX_CODEC_OK) {
-        vpx_codec_destroy(&codec_ctx);
-        return 0;
-    }
-
-    vpx_codec_destroy(&codec_ctx);
+    // Destroy codec
+    vpx_codec_destroy(&codec);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

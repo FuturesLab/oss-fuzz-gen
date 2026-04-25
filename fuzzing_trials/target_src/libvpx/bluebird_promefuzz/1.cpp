@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,64 +9,104 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "vpx/vp8dx.h"
-#include "vpx/vpx_decoder.h"
-#include "/src/libvpx/vpx/vp8cx.h"
-}
-
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
-
-static void dummy_put_frame_cb(void *user_priv, const vpx_image_t *img) {
-  // Dummy callback function for put frame
-}
+#include "/src/libvpx/vpx/vp8cx.h"
+#include "/src/libvpx/vpx/vpx_encoder.h"
+#include "/src/libvpx/vpx/vpx_image.h"
+#include "vpx/vp8dx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-  if (Size < 1) {
+    if (Size < sizeof(vpx_codec_enc_cfg_t)) {
+        return 0;
+    }
+
+    vpx_codec_ctx_t codec;
+    vpx_codec_iface_t *iface = vpx_codec_vp9_cx();
+    vpx_codec_enc_cfg_t cfg;
+    memcpy(&cfg, Data, sizeof(vpx_codec_enc_cfg_t));
+
+    if (vpx_codec_enc_config_default(iface, &cfg, 0)) {
+        return 0;
+    }
+
+    if (vpx_codec_enc_init(&codec, iface, &cfg, 0)) {
+        return 0;
+    }
+
+    if (vpx_codec_enc_config_set(&codec, &cfg) != VPX_CODEC_OK) {
+        vpx_codec_destroy(&codec);
+        return 0;
+    }
+
+    vpx_image_t *img = vpx_img_alloc(nullptr, VPX_IMG_FMT_I420, cfg.g_w, cfg.g_h, 1);
+    if (!img) {
+        vpx_codec_destroy(&codec);
+        return 0;
+    }
+
+    for (unsigned int i = 0; i < 10; ++i) {
+        vpx_codec_pts_t pts = i;
+        unsigned long duration = 1;
+        vpx_enc_frame_flags_t flags = 0;
+        vpx_enc_deadline_t deadline = VPX_DL_REALTIME;
+
+        vpx_codec_err_t res = vpx_codec_encode(&codec, img, pts, duration, flags, deadline);
+        if (res != VPX_CODEC_OK) {
+            break;
+        }
+
+        vpx_codec_iter_t iter = nullptr;
+        const vpx_codec_cx_pkt_t *pkt;
+        while ((pkt = vpx_codec_get_cx_data(&codec, &iter)) != nullptr) {
+            if (pkt->kind == VPX_CODEC_CX_FRAME_PKT) {
+                // Handle the compressed frame packet
+            }
+        }
+    }
+
+    vpx_img_free(img);
+    vpx_codec_destroy(&codec);
     return 0;
-  }
-
-  // Initialize codec interface
-  vpx_codec_iface_t *iface = vpx_codec_vp9_dx();
-  if (!iface) {
-    return 0;
-  }
-
-  // Initialize codec context
-  vpx_codec_ctx_t ctx;
-  vpx_codec_dec_cfg_t cfg = {0};  // Default configuration
-  vpx_codec_err_t res = vpx_codec_dec_init_ver(&ctx, iface, &cfg, 0, VPX_DECODER_ABI_VERSION);
-  if (res != VPX_CODEC_OK) {
-    return 0;
-  }
-
-  // Register dummy callback
-  vpx_codec_register_put_frame_cb(&ctx, dummy_put_frame_cb, nullptr);
-
-  // Decode data
-  vpx_codec_decode(&ctx, Data, static_cast<unsigned int>(Size), nullptr, 0);
-
-  // Peek stream info
-  vpx_codec_stream_info_t si;
-  si.sz = sizeof(si);
-  vpx_codec_peek_stream_info(iface, Data, static_cast<unsigned int>(Size), &si);
-
-  // Get stream info
-  vpx_codec_get_stream_info(&ctx, &si);
-
-  // Cleanup
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_get_stream_info to vpx_codec_peek_stream_info
-  const uint8_t qvijnugl = 1;
-
-  vpx_codec_err_t ret_vpx_codec_peek_stream_info_cuiqn = vpx_codec_peek_stream_info(iface, &qvijnugl, -1, &si);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_destroy(&ctx);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
