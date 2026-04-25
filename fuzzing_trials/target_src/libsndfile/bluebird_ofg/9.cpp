@@ -1,82 +1,101 @@
+#include <sys/stat.h>
 #include "sndfile.h"
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>  // Include this for close() and write()
+#include <unistd.h> // Include for write() and close()
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
+    // Define a temporary file name
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
         return 0;
     }
 
-    // Close the file descriptor to flush the data
+    // Close the file descriptor as it will be reopened by sf_open
     close(fd);
 
-    // Open the temporary file using libsndfile
+    // Open the temporary file with libsndfile
     SF_INFO sfinfo;
-    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
+    memset(&sfinfo, 0, sizeof(SF_INFO));
+    SNDFILE *sndfile = sf_open(tmpl, SFM_RDWR, &sfinfo);
     if (sndfile == NULL) {
         return 0;
     }
 
-    // Allocate buffer for reading samples
-    sf_count_t frames = 1024; // Arbitrary number of frames for testing
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_readf_double
-    int ret_sf_error_mqwei = sf_error(sndfile);
-    if (ret_sf_error_mqwei < 0){
-    	return 0;
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_error to sf_read_double
-    int ret_sf_format_check_szmrw = sf_format_check(&sfinfo);
-    if (ret_sf_format_check_szmrw < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_read_double_alabn = sf_read_double(NULL, (double *)&ret_sf_format_check_szmrw, (int64_t )ret_sf_error_mqwei);
-    if (ret_sf_read_double_alabn < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_sf_error_sivto = sf_error(NULL);
-    if (ret_sf_error_sivto < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_readf_double_zqdhv = sf_readf_double(sndfile, (double *)&ret_sf_error_mqwei, (int64_t )ret_sf_error_sivto);
-    if (ret_sf_readf_double_zqdhv < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int *buffer = (int *)malloc(frames * sfinfo.channels * sizeof(int));
-    if (buffer == NULL) {
-        sf_close(sndfile);
-        return 0;
-    }
-
     // Call the function-under-test
-    sf_count_t readcount = sf_readf_int(sndfile, buffer, frames);
+    sf_count_t frames_written = sf_write_raw(sndfile, data, (sf_count_t)size);
 
     // Clean up
-    free(buffer);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_write_raw to sf_write_double
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
+    }
+    const char* ret_sf_strerror_jzuut = sf_strerror(sndfile);
+    if (ret_sf_strerror_jzuut == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
+    }
+    sf_count_t ret_sf_write_double_xaqce = sf_write_double(sndfile, (const double *)&frames_written, 1);
+    if (ret_sf_write_double_xaqce < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     sf_close(sndfile);
     remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

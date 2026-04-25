@@ -1,79 +1,90 @@
+#include <sys/stat.h>
 #include "sndfile.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include <unistd.h>  // Include for 'write' and 'close' functions
-
-extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
-}
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Create a temporary file to use with SNDFILE
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
-    if (fd < 0) {
+    if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
+    // Write the fuzz data to the temporary file
     if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
+        unlink(tmpl);
         return 0;
     }
     close(fd);
 
-    // Open the temporary file with libsndfile in read mode
+    // Open the temporary file with libsndfile
     SF_INFO sfinfo;
-    memset(&sfinfo, 0, sizeof(sfinfo));
+    memset(&sfinfo, 0, sizeof(SF_INFO));
     SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
-    if (!sndfile) {
-        remove(tmpl);
+    if (sndfile == NULL) {
+        unlink(tmpl);
         return 0;
     }
 
-    // Prepare a buffer to read data into
-    int int_data[10];
-    
-    // Attempt to read from the file
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_read_int
-    int ret_sf_perror_glsqj = sf_perror(NULL);
-    if (ret_sf_perror_glsqj < 0){
-    	return 0;
+    // Prepare a buffer to read samples
+    sf_count_t frames = 1024;  // Number of frames to read
+    short *buffer = (short *)malloc(frames * sfinfo.channels * sizeof(short));
+    if (buffer == NULL) {
+        sf_close(sndfile);
+        unlink(tmpl);
+        return 0;
     }
 
-    sf_count_t ret_sf_read_int_iqsch = sf_read_int(sndfile, &ret_sf_perror_glsqj, 0);
-    if (ret_sf_read_int_iqsch < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_read_int to sf_write_raw
-    int ret_sf_error_opynw = sf_error(sndfile);
-    if (ret_sf_error_opynw < 0){
-    	return 0;
-    }
-    int ret_sf_perror_yomei = sf_perror(NULL);
-    if (ret_sf_perror_yomei < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_write_raw_uojtg = sf_write_raw(sndfile, (const void *)sndfile, (int64_t )ret_sf_perror_yomei);
-    if (ret_sf_write_raw_uojtg < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    sf_count_t result = sf_read_int(sndfile, int_data, 10);
+    // Call the function-under-test
+    sf_count_t read_frames = sf_readf_short(sndfile, buffer, frames);
 
     // Clean up
+    free(buffer);
     sf_close(sndfile);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

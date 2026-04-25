@@ -1,91 +1,190 @@
-#include "sndfile.h"
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include <unistd.h>  // Include for write, close, and other POSIX functions
+#include <stdlib.h>
+#include <unistd.h> // Include for close()
+#include <string.h> // Include for strncpy()
 
 extern "C" {
-    // Wrap C headers and functions with extern "C"
-    #include <fcntl.h>  // Include for mkstemp
+    #include "sndfile.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    if (fd < 0) {
         return 0;
     }
-
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
         close(fd);
         return 0;
     }
-    close(fd);
+    fwrite(data, 1, size, file);
+    fclose(file);
 
     // Open the temporary file with libsndfile
     SF_INFO sfinfo;
     SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
     if (sndfile == NULL) {
-        // Remove the temporary file if opening fails
         remove(tmpl);
         return 0;
     }
 
-    // Prepare buffer for reading samples
-    sf_count_t frames = 1024; // Number of frames to read
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_read_raw
-    int ret_sf_error_elzoj = sf_error(sndfile);
-    if (ret_sf_error_elzoj < 0){
-    	return 0;
-    }
-    int ret_sf_perror_hlora = sf_perror(sndfile);
-    if (ret_sf_perror_hlora < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_read_raw_geeou = sf_read_raw(sndfile, (void *)&sfinfo, (int64_t )ret_sf_perror_hlora);
-    if (ret_sf_read_raw_geeou < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_read_raw to sf_writef_float
-    int ret_sf_error_bsjnm = sf_error(sndfile);
-    if (ret_sf_error_bsjnm < 0){
-    	return 0;
-    }
-    int ret_sf_close_krbci = sf_close(NULL);
-    if (ret_sf_close_krbci < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_writef_float_bgoju = sf_writef_float(sndfile, (const float *)&ret_sf_close_krbci, ret_sf_read_raw_geeou);
-    if (ret_sf_writef_float_bgoju < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    short *buffer = (short *)malloc(frames * sfinfo.channels * sizeof(short));
-    if (buffer == NULL) {
-        sf_close(sndfile);
-        remove(tmpl);
-        return 0;
-    }
+    // Initialize a SF_CHUNK_INFO structure
+    SF_CHUNK_INFO chunk_info;
+    strncpy(chunk_info.id, "data", sizeof(chunk_info.id)); // Set to a valid chunk ID
+    chunk_info.datalen = 0; // Set to 0 or any valid data length
+    chunk_info.data = NULL; // Set to NULL or any valid data pointer
 
     // Call the function-under-test
-    sf_count_t read_frames = sf_readf_short(sndfile, buffer, frames);
+    SF_CHUNK_ITERATOR *iterator = sf_get_chunk_iterator(sndfile, &chunk_info);
 
     // Clean up
-    free(buffer);
+    if (iterator != NULL) {
+        sf_next_chunk_iterator(iterator); // Correct function to iterate or close
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_next_chunk_iterator to sf_write_raw
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sndfile) {
+        	return 0;
+        }
+        int ret_sf_current_byterate_xynhn = sf_current_byterate(sndfile);
+        if (ret_sf_current_byterate_xynhn < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sndfile) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!iterator) {
+        	return 0;
+        }
+        sf_count_t ret_sf_write_raw_utmrv = sf_write_raw(sndfile, (const void *)iterator, 0);
+        if (ret_sf_write_raw_utmrv < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_write_raw to sf_writef_int
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sndfile) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_write_raw to sf_writef_double
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sndfile) {
+        	return 0;
+        }
+        int ret_sf_perror_lbmip = sf_perror(sndfile);
+        if (ret_sf_perror_lbmip < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sndfile) {
+        	return 0;
+        }
+        sf_count_t ret_sf_writef_double_lfqpa = sf_writef_double(sndfile, (const double *)&ret_sf_write_raw_utmrv, 0);
+        if (ret_sf_writef_double_lfqpa < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        int ret_sf_perror_lmovg = sf_perror(sndfile);
+        if (ret_sf_perror_lmovg < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sndfile) {
+        	return 0;
+        }
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sf_writef_int with sf_write_int
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sf_perror to sf_open_virtual using the plateau pool
+        SF_VIRTUAL_IO vio;
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sndfile) {
+        	return 0;
+        }
+        SNDFILE* ret_sf_open_virtual_srcln = sf_open_virtual(&vio, (int )ret_sf_writef_double_lfqpa, &sfinfo, (void *)sndfile);
+        if (ret_sf_open_virtual_srcln == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+        sf_count_t ret_sf_writef_int_lawhb = sf_write_int(sndfile, (const int *)&ret_sf_write_raw_utmrv, 64);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        if (ret_sf_writef_int_lawhb < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_write_int to sf_readf_short
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sndfile) {
+        	return 0;
+        }
+        int ret_sf_current_byterate_fsywh = sf_current_byterate(sndfile);
+        if (ret_sf_current_byterate_fsywh < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sndfile) {
+        	return 0;
+        }
+        sf_count_t ret_sf_readf_short_ghrud = sf_readf_short(sndfile, (short *)&ret_sf_writef_int_lawhb, 1);
+        if (ret_sf_readf_short_ghrud < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
     sf_close(sndfile);
     remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

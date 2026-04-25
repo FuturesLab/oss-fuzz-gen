@@ -1,31 +1,130 @@
-#include <cstdint>
-#include <cstddef>
-#include <iostream>
-
-extern "C" {
-    // Assuming the function is defined in an external C library
-    const char * sf_error_number(int);
-}
+#include <sys/stat.h>
+#include <string.h>
+#include "sndfile.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to construct an integer
-    if (size < sizeof(int)) {
+    // Ensure size is sufficient for at least one float
+    if (size < sizeof(float)) {
         return 0;
     }
 
-    // Extract an integer from the input data
-    int error_number = 0;
-    for (size_t i = 0; i < sizeof(int); ++i) {
-        error_number |= data[i] << (i * 8);
+    // Create a temporary file to use with SNDFILE
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
+
+    // Set up SF_INFO structure
+    SF_INFO sfinfo;
+    sfinfo.frames = 0;
+    sfinfo.samplerate = 44100; // Common sample rate
+    sfinfo.channels = 1; // Mono
+    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16; // WAV format, PCM 16
+
+    // Open the temporary file as a SNDFILE
+    SNDFILE *sndfile = sf_open_fd(fd, SFM_WRITE, &sfinfo, 1);
+    if (sndfile == NULL) {
+        close(fd);
+        return 0;
+    }
+
+    // Cast data to float pointer
+    const float *float_data = reinterpret_cast<const float *>(data);
+    sf_count_t float_count = size / sizeof(float);
 
     // Call the function-under-test
-    const char *error_message = sf_error_number(error_number);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of sf_write_float
+    sf_count_t written_count = sf_write_float(sndfile, float_data, -1);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Optionally print the result for debugging purposes
-    if (error_message != nullptr) {
-        std::cout << "Error number: " << error_number << ", Message: " << error_message << std::endl;
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_write_float to sf_set_string
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
     }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_write_float to sf_seek
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
+    }
+    const char* ret_sf_strerror_tulvv = sf_strerror(sndfile);
+    if (ret_sf_strerror_tulvv == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
+    }
+    sf_count_t ret_sf_seek_ziigs = sf_seek(sndfile, written_count, (int )written_count);
+    if (ret_sf_seek_ziigs < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_sf_error_clkbj = sf_error(sndfile);
+    if (ret_sf_error_clkbj < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
+    }
+    int ret_sf_set_string_xaget = sf_set_string(sndfile, (int )written_count, (const char *)data);
+    if (ret_sf_set_string_xaget < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sf_close(sndfile);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_63(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

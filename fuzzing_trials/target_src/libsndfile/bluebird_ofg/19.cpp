@@ -1,72 +1,93 @@
+#include <sys/stat.h>
 #include "sndfile.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
-#include <unistd.h>
+#include <unistd.h> // Include this for the 'close' function
+
+extern "C" {
+    // Wrap C library functions to ensure correct linkage
+    #include "sndfile.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    // Ensure there is enough data to proceed
+    if (size < sizeof(double)) {
+        return 0;
+    }
+
+    // Create a temporary file to use with SNDFILE
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Close the file descriptor so that libsndfile can open it
-    close(fd);
-
-    // Open the temporary file with libsndfile
+    // Define the format for the sound file
     SF_INFO sfinfo;
-    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
-    if (sndfile == NULL) {
-        unlink(tmpl);
+    memset(&sfinfo, 0, sizeof(SF_INFO));
+    sfinfo.channels = 1;
+    sfinfo.samplerate = 44100;
+    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+
+    // Open the sound file for writing
+    SNDFILE *sndfile = sf_open_fd(fd, SFM_WRITE, &sfinfo, 0);
+    if (!sndfile) {
+        close(fd);
         return 0;
     }
 
-    // Prepare buffer to read samples into
-    sf_count_t frames = 1024;  // Arbitrary number of frames to read
-    double *buffer = (double *)malloc(frames * sfinfo.channels * sizeof(double));
-    if (buffer == NULL) {
-        sf_close(sndfile);
+    // Prepare the buffer of doubles to write
+    size_t num_doubles = size / sizeof(double);
+    const double *double_data = reinterpret_cast<const double *>(data);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_close to sf_seek
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_close to sf_write_raw
-        sf_write_sync(sndfile);
-
-        sf_count_t ret_sf_write_raw_wyree = sf_write_raw(sndfile, (const void *)sndfile, 1);
-        if (ret_sf_write_raw_wyree < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        sf_count_t ret_sf_seek_psjmn = sf_seek(sndfile, size, 0);
-        if (ret_sf_seek_psjmn < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Call the function-under-test
-    sf_count_t read_frames = sf_readf_double(sndfile, buffer, frames);
+    // Call the function under test
+    sf_count_t written_frames = sf_write_double(sndfile, double_data, num_doubles);
 
     // Clean up
-    free(buffer);
     sf_close(sndfile);
-    unlink(tmpl);
+    close(fd);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

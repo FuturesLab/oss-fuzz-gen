@@ -1,62 +1,74 @@
 #include <sndfile.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h> // Include this header for the 'close' function
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Define and initialize variables before any goto statements
-    SNDFILE *sndfile = nullptr;
-    SF_INFO sfinfo;
-    int *buffer = nullptr;
-    sf_count_t frames = 0;
-
-    // Ensure size is sufficient for at least one frame
-    if (size < sizeof(int)) {
-        return 0;
-    }
-
-    // Initialize SF_INFO structure
-    memset(&sfinfo, 0, sizeof(SF_INFO));
-    sfinfo.channels = 1;
-    sfinfo.samplerate = 44100;
-    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
-
-    // Create a temporary file to use with libsndfile
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Open the temporary file with libsndfile
-    sndfile = sf_open_fd(fd, SFM_WRITE, &sfinfo, 1);
-    if (sndfile == nullptr) {
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
+        unlink(tmpl);
         return 0;
     }
-
-    // Calculate the number of frames
-    frames = size / sizeof(int);
-
-    // Allocate buffer and copy data
-    buffer = (int *)malloc(frames * sizeof(int));
-    if (buffer == nullptr) {
-        sf_close(sndfile);
-        close(fd);
-        return 0;
-    }
-    memcpy(buffer, data, frames * sizeof(int));
-
-    // Call the function-under-test
-    sf_writef_int(sndfile, buffer, frames);
-
-    // Cleanup
-    free(buffer);
-    sf_close(sndfile);
     close(fd);
-    remove(tmpl);
+
+    // Open the temporary file with libsndfile
+    SF_INFO sfinfo;
+    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
+    if (sndfile != NULL) {
+        // Call the function-under-test
+        sf_close(sndfile);
+    }
+
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

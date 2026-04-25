@@ -1,52 +1,91 @@
+#include <sndfile.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>  // For write and close
-#include <fcntl.h>   // For mkstemp
-#include <stdio.h>   // For remove
-#include <string.h>  // For memset
-
-extern "C" {
-    #include <sndfile.h>
-}
+#include <string.h>
+#include <unistd.h>  // Added for close() and unlink()
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Temporary file creation
+    // Define the temporary file for writing
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Initialize SF_INFO structure
+    SF_INFO sfinfo;
+    memset(&sfinfo, 0, sizeof(SF_INFO));
+    sfinfo.samplerate = 44100;
+    sfinfo.channels = 2;
+    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+
+    // Open the temporary file as a sound file
+    SNDFILE *sndfile = sf_open_fd(fd, SFM_WRITE, &sfinfo, 1);
+    if (sndfile == NULL) {
         close(fd);
         return 0;
     }
-    close(fd);
 
-    // Open the file with libsndfile
-    SF_INFO sfinfo;
-    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
-    if (sndfile == NULL) {
-        remove(tmpl);
+    // Prepare float buffer from the input data
+    sf_count_t num_samples = size / sizeof(float);
+    float *float_buffer = (float *)malloc(num_samples * sizeof(float));
+    if (float_buffer == NULL) {
+        sf_close(sndfile);
+        close(fd);
         return 0;
     }
 
-    // Initialize SF_CHUNK_INFO
-    SF_CHUNK_INFO chunk_info;
-    memset(chunk_info.id, 0, sizeof(chunk_info.id));  // Proper initialization
-    chunk_info.datalen = 0;
-    chunk_info.data = NULL;
+    // Copy data into float buffer
+    memcpy(float_buffer, data, num_samples * sizeof(float));
 
     // Call the function-under-test
-    SF_CHUNK_ITERATOR *iterator = sf_get_chunk_iterator(sndfile, &chunk_info);
+    sf_write_float(sndfile, float_buffer, num_samples);
 
     // Clean up
-    if (iterator != NULL) {
-        sf_next_chunk_iterator(iterator);  // Use the correct function
-    }
+    free(float_buffer);
     sf_close(sndfile);
-    remove(tmpl);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

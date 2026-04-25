@@ -1,88 +1,112 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>  // For write and close
-#include <fcntl.h>   // For mkstemp
-#include <stdio.h>   // For remove
-#include <string.h>  // For memset
+#include <string.h>
+#include <unistd.h>  // Include this for the 'close' function
 
 extern "C" {
     #include "sndfile.h"
+    // Include the necessary C headers and function declarations
+    int sf_set_string(SNDFILE *, int, const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Temporary file creation
+    // Declare and initialize variables
+    SNDFILE *sndfile = NULL;
+    SF_INFO sfinfo;
+    int string_type;
+    char *str = NULL;
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
+    int fd;
+
+    // Ensure size is sufficient for string_type and at least one character for the string
+    if (size < sizeof(int) + 1) {
+        return 0;
+    }
+
+    // Create a temporary file
+    fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
+    // Initialize SF_INFO structure
+    memset(&sfinfo, 0, sizeof(SF_INFO));
+    sfinfo.samplerate = 44100;
+    sfinfo.channels = 2;
+    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
 
-    // Open the file with libsndfile
-    SF_INFO sfinfo;
-    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
+    // Open the temporary file as a sound file
+    sndfile = sf_open(tmpl, SFM_WRITE, &sfinfo);
     if (sndfile == NULL) {
+        close(fd);
         remove(tmpl);
         return 0;
     }
 
-    // Initialize SF_CHUNK_INFO
-    SF_CHUNK_INFO chunk_info;
+    // Extract string_type from data
+    memcpy(&string_type, data, sizeof(int));
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_write_sync
-
-    sf_write_sync(sndfile);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    memset(chunk_info.id, 0, sizeof(chunk_info.id));  // Proper initialization
-    chunk_info.datalen = 0;
-    chunk_info.data = NULL;
+    // Allocate and copy the string from data
+    str = (char *)malloc(size - sizeof(int) + 1);
+    if (str == NULL) {
+        sf_close(sndfile);
+        close(fd);
+        remove(tmpl);
+        return 0;
+    }
+    memcpy(str, data + sizeof(int), size - sizeof(int));
+    str[size - sizeof(int)] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    SF_CHUNK_ITERATOR *iterator = sf_get_chunk_iterator(sndfile, &chunk_info);
+    sf_set_string(sndfile, string_type, str);
 
     // Clean up
-    if (iterator != NULL) {
-        sf_next_chunk_iterator(iterator);  // Use the correct function
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_get_chunk_iterator to sf_writef_int
-    const int jzwmjgzo = 0;
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_get_chunk_iterator to sf_read_float
-    int ret_sf_error_jppng = sf_error(NULL);
-    if (ret_sf_error_jppng < 0){
-    	return 0;
-    }
-    int ret_sf_format_check_cwnme = sf_format_check(&sfinfo);
-    if (ret_sf_format_check_cwnme < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_read_float_uhnrh = sf_read_float(sndfile, (float *)&ret_sf_error_jppng, (int64_t )ret_sf_format_check_cwnme);
-    if (ret_sf_read_float_uhnrh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    sf_count_t ret_sf_writef_int_sepwc = sf_writef_int(sndfile, &jzwmjgzo, 1);
-    if (ret_sf_writef_int_sepwc < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    free(str);
     sf_close(sndfile);
+    close(fd);
     remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
