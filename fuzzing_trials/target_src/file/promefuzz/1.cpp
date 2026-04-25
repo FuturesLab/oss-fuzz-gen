@@ -1,11 +1,13 @@
 // This fuzz driver is generated for library file, aiming to fuzz the following functions:
 // magic_open at magic.c:267:1 in magic.h
 // magic_load at magic.c:317:1 in magic.h
-// magic_errno at magic.c:577:1 in magic.h
-// magic_version at magic.c:607:1 in magic.h
-// magic_getparam at magic.c:656:1 in magic.h
-// magic_load_buffers at magic.c:329:1 in magic.h
-// magic_setparam at magic.c:613:1 in magic.h
+// magic_close at magic.c:306:1 in magic.h
+// magic_file at magic.c:414:1 in magic.h
+// magic_error at magic.c:569:1 in magic.h
+// magic_open at magic.c:267:1 in magic.h
+// magic_load at magic.c:317:1 in magic.h
+// magic_list at magic.c:356:1 in magic.h
+// magic_close at magic.c:306:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
@@ -16,50 +18,91 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <magic.h>
+#include <cstdint>
+#include <cstddef>
+#include <cerrno>
+#include <fstream>
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    // Initialize magic_t object
-    magic_t cookie = magic_open(MAGIC_NONE);
-    if (cookie == NULL) {
+    if (Size == 0) return 0;
+
+    // Create a dummy file to be used with magic_file
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    if (!dummyFile) return 0;
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
+
+    // Open a magic cookie
+    magic_t magicCookie = magic_open(MAGIC_NONE);
+    if (!magicCookie) return 0;
+
+    // Load the default magic database
+    if (magic_load(magicCookie, nullptr) == -1) {
+        magic_close(magicCookie);
         return 0;
     }
 
-    // Prepare a dummy file if necessary
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file != NULL) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
+    // Use magic_file to identify the file type
+    const char *fileType = magic_file(magicCookie, "./dummy_file");
+    if (!fileType) {
+        const char *error = magic_error(magicCookie);
+        if (error) {
+            // Handle error if needed
+        }
     }
 
-    // Fuzz magic_load
-    const char *filename = Size > 0 ? "./dummy_file" : NULL;
-    magic_load(cookie, filename);
+    // Create a separate magic_set for magic_list
+    magic_t magicListCookie = magic_open(MAGIC_NONE);
+    if (magicListCookie) {
+        if (magic_load(magicListCookie, nullptr) != -1) {
+            magic_list(magicListCookie, nullptr);
+        }
+        magic_close(magicListCookie);
+    }
 
-    // Fuzz magic_errno
-    int err = magic_errno(cookie);
-
-    // Fuzz magic_version
-    int version = magic_version();
-
-    // Fuzz magic_getparam
-    int param_type = (Size > 0) ? Data[0] : 0;
-    size_t param_value;
-    magic_getparam(cookie, param_type, &param_value);
-
-    // Fuzz magic_load_buffers
-    void *buffers[] = { (void *)Data };
-    size_t buffer_sizes[] = { Size };
-    magic_load_buffers(cookie, buffers, buffer_sizes, 1);
-
-    // Fuzz magic_setparam
-    magic_setparam(cookie, param_type, &param_value);
-
-    // Cleanup
-    magic_close(cookie);
+    // Clean up
+    magic_close(magicCookie);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

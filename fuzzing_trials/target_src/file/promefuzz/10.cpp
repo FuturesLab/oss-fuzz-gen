@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library file, aiming to fuzz the following functions:
 // magic_open at magic.c:267:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
-// magic_compile at magic.c:340:1 in magic.h
-// magic_errno at magic.c:577:1 in magic.h
-// magic_setflags at magic.c:594:1 in magic.h
-// magic_getparam at magic.c:656:1 in magic.h
 // magic_load_buffers at magic.c:329:1 in magic.h
-// magic_list at magic.c:356:1 in magic.h
+// magic_setparam at magic.c:613:1 in magic.h
+// magic_getflags at magic.c:585:1 in magic.h
+// magic_setflags at magic.c:594:1 in magic.h
+// magic_descriptor at magic.c:403:1 in magic.h
+// magic_errno at magic.c:577:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
@@ -19,66 +19,114 @@
 #include <cstddef>
 #include <magic.h>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
+#include <cstddef>
+#include <fcntl.h>
+#include <unistd.h>
 #include <cstring>
+#include <iostream>
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    // Initialize a magic_t object
-    magic_t magic_cookie = magic_open(MAGIC_NONE);
-    if (magic_cookie == NULL) {
+    if (Size < sizeof(int) + sizeof(size_t)) {
         return 0;
     }
 
-    // Write the input data to a dummy file for functions that require a file
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file == NULL) {
-        magic_close(magic_cookie);
+    // Create a magic cookie
+    magic_t cookie = magic_open(MAGIC_NONE);
+    if (!cookie) {
         return 0;
     }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
 
-    // Prepare a buffer for magic_load_buffers
-    void *buffers[] = { (void *)Data };
-    size_t buffer_sizes[] = { Size };
+    // Allocate buffers
+    size_t num_buffers = 2;
+    void *buffers[2];
+    size_t buffer_sizes[2];
+    buffer_sizes[0] = Size / 2;
+    buffer_sizes[1] = Size - buffer_sizes[0];
+    buffers[0] = malloc(buffer_sizes[0]);
+    buffers[1] = malloc(buffer_sizes[1]);
+    if (!buffers[0] || !buffers[1]) {
+        free(buffers[0]);
+        free(buffers[1]);
+        magic_close(cookie);
+        return 0;
+    }
+    memcpy(buffers[0], Data, buffer_sizes[0]);
+    memcpy(buffers[1], Data + buffer_sizes[0], buffer_sizes[1]);
 
-    // Fuzz magic_compile
-    magic_compile(magic_cookie, "./dummy_file");
+    // Test magic_load_buffers
+    magic_load_buffers(cookie, buffers, buffer_sizes, num_buffers);
 
-    // Fuzz magic_errno
-    int error_code = magic_errno(magic_cookie);
+    // Test magic_setparam
+    magic_setparam(cookie, MAGIC_PARAM_INDIR_MAX, &Size);
 
-    // Fuzz magic_setflags with a random flag
-    int random_flag = Size > 0 ? Data[0] : 0;
-    magic_setflags(magic_cookie, random_flag);
+    // Test magic_getflags
+    int flags = magic_getflags(cookie);
 
-    // Fuzz magic_getparam with a validated parameter
-    int param = Size > 0 ? Data[0] : 0;
-    size_t param_value;
-    switch (param) {
-        case MAGIC_PARAM_INDIR_MAX:
-        case MAGIC_PARAM_NAME_MAX:
-        case MAGIC_PARAM_ELF_PHNUM_MAX:
-        case MAGIC_PARAM_ELF_SHNUM_MAX:
-        case MAGIC_PARAM_ELF_SHSIZE_MAX:
-        case MAGIC_PARAM_ELF_NOTES_MAX:
-            magic_getparam(magic_cookie, param, &param_value);
-            break;
-        default:
-            // Invalid parameter, skip the call to magic_getparam
-            break;
+    // Test magic_setflags
+    magic_setflags(cookie, flags);
+
+    // Create a dummy file
+    int fd = open("./dummy_file", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd != -1) {
+        write(fd, Data, Size);
+        lseek(fd, 0, SEEK_SET);
+
+        // Test magic_descriptor
+        const char *description = magic_descriptor(cookie, fd);
+        if (description) {
+            std::cout << "Description: " << description << std::endl;
+        }
+
+        close(fd);
     }
 
-    // Fuzz magic_load_buffers
-    magic_load_buffers(magic_cookie, buffers, buffer_sizes, 1);
+    // Test magic_errno
+    int err = magic_errno(cookie);
 
-    // Fuzz magic_list
-    magic_list(magic_cookie, "./dummy_file");
-
-    // Cleanup
-    magic_close(magic_cookie);
-    remove("./dummy_file");
+    // Clean up
+    free(buffers[0]);
+    free(buffers[1]);
+    magic_close(cookie);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,35 +1,83 @@
-#include <cstddef>
-#include <cstdint>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h> // Include string.h for memcpy
 #include <magic.h>
 
+extern "C" {
+    // Include the necessary headers for the function-under-test
+    #include "magic.h"
+}
+
+// Define the LLVMFuzzerTestOneInput function
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    // Ensure the size is not zero to avoid passing NULL to the function
-    if (size == 0) {
+    // Declare and initialize variables
+    struct magic_set *ms;
+    void *buffers[1];
+    size_t sizes[1];
+
+    // Initialize the magic_set structure
+    ms = magic_open(MAGIC_NONE);
+    if (ms == NULL) {
         return 0;
     }
 
-    // Initialize a magic_set object
-    struct magic_set *magic = magic_open(MAGIC_NONE);
-    if (magic == NULL) {
+    // Allocate memory for the buffer and copy data into it
+    buffers[0] = malloc(size);
+    if (buffers[0] == NULL) {
+        magic_close(ms);
         return 0;
     }
+    memcpy(buffers[0], data, size);
 
-    // Load the default magic database
-    if (magic_load(magic, NULL) != 0) {
-        magic_close(magic);
-        return 0;
-    }
+    // Set the size of the buffer
+    sizes[0] = size;
 
-    // Call the function-under-test with the given data
-    const char *result = magic_buffer(magic, data, size);
-
-    // Use the result in some way, even if it's just to ensure it's not optimized away
-    if (result != NULL) {
-        // For fuzzing purposes, we don't need to do anything with the result
-    }
+    // Call the function-under-test
+    magic_load_buffers(ms, buffers, sizes, 1);
 
     // Clean up
-    magic_close(magic);
+    free(buffers[0]);
+    magic_close(ms);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

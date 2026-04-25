@@ -1,5 +1,13 @@
-#include <sys/stat.h>
-#include <string.h>
+// This fuzz driver is generated for library file, aiming to fuzz the following functions:
+// magic_open at magic.c:267:1 in magic.h
+// magic_load_buffers at magic.c:329:1 in magic.h
+// magic_close at magic.c:306:1 in magic.h
+// magic_setparam at magic.c:613:1 in magic.h
+// magic_setflags at magic.c:594:1 in magic.h
+// magic_getflags at magic.c:585:1 in magic.h
+// magic_errno at magic.c:577:1 in magic.h
+// magic_descriptor at magic.c:403:1 in magic.h
+// magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,14 +17,14 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "magic.h"
+#include <magic.h>
 #include <cstdint>
 #include <cstdlib>
 #include <fcntl.h>
 #include <unistd.h>
 #include <cstring>
 
-extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
+extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
     // Initialize magic cookie
@@ -61,42 +69,43 @@ extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
     magic_close(cookie);
     return 0;
 }
-#ifdef INC_MAIN
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-int main(int argc, char *argv[])
-{
-    FILE *f;
-    uint8_t *data = NULL;
-    long size;
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
 
-    if(argc < 2)
-        exit(0);
+        if(argc < 2)
+            exit(0);
 
-    f = fopen(argv[1], "rb");
-    if(f == NULL)
-        exit(0);
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
 
-    fseek(f, 0, SEEK_END);
+        fseek(f, 0, SEEK_END);
 
-    size = ftell(f);
-    rewind(f);
+        size = ftell(f);
+        rewind(f);
 
-    if(size < 1 + 1)
-        exit(0);
+        if(size < 1 + 1)
+            exit(0);
 
-    data = (uint8_t *)malloc((size_t)size);
-    if(data == NULL)
-        exit(0);
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
 
-    if(fread(data, (size_t)size, 1, f) != 1)
-        exit(0);
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
 
-    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+        LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
 
-    free(data);
-    fclose(f);
-    return 0;
-}
-#endif
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

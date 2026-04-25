@@ -1,6 +1,6 @@
-// This is the entry of 36 fuzz drivers:
+// This is the entry of 34 fuzz drivers:
 // 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 2
-// 3, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36
+// 3, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -45,8 +45,6 @@ extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size);
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size);
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size);
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size);
-extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size);
-extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *Data, size_t Size);
 
 // Entry function
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
@@ -66,7 +64,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     }
 
     // Select driver
-    switch (driverIndex % 36) {
+    switch (driverIndex % 34) {
         case 0:
             return LLVMFuzzerTestOneInput_1(remainData, remainSize);
         case 1:
@@ -135,10 +133,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
             return LLVMFuzzerTestOneInput_33(remainData, remainSize);
         case 33:
             return LLVMFuzzerTestOneInput_34(remainData, remainSize);
-        case 34:
-            return LLVMFuzzerTestOneInput_35(remainData, remainSize);
-        case 35:
-            return LLVMFuzzerTestOneInput_36(remainData, remainSize);
         default:
             return 0;
     }
@@ -166,13 +160,12 @@ int main(int argc, char *argv[])
     if(size < 1)
         exit(0);
 
-    data = (uint8_t *)malloc((size_t)size+1);
+    data = (uint8_t *)malloc((size_t)size);
     if(data == NULL)
         exit(0);
 
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
-    data[size] = '\0';
 
     LLVMFuzzerTestOneInput(data, size);
 

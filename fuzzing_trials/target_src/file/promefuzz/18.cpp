@@ -1,14 +1,12 @@
 // This fuzz driver is generated for library file, aiming to fuzz the following functions:
 // magic_open at magic.c:267:1 in magic.h
-// magic_close at magic.c:306:1 in magic.h
 // magic_setparam at magic.c:613:1 in magic.h
+// magic_version at magic.c:607:1 in magic.h
 // magic_load_buffers at magic.c:329:1 in magic.h
 // magic_getparam at magic.c:656:1 in magic.h
 // magic_errno at magic.c:577:1 in magic.h
-// magic_compile at magic.c:340:1 in magic.h
 // magic_setflags at magic.c:594:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -18,59 +16,51 @@
 #include <cstdint>
 #include <cstddef>
 #include <magic.h>
-#include <fstream>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    std::ofstream ofs("./dummy_file", std::ios::binary);
-    ofs.write(reinterpret_cast<const char *>(Data), Size);
-}
+extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int) + sizeof(size_t)) {
+        return 0;
+    }
 
-extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Initialize magic cookie
+    // Initialize a magic cookie
     magic_t magic_cookie = magic_open(MAGIC_NONE);
     if (!magic_cookie) {
         return 0;
     }
 
-    // Prepare parameters
-    int param = Data[0];
-    size_t value_size = sizeof(size_t);
-    if (Size < value_size + 1) {
-        magic_close(magic_cookie);
-        return 0;
-    }
-    const void *value = static_cast<const void *>(&Data[1]);
+    // Try setting a parameter
+    int param_id = *reinterpret_cast<const int*>(Data);
+    const void *param_value = Data + sizeof(int);
+    magic_setparam(magic_cookie, param_id, param_value);
 
-    // Test magic_setparam with proper size
-    magic_setparam(magic_cookie, param, value);
+    // Get the version of the magic library
+    int version = magic_version();
 
     // Prepare buffers for magic_load_buffers
-    void *buffers[1] = {const_cast<uint8_t *>(Data)};
+    void *buffers[1] = {const_cast<uint8_t*>(Data)};
     size_t buffer_sizes[1] = {Size};
 
-    // Test magic_load_buffers
+    // Load buffers
     magic_load_buffers(magic_cookie, buffers, buffer_sizes, 1);
 
-    // Test magic_getparam with proper size
-    void *get_value = malloc(value_size);
-    if (get_value) {
-        magic_getparam(magic_cookie, param, get_value);
-        free(get_value);
+    // Get a parameter
+    int param_to_get = *reinterpret_cast<const int*>(Data);
+    void *out_value = malloc(sizeof(size_t)); // Fixed to use size_t size
+    if (out_value) {
+        magic_getparam(magic_cookie, param_to_get, out_value);
+        free(out_value);
     }
 
-    // Test magic_errno
-    magic_errno(magic_cookie);
+    // Retrieve the last error code
+    int last_error = magic_errno(magic_cookie);
 
-    // Write dummy file for magic_compile
-    write_dummy_file(Data, Size);
-
-    // Test magic_compile
-    magic_compile(magic_cookie, "./dummy_file");
-
-    // Test magic_setflags
-    magic_setflags(magic_cookie, param);
+    // Set some flags
+    int flags = *reinterpret_cast<const int*>(Data);
+    magic_setflags(magic_cookie, flags);
 
     // Clean up
     magic_close(magic_cookie);
@@ -109,7 +99,7 @@ extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
         if(fread(data, (size_t)size, 1, f) != 1)
             exit(0);
 
-        LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+        LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
 
         free(data);
         fclose(f);
