@@ -1,37 +1,72 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
-#include <string.h>
+#include <stdlib.h>
+#include <string.h> // Include for memcpy and malloc
 
 int LLVMFuzzerTestOneInput_100(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errMsg = 0;
-
-    // Open a new in-memory SQLite database
-    const char mtvwtace[1024] = "rimpo";
+    sqlite3 *db = NULL;
+    int rc;
+    
+    // Open an in-memory database
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open(mtvwtace, &db) != SQLITE_OK) {
+    rc = sqlite3_open((const char *)"w", &db);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
     char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
+
+    // Copy the input data to the new buffer and null-terminate it
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL command
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
 
-    // Free the allocated resources
+    // Call the function-under-test
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
+    char* ret_sqlite3_str_finish_kqvtp = sqlite3_str_finish(NULL);
+    if (ret_sqlite3_str_finish_kqvtp == NULL){
+    	return 0;
+    }
+    unsigned int ret_sqlite3_value_subtype_ouqkg = sqlite3_value_subtype(NULL);
+    if (ret_sqlite3_value_subtype_ouqkg < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_str_finish_kqvtp) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strlike_ginnc = sqlite3_strlike(ret_sqlite3_str_finish_kqvtp, errMsg, ret_sqlite3_value_subtype_ouqkg);
+    if (ret_sqlite3_strlike_ginnc < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
+
+    // Free the allocated buffer
     free(sql);
-    sqlite3_free(errMsg);
+
+    // Close the database
     sqlite3_close(db);
 
-    // Return 0 to indicate successful execution of the fuzzer
     return 0;
 }
 #ifdef INC_MAIN

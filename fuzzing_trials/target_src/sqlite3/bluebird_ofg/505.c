@@ -1,55 +1,47 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
 #include "sqlite3.h"
+#include <string.h>
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+// Dummy callback functions for the sqlite3_create_function parameters
+void dummy_func(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Do nothing
+}
+
+void dummy_step(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Do nothing
+}
+
+void dummy_final(sqlite3_context *context) {
+    // Do nothing
 }
 
 int LLVMFuzzerTestOneInput_505(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-
-    // Open a new in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+    if (size < 1) {
+        return 0; // Not enough data to process
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
+    sqlite3 *db;
+    int rc;
+    char *errMsg = 0;
 
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_changes to sqlite3_get_clientdata
-        sqlite3_uint64 ret_sqlite3_msize_ubbjw = sqlite3_msize((void *)db);
-        void* ret_sqlite3_get_clientdata_jekdd = sqlite3_get_clientdata(db, db);
-        if (ret_sqlite3_get_clientdata_jekdd == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
+    // Open a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        return 0; // Failed to open database
+    }
+
+    // Prepare a function name from the input data
+    size_t name_len = size < 100 ? size : 100; // Limit function name length
+    char func_name[101];
+    memcpy(func_name, data, name_len);
+    func_name[name_len] = '\0'; // Ensure null-termination
+
+    // Call the function-under-test
+    rc = sqlite3_create_function(db, func_name, 1, SQLITE_UTF8, NULL, dummy_func, dummy_step, dummy_final);
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

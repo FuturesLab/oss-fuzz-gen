@@ -1,57 +1,53 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
-#include <string.h>  // Include for strlen and memcpy
+#include <stddef.h>
 #include "sqlite3.h"
 
-// Callback function to be used with sqlite3_trace_v2
-static int trace_callback(unsigned int trace, void *ctx, void *p, void *x) {
-    // Implement a simple callback that does nothing
-    return 0;
+// Custom function to be used in SQL statement
+static void custom_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Store some auxiliary data
+    if (argc > 0) {
+        const void *aux_data = sqlite3_value_blob(argv[0]);
+        sqlite3_set_auxdata(context, 0, aux_data, NULL);
+    }
 }
 
 int LLVMFuzzerTestOneInput_158(const uint8_t *data, size_t size) {
+    // Initialize a dummy SQLite database and context
     sqlite3 *db;
-    unsigned int mask = 0;
-    void *user_data = NULL;
-    int result;
+    sqlite3_stmt *stmt;
+    sqlite3_open(":memory:", &db);
+    sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, NULL);
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+    // Create a SQL function that uses custom_function
+    sqlite3_create_function(db, "custom_function", 1, SQLITE_UTF8, NULL, custom_function, NULL, NULL);
+
+    // Prepare a statement to use a valid context
+    sqlite3_prepare_v2(db, "SELECT custom_function(value) FROM test WHERE id = ?;", -1, &stmt, NULL);
+
+    // Bind an integer to the statement to ensure we have a valid context
+    if (size >= sizeof(int)) {
+        int idx = *((int *)data);
+        sqlite3_bind_int(stmt, 1, idx);
     }
 
-    // Set the trace mask to a fixed value for fuzzing
-    mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW;
+    // Step the statement to initialize the context
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Use a valid context from the custom function
+        sqlite3_context *context = sqlite3_user_data(stmt);  // This line is not needed anymore
 
-    // Call the function-under-test
-    result = sqlite3_trace_v2(db, mask, trace_callback, user_data);
+        // Call the function-under-test
+        void *result = sqlite3_get_auxdata(context, 0);  // Correctly use the context from custom_function
 
-    // Execute the input data as an SQL statement if it's not empty
-    if (size > 0) {
-        // Allocate a new buffer with an additional byte for the null terminator
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0;
+        // Use the result in some way to avoid compiler optimizations removing the call
+        if (result != NULL) {
+            // Do something with result, e.g., print or log it
         }
-
-        // Copy the input data to the new buffer and null-terminate it
-        memcpy(sql, data, size);
-        sql[size] = '\0';
-
-        char *errMsg = 0;
-        sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
-
-        // Free the allocated buffer
-        free(sql);
     }
 
-    // Close the SQLite database
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

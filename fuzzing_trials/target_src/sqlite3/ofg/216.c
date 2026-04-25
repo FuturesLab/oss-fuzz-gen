@@ -1,58 +1,79 @@
-#include <stddef.h>  // Include this for size_t
 #include <stdint.h>
 #include <sqlite3.h>
+#include <string.h>
+#include <stdlib.h> // Include for malloc and free
 
 int LLVMFuzzerTestOneInput_216(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
+    char *errMsg = 0;
     int rc;
-    int columnIndex = 0;
 
-    // Initialize SQLite in-memory database
+    // Convert the input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Open a temporary in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
+        free(sql);
         return 0;
     }
 
-    // Create a simple table
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+        sqlite3_free(errMsg);
     }
 
-    // Insert some data into the table
-    const char *insertSQL = "INSERT INTO test (value) VALUES ('sample text');";
-    rc = sqlite3_exec(db, insertSQL, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Call the function-under-test
+    int changes = sqlite3_changes(db);
 
-    // Prepare a statement to select data
-    const char *selectSQL = "SELECT value FROM test;";
-    rc = sqlite3_prepare_v2(db, selectSQL, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Fuzz the function sqlite3_column_bytes16
-        int bytes16 = sqlite3_column_bytes16(stmt, columnIndex);
-
-        // Use the result (to prevent optimization out)
-        if (bytes16 > 0) {
-            // Do something with bytes16 if needed
-        }
-    }
-
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Clean up
     sqlite3_close(db);
+    free(sql);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_216(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

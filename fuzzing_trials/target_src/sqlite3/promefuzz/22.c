@@ -1,13 +1,18 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
 // sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_bind_int64 at sqlite3.c:80118:16 in sqlite3.h
-// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
-// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
-// sqlite3_libversion_number at sqlite3.c:171129:16 in sqlite3.h
+// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
+// sqlite3_column_text at sqlite3.c:79749:33 in sqlite3.h
+// sqlite3_mprintf at sqlite3.c:19329:18 in sqlite3.h
+// sqlite3_str_new at sqlite3.c:19257:25 in sqlite3.h
+// sqlite3_str_appendf at sqlite3.c:19465:17 in sqlite3.h
+// sqlite3_str_appendf at sqlite3.c:19465:17 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_str_finish at sqlite3.c:19172:18 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
 // sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -15,100 +20,110 @@
 #include <stdio.h>
 #include <sqlite3.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static sqlite3_stmt* prepare_dummy_stmt(sqlite3** db) {
-    sqlite3_stmt* stmt = NULL;
-    if (sqlite3_open(":memory:", db) == SQLITE_OK) {
-        const char* sql = "SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35;";
-        sqlite3_prepare_v2(*db, sql, -1, &stmt, NULL);
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    return stmt;
 }
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    sqlite3* db = NULL;
-    sqlite3_stmt* stmt = prepare_dummy_stmt(&db);
-    if (!stmt || Size < 100) {
-        if (db) {
-            sqlite3_close(db);
-        }
+    sqlite3 *db;
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+
+    // Write the input data to a dummy file
+    writeDummyFile(Data, Size);
+
+    // Initialize database connection
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    int offset = 0;
-    int bind_index = 1;
-    while (offset < Size && bind_index <= 35) {
-        switch (bind_index) {
-            case 1:
-            case 5:
-            case 9:
-            case 18:
-            case 24:
-            case 25:
-            case 26:
-            case 27:
-            case 28:
-            case 29:
-                // sqlite3_bind_int64
-                if (Size - offset >= sizeof(sqlite3_int64)) {
-                    sqlite3_int64 value;
-                    memcpy(&value, &Data[offset], sizeof(sqlite3_int64));
-                    sqlite3_bind_int64(stmt, bind_index, value);
-                    offset += sizeof(sqlite3_int64);
-                }
-                break;
-            case 2:
-            case 4:
-            case 7:
-            case 10:
-            case 11:
-            case 15:
-            case 16:
-            case 17:
-            case 20:
-            case 21:
-            case 22:
-            case 23:
-            case 30:
-            case 31:
-            case 33:
-                // sqlite3_bind_int
-                if (Size - offset >= sizeof(int)) {
-                    int value;
-                    memcpy(&value, &Data[offset], sizeof(int));
-                    sqlite3_bind_int(stmt, bind_index, value);
-                    offset += sizeof(int);
-                }
-                break;
-            case 3:
-            case 6:
-            case 8:
-            case 12:
-            case 13:
-            case 14:
-            case 19:
-            case 32:
-            case 34:
-            case 35:
-                // sqlite3_bind_text
-                if (Size - offset >= 1) {
-                    int text_len = Data[offset] % (Size - offset);
-                    sqlite3_bind_text(stmt, bind_index, (const char*)&Data[offset], text_len, SQLITE_TRANSIENT);
-                    offset += text_len;
-                }
-                break;
-        }
-        bind_index++;
-    }
-
-    // Call sqlite3_libversion_number once after all bindings
-    sqlite3_libversion_number();
-
-    sqlite3_finalize(stmt);
-    if (db) {
+    // Prepare statement
+    rc = sqlite3_prepare_v2(db, (const char *)Data, Size, &stmt, NULL);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
+        return 0;
     }
+
+    // Step through the statement
+    rc = sqlite3_step(stmt);
+
+    // Retrieve column text if a row is available
+    if (rc == SQLITE_ROW) {
+        const unsigned char *text = sqlite3_column_text(stmt, 0);
+        if (text) {
+            // Use sqlite3_mprintf to format a string
+            char *formatted = sqlite3_mprintf("Column text: %s", text);
+            if (formatted) {
+                // Create a dynamic string object
+                sqlite3_str *str = sqlite3_str_new(db);
+                if (str) {
+                    // Append formatted text to the string
+                    sqlite3_str_appendf(str, "First append: %s", formatted);
+                    sqlite3_str_appendf(str, "Second append: %s", formatted);
+
+                    // Free the dynamic string object
+                    sqlite3_free(sqlite3_str_finish(str));
+                }
+                // Free the formatted string
+                sqlite3_free(formatted);
+            }
+        }
+    }
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Close the database
+    sqlite3_close(db);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

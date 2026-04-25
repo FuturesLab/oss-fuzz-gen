@@ -1,50 +1,84 @@
-#include <sqlite3.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <sqlite3.h>
 #include <string.h>
 
+// Define dummy callback functions for the function pointers
+void xFunc(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Dummy function implementation
+}
+
+void xStep(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Dummy step function for aggregate
+}
+
+void xFinal(sqlite3_context *context) {
+    // Dummy final function for aggregate
+}
+
+void xDestroy(void *p) {
+    // Dummy destructor function
+}
+
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_blob *blob = NULL;
-    const char *db_name = "main"; // Use "main" for in-memory database
-    const char *table_name = "test_table";
-    const char *column_name = "test_column";
-    sqlite_int64 rowid = 1; // Use a non-zero rowid
-    int flags = 0; // Default flags
-
-    // Open a temporary in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    sqlite3 *db;
+    int rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a table for testing
-    const char *create_table_sql = "CREATE TABLE test_table (id INTEGER PRIMARY KEY, test_column BLOB);";
-    if (sqlite3_exec(db, create_table_sql, 0, 0, 0) != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Ensure the data is null-terminated for the function name
+    char funcName[256];
+    size_t funcNameLen = size < 255 ? size : 255;
+    memcpy(funcName, data, funcNameLen);
+    funcName[funcNameLen] = '\0';
 
-    // Insert a test row
-    const char *insert_sql = "INSERT INTO test_table (test_column) VALUES (?);";
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0) == SQLITE_OK) {
-        sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
-    } else {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Set up parameters for sqlite3_create_function_v2
+    int nArg = 1; // Number of arguments the function takes
+    int eTextRep = SQLITE_UTF8; // Text encoding
+    void *pApp = NULL; // Application data pointer
 
-    // Call the function-under-test
-    sqlite3_blob_open(db, db_name, table_name, column_name, rowid, flags, &blob);
+    // Call the function under test
+    sqlite3_create_function_v2(db, funcName, nArg, eTextRep, pApp, xFunc, xStep, xFinal, xDestroy);
 
-    // Clean up
-    if (blob) {
-        sqlite3_blob_close(blob);
-    }
     sqlite3_close(db);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_159(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

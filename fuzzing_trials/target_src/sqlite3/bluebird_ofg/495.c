@@ -1,60 +1,61 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_495(const uint8_t *data, size_t size) {
-    // Initialize SQLite3 library
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0;
-    }
-
-    // Open a new in-memory SQLite database
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
+    char *errMsg = 0;
+    int rc;
+
+    // Open a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Prepare an SQL statement
-    sqlite3_stmt *stmt;
-    const char *sql = "CREATE TABLE test (data BLOB);";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+    // Ensure the SQL statement is null-terminated
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_blob_write
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_blob_write_ipiyc = sqlite3_blob_write(NULL, (const void *)db, 64, 64);
+    if (ret_sqlite3_blob_write_ipiyc < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
-        sqlite3_shutdown();
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
     // Execute the SQL statement
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        sqlite3_shutdown();
-        return 0;
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
     }
-    sqlite3_finalize(stmt);
-
-    // Insert the input data as a blob into the table
-    sql = "INSERT INTO test (data) VALUES (?);";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        sqlite3_shutdown();
-        return 0;
-    }
-    sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT);
-
-    // Execute the insert statement
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        sqlite3_shutdown();
-        return 0;
-    }
-    sqlite3_finalize(stmt);
 
     // Clean up
+    free(sql);
     sqlite3_close(db);
-    sqlite3_shutdown();
 
     return 0;
 }

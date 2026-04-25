@@ -1,44 +1,75 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "sqlite3.h"
-#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_324(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    char *errMsg = 0;
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
+        return 0;
+    }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Open a database connection in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+    // Open an in-memory SQLite database
+    sqlite3 *db;
+    const char sicnesjp[1024] = "wnqtz";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open(sicnesjp, &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
         return 0;
     }
 
-    // Create a simple table
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
+
+    // Clean up
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
 
-    // Insert some data into the table using the fuzzer input
-    if (size > 0) {
-        char insertSQL[256];
-        snprintf(insertSQL, sizeof(insertSQL), "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
-        rc = sqlite3_exec(db, insertSQL, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            fprintf(stderr, "SQL error: %s\n", errMsg);
-            sqlite3_free(errMsg);
-        }
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_load_extension
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
-
-    // Call the function-under-test
-    int changes = sqlite3_total_changes(db);
-    printf("Total changes: %d\n", changes);
-
-    // Close the database connection
+    sqlite3_int64 ret_sqlite3_changes64_sfhib = sqlite3_changes64(db);
+    void* ret_sqlite3_malloc_rxbbr = sqlite3_malloc(size);
+    if (ret_sqlite3_malloc_rxbbr == NULL){
+    	return 0;
+    }
+    char* ret_sqlite3_str_value_vxkvh = sqlite3_str_value(NULL);
+    if (ret_sqlite3_str_value_vxkvh == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_rxbbr) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_str_value_vxkvh) {
+    	return 0;
+    }
+    int ret_sqlite3_load_extension_bvgbc = sqlite3_load_extension(db, errMsg, (const char *)ret_sqlite3_malloc_rxbbr, &ret_sqlite3_str_value_vxkvh);
+    if (ret_sqlite3_load_extension_bvgbc < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     sqlite3_close(db);
+    free(query);
 
     return 0;
 }

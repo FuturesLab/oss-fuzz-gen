@@ -1,39 +1,26 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 
-// Define a callback function to be used with sqlite3_trace
-static void traceCallback(void *unused, const char *sql) {
-    (void)unused; // Avoid unused parameter warning
-    // Just print the SQL statement being traced
-    printf("SQL Trace: %s\n", sql);
-}
-
+// Ensure that the function is defined with C linkage
 int LLVMFuzzerTestOneInput_166(const uint8_t *data, size_t size) {
+    // Ensure the size is sufficient for creating a sqlite3 database
+    if (size == 0) {
+        return 0;
+    }
+
     sqlite3 *db;
-    int rc;
     char *errMsg = 0;
 
-    // Initialize SQLite database in-memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open a new in-memory database
+    int rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+        return 0;
     }
 
-    // Ensure data is null-terminated before using it as a SQL statement
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_db_cacheflush
-    int ret_sqlite3_db_cacheflush_iuqat = sqlite3_db_cacheflush(db);
-    if (ret_sqlite3_db_cacheflush_iuqat < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Convert input data to a null-terminated string
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
@@ -42,20 +29,39 @@ int LLVMFuzzerTestOneInput_166(const uint8_t *data, size_t size) {
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Set the trace callback
-    sqlite3_trace(db, traceCallback, NULL);
-
     // Execute the SQL statement
     sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Clean up
+    // Free the error message if it was allocated
     if (errMsg) {
         sqlite3_free(errMsg);
     }
+
+    // Free the allocated SQL string
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_readonly
+    sqlite3* ret_sqlite3_db_handle_rdwjy = sqlite3_db_handle(NULL);
+    if (ret_sqlite3_db_handle_rdwjy == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_db_handle_rdwjy) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_db_readonly_pbbih = sqlite3_db_readonly(ret_sqlite3_db_handle_rdwjy, errMsg);
+    if (ret_sqlite3_db_readonly_pbbih < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Close the database connection
+    sqlite3_close(db);
 
     return 0;
 }

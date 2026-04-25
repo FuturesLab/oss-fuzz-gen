@@ -1,47 +1,60 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    (void)NotUsed;
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
     sqlite3 *db;
     char *errMsg = 0;
+    int rc;
 
-    // Initialize variables
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
+    // Initialize database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Ensure data is not empty
-    if (size == 0) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Allocate memory for a null-terminated SQL command
+    // Convert fuzz data to a null-terminated string
     char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
-
-    // Copy data to sql and ensure it is null-terminated
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL command
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sqlite3_exec
-    rc = sqlite3_exec(db, sql, 0, NULL, &errMsg);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Execute SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
     if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
 
     // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open_pvjvb = sqlite3_open((const char *)"r", &db);
+    if (ret_sqlite3_open_pvjvb < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     free(sql);
     sqlite3_close(db);
 

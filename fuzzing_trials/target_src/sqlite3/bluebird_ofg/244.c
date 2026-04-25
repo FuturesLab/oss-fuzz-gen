@@ -1,45 +1,58 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
+#include <stdio.h>
+#include <string.h>
+
+// User-defined function that will be called by SQLite
+static void test_function(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
+    // Check if there is at least one argument
+    if (argc > 0) {
+        // Get the first argument as a string
+        const unsigned char *text = sqlite3_value_text(argv[0]);
+        if (text) {
+            // Perform some operation with the text
+            // For demonstration, we just set the result to the text
+            sqlite3_result_text(ctx, (const char *)text, -1, SQLITE_TRANSIENT);
+        } else {
+            sqlite3_result_null(ctx);
+        }
+    } else {
+        sqlite3_result_null(ctx);
+    }
+}
 
 int LLVMFuzzerTestOneInput_244(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    char *errMsg = 0;
     int rc;
 
     // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, return immediately
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
 
-    // Create a SQL statement from the input data
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
+    // Create a user-defined function
+    sqlite3_create_function(db, "test_function", 1, SQLITE_UTF8, NULL, test_function, NULL, NULL);
 
-    // Execute the SQL statement
-    char *errMsg = 0;
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Prepare a SQL statement that calls the user-defined function with input data
+    sqlite3_stmt *stmt;
+    rc = sqlite3_prepare_v2(db, "SELECT test_function(?);", -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+        // Bind the fuzzer's input data as a parameter to the SQL statement
+        sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
 
-    // Free the SQL statement
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_readonly
-    void* ret_sqlite3_malloc_uloqp = sqlite3_malloc(size);
-    if (ret_sqlite3_malloc_uloqp == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_db_readonly_uqnzr = sqlite3_db_readonly(db, (const char *)ret_sqlite3_malloc_uloqp);
-    if (ret_sqlite3_db_readonly_uqnzr < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sqlite3_free(sql);
-
-    // If there was an error, free the error message
-    if (errMsg) {
-        sqlite3_free(errMsg);
+        // Execute the SQL statement
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    } else {
+        fprintf(stderr, "Failed to execute statement: %s\n", sqlite3_errmsg(db));
     }
 
-    // Close the SQLite database
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

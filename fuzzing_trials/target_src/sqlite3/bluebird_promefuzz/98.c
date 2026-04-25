@@ -1,77 +1,75 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 
-static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt = NULL;
-    const char *pzTail = NULL;
-
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &pzTail);
-    if (rc != SQLITE_OK) {
-        const char *errmsg = sqlite3_errmsg(db);
-        (void)errmsg;  // Suppress unused variable warning
-        return;
-    }
-
-    rc = sqlite3_step(stmt);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_step with sqlite3_bind_parameter_count
-    rc = sqlite3_bind_parameter_count(stmt);  // Call sqlite3_step twice as required
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    int column_count = sqlite3_column_count(stmt);
-    for (int i = 0; i < column_count; i++) {
-        int col_type = sqlite3_column_type(stmt, i);
-        const char *col_name = sqlite3_column_name(stmt, i);
-        const unsigned char *col_text = sqlite3_column_text(stmt, i);
-        int col_bytes = sqlite3_column_bytes(stmt, i);
-
-        (void)col_type;  // Suppress unused variable warning
-        (void)col_name;
-        (void)col_text;
-        (void)col_bytes;
-    }
-
-    sqlite3_finalize(stmt);
+static void dummy_destructor(void* data) {
+    // Dummy destructor function
 }
 
 int LLVMFuzzerTestOneInput_98(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size < sizeof(int) + sizeof(double) + sizeof(sqlite3_uint64)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Initialize SQLite
     sqlite3 *db;
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    sqlite3_stmt *stmt;
+    int rc;
+    char *errMsg = 0;
+
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Copy input data to a null-terminated string
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_get_autocommit
-        sqlite3_get_autocommit(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);", 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0';
 
-    // Execute fuzzing with the given SQL
-    execute_sqlite_fuzzing(db, sql);
+    rc = sqlite3_prepare_v2(db, "INSERT INTO test (data) VALUES (?);", -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Cleanup
-    free(sql);
+    int paramIndex = Data[0] % 10; // Random parameter index
+    double doubleValue = *((double*)(Data + 1));
+    sqlite3_uint64 blobSize = *((sqlite3_uint64*)(Data + 1 + sizeof(double)));
+
+    // Ensure blobData points to a valid memory region within Data
+    const void *blobData = (const void*)(Data + 1 + sizeof(double) + sizeof(sqlite3_uint64));
+    size_t maxBlobDataSize = Size - (1 + sizeof(double) + sizeof(sqlite3_uint64));
+    if (blobSize > maxBlobDataSize) {
+        blobSize = maxBlobDataSize; // Adjust blobSize to avoid out-of-bounds access
+    }
+
+    // Fuzzing sqlite3_bind_null
+    sqlite3_bind_null(stmt, paramIndex);
+
+    // Fuzzing sqlite3_bind_zeroblob64
+    sqlite3_bind_zeroblob64(stmt, paramIndex, blobSize);
+
+    // Fuzzing sqlite3_bind_blob64
+    sqlite3_bind_blob64(stmt, paramIndex, blobData, blobSize, dummy_destructor);
+
+    // Fuzzing sqlite3_bind_zeroblob
+    sqlite3_bind_zeroblob(stmt, paramIndex, (int)(blobSize % 1000)); // Limiting size to 1000 for practical reasons
+
+    // Fuzzing sqlite3_bind_double
+    sqlite3_bind_double(stmt, paramIndex, doubleValue);
+
+    // Fuzzing sqlite3_bind_blob
+    sqlite3_bind_blob(stmt, paramIndex, blobData, (int)(blobSize % 1000), dummy_destructor);
+
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

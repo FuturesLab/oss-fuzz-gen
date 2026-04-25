@@ -1,46 +1,61 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include "sqlite3.h"
+#include <stddef.h>
 
-// Define a dummy callback function to pass as the third parameter
-void dummy_callback(void *pArg, sqlite3 *db, int eTextRep, const void *pName) {
-    // This is a dummy callback function. It does nothing.
+// Dummy collation function
+int collation_function(void *unused, int len1, const void *str1, int len2, const void *str2) {
+    return 0; // Simple comparison logic for fuzzing purposes
+}
+
+// Dummy destructor function
+void destructor_function(void *unused) {
+    // No operation needed for this dummy function
 }
 
 int LLVMFuzzerTestOneInput_398(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    void *pArg = (void *)data; // Using data as a dummy argument
-
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+    if (size < 1) {
+        return 0; // Ensure there is at least one byte for the collation name
     }
 
-    // Create a dummy table to ensure some database activity
-    char *errMsg = NULL;
-    const char *createTableSQL = "CREATE TABLE dummy (id INTEGER PRIMARY KEY, value TEXT);";
-    if (sqlite3_exec(db, createTableSQL, 0, 0, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    sqlite3 *db;
+    int rc = sqlite3_open(":memory:", &db); // Open an in-memory database
+    if (rc != SQLITE_OK) {
+        return 0; // If opening the database fails, exit
+    }
+
+    // Use the first byte of data as the length of the collation name, ensure it's not zero
+    size_t collation_name_len = data[0] % size;
+    if (collation_name_len == 0) {
+        collation_name_len = 1;
+    }
+
+    // Ensure there's enough data for the collation name
+    if (size < collation_name_len + 1) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Use the input data to create a collation name
-    char collationName[256];
-    size_t collationNameLength = size < 255 ? size : 255;
-    memcpy(collationName, data, collationNameLength);
-    collationName[collationNameLength] = '\0';
+    // Extract the collation name from the data
+    char collation_name[collation_name_len + 1];
+    for (size_t i = 0; i < collation_name_len; i++) {
+        collation_name[i] = data[i + 1];
+    }
+    collation_name[collation_name_len] = '\0'; // Null-terminate the string
 
-    // Call the function-under-test with non-NULL parameters
-    sqlite3_collation_needed16(db, pArg, dummy_callback);
+    // Call the function-under-test
+    sqlite3_create_collation_v2(
+        db,
+        collation_name,
+        SQLITE_UTF8,
+        NULL, // No application-specific data
+        collation_function,
+        destructor_function
+    );
 
-    // Attempt to create a collation with the given name to trigger the callback
-    sqlite3_create_collation(db, collationName, SQLITE_UTF16, NULL, NULL);
-
-    // Close the SQLite database
+    // Clean up
     sqlite3_close(db);
-
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,57 +1,57 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "sqlite3.h"
-
-// Define a callback function to be used with sqlite3_trace
-static void traceCallback(void *unused, const char *sql) {
-    (void)unused; // Avoid unused parameter warning
-    // Just print the SQL statement being traced
-    printf("SQL Trace: %s\n", sql);
-}
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    int rc;
     char *errMsg = 0;
+    char **result;
+    int rows, columns;
+    int rc;
 
-    // Initialize SQLite database in-memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
-    }
-
-    // Ensure data is null-terminated before using it as a SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
+    // Ensure data is null-terminated for use as a SQL query
+    char *sqlQuery = (char *)malloc(size + 1);
+    if (sqlQuery == NULL) {
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    memcpy(sqlQuery, data, size);
+    sqlQuery[size] = '\0';
 
-    // Set the trace callback
-    sqlite3_trace(db, traceCallback, NULL);
+    // Open a temporary in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        free(sqlQuery);
+        return 0;
+    }
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Execute the SQL query using sqlite3_get_table
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_open to sqlite3_prepare_v2 using the plateau pool
+    sqlite3_stmt *stmt;
+    const char *tail;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_prepare_v2_xhtxv = sqlite3_prepare_v2(db, "SELECT ?", -1, &stmt, &tail);
+    if (ret_sqlite3_prepare_v2_xhtxv < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    rc = sqlite3_get_table(db, sqlQuery, &result, &rows, &columns, &errMsg);
 
     // Clean up
+    if (result) {
+        sqlite3_free_table(result);
+    }
     if (errMsg) {
         sqlite3_free(errMsg);
     }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_cacheflush
-    int ret_sqlite3_db_cacheflush_iclof = sqlite3_db_cacheflush(db);
-    if (ret_sqlite3_db_cacheflush_iclof < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
     sqlite3_close(db);
+    free(sqlQuery);
 
     return 0;
 }

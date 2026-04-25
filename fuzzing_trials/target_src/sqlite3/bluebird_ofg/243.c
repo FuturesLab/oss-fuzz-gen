@@ -1,38 +1,56 @@
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
+#include <stdio.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_243(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
-    sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3 *src_db = NULL;
+    sqlite3 *dest_db = NULL;
+    sqlite3_backup *backup;
+    char *src_db_name = "source.db";
+    char *dest_db_name = "destination.db";
+    char *err_msg = NULL;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Initialize source and destination databases
+    if (sqlite3_open(":memory:", &src_db) != SQLITE_OK) {
+        return 0;
+    }
+    if (sqlite3_open(":memory:", &dest_db) != SQLITE_OK) {
+        sqlite3_close(src_db);
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_extended_errcode
-        sqlite3_extended_errcode(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Create a table in the source database
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);";
+    if (sqlite3_exec(src_db, create_table_sql, 0, 0, &err_msg) != SQLITE_OK) {
+        sqlite3_free(err_msg);
+        sqlite3_close(src_db);
+        sqlite3_close(dest_db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free allocated resources
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    // Insert the fuzz data into the source database
+    sqlite3_stmt *stmt;
+    const char *insert_sql = "INSERT INTO test (data) VALUES (?);";
+    if (sqlite3_prepare_v2(src_db, insert_sql, -1, &stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
     }
-    free(sql);
-    sqlite3_close(db);
+
+    // Initialize the backup process
+    backup = sqlite3_backup_init(dest_db, "main", src_db, "main");
+    if (backup) {
+        // Perform the backup step
+        sqlite3_backup_step(backup, -1);
+        sqlite3_backup_finish(backup);
+    }
+
+    // Cleanup
+    sqlite3_close(src_db);
+    sqlite3_close(dest_db);
 
     return 0;
 }

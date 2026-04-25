@@ -1,56 +1,85 @@
 #include <stdint.h>
+#include <stddef.h>  // Include for size_t
+#include <stdlib.h>  // Include for NULL
 #include <sqlite3.h>
-#include <stdlib.h>
+#include <string.h>  // Include for memcpy
 
 int LLVMFuzzerTestOneInput_271(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
+    char *errMsg = NULL;
     int rc;
-    const char *sql;
-    int index;
-    double result;
 
-    // Initialize SQLite database in memory
+    // Initialize SQLite library
+    if (sqlite3_initialize() != SQLITE_OK) {
+        return 0;
+    }
+
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
+        sqlite3_shutdown();
         return 0;
     }
 
-    // Create a simple table and insert some data
-    sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value REAL);"
-          "INSERT INTO test (value) VALUES (1.1), (2.2), (3.3);";
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Create a null-terminated string from the input data
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
+        sqlite3_shutdown();
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Prepare a statement to select data from the table
-    sql = "SELECT value FROM test WHERE id = ?";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Use the input data to set the index for the SQL query
-    if (size > 0) {
-        index = data[0] % 3 + 1; // Ensure index is within valid range
-    } else {
-        index = 1; // Default index
-    }
-
-    // Bind the index to the SQL statement
-    sqlite3_bind_int(stmt, 1, index);
-
-    // Execute the statement and retrieve the double value
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        result = sqlite3_column_double(stmt, 0);
+    // Execute the input data as an SQL statement
+    rc = sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
+        sqlite3_free(errMsg);
     }
 
     // Clean up
-    sqlite3_finalize(stmt);
+    free(sql);
     sqlite3_close(db);
+    sqlite3_shutdown();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_271(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

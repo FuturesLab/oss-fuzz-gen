@@ -1,47 +1,50 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
 #include <stdlib.h>
-#include <sys/stat.h> // Include for NULL
+#include <string.h>
 #include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_475(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid SQL query
-    if (size == 0) {
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
         return 0;
     }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Create a new SQLite database connection
+    // Open an in-memory SQLite database
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    const char sicnesjp[1024] = "wnqtz";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open(sicnesjp, &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
         return 0;
     }
 
-    // Create a table to ensure that the SQL query has a context to operate on
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value BLOB);";
-    sqlite3_exec(db, createTableSQL, 0, 0, 0);
-
-    // Convert input data to a SQL query by treating it as a string
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
-
-    // Prepare and execute the SQL statement
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
-        // Execute the statement if preparation is successful
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            // Access data if needed, e.g., sqlite3_column_* functions
-        }
-        sqlite3_finalize(stmt);
-    }
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
 
     // Clean up
-    free(sql);
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open_yyebn = sqlite3_open((const char *)"w", &db);
+    if (ret_sqlite3_open_yyebn < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     sqlite3_close(db);
+    free(query);
 
     return 0;
 }

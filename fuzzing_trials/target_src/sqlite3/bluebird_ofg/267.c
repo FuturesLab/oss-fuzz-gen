@@ -1,48 +1,42 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_267(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
+    sqlite3 *db;
+    char *errMsg = 0;
 
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
         return 0;
     }
 
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        const char szrtjywl[1024] = "ehqzl";
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open(szrtjywl, &db);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                sqlite3_close(db);
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
-
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_system_errno
-            sqlite3_system_errno(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
+
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
+    }
+
+    // Clean up
+    if (errMsg) {
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
+        sqlite3_free(NULL);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+    }
+    sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

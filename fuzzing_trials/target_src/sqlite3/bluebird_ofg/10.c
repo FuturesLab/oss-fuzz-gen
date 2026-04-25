@@ -1,47 +1,60 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
+    sqlite3 *db_src = NULL;
+    sqlite3 *db_dest = NULL;
+    sqlite3_backup *backup = NULL;
+    char *err_msg = NULL;
 
-    // Open a new in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, return immediately
+    if (sqlite3_open(":memory:", &db_src) != SQLITE_OK) {
+        return 0;
     }
 
-    // Create a SQL statement from the input data
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
-
-    // Execute the SQL statement
-    char *errMsg = 0;
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free the SQL statement
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_serialize
-    int ret_sqlite3_total_changes_ixhpm = sqlite3_total_changes(db);
-    if (ret_sqlite3_total_changes_ixhpm < 0){
-    	return 0;
-    }
-    sqlite3_int64 ret_sqlite3_memory_used_apxpf = sqlite3_memory_used();
-    unsigned char* ret_sqlite3_serialize_bjvue = sqlite3_serialize(db, errMsg, &ret_sqlite3_memory_used_apxpf, 0);
-    if (ret_sqlite3_serialize_bjvue == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sqlite3_free(sql);
-
-    // If there was an error, free the error message
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    if (sqlite3_open(":memory:", &db_dest) != SQLITE_OK) {
+        sqlite3_close(db_src);
+        return 0;
     }
 
-    // Close the SQLite database
-    sqlite3_close(db);
+    // Use the input data as SQL commands
+    if (size > 0) {
+        // Ensure the data is null-terminated
+        char *sql = (char *)malloc(size + 1);
+        if (sql == NULL) {
+            sqlite3_close(db_src);
+            sqlite3_close(db_dest);
+            return 0;
+        }
+        memcpy(sql, data, size);
+        sql[size] = '\0';
+
+        // Execute the SQL command on the source database
+        sqlite3_exec(db_src, sql, 0, 0, &err_msg);
+
+        // Free the allocated memory
+        free(sql);
+    }
+
+    // Create a backup object
+    backup = sqlite3_backup_init(db_dest, "main", db_src, "main");
+    if (backup == NULL) {
+        sqlite3_close(db_src);
+        sqlite3_close(db_dest);
+        return 0;
+    }
+
+    // Perform some backup steps
+    sqlite3_backup_step(backup, 5);
+
+    // Call the function-under-test
+    sqlite3_backup_finish(backup);
+
+    // Clean up
+    sqlite3_close(db_src);
+    sqlite3_close(db_dest);
 
     return 0;
 }

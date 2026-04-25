@@ -1,50 +1,87 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
-#include <stdlib.h>
 #include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to extract meaningful strings
-    if (size < 3) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    char *errMsg = 0;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO test (value) VALUES ('test');";
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Divide the input data into three parts for the two string parameters and default value
-    size_t len1 = (size - 1) / 2;
-    size_t len2 = size - len1 - 1;
-
-    // Ensure null-terminated strings
-    char *uri = (char *)malloc(len1 + 1);
-    char *param = (char *)malloc(len2 + 1);
-
-    if (!uri || !param) {
-        free(uri);
-        free(param);
+    // Execute SQL statement to create a table and insert a row
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
         return 0;
     }
 
-    memcpy(uri, data, len1);
-    uri[len1] = '\0';
+    // Prepare a statement to select data from the table
+    rc = sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = 1;", -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    memcpy(param, data + len1, len2);
-    param[len2] = '\0';
-
-    // Use the last byte of data as the default value for the function
-    int defaultValue = (int)data[size - 1];
-
-    // Ensure the URI and param are valid to avoid heap-buffer-overflow
-    if (len1 > 0 && len2 > 0 && strlen(uri) > 0 && strlen(param) > 0) {
-        // Call the function-under-test
-        // Ensure the URI is a valid URI format to prevent undefined behavior
-        if (strstr(uri, "file:") == uri || strstr(uri, "http:") == uri || strstr(uri, "https:") == uri) {
-            int result = sqlite3_uri_boolean(uri, param, defaultValue);
-        }
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        // Fuzz the sqlite3_column_value function
+        int columnIndex = 0; // Since we know there is only one column
+        sqlite3_value *value = sqlite3_column_value(stmt, columnIndex);
+        (void)value; // Use the value in some way if needed
     }
 
     // Clean up
-    free(uri);
-    free(param);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_70(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

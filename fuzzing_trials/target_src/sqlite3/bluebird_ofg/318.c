@@ -1,50 +1,35 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_318(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errMsg = 0;
-
-    // Initialize variables
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
+    // Ensure that the size is a multiple of 2 to simulate UTF-16 encoding
+    if (size < 2 || size % 2 != 0) {
         return 0;
     }
 
-    // Ensure data is not empty
-    if (size == 0) {
-        sqlite3_close(db);
-        return 0;
+    // Allocate a new buffer with an additional null terminator
+    uint8_t *null_terminated_data = (uint8_t *)malloc(size + 2);
+    if (!null_terminated_data) {
+        return 0; // If allocation fails, exit early
     }
 
-    // Allocate memory for a null-terminated SQL command
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Copy the input data to the new buffer
+    memcpy(null_terminated_data, data, size);
 
-    // Copy data to sql and ensure it is null-terminated
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Add a null terminator for UTF-16 (two null bytes)
+    null_terminated_data[size] = 0;
+    null_terminated_data[size + 1] = 0;
 
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+    // Call the function-under-test with the provided data
+    int result = sqlite3_complete16((const void *)null_terminated_data);
 
-    // Clean up
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_get_autocommit
-    sqlite3_get_autocommit(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Free the allocated buffer
+    free(null_terminated_data);
 
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
 #ifdef INC_MAIN

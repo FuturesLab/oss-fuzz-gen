@@ -1,7 +1,7 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
@@ -11,36 +11,35 @@ int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
     int rows, columns;
     int rc;
 
-    // Initialize SQLite database in memory
-    const char rbzesuff[1024] = "sdedk";
+    // Ensure data is null-terminated for use as a SQL query
+    char *sqlQuery = (char *)malloc(size + 1);
+    if (sqlQuery == NULL) {
+        return 0;
+    }
+    memcpy(sqlQuery, data, size);
+    sqlQuery[size] = '\0';
+
+    // Open a temporary in-memory SQLite database
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(rbzesuff, &db);
+    rc = sqlite3_open((const char *)"r", &db);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
+        free(sqlQuery);
         return 0;
     }
 
-    // Ensure the input data is null-terminated for use as a SQL query
-    char *query = (char *)malloc(size + 1);
-    if (query == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(query, data, size);
-    query[size] = '\0';
+    // Execute the SQL query using sqlite3_get_table
+    rc = sqlite3_get_table(db, sqlQuery, &result, &rows, &columns, &errMsg);
 
-    // Fuzz the sqlite3_get_table function
-    rc = sqlite3_get_table(db, query, &result, &rows, &columns, &errMsg);
-
-    // Free resources
-    if (result != NULL) {
+    // Clean up
+    if (result) {
         sqlite3_free_table(result);
     }
-    if (errMsg != NULL) {
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
-    free(query);
     sqlite3_close(db);
+    free(sqlQuery);
 
     return 0;
 }

@@ -1,39 +1,63 @@
-#include <stdint.h>
-#include "sqlite3.h"
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
+
+// Define a custom destructor function for demonstration purposes
+void custom_destructor_491(void *ptr) {
+    // Custom cleanup logic if needed
+}
+
+// A custom SQL function to provide a valid sqlite3_context
+static void custom_sql_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    const char *text = (const char *)sqlite3_value_text(argv[0]);
+    sqlite3_uint64 text_length = sqlite3_value_bytes(argv[0]);
+    unsigned char encoding = SQLITE_UTF8;
+
+    // Call the function-under-test
+    sqlite3_result_text64(context, text, text_length, custom_destructor_491, encoding);
+}
 
 int LLVMFuzzerTestOneInput_491(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3_stmt *stmt;
     int rc;
-    
-    // Initialize a database in memory
+
+    // Open a temporary in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+        return 0; // If opening the database fails, return immediately
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Register the custom SQL function
+    rc = sqlite3_create_function(db, "custom_function", 1, SQLITE_UTF8, NULL, custom_sql_function, NULL, NULL);
     if (rc != SQLITE_OK) {
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-        sqlite3_free(NULL);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
+        sqlite3_close(db);
+        return 0; // If registering the function fails, return immediately
     }
 
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
-    sqlite3_errcode(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Prepare a SQL statement that uses the custom function
+    rc = sqlite3_prepare_v2(db, "SELECT custom_function(?)", -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0; // If preparing the statement fails, return immediately
+    }
+
+    // Bind the fuzzer data to the SQL statement
+    rc = sqlite3_bind_text(stmt, 1, (const char *)data, (int)size, SQLITE_TRANSIENT);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0; // If binding the data fails, return immediately
+    }
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

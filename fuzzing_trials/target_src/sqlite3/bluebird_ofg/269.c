@@ -1,34 +1,74 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
+#include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_269(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a meaningful test case
-    if (size == 0) {
-        return 0;
-    }
-
-    // Open a new database connection
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    sqlite3_stmt *stmt;
+    int rc;
+    const void *blob_data;
+    int column_index = 0; // Column index to retrieve blob data from
+
+    // Create an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Prepare a statement using the input data
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL) != SQLITE_OK) {
+    // Create a table
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER, data BLOB);";
+    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
         return 0;
     }
 
-    // Execute the statement
-    sqlite3_step(stmt);
+    // Prepare an insert statement
+    const char *insert_sql = "INSERT INTO test (id, data) VALUES (?, ?);";
+    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Finalize the statement
+    // Bind values to the statement
+    sqlite3_bind_int(stmt, 1, 1);
+    sqlite3_bind_blob(stmt, 2, data, size, SQLITE_TRANSIENT);
+
+    // Execute the insert statement
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+    }
     sqlite3_finalize(stmt);
 
-    // Close the database connection
+    // Prepare a select statement
+    const char *select_sql = "SELECT data FROM test WHERE id = 1;";
+    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the select statement
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        // Retrieve blob data from the first column
+        blob_data = sqlite3_column_blob(stmt, column_index);
+        if (blob_data != NULL) {
+            // Process blob data if necessary
+        }
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

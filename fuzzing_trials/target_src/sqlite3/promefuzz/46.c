@@ -1,76 +1,106 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_mutex_alloc at sqlite3.c:15870:27 in sqlite3.h
-// sqlite3_mutex_enter at sqlite3.c:15902:17 in sqlite3.h
-// sqlite3_mutex_held at sqlite3.c:15943:16 in sqlite3.h
-// sqlite3_mutex_leave at sqlite3.c:15928:17 in sqlite3.h
-// sqlite3_mutex_try at sqlite3.c:15913:16 in sqlite3.h
-// sqlite3_mutex_leave at sqlite3.c:15928:17 in sqlite3.h
-// sqlite3_mutex_free at sqlite3.c:15891:17 in sqlite3.h
+// sqlite3_create_filename at sqlite3.c:175819:24 in sqlite3.h
+// sqlite3_filename_database at sqlite3.c:175928:24 in sqlite3.h
+// sqlite3_filename_journal at sqlite3.c:175932:24 in sqlite3.h
+// sqlite3_filename_wal at sqlite3.c:175942:24 in sqlite3.h
+// sqlite3_uri_parameter at sqlite3.c:175873:24 in sqlite3.h
+// sqlite3_free_filename at sqlite3.c:175855:17 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <sqlite3.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include "sqlite3.h"
 
-#define NUM_MUTEX_TYPES 15
-
-static int get_mutex_type(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return SQLITE_MUTEX_FAST; // Default type if no data
-    return Data[0] % NUM_MUTEX_TYPES;
-}
-
-static int map_mutex_type(int index) {
-    switch (index) {
-        case 0: return SQLITE_MUTEX_FAST;
-        case 1: return SQLITE_MUTEX_RECURSIVE;
-        case 2: return SQLITE_MUTEX_STATIC_MAIN;
-        case 3: return SQLITE_MUTEX_STATIC_MEM;
-        case 4: return SQLITE_MUTEX_STATIC_OPEN;
-        case 5: return SQLITE_MUTEX_STATIC_PRNG;
-        case 6: return SQLITE_MUTEX_STATIC_LRU;
-        case 7: return SQLITE_MUTEX_STATIC_PMEM;
-        case 8: return SQLITE_MUTEX_STATIC_APP1;
-        case 9: return SQLITE_MUTEX_STATIC_APP2;
-        case 10: return SQLITE_MUTEX_STATIC_APP3;
-        case 11: return SQLITE_MUTEX_STATIC_VFS1;
-        case 12: return SQLITE_MUTEX_STATIC_VFS2;
-        case 13: return SQLITE_MUTEX_STATIC_VFS3;
-        default: return SQLITE_MUTEX_FAST;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Determine mutex type
-    int index = get_mutex_type(Data, Size);
-    int mutexType = map_mutex_type(index);
+    // Write dummy file if needed
+    write_dummy_file(Data, Size);
 
-    // Allocate a mutex
-    sqlite3_mutex *pMutex = sqlite3_mutex_alloc(mutexType);
-    if (pMutex) {
-        // Try to enter the mutex
-        sqlite3_mutex_enter(pMutex);
+    // Prepare strings from input data
+    char *zDatabase = strndup((const char *)Data, Size);
+    char *zJournal = strndup((const char *)Data, Size);
+    char *zWal = strndup((const char *)Data, Size);
 
-        // Check if the mutex is held
-        if (sqlite3_mutex_held(pMutex)) {
-            // Attempt to leave the mutex
-            sqlite3_mutex_leave(pMutex);
-        }
+    // Prepare URI parameters
+    const char *azParam[2] = { "key", "value" };
 
-        // Try to acquire the mutex without blocking
-        int tryResult = sqlite3_mutex_try(pMutex);
-        if (tryResult == SQLITE_OK) {
-            // Leave the mutex if try was successful
-            sqlite3_mutex_leave(pMutex);
-        }
+    // Test sqlite3_create_filename
+    sqlite3_filename filename = sqlite3_create_filename(zDatabase, zJournal, zWal, 1, azParam);
+    if (filename) {
+        // Test sqlite3_filename_database
+        const char *dbFilename = sqlite3_filename_database(filename);
 
-        // Free the mutex if it was dynamically allocated
-        if (mutexType == SQLITE_MUTEX_FAST || mutexType == SQLITE_MUTEX_RECURSIVE) {
-            sqlite3_mutex_free(pMutex);
-        }
+        // Test sqlite3_filename_journal
+        const char *journalFilename = sqlite3_filename_journal(filename);
+
+        // Test sqlite3_filename_wal
+        const char *walFilename = sqlite3_filename_wal(filename);
+
+        // Test sqlite3_uri_parameter
+        const char *paramValue = sqlite3_uri_parameter(filename, "key");
+
+        // Free created filename
+        sqlite3_free_filename(filename);
     }
+
+    // Clean up
+    free(zDatabase);
+    free(zJournal);
+    free(zWal);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

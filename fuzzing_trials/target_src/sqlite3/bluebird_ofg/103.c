@@ -1,55 +1,64 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include this for size_t
+#include <stddef.h>
 #include "sqlite3.h"
-#include <stdlib.h>
-#include <sys/stat.h>  // Include this for malloc and free
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Initialize SQLite library
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0; // If initialization fails, return 0 to continue fuzzing
-    }
-
-    // Create an in-memory database
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
-        return 0; // If opening the database fails, return 0 to continue fuzzing
+    char *errMsg = 0;
+    int rc;
+
+    // Open a new in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if(rc) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Allocate memory for the null-terminated input data
+    // Convert the fuzz input into a null-terminated string
     char *sql = (char *)malloc(size + 1);
     if (!sql) {
         sqlite3_close(db);
-        sqlite3_shutdown();
-        return 0; // If memory allocation fails, return 0 to continue fuzzing
+        return 0;
     }
-
-    // Copy the input data and null-terminate it
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the input data as an SQL statement
-    char *errMsg = 0;
+    // Execute the SQL command
     sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Free the allocated memory for the SQL statement
-    free(sql);
+    // Free allocated resources
 
-    // Free any error message allocated by sqlite3_exec
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open16
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
+    sqlite3_mutex* ret_sqlite3_db_mutex_drasl = sqlite3_db_mutex(db);
+    if (ret_sqlite3_db_mutex_drasl == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open16_otzlt = sqlite3_open16((const void *)db, &db);
+    if (ret_sqlite3_open16_otzlt < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
+    free(sql);
+    sqlite3_close(db);
 
-    // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
-    sqlite3_errcode(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    // Shutdown SQLite library
-    sqlite3_shutdown();
-
-    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
 #ifdef INC_MAIN

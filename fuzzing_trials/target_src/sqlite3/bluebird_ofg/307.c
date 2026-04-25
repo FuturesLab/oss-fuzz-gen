@@ -1,72 +1,48 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
-#include <string.h>  // Include for strlen and memcpy
 #include "sqlite3.h"
-
-// Callback function to be used with sqlite3_trace_v2
-static int trace_callback(unsigned int trace, void *ctx, void *p, void *x) {
-    // Implement a simple callback that does nothing
-    return 0;
-}
+#include <stdlib.h>
+#include <string.h> // Include for memcpy and malloc
 
 int LLVMFuzzerTestOneInput_307(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    unsigned int mask = 0;
-    void *user_data = NULL;
-    int result;
-
-    // Open an in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    sqlite3 *db = NULL;
+    int rc;
+    
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Set the trace mask to a fixed value for fuzzing
-    mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW;
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Copy the input data to the new buffer and null-terminate it
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    const char plzsotht[1024] = "yblze";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sqlite3_exec
+    sqlite3_exec(db, plzsotht, NULL, NULL, &errMsg);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
 
     // Call the function-under-test
-    result = sqlite3_trace_v2(db, mask, trace_callback, user_data);
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
 
-    // Execute the input data as an SQL statement if it's not empty
-    if (size > 0) {
-        // Allocate a new buffer with an additional byte for the null terminator
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0;
-        }
+    // Free the allocated buffer
+    free(sql);
 
-        // Copy the input data to the new buffer and null-terminate it
-        memcpy(sql, data, size);
-        sql[size] = '\0';
-
-        char *errMsg = 0;
-        sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
-
-        // Free the allocated buffer
-        free(sql);
-    }
-
-    // Close the SQLite database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_trace_v2 to sqlite3_db_config
-    int ret_sqlite3_db_config_jzzuh = sqlite3_db_config(db, 0);
-    if (ret_sqlite3_db_config_jzzuh < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_db_release_memory with sqlite3_errcode
-    sqlite3_errcode(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

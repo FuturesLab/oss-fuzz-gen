@@ -1,46 +1,57 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include for size_t
+#include <stdlib.h>  // Include for NULL
 #include "sqlite3.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_151(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    sqlite3_blob *blob = NULL;
     int rc;
 
-    // Open a new in-memory SQLite database
+    // Initialize SQLite in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, return immediately
+        return 0;
     }
 
-    // Create a SQL statement from the input data
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
-
-    // Execute the SQL statement
-    char *errMsg = 0;
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free the SQL statement
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_serialize
-    sqlite3_int64 ret_sqlite3_memory_used_apxpf = sqlite3_memory_used();
-    unsigned char* ret_sqlite3_serialize_wqxdv = sqlite3_serialize(db, errMsg, &ret_sqlite3_memory_used_apxpf, size);
-    if (ret_sqlite3_serialize_wqxdv == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sqlite3_free(sql);
-
-    // If there was an error, free the error message
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    // Create a table and insert a blob
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Close the SQLite database
+    // Insert a blob value
+    sqlite3_stmt *stmt;
+    rc = sqlite3_prepare_v2(db, "INSERT INTO test (data) VALUES (?);", -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+        sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    }
+
+    // Open the blob for reading
+    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 0, &blob);
+    if (rc == SQLITE_OK && blob != NULL) {
+        // Close the blob
+        sqlite3_blob_close(blob);
+    }
+
+    // Clean up
     sqlite3_close(db);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

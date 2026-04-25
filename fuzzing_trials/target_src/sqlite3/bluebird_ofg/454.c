@@ -1,36 +1,31 @@
-#include <stdint.h>
-#include "sqlite3.h"
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
+
+// Define a dummy callback function to pass to sqlite3_trace
+static void trace_callback(void *arg, const char *msg) {
+    // Do nothing, this is just a placeholder
+    (void)arg;
+    (void)msg;
+}
 
 int LLVMFuzzerTestOneInput_454(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = 0;
     int rc;
-    
-    // Initialize a database in memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    void *arg = (void *)data; // Use fuzz data as a dummy argument
+
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0; // If opening the database fails, exit early
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Call the function-under-test with non-NULL arguments
+    sqlite3_trace(db, trace_callback, arg);
 
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    free(sql);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;

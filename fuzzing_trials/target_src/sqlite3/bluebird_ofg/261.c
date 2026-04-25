@@ -1,44 +1,58 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
 #include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-
-// Callback function for sqlite3_exec
-int callback_261(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0;
-}
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_261(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = NULL;
+    sqlite3_stmt *stmt;
     int rc;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, name TEXT);"
+                      "INSERT INTO test (name) VALUES ('Alice');"
+                      "SELECT * FROM test;";
     
     // Open an in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, callback_261, NULL, &errMsg);
-
-    // Free resources
-    free(sql);
-    if (errMsg != NULL) {
-        sqlite3_free(errMsg);
+    // Prepare a statement
+    rc = sqlite3_prepare_v2(db, "SELECT * FROM test;", -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
+
+    // Ensure the data size is sufficient for an integer index
+    if (size < sizeof(int)) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Use the first 4 bytes of data as an integer index
+    int index;
+    memcpy(&index, data, sizeof(int));
+
+    // Call the function-under-test
+    const char *column_name = sqlite3_column_name(stmt, index);
+
+    // Print the column name if it is not NULL
+    if (column_name != NULL) {
+        printf("Column name: %s\n", column_name);
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

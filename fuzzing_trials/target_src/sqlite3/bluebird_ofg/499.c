@@ -1,40 +1,82 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "sqlite3.h"
-#include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h> // Include this for malloc and free
+#include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_499(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
+        return 0;
+    }
+    memcpy(query, data, size);
+    query[size] = '\0';
+
+    // Open an in-memory SQLite database
     sqlite3 *db;
-    sqlite3_stmt *stmt = NULL;
-    const char *tail = NULL;
-    int rc;
-
-    // Create an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    const char sicnesjp[1024] = "wnqtz";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open(sicnesjp, &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
         return 0;
     }
 
-    // Ensure the input data is null-terminated for use as a SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Call the function-under-test
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &tail);
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
 
     // Clean up
-    if (stmt != NULL) {
-        sqlite3_finalize(stmt);
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
-    free(sql);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_backup_init
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    const char* ret_sqlite3_errmsg_zwrnv = sqlite3_errmsg(db);
+    if (ret_sqlite3_errmsg_zwrnv == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    const void* ret_sqlite3_errmsg16_hrahw = sqlite3_errmsg16(db);
+    if (ret_sqlite3_errmsg16_hrahw == NULL){
+    	return 0;
+    }
+    void* ret_sqlite3_malloc_kajol = sqlite3_malloc(0);
+    if (ret_sqlite3_malloc_kajol == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_kajol) {
+    	return 0;
+    }
+    sqlite3_backup* ret_sqlite3_backup_init_vqxpa = sqlite3_backup_init(db, errMsg, db, (const char *)ret_sqlite3_malloc_kajol);
+    if (ret_sqlite3_backup_init_vqxpa == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     sqlite3_close(db);
+    free(query);
 
     return 0;
 }

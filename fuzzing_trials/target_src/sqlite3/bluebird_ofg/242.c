@@ -1,49 +1,44 @@
-#include <stdint.h>
-#include "sqlite3.h"
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_242(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errMsg = 0;
-    int rc;
-    
-    // Initialize a database in memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
-    }
+    // Initialize SQLite library
+    sqlite3_initialize();
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Create a new SQLite database in memory
+        sqlite3 *db;
+        sqlite3_open(":memory:", &db);
+
+        // Create a SQL statement using the input data
+        char *sql = sqlite3_mprintf("%.*s", (int)size, (const char*)data);
+
+        // Prepare the SQL statement
+        sqlite3_stmt *stmt;
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+
+        if (rc == SQLITE_OK) {
+            // Execute the SQL statement
+            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_step with sqlite3_reset
+            sqlite3_reset(stmt);
+            // End mutation: Producer.REPLACE_FUNC_MUTATOR
+            // Finalize the statement to clean up
+            sqlite3_finalize(stmt);
+        }
+
+        // Free the SQL string
+        sqlite3_free(sql);
+
+        // Close the SQLite database
         sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
     }
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_txn_state
-    char* ret_sqlite3_str_value_ughtr = sqlite3_str_value(NULL);
-    if (ret_sqlite3_str_value_ughtr == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_txn_state_barrx = sqlite3_txn_state(db, ret_sqlite3_str_value_ughtr);
-    if (ret_sqlite3_txn_state_barrx < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
-    sqlite3_close(db);
+    // Shutdown SQLite library
+    sqlite3_shutdown();
 
     return 0;
 }

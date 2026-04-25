@@ -1,114 +1,60 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
 
-static sqlite3 *initialize_database() {
-    sqlite3 *db;
-    const char jmuhnxrz[1024] = "zektw";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open(jmuhnxrz, &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        return NULL;
-    }
-    return db;
+static void customLogFunction(void *pArg, int iErrCode, const char *zMsg) {
+    // Custom logging function for sqlite3_log
+    (void)pArg;
+    (void)iErrCode;
+    (void)zMsg;
 }
 
-static sqlite3_stmt *prepare_statement(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return NULL;
-    }
-    return stmt;
+static int customCollation(void *pArg, int len1, const void *str1, int len2, const void *str2) {
+    // Custom collation function for sqlite3_create_collation
+    (void)pArg;
+    (void)len1;
+    (void)str1;
+    (void)len2;
+    (void)str2;
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_273(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < 1) return 0;
+
+    sqlite3 *db;
+    int rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    sqlite3 *db = initialize_database();
-    if (!db) {
-        return 0;
-    }
+    // Fuzzing sqlite3_errcode
+    int errCode = sqlite3_errcode(db);
 
-    const char *sql = "CREATE TABLE IF NOT EXISTS fuzz (id INTEGER PRIMARY KEY, data BLOB);";
-    sqlite3_stmt *stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Fuzzing sqlite3_create_collation
+    sqlite3_create_collation(db, "custom_collation", SQLITE_UTF8, NULL, customCollation);
 
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
+    // Fuzzing sqlite3_log
+    sqlite3_log(SQLITE_ERROR, "Test log message with code %d", errCode);
 
-    sql = "INSERT INTO fuzz (data) VALUES (?);";
-    stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Fuzzing sqlite3_errstr
+    const char *errStr = sqlite3_errstr(errCode);
 
-    sqlite3_bind_blob(stmt, 1, Data, Size, SQLITE_TRANSIENT);
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
+    // Fuzzing sqlite3_set_errmsg
+    sqlite3_set_errmsg(db, SQLITE_ERROR, "Custom error message");
 
-    sql = "SELECT data FROM fuzz WHERE id = 1;";
-    stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        int bytes = sqlite3_column_bytes(stmt, 0);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_column_bytes to sqlite3_prepare16
-        sqlite3* ret_sqlite3_db_handle_pvqrq = sqlite3_db_handle(NULL);
-        if (ret_sqlite3_db_handle_pvqrq == NULL){
-        	return 0;
-        }
-        int ret_sqlite3_column_count_buqdf = sqlite3_column_count(stmt);
-        if (ret_sqlite3_column_count_buqdf < 0){
-        	return 0;
-        }
-        int ret_sqlite3_prepare16_uvdfq = sqlite3_prepare16(ret_sqlite3_db_handle_pvqrq, (const void *)stmt, 64, &stmt, (const void **)&stmt);
-        if (ret_sqlite3_prepare16_uvdfq < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        const void *blob = sqlite3_column_blob(stmt, 0);
-        (void)blob;  // Use blob to avoid unused variable warning
-
-        bytes = sqlite3_column_bytes(stmt, 0);
-        blob = sqlite3_column_blob(stmt, 0);
-        (void)blob;  // Use blob to avoid unused variable warning
-    }
-
-    int isExplain = sqlite3_stmt_isexplain(stmt);
-    (void)isExplain;  // Use isExplain to avoid unused variable warning
-
-    int resetResult = sqlite3_reset(stmt);
-    (void)resetResult;  // Use resetResult to avoid unused variable warning
-
-    int stepResult = sqlite3_step(stmt);
-    (void)stepResult;  // Use stepResult to avoid unused variable warning
-
+    // Fuzzing sqlite3_errmsg
     const char *errMsg = sqlite3_errmsg(db);
-    (void)errMsg;  // Use errMsg to avoid unused variable warning
 
-    errMsg = sqlite3_errmsg(db);
-    (void)errMsg;  // Use errMsg to avoid unused variable warning
-
-    sqlite3_finalize(stmt);
+    // Cleanup
     sqlite3_close(db);
 
     return 0;

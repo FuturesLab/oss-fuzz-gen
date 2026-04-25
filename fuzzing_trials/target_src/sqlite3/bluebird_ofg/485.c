@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
@@ -8,56 +9,44 @@ int LLVMFuzzerTestOneInput_485(const uint8_t *data, size_t size) {
     char *errMsg = 0;
     int rc;
 
-    // Open a new database connection in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Initialize SQLite (required before using any SQLite functions)
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
 
-    if (size > 0) {
-        // Ensure the input data is null-terminated to prevent buffer overflow
-        char *sql = (char *)malloc(size + 1);
-        if (!sql) {
-            sqlite3_close(db);
-            return 0;
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0';
-
-        // Execute the input data as an SQL statement
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        
-        // Free the allocated SQL statement
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_next_stmt
-        sqlite3_stmt* ret_sqlite3_next_stmt_oesio = sqlite3_next_stmt(db, NULL);
-        if (ret_sqlite3_next_stmt_oesio == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        free(sql);
-
-        // Free the error message if it was allocated
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
+    // Open an in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0;
     }
 
-    // Close the database connection
+    // Ensure the input data is null-terminated
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        sqlite3_shutdown();
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_backup_init
-    void* ret_sqlite3_malloc_hdgvd = sqlite3_malloc(64);
-    if (ret_sqlite3_malloc_hdgvd == NULL){
-    	return 0;
+    // Attempt to execute the input data as SQL
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
     }
-    sqlite3_backup* ret_sqlite3_backup_init_ojpxu = sqlite3_backup_init(db, (const char *)"w", db, (const char *)ret_sqlite3_malloc_hdgvd);
-    if (ret_sqlite3_backup_init_ojpxu == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+
+    // Free the allocated memory for SQL
+    free(sql);
+
+    // Close the database
     sqlite3_close(db);
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
 
     return 0;
 }

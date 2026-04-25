@@ -1,44 +1,31 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include "sqlite3.h"
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_351(const uint8_t *data, size_t size) {
     sqlite3 *db = NULL;
-    int rc;
+    int config_option;
+    void *config_value;
 
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
+    if (size < sizeof(int)) {
+        return 0; // Not enough data to form a valid configuration option
     }
 
-    // Execute a simple query to initialize the database
-    char *errMsg = 0;
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
+    // Open an in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // Failed to open database
     }
 
-    // Use the input data to insert into the database
-    if (size > 0) {
-        char query[256];
-        snprintf(query, sizeof(query), "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
-        rc = sqlite3_exec(db, query, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-    }
+    // Extract the configuration option from the input data
+    memcpy(&config_option, data, sizeof(int));
+
+    // Use the remaining data as the configuration value
+    config_value = (void*)(data + sizeof(int));
 
     // Call the function-under-test
-    int errcode = sqlite3_extended_errcode(db);
-
-    // Use the errcode in some way to prevent compiler optimizations from removing the call
-    if (errcode != SQLITE_OK) {
-        // Handle the error code, if necessary
-    }
+    sqlite3_db_config(db, config_option, config_value);
 
     // Close the database
     sqlite3_close(db);

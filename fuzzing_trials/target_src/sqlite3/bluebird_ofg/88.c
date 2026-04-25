@@ -1,60 +1,50 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
     sqlite3 *db;
     char *errMsg = 0;
-    int rc;
 
-    // Open a new database connection in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
+
+    // Execute the data as an SQL statement
     if (size > 0) {
-        // Ensure the input data is null-terminated to prevent buffer overflow
-        char *sql = (char *)malloc(size + 1);
-        if (!sql) {
-            sqlite3_close(db);
-            return 0;
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0';
-
-        // Execute the input data as an SQL statement
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        
-        // Free the allocated SQL statement
-        free(sql);
-
-        // Free the error message if it was allocated
-        if (errMsg) {
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-            sqlite3_free(NULL);
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-        }
-    }
-
-    // Close the database connection
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_get_table
-    sqlite3_free((void *)db);
-    char* ret_sqlite3_expanded_sql_dyuru = sqlite3_expanded_sql(NULL);
-    if (ret_sqlite3_expanded_sql_dyuru == NULL){
-    	return 0;
-    }
-    int kuhpoisz = 0;
-    int ushnikju = -1;
-    int ret_sqlite3_get_table_fmrwc = sqlite3_get_table(db, db, (char ***)"r", &kuhpoisz, &ushnikju, &ret_sqlite3_expanded_sql_dyuru);
-    if (ret_sqlite3_get_table_fmrwc < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
     
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_blob_write
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        int ret_sqlite3_blob_write_wseav = sqlite3_blob_write(NULL, (const void *)errMsg, -1, 1);
+        if (ret_sqlite3_blob_write_wseav < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

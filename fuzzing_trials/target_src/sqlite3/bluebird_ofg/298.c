@@ -1,62 +1,47 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 #include <string.h>
 
+// Define a dummy callback function that matches the expected signature
+static int wal_hook_callback(void *arg, sqlite3 *db, const char *dbname, int wal_size) {
+    return 0; // Return success
+}
+
 int LLVMFuzzerTestOneInput_298(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
+    sqlite3 *db;
     char *errMsg = 0;
-    char *sql;
-    
-    // Initialize an in-memory SQLite database
-    const char xzpnagtu[1024] = "kkdmo";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(xzpnagtu, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        return 0;
-    }
+    void *arg = (void *)data; // Use the input data as the argument
 
-    // Create a simple table
-    sql = "CREATE TABLE IF NOT EXISTS test(id INT, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-        sqlite3_free((void *)"w");
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare the input data as an SQL statement
-    char *inputSQL = (char *)malloc(size + 1);
-    if (inputSQL == NULL) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        return 0;
-    }
-    memcpy(inputSQL, data, size);
-    inputSQL[size] = '\0';
-
-    // Execute the input SQL statement
-    rc = sqlite3_exec(db, inputSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK && errMsg != NULL) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
+    // Open a temporary in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // If the database can't be opened, return early
     }
 
     // Call the function-under-test
-    int changes = sqlite3_changes(db);
-    printf("Number of changes: %d\n", changes);
+    sqlite3_wal_hook(db, wal_hook_callback, arg);
 
-    // Clean up
-    free(inputSQL);
+    // Ensure the input data is null-terminated before using it in an SQL query
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        sqlite3_close(db);
+        return 0; // Return early if memory allocation fails
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0'; // Null-terminate the input data
+
+    // Execute some SQL commands using the input data
+    // This will help in increasing code coverage
+    if (size > 0) {
+        char *sql = sqlite3_mprintf("CREATE TABLE IF NOT EXISTS fuzz_table(data BLOB); INSERT INTO fuzz_table(data) VALUES(%Q);", inputData);
+        sqlite3_exec(db, sql, 0, 0, &errMsg);
+        sqlite3_free(sql);
+    }
+
+    free(inputData); // Free the allocated memory
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

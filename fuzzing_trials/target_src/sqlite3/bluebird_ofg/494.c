@@ -1,49 +1,65 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
 
-// Define a function pointer type for an infinite loop function
-typedef void (*infinite_loop_func)(void);
-
-// Dummy infinite loop function
-int dummy_infinite_loop_494(void) {
-    while (1) {
-        // Infinite loop
-    }
-    return 0;
-}
-
-// Fuzzer entry point
 int LLVMFuzzerTestOneInput_494(const uint8_t *data, size_t size) {
+    // Initialize SQLite
     sqlite3 *db;
-    char *errMsg = 0;
-
-    // Initialize SQLite3 database in memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        return 0;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // If the database cannot be opened, exit early
     }
 
-    // Ensure the data is null-terminated to prevent buffer overflow
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Create a dummy table
+    if (sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, 0) != SQLITE_OK) {
         sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
-
-    // Execute SQL command
-    if (sqlite3_exec(db, sql, 0, 0, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
+        return 0; // If table creation fails, exit early
     }
 
-    // Free the allocated memory for SQL command
-    free(sql);
+    // Prepare the insert statement
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, "INSERT INTO test (value) VALUES (?);", -1, &stmt, 0) != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0; // If statement preparation fails, exit early
+    }
 
-    // Close the SQLite3 database
+    // Bind the input data to the statement
+    if (sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0; // If binding fails, exit early
+    }
+
+    // Execute the insert statement
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_step with sqlite3_stmt_isexplain
+    if (sqlite3_stmt_isexplain(stmt) != SQLITE_DONE) {
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0; // If execution fails, exit early
+    }
+    sqlite3_finalize(stmt);
+
+    // Prepare the select statement
+    if (sqlite3_prepare_v2(db, "SELECT value FROM test;", -1, &stmt, 0) != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0; // If statement preparation fails, exit early
+    }
+
+    // Execute the select statement and process the result
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Get the value as sqlite3_value
+        const unsigned char *text = sqlite3_column_text(stmt, 0);
+
+        // Use the result to avoid unused variable warning
+        if (text) {
+            // Do something with text, like checking its length
+            volatile size_t length = strlen((const char *)text);
+        }
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

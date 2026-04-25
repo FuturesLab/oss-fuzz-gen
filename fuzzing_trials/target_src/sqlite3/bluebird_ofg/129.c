@@ -1,54 +1,67 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
 #include "sqlite3.h"
-
-// Define a callback function to be used with sqlite3_trace
-static void traceCallback(void *unused, const char *sql) {
-    (void)unused; // Avoid unused parameter warning
-    // Just print the SQL statement being traced
-    printf("SQL Trace: %s\n", sql);
-}
+#include <stdlib.h>
+#include <string.h> // Include for memcpy and malloc
 
 int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size) {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
     int rc;
-    char *errMsg = 0;
-
-    // Initialize SQLite database in-memory
-    const char lqthrecl[1024] = "jtdfa";
+    
+    // Open an in-memory database
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(lqthrecl, &db);
+    rc = sqlite3_open((const char *)"w", &db);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+        return 0;
     }
 
-    // Ensure data is null-terminated before using it as a SQL statement
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
+
+    // Copy the input data to the new buffer and null-terminate it
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Set the trace callback
-    sqlite3_trace(db, traceCallback, NULL);
-
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Clean up
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, NULL, NULL, &errMsg);
     if (errMsg) {
         sqlite3_free(errMsg);
     }
+
+    // Call the function-under-test
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
+    void* ret_sqlite3_malloc64_ytlxx = sqlite3_malloc64(0);
+    if (ret_sqlite3_malloc64_ytlxx == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc64_ytlxx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strlike_jodvf = sqlite3_strlike((const char *)ret_sqlite3_malloc64_ytlxx, errMsg, size);
+    if (ret_sqlite3_strlike_jodvf < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
+
+    // Free the allocated buffer
     free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

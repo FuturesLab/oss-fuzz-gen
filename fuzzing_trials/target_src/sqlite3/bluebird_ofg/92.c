@@ -1,55 +1,77 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
+#include <stdlib.h>
+#include <string.h>
 #include "sqlite3.h"
 
-// Dummy function types to replace DW_TAG_subroutine_typeInfinite loop
-typedef int (*callback_type)(void*, int, char**, char**);
-typedef void (*free_callback_type)(void*);
-
-// Define a callback function
-int myCallback_92(void* data, int argc, char** argv, char** azColName) {
-    return 0;
-}
-
-// Define a free callback function
-void myFreeCallback_92(void* data) {
-}
-
 int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
+        return 0;
+    }
+    memcpy(query, data, size);
+    query[size] = '\0';
+
+    // Open an in-memory SQLite database
     sqlite3 *db;
-    callback_type xCallback;
-    void *pClientData;
-    free_callback_type xFree;
-    char *errMsg = 0;
-
-    // Open a SQLite database in memory
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
         return 0;
     }
 
-    // Assign the defined callback functions and client data
-    xCallback = myCallback_92;
-    pClientData = (void*)data; // Use data as client data
-    xFree = myFreeCallback_92;
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
 
-    // Convert the input data to a string for SQL execution
-    char *sql = (char*)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, xCallback, pClientData, &errMsg);
-
-    // Free the allocated memory for the SQL string
-    free(sql);
-
-    // Close the SQLite database
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_get_table
+    sqlite3* ret_sqlite3_db_handle_amcoc = sqlite3_db_handle(NULL);
+    if (ret_sqlite3_db_handle_amcoc == NULL){
+    	return 0;
+    }
+    double ret_sqlite3_value_double_twoyz = sqlite3_value_double(NULL);
+    if (ret_sqlite3_value_double_twoyz < 0){
+    	return 0;
+    }
+    unsigned int ret_sqlite3_value_subtype_zcjdg = sqlite3_value_subtype(NULL);
+    if (ret_sqlite3_value_subtype_zcjdg < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    sqlite3_uint64 ret_sqlite3_msize_yrsxu = sqlite3_msize((void *)errMsg);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_db_handle_amcoc) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    if (!*errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_get_table_jjquz = sqlite3_get_table(ret_sqlite3_db_handle_amcoc, errMsg, (char ***)"w", (int *)&ret_sqlite3_value_double_twoyz, (int *)&ret_sqlite3_value_subtype_zcjdg, errMsg);
+    if (ret_sqlite3_get_table_jjquz < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     sqlite3_close(db);
+    free(query);
 
     return 0;
 }

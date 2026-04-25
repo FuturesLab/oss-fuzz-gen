@@ -1,62 +1,59 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-
-// Callback function for sqlite3_exec
-static int callback_245(void *data, int argc, char **argv, char **azColName) {
-    return 0;
-}
 
 int LLVMFuzzerTestOneInput_245(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = NULL;
+    sqlite3_stmt *stmt;
     int rc;
+    int column_index = 0;  // Default column index to test
 
-    // Initialize database connection
+    // Initialize SQLite database in memory
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated for use as a string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Create a simple table and insert some data
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER, value TEXT);";
+    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL command
-    sqlite3_exec(db, sql, callback_245, NULL, &errMsg);
-
-    // Clean up
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    const char *insert_data_sql = "INSERT INTO test (id, value) VALUES (1, 'Hello'), (2, 'World');";
+    rc = sqlite3_exec(db, insert_data_sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_create_filename
-    char* ret_sqlite3_str_finish_llpds = sqlite3_str_finish(NULL);
-    if (ret_sqlite3_str_finish_llpds == NULL){
-    	return 0;
+    // Prepare a simple query
+    const char *query_sql = "SELECT * FROM test;";
+    rc = sqlite3_prepare_v2(db, query_sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
-    char* ret_sqlite3_str_finish_rxuco = sqlite3_str_finish(NULL);
-    if (ret_sqlite3_str_finish_rxuco == NULL){
-    	return 0;
+
+    // Execute the statement and iterate over rows
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Fuzz the column index using the input data
+        if (size > 0) {
+            column_index = data[0] % sqlite3_column_count(stmt);
+        }
+
+        // Call the function-under-test
+        int bytes16 = sqlite3_column_bytes16(stmt, column_index);
+
+        // Use bytes16 in some way to avoid compiler optimizations
+        (void)bytes16;
     }
-    char *vipaugrz[1024] = {"kpitx", NULL};
-    sqlite3_free_table(vipaugrz);
-    unsigned int ret_sqlite3_value_subtype_hwfhk = sqlite3_value_subtype(NULL);
-    if (ret_sqlite3_value_subtype_hwfhk < 0){
-    	return 0;
-    }
-    sqlite3_filename ret_sqlite3_create_filename_toagy = sqlite3_create_filename(ret_sqlite3_str_finish_llpds, ret_sqlite3_str_finish_rxuco, *vipaugrz, (int )ret_sqlite3_value_subtype_hwfhk, &errMsg);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
+
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

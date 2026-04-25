@@ -1,89 +1,128 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_update_hook at sqlite3.c:173372:18 in sqlite3.h
-// sqlite3_update_hook at sqlite3.c:173372:18 in sqlite3.h
-// sqlite3_rollback_hook at sqlite3.c:173397:18 in sqlite3.h
-// sqlite3_rollback_hook at sqlite3.c:173397:18 in sqlite3.h
-// sqlite3_commit_hook at sqlite3.c:173347:18 in sqlite3.h
-// sqlite3_commit_hook at sqlite3.c:173347:18 in sqlite3.h
-// sqlite3_wal_hook at sqlite3.c:173527:18 in sqlite3.h
-// sqlite3_wal_hook at sqlite3.c:173527:18 in sqlite3.h
-// sqlite3_profile at sqlite3.c:173317:18 in sqlite3.h
-// sqlite3_profile at sqlite3.c:173317:18 in sqlite3.h
-// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
-// sqlite3_db_handle at sqlite3.c:80348:21 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_backup_init at sqlite3.c:69968:28 in sqlite3.h
+// sqlite3_backup_step at sqlite3.c:70142:16 in sqlite3.h
+// sqlite3_backup_finish at sqlite3.c:70399:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-#include <stdint.h>
-#include <stddef.h>
+// sqlite3_serialize at sqlite3.c:41164:27 in sqlite3.h
+// sqlite3_deserialize at sqlite3.c:41253:16 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <sqlite3.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
-// Update hook callback
-static void update_hook(void *pArg, int op, const char *zDb, const char *zTbl, sqlite3_int64 rowid) {
-    // Simple update hook function for demonstration
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
-// Rollback hook callback
-static void rollback_hook(void *pArg) {
-    // Simple rollback hook function for demonstration
-}
+int LLVMFuzzerTestOneInput_112(const unsigned char *Data, size_t Size) {
+    if (Size == 0) return 0;
 
-// Commit hook callback
-static int commit_hook(void *pArg) {
-    // Simple commit hook function for demonstration
-    return 0; // Returning 0 allows the commit to proceed
-}
+    // Ensure null-terminated SQL input
+    char *sql = (char *)malloc(Size + 1);
+    if (!sql) return 0;
+    memcpy(sql, Data, Size);
+    sql[Size] = '\0';
 
-// WAL hook callback
-static int wal_hook(void *pArg, sqlite3 *db, const char *zDb, int nPages) {
-    // Simple WAL hook function for demonstration
-    return SQLITE_OK; // Returning SQLITE_OK indicates success
-}
+    // Initialize variables
+    sqlite3 *db = NULL;
+    sqlite3 *backupDb = NULL;
+    sqlite3_backup *backup = NULL;
+    char *errMsg = NULL;
+    int rc;
 
-// Profile hook callback
-static void profile_hook(void *pArg, const char *zSql, sqlite3_uint64 ns) {
-    // Simple profile hook function for demonstration
-}
+    // Prepare filename
+    char filename[256];
+    snprintf(filename, sizeof(filename), "./dummy_file_%zu", Size);
 
-int LLVMFuzzerTestOneInput_112(const uint8_t *Data, size_t Size) {
-    sqlite3 *db;
-    sqlite3_open(":memory:", &db);
-
-    // Fuzz sqlite3_update_hook
-    void *prev_update_hook_arg = sqlite3_update_hook(db, update_hook, NULL);
-    sqlite3_update_hook(db, NULL, prev_update_hook_arg);
-
-    // Fuzz sqlite3_rollback_hook
-    void *prev_rollback_hook_arg = sqlite3_rollback_hook(db, rollback_hook, NULL);
-    sqlite3_rollback_hook(db, NULL, prev_rollback_hook_arg);
-
-    // Fuzz sqlite3_commit_hook
-    void *prev_commit_hook_arg = sqlite3_commit_hook(db, commit_hook, NULL);
-    sqlite3_commit_hook(db, NULL, prev_commit_hook_arg);
-
-    // Fuzz sqlite3_wal_hook
-    void *prev_wal_hook_arg = sqlite3_wal_hook(db, wal_hook, NULL);
-    sqlite3_wal_hook(db, NULL, prev_wal_hook_arg);
-
-    // Fuzz sqlite3_profile
-    void *prev_profile_hook_arg = sqlite3_profile(db, profile_hook, NULL);
-    sqlite3_profile(db, NULL, prev_profile_hook_arg);
-
-    // Prepare a dummy statement to use sqlite3_context_db_handle
-    sqlite3_stmt *stmt;
-    const char *sql = "SELECT 1";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
-        // Fuzz sqlite3_context_db_handle
-        if (stmt) {
-            // Retrieve the database handle from the statement
-            sqlite3 *db_handle = sqlite3_db_handle(stmt);
-            (void)db_handle; // Suppress unused variable warning
-        }
-        sqlite3_finalize(stmt);
+    // Open a database connection
+    rc = sqlite3_open(filename, &db);
+    if (rc != SQLITE_OK || db == NULL) {
+        free(sql);
+        return 0;
     }
 
+    // Execute some SQL
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
+        sqlite3_free(errMsg);
+    }
+
+    // Backup operation
+    rc = sqlite3_open(":memory:", &backupDb);
+    if (rc == SQLITE_OK && backupDb != NULL) {
+        backup = sqlite3_backup_init(backupDb, "main", db, "main");
+        if (backup) {
+            while ((rc = sqlite3_backup_step(backup, 5)) == SQLITE_OK) {
+                // Do nothing, just step
+            }
+            sqlite3_backup_finish(backup);
+        }
+        sqlite3_close(backupDb);
+    }
+
+    // Deserialize operation
+    unsigned char *serializedData;
+    sqlite3_int64 serializedSize;
+    serializedData = sqlite3_serialize(db, "main", &serializedSize, 0);
+    if (serializedData) {
+        rc = sqlite3_deserialize(db, "main", serializedData, serializedSize, serializedSize, 0);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(serializedData);
+        }
+    }
+
+    // Close the database connection
     sqlite3_close(db);
+
+    // Free allocated memory
+    free(sql);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_112(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,53 +1,27 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_465(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    char *errMsg = 0;
-
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Check if size is sufficient for extracting parameters
+    if (size < 2) {
         return 0;
     }
 
-    // Create a simple table
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
+    // Initialize sqlite3_str object
+    sqlite3_str *str = sqlite3_str_new(NULL);
 
-    // Prepare a SQL statement using the fuzzing input
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0'; // Ensure null-termination
-
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        free(sql);
-        sqlite3_close(db);
-        return 0;
-    }
+    // Extract parameters from the data
+    int count = (int)data[0]; // Use the first byte for the count
+    char character = (char)data[1]; // Use the second byte for the character
 
     // Call the function-under-test
-    sqlite3_step(stmt);
+    sqlite3_str_appendchar(str, count, character);
 
     // Clean up
-    sqlite3_finalize(stmt);
-    free(sql);
-    sqlite3_close(db);
+    sqlite3_str_finish(str);
 
     return 0;
 }

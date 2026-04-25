@@ -1,50 +1,71 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include for size_t
+#include <stdlib.h>  // Include for NULL
 #include "sqlite3.h"
-#include <string.h>
+#include <string.h>  // Include for memcpy
 
-// Define a function pointer type for an infinite loop function
-typedef void (*infinite_loop_func)(void);
-
-// Dummy infinite loop function
-int dummy_infinite_loop_502(void) {
-    while (1) {
-        // Infinite loop
-    }
-    return 0;
-}
-
-// Fuzzer entry point
 int LLVMFuzzerTestOneInput_502(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = 0;
+    char *errMsg = NULL;
+    int rc;
 
-    // Initialize SQLite3 database in memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Initialize SQLite library
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the data is null-terminated to prevent buffer overflow
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0;
+    }
+
+    // Create a null-terminated string from the input data
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
+        sqlite3_shutdown();
         return 0;
     }
     memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
+    sql[size] = '\0';
 
-    // Execute SQL command
-    if (sqlite3_exec(db, sql, 0, 0, &errMsg) != SQLITE_OK) {
+    // Execute the input data as an SQL statement
+    rc = sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
         sqlite3_free(errMsg);
     }
 
-    // Free the allocated memory for SQL command
-    free(sql);
+    // Clean up
 
-    // Close the SQLite3 database
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open16
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    const void* ret_sqlite3_errmsg16_hctue = sqlite3_errmsg16(db);
+    if (ret_sqlite3_errmsg16_hctue == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open16_ewndm = sqlite3_open16((const void *)db, &db);
+    if (ret_sqlite3_open16_ewndm < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(sql);
     sqlite3_close(db);
+    sqlite3_shutdown();
 
     return 0;
 }

@@ -1,34 +1,61 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_255(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        return 0; // Handle memory allocation failure gracefully
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Initialize SQLite
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        free(sql);
+    char *errMsg = 0;
+
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
         return 0;
     }
 
-    // Execute the SQL statement
-    char *errMsg = 0;
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
+
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_str_append
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        sqlite3_str* ret_sqlite3_str_new_vhahn = sqlite3_str_new(db);
+        if (ret_sqlite3_str_new_vhahn == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_str_new_vhahn) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        sqlite3_str_append(ret_sqlite3_str_new_vhahn, errMsg, 0);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
     // Clean up
     if (errMsg) {
         sqlite3_free(errMsg);
     }
     sqlite3_close(db);
-    free(sql);
+    free(sqlStatement);
 
     return 0;
 }

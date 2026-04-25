@@ -1,33 +1,63 @@
-#include <stddef.h>  // For size_t and NULL
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <assert.h>
 
 int LLVMFuzzerTestOneInput_172(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    sqlite3_int64 changes;
+    // Ensure that the input size is sufficient for the parameters
+    if (size < 5) {
+        return 0;
+    }
 
-    // Open a new in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    assert(rc == SQLITE_OK);
+    // Extract the integer value for the error code
+    int errCode = (int)data[0];
 
-    // Create a simple table
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, NULL);
-    assert(rc == SQLITE_OK);
+    // Use the remaining data as the log message
+    const char *logMessage = (const char *)(data + 1);
 
-    // Insert some data into the table
-    rc = sqlite3_exec(db, "INSERT INTO test (value) VALUES ('A');", NULL, NULL, NULL);
-    assert(rc == SQLITE_OK);
+    // Use a dummy pointer for the third parameter
+    void *dummyPtr = (void *)(data + 1);
 
     // Call the function-under-test
-    changes = sqlite3_total_changes64(db);
-
-    // Ensure that the function returns a non-negative value
-    assert(changes >= 0);
-
-    // Clean up and close the database
-    sqlite3_close(db);
+    sqlite3_log(errCode, "%s", logMessage);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_172(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

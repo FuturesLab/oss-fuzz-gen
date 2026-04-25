@@ -1,64 +1,46 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
-#include <string.h>  // Include for strlen and memcpy
+#include <stddef.h>
 #include "sqlite3.h"
-
-// Callback function to be used with sqlite3_trace_v2
-static int trace_callback(unsigned int trace, void *ctx, void *p, void *x) {
-    // Implement a simple callback that does nothing
-    return 0;
-}
+#include <string.h>
+#include <stdlib.h> // Include for malloc and free
 
 int LLVMFuzzerTestOneInput_338(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    unsigned int mask = 0;
-    void *user_data = NULL;
-    int result;
-
-    // Open an in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        return 0;
+    if (size < sizeof(int) + 1) {
+        return 0; // Not enough data to proceed
     }
 
-    // Set the trace mask to a fixed value for fuzzing
-    mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW;
+    // Initialize SQLite
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // Failed to open in-memory database
+    }
+
+    // Extract an integer from the data for the 'op' parameter
+    int op = *(const int *)data;
+
+    // Extract a string for the 'zDbName' parameter
+    const char *zDbName = (const char *)(data + sizeof(int));
+
+    // Ensure null-termination of the string
+    size_t zDbNameLen = strnlen(zDbName, size - sizeof(int));
+    char *zDbNameCopy = (char *)malloc(zDbNameLen + 1);
+    if (!zDbNameCopy) {
+        sqlite3_close(db);
+        return 0; // Memory allocation failed
+    }
+    memcpy(zDbNameCopy, zDbName, zDbNameLen);
+    zDbNameCopy[zDbNameLen] = '\0';
+
+    // Use the remaining data as the 'pArg' parameter
+    void *pArg = (void *)(data + sizeof(int) + zDbNameLen + 1);
 
     // Call the function-under-test
-    result = sqlite3_trace_v2(db, mask, trace_callback, user_data);
+    sqlite3_file_control(db, zDbNameCopy, op, pArg);
 
-    // Execute the input data as an SQL statement if it's not empty
-    if (size > 0) {
-        // Allocate a new buffer with an additional byte for the null terminator
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_system_errno
-            sqlite3_system_errno(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-            return 0;
-        }
-
-        // Copy the input data to the new buffer and null-terminate it
-        memcpy(sql, data, size);
-        sql[size] = '\0';
-
-        char *errMsg = 0;
-        sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
-
-        // Free the allocated buffer
-        free(sql);
-    }
-
-    // Close the SQLite database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Clean up
+    free(zDbNameCopy);
+    sqlite3_close(db);
 
     return 0;
 }

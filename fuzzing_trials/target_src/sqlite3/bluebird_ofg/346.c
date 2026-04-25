@@ -1,62 +1,59 @@
+#include <sys/stat.h>
+#include <stddef.h>  // For size_t
+#include <stdlib.h>  // For NULL
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
 #include "sqlite3.h"
+#include <string.h>  // For memcpy
 
-// Dummy function types to replace DW_TAG_subroutine_typeInfinite loop
-typedef int (*callback_type)(void*, int, char**, char**);
-typedef void (*free_callback_type)(void*);
-
-// Define a callback function
-int myCallback_346(void* data, int argc, char** argv, char** azColName) {
-    return 0;
-}
-
-// Define a free callback function
-void myFreeCallback_346(void* data) {
+// Dummy authorizer function to be used in sqlite3_set_authorizer
+int authorizer_callback(void *pArg, int action, const char *param1, const char *param2, const char *dbName, const char *triggerOrView) {
+    // For simplicity, always return SQLITE_OK
+    return SQLITE_OK;
 }
 
 int LLVMFuzzerTestOneInput_346(const uint8_t *data, size_t size) {
-    // Initialize variables
-    sqlite3 *db;
-    callback_type xCallback;
-    void *pClientData;
-    free_callback_type xFree;
-    char *errMsg = 0;
+    sqlite3 *db = NULL;
+    char *errMsg = NULL;
+    int rc;
 
-    // Open a SQLite database in memory
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Assign the defined callback functions and client data
-    xCallback = myCallback_346;
-    pClientData = (void*)data; // Use data as client data
-    xFree = myFreeCallback_346;
+    // Use some part of the input data as user data for the authorizer callback
+    void *userData = (void *)(data);
 
-    // Convert the input data to a string for SQL execution
-    char *sql = (char*)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
+    // Set the authorizer using the dummy callback
+    sqlite3_set_authorizer(db, authorizer_callback, userData);
+
+    // Ensure we have some data to work with
+    if (size > 0) {
+        // Create a table
+        rc = sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS fuzz_table (id INTEGER PRIMARY KEY, data BLOB);", NULL, NULL, &errMsg);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(errMsg);
+            sqlite3_close(db);
+            return 0;
+        }
+
+        // Prepare an SQL statement using the input data
+        sqlite3_stmt *stmt;
+        rc = sqlite3_prepare_v2(db, "INSERT INTO fuzz_table (data) VALUES (?);", -1, &stmt, NULL);
+        if (rc == SQLITE_OK) {
+            // Bind the input data to the SQL statement
+            sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT);
+
+            // Execute the SQL statement
+            sqlite3_step(stmt);
+
+            // Finalize the statement
+            sqlite3_finalize(stmt);
+        }
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, xCallback, pClientData, &errMsg);
-
-    // Free the allocated memory for the SQL string
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_limit
-    int ret_sqlite3_limit_palft = sqlite3_limit(db, size, size);
-    if (ret_sqlite3_limit_palft < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
-
-    // Close the SQLite database
+    // Close the database
     sqlite3_close(db);
 
     return 0;

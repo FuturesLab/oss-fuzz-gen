@@ -1,76 +1,75 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <stdio.h>
 #include <stdio.h>
 #include "sqlite3.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 
-static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt = NULL;
-    const char *pzTail = NULL;
+static int dummy_xCreate(sqlite3 *db, void *pAux, int argc, const char *const*argv, sqlite3_vtab **ppVTab, char **pzErr) {
+    return SQLITE_OK;
+}
 
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &pzTail);
-    if (rc != SQLITE_OK) {
-        const char *errmsg = sqlite3_errmsg(db);
-        (void)errmsg;  // Suppress unused variable warning
-        return;
-    }
+static int dummy_xConnect(sqlite3 *db, void *pAux, int argc, const char *const*argv, sqlite3_vtab **ppVTab, char **pzErr) {
+    return SQLITE_OK;
+}
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_step with sqlite3_column_count
-    rc = sqlite3_column_count(stmt);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_step with sqlite3_bind_parameter_count
-    rc = sqlite3_bind_parameter_count(stmt);  // Call sqlite3_step twice as required
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+static int dummy_xBestIndex(sqlite3_vtab *pVTab, sqlite3_index_info *info) {
+    return SQLITE_OK;
+}
 
-    int column_count = sqlite3_column_count(stmt);
-    for (int i = 0; i < column_count; i++) {
-        int col_type = sqlite3_column_type(stmt, i);
-        const char *col_name = sqlite3_column_name(stmt, i);
-        const unsigned char *col_text = sqlite3_column_text(stmt, i);
-        int col_bytes = sqlite3_column_bytes(stmt, i);
+static int dummy_xDisconnect(sqlite3_vtab *pVTab) {
+    return SQLITE_OK;
+}
 
-        (void)col_type;  // Suppress unused variable warning
-        (void)col_name;
-        (void)col_text;
-        (void)col_bytes;
-    }
+static int dummy_xDestroy(sqlite3_vtab *pVTab) {
+    return SQLITE_OK;
+}
 
-    sqlite3_finalize(stmt);
+static sqlite3_module dummyModule = {
+    1,
+    dummy_xCreate,
+    dummy_xConnect,
+    dummy_xBestIndex,
+    dummy_xDisconnect,
+    dummy_xDestroy,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
+static void dummyDestructor(void *p) {
+    // No-op destructor
 }
 
 int LLVMFuzzerTestOneInput_248(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
-    // Initialize SQLite
     sqlite3 *db;
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    int rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Copy input data to a null-terminated string
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0';
+    // Fuzzing sqlite3_create_module
+    const char *moduleName = "dummy_module";
+    rc = sqlite3_create_module(db, moduleName, &dummyModule, NULL);
 
-    // Execute fuzzing with the given SQL
-    execute_sqlite_fuzzing(db, sql);
+    // Fuzzing sqlite3_drop_modules
+    const char *keepList[] = {moduleName, NULL};
+    rc = sqlite3_drop_modules(db, NULL); // Drop all
+    rc = sqlite3_drop_modules(db, keepList); // Keep the dummy module
 
-    // Cleanup
-    free(sql);
+    // Fuzzing sqlite3_declare_vtab
+    const char *createSQL = "CREATE TABLE x(a, b)";
+    rc = sqlite3_declare_vtab(db, createSQL);
+
+    // Fuzzing sqlite3_vtab_config
+    rc = sqlite3_vtab_config(db, SQLITE_VTAB_CONSTRAINT_SUPPORT, 1);
+
+    // Fuzzing sqlite3_create_module_v2
+    rc = sqlite3_create_module_v2(db, moduleName, &dummyModule, NULL, dummyDestructor);
+
+    // Fuzzing sqlite3_create_function
+    rc = sqlite3_create_function(db, "dummy_func", 1, SQLITE_UTF8, NULL, NULL, NULL, NULL);
+
     sqlite3_close(db);
     return 0;
 }

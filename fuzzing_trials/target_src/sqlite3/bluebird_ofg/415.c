@@ -1,63 +1,43 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_415(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    char *errMsg = NULL;
-    char *expanded_sql = NULL;
-    
-    // Initialize SQLite database in memory
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    sqlite3 *db;
+    char *errMsg = 0;
+
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
         return 0;
     }
-    
-    // Create a dummy table to prepare a statement
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    if (sqlite3_exec(db, createTableSQL, NULL, NULL, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
+
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
         sqlite3_close(db);
         return 0;
     }
-    
-    // Prepare a statement based on the input data
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
+
+    // Execute the data as an SQL statement
     if (size > 0) {
-        char *query = (char *)malloc(size + 1);
-        if (query == NULL) {
-            sqlite3_close(db);
-            return 0;
-        }
-        
-        memcpy(query, data, size);
-        query[size] = '\0'; // Ensure null-termination
-        
-        if (sqlite3_prepare_v2(db, query, -1, &stmt, NULL) != SQLITE_OK) {
-            free(query);
-            sqlite3_close(db);
-            return 0;
-        }
-        
-        free(query);
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
     }
-    
-    // Call the function-under-test
-    expanded_sql = sqlite3_expanded_sql(stmt);
-    
-    // If expanded_sql is not NULL, free it
-    if (expanded_sql != NULL) {
-        sqlite3_free(expanded_sql);
-    }
-    
-    // Finalize the statement and close the database
-    if (stmt != NULL) {
-        sqlite3_finalize(stmt);
+
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
     sqlite3_close(db);
-    
+    free(sqlStatement);
+
     return 0;
 }
 #ifdef INC_MAIN

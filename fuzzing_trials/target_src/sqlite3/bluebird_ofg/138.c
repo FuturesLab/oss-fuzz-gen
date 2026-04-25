@@ -1,45 +1,55 @@
-#include <stddef.h> // Include this for size_t
-#include <stdint.h> // Include this for uint8_t
-#include "sqlite3.h" // Include this for SQLite functions and types
-#include <string.h> // Include this for strlen
+#include <sys/stat.h>
+#include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    (void)NotUsed;
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_138(const uint8_t *data, size_t size) {
-    sqlite3 *srcDb = NULL;
-    sqlite3 *destDb = NULL;
-    sqlite3_backup *backup = NULL;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
-    char *errMsg = NULL;
 
-    // Open source and destination databases
-    rc = sqlite3_open(":memory:", &srcDb);
-    if (rc != SQLITE_OK) goto cleanup;
-
-    rc = sqlite3_open(":memory:", &destDb);
-    if (rc != SQLITE_OK) goto cleanup;
-
-    // Use the input data as an SQL command
-    if (size > 0 && data[size - 1] == '\0') { // Ensure data is null-terminated
-        rc = sqlite3_exec(srcDb, (const char *)data, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-            goto cleanup;
-        }
+    // Initialize database in memory
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
 
-    // Create a backup object
-    backup = sqlite3_backup_init(destDb, "main", srcDb, "main");
-    if (backup == NULL) goto cleanup;
+    // Convert fuzz data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Simulate some backup steps
-    sqlite3_backup_step(backup, 5);
-    sqlite3_backup_step(backup, 5);
+    // Execute SQL statement
+    char *avwkbtcy[1024] = {"jsuxn", NULL};
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
+    rc = sqlite3_exec(db, sql, callback, 0, avwkbtcy);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+    }
 
-    // Finish the backup
-    sqlite3_backup_finish(backup);
-
-cleanup:
-    if (srcDb != NULL) sqlite3_close(srcDb);
-    if (destDb != NULL) sqlite3_close(destDb);
+    // Clean up
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

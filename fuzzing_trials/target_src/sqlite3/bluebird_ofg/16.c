@@ -1,47 +1,62 @@
-#include <stdint.h>
-#include <stddef.h>  // Include this header for size_t
+#include <sys/stat.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>  // Include this header for malloc and free
-#include <string.h>  // Include this header for memcpy
 
-// Fuzzer entry point
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Initialize SQLite
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0;
-    }
-
-    // Create a new in-memory database
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
+    char *errMsg = 0;
+    int rc;
+
+    // Open a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Allocate memory for the SQL statement and ensure it's null-terminated
+    // Ensure the SQL statement is null-terminated
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_blob_read
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_blob_read_osdyc = sqlite3_blob_read(NULL, (void *)db, 64, size);
+    if (ret_sqlite3_blob_read_osdyc < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    if (sql == NULL) {
         sqlite3_close(db);
-        sqlite3_shutdown();
         return 0;
     }
     memcpy(sql, data, size);
-    sql[size] = '\0';  // Null-terminate the SQL statement
+    sql[size] = '\0';
 
-    // Use the input data as an SQL statement to test SQLite's SQL parser
-    char *errMsg = 0;
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Clean up
-    if (errMsg) {
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
+
+    // Clean up
     free(sql);
     sqlite3_close(db);
-    sqlite3_shutdown();
 
-    // Return 0 to indicate successful execution of the fuzzer
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,47 +1,53 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-// Function to be fuzzed
 int LLVMFuzzerTestOneInput_235(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
     sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3_stmt *stmt;
+    int rc;
+    const char *sql;
+    const char *decl_type;
 
-    // Open an in-memory database
-    if (sqlite3_open(":memory:", &db)) {
-        sqlite3_close(db);
+    // Ensure the input data is null-terminated for SQL statement
+    char *sql_statement = (char *)malloc(size + 1);
+    if (!sql_statement) {
+        return 0;
+    }
+    memcpy(sql_statement, data, size);
+    sql_statement[size] = '\0';
+
+    // Open a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        free(sql_statement);
         return 0;
     }
 
-    // Convert input data to a string
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql_statement, -1, &stmt, &sql);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
+        free(sql_statement);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Fuzz the sqlite3_column_decltype function with various column indices
+    for (int i = 0; i < sqlite3_column_count(stmt); i++) {
+        decl_type = sqlite3_column_decltype(stmt, i);
+        // Optionally print or log the decl_type for debugging
+        if (decl_type) {
+            printf("Column %d: %s\n", i, decl_type);
+        }
+    }
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strglob
-    void* ret_sqlite3_malloc64_dovje = sqlite3_malloc64(0);
-    if (ret_sqlite3_malloc64_dovje == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_strglob_timon = sqlite3_strglob((const char *)ret_sqlite3_malloc64_dovje, errMsg);
-    if (ret_sqlite3_strglob_timon < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sqlite3_free(errMsg);
-    free(sql);
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
+    free(sql_statement);
 
     return 0;
 }

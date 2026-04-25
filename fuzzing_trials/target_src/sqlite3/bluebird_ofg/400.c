@@ -1,46 +1,47 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "sqlite3.h"
-#include <stdio.h>
 
-// Fuzzing harness for sqlite3_extended_errcode
 int LLVMFuzzerTestOneInput_400(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
+    sqlite3 *db;
     char *errMsg = 0;
 
-    // Initialize a database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INT, value TEXT);", NULL, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
+
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_randomness
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        sqlite3_randomness(1, (void *)db);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Clean up
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
-
-    // Use the input data to form a SQL statement
-    if (size > 0) {
-        char sql[256];
-        snprintf(sql, sizeof(sql), "INSERT INTO test (id, value) VALUES (%d, '%.*s');", data[0], (int)(size - 1), data + 1);
-
-        // Execute the SQL statement
-        rc = sqlite3_exec(db, sql, NULL, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            fprintf(stderr, "SQL error: %s\n", errMsg);
-            sqlite3_free(errMsg);
-        }
-    }
-
-    // Call the function-under-test
-    int extended_errcode = sqlite3_extended_errcode(db);
-    (void)extended_errcode; // Use the result to avoid unused variable warning
-
-    // Close the database
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

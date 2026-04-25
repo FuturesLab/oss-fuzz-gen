@@ -1,56 +1,85 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 
+// Ensure that the function is defined with C linkage
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    char *errMsg = 0;
-
-    // Allocate a buffer with an extra byte for the null terminator
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        fprintf(stderr, "Memory allocation failed\n");
+    // Ensure the size is sufficient for creating a sqlite3 database
+    if (size == 0) {
         return 0;
     }
 
-    // Copy the input data to the buffer and null-terminate it
+    sqlite3 *db;
+    char *errMsg = 0;
+
+    // Open a new in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    int rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+
+    // Convert input data to a null-terminated string
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open16
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open16
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open16_xylrm = sqlite3_open16(NULL, &db);
+    if (ret_sqlite3_open16_xylrm < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_sqlite3_extended_errcode_nvear = sqlite3_extended_errcode(db);
+    if (ret_sqlite3_extended_errcode_nvear < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open16_rjrpy = sqlite3_open16((const void *)db, &db);
+    if (ret_sqlite3_open16_rjrpy < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Open a new database connection. ":memory:" creates a new database in RAM.
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        free(sql);
-        return 0;
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free the error message if it was allocated
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
 
-    // Execute some SQL statement to potentially generate an error
-    // Using the input data as the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        // Call the function-under-test
-        const char *error_message = sqlite3_errmsg(db);
-        // Print the error message for debugging purposes
-        fprintf(stderr, "SQL error: %s\n", error_message);
-
-        // Free the error message if it was allocated
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
-    }
+    // Free the allocated SQL string
+    free(sql);
 
     // Close the database connection
     sqlite3_close(db);
-
-    // Free the allocated buffer
-    free(sql);
 
     return 0;
 }

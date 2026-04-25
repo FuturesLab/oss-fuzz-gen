@@ -2,52 +2,70 @@
 #include <stddef.h>
 #include <sqlite3.h>
 
-// Define a custom destructor_315 function as a placeholder
-void custom_destructor_315(void *data) {
-    // Custom cleanup logic if needed
-}
-
+// Fuzzing function
 int LLVMFuzzerTestOneInput_315(const uint8_t *data, size_t size) {
+    // Convert input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        return 0; // Fail gracefully on allocation failure
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Initialize an SQLite database in memory
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB); INSERT INTO test (data) VALUES (?);";
-
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        free(sql);
         return 0;
     }
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Execute the SQL statement
+    char *errMsg = 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Call sqlite3_bind_blob with the provided data
-    // Ensure that data is not NULL and size is valid
-    if (data != NULL && size > 0) {
-        rc = sqlite3_bind_blob(stmt, 1, (const void *)data, (int)size, SQLITE_STATIC);
-        if (rc != SQLITE_OK) {
-            sqlite3_finalize(stmt);
-            sqlite3_close(db);
-            return 0;
-        }
-
-        // Execute the statement to ensure the function under test is invoked
-        rc = sqlite3_step(stmt);
-        if (rc != SQLITE_DONE) {
-            sqlite3_finalize(stmt);
-            sqlite3_close(db);
-            return 0;
-        }
-    }
-
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Free resources
+    sqlite3_free(errMsg);
     sqlite3_close(db);
+    free(sql);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_315(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

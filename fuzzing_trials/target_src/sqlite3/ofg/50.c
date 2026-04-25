@@ -1,48 +1,88 @@
-#include <sqlite3.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3_stmt *stmt;
     int rc;
+    char *errMsg = 0;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (data BLOB); INSERT INTO test (data) VALUES (?);";
 
     // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a table
-    const char *sql = "CREATE TABLE test (id INT, value TEXT);";
+    // Prepare the SQL statement
     rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
         sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // Insert some data
-    sql = "INSERT INTO test (id, value) VALUES (1, 'Hello');";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Prepare the insert statement
+    rc = sqlite3_prepare_v2(db, "INSERT INTO test (data) VALUES (?);", -1, &stmt, 0);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // Call the function-under-test
-    sqlite3_int64 changes = sqlite3_changes64(db);
+    // Bind the blob data
+    if (size > 0) {
+        rc = sqlite3_bind_blob(stmt, 1, data, (int)size, SQLITE_STATIC);
+    }
 
-    // Log the number of changes
-    printf("Number of changes: %lld\n", changes);
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
 
     // Close the database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_50(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

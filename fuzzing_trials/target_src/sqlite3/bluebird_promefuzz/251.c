@@ -1,82 +1,67 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "sqlite3.h"
+#include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <string.h>
+#include "sqlite3.h"
 
-static void prepareDatabase(sqlite3 **db) {
-    int rc = sqlite3_open(":memory:", db);
-    if (rc != SQLITE_OK) {
-        *db = NULL;
-    }
-}
-
-static void prepareStatement(sqlite3 *db, const char *sql, sqlite3_stmt **stmt) {
-    if (db == NULL) {
-        *stmt = NULL;
-        return;
-    }
-    int rc = sqlite3_prepare_v2(db, sql, -1, stmt, NULL);
-    if (rc != SQLITE_OK) {
-        *stmt = NULL;
-    }
+static void initialize_string(char *dest, const uint8_t *data, size_t size, size_t max_len) {
+    size_t len = size < max_len ? size : max_len - 1;
+    memcpy(dest, data, len);
+    dest[len] = '\0';
 }
 
 int LLVMFuzzerTestOneInput_251(const uint8_t *Data, size_t Size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    sqlite3_stmt *nextStmt = NULL;
-    sqlite3 *dbHandle = NULL;
-    int rc;
+    if (Size < 1) return 0;
 
-    // Prepare database
-    prepareDatabase(&db);
+    char str1[256];
+    char str2[256];
+    char str3[256];
+    char str4[256];
+    char str5[256];
+    char str6[256];
+    char str7[256];
+    char str8[256];
+    char str9[256];
+    char str10[256];
 
-    // Prepare a statement if possible
-    if (Size > 0) {
-        char *sql = (char *)malloc(Size + 1);
-        if (sql != NULL) {
-            memcpy(sql, Data, Size);
-            sql[Size] = '\0'; // Null-terminate the SQL string
-            prepareStatement(db, sql, &stmt);
-            free(sql);
-        }
-    }
+    size_t offset = 0;
+    size_t segment_size = Size / 10;
 
-    // Test sqlite3_db_handle
-    dbHandle = sqlite3_db_handle(stmt);
+    initialize_string(str1, Data + offset, segment_size, sizeof(str1));
+    offset += segment_size;
+    initialize_string(str2, Data + offset, segment_size, sizeof(str2));
+    offset += segment_size;
+    initialize_string(str3, Data + offset, segment_size, sizeof(str3));
+    offset += segment_size;
+    initialize_string(str4, Data + offset, segment_size, sizeof(str4));
+    offset += segment_size;
+    initialize_string(str5, Data + offset, segment_size, sizeof(str5));
+    offset += segment_size;
+    initialize_string(str6, Data + offset, segment_size, sizeof(str6));
+    offset += segment_size;
+    initialize_string(str7, Data + offset, segment_size, sizeof(str7));
+    offset += segment_size;
+    initialize_string(str8, Data + offset, segment_size, sizeof(str8));
+    offset += segment_size;
+    initialize_string(str9, Data + offset, segment_size, sizeof(str9));
+    offset += segment_size;
+    initialize_string(str10, Data + offset, Size - offset, sizeof(str10));
 
-    // Test sqlite3_next_stmt
-    nextStmt = sqlite3_next_stmt(db, NULL);
-    nextStmt = sqlite3_next_stmt(db, stmt);
-
-    // Ensure Data is large enough for UTF-16 operations
-    if (Size % 2 == 0) {
-        // Test sqlite3_prepare16_v3
-        rc = sqlite3_prepare16_v3(db, Data, (int)Size, 0, &stmt, NULL);
-
-        // Test sqlite3_prepare16_v2
-        rc = sqlite3_prepare16_v2(db, Data, (int)Size, &stmt, NULL);
-    }
-
-    // Test sqlite3_prepare
-    rc = sqlite3_prepare(db, (const char *)Data, (int)Size, &stmt, NULL);
-
-    // Test sqlite3_prepare_v3
-    rc = sqlite3_prepare_v3(db, (const char *)Data, (int)Size, 0, &stmt, NULL);
-
-    // Cleanup
-    if (stmt) {
-        sqlite3_finalize(stmt);
-    }
-    if (db) {
-        sqlite3_close(db);
-    }
+    sqlite3_stricmp(str1, str2);
+    sqlite3_stricmp(str3, str4);
+    sqlite3_stricmp(str5, str6);
+    sqlite3_strnicmp(str7, str8, strlen(str8));
+    sqlite3_stricmp(str9, str10);
+    sqlite3_stricmp(str1, str3);
+    sqlite3_stricmp(str4, str5);
+    sqlite3_strglob(str6, str7);
+    sqlite3_strglob(str8, str9);
+    sqlite3_stricmp(str10, str1);
 
     return 0;
 }

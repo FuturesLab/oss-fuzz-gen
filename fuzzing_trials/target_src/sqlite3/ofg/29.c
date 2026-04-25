@@ -1,40 +1,90 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stddef.h>  // Include for NULL
+#include <string.h>
+#include <stdlib.h>
 
-// Mock function to create a valid sqlite3_stmt object for testing
-sqlite3_stmt* create_valid_stmt_29(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    
-    // Open a temporary in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return NULL;
-    }
-
-    // Prepare a statement using the fuzzer input data as SQL query
-    if (sqlite3_prepare_v2(db, (const char*)data, size, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        return NULL;
-    }
-
-    // Close the database connection, statement remains valid
-    sqlite3_close(db);
-    return stmt;
+// Dummy function to be used as a callback
+void dummy_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Do nothing
 }
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Create a valid sqlite3_stmt object using the input data
-    sqlite3_stmt *stmt = create_valid_stmt_29(data, size);
-    if (stmt == NULL) {
+    sqlite3 *db;
+    int rc;
+    const char *function_name = "fuzz_function";
+    int num_args = 1;
+    int flags = SQLITE_UTF8;
+    void *user_data = NULL;
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Call the function-under-test
-    int result = sqlite3_stmt_isexplain(stmt);
+    // Ensure the data is null-terminated for function name
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Finalize the statement to clean up resources
-    sqlite3_finalize(stmt);
+    // Call the function-under-test
+    sqlite3_create_function(
+        db,
+        null_terminated_data, // Use fuzz data as function name
+        num_args,
+        flags,
+        user_data,
+        dummy_function, // xFunc
+        NULL,           // xStep
+        NULL            // xFinal
+    );
+
+    // Clean up
+    free(null_terminated_data);
+    sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

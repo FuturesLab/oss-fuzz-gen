@@ -1,56 +1,51 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
+    sqlite3 *db;
     char *errMsg = 0;
+    int rc;
 
-    // Allocate a buffer with an extra byte for the null terminator
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        fprintf(stderr, "Memory allocation failed\n");
+    // Open a temporary in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Copy the input data to the buffer and null-terminate it
+    // Ensure the SQL statement is null-terminated
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Open a new database connection. ":memory:" creates a new database in RAM.
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        free(sql);
-        return 0;
-    }
-
-    // Execute some SQL statement to potentially generate an error
-    // Using the input data as the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        // Call the function-under-test
-        const char *error_message = sqlite3_errmsg(db);
-        // Print the error message for debugging purposes
-        fprintf(stderr, "SQL error: %s\n", error_message);
-
-        // Free the error message if it was allocated
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
+        sqlite3_free(errMsg);
     }
 
-    // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    // Free the allocated buffer
+    // Clean up
     free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

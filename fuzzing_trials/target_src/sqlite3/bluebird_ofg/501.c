@@ -1,42 +1,37 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_501(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt = NULL;
-    const char *tail = NULL;
-    int rc;
+    // Create a new sqlite3_str object
+    sqlite3_str *strAccum = sqlite3_str_new(NULL);
 
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
+    // Check if the object was created successfully
+    if (strAccum == NULL) {
+        return 0; // If not, return early
     }
 
-    // Ensure the input data is null-terminated for use as a SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Append the input data to the sqlite3_str object
+    sqlite3_str_append(strAccum, (const char *)data, (int)size);
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare(db, sql, -1, &stmt, &tail);
+    // Reset the string accumulator
+    sqlite3_str_reset(strAccum);
 
-    // Clean up
-    if (stmt != NULL) {
-        sqlite3_finalize(stmt);
-    }
-    free(sql);
-    sqlite3_close(db);
+    // Free the sqlite3_str object
+    sqlite3_str_finish(strAccum);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

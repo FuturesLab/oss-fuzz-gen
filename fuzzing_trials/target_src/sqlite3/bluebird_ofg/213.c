@@ -1,56 +1,72 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include "sqlite3.h"
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+// Callback function to simulate a user-defined function
+static void test_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    if (argc == 1 && sqlite3_value_type(argv[0]) == SQLITE_FLOAT) {
+        double value = sqlite3_value_double(argv[0]);
+        sqlite3_result_double(context, value);
     }
 }
 
 int LLVMFuzzerTestOneInput_213(const uint8_t *data, size_t size) {
+    // Ensure there is enough data to extract a double value
+    if (size < sizeof(double)) {
+        return 0;
+    }
+
+    // Extract a double value from the input data
+    double value;
+    memcpy(&value, data, sizeof(double));
+
+    // Initialize a sqlite3 database and context
     sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
 
-    // Open a new in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
-
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Create a user-defined function to test sqlite3_result_double
+    rc = sqlite3_create_function(db, "test_function", 1, SQLITE_UTF8, NULL, test_function, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_db_readonly
-    sqlite3_uint64 ret_sqlite3_msize_efhxi = sqlite3_msize((void *)db);
-    int ret_sqlite3_db_readonly_iklgy = sqlite3_db_readonly(db, db);
-    if (ret_sqlite3_db_readonly_iklgy < 0){
-    	return 0;
+    // Prepare a SQL statement that uses the user-defined function
+    rc = sqlite3_prepare_v2(db, "SELECT test_function(?)", -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+
+    // Bind the double value to the SQL statement
+    rc = sqlite3_bind_double(stmt, 1, value);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the SQL statement
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

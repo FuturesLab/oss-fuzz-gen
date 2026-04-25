@@ -1,51 +1,53 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h> // Include for size_t
+#include <stdlib.h> // Include for NULL
 #include "sqlite3.h"
-
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-}
 
 int LLVMFuzzerTestOneInput_362(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    sqlite3_context *context;
     int rc;
 
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(lwzpauru, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
+    // Create a dummy function to obtain a context
+    rc = sqlite3_create_function(db, "dummy_func", 0, SQLITE_UTF8, NULL, NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare a statement to execute the dummy function
+    sqlite3_stmt *stmt;
+    rc = sqlite3_prepare_v2(db, "SELECT dummy_func();", -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the statement to get the context
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        context = (sqlite3_context *)sqlite3_column_value(stmt, 0);
+
+        // Call the function-under-test
+        void *user_data = sqlite3_user_data(context);
+
+        // Use user_data in some way to avoid compiler optimizations
+        if (user_data) {
+            // Do something with user_data if needed
         }
-
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_db_release_memory
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_db_release_memory with sqlite3_close_v2
-        sqlite3_close_v2(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

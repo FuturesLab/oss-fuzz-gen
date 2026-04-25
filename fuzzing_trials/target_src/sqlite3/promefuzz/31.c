@@ -1,64 +1,138 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_sourceid at sqlite3.c:252248:24 in sqlite3.h
-// sqlite3_compileoption_get at sqlite3.c:176189:24 in sqlite3.h
-// sqlite3_sleep at sqlite3.c:175133:16 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
+// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int64 at sqlite3.c:80118:16 in sqlite3.h
+// sqlite3_bind_double at sqlite3.c:80104:16 in sqlite3.h
+// sqlite3_bind_text64 at sqlite3.c:80167:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sqlite3.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
 
-static void fuzz_sqlite3_sourceid() {
-    const char *source_id = sqlite3_sourceid();
-    if (source_id) {
-        printf("SQLite Source ID: %s\n", source_id);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-}
-
-static void fuzz_sqlite3_compileoption_get(int index) {
-    const char *option = sqlite3_compileoption_get(index);
-    if (option) {
-        printf("Compile Option %d: %s\n", index, option);
-    }
-}
-
-static void fuzz_sqlite3_sleep(int ms) {
-    int slept_ms = sqlite3_sleep(ms);
-    printf("Requested sleep: %d ms, actually slept: %d ms\n", ms, slept_ms);
-}
-
-static void fuzz_sqlite3_free(void *ptr) {
-    sqlite3_free(ptr);
 }
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0; // Not enough data to proceed
+    if (Size < sizeof(int) + sizeof(sqlite3_int64) + sizeof(double) + sizeof(sqlite3_uint64) + 1) {
+        return 0;
     }
 
-    // Fuzz sqlite3_sourceid
-    fuzz_sqlite3_sourceid();
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
 
-    // Fuzz sqlite3_compileoption_get
-    int compile_option_index = Data[0] % 10; // Use first byte for index, assuming max 10 options for fuzzing
-    fuzz_sqlite3_compileoption_get(compile_option_index);
-
-    // Fuzz sqlite3_sleep
-    int sleep_time = (Size > 1) ? Data[1] : 0; // Use second byte for sleep time if available
-    fuzz_sqlite3_sleep(sleep_time);
-
-    // Fuzz sqlite3_free
-    void *dummy_ptr = sqlite3_malloc(100); // Allocate some memory to free
-    if (dummy_ptr) {
-        fuzz_sqlite3_free(dummy_ptr);
+    // Open a new database connection
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
+
+    // Create a dummy table
+    const char *createTableSQL = "CREATE TABLE IF NOT EXISTS test (a INTEGER, b INTEGER, c REAL, d TEXT)";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare a dummy statement
+    const char *sql = "INSERT INTO test (a, b, c, d) VALUES (?, ?, ?, ?)";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Extract values from Data
+    int intValue1 = *(int *)Data;
+    Data += sizeof(int);
+
+    sqlite3_int64 int64Value = *(sqlite3_int64 *)Data;
+    Data += sizeof(sqlite3_int64);
+
+    double doubleValue = *(double *)Data;
+    Data += sizeof(double);
+
+    sqlite3_uint64 textSize = *(sqlite3_uint64 *)Data;
+    Data += sizeof(sqlite3_uint64);
+
+    unsigned char encoding = *Data;
+    Data += 1;
+
+    // Ensure textSize does not exceed remaining data
+    if (textSize > Size - (Data - (const uint8_t *)Data)) {
+        textSize = Size - (Data - (const uint8_t *)Data);
+    }
+
+    // Bind values to the statement
+    sqlite3_bind_int(stmt, 1, intValue1);
+    sqlite3_bind_int64(stmt, 2, int64Value);
+    sqlite3_bind_double(stmt, 3, doubleValue);
+
+    // Use SQLITE_TRANSIENT to safely copy the data
+    rc = sqlite3_bind_text64(stmt, 4, (const char *)Data, textSize, SQLITE_TRANSIENT, encoding);
+    if (rc != SQLITE_OK) {
+        // Handle error if necessary
+    }
+    sqlite3_bind_int(stmt, 1, intValue1);  // Re-bind to explore more states
+
+    // Cleanup
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

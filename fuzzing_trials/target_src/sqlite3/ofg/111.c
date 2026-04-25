@@ -1,55 +1,81 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <sqlite3.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    const char *tail;
-    int op = 0; // Operation code, can vary depending on what you want to test
-    int resetFlag = 0; // Reset flag, can be 0 or 1
+    // Create in-memory databases for source and destination
+    sqlite3 *srcDb = NULL;
+    sqlite3 *destDb = NULL;
+    sqlite3_backup *backup = NULL;
 
-    // Open a temporary in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open an in-memory source database
+    if (sqlite3_open(":memory:", &srcDb) != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a simple SQL statement using the input data
-    // Ensure that the input data is a null-terminated string
-    char *sql = NULL;
-    if (size > 0) {
-        sql = (char *)malloc(size + 1);
-        if (!sql) {
-            sqlite3_close(db);
-            return 0;
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the input data
-    } else {
-        sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    }
-
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &tail);
-    if (rc != SQLITE_OK) {
-        if (size > 0) {
-            free(sql);
-        }
-        sqlite3_close(db);
+    // Open an in-memory destination database
+    if (sqlite3_open(":memory:", &destDb) != SQLITE_OK) {
+        sqlite3_close(srcDb);
         return 0;
     }
 
-    // Call the function-under-test
-    int status = sqlite3_stmt_status(stmt, op, resetFlag);
+    // Initialize a backup object
+    backup = sqlite3_backup_init(destDb, "main", srcDb, "main");
+    if (backup) {
+        // Perform the backup step
+        sqlite3_backup_step(backup, -1);
 
-    // Clean up
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
-    if (size > 0) {
-        free(sql);
+        // Get the number of remaining pages to be backed up
+        int remaining = sqlite3_backup_remaining(backup);
+
+        // Finish the backup
+        sqlite3_backup_finish(backup);
     }
+
+    // Close the databases
+    sqlite3_close(srcDb);
+    sqlite3_close(destDb);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_111(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

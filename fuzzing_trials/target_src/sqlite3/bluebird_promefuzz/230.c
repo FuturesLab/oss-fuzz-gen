@@ -1,87 +1,131 @@
-#include <stdint.h>
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <stdio.h>
-#include "sqlite3.h"
-#include <stdint.h>
-#include <string.h>
 #include <stdio.h>
 
-static void fuzz_sqlite3_error_offset(sqlite3 *db) {
-    int offset = sqlite3_error_offset(db);
-    (void)offset; // Suppress unused variable warning
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
-static void fuzz_sqlite3_keyword_check(const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        int isKeyword = sqlite3_keyword_check((const char *)Data, (int)Size);
-        (void)isKeyword; // Suppress unused variable warning
-    }
-}
-
-static void fuzz_sqlite3_column_blob(sqlite3_stmt *stmt, int iCol) {
-    const void *blob = sqlite3_column_blob(stmt, iCol);
-    (void)blob; // Suppress unused variable warning
-}
-
-static void fuzz_sqlite3_column_type(sqlite3_stmt *stmt, int iCol) {
-    int colType = sqlite3_column_type(stmt, iCol);
-    (void)colType; // Suppress unused variable warning
-}
-
-static void fuzz_sqlite3_keyword_name(int index) {
-    const char *keyword;
-    int length;
-    int result = sqlite3_keyword_name(index, &keyword, &length);
-    (void)result; // Suppress unused variable warning
-    (void)keyword;
-    (void)length;
-}
-
-int LLVMFuzzerTestOneInput_230(const uint8_t *Data, size_t Size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-
-    // Open a temporary in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+int LLVMFuzzerTestOneInput_230(const unsigned char *Data, size_t Size) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Prepare a dummy SQL statement
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value BLOB);";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc == SQLITE_OK) {
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
+    // Ensure null-terminated SQL input
+    char *sql = (char *)malloc(Size + 1);
+    if (!sql) {
+        return 0;
+    }
+    memcpy(sql, Data, Size);
+    sql[Size] = '\0';
+
+    // Initialize variables
+    sqlite3 *db = NULL;
+    sqlite3 *backupDb = NULL;
+    sqlite3_backup *backup = NULL;
+    char *errMsg = NULL;
+    int rc;
+
+    // Prepare filename
+    char filename[256];
+    snprintf(filename, sizeof(filename), "./dummy_file_%zu", Size);
+
+    // Open a database connection
+    const char amvzptky[1024] = "dxxvg";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(amvzptky, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK || db == NULL) {
+        free(sql);
+        return 0;
     }
 
-    // Fuzz various functions
-    fuzz_sqlite3_error_offset(db);
-    fuzz_sqlite3_keyword_check(Data, Size);
+    // Execute some SQL
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
+        sqlite3_free(errMsg);
+    }
 
-    // Prepare another statement for column functions
-    sql = "SELECT * FROM test;";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc == SQLITE_OK) {
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-            fuzz_sqlite3_column_blob(stmt, 1);
-            fuzz_sqlite3_column_type(stmt, 1);
+    // Backup operation
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_exec to sqlite3_get_clientdata using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    void* ret_sqlite3_get_clientdata_ugbsn = sqlite3_get_clientdata(db, errMsg);
+    if (ret_sqlite3_get_clientdata_ugbsn == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    rc = sqlite3_open(":memory:", &backupDb);
+    if (rc == SQLITE_OK && backupDb != NULL) {
+        backup = sqlite3_backup_init(backupDb, "main", db, "main");
+        if (backup) {
+            while ((rc = sqlite3_backup_step(backup, 5)) == SQLITE_OK) {
+                // Do nothing, just step
+            }
+            sqlite3_backup_finish(backup);
+        
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_backup_finish to sqlite3_blob_read
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!backup) {
+            	return 0;
+            }
+            int ret_sqlite3_blob_read_kqeue = sqlite3_blob_read(NULL, (void *)backup, -1, 1);
+            if (ret_sqlite3_blob_read_kqeue < 0){
+            	return 0;
+            }
+            // End mutation: Producer.APPEND_MUTATOR
+            
+}
+        sqlite3_close(backupDb);
+    }
+
+    // Deserialize operation
+    unsigned char *serializedData;
+    sqlite3_int64 serializedSize;
+    serializedData = sqlite3_serialize(db, "main", &serializedSize, 0);
+    if (serializedData) {
+        rc = sqlite3_deserialize(db, "main", serializedData, serializedSize, serializedSize, 0);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(serializedData);
         }
-        sqlite3_finalize(stmt);
-    }
-
-    // Fuzz keyword name function with a simple loop
-    int keywordCount = sqlite3_keyword_count();
-    for (int i = 0; i < keywordCount; ++i) {
-        fuzz_sqlite3_keyword_name(i);
-    }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_deserialize to sqlite3_uri_parameter
+        char* ret_sqlite3_str_value_tcxcj = sqlite3_str_value(NULL);
+        if (ret_sqlite3_str_value_tcxcj == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_str_value_tcxcj) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!serializedData) {
+        	return 0;
+        }
+        const char* ret_sqlite3_uri_parameter_kqnez = sqlite3_uri_parameter(ret_sqlite3_str_value_tcxcj, (const char *)serializedData);
+        if (ret_sqlite3_uri_parameter_kqnez == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
     // Close the database connection
     sqlite3_close(db);
+
+    // Free allocated memory
+    free(sql);
 
     return 0;
 }

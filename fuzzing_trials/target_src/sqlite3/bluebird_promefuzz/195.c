@@ -1,106 +1,76 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static sqlite3 *initialize_database() {
-    sqlite3 *db;
-    const char jmuhnxrz[1024] = "zektw";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open(jmuhnxrz, &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        return NULL;
-    }
-    return db;
-}
-
-static sqlite3_stmt *prepare_statement(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return NULL;
-    }
-    return stmt;
+static int dummy_compare(void *pArg, int len1, const void *str1, int len2, const void *str2) {
+    return 0; // Dummy comparison function
 }
 
 int LLVMFuzzerTestOneInput_195(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 2) return 0;
+
+    // Initialize variables
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    const void *tail = NULL;
+
+    // Create a UTF-16 encoded dummy database filename
+    char dbname[] = "./dummy_file";
+    void *utf16_dbname = malloc(sizeof(dbname) * 2);
+    if (!utf16_dbname) return 0;
+    for (size_t i = 0; i < sizeof(dbname); ++i) {
+        ((char *)utf16_dbname)[i * 2] = dbname[i];
+        ((char *)utf16_dbname)[i * 2 + 1] = 0;
     }
 
-    sqlite3 *db = initialize_database();
-    if (!db) {
+    // Open the database
+    if (sqlite3_open16(utf16_dbname, &db) != SQLITE_OK) {
+        free(utf16_dbname);
         return 0;
     }
+    free(utf16_dbname);
 
-    const char *sql = "CREATE TABLE IF NOT EXISTS fuzz (id INTEGER PRIMARY KEY, data BLOB);";
-    sqlite3_stmt *stmt = prepare_statement(db, sql);
-    if (!stmt) {
+    // Prepare a UTF-16 SQL statement
+    size_t sqlSize = Size > 100 ? 100 : Size;
+    void *utf16_sql = malloc((sqlSize + 1) * 2); // Allocate extra space for null terminator
+    if (!utf16_sql) {
         sqlite3_close(db);
         return 0;
     }
-
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_finalize to sqlite3_column_decltype
-    const char* ret_sqlite3_column_decltype_skjkq = sqlite3_column_decltype(stmt, -1);
-    if (ret_sqlite3_column_decltype_skjkq == NULL){
-    	return 0;
+    for (size_t i = 0; i < sqlSize; ++i) {
+        ((char *)utf16_sql)[i * 2] = Data[i];
+        ((char *)utf16_sql)[i * 2 + 1] = 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sql = "INSERT INTO fuzz (data) VALUES (?);";
-    stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
-    }
+    ((char *)utf16_sql)[sqlSize * 2] = 0; // Null terminator
+    ((char *)utf16_sql)[sqlSize * 2 + 1] = 0; // Null terminator
 
-    sqlite3_bind_blob(stmt, 1, Data, Size, SQLITE_TRANSIENT);
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
+    // Fuzz sqlite3_prepare16_v3
+    sqlite3_prepare16_v3(db, utf16_sql, sqlSize * 2, 0, &stmt, &tail);
+    if (stmt) sqlite3_finalize(stmt);
 
-    sql = "SELECT data FROM fuzz WHERE id = 1;";
-    stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
+    // Fuzz sqlite3_bind_text16
+    sqlite3_prepare16(db, utf16_sql, sqlSize * 2, &stmt, &tail);
+    if (stmt) {
+        sqlite3_bind_text16(stmt, 1, utf16_sql, sqlSize * 2, SQLITE_STATIC);
+        sqlite3_finalize(stmt);
     }
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        int bytes = sqlite3_column_bytes(stmt, 0);
-        const void *blob = sqlite3_column_blob(stmt, 0);
-        (void)blob;  // Use blob to avoid unused variable warning
+    // Fuzz sqlite3_create_collation16
+    sqlite3_create_collation16(db, utf16_sql, SQLITE_UTF16, NULL, dummy_compare);
 
-        bytes = sqlite3_column_bytes(stmt, 0);
-        blob = sqlite3_column_blob(stmt, 0);
-        (void)blob;  // Use blob to avoid unused variable warning
-    }
+    // Fuzz sqlite3_prepare16_v2
+    sqlite3_prepare16_v2(db, utf16_sql, sqlSize * 2, &stmt, &tail);
+    if (stmt) sqlite3_finalize(stmt);
 
-    int isExplain = sqlite3_stmt_isexplain(stmt);
-    (void)isExplain;  // Use isExplain to avoid unused variable warning
-
-    int resetResult = sqlite3_reset(stmt);
-    (void)resetResult;  // Use resetResult to avoid unused variable warning
-
-    int stepResult = sqlite3_step(stmt);
-    (void)stepResult;  // Use stepResult to avoid unused variable warning
-
-    const char *errMsg = sqlite3_errmsg(db);
-    (void)errMsg;  // Use errMsg to avoid unused variable warning
-
-    errMsg = sqlite3_errmsg(db);
-    (void)errMsg;  // Use errMsg to avoid unused variable warning
-
-    sqlite3_finalize(stmt);
+    // Cleanup
+    free(utf16_sql);
     sqlite3_close(db);
 
     return 0;
