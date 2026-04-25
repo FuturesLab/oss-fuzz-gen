@@ -4,7 +4,7 @@ import re
 import subprocess as sp
 
 
-RE = re.compile(r"multiple definition of `(.*)'")
+RE = re.compile(r"multiple definition of `([^(`]+)")
 
 def extract_multiple_defs(build_log: str) -> list[str]:
     with open(build_log, "r") as f:
@@ -27,6 +27,8 @@ if __name__ == "__main__":
             pattern,
             f"fuzzing_trials/target_src/{library_name}/{appr}"
         ]
+
+        print(" ".join(find_definitions_cmd))
 
         proc = sp.run(find_definitions_cmd, stdout=sp.PIPE, stderr=sp.PIPE, text=True)
 
