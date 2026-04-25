@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -5,61 +6,110 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "zlib.h"
 
-static void initialize_stream(z_streamp strm) {
-    memset(strm, 0, sizeof(z_stream));
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
-    deflateInit(strm, Z_DEFAULT_COMPRESSION);
-}
-
-static void cleanup_stream(z_streamp strm) {
-    deflateEnd(strm);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    z_stream strm;
-    initialize_stream(&strm);
+    // Prepare the dummy file with the provided data
+    write_dummy_file(Data, Size);
 
-    // Setup a dummy gzip header
-    gz_header header;
-    memset(&header, 0, sizeof(gz_header));
-    header.text = 1;
-    deflateSetHeader(&strm, &header);
+    // Open the file for writing in gzip format
+    gzFile gz_file = gzopen("./dummy_file", "wb");
+    if (gz_file == NULL) {
+        return 0;
+    }
 
-    // Fuzz deflateParams
-    int level = Data[0] % 10;  // zlib supports levels 0-9
-    int strategy = Data[0] % 5; // assuming 5 different strategies
-    deflateParams(&strm, level, strategy);
+    // Use gzputc to write a character
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzputc with gzflush
 
-    // Fuzz deflatePending
-    unsigned pending;
-    int bits;
-    deflatePending(&strm, &pending, &bits);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gzopen to gzungetc
+    unsigned long ret_inflateCodesUsed_kbqjb = inflateCodesUsed(0);
+    if (ret_inflateCodesUsed_kbqjb < 0){
+    	return 0;
+    }
+    int ret_gzungetc_jffmz = gzungetc((int )ret_inflateCodesUsed_kbqjb, gz_file);
+    if (ret_gzungetc_jffmz < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    gzflush(gz_file, Data[0]);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-    // Fuzz deflateCopy
-    z_stream dest_strm;
-    initialize_stream(&dest_strm);
-    deflateCopy(&dest_strm, &strm);
+    // Use gzputs to write a string (ensure null-termination)
+    char str[256];
+    size_t str_len = (Size < 255) ? Size : 255;
+    memcpy(str, Data, str_len);
+    str[str_len] = '\0';
+    gzputs(gz_file, str);
 
-    // Fuzz deflateUsed
-    int used_bits;
-    deflateUsed(&strm, &used_bits);
+    // Check for errors
+    int errnum;
+    gzerror(gz_file, &errnum);
 
-    // Fuzz deflateTune
-    int good_length = Data[0] % 258; // max good length
-    int max_lazy = Data[0] % 258; // max lazy length
-    int nice_length = Data[0] % 258; // max nice length
-    int max_chain = Data[0] % 4096; // max chain length
-    deflateTune(&strm, good_length, max_lazy, nice_length, max_chain);
+    // Use gzprintf to write formatted data
+    gzprintf(gz_file, "Formatted data: %d\n", Data[0]);
 
-    cleanup_stream(&strm);
-    cleanup_stream(&dest_strm);
+    // Check for errors again
+    gzerror(gz_file, &errnum);
+
+    // Seek to the beginning of the file
+    gzseek(gz_file, 0, SEEK_SET);
+
+    // Close the file
+    gzclose(gz_file);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

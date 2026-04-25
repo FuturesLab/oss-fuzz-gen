@@ -1,34 +1,84 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include "zlib.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Initialize the z_stream structure
-    z_stream stream;
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
+    // Ensure the data is null-terminated for use as a string
+    if (size == 0) return 0;
 
-    // Initialize the deflate process
-    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+    // Create a temporary file to use with gzopen
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Ensure the size is sufficient for two integers
-    if (size < 2 * sizeof(int)) {
-        deflateEnd(&stream);
+    // Open the temporary file with gzopen
+    gzFile file = gzdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
         return 0;
     }
 
-    // Extract two integers from the input data
-    int level = ((int *)data)[0];
-    int strategy = ((int *)data)[1];
+    // Ensure the data is null-terminated for use as a string
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        gzclose(file);
+        return 0;
+    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
     // Call the function-under-test
-    deflateParams(&stream, level, strategy);
+    gzputs(file, null_terminated_data);
 
-    // Clean up the deflate process
-    deflateEnd(&stream);
+    // Clean up
+    free(null_terminated_data);
+    gzclose(file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

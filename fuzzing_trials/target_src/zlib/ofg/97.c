@@ -1,38 +1,77 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <zlib.h>
-#include <unistd.h>  // Include this for close() and unlink()
+#include <unistd.h> // Include for mkstemp and close
 
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    gzFile file;
-    int flush_mode = Z_SYNC_FLUSH; // Use a valid flush mode
-
-    // Create a temporary file to use with gzopen
-    char filename[] = "/tmp/fuzz_gzfileXXXXXX";
-    int fd = mkstemp(filename);
+    // Create a temporary file to simulate a gzFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Open the file with gzopen
-    file = gzdopen(fd, "wb");
-    if (file == NULL) {
+    // Open the temporary file with gzopen
+    gzFile gzfile = gzdopen(fd, "wb");
+    if (gzfile == NULL) {
         close(fd);
         return 0;
     }
 
     // Write the input data to the gzFile
-    if (gzwrite(file, data, size) != (int)size) {
-        gzclose(file);
+    if (gzwrite(gzfile, data, size) == 0) {
+        gzclose(gzfile);
         return 0;
     }
 
-    // Call the function-under-test
-    gzflush(file, flush_mode);
+    // Call gzflush with a non-NULL gzFile and a valid flush parameter
+    int flush = Z_SYNC_FLUSH; // Use a valid flush option
+    gzflush(gzfile, flush);
 
-    // Clean up
-    gzclose(file);
-    unlink(filename);
+    // Close the gzFile
+    gzclose(gzfile);
+
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_97(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

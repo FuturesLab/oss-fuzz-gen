@@ -1,102 +1,103 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include "fcntl.h"
-#include "unistd.h"
+#include <string.h>
 #include "zlib.h"
 
-static void fuzz_gzdopen(const uint8_t *Data, size_t Size) {
-    int fd = open("./dummy_file", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-    if (fd < 0) return;
-
-    // Ensure the mode string is null-terminated and reasonable
-    char mode[4] = "r";
-    if (Size > 0) {
-        mode[0] = Data[0] % 3 == 0 ? 'r' : (Data[0] % 3 == 1 ? 'w' : 'a');
-    }
-    gzFile file = gzdopen(fd, mode);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
     if (file) {
-        gzclose(file);
-    } else {
-        close(fd);
-    }
-}
-
-static void fuzz_gzclearerr(gzFile file) {
-    gzclearerr(file);
-}
-
-static void fuzz_gzclose(gzFile file) {
-    gzclose(file);
-}
-
-static void fuzz_gzfwrite(gzFile file, const uint8_t *Data, size_t Size) {
-    size_t items_written = gzfwrite(Data, 1, Size, file);
-    (void)items_written; // Suppress unused variable warning
-}
-
-static void fuzz_gzread(gzFile file, size_t Size) {
-    uint8_t *buffer = (uint8_t *)malloc(Size);
-    if (buffer) {
-        gzread(file, buffer, Size);
-        free(buffer);
-    }
-}
-
-static void fuzz_gzfread(gzFile file, size_t Size) {
-    uint8_t *buffer = (uint8_t *)malloc(Size);
-    if (buffer) {
-        gzfread(buffer, 1, Size, file);
-        free(buffer);
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    int fd = open("./dummy_file", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-    if (fd < 0) return 0;
-
-    // Write the data to the dummy file
-    write(fd, Data, Size);
-    lseek(fd, 0, SEEK_SET);
-
-    // Fuzz gzdopen
-    fuzz_gzdopen(Data, Size);
-
-    // Rewind and open the file for reading
-    lseek(fd, 0, SEEK_SET);
-    gzFile file = gzdopen(fd, "r");
-    if (file) {
-        // Fuzz gzclearerr
-        fuzz_gzclearerr(file);
-
-        // Fuzz gzread
-        fuzz_gzread(file, Size);
-
-        // Fuzz gzfread
-        fuzz_gzfread(file, Size);
-
-        // Fuzz gzclose
-        fuzz_gzclose(file);
-    } else {
-        close(fd);
+    if (Size < 1) {
+        return 0;
     }
 
-    // Rewind and open the file for writing
-    lseek(fd, 0, SEEK_SET);
-    file = gzdopen(fd, "w");
-    if (file) {
-        // Fuzz gzfwrite
-        fuzz_gzfwrite(file, Data, Size);
+    // Prepare the dummy file with the provided data
+    write_dummy_file(Data, Size);
 
-        // Fuzz gzclose
-        fuzz_gzclose(file);
-    } else {
-        close(fd);
+    // Open the file for writing in gzip format
+    gzFile gz_file = gzopen("./dummy_file", "wb");
+    if (gz_file == NULL) {
+        return 0;
     }
+
+    // Use gzputc to write a character
+    gzputc(gz_file, Data[0]);
+
+    // Use gzputs to write a string (ensure null-termination)
+    char str[256];
+    size_t str_len = (Size < 255) ? Size : 255;
+    memcpy(str, Data, str_len);
+    str[str_len] = '\0';
+    gzputs(gz_file, str);
+
+    // Check for errors
+    int errnum;
+    gzerror(gz_file, &errnum);
+
+    // Use gzprintf to write formatted data
+    gzprintf(gz_file, "Formatted data: %d\n", Data[0]);
+
+    // Check for errors again
+    gzerror(gz_file, &errnum);
+
+    // Seek to the beginning of the file
+    gzseek(gz_file, 0, SEEK_SET);
+
+    // Close the file
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzclose with gzeof
+    gzeof(gz_file);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

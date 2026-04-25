@@ -1,28 +1,87 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include "inttypes.h" // Include for PRId64
+#include <stdlib.h>
 #include "zlib.h"
+#include <stdio.h>
+#include <unistd.h>  // Include this for the `write`, `close`, and `lseek` functions
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the parameters of adler32_combine
-    uLong adler1 = 1; // Initial value for Adler-32 checksum
-    uLong adler2 = 1; // Initial value for Adler-32 checksum
-    int64_t len2 = 0; // Length of the second data block
-
-    // Ensure the size is large enough to extract meaningful data
-    if (size >= sizeof(uLong) * 2 + sizeof(int64_t)) {
-        // Extract values from the input data
-        adler1 = *(const uLong *)data;
-        adler2 = *(const uLong *)(data + sizeof(uLong));
-        len2 = *(const int64_t *)(data + sizeof(uLong) * 2);
+    // Create a temporary file to be used by gzFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Call the function-under-test (using adler32_combine instead of adler32_combine64)
-    uLong result = adler32_combine(adler1, adler2, len2);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
 
-    // Print the result for debugging purposes
-    printf("adler32_combine result: %lu\n", result);
+    // Rewind the file descriptor to the beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Open the file with gzopen
+    gzFile file = gzdopen(fd, "rb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+
+    // Read from the gzFile to ensure data is being processed
+    char buffer[1024];
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of gzread
+    while (gzread(file, buffer, Z_STREAM_ERROR) > 0) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        // Process the data (in this case, we're just reading it)
+    }
+
+    // Clean up
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzclose with gzrewind
+    gzrewind(file);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // The file descriptor is closed by gzclose
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_52(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

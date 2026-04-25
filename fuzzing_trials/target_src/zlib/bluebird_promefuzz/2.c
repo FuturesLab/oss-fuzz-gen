@@ -1,15 +1,21 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 #include "zlib.h"
 
-static void setup_stream(z_streamp strm) {
-    memset(strm, 0, sizeof(z_stream));
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
@@ -17,66 +23,87 @@ int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    z_stream strm;
-    setup_stream(&strm);
+    // Prepare the dummy file with the provided data
+    write_dummy_file(Data, Size);
 
-    int level = Data[0] % 10; // Compression level [0-9]
-    int strategy = Data[0] % 5; // Strategy [0-4]
-    const char *version = ZLIB_VERSION;
-    int stream_size = (int)sizeof(z_stream);
-
-    // Initialize the stream
-    if (deflateInit_(&strm, level, version, stream_size) != Z_OK) {
+    // Open the file for writing in gzip format
+    const char wilfpfky[1024] = "kebot";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of gzopen
+    const char wdnnecjf[1024] = "ijoad";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of gzopen
+    gzFile gz_file = gzopen("./dummy_file", wdnnecjf);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (gz_file == NULL) {
         return 0;
     }
 
-    // Adjust compression parameters
-    if (Size > 1) {
-        deflateParams(&strm, Data[1] % 10, Data[1] % 5);
-    }
-
-    // Tune compression parameters
-    if (Size > 5) {
-        deflateTune(&strm, Data[2], Data[3], Data[4], Data[5]);
-    }
-
-    // Reset the stream
-    deflateReset(&strm);
-
-    // Prepare a second stream for copying
-    z_stream dest;
-    setup_stream(&dest);
-    if (deflateInit_(&dest, level, version, stream_size) != Z_OK) {
-        deflateEnd(&strm);
-        return 0;
-    }
-
-    // Copy the stream
-    deflateCopy(&dest, &strm);
-
-    // Set up input and output buffers
-    Bytef input[1024];
-    Bytef output[1024];
-    strm.next_in = input;
-    strm.avail_in = 0;
-    strm.next_out = output;
-    strm.avail_out = sizeof(output);
-
-    // Compress data
-    if (Size > 6) {
-        strm.next_in = (Bytef *)Data;
-        strm.avail_in = Size;
-        deflate(&strm, Z_FINISH);
-    }
-
-    // Clean up
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function deflateEnd with deflateReset
-    deflateReset(&strm);
+    // Use gzputc to write a character
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzputc with gzflush
+    gzflush(gz_file, Data[0]);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
+    // Use gzputs to write a string (ensure null-termination)
+    char str[256];
+    size_t str_len = (Size < 255) ? Size : 255;
+    memcpy(str, Data, str_len);
+    str[str_len] = '\0';
+    gzputs(gz_file, str);
 
-    deflateEnd(&dest);
+    // Check for errors
+    int errnum;
+    gzerror(gz_file, &errnum);
+
+    // Use gzprintf to write formatted data
+    gzprintf(gz_file, "Formatted data: %d\n", Data[0]);
+
+    // Check for errors again
+    gzerror(gz_file, &errnum);
+
+    // Seek to the beginning of the file
+    gzseek(gz_file, 0, SEEK_SET);
+
+    // Close the file
+    gzclose(gz_file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

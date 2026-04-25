@@ -1,25 +1,63 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <zlib.h> // Include the zlib header for the zError function
+#include <zlib.h>
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Initialize an integer variable to pass to zError
-    int errorCode = 0;
-
-    // Ensure that size is not zero to avoid accessing data[0] when data is empty
-    if (size > 0) {
-        // Use the first byte of data to set the errorCode
-        errorCode = (int)data[0];
+    if (size < sizeof(int)) {
+        return 0;
     }
 
-    // Call the zError function with the errorCode
+    // Extract an int from the data
+    int errorCode = *(const int *)data;
+
+    // Call the function-under-test
     const char *errorString = zError(errorCode);
 
-    // To avoid unused variable warning, you can print the errorString
-    // or handle it in some way. Here, we'll just ensure it's not null.
-    if (errorString != NULL) {
-        // Do something with errorString if needed
+    // Use the result to prevent compiler optimizations
+    if (errorString) {
+        // Do something with errorString to ensure it's not optimized away
+        volatile char dummy = errorString[0];
+        (void)dummy;
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,40 +1,66 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <zlib.h>
-#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_108(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function call
-    z_stream stream;
-    const char *version = ZLIB_VERSION;
-    int stream_size = sizeof(z_stream);
+    int error_code;
 
-    // Initialize the z_stream structure
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = (uInt)size;
-
-    // Allocate an output buffer
-    uInt output_buffer_size = 1024; // Arbitrary size for the output buffer
-    Bytef *output_buffer = (Bytef *)malloc(output_buffer_size);
-    if (output_buffer == NULL) {
-        return 0; // If allocation fails, exit the function
+    // Ensure that size is at least 4 bytes to safely read an int
+    if (size < sizeof(int)) {
+        return 0;
     }
-    stream.next_out = output_buffer;
-    stream.avail_out = output_buffer_size;
+
+    // Interpret the first 4 bytes of data as an int
+    error_code = *(int*)data;
 
     // Call the function-under-test
-    int init_result = inflateInit_(&stream, version, stream_size);
-    if (init_result == Z_OK) {
-        // Inflate the input data
-        inflate(&stream, Z_NO_FLUSH);
-    }
+    const char *error_message = zError(error_code);
 
-    // Cleanup
-    inflateEnd(&stream);
-    free(output_buffer);
+    // Use the error_message in some way to ensure it is not optimized away
+    if (error_message != NULL) {
+        // Just a dummy operation to use error_message
+        volatile const char *dummy = error_message;
+        (void)dummy;
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_108(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

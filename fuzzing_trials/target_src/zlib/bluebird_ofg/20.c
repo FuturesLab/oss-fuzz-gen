@@ -1,48 +1,77 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include "zlib.h"
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h> // Include unistd.h for close() and mkstemp()
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    z_stream stream;
-    int ret;
-    unsigned char out[1024];  // Output buffer for deflate
+    // Define and initialize parameters for gzfwrite
+    void *voidpc = (void *)data;
+    z_size_t itemsize = size > 0 ? 1 : 0; // Ensure itemsize is non-zero if size is non-zero
+    z_size_t nitems = size / itemsize; // Calculate number of items
+    gzFile gzfile;
 
-    // Initialize the z_stream structure
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-
-    // Initialize the deflate stream
-    ret = deflateInit(&stream, Z_DEFAULT_COMPRESSION);
-    if (ret != Z_OK) {
-        return 0;
+    // Create a temporary file to use with gzopen
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If file creation fails, exit early
     }
 
-    // Set the input data for the stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = (uInt)size;
-
-    // Set the output buffer for the stream
-    stream.next_out = out;
-    stream.avail_out = sizeof(out);
-
-    // Perform a deflate operation
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of deflate
-    ret = deflate(&stream, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret != Z_STREAM_END && ret != Z_OK) {
-        deflateEnd(&stream);
-        return 0;
+    // Open the temporary file with gzopen
+    gzfile = gzdopen(fd, "wb");
+    if (gzfile == NULL) {
+        close(fd);
+        return 0; // If gzopen fails, exit early
     }
 
-    // Reset the stream while keeping the state
-    ret = deflateResetKeep(&stream);
+    // Call the function-under-test
+    gzfwrite(voidpc, itemsize, nitems, gzfile);
 
     // Clean up
-    deflateEnd(&stream);
+    gzclose(gzfile);
+    remove(tmpl); // Remove the temporary file
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
