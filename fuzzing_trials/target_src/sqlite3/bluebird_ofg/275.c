@@ -1,43 +1,59 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_275(const uint8_t *data, size_t size) {
-    // Initialize SQLite
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0;
-    }
-
-    // Create an in-memory database
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
-        return 0;
-    }
+    char *errMsg = 0;
+    int rc;
 
-    // Prepare a SQL statement
-    sqlite3_stmt *stmt;
-    const char *sql = (const char *)data;
-    if (sqlite3_prepare_v2(db, sql, size, &stmt, NULL) != SQLITE_OK) {
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if(rc) {
         sqlite3_close(db);
-        sqlite3_shutdown();
         return 0;
     }
 
-    // Execute the SQL statement
-    sqlite3_step(stmt);
+    // Convert the fuzz input into a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Finalize the statement
-    sqlite3_finalize(stmt);
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Close the database connection
+    // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_stricmp
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_log
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    sqlite3_log(1, errMsg);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_sqlite3_stricmp_ahuyy = sqlite3_stricmp((const char *)"r", errMsg);
+    if (ret_sqlite3_stricmp_ahuyy < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
+    free(sql);
     sqlite3_close(db);
 
-    // Shutdown SQLite
-    sqlite3_shutdown();
-
-    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
 #ifdef INC_MAIN

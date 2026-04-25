@@ -1,52 +1,62 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = NULL;
-    char **result;
-    int rows, columns;
+    char *errMsg = 0;
     int rc;
 
-    // Create a copy of the input data and ensure it is null-terminated
-    char *sqlQuery = (char *)malloc(size + 1);
-    if (sqlQuery == NULL) {
-        return 0;
-    }
-    memcpy(sqlQuery, data, size);
-    sqlQuery[size] = '\0';
-
-    // Open a connection to an in-memory database
+    // Open a temporary in-memory database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        free(sqlQuery);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Execute the SQL query using sqlite3_get_table
-    rc = sqlite3_get_table(db, sqlQuery, &result, &rows, &columns, &errMsg);
+    // Ensure the SQL statement is null-terminated
 
-    // Free the result table
-    if (result != NULL) {
-        sqlite3_free_table(result);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open16
+    char iiroqjrv[1024] = "vhgjg";
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
+    int ret_sqlite3_open16_xonwp = sqlite3_open16(iiroqjrv, &db);
+    if (ret_sqlite3_open16_xonwp < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Free the error message if it was set
-    if (errMsg != NULL) {
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
 
-    // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_close_v2
-    sqlite3_close_v2(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    // Free the allocated SQL query
-    free(sqlQuery);
+    // Clean up
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

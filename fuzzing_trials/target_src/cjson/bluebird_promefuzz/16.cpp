@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,61 +9,108 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
 #include "../cJSON.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
+    if (Size == 0) {
         return 0;
-    } // Not enough data
+    }
 
-    // Create a JSON object from the input data
-    cJSON *json = cJSON_ParseWithLength((const char*)Data, Size);
-    if (json == nullptr) {
+    // Prepare a buffer with null-terminated string
+    char *buffer = new char[Size + 1];
+    memcpy(buffer, Data, Size);
+    buffer[Size] = '\0';
+
+    // Create a string cJSON item
+    cJSON *stringItem1 = cJSON_CreateString(buffer);
+    if (!stringItem1) {
+        delete[] buffer;
         return 0;
-    } // Failed to parse JSON
-
-    // Extract a key from the input data
-    size_t keyLength = Data[0] % (Size - 1) + 1; // Ensure non-zero key length
-    char *key = new char[keyLength + 1];
-    memcpy(key, Data + 1, keyLength);
-    key[keyLength] = '\0';
-
-    // Create a new item to replace in the JSON object
-    cJSON *newItem = cJSON_CreateString("new_value");
-
-    // Invoke target API functions
-    cJSON_DeleteItemFromObjectCaseSensitive(json, key);
-    cJSON *detachedItem = cJSON_DetachItemFromObject(json, key);
-    cJSON_bool hasItem = cJSON_HasObjectItem(json, key);
-    cJSON_bool replaceResult = cJSON_ReplaceItemInObject(json, key, newItem);
-    cJSON *detachedItemCaseSensitive = cJSON_DetachItemFromObjectCaseSensitive(json, key);
-    cJSON_DeleteItemFromObject(json, key);
-
-    // Clean up
-    cJSON_Delete(json);
-    if (detachedItem) {
-        cJSON_Delete(detachedItem);
     }
-    if (detachedItemCaseSensitive) {
-        cJSON_Delete(detachedItemCaseSensitive);
+
+    // Create a JSON array
+    cJSON *jsonArray = cJSON_CreateArray();
+    if (!jsonArray) {
+        cJSON_Delete(stringItem1);
+        delete[] buffer;
+        return 0;
     }
-    if (!replaceResult) {
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Delete to cJSON_GetObjectItemCaseSensitive
+    // Create additional string items
+    cJSON *stringItem2 = cJSON_CreateString(buffer);
+    cJSON *stringItem3 = cJSON_CreateString(buffer);
+    cJSON *stringItem4 = cJSON_CreateString(buffer);
 
-        cJSON* ret_cJSON_GetObjectItemCaseSensitive_crdnq = cJSON_GetObjectItemCaseSensitive(detachedItem, NULL);
-        if (ret_cJSON_GetObjectItemCaseSensitive_crdnq == NULL){
-        	return 0;
-        }
+    // Initialize hooks with default (NULL)
+    cJSON_Hooks hooks = { nullptr, nullptr };
+    cJSON_InitHooks(&hooks);
 
-        // End mutation: Producer.APPEND_MUTATOR
+    // Delete the first string item
+    cJSON_Delete(stringItem1);
 
-        cJSON_Delete(newItem);
-    }// Free newItem if it wasn't used
-    delete[] key;
+    // Get the size of the array (should be 0 initially)
+    int arraySize = cJSON_GetArraySize(jsonArray);
+
+    // Add string items to the array
+    if (stringItem2) {
+        cJSON_AddItemToArray(jsonArray, stringItem2);
+    }
+    if (stringItem3) {
+        cJSON_AddItemToArray(jsonArray, stringItem3);
+    }
+
+    // Create a new JSON object and add a string item to it
+    cJSON *jsonObject = cJSON_CreateObject();
+    if (jsonObject && stringItem4) {
+        cJSON_AddItemToObject(jsonObject, "key", stringItem4);
+    }
+
+    // Cleanup
+    cJSON_Delete(jsonArray);
+    cJSON_Delete(jsonObject);
+    delete[] buffer;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,33 +1,63 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <cstdio>
+#include <cstddef>
+#include <cstdint>
+#include <string>
 #include "/src/json-c/json_object.h"
-#include "/src/json-c/json_util.h"  // Include the header file, not the source file
 
 extern "C" int LLVMFuzzerTestOneInput_100(const uint8_t *data, size_t size) {
-    // Create a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Initialize FuzzedDataProvider with the input data
+    FuzzedDataProvider fuzzed_data(data, size);
 
-    // Write the fuzzing data to the temporary file
-    write(fd, data, size);
+    // Create a json_object
+    json_object *jobj = json_object_new_object();
 
-    // Reset the file offset to the beginning
-    lseek(fd, 0, SEEK_SET);
+    // Consume a random length string from the fuzzed data
+    std::string str = fuzzed_data.ConsumeRandomLengthString();
 
     // Call the function-under-test
-    struct json_object *obj = json_object_from_fd(fd);
+    json_object_set_string(jobj, str.c_str());
 
-    // Clean up
-    if (obj) {
-        json_object_put(obj);
-    }
-    close(fd);
-    unlink(tmpl);
+    // Decrement the reference count for the json_object
+    json_object_put(jobj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_100(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

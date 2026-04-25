@@ -1,50 +1,86 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size); /* required by C89 */
-
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-  cJSON *json;
-  cJSON *result;
-  char *key;
-  cJSON_bool value;
+    if (size < 2) {
+        return 0;
+    }
 
-  // Ensure there is enough data for a key and a boolean value
-  if (size < 2) return 0;
+    // Create a root JSON object
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL) {
+        return 0;
+    }
 
-  // Create a new JSON object
-  json = cJSON_CreateObject();
-  if (json == NULL) return 0;
+    // Use the first byte of data to determine the boolean value
+    cJSON_bool bool_value = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
 
-  // Use the first byte as a boolean value
-  value = (data[0] % 2 == 0) ? cJSON_False : cJSON_True;
+    // Use the remaining data as a key, ensuring it is null-terminated
+    size_t key_length = size - 1;
+    char *key = (char *)malloc(key_length + 1);
+    if (key == NULL) {
+        cJSON_Delete(root);
+        return 0;
+    }
+    memcpy(key, data + 1, key_length);
+    key[key_length] = '\0';
 
-  // Use the rest of the data as a key
-  key = (char *)malloc(size);
-  if (key == NULL) {
-    cJSON_Delete(json);
+    // Call the function-under-test
+    cJSON *result = cJSON_AddBoolToObject(root, key, bool_value);
+
+    // Clean up
+    free(key);
+    cJSON_Delete(root);
+
     return 0;
-  }
-  memcpy(key, data + 1, size - 1);
-  key[size - 1] = '\0'; // Ensure null-termination
-
-  // Call the function-under-test
-  result = cJSON_AddBoolToObject(json, key, value);
-
-  // Clean up
-  free(key);
-  cJSON_Delete(json);
-
-  return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_75(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

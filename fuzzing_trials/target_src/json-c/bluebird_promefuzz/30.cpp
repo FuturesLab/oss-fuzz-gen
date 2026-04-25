@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,65 +9,114 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include "/src/json-c/linkhash.h"
-#include "json.h"
-
-static unsigned long simple_hash_fn(const void *k) {
-    // A simple hash function for demonstration purposes
-    const char *str = static_cast<const char *>(k);
-    unsigned long hash = 5381;
-    int c;
-    while ((c = *str++))
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
-    return hash;
-}
-
-static int simple_equal_fn(const void *k1, const void *k2) {
-    return strcmp(static_cast<const char *>(k1), static_cast<const char *>(k2)) == 0;
-}
+#include "/src/json-c/json_util.h"
+#include "/src/json-c/json_object.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(unsigned long) + sizeof(unsigned) + 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    struct lh_table *table = lh_table_new(16, NULL, simple_hash_fn, simple_equal_fn);
-    if (!table) {
+    // Ensure Data is null-terminated before passing to json_tokener_parse
+    std::vector<uint8_t> data_with_null(Data, Data + Size);
+    data_with_null.push_back('\0');
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function json_tokener_parse with json_object_from_file
+    struct json_object *obj = json_object_from_file((const char*)data_with_null.data());
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (!obj) {
         return 0;
     }
 
-    // Ensure null-terminated string for key
-    size_t key_length = Size - sizeof(unsigned long) - sizeof(unsigned);
-    std::string key_str(reinterpret_cast<const char*>(Data), key_length);
-    const void *key = key_str.c_str();
-    const void *value = key_str.c_str(); // Using key_str for both key and value for simplicity
+    // Test json_object_to_file_ext
+    const char *filename = "./dummy_file";
+    int flags = 0;
+    int ret = json_object_to_file_ext(filename, obj, flags);
+    if (ret == -1) {
+        std::cerr << "json_object_to_file_ext failed: " << json_util_get_last_err() << std::endl;
+    }
 
-    unsigned long hash = *reinterpret_cast<const unsigned long*>(Data + key_length);
-    unsigned opts = *reinterpret_cast<const unsigned*>(Data + key_length + sizeof(unsigned long));
+    // Test json_object_to_fd
+    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd != -1) {
+        ret = json_object_to_fd(fd, obj, flags);
+        if (ret == -1) {
+            std::cerr << "json_object_to_fd failed: " << json_util_get_last_err() << std::endl;
+        }
+        close(fd);
+    }
 
-    // Fuzz lh_table_insert_w_hash
-    lh_table_insert_w_hash(table, key, value, hash, opts);
+    // Test json_object_object_get_ex
+    struct json_object *value = nullptr;
+    const char *key = "key";
+    int found = json_object_object_get_ex(obj, key, &value);
+    if (found) {
+        // Do something with value if needed
+    }
 
-    // Fuzz json_global_set_string_hash
-    int hash_type = *reinterpret_cast<const int*>(Data);
-    json_global_set_string_hash(hash_type);
+    // Test json_object_to_json_string_ext
+    const char *json_str_ext = json_object_to_json_string_ext(obj, flags);
+    if (json_str_ext) {
+        // Do something with json_str_ext if needed
+    }
 
-    // Fuzz lh_table_lookup_ex
-    void *retrieved_value = nullptr;
-    lh_table_lookup_ex(table, key, &retrieved_value);
+    // Test json_object_to_json_string_length
+    size_t length = 0;
+    const char *json_str_length = json_object_to_json_string_length(obj, flags, &length);
+    if (json_str_length) {
+        // Do something with json_str_length if needed
+    }
 
-    // Fuzz lh_table_length
-    int length = lh_table_length(table);
+    // Test json_object_to_json_string
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function json_object_to_json_string with json_object_get_string
+    const char *json_str = json_object_get_string(obj);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (json_str) {
+        // Do something with json_str if needed
+    }
 
-    // Fuzz lh_table_delete
-    lh_table_delete(table, key);
-
-    // Fuzz lh_table_insert
-    lh_table_insert(table, key, value);
-
-    lh_table_free(table);
+    json_object_put(obj);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

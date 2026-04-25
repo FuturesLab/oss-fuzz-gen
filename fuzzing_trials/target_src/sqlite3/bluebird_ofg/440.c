@@ -1,52 +1,47 @@
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
 #include <string.h>
-
-// Define a sample authorizer callback function
-int authorizer_callback_440(void *pArg, int action, const char *detail1, const char *detail2, const char *detail3, const char *detail4) {
-    // For fuzzing purposes, return SQLITE_OK to allow all actions
-    return SQLITE_OK;
-}
 
 int LLVMFuzzerTestOneInput_440(const uint8_t *data, size_t size) {
     sqlite3 *db;
     int rc;
-    char *errMsg = 0;
-
-    // Open a new in-memory SQLite database
-    const char miyemiam[1024] = "cbxtc";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(miyemiam, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    
+    // Open a new in-memory database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Set the authorizer with the callback function
-    rc = sqlite3_set_authorizer(db, authorizer_callback_440, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // If there's data, execute it as SQL
+    if (size > 0) {
+        char *errMsg = 0;
+        
+        // Ensure the data is null-terminated before passing it to sqlite3_exec
+        char *sql = (char *)malloc(size + 1);
+        if (sql == NULL) {
+            sqlite3_close(db);
+            return 0;
+        }
+        memcpy(sql, data, size);
+        sql[size] = '\0';
+
+        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+        if (errMsg) {
+            sqlite3_free(errMsg);
+        }
+
+        free(sql);
     }
 
-    // Ensure the input data is null-terminated before using it as an SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Call the function-under-test
+    int errcode = sqlite3_errcode(db);
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+    // Use the errcode in some way to avoid unused variable warning
+    (void)errcode;
 
-    // Clean up
-    free(sql);
+    // Close the database
     sqlite3_close(db);
 
     return 0;

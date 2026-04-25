@@ -1,33 +1,59 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>  // Include the necessary header for memset
+#include <vpx/vpx_decoder.h>
 
 extern "C" {
-    #include <vpx/vpx_decoder.h>
-    #include <vpx/vp8dx.h>
+    vpx_codec_iface_t * vpx_codec_vp8_dx();
 }
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Declare and initialize all necessary variables
-    vpx_codec_ctx_t codec_ctx;
-    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
-    vpx_codec_dec_cfg_t dec_cfg;
-    vpx_codec_flags_t flags = 0;
-    int ver = VPX_DECODER_ABI_VERSION;
-
-    // Initialize the codec context to zero
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-
-    // Initialize the decoder configuration to zero
-    memset(&dec_cfg, 0, sizeof(dec_cfg));
-
     // Call the function-under-test
-    vpx_codec_err_t res = vpx_codec_dec_init_ver(&codec_ctx, iface, &dec_cfg, flags, ver);
+    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
 
-    // Clean up the codec context if it was initialized successfully
-    if (res == VPX_CODEC_OK) {
-        vpx_codec_destroy(&codec_ctx);
-    }
+    // The function vpx_codec_vp8_dx() does not take any parameters and returns a pointer to a codec interface.
+    // Since this function does not take any input from the fuzzer, we simply call it.
+
+    // Normally, further processing would be done here if needed.
+    // Since this function doesn't require any input and doesn't have side effects, there's nothing more to do.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,48 +1,84 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 #include "sqlite3.h"
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
+int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
+        return 0;
+    }
+    memcpy(query, data, size);
+    query[size] = '\0';
+
+    // Open an in-memory SQLite database
+    sqlite3 *db;
+    const char sicnesjp[1024] = "wnqtz";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
+        return 0;
+    }
+
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
+
+    // Clean up
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
-}
 
-int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-
-    // Open a new in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_backup_init
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
-
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
-
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_close
-        sqlite3_close(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    int ret_sqlite3_db_release_memory_mrudg = sqlite3_db_release_memory(db);
+    if (ret_sqlite3_db_release_memory_mrudg < 0){
+    	return 0;
     }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    const char* ret_sqlite3_errmsg_utwkp = sqlite3_errmsg(db);
+    if (ret_sqlite3_errmsg_utwkp == NULL){
+    	return 0;
+    }
+    void* ret_sqlite3_malloc_vupbv = sqlite3_malloc(size);
+    if (ret_sqlite3_malloc_vupbv == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_vupbv) {
+    	return 0;
+    }
+    sqlite3_backup* ret_sqlite3_backup_init_rpltm = sqlite3_backup_init(db, errMsg, db, (const char *)ret_sqlite3_malloc_vupbv);
+    if (ret_sqlite3_backup_init_rpltm == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_close(db);
+    free(query);
 
     return 0;
 }

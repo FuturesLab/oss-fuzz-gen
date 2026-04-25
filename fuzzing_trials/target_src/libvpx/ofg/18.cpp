@@ -1,40 +1,69 @@
-#include <cstdint>
-#include <cstdlib>
-
-extern "C" {
-    #include <vpx/vpx_codec.h>
-    #include <vpx/vpx_encoder.h>
-    #include <vpx/vp8cx.h> // Include the header where vpx_codec_vp8_cx is declared
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <vpx/vpx_decoder.h>
+#include <vpx/vp8dx.h>
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Initialize vpx_codec_ctx_t
-    vpx_codec_ctx_t codec_ctx;
-    vpx_codec_enc_cfg_t cfg;
-    vpx_codec_iface_t *iface = vpx_codec_vp8_cx();
+    // Initialize codec context
+    vpx_codec_ctx_t codec;
+    vpx_codec_err_t res;
+    
+    // Initialize codec interface
+    const vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
 
-    if (vpx_codec_enc_config_default(iface, &cfg, 0)) {
-        return 0; // Return if default config fails
+    // Initialize codec context with decoder interface
+    res = vpx_codec_dec_init(&codec, iface, NULL, 0);
+    if (res != VPX_CODEC_OK) {
+        return 0;
     }
 
-    if (vpx_codec_enc_init(&codec_ctx, iface, &cfg, 0)) {
-        return 0; // Return if codec initialization fails
+    // Ensure data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Decode the data
+        res = vpx_codec_decode(&codec, data, (unsigned int)size, NULL, 0);
     }
 
-    // Initialize vpx_fixed_buf_t
-    vpx_fixed_buf_t fixed_buf;
-    fixed_buf.buf = (void *)data;
-    fixed_buf.sz = size;
-
-    // Define arbitrary non-zero values for the unsigned int parameters
-    unsigned int pad_before = 1;
-    unsigned int pad_after = 1;
-
-    // Call the function under test
-    vpx_codec_err_t result = vpx_codec_set_cx_data_buf(&codec_ctx, &fixed_buf, pad_before, pad_after);
-
-    // Clean up
-    vpx_codec_destroy(&codec_ctx);
+    // Destroy codec context
+    vpx_codec_destroy(&codec);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

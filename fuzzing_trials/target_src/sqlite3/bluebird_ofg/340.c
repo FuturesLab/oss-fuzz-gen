@@ -1,54 +1,61 @@
-#include <stddef.h>  // For size_t
+#include <sys/stat.h>
+#include <stdint.h>
+#include "sqlite3.h"
 #include <stdlib.h>
-#include <sys/stat.h>  // For NULL
-#include <stdint.h>  // For uint8_t
-#include "sqlite3.h" // SQLite library
+#include <string.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+// Remove the 'extern "C"' linkage specification for C++ compatibility
 int LLVMFuzzerTestOneInput_340(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    int rc;
+    // Ensure data is not null and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Open a new SQLite database connection in memory
+        sqlite3 *db;
+        if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+            return 0; // Return if the database cannot be opened
+        }
 
-    // Initialize SQLite in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
+        // Prepare a dummy SQL statement to use for binding values
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT ?";
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+            sqlite3_close(db);
+            return 0; // Return if the statement cannot be prepared
+        }
 
-    // Create a simple table for testing
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, NULL);
-    if (rc != SQLITE_OK) {
+        // Bind the input data as a text value to the SQL statement
+        char *buffer = (char *)malloc(size + 1);
+        if (buffer == NULL) {
+            sqlite3_finalize(stmt);
+            sqlite3_close(db);
+            return 0; // Return if memory allocation fails
+        }
+        memcpy(buffer, data, size);
+        buffer[size] = '\0'; // Null-terminate the buffer
+
+        if (sqlite3_bind_text(stmt, 1, buffer, -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+            free(buffer);
+            sqlite3_finalize(stmt);
+            sqlite3_close(db);
+            return 0; // Return if binding fails
+        }
+
+        // Execute the statement
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            // Access the bound value
+            const unsigned char *text = sqlite3_column_text(stmt, 0);
+            (void)text; // Use the text value as needed
+        }
+
+        // Free the buffer as it is no longer needed
+        free(buffer);
+
+        // Clean up
+        sqlite3_finalize(stmt);
         sqlite3_close(db);
-        return 0;
     }
-
-    // Prepare a statement using the fuzzer input as SQL query
-    const char *sql = (const char *)data;
-    rc = sqlite3_prepare_v2(db, sql, (int)size, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        // Process the row if needed
-    }
-
-    // Clean up
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

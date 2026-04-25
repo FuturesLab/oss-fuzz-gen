@@ -1,28 +1,54 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>  // Include this for size_t
 #include <sqlite3.h>
 
 int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    sqlite3_str *str;
-    char *result;
-
-    // Initialize SQLite string object
-    str = sqlite3_str_new(NULL);
-
-    // Ensure data is not empty before appending to avoid unnecessary operations
-    if (size > 0) {
-        // Append the input data to the SQLite string object
-        sqlite3_str_append(str, (const char *)data, size);
-    } else {
-        // Append a default non-null string to ensure str is not NULL
-        sqlite3_str_append(str, "default", 7);
-    }
-
     // Call the function-under-test
-    result = sqlite3_str_value(str);
+    int result = sqlite3_initialize();
 
-    // Clean up
-    sqlite3_str_finish(str);
+    // The function sqlite3_initialize() does not take any parameters,
+    // so we do not need to use 'data' or 'size' in this case.
+    // The function is called to ensure it executes and is tested.
 
+    // Return the result from sqlite3_initialize()
+    return result;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_81(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

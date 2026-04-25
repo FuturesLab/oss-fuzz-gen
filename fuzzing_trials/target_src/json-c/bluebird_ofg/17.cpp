@@ -1,58 +1,81 @@
+#include <sys/stat.h>
 #include "fuzzer/FuzzedDataProvider.h"
-#include <cstdlib>
-#include <cstdio>
-#include <cstring>
-#include <unistd.h>
-#include <string>
 #include "/src/json-c/json_object.h"
-#include "/src/json-c/json_tokener.h"
-#include "/src/json-c/json_util.h" // Include the correct header for json_object_to_file
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Create a FuzzedDataProvider instance to extract data
-    FuzzedDataProvider fuzzed_data(data, size);
+  if (size < 1) return 0;
 
-    // Consume a string for the file path
-    std::string file_path = fuzzed_data.ConsumeRandomLengthString(20);
+  FuzzedDataProvider fuzzed_data(data, size);
 
-    // Ensure the file path is null-terminated
-    if (file_path.empty()) {
-        return 0;
-    }
+  // Create a json_object array
+  size_t array_size = fuzzed_data.ConsumeIntegralInRange<size_t>(1, 10);
+  struct json_object *json_array = json_object_new_array();
+  for (size_t i = 0; i < array_size; ++i) {
+    int value = fuzzed_data.ConsumeIntegral<int>();
+    struct json_object *jint = json_object_new_int(value);
+    json_object_array_add(json_array, jint);
+  }
 
-    // Create a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    close(fd);
+  // Create a json_object key to search for
+  int search_key_value = fuzzed_data.ConsumeIntegral<int>();
+  struct json_object *search_key = json_object_new_int(search_key_value);
 
-    // Consume a boolean to decide whether to use a valid json_object
-    bool use_valid_json = fuzzed_data.ConsumeBool();
-    struct json_object *jobj;
+  // Define a comparison function
+  int (*compare_func)(const void *, const void *) = [](const void *a, const void *b) {
+    struct json_object *ja = *(struct json_object **)a;
+    struct json_object *jb = *(struct json_object **)b;
+    return json_object_get_int(ja) - json_object_get_int(jb);
+  };
 
-    if (use_valid_json) {
-        // Create a simple JSON object if the boolean is true
-        jobj = json_object_new_object();
-        json_object_object_add(jobj, "key", json_object_new_string("value"));
-    } else {
-        // Otherwise, create a JSON object from remaining fuzz data
-        std::string json_string = fuzzed_data.ConsumeRemainingBytesAsString();
-        jobj = json_tokener_parse(json_string.c_str());
-        if (!jobj) {
-            // If parsing fails, clean up and exit
-            unlink(tmpl);
-            return 0;
-        }
-    }
+  // Call the function under test
+  struct json_object *result = json_object_array_bsearch(search_key, json_array, compare_func);
 
-    // Call the function-under-test
-    json_object_to_file(tmpl, jobj); // Correctly use json_object_to_file
+  // Cleanup
+  json_object_put(json_array);
+  json_object_put(search_key);
 
-    // Clean up
-    json_object_put(jobj);
-    unlink(tmpl);
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

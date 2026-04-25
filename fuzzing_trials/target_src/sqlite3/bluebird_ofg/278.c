@@ -1,39 +1,55 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
 
+// Remove the 'extern "C"' linkage specification for C++ compatibility
 int LLVMFuzzerTestOneInput_278(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3_stmt *stmt;
     int rc;
-    
-    // Initialize a database in memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    double result;
+
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+        return 0;
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Create a simple table
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER, value REAL);", 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Insert some data into the table
+    rc = sqlite3_exec(db, "INSERT INTO test (id, value) VALUES (1, 1.0), (2, 2.0);", 0, 0, 0);
     if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
 
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Prepare a statement to select data
+    rc = sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = 1;", -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        // Call the function-under-test
+        result = sqlite3_column_double(stmt, 0);
+    }
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

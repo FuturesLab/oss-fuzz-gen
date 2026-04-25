@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,56 +9,73 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <cstdlib>
+extern "C" {
 #include "../cJSON.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    // Ensure there's enough data to avoid undefined behavior
-    if (Size < 1) return 0;
-
-    // cJSON_Version
-    const char* version = cJSON_Version();
-    if (version == nullptr) return 0;
-
-    // Prepare a buffer for JSON string
-    char* jsonString = (char*)malloc(Size + 1);
-    if (jsonString == nullptr) return 0;
-    memcpy(jsonString, Data, Size);
-    jsonString[Size] = '\0';
-
-    // cJSON_Parse
-    cJSON* json = cJSON_Parse(jsonString);
-    if (json != nullptr) {
-        // cJSON_AddStringToObject
-        const char* key = "test_key";
-        const char* value = "test_value";
-        cJSON* stringItem = cJSON_AddStringToObject(json, key, value);
-
-        // cJSON_PrintUnformatted
-        char* unformatted = cJSON_PrintUnformatted(json);
-        if (unformatted != nullptr) {
-            free(unformatted);
-        }
-
-        // cJSON_Print
-        char* formatted = cJSON_Print(json);
-        if (formatted != nullptr) {
-            free(formatted);
-        }
-
-        // Cleanup
-        cJSON_Delete(json);
+    // Prepare a buffer for the key name in cJSON_AddFalseToObject
+    char keyName[256];
+    if (Size > 0) {
+        size_t keyLength = Size < 255 ? Size : 255;
+        memcpy(keyName, Data, keyLength);
+        keyName[keyLength] = '\0'; // Ensure null termination
     } else {
-        // cJSON_GetErrorPtr
-        const char* errorPtr = cJSON_GetErrorPtr();
-        if (errorPtr != nullptr) {
-            // Handle error, if necessary
-        }
+        keyName[0] = '\0'; // Default to empty string if no data
     }
 
-    free(jsonString);
+    // Step 1: Create a cJSON object
+    cJSON *jsonObject = cJSON_CreateObject();
+    if (jsonObject == nullptr) {
+        // If creation failed, return early
+        return 0;
+    }
+
+    // Step 2: Add a false value to the JSON object
+    cJSON *falseItem = cJSON_AddFalseToObject(jsonObject, keyName);
+    (void)falseItem; // We don't need to use falseItem, just ensure it's created
+
+    // Step 3: Clean up the cJSON object
+    cJSON_Delete(jsonObject);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

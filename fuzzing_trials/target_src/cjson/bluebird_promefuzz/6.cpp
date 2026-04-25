@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,63 +9,110 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
+extern "C" {
 #include "../cJSON.h"
+}
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+
+static char* createNullTerminatedString(const uint8_t* Data, size_t Size) {
+    char* str = static_cast<char*>(malloc(Size + 1));
+    if (str) {
+        memcpy(str, Data, Size);
+        str[Size] = '\0';
+    }
+    return str;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
     if (Size == 0) return 0;
 
-    // Convert the input data to a null-terminated string
-    char *json_data = static_cast<char*>(malloc(Size + 1));
-    if (json_data == nullptr) return 0;
-    memcpy(json_data, Data, Size);
-    json_data[Size] = '\0';
+    // Create a null-terminated string from input data
+    char* jsonString = createNullTerminatedString(Data, Size);
+    if (!jsonString) return 0;
 
-    // Parse the input data as a JSON object
-    cJSON *root = cJSON_Parse(json_data);
-    free(json_data);
-
-    if (root == nullptr) return 0;
-
-    // Get an item from the JSON object
-    cJSON *item1 = cJSON_GetObjectItemCaseSensitive(root, "key1");
-    if (item1 != nullptr) {
-        // Check if the item is a string
-        cJSON_IsString(item1);
+    // Parse JSON
+    cJSON* root = cJSON_Parse(jsonString);
+    if (!root) {
+        free(jsonString);
+        return 0;
     }
 
-    // Get another item from the JSON object
-    cJSON *item2 = cJSON_GetObjectItemCaseSensitive(root, "key2");
-    if (item2 != nullptr) {
-        // Check if the item is true
-        cJSON_IsTrue(item2);
+    // Create a cJSON string
+    cJSON* stringItem = cJSON_CreateString(jsonString);
+    if (!stringItem) {
+        cJSON_Delete(root);
+        free(jsonString);
+        return 0;
     }
 
-    // Get another item from the JSON object
-    cJSON *item3 = cJSON_GetObjectItemCaseSensitive(root, "key3");
+    // Create a cJSON string reference
+    cJSON* stringRefItem = cJSON_CreateStringReference(jsonString);
 
-    // Get another item from the JSON object
-    cJSON *item4 = cJSON_GetObjectItemCaseSensitive(root, "key4");
+    // Add items to the root object
+    cJSON_AddItemToObject(root, "stringItem", stringItem);
+    cJSON_AddItemToObject(root, "stringRefItem", stringRefItem);
 
-    // Duplicate a JSON item
-    cJSON *duplicate = cJSON_Duplicate(root, cJSON_True);
+    // Set value strings
+    cJSON_SetValuestring(stringItem, "newStringValue1");
+    cJSON_SetValuestring(stringRefItem, "newStringValue2");
 
-    // Get another item from the duplicated JSON object
-    if (duplicate != nullptr) {
-        cJSON *item5 = cJSON_GetObjectItemCaseSensitive(duplicate, "key5");
-        cJSON *item6 = cJSON_GetObjectItemCaseSensitive(duplicate, "key6");
+    // Retrieve object items
+    cJSON* retrievedItem1 = cJSON_GetObjectItem(root, "stringItem");
+    cJSON* retrievedItem2 = cJSON_GetObjectItem(root, "stringRefItem");
 
-        // Compare two JSON items
-        cJSON_Compare(item5, item6, cJSON_True);
+    // Further set value strings
+    cJSON_SetValuestring(retrievedItem1, "anotherNewStringValue1");
+    cJSON_SetValuestring(retrievedItem2, "anotherNewStringValue2");
 
-        // Clean up the duplicated JSON object
-        cJSON_Delete(duplicate);
-    }
+    // Retrieve object items again
+    cJSON_GetObjectItem(root, "stringItem");
+    cJSON_GetObjectItem(root, "stringRefItem");
 
-    // Clean up the original JSON object
+    // Clean up
     cJSON_Delete(root);
+    free(jsonString);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

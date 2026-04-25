@@ -1,100 +1,166 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static sqlite3 *initialize_database() {
-    sqlite3 *db;
-    const char jmuhnxrz[1024] = "zektw";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open(jmuhnxrz, &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        return NULL;
-    }
-    return db;
+// Dummy authorizer callback function
+static int authorizer_callback(void *pUserData, int action, const char *details1, const char *details2, const char *details3, const char *details4) {
+    // Always allow the action
+    return SQLITE_OK;
 }
 
-static sqlite3_stmt *prepare_statement(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return NULL;
-    }
-    return stmt;
+// Dummy callback function for sqlite3_exec
+static int exec_callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
+// Fuzzing entry point
 int LLVMFuzzerTestOneInput_203(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
+
+    // Open a new database connection
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc) {
         return 0;
     }
 
-    sqlite3 *db = initialize_database();
-    if (!db) {
-        return 0;
+    // Prepare SQL statement from fuzz data
+    char *sql = sqlite3_malloc(Size + 1);
+    if (sql) {
+        memcpy(sql, Data, Size);
+        sql[Size] = '\0';
+
+        // Execute SQL statement
+        sqlite3_exec(db, sql, exec_callback, 0, &errMsg);
+
+        // Free error message if allocated
+        if (errMsg) {
+            sqlite3_free(errMsg);
+        }
+
+        // Free SQL statement
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_backup_init
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        int ret_sqlite3_db_release_memory_chnjm = sqlite3_db_release_memory(db);
+        if (ret_sqlite3_db_release_memory_chnjm < 0){
+        	return 0;
+        }
+        sqlite3* ret_sqlite3_db_handle_wlpon = sqlite3_db_handle(NULL);
+        if (ret_sqlite3_db_handle_wlpon == NULL){
+        	return 0;
+        }
+        char* ret_sqlite3_str_finish_xeesw = sqlite3_str_finish(NULL);
+        if (ret_sqlite3_str_finish_xeesw == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_db_handle_wlpon) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_str_finish_xeesw) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_str_finish to sqlite3_serialize
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_db_handle_wlpon) {
+        	return 0;
+        }
+        int ret_sqlite3_changes_jvxib = sqlite3_changes(ret_sqlite3_db_handle_wlpon);
+        if (ret_sqlite3_changes_jvxib < 0){
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_changes to sqlite3_open16
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        sqlite3_uint64 ret_sqlite3_msize_zntgn = sqlite3_msize((void *)db);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_db_handle_wlpon) {
+        	return 0;
+        }
+        int ret_sqlite3_open16_kqiki = sqlite3_open16(db, &ret_sqlite3_db_handle_wlpon);
+        if (ret_sqlite3_open16_kqiki < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        sqlite3_int64 ret_sqlite3_hard_heap_limit64_nartm = sqlite3_hard_heap_limit64(0);
+        unsigned int ret_sqlite3_value_subtype_ijhrs = sqlite3_value_subtype(NULL);
+        if (ret_sqlite3_value_subtype_ijhrs < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_db_handle_wlpon) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_str_finish_xeesw) {
+        	return 0;
+        }
+        unsigned char* ret_sqlite3_serialize_kzsnb = sqlite3_serialize(ret_sqlite3_db_handle_wlpon, ret_sqlite3_str_finish_xeesw, &ret_sqlite3_hard_heap_limit64_nartm, ret_sqlite3_value_subtype_ijhrs);
+        if (ret_sqlite3_serialize_kzsnb == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        sqlite3_backup* ret_sqlite3_backup_init_kzrdr = sqlite3_backup_init(db, errMsg, ret_sqlite3_db_handle_wlpon, ret_sqlite3_str_finish_xeesw);
+        if (ret_sqlite3_backup_init_kzrdr == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        sqlite3_free(sql);
     }
 
-    const char *sql = "CREATE TABLE IF NOT EXISTS fuzz (id INTEGER PRIMARY KEY, data BLOB);";
-    sqlite3_stmt *stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
+    // Set authorizer callback
+    sqlite3_set_authorizer(db, authorizer_callback, NULL);
+
+    // Retrieve table column metadata
+    const char *dataType, *collSeq;
+    int notNull, primaryKey, autoinc;
+    sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
+
+    // Test control interface
+    sqlite3_test_control(SQLITE_TESTCTRL_FIRST);
+
+    // Allocate memory using sqlite3_malloc
+    void *memory = sqlite3_malloc(100);
+    if (memory) {
+        memset(memory, 0, 100);
+        sqlite3_free(memory);
     }
 
-    sqlite3_step(stmt);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_finalize with sqlite3_bind_parameter_count
-    sqlite3_bind_parameter_count(stmt);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    sql = "INSERT INTO fuzz (data) VALUES (?);";
-    stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    sqlite3_bind_blob(stmt, 1, Data, Size, SQLITE_TRANSIENT);
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    sql = "SELECT data FROM fuzz WHERE id = 1;";
-    stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        int bytes = sqlite3_column_bytes(stmt, 0);
-        const void *blob = sqlite3_column_blob(stmt, 0);
-        (void)blob;  // Use blob to avoid unused variable warning
-
-        bytes = sqlite3_column_bytes(stmt, 0);
-        blob = sqlite3_column_blob(stmt, 0);
-        (void)blob;  // Use blob to avoid unused variable warning
-    }
-
-    int isExplain = sqlite3_stmt_isexplain(stmt);
-    (void)isExplain;  // Use isExplain to avoid unused variable warning
-
-    int resetResult = sqlite3_reset(stmt);
-    (void)resetResult;  // Use resetResult to avoid unused variable warning
-
-    int stepResult = sqlite3_step(stmt);
-    (void)stepResult;  // Use stepResult to avoid unused variable warning
-
-    const char *errMsg = sqlite3_errmsg(db);
-    (void)errMsg;  // Use errMsg to avoid unused variable warning
-
-    errMsg = sqlite3_errmsg(db);
-    (void)errMsg;  // Use errMsg to avoid unused variable warning
-
-    sqlite3_finalize(stmt);
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

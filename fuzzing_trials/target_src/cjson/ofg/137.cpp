@@ -1,53 +1,96 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "/src/cjson/cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size); /* required by C89 */
-
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-  if (size < 3) return 0; // Ensure there is enough data for key and value
-
-  // Create a root object
-  cJSON *root = cJSON_CreateObject();
-  if (root == NULL) return 0;
-
-  // Split the data into key and value
-  size_t key_len = data[0] % (size - 2) + 1; // Ensure key_len is at least 1
-  size_t value_len = size - key_len - 1;
-  const char *key = (const char *)(data + 1);
-  const char *value = (const char *)(data + 1 + key_len);
-
-  // Ensure null-termination for key and value
-  char *key_copy = (char *)malloc(key_len + 1);
-  char *value_copy = (char *)malloc(value_len + 1);
-  if (key_copy == NULL || value_copy == NULL) {
-    cJSON_Delete(root);
-    free(key_copy);
-    free(value_copy);
+  if (size < 3) {
     return 0;
   }
-  memcpy(key_copy, key, key_len);
-  key_copy[key_len] = '\0';
-  memcpy(value_copy, value, value_len);
-  value_copy[value_len] = '\0';
 
-  // Call the function-under-test
-  cJSON *result = cJSON_AddStringToObject(root, key_copy, value_copy);
+  // Split the input data into three parts for the function parameters
+  size_t part1_size = size / 3;
+  size_t part2_size = (size - part1_size) / 2;
+  size_t part3_size = size - part1_size - part2_size;
+
+  // Ensure null-termination for string parameters
+  char *key = (char *)malloc(part2_size + 1);
+  char *value = (char *)malloc(part3_size + 1);
+
+  if (key == NULL || value == NULL) {
+    free(key);
+    free(value);
+    return 0;
+  }
+
+  memcpy(key, data + part1_size, part2_size);
+  key[part2_size] = '\0';
+
+  memcpy(value, data + part1_size + part2_size, part3_size);
+  value[part3_size] = '\0';
+
+  // Create a new cJSON object
+  cJSON *json = cJSON_CreateObject();
+  if (json == NULL) {
+    free(key);
+    free(value);
+    return 0;
+  }
+
+  // Call the function under test
+  cJSON *result = cJSON_AddStringToObject(json, key, value);
 
   // Clean up
-  cJSON_Delete(root);
-  free(key_copy);
-  free(value_copy);
+  cJSON_Delete(json);
+  free(key);
+  free(value);
 
   return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_137(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

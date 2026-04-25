@@ -1,53 +1,72 @@
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Initialize SQLite3
-    sqlite3_initialize();
-
-    // Create a new SQLite database in memory
     sqlite3 *db;
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    int rc;
+    
+    // Open a new in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
 
-    // Ensure the data is not NULL and has a valid size
-    if (data != NULL && size > 0) {
-        // Create a SQL statement from the input data
-        // Ensure the data is null-terminated to prevent buffer overflow
-        char *sql = (char *)malloc(size + 1);
-        if (sql) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the string
-
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            
-            // If there was an error, free the error message
-            if (errMsg) {
-                sqlite3_free(errMsg);
-            }
-            free(sql);
-        }
-    } else {
-        // If data is NULL or size is 0, execute a default SQL statement
-        const char *defaultData = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    // If there's data, execute it as SQL
+    if (size > 0) {
         char *errMsg = 0;
-        sqlite3_exec(db, defaultData, 0, 0, &errMsg);
         
-        // If there was an error, free the error message
+        // Ensure the data is null-terminated before passing it to sqlite3_exec
+        char *sql = (char *)malloc(size + 1);
+        if (sql == NULL) {
+            sqlite3_close(db);
+            return 0;
+        }
+        memcpy(sql, data, size);
+        sql[size] = '\0';
+
+        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
         if (errMsg) {
             sqlite3_free(errMsg);
         }
+
+        free(sql);
     }
 
-    // Close the SQLite database
-    sqlite3_close(db);
+    // Call the function-under-test
 
-    // Finalize SQLite3
-    sqlite3_shutdown();
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open16
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    const char* ret_sqlite3_errmsg_scdby = sqlite3_errmsg(db);
+    if (ret_sqlite3_errmsg_scdby == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open16_jgdda = sqlite3_open16((const void *)db, &db);
+    if (ret_sqlite3_open16_jgdda < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int errcode = sqlite3_errcode(db);
+
+    // Use the errcode in some way to avoid unused variable warning
+    (void)errcode;
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

@@ -1,41 +1,71 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include "/src/json-c/json_object.h"
+#include "/src/json-c/json_tokener.h"
+#include "/src/json-c/json_object.h" // Corrected path for json_object.h
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
+#include <cstring>
+#include <string> // Include string library for std::string
 
 extern "C" int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-  // Initialize FuzzedDataProvider with the input data
-  FuzzedDataProvider fuzzed_data(data, size);
+    // Initialize the FuzzedDataProvider with the input data
+    FuzzedDataProvider fuzzed_data(data, size);
 
-  // Create a JSON object
-  json_object *jobj = json_object_new_object();
-  if (jobj == nullptr) {
-    return 0; // If creation fails, exit early
-  }
+    // Consume a portion of the data to create a string input for the function
+    std::string json_string = fuzzed_data.ConsumeRandomLengthString(fuzzed_data.remaining_bytes());
 
-  // Create a JSON array and add it to the JSON object
-  json_object *jarray = json_object_new_array();
-  if (jarray == nullptr) {
-    json_object_put(jobj);
-    return 0; // If creation fails, clean up and exit early
-  }
-  json_object_object_add(jobj, "array", jarray);
+    // Create a json_tokener object
+    struct json_tokener *tok = json_tokener_new();
+    if (tok == nullptr) {
+        return 0; // Return if tokener creation failed
+    }
 
-  // Populate the array with some elements
-  for (size_t i = 0; i < 10; ++i) {
-    json_object_array_add(jarray, json_object_new_int(static_cast<int>(i)));
-  }
+    // Call the function-under-test
+    struct json_object *result = json_tokener_parse_ex(tok, json_string.c_str(), json_string.size());
 
-  // Consume two size_t values for index and count
-  size_t idx = fuzzed_data.ConsumeIntegralInRange<size_t>(0, 9);
-  size_t count = fuzzed_data.ConsumeIntegralInRange<size_t>(0, 10 - idx);
+    // Clean up
+    if (result != nullptr) {
+        json_object_put(result);
+    }
+    json_tokener_free(tok);
 
-  // Call the function-under-test
-  json_object_array_del_idx(jarray, idx, count);
-
-  // Clean up
-  json_object_put(jobj);
-
-  return 0;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_115(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

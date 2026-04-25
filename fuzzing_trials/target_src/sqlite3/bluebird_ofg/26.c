@@ -1,46 +1,82 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 
+// Ensure that the function is defined with C linkage
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
+    // Ensure the size is sufficient for creating a sqlite3 database
+    if (size == 0) {
+        return 0;
+    }
+
     sqlite3 *db;
     char *errMsg = 0;
 
-    // Initialize variables
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open a new in-memory database
+    int rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure data is not empty
-    if (size == 0) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Convert input data to a null-terminated string
 
-    // Allocate memory for a null-terminated SQL command
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open16
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_extended_errcode_nvear = sqlite3_extended_errcode(db);
+    if (ret_sqlite3_extended_errcode_nvear < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open16_rjrpy = sqlite3_open16((const void *)db, &db);
+    if (ret_sqlite3_open16_rjrpy < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
-
-    // Copy data to sql and ensure it is null-terminated
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free the error message if it was allocated
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
 
-    // Clean up
+    // Free the allocated SQL string
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strnicmp
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strnicmp_ofuhv = sqlite3_strnicmp((const char *)data, errMsg, -1);
+    if (ret_sqlite3_strnicmp_ofuhv < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     free(sql);
+
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

@@ -1,57 +1,41 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_216(const uint8_t *data, size_t size) {
-    // Check if the input data is not null and has a reasonable size
-    if (data == NULL || size == 0) {
+    // Initialize SQLite
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
 
-    // Allocate a new buffer with an extra byte for the null terminator
+    // Open an in-memory database
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0;
+    }
+
+    // Ensure the input data is null-terminated for safe use as a string
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    if (!sql) {
+        sqlite3_close(db);
+        sqlite3_shutdown();
         return 0;
     }
-
-    // Copy the input data into the new buffer and add a null terminator
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Initialize SQLite in single-threaded mode for simplicity
-    sqlite3_initialize();
+    // Execute the SQL statement
+    char *errMsg = 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Use the input data in some way to interact with SQLite
-    sqlite3 *db;
-    char *errMsg = NULL;
-    int rc;
-
-    // Attempt to open an in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
-
-    // Attempt to execute the input data as an SQL statement
-    rc = sqlite3_exec(db, sql, NULL, NULL, &errMsg);
-    if (errMsg) {
-        sqlite3_free(errMsg);
-    }
-
-    // Close the database connection
-    sqlite3_close(db);
-
-    // Clean up any thread-specific resources
-    sqlite3_thread_cleanup();
-
-    // Free the allocated buffer
+    // Cleanup
+    sqlite3_free(errMsg);
     free(sql);
+    sqlite3_close(db);
+    sqlite3_shutdown();
 
     return 0;
 }

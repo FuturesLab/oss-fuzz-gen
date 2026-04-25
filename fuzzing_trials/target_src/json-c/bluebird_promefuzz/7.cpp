@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,60 +9,87 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include "/src/json-c/arraylist.h"
+}
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include "/src/json-c/json_tokener.h"
+
+static void dummy_free(void* data) {
+    // Dummy free function for array_list_new2
+}
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Create a new array list with a random initial size
+    int initial_size = Data[0] % 10; // Keep initial size small
+    struct array_list* al = array_list_new2(dummy_free, initial_size);
+    if (!al) return 0;
+
+    // Insert data into the array list
+    for (size_t i = 1; i < Size; ++i) {
+        // Use array_list_insert_idx to insert data
+        int insert_result = array_list_insert_idx(al, i - 1, (void*)&Data[i]);
+        if (insert_result == -1) {
+            // If insert fails, use array_list_put_idx
+            array_list_put_idx(al, i - 1, (void*)&Data[i]);
+        }
     }
 
-    // Create a new JSON tokener
-    struct json_tokener *tok = json_tokener_new();
-    if (!tok) {
-        return 0;
+    // Try deleting elements from random indices
+    if (Size > 2) {
+        size_t idx = Data[1] % Size;
+        size_t count = Data[2] % (Size - idx);
+        array_list_del_idx(al, idx, count);
     }
 
-    // Set flags for the tokener
+    // Shrink the array list
+    array_list_shrink(al, 2);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of json_tokener_set_flags
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of json_tokener_set_flags
-    json_tokener_set_flags(tok, JSON_OBJECT_DEF_HASH_ENTRIES);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Parse the input data
-    json_object *jobj = NULL;
-    enum json_tokener_error jerr;
-    const char *inputStr = reinterpret_cast<const char*>(Data);
-    int inputLen = static_cast<int>(Size);
-
-    do {
-        jobj = json_tokener_parse_ex(tok, inputStr, inputLen);
-    } while ((jerr = json_tokener_get_error(tok)) == json_tokener_continue);
-
-    // Check if there are extra characters after the parsed JSON object
-    if (json_tokener_get_parse_end(tok) < inputLen) {
-        // Handle extra characters if needed
-    }
-
-    // Free the JSON object if it was successfully created
-    if (jerr == json_tokener_success && jobj != NULL) {
-        json_object_put(jobj);
-    }
-
-    // Reset the tokener for reuse
-    json_tokener_reset(tok);
-
-    // Clean up and free the tokener
-    json_tokener_free(tok);
+    // Free the array list
+    array_list_free(al);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,43 +1,22 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stddef.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>  // Include this header for size_t
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_503(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errmsg = 0;
-    int rc;
-
-    // Open a new in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated to prevent buffer overflow
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Extract the integer configuration option from the input data
+    int config_option = *((int *)data);
 
-    // Execute the function-under-test
-    if (size > 0) {
-        rc = sqlite3_exec(db, sql, 0, 0, &errmsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errmsg);
-        }
-    }
+    // Create a dummy non-NULL pointer to pass as the second argument
+    void *dummy_ptr = (void *)(data + sizeof(int));
 
-    // Free the allocated memory
-    free(sql);
-
-    // Close the database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Call the function-under-test
+    sqlite3_config(config_option, dummy_ptr);
 
     return 0;
 }

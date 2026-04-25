@@ -1,69 +1,70 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 
+// Fuzzing function
 int LLVMFuzzerTestOneInput_498(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
+    // Convert input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        return 0; // Fail gracefully on allocation failure
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Initialize an SQLite database in memory
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        free(sql);
+        return 0;
+    }
+
+    // Execute the SQL statement
     char *errMsg = 0;
-    char *sql;
-    
-    // Initialize an in-memory SQLite database
-    const char xzpnagtu[1024] = "kkdmo";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(xzpnagtu, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        return 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_create_module
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
-
-    // Create a simple table
-    sql = "CREATE TABLE IF NOT EXISTS test(id INT, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-        sqlite3_free((void *)"w");
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        sqlite3_close(db);
-        return 0;
+    int ret_sqlite3_error_offset_rruve = sqlite3_error_offset(db);
+    if (ret_sqlite3_error_offset_rruve < 0){
+    	return 0;
     }
-
-    // Prepare the input data as an SQL statement
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open_v2
-    int ret_sqlite3_open_v2_eyiqu = sqlite3_open_v2(NULL, &db, 64, (const char *)data);
-    if (ret_sqlite3_open_v2_eyiqu < 0){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    const void* ret_sqlite3_errmsg16_zilkz = sqlite3_errmsg16(db);
+    if (ret_sqlite3_errmsg16_zilkz == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_create_module_zirzl = sqlite3_create_module(db, errMsg, NULL, (void *)db);
+    if (ret_sqlite3_create_module_zirzl < 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    char *inputSQL = (char *)malloc(size + 1);
-    if (inputSQL == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(inputSQL, data, size);
-    inputSQL[size] = '\0';
-
-    // Execute the input SQL statement
-    rc = sqlite3_exec(db, inputSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK && errMsg != NULL) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
-    }
-
-    // Call the function-under-test
-    int changes = sqlite3_changes(db);
-    printf("Number of changes: %d\n", changes);
-
-    // Clean up
-    free(inputSQL);
+    sqlite3_free(errMsg);
     sqlite3_close(db);
+    free(sql);
 
     return 0;
 }

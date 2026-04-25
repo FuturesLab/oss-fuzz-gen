@@ -1,47 +1,65 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Check if the input data is non-null and has a non-zero size
-    if (data == NULL || size == 0) {
-        return 0;
-    }
-
     sqlite3 *db;
     char *errMsg = 0;
+    char **result;
+    int rows, columns;
+    int rc;
 
-    // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db)) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        sqlite3_close(db);
+    // Ensure data is null-terminated for use as a SQL query
+    char *sqlQuery = (char *)malloc(size + 1);
+    if (sqlQuery == NULL) {
+        return 0;
+    }
+    memcpy(sqlQuery, data, size);
+    sqlQuery[size] = '\0';
+
+    // Open a temporary in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        free(sqlQuery);
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
+    // Execute the SQL query using sqlite3_get_table
+    rc = sqlite3_get_table(db, sqlQuery, &result, &rows, &columns, &errMsg);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_set_last_insert_rowid
-    sqlite3_int64 ret_sqlite3_memory_highwater_poxyd = sqlite3_memory_highwater(size);
-    sqlite3_set_last_insert_rowid(db, ret_sqlite3_memory_highwater_poxyd);
+    // Clean up
+    if (result) {
+        sqlite3_free_table(result);
+    }
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_get_table to sqlite3_uri_int64
+    void* ret_sqlite3_malloc_zdwdg = sqlite3_malloc(size);
+    if (ret_sqlite3_malloc_zdwdg == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    sqlite3_int64 ret_sqlite3_total_changes64_ozdbv = sqlite3_total_changes64(db);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_zdwdg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!result) {
+    	return 0;
+    }
+    sqlite3_int64 ret_sqlite3_uri_int64_audfg = sqlite3_uri_int64((const char *)ret_sqlite3_malloc_zdwdg, *result, ret_sqlite3_total_changes64_ozdbv);
     // End mutation: Producer.APPEND_MUTATOR
     
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL command(s) from the input data
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free allocated resources
-    sqlite3_free(errMsg);
-    free(sql);
     sqlite3_close(db);
+    free(sqlQuery);
 
     return 0;
 }

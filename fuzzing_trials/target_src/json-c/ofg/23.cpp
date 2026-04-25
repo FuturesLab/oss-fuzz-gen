@@ -1,47 +1,62 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <json-c/json_util.h>
-#include <json-c/json_object.h>
-#include <json-c/json_tokener.h>
-#include <cstdio>
-#include <cstdlib>
+#include <cstdint>
 #include <cstring>
-#include <unistd.h>
+
+extern "C" int json_parse_uint64(const char *, uint64_t *);
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Create a FuzzedDataProvider instance to handle the input data
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Consume a part of the data to create a temporary file name
-    std::string temp_filename = fuzzed_data.ConsumeRandomLengthString(10);
-    if (temp_filename.size() != 10) {
-        return 0; // Exit if the generated string is not of the expected length
-    }
+    // Consume bytes as a string for the first parameter
+    std::string json_string = fuzzed_data.ConsumeBytesAsString(size);
 
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
+    // Ensure the string is null-terminated
+    const char *json_cstr = json_string.c_str();
 
-    if (fd == -1) {
-        return 0; // If file creation fails, exit early
-    }
+    // Prepare a uint64_t variable for the second parameter
+    uint64_t result = 0;
 
-    // Close the file descriptor as we only need the filename
-    close(fd);
-
-    // Consume the remaining bytes as a string to create a JSON object
-    std::string json_data = fuzzed_data.ConsumeRemainingBytesAsString();
-    struct json_object *jobj = json_tokener_parse(json_data.c_str());
-
-    // Ensure the json_object is not NULL
-    if (jobj == NULL) {
-        return 0; // Exit early if JSON parsing failed
-    }
-
-    // Call the function under test
-    json_object_to_file(tmpl, jobj);
-
-    // Clean up
-    json_object_put(jobj);
-    std::remove(tmpl);
+    // Call the function-under-test
+    json_parse_uint64(json_cstr, &result);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

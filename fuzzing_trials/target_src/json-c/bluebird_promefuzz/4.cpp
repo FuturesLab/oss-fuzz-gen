@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,79 +9,142 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include "/src/json-c/json_util.h"
+#include "/src/json-c/json_object.h"
+#include <fcntl.h>
+#include <unistd.h>
+}
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include "/src/json-c/linkhash.h"
-#include "json.h"
 
-static unsigned long simple_hash_fn(const void *k) {
-    // A simple hash function for demonstration purposes
-    const char *str = static_cast<const char *>(k);
-    unsigned long hash = 5381;
-    int c;
-    while ((c = *str++))
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
-    return hash;
+static void fuzz_json_object_to_file_ext(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    struct json_object *obj = json_object_new_object();
+    if (!obj) return;
+
+    std::string str(reinterpret_cast<const char *>(Data), Size);
+    json_object_set_string(obj, str.c_str());
+    json_object_to_file_ext("./dummy_file", obj, JSON_C_TO_STRING_PLAIN);
+    json_object_put(obj);
 }
 
-static int simple_equal_fn(const void *k1, const void *k2) {
-    return strcmp(static_cast<const char *>(k1), static_cast<const char *>(k2)) == 0;
+static void fuzz_json_object_to_fd(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    struct json_object *obj = json_object_new_object();
+    if (!obj) return;
+
+    std::string str(reinterpret_cast<const char *>(Data), Size);
+    json_object_set_string(obj, str.c_str());
+    int fd = open("./dummy_file", O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        json_object_put(obj);
+        return;
+    }
+
+    json_object_to_fd(fd, obj, JSON_C_TO_STRING_PLAIN);
+    close(fd);
+    json_object_put(obj);
+}
+
+static void fuzz_json_object_object_get_ex(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    struct json_object *obj = json_object_new_object();
+    if (!obj) return;
+
+    std::string str(reinterpret_cast<const char *>(Data), Size);
+    json_object_set_string(obj, str.c_str());
+    struct json_object *value;
+    json_object_object_get_ex(obj, str.c_str(), &value);
+    json_object_put(obj);
+}
+
+static void fuzz_json_object_set_string(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    struct json_object *obj = json_object_new_object();
+    if (!obj) return;
+
+    std::string str(reinterpret_cast<const char *>(Data), Size);
+    json_object_set_string(obj, str.c_str());
+    json_object_put(obj);
+}
+
+static void fuzz_json_object_to_file(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    struct json_object *obj = json_object_new_object();
+    if (!obj) return;
+
+    std::string str(reinterpret_cast<const char *>(Data), Size);
+    json_object_set_string(obj, str.c_str());
+    json_object_to_file("./dummy_file", obj);
+    json_object_put(obj);
+}
+
+static void fuzz_json_object_to_json_string(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    struct json_object *obj = json_object_new_object();
+    if (!obj) return;
+
+    std::string str(reinterpret_cast<const char *>(Data), Size);
+    json_object_set_string(obj, str.c_str());
+    const char *json_str = json_object_to_json_string(obj);
+    (void)json_str; // Suppress unused variable warning
+    json_object_put(obj);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(unsigned long) + sizeof(unsigned) + 1) {
-        return 0;
-    }
-
-    struct lh_table *table = lh_table_new(16, NULL, simple_hash_fn, simple_equal_fn);
-    if (!table) {
-        return 0;
-    }
-
-    // Ensure null-terminated string for key
-    size_t key_length = Size - sizeof(unsigned long) - sizeof(unsigned);
-    std::string key_str(reinterpret_cast<const char*>(Data), key_length);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lh_table_new to lh_table_insert_w_hash
-    struct json_object* ret_json_object_new_uint64_jjohi = json_object_new_uint64(JSON_C_TO_STRING_PLAIN);
-    if (ret_json_object_new_uint64_jjohi == NULL){
-    	return 0;
-    }
-
-    int ret_lh_table_insert_w_hash_xwrlh = lh_table_insert_w_hash(table, (const void *)table, (const void *)ret_json_object_new_uint64_jjohi, Size, JSON_C_STR_HASH_DFLT);
-    if (ret_lh_table_insert_w_hash_xwrlh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    const void *key = key_str.c_str();
-    const void *value = key_str.c_str(); // Using key_str for both key and value for simplicity
-
-    unsigned long hash = *reinterpret_cast<const unsigned long*>(Data + key_length);
-    unsigned opts = *reinterpret_cast<const unsigned*>(Data + key_length + sizeof(unsigned long));
-
-    // Fuzz lh_table_insert_w_hash
-    lh_table_insert_w_hash(table, key, value, hash, opts);
-
-    // Fuzz json_global_set_string_hash
-    int hash_type = *reinterpret_cast<const int*>(Data);
-    json_global_set_string_hash(hash_type);
-
-    // Fuzz lh_table_lookup_ex
-    void *retrieved_value = nullptr;
-    lh_table_lookup_ex(table, key, &retrieved_value);
-
-    // Fuzz lh_table_length
-    int length = lh_table_length(table);
-
-    // Fuzz lh_table_delete
-    lh_table_delete(table, key);
-
-    // Fuzz lh_table_insert
-    lh_table_insert(table, key, value);
-
-    lh_table_free(table);
+    fuzz_json_object_to_file_ext(Data, Size);
+    fuzz_json_object_to_fd(Data, Size);
+    fuzz_json_object_object_get_ex(Data, Size);
+    fuzz_json_object_set_string(Data, Size);
+    fuzz_json_object_to_file(Data, Size);
+    fuzz_json_object_to_json_string(Data, Size);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,48 +1,106 @@
+#include <sys/stat.h>
 #include "fuzzer/FuzzedDataProvider.h"
-#include <cstdint>
-#include <cstddef>
-#include <vector>
-#include <string>
-#include "/src/json-c/linkhash.h" // Correct path for the required header
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Function-under-test
-int lh_table_insert(struct lh_table *, const void *, const void *);
+extern "C" {
+    struct array_list {
+        void **array;
+        size_t size;
+        size_t capacity;
+    };
 
-// Function to initialize a dummy lh_table
-struct lh_table* initialize_lh_table_22() {
-  // Properly initialize the lh_table using json-c API
-
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lh_kchar_table_new with lh_kptr_table_new
-  return lh_kptr_table_new(16, NULL); // Corrected function call with 2 arguments
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    int array_list_insert_idx(struct array_list *, size_t, void *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-  FuzzedDataProvider fuzzed_data(data, size);
+    FuzzedDataProvider fuzzed_data(data, size);
 
-  // Create and initialize a dummy lh_table object
-  struct lh_table *table = initialize_lh_table_22();
-  if (!table) {
-    return 0; // Handle initialization failure
-  }
+    // Initialize the array_list structure
+    struct array_list list;
+    list.capacity = fuzzed_data.ConsumeIntegralInRange<size_t>(1, 100); // Ensure capacity is at least 1
+    list.size = fuzzed_data.ConsumeIntegralInRange<size_t>(0, list.capacity); // Ensure size is within capacity
 
-  // Consume a random length string for the key and value from the fuzzed data
-  std::string key = fuzzed_data.ConsumeRandomLengthString(100);
-  std::string value = fuzzed_data.ConsumeRandomLengthString(100);
+    // Allocate memory for the array
+    list.array = static_cast<void **>(malloc(list.capacity * sizeof(void *)));
+    if (!list.array) {
+        return 0; // Exit if memory allocation fails
+    }
 
-  // Ensure that key and value are not empty
-  if (key.empty() || value.empty()) {
-    lh_table_free(table); // Free the table if no valid input
+    // Initialize the array elements
+    for (size_t i = 0; i < list.size; ++i) {
+        list.array[i] = malloc(1); // Allocate a byte for each element
+        if (!list.array[i]) {
+            for (size_t j = 0; j < i; ++j) {
+                free(list.array[j]);
+            }
+            free(list.array);
+            return 0; // Exit if memory allocation fails
+        }
+    }
+
+    // Consume an index within the range of the list size
+    size_t index = fuzzed_data.ConsumeIntegralInRange<size_t>(0, list.size);
+
+    // Allocate memory for the new element to insert
+    void *new_element = malloc(1); // Allocate a byte for the new element
+    if (!new_element) {
+        for (size_t i = 0; i < list.size; ++i) {
+            free(list.array[i]);
+        }
+        free(list.array);
+        return 0; // Exit if memory allocation fails
+    }
+
+    // Call the function-under-test
+    array_list_insert_idx(&list, index, new_element);
+
+    // Free allocated memory
+    for (size_t i = 0; i < list.size; ++i) {
+        free(list.array[i]);
+    }
+    free(list.array);
+
     return 0;
-  }
-
-  // Call the function-under-test
-  lh_table_insert(table, key.data(), value.data());
-
-  // Cleanup: free the table after use
-  lh_table_free(table);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

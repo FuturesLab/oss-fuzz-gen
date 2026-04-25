@@ -1,93 +1,77 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "../cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
-int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size); /* required by C89 */
-
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-  cJSON *json;
-  cJSON *duplicate;
-  size_t offset = 1;
-  cJSON_bool recurse;
-
-  if (size <= offset)
-    {
-    return 0;
-  }
-  if (data[size - 1] != '\0')
-    {
-    return 0;
-  }
-  if (data[0] != '1' && data[0] != '0')
-    {
+  if (size < sizeof(double)) {
     return 0;
   }
 
-  recurse = data[0] == '1' ? 1 : 0;
+  int array_size = size / sizeof(double);
+  double *double_array = (double *)malloc(array_size * sizeof(double));
 
-  json = cJSON_ParseWithOpts((const char *)data + offset, NULL, 1);
-  if (json == NULL)
-    {
+  if (double_array == NULL) {
     return 0;
   }
 
-  duplicate = cJSON_Duplicate(json, recurse);
+  memcpy(double_array, data, array_size * sizeof(double));
 
+  cJSON *json_array = cJSON_CreateDoubleArray(double_array, array_size);
 
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Duplicate to cJSON_InsertItemInArray
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Duplicate to cJSON_AddItemReferenceToObject
-  void* ret_cJSON_malloc_gqoku = cJSON_malloc(cJSON_Object);
-  if (ret_cJSON_malloc_gqoku == NULL){
-  	return 0;
+  if (json_array != NULL) {
+    cJSON_Delete(json_array);
   }
 
-  cJSON_bool ret_cJSON_AddItemReferenceToObject_clflc = cJSON_AddItemReferenceToObject(duplicate, (const char *)ret_cJSON_malloc_gqoku, NULL);
-  if (ret_cJSON_AddItemReferenceToObject_clflc < 0){
-  	return 0;
-  }
+  free(double_array);
 
-  // End mutation: Producer.APPEND_MUTATOR
-
-  cJSON_bool ret_cJSON_InsertItemInArray_mtesb = cJSON_InsertItemInArray(duplicate, CJSON_CIRCULAR_LIMIT, duplicate);
-  if (ret_cJSON_InsertItemInArray_mtesb < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  cJSON_Delete(json);
-  if (duplicate != NULL) {
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Delete to cJSON_AddArrayToObject
-    char* ret_cJSON_PrintUnformatted_lnzjq = cJSON_PrintUnformatted(duplicate);
-    if (ret_cJSON_PrintUnformatted_lnzjq == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cJSON_AddArrayToObject with cJSON_AddObjectToObject
-    cJSON* ret_cJSON_AddArrayToObject_nxylg = cJSON_AddObjectToObject(duplicate, ret_cJSON_PrintUnformatted_lnzjq);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_cJSON_AddArrayToObject_nxylg == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cJSON_Delete(duplicate);
-  }return 0;
+  return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

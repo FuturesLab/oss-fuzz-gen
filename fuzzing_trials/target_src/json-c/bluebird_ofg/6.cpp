@@ -1,46 +1,69 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "fuzzer/FuzzedDataProvider.h"
 #include "/src/json-c/json_object.h"
 #include "/src/json-c/json_tokener.h"
-#include <cstddef>
 #include <cstdint>
-#include <string>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-  // Initialize FuzzedDataProvider
-  FuzzedDataProvider fuzzed_data(data, size);
+    // Initialize the FuzzedDataProvider with the input data
+    FuzzedDataProvider fuzzed_data(data, size);
 
-  // Consume two parts of the input data to create two JSON strings
-  std::string json_data1 = fuzzed_data.ConsumeRandomLengthString(size / 2);
-  std::string json_data2 = fuzzed_data.ConsumeRemainingBytesAsString();
+    // Consume a random length string from the fuzzed data
+    std::string json_string = fuzzed_data.ConsumeRemainingBytesAsString();
 
-  // Ensure the JSON data is null-terminated (strings in C++ are already null-terminated)
-  
-  // Parse the JSON strings into json_object
+    // Parse the JSON string to create a json_object
+    struct json_object *jobj = json_tokener_parse(json_string.c_str());
 
-  // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function json_tokener_parse with json_object_new_string
-  json_object *json_obj1 = json_object_new_string(json_data1.c_str());
-  // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Call the function-under-test with the created json_object
+    if (jobj != nullptr) {
+        uint64_t result = json_object_get_uint64(jobj);
+        // Use the result in some way to avoid compiler optimizations
+        (void)result;
 
-
-  json_object *json_obj2 = json_tokener_parse(json_data2.c_str());
-
-  // If parsing failed, return early
-  if (!json_obj1 || !json_obj2) {
-    if (json_obj1) {
-        json_object_put(json_obj1);
+        // Decrement the reference count of the json_object
+        json_object_put(jobj);
     }
-    if (json_obj2) {
-        json_object_put(json_obj2);
-    }
+
     return 0;
-  }
-
-  // Call the function-under-test
-  int result = json_object_equal(json_obj1, json_obj2);
-
-  // Clean up
-  json_object_put(json_obj1);
-  json_object_put(json_obj2);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,38 +1,64 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>  // Include this header for memcpy
-#include "/src/cjson/cJSON.h"
+#include "../cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-  // Convert the input data to a null-terminated string
-  char *input = (char *)malloc(size + 1);
-  if (input == NULL) {
-    return 0;  // If memory allocation fails, return immediately
+  // Call the function-under-test
+  cJSON *json_true = cJSON_CreateTrue();
+
+  // Ensure that the created cJSON object is not NULL
+  if (json_true != NULL) {
+    // Perform any operations on the cJSON object if necessary
+    // For this simple function, we'll just delete it
+    cJSON_Delete(json_true);
   }
-  memcpy(input, data, size);
-  input[size] = '\0';
-
-  // Parse the input data as a cJSON object
-  cJSON *json = cJSON_Parse(input);
-  
-  // Ensure that the parsed cJSON object is not NULL
-  if (json != NULL) {
-    // Perform any additional operations or checks if necessary
-
-    // Clean up and delete the parsed cJSON object
-    cJSON_Delete(json);
-  }
-
-  // Free the allocated memory for input
-  free(input);
 
   return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_60(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

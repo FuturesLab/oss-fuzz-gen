@@ -1,28 +1,69 @@
 #include <fuzzer/FuzzedDataProvider.h>
+#include <cstdint>
+#include <string>
 #include "/src/json-c/json_object.h"
-#include <iostream>
+#include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    // Initialize FuzzedDataProvider with the input data
+    // Initialize the fuzzed data provider
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create a json_object
-    json_object *jobj = json_object_new_object();
+    // Consume a string from the fuzzed data
+    std::string json_string = fuzzed_data.ConsumeRemainingBytesAsString();
 
-    // Consume a pointer-sized integer from the fuzzed data to use as userdata
-    void *userdata = reinterpret_cast<void*>(fuzzed_data.ConsumeIntegral<uintptr_t>());
+    // Create a JSON object from the string
+    struct json_object *json_obj = json_tokener_parse(json_string.c_str());
 
-    // Define a dummy delete function that does something observable
-    json_object_delete_fn *delete_fn = [](json_object *obj, void *userdata) {
-        // Perform an observable action, like logging
-        std::cout << "Delete function called with userdata: " << userdata << std::endl;
-    };
+    // If json_obj is NULL, parsing failed, and we should return early
+    if (json_obj == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    json_object_set_userdata(jobj, userdata, delete_fn);
+    int32_t result = json_object_get_int(json_obj);
 
-    // Free the json_object, which should trigger the delete function
-    json_object_put(jobj);
+    // Clean up the JSON object
+    json_object_put(json_obj);
 
+    // Return 0 as required by the fuzzer
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_82(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

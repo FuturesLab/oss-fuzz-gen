@@ -1,44 +1,38 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-
-// Callback function for sqlite3_exec
-static int callback_314(void *data, int argc, char **argv, char **azColName) {
-    return 0;
-}
 
 int LLVMFuzzerTestOneInput_314(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = NULL;
+    char *errMsg = 0;
     int rc;
 
-    // Initialize database connection
+    // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if(rc) {
+        sqlite3_close(db);
         return 0;
     }
 
-    // Ensure the input data is null-terminated for use as a string
+    // Convert the fuzz input into a null-terminated string
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_close_v2
-        sqlite3_close_v2(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (!sql) {
+        sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
     // Execute the SQL command
-    sqlite3_exec(db, sql, callback_314, NULL, &errMsg);
+    const char fjiqaigk[1024] = "fthoc";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sqlite3_exec
+    sqlite3_exec(db, fjiqaigk, 0, 0, &errMsg);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Clean up
-    if (errMsg) {
-        sqlite3_free(errMsg);
-    }
+    // Free allocated resources
+    sqlite3_free(errMsg);
     free(sql);
     sqlite3_close(db);
 

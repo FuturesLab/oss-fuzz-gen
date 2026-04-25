@@ -1,102 +1,65 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdint.h>
 #include "sqlite3.h"
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
+static void invoke_sqlite3_libversion() {
+    const char *version = sqlite3_libversion();
+    (void)version; // Use the version in some way to avoid compiler warnings
 }
 
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static void invoke_sqlite3_sourceid() {
+    const char *sourceid = sqlite3_sourceid();
+    (void)sourceid; // Use the sourceid in some way to avoid compiler warnings
+}
+
+static void invoke_sqlite3_config() {
+    int rc;
+    rc = sqlite3_config(SQLITE_CONFIG_SINGLETHREAD);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_URI, 1);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_MEMSTATUS, 1);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_LOG, NULL, NULL);
+    if (rc != SQLITE_OK) return;
+}
+
+static void invoke_sqlite3_initialize() {
+    int rc = sqlite3_initialize();
+    (void)rc; // Use the rc in some way to avoid compiler warnings
+}
+
+static void invoke_sqlite3_vfs_find() {
+    sqlite3_vfs *vfs = sqlite3_vfs_find(NULL);
+    (void)vfs; // Use the vfs in some way to avoid compiler warnings
 }
 
 int LLVMFuzzerTestOneInput_272(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    // Step 1: Invoke sqlite3_libversion
+    invoke_sqlite3_libversion();
 
-    sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
+    // Step 2: Invoke sqlite3_sourceid
+    invoke_sqlite3_sourceid();
 
-    int rc;
+    // Step 3: Invoke sqlite3_config multiple times
+    invoke_sqlite3_config();
 
-    // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
+    // Step 4: Invoke sqlite3_initialize
+    invoke_sqlite3_initialize();
 
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+    // Step 5: Invoke sqlite3_vfs_find
+    invoke_sqlite3_vfs_find();
 
-    // Set authorizer
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
-    int ret_sqlite3_extended_result_codes_cxcaq = sqlite3_extended_result_codes(db, -1);
-    if (ret_sqlite3_extended_result_codes_cxcaq < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
-    }
-
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-//    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_test_control with sqlite3_enable_shared_cache
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_table_column_metadata to sqlite3_overload_function
-    const char oprdlewb[1024] = "edsaw";
-    int ret_sqlite3_overload_function_tdarb = sqlite3_overload_function(db, oprdlewb, Size);
-    if (ret_sqlite3_overload_function_tdarb < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_enable_shared_cache with sqlite3_config
-    rc = sqlite3_config(SQLITE_TESTCTRL_FIRST);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
-    }
-
-    // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    free(sql);
     return 0;
 }
 #ifdef INC_MAIN

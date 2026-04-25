@@ -1,50 +1,80 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <vector>
-#include <algorithm> // Include algorithm for std::sort
-
-// Assuming the definition of struct array_list is available
-struct array_list {
-  void **items;
-  size_t size;
-  size_t capacity;
-};
-
-// Assuming the definition of DW_TAG_subroutine_typeInfinite loop is available
-typedef int (*DW_TAG_subroutine_typeInfinite_loop)(const void *, const void *);
-
-// Mock implementation of array_list_sort for demonstration purposes
-void array_list_sort(struct array_list *list, DW_TAG_subroutine_typeInfinite_loop compare_func) {
-  std::sort(list->items, list->items + list->size, [compare_func](const void *a, const void *b) {
-    return compare_func(a, b) < 0;
-  });
-}
+#include "/src/json-c/json_object.h"
+#include <cstddef>
+#include <cstdint>
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-  FuzzedDataProvider fuzzed_data(data, size);
+    // Initialize the FuzzedDataProvider with the input data
+    FuzzedDataProvider fuzzed_data(data, size);
 
-  // Initialize array_list
-  struct array_list list;
-  list.size = fuzzed_data.ConsumeIntegralInRange<size_t>(0, 100);
-  list.capacity = fuzzed_data.ConsumeIntegralInRange<size_t>(list.size, 200);
-  std::vector<void*> items(list.capacity, nullptr);
+    // Create a json_object
+    struct json_object *json_obj = json_object_new_array();
+    if (json_obj == nullptr) {
+        return 0; // If creation fails, exit early
+    }
 
-  for (size_t i = 0; i < list.size; ++i) {
-    items[i] = reinterpret_cast<void*>(fuzzed_data.ConsumeIntegral<uintptr_t>());
-  }
-  list.items = items.data();
+    // Determine the number of elements to add to the array
+    size_t num_elements = fuzzed_data.ConsumeIntegralInRange<size_t>(0, 100);
 
-  // Create a comparison function
-  DW_TAG_subroutine_typeInfinite_loop compare_func = [](const void *a, const void *b) -> int {
-    uintptr_t int_a = reinterpret_cast<uintptr_t>(a);
-    uintptr_t int_b = reinterpret_cast<uintptr_t>(b);
-    return (int_a > int_b) - (int_a < int_b);
-  };
+    // Add elements to the json array
+    for (size_t i = 0; i < num_elements; ++i) {
+        // Create a new integer json object
+        int value = fuzzed_data.ConsumeIntegral<int>();
+        struct json_object *int_obj = json_object_new_int(value);
+        if (int_obj == nullptr) {
+            json_object_put(json_obj);
+            return 0; // If creation fails, clean up and exit early
+        }
+        json_object_array_add(json_obj, int_obj);
+    }
 
-  // Call the function-under-test
-  array_list_sort(&list, compare_func);
+    // Consume an integer for the second parameter
+    int new_length = fuzzed_data.ConsumeIntegralInRange<int>(0, num_elements);
 
-  return 0;
+    // Call the function-under-test
+    json_object_array_shrink(json_obj, new_length);
+
+    // Clean up
+    json_object_put(json_obj);
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

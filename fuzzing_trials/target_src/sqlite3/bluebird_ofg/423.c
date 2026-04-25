@@ -1,48 +1,54 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include "sqlite3.h"
 #include <string.h>
+#include <stddef.h> // Include for size_t
 
-int LLVMFuzzerTestOneInput_423(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
+// Function to create a simple in-memory database and prepare a statement
+static sqlite3_stmt* prepareStatement(sqlite3 *db) {
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);"
+                      "INSERT INTO test (value) VALUES ('Hello');"
+                      "SELECT * FROM test;";
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_exec(db, sql, 0, 0, 0);
+    
+    if (rc != SQLITE_OK) {
+        return NULL;
+    }
+    
+    const char *select_sql = "SELECT * FROM test;";
+    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, 0);
+    
+    if (rc != SQLITE_OK) {
+        return NULL;
+    }
+    
+    return stmt;
+}
 
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
+extern int LLVMFuzzerTestOneInput_423(const uint8_t *data, size_t size) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt = NULL;
+    
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
-
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open((const char *)"w", &db);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
-                sqlite3_errcode(db);
-                // End mutation: Producer.REPLACE_FUNC_MUTATOR
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
-
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            sqlite3_close(db);
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
+    
+    // Prepare a statement
+    stmt = prepareStatement(db);
+    if (stmt == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
-
+    
+    // Execute the statement
+    int rc = sqlite3_step(stmt);
+    
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,72 +9,95 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 #include "../cJSON.h"
-}
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
     if (Size == 0) {
         return 0;
     }
 
-    // Convert input data to a null-terminated string
-    char *jsonString = (char *)malloc(Size + 1);
-    if (!jsonString) {
+    // Ensure the data is null-terminated
+    char *json_input = static_cast<char*>(malloc(Size + 1));
+    if (!json_input) {
         return 0;
     }
-    memcpy(jsonString, Data, Size);
-    jsonString[Size] = '\0';
+    memcpy(json_input, Data, Size);
+    json_input[Size] = '\0';
 
-    // Parse the JSON string
-    cJSON *json = cJSON_Parse(jsonString);
+    // Step 1: Parse the JSON input
+    cJSON *json = cJSON_Parse(json_input);
     if (!json) {
-        const char *errorPtr = cJSON_GetErrorPtr();
-        // Handle parse error if needed
-        free(jsonString);
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != nullptr) {
+            // Handle parse error if needed
+        }
+        free(json_input);
         return 0;
     }
 
-    // Use cJSON_GetObjectItemCaseSensitive to retrieve items
-    cJSON *item1 = cJSON_GetObjectItemCaseSensitive(json, "key1");
-    if (cJSON_IsString(item1)) {
-        // Do something with the string
+    // Step 2: Retrieve an item by key (case-sensitive)
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(json, "key1");
+    if (item && cJSON_IsString(item)) {
+        // Process the string item if needed
     }
 
-    cJSON *item2 = cJSON_GetObjectItemCaseSensitive(json, "key2");
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_GetObjectItemCaseSensitive to cJSON_AddStringToObject
-    void* ret_cJSON_malloc_vybud = cJSON_malloc(0);
-    if (ret_cJSON_malloc_vybud == NULL){
-    	return 0;
-    }
-    void* ret_cJSON_malloc_abjyh = cJSON_malloc(CJSON_CIRCULAR_LIMIT);
-    if (ret_cJSON_malloc_abjyh == NULL){
-    	return 0;
+    // Step 3: Retrieve another item by key (case-sensitive)
+    item = cJSON_GetObjectItemCaseSensitive(json, "key2");
+    if (item && cJSON_IsNumber(item)) {
+        // Process the number item if needed
     }
 
-    cJSON* ret_cJSON_AddStringToObject_ivdvg = cJSON_AddStringToObject(item2, (const char *)ret_cJSON_malloc_vybud, (const char *)ret_cJSON_malloc_abjyh);
-    if (ret_cJSON_AddStringToObject_ivdvg == NULL){
-    	return 0;
+    // Step 4: Retrieve yet another item by key (case-sensitive)
+    item = cJSON_GetObjectItemCaseSensitive(json, "key3");
+    if (item && cJSON_IsNumber(item)) {
+        // Process the number item if needed
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cJSON *item3 = cJSON_GetObjectItemCaseSensitive(json, "key3");
-    cJSON *item4 = cJSON_GetObjectItemCaseSensitive(json, "key4");
-
-    // Use cJSON_IsNumber to check if items are numbers
-    if (cJSON_IsNumber(item3)) {
-        // Do something with the number
-    }
-
-    if (cJSON_IsNumber(item4)) {
-        // Do something with the number
-    }
-
-    // Clean up
+    // Cleanup
     cJSON_Delete(json);
-    free(jsonString);
+    free(json_input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

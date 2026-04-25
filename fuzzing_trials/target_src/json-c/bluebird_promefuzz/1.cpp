@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -11,103 +13,166 @@
 #include "/src/json-c/json_object.h"
 #include <fcntl.h>
 #include <unistd.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio>
-
-static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
+#include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    // Step 1: Write data to a dummy file
-    write_to_dummy_file(Data, Size);
-
-    // Step 2: Test json_object_from_file
-    struct json_object *obj = json_object_from_file("./dummy_file");
-    if (obj) {
-        // Step 3: Test json_object_to_json_string_length
-        size_t length;
-        const char *json_str = json_object_to_json_string_length(obj, JSON_C_TO_STRING_PLAIN, &length);
-
-        // Step 4: Test json_object_to_json_string_ext
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_to_json_string_length to json_object_double_to_json_string
-        struct printbuf qrivridm;
-        memset(&qrivridm, 0, sizeof(qrivridm));
-
-        int ret_json_object_double_to_json_string_rxxjk = json_object_double_to_json_string(obj, &qrivridm, JSON_OBJECT_DEF_HASH_ENTRIES, 1);
-        if (ret_json_object_double_to_json_string_rxxjk < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        const char *json_str_ext = json_object_to_json_string_ext(obj, JSON_C_TO_STRING_PRETTY);
-
-        // Step 5: Test json_object_to_file
-        int result = json_object_to_file("./dummy_file", obj);
-
-        // Step 6: Test json_object_to_fd
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_to_file to json_object_array_insert_idx
-        struct json_object* ret_json_object_new_array_ext_mnihs = json_object_new_array_ext(JSON_C_OPTION_THREAD);
-        if (ret_json_object_new_array_ext_mnihs == NULL){
-        	return 0;
-        }
-        struct json_object* ret_json_object_get_amobz = json_object_get(obj);
-        if (ret_json_object_get_amobz == NULL){
-        	return 0;
-        }
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_get to json_object_set_boolean
-        json_bool ret_json_object_get_boolean_hmcei = json_object_get_boolean(NULL);
-
-        int ret_json_object_set_boolean_ezzkl = json_object_set_boolean(obj, ret_json_object_get_boolean_hmcei);
-        if (ret_json_object_set_boolean_ezzkl < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        int ret_json_object_array_insert_idx_aydwt = json_object_array_insert_idx(ret_json_object_new_array_ext_mnihs, (size_t )result, ret_json_object_get_amobz);
-        if (ret_json_object_array_insert_idx_aydwt < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        int fd = open("./dummy_file", O_WRONLY | O_CREAT, 0644);
-        if (fd != -1) {
-            result = json_object_to_fd(fd, obj, JSON_C_TO_STRING_PLAIN);
-            close(fd);
-        }
-
-        // Step 7: Test json_object_to_file_ext
-        result = json_object_to_file_ext("./dummy_file", obj, JSON_C_TO_STRING_PRETTY);
-
-        // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_from_file to json_object_set_int
-    int64_t ret_json_object_get_int64_nekgb = json_object_get_int64(obj);
-    if (ret_json_object_get_int64_nekgb < 0){
-    	return 0;
+    if (Size == 0) {
+        return 0;
     }
 
-    int ret_json_object_set_int_pquiw = json_object_set_int(obj, (int )ret_json_object_get_int64_nekgb);
-    if (ret_json_object_set_int_pquiw < 0){
-    	return 0;
+    // Ensure Data is null-terminated before passing to json_tokener_parse
+    std::vector<uint8_t> data_with_null(Data, Data + Size);
+    data_with_null.push_back('\0');
+
+    struct json_object *obj = json_tokener_parse((const char*)data_with_null.data());
+    if (!obj) {
+        return 0;
     }
 
+    // Test json_object_to_file_ext
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_tokener_parse to json_object_equal
+    struct json_object* ret_json_object_from_file_ntwfu = json_object_from_file((const char *)"r");
+    if (ret_json_object_from_file_ntwfu == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_json_object_from_file_ntwfu) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    int ret_json_object_equal_czjfd = json_object_equal(ret_json_object_from_file_ntwfu, obj);
+    if (ret_json_object_equal_czjfd < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
-        json_object_put(obj);
+    
+    const char *filename = "./dummy_file";
+    int flags = 0;
+    int ret = json_object_to_file_ext(filename, obj, flags);
+    if (ret == -1) {
+        std::cerr << "json_object_to_file_ext failed: " << json_util_get_last_err() << std::endl;
     }
 
+    // Test json_object_to_fd
+    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd != -1) {
+        ret = json_object_to_fd(fd, obj, flags);
+        if (ret == -1) {
+            std::cerr << "json_object_to_fd failed: " << json_util_get_last_err() << std::endl;
+        }
+        close(fd);
+    }
+
+    // Test json_object_object_get_ex
+    struct json_object *value = nullptr;
+    const char *key = "key";
+    int found = json_object_object_get_ex(obj, key, &value);
+    if (found) {
+        // Do something with value if needed
+    }
+
+    // Test json_object_to_json_string_ext
+    const char *json_str_ext = json_object_to_json_string_ext(obj, flags);
+    if (json_str_ext) {
+        // Do something with json_str_ext if needed
+    }
+
+    // Test json_object_to_json_string_length
+    size_t length = 0;
+    const char *json_str_length = json_object_to_json_string_length(obj, flags, &length);
+    if (json_str_length) {
+        // Do something with json_str_length if needed
+    }
+
+    // Test json_object_to_json_string
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_to_json_string_length to json_object_set_double
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    struct json_object* ret_json_object_get_ewpga = json_object_get(obj);
+    if (ret_json_object_get_ewpga == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    int ret_json_object_set_double_ttklh = json_object_set_double(obj, (double )length);
+    if (ret_json_object_set_double_ttklh < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    const char *json_str = json_object_to_json_string(obj);
+    if (json_str) {
+        // Do something with json_str if needed
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_to_json_string to json_object_equal
+    struct json_object* ret_json_object_from_fd_wbrop = json_object_from_fd(JSON_C_TO_STRING_NOSLASHESCAPE);
+    if (ret_json_object_from_fd_wbrop == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_json_object_from_fd_wbrop) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    int ret_json_object_equal_fmkjs = json_object_equal(ret_json_object_from_fd_wbrop, obj);
+    if (ret_json_object_equal_fmkjs < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    json_object_put(obj);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,46 +1,69 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
+#include <stdio.h>
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+// Define a dummy destructor function to satisfy the function signature
+void dummy_destructor_222(void *ptr) {
+    // No operation needed; just a placeholder
+}
+
+// Mock function to simulate a SQLite function call
+void mock_sqlite_function(sqlite3_context *context, const uint8_t *data, size_t size) {
+    // Ensure the size does not exceed the maximum limit for sqlite3_result_text16be
+    if (size > 0 && data != NULL) {
+        // Call the function-under-test
+        sqlite3_result_text16be(context, (const void *)data, (int)size, dummy_destructor_222);
     }
 }
 
+// A simple SQLite function to provide a context
+static void dummy_sqlite_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // For fuzzing, we don't need to do anything here
+    const uint8_t *data = (const uint8_t *)sqlite3_value_blob(argv[0]);
+    int size = sqlite3_value_bytes(argv[0]);
+    mock_sqlite_function(context, data, size);
+}
+
 int LLVMFuzzerTestOneInput_222(const uint8_t *data, size_t size) {
+    // Ensure the data is not NULL and has a size
+    if (data == NULL || size == 0) {
+        return 0;
+    }
+
+    // Initialize SQLite in-memory database
     sqlite3 *db;
-    int rc;
-
-    // Open a new in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
+    // Register a simple SQLite function to get a valid context
+    sqlite3_create_function(db, "dummy_func", 1, SQLITE_UTF8, NULL, dummy_sqlite_function, NULL, NULL);
 
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Prepare a statement to execute the dummy function
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, "SELECT dummy_func(?)", -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
+
+    // Bind the input data to the statement
+    if (sqlite3_bind_blob(stmt, 1, data, (int)size, SQLITE_STATIC) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Step through the statement to invoke the function and get a context
+    sqlite3_step(stmt);
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

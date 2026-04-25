@@ -1,6 +1,7 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,40 +12,78 @@ extern "C" {
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-  if (size == 0 || data[size - 1] != '\0') {
+  if (size == 0) {
     return 0;
   }
 
-  cJSON *json = cJSON_Parse((const char *)data);
-  if (json == NULL) {
+  // Create a copy of the input data and ensure it is null-terminated
+  char *input_data = (char *)malloc(size + 1);
+  if (input_data == NULL) {
     return 0;
   }
+  memcpy(input_data, data, size);
+  input_data[size] = '\0';
 
-  cJSON_bool is_raw = cJSON_IsRaw(json);
+  // Call the function-under-test
+  cJSON_Minify(input_data);
 
-  // Use the result of cJSON_IsRaw to avoid compiler warnings about unused variables
-  if (is_raw) {
-    // Do something if it's raw, though for fuzzing purposes, we don't need to do anything specific
-  }
+  // Free the allocated memory
 
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Delete to cJSON_ReplaceItemInObject
-  cJSON* ret_cJSON_CreateNumber_xlxyp = cJSON_CreateNumber(cJSON_StringIsConst);
-  if (ret_cJSON_CreateNumber_xlxyp == NULL){
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Minify to cJSON_AddNullToObject
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!input_data) {
   	return 0;
   }
-
-  cJSON_bool ret_cJSON_ReplaceItemInObject_cfeuy = cJSON_ReplaceItemInObject(json, NULL, ret_cJSON_CreateNumber_xlxyp);
-  if (ret_cJSON_ReplaceItemInObject_cfeuy < 0){
+  cJSON* ret_cJSON_AddNullToObject_xpwqp = cJSON_AddNullToObject(NULL, input_data);
+  if (ret_cJSON_AddNullToObject_xpwqp == NULL){
   	return 0;
   }
-
   // End mutation: Producer.APPEND_MUTATOR
-
-  cJSON_Delete(json);
+  
+  free(input_data);
 
   return 0;
 }
+
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

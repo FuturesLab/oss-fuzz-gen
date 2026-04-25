@@ -1,47 +1,45 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    // Initialize SQLite3 context
-    sqlite3 *db;
+    // Initialize SQLite library
+    sqlite3_initialize();
 
-    // Open a temporary in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
-    }
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Create a new SQLite database in memory
+        sqlite3 *db;
+        const char uvlcuyoi[1024] = "vskbp";
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+        sqlite3_open(uvlcuyoi, &db);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Create a SQL statement from the input data
-    char *errMsg = 0;
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+        // Create a SQL statement using the input data
+        char *sql = sqlite3_mprintf("%.*s", (int)size, (const char*)data);
+
+        // Prepare the SQL statement
+        sqlite3_stmt *stmt;
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+
+        if (rc == SQLITE_OK) {
+            // Execute the SQL statement
+            sqlite3_step(stmt);
+            // Finalize the statement to clean up
+            sqlite3_finalize(stmt);
+        }
+
+        // Free the SQL string
+        sqlite3_free(sql);
+
+        // Close the SQLite database
         sqlite3_close(db);
-        return 0; // If memory allocation fails, exit early
     }
 
-    // Copy the data into the SQL statement and null-terminate it
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Clean up
-    if (errMsg) {
-        sqlite3_free(errMsg);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open16
-    sqlite3_int64 ret_sqlite3_total_changes64_qkkhr = sqlite3_total_changes64(db);
-    int ret_sqlite3_open16_hpnuj = sqlite3_open16((const void *)db, &db);
-    if (ret_sqlite3_open16_hpnuj < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
-    sqlite3_close(db);
+    // Shutdown SQLite library
+    sqlite3_shutdown();
 
     return 0;
 }

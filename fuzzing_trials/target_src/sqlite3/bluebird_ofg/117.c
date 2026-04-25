@@ -1,41 +1,48 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
 #include "sqlite3.h"
+#include <stdlib.h>
+#include <string.h> // Include for memcpy and malloc
 
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
     sqlite3 *db = NULL;
-    char *errMsg = NULL;
     int rc;
-
+    
     // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
+    const char jtdcfhex[1024] = "ktwvg";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(jtdcfhex, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare an SQL statement using the input data
-    // Note: The input data is not null-terminated, so we need to handle it carefully
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    
-    // Free the allocated SQL string
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-    sqlite3_free(NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Copy the input data to the new buffer and null-terminate it
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Check for errors
-    if (rc != SQLITE_OK) {
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
 
+    // Call the function-under-test
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
+
+    // Free the allocated buffer
+    free(sql);
+
     // Close the database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    sqlite3_close(db);
 
     return 0;
 }

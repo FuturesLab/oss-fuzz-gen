@@ -1,77 +1,74 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt = NULL;
-    const char *pzTail = NULL;
-
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &pzTail);
-    if (rc != SQLITE_OK) {
-        const char *errmsg = sqlite3_errmsg(db);
-        (void)errmsg;  // Suppress unused variable warning
-        return;
-    }
-
-    rc = sqlite3_step(stmt);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_step with sqlite3_bind_parameter_count
-    rc = sqlite3_bind_parameter_count(stmt);  // Call sqlite3_step twice as required
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    int column_count = sqlite3_column_count(stmt);
-    for (int i = 0; i < column_count; i++) {
-        int col_type = sqlite3_column_type(stmt, i);
-        const char *col_name = sqlite3_column_name(stmt, i);
-        const unsigned char *col_text = sqlite3_column_text(stmt, i);
-        int col_bytes = sqlite3_column_bytes(stmt, i);
-
-        (void)col_type;  // Suppress unused variable warning
-        (void)col_name;
-        (void)col_text;
-        (void)col_bytes;
-    }
-
-    sqlite3_finalize(stmt);
+static void traceCallback(void *unused, const char *sql) {
+    (void)unused; // Suppress unused parameter warning
+    (void)sql;    // Suppress unused parameter warning
 }
 
 int LLVMFuzzerTestOneInput_202(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    sqlite3 *db = NULL;
+    char *errMsg = NULL;
+    char *formattedSql = NULL;
+
+    // Ensure data is not null and size is sufficient to create inputs
+    if (Data == NULL || Size < 1) {
         return 0;
     }
 
-    // Initialize SQLite
-    sqlite3 *db;
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open a SQLite database connection
+    int rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Copy input data to a null-terminated string
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
+    // Set a trace callback
+    sqlite3_trace(db, traceCallback, NULL);
+
+    // Create a formatted SQL string using sqlite3_mprintf
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_trace to sqlite3_open_v2 using the plateau pool
+    int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open_v2_dbktb = sqlite3_open_v2("./dummy_file", &db, flags, NULL);
+    if (ret_sqlite3_open_v2_dbktb < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    formattedSql = sqlite3_mprintf("CREATE TABLE fuzz (data BLOB); INSERT INTO fuzz VALUES (%.*s);", (int)Size, Data);
+    if (formattedSql == NULL) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0';
 
-    // Execute fuzzing with the given SQL
-    execute_sqlite_fuzzing(db, sql);
+    // Execute the formatted SQL statement
+    rc = sqlite3_exec(db, formattedSql, NULL, NULL, &errMsg);
+    if (rc != SQLITE_OK) {
+        if (errMsg) {
+            sqlite3_free(errMsg);
+        }
+    }
 
-    // Cleanup
-    free(sql);
+    // Free the formatted SQL string
+    sqlite3_free(formattedSql);
+
+    // Close the database connection
     sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

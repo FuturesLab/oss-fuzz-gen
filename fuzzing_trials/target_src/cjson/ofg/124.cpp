@@ -11,46 +11,72 @@ extern "C" {
 int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-  if (size < 3) return 0; // Ensure there's enough data for parsing
+  if (size < 3) return 0; // Ensure there's enough data to create cJSON items
 
-  // Split the input data into three parts for each cJSON object
-  size_t part_size = size / 3;
-  size_t remainder = size % 3;
+  // Create dummy cJSON items
+  cJSON *parent = cJSON_CreateObject();
+  cJSON *item_to_replace = cJSON_CreateObject();
+  cJSON *replacement_item = cJSON_CreateObject();
 
-  const uint8_t *first_part = data;
-  const uint8_t *second_part = data + part_size;
-  const uint8_t *third_part = data + 2 * part_size;
-
-  // Parse the first part into a cJSON object
-  cJSON *json1 = cJSON_ParseWithLength((const char *)first_part, part_size);
-  if (json1 == NULL) return 0;
-
-  // Parse the second part into a cJSON object
-  cJSON *json2 = cJSON_ParseWithLength((const char *)second_part, part_size + (remainder > 0 ? 1 : 0));
-  if (json2 == NULL) {
-    cJSON_Delete(json1);
+  // Ensure the items are not NULL
+  if (parent == NULL || item_to_replace == NULL || replacement_item == NULL) {
+    cJSON_Delete(parent);
+    cJSON_Delete(item_to_replace);
+    cJSON_Delete(replacement_item);
     return 0;
   }
 
-  // Parse the third part into a cJSON object
-  cJSON *json3 = cJSON_ParseWithLength((const char *)third_part, part_size + (remainder > 1 ? 1 : 0));
-  if (json3 == NULL) {
-    cJSON_Delete(json1);
-    cJSON_Delete(json2);
-    return 0;
-  }
+  // Add the item to replace to the parent
+  cJSON_AddItemToObject(parent, "item", item_to_replace);
 
   // Call the function-under-test
-  cJSON_ReplaceItemViaPointer(json1, json2, json3);
+  cJSON_ReplaceItemViaPointer(parent, item_to_replace, replacement_item);
 
   // Clean up
-  cJSON_Delete(json1);
-  cJSON_Delete(json2);
-  cJSON_Delete(json3);
+  cJSON_Delete(parent); // This will also delete item_to_replace and replacement_item
 
   return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_124(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

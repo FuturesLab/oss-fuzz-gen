@@ -1,51 +1,44 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-}
-
 int LLVMFuzzerTestOneInput_181(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
+    // Initialize SQLite library
+    sqlite3_initialize();
 
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(lwzpauru, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
-    }
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Create a new SQLite database in memory
+        sqlite3 *db;
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+        sqlite3_open((const char *)"w", &db);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
+        // Create a SQL statement using the input data
+        char *sql = sqlite3_mprintf("%.*s", (int)size, (const char*)data);
+
+        // Prepare the SQL statement
+        sqlite3_stmt *stmt;
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+
+        if (rc == SQLITE_OK) {
+            // Execute the SQL statement
+            sqlite3_step(stmt);
+            // Finalize the statement to clean up
+            sqlite3_finalize(stmt);
         }
 
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_error_offset
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_error_offset with sqlite3_db_release_memory
-        sqlite3_db_release_memory(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        // Free the SQL string
+        sqlite3_free(sql);
+
+        // Close the SQLite database
+        sqlite3_close(db);
     }
+
+    // Shutdown SQLite library
+    sqlite3_shutdown();
 
     return 0;
 }

@@ -1,103 +1,91 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
+static int prepare_statement(sqlite3 *db, const char *sql, sqlite3_stmt **stmt, const char **tail) {
+    return sqlite3_prepare(db, sql, -1, stmt, tail);
 }
 
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static void test_sqlite3_stmt_readonly(sqlite3_stmt *stmt) {
+    if (stmt) {
+        int readonly = sqlite3_stmt_readonly(stmt);
+        (void)readonly; // Suppress unused variable warning
+    }
+}
+
+static void test_sqlite3_stmt_busy(sqlite3_stmt *stmt) {
+    if (stmt) {
+        int busy = sqlite3_stmt_busy(stmt);
+        (void)busy; // Suppress unused variable warning
+    }
+}
+
+static void test_sqlite3_expired(sqlite3_stmt *stmt) {
+    if (stmt) {
+        int expired = sqlite3_expired(stmt);
+        (void)expired; // Suppress unused variable warning
+    }
+}
+
+static void test_sqlite3_transfer_bindings(sqlite3_stmt *stmt1, sqlite3_stmt *stmt2) {
+    if (stmt1 && stmt2) {
+        int result = sqlite3_transfer_bindings(stmt1, stmt2);
+        (void)result; // Suppress unused variable warning
+    }
+}
+
+static void test_sqlite3_stmt_explain(sqlite3_stmt *stmt, int mode) {
+    if (stmt) {
+        int result = sqlite3_stmt_explain(stmt, mode);
+        (void)result; // Suppress unused variable warning
+    }
 }
 
 int LLVMFuzzerTestOneInput_193(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
     sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3_stmt *stmt = NULL;
+    const char *tail = NULL;
     char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
+    if (!sql) return 0;
     memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
+    sql[Size] = '\0';
 
-    int rc;
-
-    // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    const char njjwpquw[1024] = "ubtqk";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
+    if (sqlite3_open("./dummy_file", &db) != SQLITE_OK) {
         free(sql);
         return 0;
     }
 
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    if (prepare_statement(db, sql, &stmt, &tail) == SQLITE_OK) {
+        test_sqlite3_stmt_readonly(stmt);
+        test_sqlite3_stmt_busy(stmt);
+        test_sqlite3_expired(stmt);
+
+        // Create another statement to test sqlite3_transfer_bindings
+        sqlite3_stmt *stmt2 = NULL;
+        if (prepare_statement(db, sql, &stmt2, &tail) == SQLITE_OK) {
+            test_sqlite3_transfer_bindings(stmt, stmt2);
+            sqlite3_finalize(stmt2);
+        }
+
+        // Test different explain modes
+        for (int mode = 0; mode <= 2; ++mode) {
+            test_sqlite3_stmt_explain(stmt, mode);
+        }
+
+        sqlite3_finalize(stmt);
     }
 
-    // Set authorizer
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_name
-    const char* ret_sqlite3_db_name_ayerf = sqlite3_db_name(db, 0);
-    if (ret_sqlite3_db_name_ayerf == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int ret_sqlite3_extended_result_codes_cxcaq = sqlite3_extended_result_codes(db, -1);
-    if (ret_sqlite3_extended_result_codes_cxcaq < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
-    }
-
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
-    }
-
-    // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_db_release_memory with sqlite3_close
     sqlite3_close(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
     free(sql);
     return 0;
 }

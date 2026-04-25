@@ -2,29 +2,61 @@
 #include "/src/json-c/json_object.h"
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
+    // Initialize FuzzedDataProvider
     FuzzedDataProvider fuzzed_data(data, size);
 
     // Create a json_object
-    json_object *jobj = json_object_new_object();
-    if (jobj == nullptr) {
-        return 0; // Early return if json_object creation fails
-    }
+    struct json_object *jobj = json_object_new_object();
 
-    // Consume a string from the fuzzed data
-    std::string str = fuzzed_data.ConsumeRandomLengthString(100);
-    const char *c_str = str.c_str();
-
-    // Consume an integer for the length
-    int len = fuzzed_data.ConsumeIntegralInRange<int>(0, str.size());
+    // Consume a double from the fuzzed data
+    double value = fuzzed_data.ConsumeFloatingPoint<double>();
 
     // Call the function-under-test
-    json_object_set_string_len(jobj, c_str, len);
+    json_object_object_add(jobj, "key", json_object_new_double(value));
 
-    // Clean up the json_object
+    // Clean up
     json_object_put(jobj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

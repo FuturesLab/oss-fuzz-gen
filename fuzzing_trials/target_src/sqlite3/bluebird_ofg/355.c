@@ -1,44 +1,63 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-
-// Callback function for sqlite3_exec
-int callback_355(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0;
-}
 
 int LLVMFuzzerTestOneInput_355(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = NULL;
+    char *errMsg = 0;
     int rc;
-    
-    // Open an in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
+
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if(rc) {
+        sqlite3_close(db);
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a SQL statement
+    // Convert the fuzz input into a null-terminated string
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    if (!sql) {
         sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, callback_355, NULL, &errMsg);
+    // Execute the SQL command
+    char *lxpkgwfu[1024] = {"hvqmt", NULL};
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_exec
+    sqlite3_exec(db, sql, 0, 0, lxpkgwfu);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Free resources
-    free(sql);
-    if (errMsg != NULL) {
-        sqlite3_free(errMsg);
+    // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open16
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
+    sqlite3_mutex* ret_sqlite3_db_mutex_drasl = sqlite3_db_mutex(db);
+    if (ret_sqlite3_db_mutex_drasl == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open16_otzlt = sqlite3_open16((const void *)db, &db);
+    if (ret_sqlite3_open16_otzlt < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
+    free(sql);
     sqlite3_close(db);
 
     return 0;

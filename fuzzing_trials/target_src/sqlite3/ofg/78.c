@@ -1,37 +1,71 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <stdio.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-    int timeout;
-    int lockType;
+    // Create a new sqlite3_str object
+    sqlite3_str *strAccum = sqlite3_str_new(NULL);
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
-        return 0;
+    // Check if the object was created successfully
+    if (strAccum == NULL) {
+        return 0; // If not, return early
     }
 
-    // Ensure size is sufficient to extract two integers
-    if (size < 2 * sizeof(int)) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Append the input data to the sqlite3_str object
+    sqlite3_str_append(strAccum, (const char *)data, (int)size);
 
-    // Extract integers from the input data
-    timeout = ((int*)data)[0];
-    lockType = ((int*)data)[1];
+    // Reset the string accumulator
+    sqlite3_str_reset(strAccum);
 
-    // Call the function-under-test
-    // Note: The function sqlite3_setlk_timeout does not exist in the SQLite API.
-    // Assuming the intended function is sqlite3_busy_timeout, which sets a busy timeout.
-    sqlite3_busy_timeout(db, timeout);
-
-    // Close the database
-    sqlite3_close(db);
+    // Free the sqlite3_str object
+    sqlite3_str_finish(strAccum);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_78(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

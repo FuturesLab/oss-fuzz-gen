@@ -1,67 +1,87 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "../cJSON.h"
-
 int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-  if (size < 3) {
+    if (size < 3) {
+        return 0;
+    }
+
+    // Split the input data into three parts for the three cJSON parameters
+    size_t part_size = size / 3;
+    const char *json_str1 = (const char *)data;
+    const char *json_str2 = (const char *)(data + part_size);
+    const char *json_str3 = (const char *)(data + 2 * part_size);
+
+    // Parse the JSON strings into cJSON objects
+    cJSON *item1 = cJSON_ParseWithLength(json_str1, part_size);
+    cJSON *item2 = cJSON_ParseWithLength(json_str2, part_size);
+    cJSON *replacement = cJSON_ParseWithLength(json_str3, size - 2 * part_size);
+
+    if (item1 == NULL || item2 == NULL || replacement == NULL) {
+        cJSON_Delete(item1);
+        cJSON_Delete(item2);
+        cJSON_Delete(replacement);
+        return 0;
+    }
+
+    // Call the function-under-test
+    cJSON_ReplaceItemViaPointer(item1, item2, replacement);
+
+    // Clean up
+    cJSON_Delete(item1);
+    cJSON_Delete(item2);
+    cJSON_Delete(replacement);
+
     return 0;
-  }
-
-  // Split the input data into three parts for the three cJSON objects
-  size_t part_size = size / 3;
-  size_t remainder = size % 3;
-
-  const uint8_t *data1 = data;
-  const uint8_t *data2 = data + part_size;
-  const uint8_t *data3 = data + 2 * part_size;
-
-  // Ensure each part is null-terminated for parsing
-  char *json_str1 = (char *)malloc(part_size + 1);
-  char *json_str2 = (char *)malloc(part_size + 1);
-  char *json_str3 = (char *)malloc(part_size + remainder + 1);
-
-  if (!json_str1 || !json_str2 || !json_str3) {
-    free(json_str1);
-    free(json_str2);
-    free(json_str3);
-    return 0;
-  }
-
-  memcpy(json_str1, data1, part_size);
-  memcpy(json_str2, data2, part_size);
-  memcpy(json_str3, data3, part_size + remainder);
-
-  json_str1[part_size] = '\0';
-  json_str2[part_size] = '\0';
-  json_str3[part_size + remainder] = '\0';
-
-  cJSON *json1 = cJSON_Parse(json_str1);
-  cJSON *json2 = cJSON_Parse(json_str2);
-  cJSON *json3 = cJSON_Parse(json_str3);
-
-  if (json1 && json2 && json3) {
-    cJSON_ReplaceItemViaPointer(json1, json2, json3);
-  }
-
-  cJSON_Delete(json1);
-  cJSON_Delete(json2);
-  cJSON_Delete(json3);
-
-  free(json_str1);
-  free(json_str2);
-  free(json_str3);
-
-  return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_123(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

@@ -1,75 +1,69 @@
-#include <cstddef>
+#include <sys/stat.h>
+#include <string.h>
 #include <cstdint>
-#include "vpx/vpx_decoder.h"
-#include "vpx/vp8dx.h"
+#include <cstdlib>
+#include <cstring>
+#include "/src/libvpx/vpx/vpx_codec.h"
+#include "/src/libvpx/vpx/vpx_encoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // No data to decode
-    }
-
-    vpx_codec_ctx_t codec;
-    vpx_codec_err_t res;
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function vpx_codec_vp8_dx with vpx_codec_vp9_dx
-    vpx_codec_iface_t *iface = vpx_codec_vp9_dx(); // Use VP8 decoder interface
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_vp9_dx to vpx_codec_peek_stream_info
-    const uint8_t yxgtndka = size;
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of vpx_codec_peek_stream_info
-    vpx_codec_err_t ret_vpx_codec_peek_stream_info_gvzll = vpx_codec_peek_stream_info(iface, NULL, 0, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    void *user_priv = reinterpret_cast<void*>(0x1); // Non-NULL user data
-    long deadline = 0; // Set to 0 for real-time decoding
+    vpx_codec_ctx_t codec_ctx;
+    vpx_fixed_buf_t fixed_buf;
+    vpx_codec_err_t err;
+    unsigned int pad_before = 0;
+    unsigned int pad_after = 0;
 
     // Initialize codec context
-    if (vpx_codec_dec_init(&codec, iface, nullptr, 0)) {
-        return 0; // Initialization failed, exit
-    }
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-    // Decode the input data
+    // Initialize fixed buffer with the input data
+    fixed_buf.buf = (void *)data;
+    fixed_buf.sz = size;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of vpx_codec_decode
-    res = vpx_codec_decode(&codec, data, static_cast<unsigned int>(size), user_priv, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Call the function-under-test
+    err = vpx_codec_set_cx_data_buf(&codec_ctx, &fixed_buf, pad_before, pad_after);
 
-
-    if (res != VPX_CODEC_OK) {
-        vpx_codec_destroy(&codec);
-        return 0; // Decoding failed, exit
-    }
-
-    // Retrieve and process decoded frames
-    vpx_codec_iter_t iter = nullptr;
-    vpx_image_t *img;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_decode to vpx_codec_dec_init_ver
-    vpx_codec_iface_t* ret_vpx_codec_vp8_dx_pcwzf = vpx_codec_vp8_dx();
-    if (ret_vpx_codec_vp8_dx_pcwzf == NULL){
-    	return 0;
-    }
-
-    vpx_codec_err_t ret_vpx_codec_dec_init_ver_jrjpg = vpx_codec_dec_init_ver(&codec, ret_vpx_codec_vp8_dx_pcwzf, NULL, 0, size);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    while ((img = vpx_codec_get_frame(&codec, &iter)) != nullptr) {
-        // Process the decoded frame (e.g., access img->planes, img->stride, etc.)
-        // For fuzzing, we don't need to do anything specific with the frame
-    }
-
-    // Clean up
-    vpx_codec_destroy(&codec);
+    // Ensure the function is called
+    (void)err;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

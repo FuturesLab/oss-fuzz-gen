@@ -1,55 +1,40 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>  // For size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // For malloc, free, and NULL
-#include <string.h>  // For memcpy
+#include <stddef.h>  // Include for size_t and NULL
 #include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_283(const uint8_t *data, size_t size) {
+    // Initialize SQLite
     sqlite3 *db;
+    sqlite3_stmt *stmt = NULL;
     int rc;
-    char *errMsg = 0;
+    const char *sql = "SELECT * FROM test WHERE id = ? AND name = ?";
 
-    // Initialize a database in memory
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Execute a simple SQL statement to ensure the database is in a valid state
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sqlite3_exec
-    rc = sqlite3_exec(db, NULL, 0, 0, &errMsg);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // If size is greater than 0, use the data to execute a SQL statement
+    // Use the fuzzing data as the index for the bind parameter
+    int index = 0;
     if (size > 0) {
-        // Interpret the data as a SQL statement
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0;
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
-
-        // Execute the SQL statement
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-
-        free(sql);
+        index = data[0] % (sqlite3_bind_parameter_count(stmt) + 1); // Ensure index is within bounds
     }
 
     // Call the function-under-test
-    int autocommit = sqlite3_get_autocommit(db);
+    const char *param_name = sqlite3_bind_parameter_name(stmt, index);
 
-    // Cleanup
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

@@ -11,38 +11,44 @@ extern "C" {
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-  if (size < 2) return 0; // Ensure there is enough data for at least two strings
+  if (size < 2) {
+    return 0;
+  }
 
   // Split the input data into two parts for key and raw value
-  size_t key_length = data[0] % (size - 1) + 1; // Ensure key_length is at least 1
-  size_t raw_length = size - key_length - 1;
+  size_t key_len = data[0] % size; // Ensure key_len is within bounds
+  size_t raw_len = size - key_len - 1; // Remaining bytes for raw value
 
-  char *key = (char *)malloc(key_length + 1);
-  char *raw_value = (char *)malloc(raw_length + 1);
+  // Allocate memory for key and raw value
+  char *key = (char *)malloc(key_len + 1);
+  char *raw_value = (char *)malloc(raw_len + 1);
 
-  if (key == NULL || raw_value == NULL) {
+  if (!key || !raw_value) {
     free(key);
     free(raw_value);
     return 0;
   }
 
-  memcpy(key, data + 1, key_length);
-  key[key_length] = '\0';
+  // Copy data into key and raw value
+  memcpy(key, data + 1, key_len);
+  key[key_len] = '\0'; // Null-terminate the key string
 
-  memcpy(raw_value, data + 1 + key_length, raw_length);
-  raw_value[raw_length] = '\0';
+  memcpy(raw_value, data + 1 + key_len, raw_len);
+  raw_value[raw_len] = '\0'; // Null-terminate the raw value string
 
-  cJSON *object = cJSON_CreateObject();
-  if (object == NULL) {
+  // Create a cJSON object
+  cJSON *json = cJSON_CreateObject();
+  if (!json) {
     free(key);
     free(raw_value);
     return 0;
   }
 
-  cJSON *result = cJSON_AddRawToObject(object, key, raw_value);
+  // Call the function-under-test
+  cJSON *result = cJSON_AddRawToObject(json, key, raw_value);
 
   // Clean up
-  cJSON_Delete(object);
+  cJSON_Delete(json);
   free(key);
   free(raw_value);
 
@@ -50,5 +56,44 @@ int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

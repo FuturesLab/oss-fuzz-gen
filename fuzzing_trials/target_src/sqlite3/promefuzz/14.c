@@ -1,14 +1,28 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_limit at sqlite3.c:174006:16 in sqlite3.h
-// sqlite3_limit at sqlite3.c:174006:16 in sqlite3.h
-// sqlite3_limit at sqlite3.c:174006:16 in sqlite3.h
-// sqlite3_limit at sqlite3.c:174006:16 in sqlite3.h
-// sqlite3_hard_heap_limit64 at sqlite3.c:17198:26 in sqlite3.h
-// sqlite3_test_control at sqlite3.c:175215:16 in sqlite3.h
-// sqlite3_deserialize at sqlite3.c:41253:16 in sqlite3.h
-// sqlite3_file_control at sqlite3.c:175162:16 in sqlite3.h
+// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_column_count at sqlite3.c:79599:16 in sqlite3.h
+// sqlite3_column_bytes at sqlite3.c:79724:16 in sqlite3.h
+// sqlite3_column_blob at sqlite3.c:79714:24 in sqlite3.h
+// sqlite3_column_bytes at sqlite3.c:79724:16 in sqlite3.h
+// sqlite3_column_blob at sqlite3.c:79714:24 in sqlite3.h
+// sqlite3_stmt_isexplain at sqlite3.c:80364:16 in sqlite3.h
+// sqlite3_reset at sqlite3.c:78461:16 in sqlite3.h
+// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -16,61 +30,111 @@
 #include <stdio.h>
 #include <sqlite3.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 
-static sqlite3* init_db() {
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return NULL;
+static void setupDatabase(sqlite3 **db, sqlite3_stmt **stmt) {
+    int rc = sqlite3_open(":memory:", db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(*db));
+        return;
     }
-    return db;
-}
 
-static void cleanup_db(sqlite3 *db) {
-    if (db) {
-        sqlite3_close(db);
+    char *errMsg = 0;
+    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);"
+                      "INSERT INTO test (data) VALUES (x'12345678');";
+    rc = sqlite3_exec(*db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
+        sqlite3_free(errMsg);
+        sqlite3_close(*db);
+        return;
+    }
+
+    const char *stmtSQL = "SELECT data FROM test;";
+    rc = sqlite3_prepare_v2(*db, stmtSQL, -1, stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(*db));
+        sqlite3_close(*db);
     }
 }
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    setupDatabase(&db, &stmt);
 
-    sqlite3 *db = init_db();
-    if (!db) return 0;
+    if (db == NULL || stmt == NULL) {
+        return 0;
+    }
 
-    // Fuzz sqlite3_limit
-    int limitId = Data[0] % SQLITE_LIMIT_TRIGGER_DEPTH;
-    int newVal = (Size > 1) ? Data[1] : -1;
-    sqlite3_limit(db, limitId, newVal);
-    sqlite3_limit(db, limitId, newVal);
-    sqlite3_limit(db, limitId, newVal);
-    sqlite3_limit(db, limitId, newVal);
+    int rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        fprintf(stderr, "Failed to step: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Fuzz sqlite3_hard_heap_limit64
-    sqlite3_int64 newLimit = (Size > 2) ? *((sqlite3_int64*)&Data[2]) : 1024;
-    sqlite3_hard_heap_limit64(newLimit);
+    int iCol = 0;
+    if (Size > 0) {
+        iCol = Data[0] % sqlite3_column_count(stmt);
+    }
 
-    // Fuzz sqlite3_test_control
-    int op = (Size > 3) ? Data[3] : 0;
-    sqlite3_test_control(op);
+    sqlite3_column_bytes(stmt, iCol);
+    sqlite3_column_blob(stmt, iCol);
+    sqlite3_column_bytes(stmt, iCol);
+    sqlite3_column_blob(stmt, iCol);
 
-    // Prepare for sqlite3_deserialize
-    unsigned char *pData = (Size > 10) ? (unsigned char*)&Data[4] : NULL;
-    sqlite3_int64 szDb = (Size > 11) ? *((sqlite3_int64*)&Data[4]) : 0;
-    sqlite3_int64 szBuf = (Size > 19) ? *((sqlite3_int64*)&Data[12]) : szDb;
-    unsigned mFlags = (Size > 20) ? Data[20] : 0;
+    sqlite3_stmt_isexplain(stmt);
+    sqlite3_reset(stmt);
+    sqlite3_step(stmt);
 
-    // Fuzz sqlite3_deserialize
-    sqlite3_deserialize(db, "main", pData, szDb, szBuf, mFlags);
+    sqlite3_errmsg(db);
+    sqlite3_errmsg(db);
 
-    // Fuzz sqlite3_file_control
-    const char *zDbName = "main";
-    int fileControlOp = (Size > 21) ? Data[21] : 0;
-    void *pArg = NULL;
-    sqlite3_file_control(db, zDbName, fileControlOp, pArg);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
-    cleanup_db(db);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

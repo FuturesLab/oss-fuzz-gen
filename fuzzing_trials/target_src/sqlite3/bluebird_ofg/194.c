@@ -1,51 +1,67 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
-
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-}
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_194(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
+    const void *text16;
 
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
-
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_close
+    // Create a dummy table
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        return 0;
     }
+
+    // Prepare an insert statement
+    const char *insertSQL = "INSERT INTO test (value) VALUES (?);";
+    rc = sqlite3_prepare_v2(db, insertSQL, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Bind the fuzzing data as a text value
+    sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
+
+    // Execute the insert statement
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare a select statement
+    const char *selectSQL = "SELECT value FROM test WHERE id = 1;";
+    rc = sqlite3_prepare_v2(db, selectSQL, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the select statement
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        // Call the function-under-test
+        text16 = sqlite3_column_text16(stmt, 0);
+    }
+
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

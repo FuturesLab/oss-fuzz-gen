@@ -1,43 +1,40 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_287(const uint8_t *data, size_t size) {
-    // Check if the input data is non-null and has a non-zero size
-    if (data == NULL || size == 0) {
-        return 0;
-    }
-
+    // Initialize SQLite
     sqlite3 *db;
-    char *errMsg = 0;
-
-    // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db)) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        sqlite3_close(db);
-        return 0;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // If opening the database fails, exit early
     }
 
-    // Convert the input data to a null-terminated string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Prepare a statement with a single parameter
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, "SELECT ?;", -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(db);
-        return 0;
+        return 0; // If preparing the statement fails, exit early
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL command(s) from the input data
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Bind the input data as a blob to the statement
+    if (sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0; // If binding the blob fails, exit early
+    }
 
-    // Free allocated resources
-    sqlite3_free(errMsg);
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
-    sqlite3_errcode(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Execute the statement
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Retrieve the result as text
+        const unsigned char *text = sqlite3_column_text(stmt, 0);
+        // Optionally, do something with `text` here
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

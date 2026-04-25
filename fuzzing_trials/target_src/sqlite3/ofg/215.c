@@ -1,46 +1,81 @@
-#include <stdint.h>
 #include <sqlite3.h>
-#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Fuzzing harness for sqlite3_extended_errcode
 int LLVMFuzzerTestOneInput_215(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
+    sqlite3 *db;
     int rc;
-    char *errMsg = 0;
+    int logFrameCount = 0;
+    int checkpointCount = 0;
 
-    // Initialize a database in memory
+    // Initialize SQLite database in memory
     rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INT, value TEXT);", NULL, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
+    // Create a temporary filename for the database
+    char *filename = (char *)malloc(size + 1);
+    if (!filename) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(filename, data, size);
+    filename[size] = '\0';
 
-    // Use the input data to form a SQL statement
-    if (size > 0) {
-        char sql[256];
-        snprintf(sql, sizeof(sql), "INSERT INTO test (id, value) VALUES (%d, '%.*s');", data[0], (int)(size - 1), data + 1);
-
-        // Execute the SQL statement
-        rc = sqlite3_exec(db, sql, NULL, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            fprintf(stderr, "SQL error: %s\n", errMsg);
-            sqlite3_free(errMsg);
+    // Ensure the filename is valid by replacing any null bytes
+    for (size_t i = 0; i < size; i++) {
+        if (filename[i] == '\0') {
+            filename[i] = 'a'; // Replace null byte with a valid character
         }
     }
 
-    // Call the function-under-test
-    int extended_errcode = sqlite3_extended_errcode(db);
-    (void)extended_errcode; // Use the result to avoid unused variable warning
+    // Call the function under test
+    sqlite3_wal_checkpoint_v2(db, filename, SQLITE_CHECKPOINT_PASSIVE, &logFrameCount, &checkpointCount);
 
-    // Close the database
+    // Clean up
+    free(filename);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_215(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

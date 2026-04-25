@@ -1,23 +1,70 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sqlite3.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Allocation failed, return early
+    // Initialize SQLite string object
+    sqlite3_str *str = sqlite3_str_new(NULL);
+
+    // Ensure that the data is not NULL and has a size greater than 0
+    if (data != NULL && size > 0) {
+        // Append data to the sqlite3_str object
+        sqlite3_str_append(str, (const char*)data, (int)size);
     }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
 
-    // Call the function-under-test
-    int result = sqlite3_compileoption_used(null_terminated_data);
+    // Call the function under test
+    char *result = sqlite3_str_value(str);
 
-    // Free allocated memory
-    free(null_terminated_data);
+    // Clean up
+    sqlite3_str_finish(str);
 
+    // Return success
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_142(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

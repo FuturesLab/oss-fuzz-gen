@@ -1,60 +1,76 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "fuzzer/FuzzedDataProvider.h"
-#include "/src/json-c/json_object.h"
-#include "/src/json-c/json_tokener.h"
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 
+// Include the correct header for json-c functions
+#include "/src/json-c/json_object.h"
+#include "/src/json-c/json_tokener.h"
+
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-  // Initialize FuzzedDataProvider
-  FuzzedDataProvider fuzzed_data(data, size);
+    // Initialize FuzzedDataProvider with the input data
+    FuzzedDataProvider fuzzed_data(data, size);
 
-  // Consume two parts of the input data to create two JSON strings
-  std::string json_data1 = fuzzed_data.ConsumeRandomLengthString(size / 2);
-  std::string json_data2 = fuzzed_data.ConsumeRemainingBytesAsString();
+    // Consume a random length string from the input data for json_object creation
+    std::string json_string = fuzzed_data.ConsumeRandomLengthString();
+    
+    // Parse the JSON string to create a json_object
+    struct json_object *jobj = json_tokener_parse(json_string.c_str());
 
-  // Ensure the JSON data is null-terminated (strings in C++ are already null-terminated)
-  
-  // Parse the JSON strings into json_object
-  json_object *json_obj1 = json_tokener_parse(json_data1.c_str());
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_tokener_parse to json_object_array_insert_idx
-  struct json_object* ret_json_object_get_nzzdh = json_object_get(json_obj1);
-  if (ret_json_object_get_nzzdh == NULL){
-  	return 0;
-  }
-
-  int ret_json_object_array_insert_idx_ibhgm = json_object_array_insert_idx(json_obj1, 64, json_obj1);
-  if (ret_json_object_array_insert_idx_ibhgm < 0){
-  	return 0;
-  }
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  json_object *json_obj2 = json_tokener_parse(json_data2.c_str());
-
-  // If parsing failed, return early
-  if (!json_obj1 || !json_obj2) {
-    if (json_obj1) {
-        json_object_put(json_obj1);
+    // If parsing failed, return early
+    if (jobj == nullptr) {
+        return 0;
     }
-    if (json_obj2) {
-        json_object_put(json_obj2);
-    }
+
+    // Consume an int64_t value from the input data
+    int64_t increment_value = fuzzed_data.ConsumeIntegral<int64_t>();
+
+    // Call the function-under-test
+    json_object_int_inc(jobj, increment_value);
+
+    // Decrement the reference count of the json_object
+    json_object_put(jobj);
+
     return 0;
-  }
-
-  // Call the function-under-test
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of json_object_equal
-  int result = json_object_equal(json_obj1, json_obj1);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-  // Clean up
-  json_object_put(json_obj1);
-  json_object_put(json_obj2);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

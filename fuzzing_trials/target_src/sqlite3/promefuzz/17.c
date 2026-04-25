@@ -1,81 +1,126 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_vmprintf at sqlite3.c:19305:18 in sqlite3.h
-// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
-// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
-// sqlite3_expanded_sql at sqlite3.c:80485:18 in sqlite3.h
+// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
+// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
 // sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
 // sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_set_authorizer at sqlite3.c:110840:16 in sqlite3.h
+// sqlite3_table_column_metadata at sqlite3.c:175018:16 in sqlite3.h
+// sqlite3_test_control at sqlite3.c:175215:16 in sqlite3.h
+// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sqlite3.h>
-#include <stdarg.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-static sqlite3 *initialize_db() {
-    sqlite3 *db = NULL;
-    int rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return NULL;
-    }
-    return db;
+// Dummy authorizer callback function
+static int authorizer_callback(void *pUserData, int action, const char *details1, const char *details2, const char *details3, const char *details4) {
+    // Always allow the action
+    return SQLITE_OK;
 }
 
-static void cleanup_db(sqlite3 *db) {
-    if (db) {
-        sqlite3_close(db);
-    }
+// Dummy callback function for sqlite3_exec
+static int exec_callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
-static char *custom_vmprintf(const char *format, ...) {
-    va_list args;
-    va_start(args, format);
-    char *result = sqlite3_vmprintf(format, args);
-    va_end(args);
-    return result;
-}
-
+// Fuzzing entry point
 int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
 
-    sqlite3 *db = initialize_db();
-    if (!db) return 0;
-
-    // Use custom_vmprintf to create a format string
-    char *formatted_str = custom_vmprintf("%.*s", (int)Size, Data);
-    if (!formatted_str) {
-        cleanup_db(db);
+    // Open a new database connection
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
         return 0;
     }
 
-    // Prepare a statement using sqlite3_prepare_v2
-    sqlite3_stmt *stmt = NULL;
-    const char *tail = NULL;
-    int rc = sqlite3_prepare_v2(db, formatted_str, -1, &stmt, &tail);
-    if (rc != SQLITE_OK) {
-        const char *err_msg = sqlite3_errmsg(db);
-        fprintf(stderr, "SQL error: %s\n", err_msg);
-    } else {
-        // If the statement is prepared successfully, get the expanded SQL
-        char *expanded_sql = sqlite3_expanded_sql(stmt);
-        if (expanded_sql) {
-            sqlite3_free(expanded_sql);
+    // Prepare SQL statement from fuzz data
+    char *sql = sqlite3_malloc(Size + 1);
+    if (sql) {
+        memcpy(sql, Data, Size);
+        sql[Size] = '\0';
+
+        // Execute SQL statement
+        sqlite3_exec(db, sql, exec_callback, 0, &errMsg);
+
+        // Free error message if allocated
+        if (errMsg) {
+            sqlite3_free(errMsg);
         }
-        sqlite3_finalize(stmt);
+
+        // Free SQL statement
+        sqlite3_free(sql);
     }
 
-    // Free the formatted string
-    sqlite3_free(formatted_str);
+    // Set authorizer callback
+    sqlite3_set_authorizer(db, authorizer_callback, NULL);
 
-    // Cleanup
-    cleanup_db(db);
+    // Retrieve table column metadata
+    const char *dataType, *collSeq;
+    int notNull, primaryKey, autoinc;
+    sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
+
+    // Test control interface
+    sqlite3_test_control(SQLITE_TESTCTRL_FIRST);
+
+    // Allocate memory using sqlite3_malloc
+    void *memory = sqlite3_malloc(100);
+    if (memory) {
+        memset(memory, 0, 100);
+        sqlite3_free(memory);
+    }
+
+    // Close the database connection
+    sqlite3_close(db);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

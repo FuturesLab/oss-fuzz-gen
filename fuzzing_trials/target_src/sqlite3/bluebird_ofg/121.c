@@ -1,41 +1,38 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    // Initialize SQLite in-memory database
-    sqlite3 *db;
-    int result = sqlite3_open(":memory:", &db);
-    if (result != SQLITE_OK) {
-        return 0; // If opening the database fails, return early
-    }
-
-    // Ensure the input data is null-terminated to prevent buffer overflow
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        sqlite3_close(db);
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Create a SQL statement from the input data
-    char *errMsg = 0;
-    result = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Open an in-memory SQLite database
+    sqlite3 *db;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
+        return 0;
+    }
 
-    // Free the allocated SQL string
-    free(sql);
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
 
-    // Free any error message allocated by sqlite3_exec
+    // Clean up
     if (errMsg) {
         sqlite3_free(errMsg);
     }
-
-    // Close the database connection
     sqlite3_close(db);
+    free(query);
 
-    // Return 0 to indicate the fuzzer should continue running.
     return 0;
 }
 #ifdef INC_MAIN

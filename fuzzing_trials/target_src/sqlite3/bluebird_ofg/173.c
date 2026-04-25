@@ -1,46 +1,86 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h> // Include this for mkstemp() and unlink()
+#include <inttypes.h> // Include this for PRId64
 
 int LLVMFuzzerTestOneInput_173(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
     sqlite3 *db;
     char *errMsg = 0;
+    int rc;
+    sqlite3_int64 lastRowId;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Ensure that the data is not empty and has a reasonable size
+    if (size == 0 || size > 1024) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_extended_errcode
-        sqlite3_extended_errcode(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Create a temporary filename for the SQLite database
+    char dbName[] = "/tmp/fuzzdbXXXXXX";
+    int fd = mkstemp(dbName);
+    if (fd == -1) {
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    close(fd);
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Open the SQLite database
+    rc = sqlite3_open(dbName, &db);
+    if (rc) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Free allocated resources
-    if (errMsg) {
+    // Create a table
+    const char *createTableSQL = "CREATE TABLE IF NOT EXISTS fuzz_table (id INTEGER PRIMARY KEY, data BLOB);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
-    int ret_sqlite3_open_qwcsx = sqlite3_open(NULL, &db);
-    if (ret_sqlite3_open_qwcsx < 0){
-    	return 0;
+    // Prepare an INSERT statement
+    sqlite3_stmt *stmt;
+    const char *insertSQL = "INSERT INTO fuzz_table (data) VALUES (?);";
+    rc = sqlite3_prepare_v2(db, insertSQL, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
+
+    // Bind the input data to the INSERT statement
+    rc = sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the INSERT statement
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Call the function-under-test
+    lastRowId = sqlite3_last_insert_rowid(db);
+
+    // Output the result (for debugging purposes)
+    printf("Last Insert Row ID: %" PRId64 "\n", lastRowId);
+
+    // Close the database
     sqlite3_close(db);
+
+    // Remove the temporary database file
+    unlink(dbName);
 
     return 0;
 }

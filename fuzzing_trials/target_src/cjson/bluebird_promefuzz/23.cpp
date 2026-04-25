@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,92 +9,84 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
+extern "C" {
 #include "../cJSON.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    // Step 1: Create a cJSON object
+    cJSON *jsonObject = cJSON_CreateObject();
+    if (jsonObject == NULL) {
+        return 0; // If creation fails, exit early
     }
 
-    // Convert the input data to a null-terminated string
-    char *json_data = static_cast<char*>(malloc(Size + 1));
-    if (json_data == nullptr) {
-        return 0;
-    }
-    memcpy(json_data, Data, Size);
-    json_data[Size] = '\0';
+    // Step 2: Add boolean values to the cJSON object
+    // Use the input data to determine the boolean value and the name
+    if (Size > 0) {
+        // Use the first byte of the data as a boolean value
+        cJSON_bool boolValue1 = Data[0] % 2 == 0 ? 1 : 0;
+        const char *name1 = "bool1";
 
-    // Parse the input data as a JSON object
-    cJSON *root = cJSON_Parse(json_data);
-    free(json_data);
-
-    if (root == nullptr) {
-        return 0;
+        cJSON *item1 = cJSON_AddBoolToObject(jsonObject, name1, boolValue1);
+        if (item1 == NULL) {
+            cJSON_Delete(jsonObject);
+            return 0; // If adding fails, cleanup and exit
+        }
     }
 
-    // Get an item from the JSON object
-    cJSON *item1 = cJSON_GetObjectItemCaseSensitive(root, "key1");
-    if (item1 != nullptr) {
-        // Check if the item is a string
-        cJSON_IsString(item1);
+    if (Size > 1) {
+        // Use the second byte of the data as a boolean value
+        cJSON_bool boolValue2 = Data[1] % 2 == 0 ? 1 : 0;
+        const char *name2 = "bool2";
+
+        cJSON *item2 = cJSON_AddBoolToObject(jsonObject, name2, boolValue2);
+        if (item2 == NULL) {
+            cJSON_Delete(jsonObject);
+            return 0; // If adding fails, cleanup and exit
+        }
     }
 
-    // Get another item from the JSON object
-    cJSON *item2 = cJSON_GetObjectItemCaseSensitive(root, "key2");
-    if (item2 != nullptr) {
-        // Check if the item is true
-        cJSON_IsTrue(item2);
-    }
-
-    // Get another item from the JSON object
-    cJSON *item3 = cJSON_GetObjectItemCaseSensitive(root, "key3");
-
-    // Get another item from the JSON object
-    cJSON *item4 = cJSON_GetObjectItemCaseSensitive(root, "key4");
-
-    // Duplicate a JSON item
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of cJSON_Duplicate
-    cJSON *duplicate = cJSON_Duplicate(item3, cJSON_True);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Get another item from the duplicated JSON object
-    if (duplicate != nullptr) {
-        cJSON *item5 = cJSON_GetObjectItemCaseSensitive(duplicate, "key5");
-        cJSON *item6 = cJSON_GetObjectItemCaseSensitive(duplicate, "key6");
-
-        // Compare two JSON items
-        cJSON_Compare(item5, item6, cJSON_True);
-
-        // Clean up the duplicated JSON object
-        cJSON_Delete(duplicate);
-    }
-
-    // Clean up the original JSON object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Duplicate to cJSON_ReplaceItemViaPointer
-    cJSON* ret_cJSON_CreateRaw_tjgea = cJSON_CreateRaw(NULL);
-    if (ret_cJSON_CreateRaw_tjgea == NULL){
-    	return 0;
-    }
-    cJSON* ret_cJSON_CreateStringReference_bdfcx = cJSON_CreateStringReference((const char *)Data);
-    if (ret_cJSON_CreateStringReference_bdfcx == NULL){
-    	return 0;
-    }
-
-    cJSON_bool ret_cJSON_ReplaceItemViaPointer_vkwoe = cJSON_ReplaceItemViaPointer(ret_cJSON_CreateRaw_tjgea, duplicate, ret_cJSON_CreateStringReference_bdfcx);
-    if (ret_cJSON_ReplaceItemViaPointer_vkwoe < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cJSON_Delete(root);
+    // Step 3: Cleanup
+    cJSON_Delete(jsonObject);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

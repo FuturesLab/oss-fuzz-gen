@@ -1,69 +1,55 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 #include <string.h>
+
+// Dummy collation comparison function
+int collation_compare(void *pArg, int len1, const void *str1, int len2, const void *str2) {
+    return strncmp((const char *)str1, (const char *)str2, len1 < len2 ? len1 : len2);
+}
+
+// Dummy collation destructor function
+void collation_destructor(void *pArg) {
+    // No-op for this dummy example
+}
 
 int LLVMFuzzerTestOneInput_272(const uint8_t *data, size_t size) {
     sqlite3 *db = NULL;
     int rc;
-    char *errMsg = 0;
-    char *sql;
-    
-    // Initialize an in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        return 0;
-    }
+    const char *collation_name = "test_collation";
+    void *pArg = NULL;
 
-    // Create a simple table
-    sql = "CREATE TABLE IF NOT EXISTS test(id INT, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-        sqlite3_free((void *)"w");
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        sqlite3_close(db);
         return 0;
     }
 
-    // Prepare the input data as an SQL statement
+    // Ensure data is not NULL and has a reasonable size for collation name
+    if (size > 0 && data != NULL) {
+        // Call the function-under-test
+        rc = sqlite3_create_collation_v2(db, collation_name, SQLITE_UTF8, pArg, collation_compare, collation_destructor);
+        
+        // To ensure code coverage, we can attempt to use the collation
+        if (rc == SQLITE_OK && size > 1) {
+            // Create a table to use the collation
+            const char *create_table_sql = "CREATE TABLE test (name TEXT COLLATE test_collation);";
+            sqlite3_exec(db, create_table_sql, 0, 0, 0);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
-    int ret_sqlite3_extended_result_codes_cphka = sqlite3_extended_result_codes(db, 0);
-    if (ret_sqlite3_extended_result_codes_cphka < 0){
-    	return 0;
+            // Insert some data using the collation
+            const char *insert_sql = "INSERT INTO test (name) VALUES (?);";
+            sqlite3_stmt *stmt;
+            rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0);
+            if (rc == SQLITE_OK) {
+                sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_STATIC);
+                sqlite3_step(stmt);
+                sqlite3_finalize(stmt);
+            }
+        }
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    char *inputSQL = (char *)malloc(size + 1);
-    if (inputSQL == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(inputSQL, data, size);
-    inputSQL[size] = '\0';
-
-    // Execute the input SQL statement
-    rc = sqlite3_exec(db, inputSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK && errMsg != NULL) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
-    }
-
-    // Call the function-under-test
-    int changes = sqlite3_changes(db);
-    printf("Number of changes: %d\n", changes);
 
     // Clean up
-    free(inputSQL);
     sqlite3_close(db);
 
     return 0;

@@ -1,37 +1,72 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <cstdint>
+#include "/src/json-c/json_tokener.h" // Corrected include path
 #include <cstddef>
-#include <string>
-#include "/src/json-c/json_object.h"
-#include "/src/json-c/json_tokener.h"
-#include "/src/json-c/json_types.h"
-
-// Define the maximum value for the json_type enum
-constexpr int JSON_TYPE_MAX_VALUE = json_type_string;
+#include <cstdint>
+#include <string> // Include for std::string
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Initialize FuzzedDataProvider
+    // Initialize the FuzzedDataProvider with the input data
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Consume a random length string from the fuzzed data to create a JSON object
-    std::string json_string = fuzzed_data.ConsumeRandomLengthString();
-    struct json_object *json_obj = json_tokener_parse(json_string.c_str());
+    // Create a json_tokener object
+    struct json_tokener *tokener = json_tokener_new();
 
-    // Ensure the json_obj is not NULL
-    if (json_obj == NULL) {
+    // Check if tokener is not NULL
+    if (tokener == nullptr) {
         return 0;
     }
 
-    // Consume an integer within the range of json_type enumeration
-    json_type json_type_value = static_cast<json_type>(
-        fuzzed_data.ConsumeIntegralInRange<int>(0, JSON_TYPE_MAX_VALUE)
-    );
+    // Consume a random length string from the fuzzing data
+    std::string json_string = fuzzed_data.ConsumeRandomLengthString();
+
+    // Parse the JSON string using json_tokener_parse_ex
+    json_object *obj = json_tokener_parse_ex(tokener, json_string.c_str(), json_string.size());
 
     // Call the function-under-test
-    int result = json_object_is_type(json_obj, json_type_value);
+    size_t parse_end = json_tokener_get_parse_end(tokener);
 
-    // Clean up the JSON object
-    json_object_put(json_obj);
+    // Clean up
+    json_object_put(obj);
+    json_tokener_free(tokener);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

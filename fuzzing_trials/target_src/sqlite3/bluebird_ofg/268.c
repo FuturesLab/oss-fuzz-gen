@@ -1,55 +1,58 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include "sqlite3.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
-#include "sqlite3.h"
-
-// Define a callback function to be used with sqlite3_trace
-static void traceCallback(void *unused, const char *sql) {
-    (void)unused; // Avoid unused parameter warning
-    // Just print the SQL statement being traced
-    printf("SQL Trace: %s\n", sql);
-}
 
 int LLVMFuzzerTestOneInput_268(const uint8_t *data, size_t size) {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
     int rc;
-    char *errMsg = 0;
+    const char *sql;
+    const char *column_name;
 
-    // Initialize SQLite database in-memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
-    }
-
-    // Ensure data is null-terminated before using it as a SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_extended_errcode
-        sqlite3_extended_errcode(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Set the trace callback
-    sqlite3_trace(db, traceCallback, NULL);
+    // Create a simple table
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INT, value TEXT);", 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Prepare a SQL statement using the fuzz data
+    sql = "SELECT * FROM test;";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Ensure there is at least one column to check
+    if (sqlite3_column_count(stmt) > 0 && size > 0) {
+        // Use the fuzz data to select a column index
+        int column_index = data[0] % sqlite3_column_count(stmt);
+
+        // Call the function-under-test
+        column_name = sqlite3_column_name(stmt, column_index);
+
+        // Print the column name for debugging purposes
+        if (column_name != NULL) {
+            printf("Column name: %s\n", column_name);
+        }
+    }
 
     // Clean up
-    if (errMsg) {
-        sqlite3_free(errMsg);
-    }
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

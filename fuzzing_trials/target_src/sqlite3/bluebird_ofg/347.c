@@ -1,47 +1,64 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 
-int LLVMFuzzerTestOneInput_347(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
+// Dummy busy handler function
+int busy_handler_347(void *data, int count) {
+    return 0; // Always return 0 to indicate that the operation should not be retried
+}
 
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
+int LLVMFuzzerTestOneInput_347(const uint8_t *data, size_t size) {
+    sqlite3 *db;
+    int rc;
+    char *errMsg = 0;
+
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open((const char *)"r", &db);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                sqlite3_close(db);
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
+    // Set the busy handler for the database
+    sqlite3_busy_handler(db, busy_handler_347, NULL);
 
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
-            sqlite3_errcode(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
+    // Ensure the input data is null-terminated for use as a SQL statement
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free allocated resources
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_exec to sqlite3_prepare_v2 using the plateau pool
+    sqlite3_stmt *stmt;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_prepare_v2_edzcv = sqlite3_prepare_v2(db, errMsg, -1, &stmt, &errMsg);
+    if (ret_sqlite3_prepare_v2_edzcv < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

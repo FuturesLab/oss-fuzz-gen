@@ -1,60 +1,65 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <vector>
-
-// Assuming the definition of the struct array_list is available
-struct array_list {
-    void **array;
-    size_t size;
-    size_t capacity;
-};
-
-extern "C" void *array_list_get_idx(struct array_list *, size_t);
+#include "/src/json-c/json_object.h"
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
+    // Initialize the fuzzed data provider
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create an array_list object
-    struct array_list list;
-
-    // Set the capacity and size
-    list.capacity = fuzzed_data.ConsumeIntegralInRange<size_t>(1, 1000);
-    list.size = fuzzed_data.ConsumeIntegralInRange<size_t>(0, list.capacity);
-
-    // Allocate memory for the array
-    list.array = static_cast<void **>(malloc(list.capacity * sizeof(void *)));
-
-    if (list.array == nullptr) {
-        return 0; // Exit if memory allocation fails
+    // Create a json_object
+    struct json_object *json_obj = json_object_new_object();
+    if (json_obj == nullptr) {
+        return 0; // Exit if json_object creation failed
     }
 
-    // Fill the array with non-null pointers
-    for (size_t i = 0; i < list.size; ++i) {
-        list.array[i] = malloc(1); // Allocate 1 byte for each element
-        if (list.array[i] == nullptr) {
-            // If allocation fails, free already allocated memory and exit
-            for (size_t j = 0; j < i; ++j) {
-                free(list.array[j]);
-            }
-            free(list.array);
-            return 0;
-        }
-    }
-
-    // Get an index to access
-    size_t index = fuzzed_data.ConsumeIntegralInRange<size_t>(0, list.size - 1);
+    // Consume an int64_t value for the second parameter
+    int64_t int_value = fuzzed_data.ConsumeIntegral<int64_t>();
 
     // Call the function-under-test
-    void *result = array_list_get_idx(&list, index);
+    json_object_set_int64(json_obj, int_value);
 
-    // Free allocated memory
-    for (size_t i = 0; i < list.size; ++i) {
-        free(list.array[i]);
-    }
-    free(list.array);
+    // Clean up the json_object
+    json_object_put(json_obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

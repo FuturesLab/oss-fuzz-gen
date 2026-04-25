@@ -1,75 +1,90 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstring> // For memcpy
-#include <iostream> // For logging
+#include <cstring>  // Include for memcpy
 
 extern "C" {
-#include <vpx/vpx_codec.h>
-#include <vpx/vpx_decoder.h>
-#include <vpx/vp8dx.h> // Include VP8 decoder interface
-
-// Dummy callback functions for get and release frame buffer
-int get_frame_buffer_callback(void *user_priv, size_t min_size, vpx_codec_frame_buffer_t *fb) {
-    // For fuzzing purposes, we can just allocate memory for the frame buffer
-    fb->data = static_cast<uint8_t*>(malloc(min_size));
-    fb->size = min_size;
-    return (fb->data != nullptr) ? 0 : -1;
+    #include <vpx/vpx_encoder.h>
+    #include <vpx/vp8cx.h>
 }
-
-int release_frame_buffer_callback(void *user_priv, vpx_codec_frame_buffer_t *fb) {
-    // Free the allocated frame buffer
-    if (fb->data != nullptr) {
-        free(fb->data);
-        fb->data = nullptr;
-    }
-    return 0;
-}
-
-} // extern "C"
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // Early exit if input size is zero
-    }
-
-    vpx_codec_ctx_t codec_ctx;
-    vpx_codec_iface_t *iface = vpx_codec_vp8_dx(); // Using VP8 decoder interface
+    vpx_codec_ctx_t codec;
     vpx_codec_err_t res;
+    vpx_codec_enc_cfg_t cfg;
+    vpx_image_t img;
+    vpx_codec_pts_t pts = 1;
+    unsigned long duration = 1;
+    vpx_enc_frame_flags_t flags = 0;
+    vpx_enc_deadline_t deadline = VPX_DL_REALTIME;
 
-    // Initialize the codec context
-    res = vpx_codec_dec_init(&codec_ctx, iface, nullptr, 0);
-    if (res != VPX_CODEC_OK) {
-        std::cerr << "Codec initialization failed: " << vpx_codec_err_to_string(res) << std::endl;
-        return 0; // If initialization fails, exit early
-    }
-
-    // Call the function-under-test with dummy callback functions
-    res = vpx_codec_set_frame_buffer_functions(&codec_ctx, get_frame_buffer_callback, release_frame_buffer_callback, nullptr);
-    if (res != VPX_CODEC_OK) {
-        std::cerr << "Setting frame buffer functions failed: " << vpx_codec_err_to_string(res) << std::endl;
-        vpx_codec_destroy(&codec_ctx);
+    if (vpx_codec_enc_config_default(vpx_codec_vp8_cx(), &cfg, 0)) {
         return 0;
     }
 
-    // Decode the input data
-    res = vpx_codec_decode(&codec_ctx, data, size, nullptr, 0);
-    if (res != VPX_CODEC_OK) {
-        std::cerr << "Decoding failed: " << vpx_codec_err_to_string(res) << std::endl;
-        vpx_codec_destroy(&codec_ctx);
+    cfg.g_w = 320;
+    cfg.g_h = 240;
+    cfg.g_timebase.num = 1;
+    cfg.g_timebase.den = 30;
+
+    if (!vpx_img_alloc(&img, VPX_IMG_FMT_I420, cfg.g_w, cfg.g_h, 1)) {
         return 0;
     }
 
-    // Retrieve decoded frames
-    vpx_codec_iter_t iter = nullptr;
-    vpx_image_t *img;
-    while ((img = vpx_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
-        // Process the image if needed
-        // For example, access img->planes, img->d_w, img->d_h, etc.
-        std::cout << "Decoded frame: " << img->d_w << "x" << img->d_h << std::endl;
+    if (vpx_codec_enc_init(&codec, vpx_codec_vp8_cx(), &cfg, 0)) {
+        vpx_img_free(&img);
+        return 0;
     }
 
-    // Destroy the codec context
-    vpx_codec_destroy(&codec_ctx);
+    if (size > 0) {
+        // Calculate the size of the image buffer
+        size_t img_size = img.stride[VPX_PLANE_Y] * img.h;
+        size_t copy_size = size < img_size ? size : img_size;
+        memcpy(img.planes[0], data, copy_size);
+    }
+
+    res = vpx_codec_encode(&codec, &img, pts, duration, flags, deadline);
+
+    vpx_img_free(&img);
+    vpx_codec_destroy(&codec);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

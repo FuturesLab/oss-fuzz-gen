@@ -1,47 +1,68 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Initialize SQLite3 context
     sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
 
-    // Open a temporary in-memory database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if(rc) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Create a SQL statement from the input data
+    // Convert the fuzz input into a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_deserialize
-    sqlite3_int64 ret_sqlite3_memory_highwater_ttspu = sqlite3_memory_highwater(64);
-    sqlite3_int64 ret_sqlite3_hard_heap_limit64_kpynh = sqlite3_hard_heap_limit64(0);
-    const char bsblsgmm[1024] = "refmj";
-    int ret_sqlite3_deserialize_reugs = sqlite3_deserialize(db, bsblsgmm, NULL, ret_sqlite3_memory_highwater_ttspu, ret_sqlite3_hard_heap_limit64_kpynh, size);
-    if (ret_sqlite3_deserialize_reugs < 0){
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open16
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    sqlite3_mutex* ret_sqlite3_db_mutex_drasl = sqlite3_db_mutex(db);
+    if (ret_sqlite3_db_mutex_drasl == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_db_mutex to sqlite3_changes64 using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    sqlite3_int64 ret_sqlite3_changes64_hfiss = sqlite3_changes64(db);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int ret_sqlite3_open16_otzlt = sqlite3_open16((const void *)db, &db);
+    if (ret_sqlite3_open16_otzlt < 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    char *errMsg = 0;
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0; // If memory allocation fails, exit early
-    }
-
-    // Copy the data into the SQL statement and null-terminate it
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Clean up
-    if (errMsg) {
-        sqlite3_free(errMsg);
-    }
+    sqlite3_free(errMsg);
     free(sql);
     sqlite3_close(db);
 

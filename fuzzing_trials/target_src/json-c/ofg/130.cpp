@@ -1,27 +1,78 @@
 #include <fuzzer/FuzzedDataProvider.h>
 #include "/src/json-c/json_object.h"
-#include <stddef.h>
-#include <stdint.h>
-#include <string>
+#include <cstddef>
+#include <cstdint>
+#include <vector>
 
 extern "C" int LLVMFuzzerTestOneInput_130(const uint8_t *data, size_t size) {
-  // Create a FuzzedDataProvider to manage the fuzzing input data
-  FuzzedDataProvider fuzzed_data(data, size);
+    // Initialize the FuzzedDataProvider
+    FuzzedDataProvider fuzzed_data(data, size);
 
-  // Consume a random length string from the fuzzed data for the key
-  std::string key = fuzzed_data.ConsumeRandomLengthString();
+    // Create a JSON array object
+    struct json_object *json_array = json_object_new_array();
+    if (!json_array) {
+        return 0; // If creation fails, return early
+    }
 
-  // Create a JSON object to work with
-  struct json_object *json_obj = json_object_new_object();
+    // Determine the number of elements to add to the JSON array
+    size_t num_elements = fuzzed_data.ConsumeIntegralInRange<size_t>(1, 100);
 
-  // Add a key-value pair to the JSON object to ensure it is not empty
-  json_object_object_add(json_obj, "example_key", json_object_new_string("example_value"));
+    // Populate the JSON array with random integers
+    for (size_t i = 0; i < num_elements; ++i) {
+        int random_value = fuzzed_data.ConsumeIntegral<int>();
+        json_object_array_add(json_array, json_object_new_int(random_value));
+    }
 
-  // Call the function-under-test with the JSON object and the key
-  json_object_object_del(json_obj, key.c_str());
+    // Get the index to delete from the array
+    size_t idx_to_delete = fuzzed_data.ConsumeIntegralInRange<size_t>(0, num_elements - 1);
 
-  // Decrement the reference count of the JSON object to free it
-  json_object_put(json_obj);
+    // Get the count of elements to delete
+    size_t count_to_delete = fuzzed_data.ConsumeIntegralInRange<size_t>(1, num_elements - idx_to_delete);
 
-  return 0;
+    // Call the function-under-test
+    json_object_array_del_idx(json_array, idx_to_delete, count_to_delete);
+
+    // Free the JSON object
+    json_object_put(json_array);
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_130(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

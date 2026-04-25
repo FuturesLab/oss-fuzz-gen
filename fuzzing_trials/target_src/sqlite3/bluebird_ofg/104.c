@@ -1,53 +1,72 @@
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    (void)NotUsed;
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Initialize SQLite3
-    sqlite3_initialize();
-
-    // Create a new SQLite database in memory
     sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
+
+    // Initialize database in memory
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    sqlite3_open((const char *)"w", &db);
+    rc = sqlite3_open((const char *)"r", &db);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-    // Ensure the data is not NULL and has a valid size
-    if (data != NULL && size > 0) {
-        // Create a SQL statement from the input data
-        // Ensure the data is null-terminated to prevent buffer overflow
-        char *sql = (char *)malloc(size + 1);
-        if (sql) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the string
-
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            
-            // If there was an error, free the error message
-            if (errMsg) {
-                sqlite3_free(errMsg);
-            }
-            free(sql);
-        }
-    } else {
-        // If data is NULL or size is 0, execute a default SQL statement
-        const char *defaultData = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-        char *errMsg = 0;
-        sqlite3_exec(db, defaultData, 0, 0, &errMsg);
-        
-        // If there was an error, free the error message
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
 
-    // Close the SQLite database
-    sqlite3_close(db);
+    // Convert fuzz data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Finalize SQLite3
-    sqlite3_shutdown();
+    // Execute SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+    }
+
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strglob
+    char* ret_sqlite3_str_finish_oowxp = sqlite3_str_finish(NULL);
+    if (ret_sqlite3_str_finish_oowxp == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_str_finish_oowxp) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strglob_jnane = sqlite3_strglob(ret_sqlite3_str_finish_oowxp, errMsg);
+    if (ret_sqlite3_strglob_jnane < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

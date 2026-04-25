@@ -1,34 +1,76 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include "/src/json-c/json_object.h"
-#include "/src/json-c/json_tokener.h"
-#include <cstddef>
-#include <cstdint>
-#include <vector>
-#include <string>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "/src/json-c/arraylist.h" // Correct path for arraylist.h
+
+// Dummy free function for testing
+void dummy_free_fn(void *ptr) {
+  // Do nothing
+}
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Initialize FuzzedDataProvider
-    FuzzedDataProvider fuzzed_data(data, size);
+  // Initialize FuzzedDataProvider with the provided data
+  FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create a json_tokener object
-    struct json_tokener *tokener = json_tokener_new();
-    if (!tokener) {
-        return 0; // If tokener creation fails, exit early
-    }
+  // Use a boolean to decide whether to pass a valid function pointer or a null pointer
+  bool use_valid_function = fuzzed_data.ConsumeBool();
 
-    // Consume a string from the data
-    std::string json_str = fuzzed_data.ConsumeRemainingBytesAsString();
-    const char *json_cstr = json_str.c_str();
-    int json_len = static_cast<int>(json_str.size());
+  // Declare a pointer for the free function
+  array_list_free_fn *free_fn = NULL;
 
-    // Call the function-under-test
-    struct json_object *result = json_tokener_parse_ex(tokener, json_cstr, json_len);
+  // Assign the dummy free function if use_valid_function is true
+  if (use_valid_function) {
+    free_fn = dummy_free_fn;
+  }
 
-    // Cleanup
-    if (result) {
-        json_object_put(result);
-    }
-    json_tokener_free(tokener);
+  // Call the function-under-test
+  struct array_list *list = array_list_new(free_fn);
 
+  // Clean up if necessary (assuming array_list_new allocates memory)
+  if (list != nullptr) {
+    // Assuming there is a function to free the array_list, e.g., array_list_free
+    array_list_free(list);
+  }
+
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

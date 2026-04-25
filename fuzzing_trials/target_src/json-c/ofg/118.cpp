@@ -1,48 +1,70 @@
 #include <fuzzer/FuzzedDataProvider.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <string>
 #include "/src/json-c/json_object.h"
 #include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    // Initialize FuzzedDataProvider with the given data and size
-    FuzzedDataProvider fuzzed_data(data, size);
+  // Initialize FuzzedDataProvider
+  FuzzedDataProvider fuzzed_data(data, size);
 
-    // Consume a boolean value from the fuzzed data
-    json_bool bool_value = fuzzed_data.ConsumeBool();
+  // Consume a random length string from the fuzzed data
+  std::string json_string = fuzzed_data.ConsumeRandomLengthString();
 
-    // Call the function-under-test with the consumed boolean value
-    struct json_object *bool_obj = json_object_new_boolean(bool_value);
+  // Create a JSON object from the string
+  struct json_object *json_obj = json_tokener_parse(json_string.c_str());
 
-    // Consume a string from the fuzzed data
-    std::string json_string = fuzzed_data.ConsumeRandomLengthString();
+  // If json_obj is NULL, parsing failed, so we return early
+  if (json_obj == nullptr) {
+    return 0;
+  }
 
-    // Parse the string into a JSON object
-    struct json_object *parsed_obj = json_tokener_parse(json_string.c_str());
+  // Call the function-under-test
+  const char *result = json_object_get_string(json_obj);
 
-    // If parsing was successful, manipulate the JSON object
-    if (parsed_obj != nullptr) {
-        // Get the type of the JSON object
-        json_type type = json_object_get_type(parsed_obj);
+  // Clean up the JSON object
+  json_object_put(json_obj);
 
-        // Perform operations based on the JSON type
-        switch (type) {
-            case json_type_object:
-                json_object_object_add(parsed_obj, "new_key", bool_obj);
-                break;
-            case json_type_array:
-                json_object_array_add(parsed_obj, bool_obj);
-                break;
-            default:
-                // For other types, just put the boolean object
-                json_object_put(bool_obj);
-                break;
-        }
-    } else {
-        // If parsing failed, just put the boolean object
-        json_object_put(bool_obj);
-    }
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-    // Free the created json_object to avoid memory leaks
-    json_object_put(parsed_obj);
+    if(argc < 2)
+        exit(0);
 
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_118(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

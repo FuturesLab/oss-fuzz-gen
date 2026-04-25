@@ -1,43 +1,57 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_128(const uint8_t *data, size_t size) {
-    // Check if the input data is non-null and has a non-zero size
-    if (data == NULL || size == 0) {
-        return 0;
-    }
-
     sqlite3 *db;
     char *errMsg = 0;
+    int rc;
 
     // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db)) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    rc = sqlite3_open(":memory:", &db);
+    if(rc) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
+    // Convert the fuzz input into a null-terminated string
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    if (!sql) {
         sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL command(s) from the input data
+    // Execute the SQL command
     sqlite3_exec(db, sql, 0, 0, &errMsg);
 
     // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_stricmp
+    void* ret_sqlite3_malloc_pfmqg = sqlite3_malloc(1);
+    if (ret_sqlite3_malloc_pfmqg == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_pfmqg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_stricmp_smeup = sqlite3_stricmp((const char *)ret_sqlite3_malloc_pfmqg, errMsg);
+    if (ret_sqlite3_stricmp_smeup < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     sqlite3_free(errMsg);
     free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_error_offset
-    sqlite3_error_offset(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    sqlite3_close(db);
 
     return 0;
 }

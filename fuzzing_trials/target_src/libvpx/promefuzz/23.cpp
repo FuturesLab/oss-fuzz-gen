@@ -1,16 +1,13 @@
 // This fuzz driver is generated for library libvpx, aiming to fuzz the following functions:
-// vpx_codec_vp8_dx at vp8_dx_iface.c:726:1 in vp8dx.h
-// vpx_codec_dec_init_ver at vpx_decoder.c:24:17 in vpx_decoder.h
-// vpx_codec_register_put_frame_cb at vpx_decoder.c:133:17 in vpx_decoder.h
-// vpx_codec_decode at vpx_decoder.c:104:17 in vpx_decoder.h
-// vpx_codec_decode at vpx_decoder.c:104:17 in vpx_decoder.h
-// vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
 // vpx_codec_vp8_cx at vp8_cx_iface.c:1428:1 in vp8cx.h
+// vpx_codec_vp9_cx at vp9_cx_iface.c:2290:1 in vp8cx.h
 // vpx_codec_enc_config_default at vpx_encoder.c:157:17 in vpx_encoder.h
-// vpx_codec_enc_init_ver at vpx_encoder.c:29:17 in vpx_encoder.h
-// vpx_codec_set_cx_data_buf at vpx_encoder.c:294:17 in vpx_encoder.h
+// vpx_codec_enc_config_set at vpx_encoder.c:348:17 in vpx_encoder.h
+// vpx_codec_enc_config_default at vpx_encoder.c:157:17 in vpx_encoder.h
+// vpx_codec_enc_config_set at vpx_encoder.c:348:17 in vpx_encoder.h
 // vpx_codec_enc_init_multi_ver at vpx_encoder.c:69:17 in vpx_encoder.h
-// vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
+// vpx_codec_enc_init_ver at vpx_encoder.c:29:17 in vpx_encoder.h
+// vpx_codec_enc_init_ver at vpx_encoder.c:29:17 in vpx_encoder.h
 // vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
 #include <iostream>
 #include <sstream>
@@ -21,79 +18,94 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include <vpx/vpx_codec.h>
-#include <vpx/vp8cx.h>
-#include <vpx/vpx_decoder.h>
-#include <vpx/vpx_encoder.h>
-#include <vpx/vp8dx.h>
-}
-
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
-static void dummy_put_frame_cb(void *user_priv, const vpx_image_t *img) {
-  // Dummy callback function for put_frame
-}
+#include "vpx/vp8cx.h"
+#include "vpx/vp8dx.h"
+#include "vpx/vpx_encoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Initialize decoder context
-    vpx_codec_ctx_t dec_ctx;
-    vpx_codec_iface_t *dec_iface = vpx_codec_vp8_dx();
-    vpx_codec_dec_cfg_t dec_cfg = {0};
-    vpx_codec_err_t dec_res = vpx_codec_dec_init_ver(&dec_ctx, dec_iface, &dec_cfg, 0, VPX_DECODER_ABI_VERSION);
-    if (dec_res != VPX_CODEC_OK) return 0;
-
-    // Register dummy callback
-    vpx_codec_register_put_frame_cb(&dec_ctx, dummy_put_frame_cb, nullptr);
-
-    // Decode the input data
-    vpx_codec_decode(&dec_ctx, Data, static_cast<unsigned int>(Size), nullptr, 0);
-
-    // Signal end of data
-    vpx_codec_decode(&dec_ctx, nullptr, 0, nullptr, 0);
-
-    // Cleanup decoder context
-    vpx_codec_destroy(&dec_ctx);
-
-    // Initialize encoder context
-    vpx_codec_ctx_t enc_ctx;
-    vpx_codec_iface_t *enc_iface = vpx_codec_vp8_cx();
-    vpx_codec_enc_cfg_t enc_cfg;
-    if (vpx_codec_enc_config_default(enc_iface, &enc_cfg, 0) != VPX_CODEC_OK) return 0;
-    enc_cfg.g_threads = 1;
-    enc_cfg.g_w = 320;
-    enc_cfg.g_h = 240;
-    enc_cfg.g_timebase.num = 1;
-    enc_cfg.g_timebase.den = 30;
-
-    vpx_codec_err_t enc_res = vpx_codec_enc_init(&enc_ctx, enc_iface, &enc_cfg, 0);
-    if (enc_res != VPX_CODEC_OK) return 0;
-
-    // Set output buffer
-    vpx_fixed_buf_t cx_data_buf;
-    cx_data_buf.buf = malloc(1000);
-    cx_data_buf.sz = 1000;
-    vpx_codec_set_cx_data_buf(&enc_ctx, &cx_data_buf, 0, 0);
-
-    // Initialize multi-encoder instance
-    vpx_codec_ctx_t multi_enc_ctx[1];
-    vpx_codec_enc_cfg_t multi_enc_cfg[1];
-    multi_enc_cfg[0] = enc_cfg;
-    vpx_rational_t dsf = {1, 1};
-    vpx_codec_enc_init_multi_ver(multi_enc_ctx, enc_iface, multi_enc_cfg, 1, 0, &dsf, VPX_ENCODER_ABI_VERSION);
-
-    // Cleanup multi-encoder context
-    for (int i = 0; i < 1; ++i) {
-        vpx_codec_destroy(&multi_enc_ctx[i]);
+    if (Size < sizeof(vpx_codec_enc_cfg_t) + sizeof(vpx_rational_t)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Cleanup encoder context
-    vpx_codec_destroy(&enc_ctx);
-    free(cx_data_buf.buf);
+    vpx_codec_ctx_t codec_ctx;
+    vpx_codec_iface_t *iface_vp8 = vpx_codec_vp8_cx();
+    vpx_codec_iface_t *iface_vp9 = vpx_codec_vp9_cx();
+
+    vpx_codec_enc_cfg_t enc_cfg;
+    std::memcpy(&enc_cfg, Data, sizeof(vpx_codec_enc_cfg_t));
+
+    vpx_rational_t dsf;
+    std::memcpy(&dsf, Data + sizeof(vpx_codec_enc_cfg_t), sizeof(vpx_rational_t));
+
+    // Initialize default configuration for VP8
+    if (vpx_codec_enc_config_default(iface_vp8, &enc_cfg, 0) == VPX_CODEC_OK) {
+        vpx_codec_enc_config_set(&codec_ctx, &enc_cfg);
+    }
+
+    // Initialize default configuration for VP9
+    if (vpx_codec_enc_config_default(iface_vp9, &enc_cfg, 0) == VPX_CODEC_OK) {
+        vpx_codec_enc_config_set(&codec_ctx, &enc_cfg);
+    }
+
+    int num_encoders = 1;
+    vpx_codec_flags_t flags = 0;
+    int ver = VPX_ENCODER_ABI_VERSION;
+
+    // Initialize multi-encoder instance for VP8
+    vpx_codec_enc_init_multi_ver(&codec_ctx, iface_vp8, &enc_cfg, num_encoders, flags, &dsf, ver);
+
+    // Initialize single encoder instance for VP8
+    vpx_codec_enc_init_ver(&codec_ctx, iface_vp8, &enc_cfg, flags, ver);
+
+    // Initialize single encoder instance for VP9
+    vpx_codec_enc_init_ver(&codec_ctx, iface_vp9, &enc_cfg, flags, ver);
+
+    // Cleanup
+    vpx_codec_destroy(&codec_ctx);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

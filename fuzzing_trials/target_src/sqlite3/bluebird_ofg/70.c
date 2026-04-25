@@ -1,55 +1,72 @@
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
-#include "sqlite3.h"
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    (void)NotUsed;
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    // Check if the input data is not null and has a reasonable size
-    if (data == NULL || size == 0) {
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
+
+    // Initialize database in memory
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Allocate a new buffer with an extra byte for the null terminator
+    // Convert fuzz data to a null-terminated string
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
+        sqlite3_close(db);
         return 0;
     }
-
-    // Copy the input data into the new buffer and add a null terminator
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Initialize SQLite in single-threaded mode for simplicity
-    sqlite3_initialize();
-
-    // Use the input data in some way to interact with SQLite
-    sqlite3 *db;
-    char *errMsg = NULL;
-    int rc;
-
-    // Attempt to open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
+    // Execute SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
-
-    // Attempt to execute the input data as an SQL statement
-    rc = sqlite3_exec(db, sql, NULL, NULL, &errMsg);
-    if (errMsg) {
         sqlite3_free(errMsg);
     }
 
-    // Close the database connection
-    sqlite3_close(db);
+    // Clean up
 
-    // Clean up any thread-specific resources
-    sqlite3_thread_cleanup();
-
-    // Free the allocated buffer
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strglob
+    void* ret_sqlite3_malloc64_ewpgp = sqlite3_malloc64(0);
+    if (ret_sqlite3_malloc64_ewpgp == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc64_ewpgp) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strglob_djaaw = sqlite3_strglob((const char *)ret_sqlite3_malloc64_ewpgp, errMsg);
+    if (ret_sqlite3_strglob_djaaw < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

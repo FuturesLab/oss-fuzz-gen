@@ -1,44 +1,39 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <stdio.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int keyword_count = sqlite3_keyword_count();
-
-    // Use `data` and `size` to create a SQL statement and execute it
-    char *errMsg = 0;
     sqlite3 *db;
-    sqlite3_open(":memory:", &db);
+    char *errMsg = 0;
+    int rc;
 
-    // Ensure the input is null-terminated for safety
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_busy_timeout
-    int ret_sqlite3_busy_timeout_ssbop = sqlite3_busy_timeout(db, size);
-    if (ret_sqlite3_busy_timeout_ssbop < 0){
-    	return 0;
+    // Open a new in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if(rc) {
+        sqlite3_close(db);
+        return 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+
+    // Convert the fuzz input into a null-terminated string
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    if (!sql) {
         sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL statement
+    // Execute the SQL command
     sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Clean up
+    // Free allocated resources
     sqlite3_free(errMsg);
     free(sql);
     sqlite3_close(db);
-
-    // Optionally, you can print the result for debugging purposes
-    printf("Number of SQLite keywords: %d\n", keyword_count);
 
     return 0;
 }

@@ -1,51 +1,69 @@
-#include <cstdint>
-#include <cstdlib>
-#include <vpx/vpx_codec.h>
-#include <vpx/vpx_encoder.h>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
-    #include <vpx/vp8cx.h> // Include the header where vpx_codec_vp8_cx is declared
+    #include <vpx/vpx_decoder.h>
+    #include <vpx/vpx_codec.h>
+    #include <vpx/vp8dx.h>  // Include the header where vpx_codec_vp8_dx is declared
 }
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Initialize codec context and iterator
-    vpx_codec_ctx_t codec_ctx;
-    vpx_codec_iter_t iter = NULL;
-    const vpx_codec_cx_pkt_t *pkt;
+    // Initialize the codec interface
+    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
 
-    // Initialize the codec context (dummy initialization for fuzzing purposes)
-    vpx_codec_enc_cfg_t cfg;
-    vpx_codec_err_t res = vpx_codec_enc_config_default(vpx_codec_vp8_cx(), &cfg, 0);
-    if (res != VPX_CODEC_OK) {
+    // Ensure the data size is non-zero for valid input
+    if (size == 0) {
         return 0;
     }
 
-    res = vpx_codec_enc_init(&codec_ctx, vpx_codec_vp8_cx(), &cfg, 0);
-    if (res != VPX_CODEC_OK) {
-        return 0;
-    }
+    // Initialize the codec stream info structure
+    vpx_codec_stream_info_t stream_info;
+    stream_info.sz = sizeof(vpx_codec_stream_info_t); // Set the size of the structure
 
-    // Simulate encoding process (dummy data for fuzzing purposes)
-    vpx_image_t img;
-    if (!vpx_img_alloc(&img, VPX_IMG_FMT_I420, 640, 480, 1)) {
-        vpx_codec_destroy(&codec_ctx);
-        return 0;
-    }
+    // Call the function under test
+    vpx_codec_err_t result = vpx_codec_peek_stream_info(iface, data, (unsigned int)size, &stream_info);
 
-    // Encode the image (using dummy data)
-    res = vpx_codec_encode(&codec_ctx, &img, 0, 1, 0, VPX_DL_REALTIME);
-    if (res != VPX_CODEC_OK) {
-        vpx_img_free(&img);
-        vpx_codec_destroy(&codec_ctx);
-        return 0;
-    }
-
-    // Call the function-under-test
-    pkt = vpx_codec_get_cx_data(&codec_ctx, &iter);
-
-    // Clean up
-    vpx_img_free(&img);
-    vpx_codec_destroy(&codec_ctx);
+    // The result can be used for further analysis or checks, if needed
+    (void)result; // Suppress unused variable warning
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

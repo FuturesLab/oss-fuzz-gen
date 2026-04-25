@@ -1,72 +1,114 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_open16 at sqlite3.c:174715:16 in sqlite3.h
-// sqlite3_create_collation16 at sqlite3.c:174792:16 in sqlite3.h
-// sqlite3_prepare16_v3 at sqlite3.c:132712:16 in sqlite3.h
-// sqlite3_bind_text16 at sqlite3.c:80183:16 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
-// sqlite3_prepare16 at sqlite3.c:132688:16 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
-// sqlite3_prepare16_v2 at sqlite3.c:132700:16 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-#include <stdint.h>
+// sqlite3_extended_errcode at sqlite3.c:173836:16 in sqlite3.h
+// sqlite3_release_memory at sqlite3.c:17084:16 in sqlite3.h
+// sqlite3_db_release_memory at sqlite3.c:171915:16 in sqlite3.h
+// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
+// sqlite3_realloc at sqlite3.c:17623:18 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_memory_used at sqlite3.c:17258:26 in sqlite3.h
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
 
-static int dummy_compare(void* pArg, int len1, const void* str1, int len2, const void* str2) {
-    return 0; // Dummy comparison function
+static sqlite3* create_in_memory_db() {
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return NULL;
+    }
+    return db;
+}
+
+static void close_db(sqlite3 *db) {
+    if (db) {
+        sqlite3_close(db);
+    }
 }
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *Data, size_t Size) {
-    if (Size < 4 || Size % 2 != 0) return 0; // Ensure there is enough data and it is aligned for UTF-16
-
-    // Ensure the input is a valid UTF-16 string by appending a null terminator
-    uint8_t *utf16_filename = (uint8_t *)malloc(Size + 2);
-    if (!utf16_filename) return 0;
-    memcpy(utf16_filename, Data, Size);
-    utf16_filename[Size] = 0;
-    utf16_filename[Size + 1] = 0;
-
-    sqlite3 *db = NULL;
-
-    // Test sqlite3_open16
-    int rc = sqlite3_open16(utf16_filename, &db);
-    if (rc == SQLITE_OK) {
-        // Test sqlite3_create_collation16
-        sqlite3_create_collation16(db, utf16_filename, SQLITE_UTF16, NULL, dummy_compare);
-
-        // Prepare a dummy SQL statement
-        const uint8_t sql_statement[] = {0x00, 0x53, 0x00, 0x45, 0x00, 0x4C, 0x00, 0x45, 0x00, 0x43, 0x00, 0x54, 0x00, 0x20, 0x00, 0x31, 0x00, 0x3B, 0x00, 0x00};
-        
-        // Test sqlite3_prepare16_v3
-        sqlite3_stmt *stmt = NULL;
-        const void *pzTail = NULL;
-        sqlite3_prepare16_v3(db, sql_statement, sizeof(sql_statement), 0, &stmt, &pzTail);
-
-        // Test sqlite3_bind_text16
-        if (stmt) {
-            sqlite3_bind_text16(stmt, 1, utf16_filename, -1, SQLITE_STATIC);
-            sqlite3_finalize(stmt);
-        }
-
-        // Test sqlite3_prepare16
-        sqlite3_prepare16(db, sql_statement, sizeof(sql_statement), &stmt, &pzTail);
-        if (stmt) {
-            sqlite3_finalize(stmt);
-        }
-
-        // Test sqlite3_prepare16_v2
-        sqlite3_prepare16_v2(db, sql_statement, sizeof(sql_statement), &stmt, &pzTail);
-        if (stmt) {
-            sqlite3_finalize(stmt);
-        }
-
-        sqlite3_close(db);
+    // Initialize a database connection
+    sqlite3 *db = create_in_memory_db();
+    if (!db) {
+        return 0;
     }
 
-    free(utf16_filename);
+    // Fuzzing sqlite3_extended_errcode
+    int errcode = sqlite3_extended_errcode(db);
+
+    // Fuzzing sqlite3_release_memory
+    int requested_memory = Size > 0 ? Data[0] : 0; // Use the first byte as the requested memory size
+    int freed_memory = sqlite3_release_memory(requested_memory);
+
+    // Fuzzing sqlite3_db_release_memory
+    int db_release_result = sqlite3_db_release_memory(db);
+
+    // Fuzzing sqlite3_malloc and sqlite3_realloc
+    int malloc_size = Size > 0 ? Data[0] : 0; // Use the first byte as the allocation size
+    void *allocated_memory = sqlite3_malloc(malloc_size);
+    void *reallocated_memory = NULL;
+    if (allocated_memory) {
+        int realloc_size = Size > 1 ? Data[1] : 0; // Use the second byte as the new size
+        reallocated_memory = sqlite3_realloc(allocated_memory, realloc_size);
+    }
+
+    // Free the allocated or reallocated memory
+    if (reallocated_memory) {
+        sqlite3_free(reallocated_memory);
+    } else if (allocated_memory && !reallocated_memory) {
+        // If reallocation failed and returned NULL, allocated_memory has already been freed
+        allocated_memory = NULL;
+    }
+
+    // Fuzzing sqlite3_memory_used
+    sqlite3_int64 memory_used = sqlite3_memory_used();
+
+    // Cleanup
+    close_db(db);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_78(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

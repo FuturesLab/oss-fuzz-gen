@@ -2,73 +2,72 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include "/src/json-c/arraylist.h"
 
-extern "C" {
-    struct array_list {
-        void **array;
-        size_t size;
-        size_t capacity;
-    };
-
-    int array_list_put_idx(struct array_list *, size_t, void *);
-}
+// Using the definition of array_list_free_fn and array_list from the included header
+// No need to redefine array_list_free_fn or array_list
 
 extern "C" int LLVMFuzzerTestOneInput_108(const uint8_t *data, size_t size) {
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create and initialize an array_list
-    struct array_list list;
-    list.capacity = fuzzed_data.ConsumeIntegralInRange<size_t>(1, 100); // Ensure capacity is at least 1
-    list.size = fuzzed_data.ConsumeIntegralInRange<size_t>(0, list.capacity); // size should be within capacity
-    list.array = (void **)malloc(list.capacity * sizeof(void *));
-    if (list.array == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Consume a boolean to decide whether to use a null free function or a valid one
+    bool use_null_free_fn = fuzzed_data.ConsumeBool();
+    array_list_free_fn *free_fn = nullptr;
+
+    if (!use_null_free_fn) {
+        // Provide a dummy free function if not using null
+        free_fn = [](void *ptr) {
+            // Dummy free function, does nothing
+        };
     }
 
-    // Fill the array with non-null pointers
-    for (size_t i = 0; i < list.size; ++i) {
-        list.array[i] = malloc(1); // Allocate dummy memory for each element
-        if (list.array[i] == NULL) {
-            // If allocation fails, free already allocated memory and exit
-            for (size_t j = 0; j < i; ++j) {
-                free(list.array[j]);
-            }
-            free(list.array);
-            return 0;
-        }
-    }
-
-    // Consume a size_t index
-    size_t index = fuzzed_data.ConsumeIntegralInRange<size_t>(0, list.capacity - 1);
-
-    // Consume a void* value
-    void *value = malloc(1); // Allocate dummy memory for the value
-    if (value == NULL) {
-        // Free previously allocated memory and exit if allocation fails
-        for (size_t i = 0; i < list.size; ++i) {
-            free(list.array[i]);
-        }
-        free(list.array);
-        return 0;
-    }
+    // Consume an integer for the second parameter
+    int param = fuzzed_data.ConsumeIntegral<int>();
 
     // Call the function-under-test
-    int result = array_list_put_idx(&list, index, value);
+    struct array_list *result = array_list_new2(free_fn, param);
 
-    // If the function replaces an existing element, free it to avoid double-free
-    if (result == 0 && index < list.size && list.array[index] != value) {
-        free(list.array[index]);
-    }
-
-    // Free allocated memory
-    for (size_t i = 0; i < list.size; ++i) {
-        if (list.array[i] != value) { // Ensure we don't double-free 'value'
-            free(list.array[i]);
-        }
-    }
-    free(list.array);
-    free(value);
+    // Normally, you would perform some operations on the result here
+    // and ensure proper cleanup if necessary.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_108(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

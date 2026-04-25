@@ -1,73 +1,77 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <stdarg.h>
 
-static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt = NULL;
-    const char *pzTail = NULL;
-
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &pzTail);
-    if (rc != SQLITE_OK) {
-        const char *errmsg = sqlite3_errmsg(db);
-        (void)errmsg;  // Suppress unused variable warning
-        return;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
+}
 
-    rc = sqlite3_step(stmt);
-    rc = sqlite3_step(stmt);  // Call sqlite3_step twice as required
-
-    int column_count = sqlite3_column_count(stmt);
-    for (int i = 0; i < column_count; i++) {
-        int col_type = sqlite3_column_type(stmt, i);
-        const char *col_name = sqlite3_column_name(stmt, i);
-        const unsigned char *col_text = sqlite3_column_text(stmt, i);
-        int col_bytes = sqlite3_column_bytes(stmt, i);
-
-        (void)col_type;  // Suppress unused variable warning
-        (void)col_name;
-        (void)col_text;
-        (void)col_bytes;
-    }
-
-    sqlite3_finalize(stmt);
+static char *custom_vmprintf(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    char *result = sqlite3_vmprintf(format, args);
+    va_end(args);
+    return result;
 }
 
 int LLVMFuzzerTestOneInput_148(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
     // Initialize SQLite
-    sqlite3 *db;
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    const char *tail = NULL;
+    char *sql = NULL;
+    char *expandedSql = NULL;
+    int rc;
+
+    // Create a dummy file for any file-based operations
+    write_dummy_file(Data, Size);
+
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Copy input data to a null-terminated string
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        sqlite3_close(db);
-        return 0;
+    // Use custom_vmprintf to format a string
+    sql = custom_vmprintf("%.*s", (int)Size, Data);
+
+    if (sql) {
+        // Prepare the SQL statement
+        rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &tail);
+        if (rc == SQLITE_OK) {
+            // Retrieve the last error message
+            const char *errmsg = sqlite3_errmsg(db);
+
+            // Get the expanded SQL
+            expandedSql = sqlite3_expanded_sql(stmt);
+
+            // Free the expanded SQL string
+            sqlite3_free(expandedSql);
+        }
     }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0';
 
-    // Execute fuzzing with the given SQL
-    execute_sqlite_fuzzing(db, sql);
+    // Free the formatted SQL string
+    sqlite3_free(sql);
 
-    // Cleanup
-    free(sql);
+    // Finalize the statement
+    if (stmt) {
+        sqlite3_finalize(stmt);
+    }
+
+    // Close the database connection
     sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

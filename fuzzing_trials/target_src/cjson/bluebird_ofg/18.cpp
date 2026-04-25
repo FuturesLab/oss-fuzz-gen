@@ -1,6 +1,7 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,44 +12,117 @@ extern "C" {
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-  if (size == 0 || data[size - 1] != '\0') {
+  if (size < 2) {
     return 0;
   }
 
-  cJSON *json = cJSON_Parse((const char *)data);
-  if (json == NULL) {
+  // Split the input data for two JSON strings
+  size_t mid = size / 2;
+  const uint8_t *data1 = data;
+  size_t size1 = mid;
+  const uint8_t *data2 = data + mid;
+  size_t size2 = size - mid;
+
+  // Ensure both JSON strings are null-terminated
+  char *json_str1 = (char *)malloc(size1 + 1);
+  char *json_str2 = (char *)malloc(size2 + 1);
+  if (json_str1 == NULL || json_str2 == NULL) {
+    free(json_str1);
+    free(json_str2);
     return 0;
   }
+  memcpy(json_str1, data1, size1);
+  json_str1[size1] = '\0';
+  memcpy(json_str2, data2, size2);
+  json_str2[size2] = '\0';
 
-  cJSON_bool is_raw = cJSON_IsRaw(json);
+  // Parse the JSON strings
+  cJSON *json1 = cJSON_Parse(json_str1);
 
-  // Use the result of cJSON_IsRaw to avoid compiler warnings about unused variables
-  if (is_raw) {
-    // Do something if it's raw, though for fuzzing purposes, we don't need to do anything specific
-  }
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Delete to cJSON_ReplaceItemInObject
-  cJSON* ret_cJSON_CreateNumber_fguxo = cJSON_CreateNumber(cJSON_String);
-  if (ret_cJSON_CreateNumber_fguxo == NULL){
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Parse to cJSON_AddItemReferenceToArray
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!json1) {
   	return 0;
   }
-  char* ret_cJSON_Print_troic = cJSON_Print(NULL);
-  if (ret_cJSON_Print_troic == NULL){
+  cJSON* ret_cJSON_CreateObjectReference_ryhom = cJSON_CreateObjectReference(json1);
+  if (ret_cJSON_CreateObjectReference_ryhom == NULL){
   	return 0;
   }
-
-  cJSON_bool ret_cJSON_ReplaceItemInObject_rajyz = cJSON_ReplaceItemInObject(ret_cJSON_CreateNumber_fguxo, ret_cJSON_Print_troic, json);
-  if (ret_cJSON_ReplaceItemInObject_rajyz < 0){
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!ret_cJSON_CreateObjectReference_ryhom) {
   	return 0;
   }
-
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!json1) {
+  	return 0;
+  }
+  cJSON_bool ret_cJSON_AddItemReferenceToArray_suhpq = cJSON_AddItemReferenceToArray(ret_cJSON_CreateObjectReference_ryhom, json1);
+  if (ret_cJSON_AddItemReferenceToArray_suhpq < 0){
+  	return 0;
+  }
   // End mutation: Producer.APPEND_MUTATOR
+  
+  cJSON *json2 = cJSON_Parse(json_str2);
 
-  cJSON_Delete(json);
+  free(json_str1);
+  free(json_str2);
+
+  if (json1 == NULL || json2 == NULL) {
+    cJSON_Delete(json1);
+    cJSON_Delete(json2);
+    return 0;
+  }
+
+  // Compare the two JSON objects
+  cJSON_bool case_sensitive = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
+  cJSON_Compare(json1, json2, case_sensitive);
+
+  // Clean up
+  cJSON_Delete(json1);
+  cJSON_Delete(json2);
 
   return 0;
 }
+
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

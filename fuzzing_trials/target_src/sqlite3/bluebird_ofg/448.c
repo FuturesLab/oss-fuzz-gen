@@ -1,51 +1,26 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-}
-
 int LLVMFuzzerTestOneInput_448(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
+    int status_code = 0;
+    int current = 0;
+    int highwater = 0;
+    int reset_flag = 0;
 
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(lwzpauru, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+    // Ensure that size is large enough to extract necessary values
+    if (size < sizeof(int) * 2) {
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
+    // Use the input data to set the status_code and reset_flag
+    status_code = (int)data[0]; // Use the first byte for status_code
+    reset_flag = (int)data[1];  // Use the second byte for reset_flag
 
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_db_release_memory
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_db_release_memory with sqlite3_total_changes
-        sqlite3_total_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    // Call the function-under-test
+    sqlite3_status(status_code, &current, &highwater, reset_flag);
 
     return 0;
 }

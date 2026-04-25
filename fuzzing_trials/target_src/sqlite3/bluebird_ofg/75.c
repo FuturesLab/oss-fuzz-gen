@@ -1,52 +1,47 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <string.h>
 
-// Define a sample authorizer callback function
-int authorizer_callback_75(void *pArg, int action, const char *detail1, const char *detail2, const char *detail3, const char *detail4) {
-    // For fuzzing purposes, return SQLITE_OK to allow all actions
-    return SQLITE_OK;
-}
-
+// Fuzzing function
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-    char *errMsg = 0;
-
-    // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
-
-    // Set the authorizer with the callback function
-    rc = sqlite3_set_authorizer(db, authorizer_callback_75, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Ensure the input data is null-terminated before using it as an SQL statement
+    // Convert input data to a null-terminated string
     char *sql = (char *)malloc(size + 1);
     if (!sql) {
-        sqlite3_close(db);
-        return 0;
+        return 0; // Fail gracefully on allocation failure
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Initialize an SQLite database in memory
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        free(sql);
+        return 0;
     }
 
-    // Clean up
-    free(sql);
+    // Execute the SQL statement
+    char *errMsg = 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_keyword_name
+    int lolsehmk = size;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_keyword_name_ikwgd = sqlite3_keyword_name(-1, &errMsg, &lolsehmk);
+    if (ret_sqlite3_keyword_name_ikwgd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
     sqlite3_close(db);
+    free(sql);
 
     return 0;
 }

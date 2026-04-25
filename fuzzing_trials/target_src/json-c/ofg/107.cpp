@@ -1,32 +1,81 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <cstddef>
-#include <cstdint>
-#include <string>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "/src/json-c/arraylist.h" // Include the necessary header for array_list_new2
 
-// Include the correct headers for json-c functions
-#include "/src/json-c/json_object.h"
-#include "/src/json-c/json_tokener.h"
+// Define a dummy free function
+void dummy_free_function(void *ptr) {
+    // Do nothing
+}
+
+// Forward declaration of the function-under-test
+struct array_list *array_list_new2(array_list_free_fn *, int);
 
 extern "C" int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-  // Initialize FuzzedDataProvider with the input data
-  FuzzedDataProvider fuzzed_data(data, size);
+    // Initialize FuzzedDataProvider with the given data and size
+    FuzzedDataProvider fuzzed_data(data, size);
 
-  // Consume a random length string from the fuzzed data
-  std::string json_string = fuzzed_data.ConsumeRandomLengthString();
+    // Consume a boolean to decide whether to pass a valid function pointer or NULL
+    bool use_valid_function_pointer = fuzzed_data.ConsumeBool();
 
-  // Parse the JSON string to create a json_object
-  struct json_object *json_obj = json_tokener_parse(json_string.c_str());
+    // Set the array_list_free_fn pointer based on the consumed boolean
+    array_list_free_fn *free_function_ptr = nullptr;
+    if (use_valid_function_pointer) {
+        free_function_ptr = dummy_free_function;
+    }
 
-  // Check if the json_obj is not null and is an array
-  if (json_obj != nullptr && json_object_get_type(json_obj) == json_type_array) {
+    // Consume an integer for the second parameter
+    int param = fuzzed_data.ConsumeIntegral<int>();
+
     // Call the function-under-test
-    size_t length = json_object_array_length(json_obj);
-  }
+    struct array_list *result = array_list_new2(free_function_ptr, param);
 
-  // Free the JSON object
-  if (json_obj != nullptr) {
-    json_object_put(json_obj);
-  }
+    // Clean up if necessary (depends on the implementation of array_list_new2)
+    // For example, if array_list_new2 allocates memory, you might need to free it here.
+    if (result != nullptr) {
+        // Assuming there's a function to free the array_list, e.g., array_list_free
+        array_list_free(result);
+    }
 
-  return 0;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

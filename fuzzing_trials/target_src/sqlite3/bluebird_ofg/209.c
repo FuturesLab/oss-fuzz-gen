@@ -1,59 +1,38 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_209(const uint8_t *data, size_t size) {
-    sqlite3 *srcDb = NULL;
-    sqlite3 *destDb = NULL;
-    sqlite3_backup *backup = NULL;
-    int rc;
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_stmt *next_stmt = NULL;
 
-    // Open source and destination databases in memory
-    rc = sqlite3_open(":memory:", &srcDb);
-    if (rc != SQLITE_OK) {
+    // Ensure we have some data to work with
+    if (size < 1) {
         return 0;
     }
 
-    rc = sqlite3_open(":memory:", &destDb);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(srcDb);
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a statement to execute on the source database
-    if (size > 0) {
-        // Ensure the data is null-terminated to prevent buffer overflow
-        char *query = (char *)malloc(size + 1);
-        if (query == NULL) {
-            sqlite3_close(srcDb);
-            sqlite3_close(destDb);
-            return 0;
-        }
-        memcpy(query, data, size);
-        query[size] = '\0';
-
-        sqlite3_exec(srcDb, query, 0, 0, 0);
-        free(query);
+    // Attempt to prepare a statement if data is available
+    if (size > 1) {
+        const char *sql = (const char *)data;
+        sqlite3_prepare_v2(db, sql, size, &stmt, NULL);
     }
 
-    // Create a backup from source to destination
-    backup = sqlite3_backup_init(destDb, "main", srcDb, "main");
-    if (backup == NULL) {
-        sqlite3_close(srcDb);
-        sqlite3_close(destDb);
-        return 0;
-    }
-
-    // Call the function under test
-    int remaining = sqlite3_backup_remaining(backup);
+    // Call the function-under-test
+    next_stmt = sqlite3_next_stmt(db, stmt);
 
     // Clean up
-    sqlite3_backup_finish(backup);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(srcDb);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    sqlite3_close(destDb);
+    if (stmt) {
+        sqlite3_finalize(stmt);
+    }
+    sqlite3_close(db);
 
     return 0;
 }

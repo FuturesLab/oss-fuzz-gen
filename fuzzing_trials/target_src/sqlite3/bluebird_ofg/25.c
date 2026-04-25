@@ -1,51 +1,57 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-
-// Callback function for sqlite3_exec
-int callback_25(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0;
-}
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errMsg = NULL;
-    int rc;
-    
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Initialize SQLite
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a SQL statement
+    // Open an in-memory database
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_create_module
-    int ret_sqlite3_create_module_pjohj = sqlite3_create_module(db, (const char *)"r", NULL, (void *)data);
-    if (ret_sqlite3_create_module_pjohj < 0){
+    // Ensure the input data is null-terminated for safe use as a string
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_open to sqlite3_prepare_v2 using the plateau pool
+    sqlite3_stmt *stmt;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
     	return 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
+    const char *ncwkjifw[1024] = {"bnquc", NULL};
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of sqlite3_prepare_v2
+    int ret_sqlite3_prepare_v2_jgrxx = sqlite3_prepare_v2(db, "SELECT ?;", -1, &stmt, ncwkjifw);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (ret_sqlite3_prepare_v2_jgrxx < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
     
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    if (!sql) {
         sqlite3_close(db);
+        sqlite3_shutdown();
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
     // Execute the SQL statement
-    sqlite3_exec(db, sql, callback_25, NULL, &errMsg);
+    char *errMsg = 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Free resources
+    // Cleanup
+    sqlite3_free(errMsg);
     free(sql);
-    if (errMsg != NULL) {
-        sqlite3_free(errMsg);
-    }
     sqlite3_close(db);
+    sqlite3_shutdown();
 
     return 0;
 }

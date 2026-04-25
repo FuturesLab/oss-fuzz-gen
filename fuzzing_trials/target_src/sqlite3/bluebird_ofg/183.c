@@ -1,71 +1,81 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
 #include "sqlite3.h"
-
-// Dummy function types to replace DW_TAG_subroutine_typeInfinite loop
-typedef int (*callback_type)(void*, int, char**, char**);
-typedef void (*free_callback_type)(void*);
-
-// Define a callback function
-int myCallback_183(void* data, int argc, char** argv, char** azColName) {
-    return 0;
-}
-
-// Define a free callback function
-void myFreeCallback_183(void* data) {
-}
+#include <stdlib.h>
+#include <string.h> // Include for memcpy and malloc
 
 int LLVMFuzzerTestOneInput_183(const uint8_t *data, size_t size) {
-    // Initialize variables
-    sqlite3 *db;
-    callback_type xCallback;
-    void *pClientData;
-    free_callback_type xFree;
-    char *errMsg = 0;
-
-    // Open a SQLite database in memory
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    sqlite3 *db = NULL;
+    int rc;
+    
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Assign the defined callback functions and client data
-    xCallback = myCallback_183;
-    pClientData = (void*)data; // Use data as client data
-    xFree = myFreeCallback_183;
-
-    // Convert the input data to a string for SQL execution
-    char *sql = (char*)malloc(size + 1);
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
+    char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
+
+    // Copy the input data to the new buffer and null-terminate it
     memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
+    sql[size] = '\0';
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, xCallback, pClientData, &errMsg);
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
 
-    // Free the allocated memory for the SQL string
+    // Call the function-under-test
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_limit
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open_v2
-    sqlite3_int64 ret_sqlite3_last_insert_rowid_tkqih = sqlite3_last_insert_rowid(db);
-    int ret_sqlite3_open_v2_xutbp = sqlite3_open_v2((const char *)data, &db, 64, (const char *)pClientData);
-    if (ret_sqlite3_open_v2_xutbp < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_create_filename
+    void* ret_sqlite3_malloc_sxbud = sqlite3_malloc(64);
+    if (ret_sqlite3_malloc_sxbud == NULL){
     	return 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int ret_sqlite3_limit_palft = sqlite3_limit(db, size, size);
-    if (ret_sqlite3_limit_palft < 0){
+    void* ret_sqlite3_malloc_xhgkd = sqlite3_malloc(-1);
+    if (ret_sqlite3_malloc_xhgkd == NULL){
     	return 0;
     }
+    unsigned int ret_sqlite3_value_subtype_nzosk = sqlite3_value_subtype(NULL);
+    if (ret_sqlite3_value_subtype_nzosk < 0){
+    	return 0;
+    }
+    char yssnwkwy[1024] = "zbffk";
+    sqlite3_uint64 ret_sqlite3_msize_mvjyr = sqlite3_msize(yssnwkwy);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_sxbud) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_xhgkd) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!yssnwkwy) {
+    	return 0;
+    }
+    sqlite3_filename ret_sqlite3_create_filename_bsujv = sqlite3_create_filename((const char *)ret_sqlite3_malloc_sxbud, errMsg, (const char *)ret_sqlite3_malloc_xhgkd, (int )ret_sqlite3_value_subtype_nzosk, (const char **)&yssnwkwy);
     // End mutation: Producer.APPEND_MUTATOR
     
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
+
+    // Free the allocated buffer
     free(sql);
 
-    // Close the SQLite database
+    // Close the database
     sqlite3_close(db);
 
     return 0;

@@ -1,41 +1,51 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
+#include <stdlib.h>
+#include <string.h>
 #include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_493(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    
-    // Initialize SQLite
-    rc = sqlite3_initialize();
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
+    char *errMsg = 0;
 
     // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        sqlite3_shutdown();
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a statement from the input data
-    const char *sql = (const char *)data;
-    rc = sqlite3_prepare_v2(db, sql, size, &stmt, NULL);
-    if (rc != SQLITE_OK) {
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
         sqlite3_close(db);
-        sqlite3_shutdown();
         return 0;
     }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Call the function-under-test
-    int readonly = sqlite3_stmt_readonly(stmt);
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
+        const char bmugkuhb[1024] = "gvrff";
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        int ret_sqlite3_open_cvepe = sqlite3_open(bmugkuhb, &db);
+        if (ret_sqlite3_open_cvepe < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
     sqlite3_close(db);
-    sqlite3_shutdown();
+    free(sqlStatement);
 
     return 0;
 }

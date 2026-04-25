@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,57 +8,101 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include "/src/json-c/json_object.h"
-#include "/src/json-c/arraylist.h"
+#include <stdint.h>
+#include <stddef.h>
+#include "/src/json-c/linkhash.h"
+#include <string.h>
+#include <stdlib.h>
 
-static int compare_json_object(const void *a, const void *b) {
-    int intA = json_object_get_int(*(const struct json_object **)a);
-    int intB = json_object_get_int(*(const struct json_object **)b);
-    return (intA > intB) - (intA < intB);
-}
-
-static int compare_int_with_json_object(const void *a, const void *b) {
-    int intA = *(const int *)a;
-    int intB = json_object_get_int(*(const struct json_object **)b);
-    return (intA > intB) - (intA < intB);
+static void free_entry(lh_entry *e) {
+    // Example free function for entries
+    if (e) {
+        free(const_cast<void*>(e->k));
+        free(const_cast<void*>(e->v));
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    // Create a new JSON array
-    struct json_object *jsonArray = json_object_new_array();
-    if (!jsonArray) return 0;
+    if (Size < 2) return 0; // Ensure there's enough data for key and value
 
-    // Populate the JSON array with some data from the input
-    size_t numElements = Size / sizeof(int);
-    for (size_t i = 0; i < numElements; ++i) {
-        int value;
-        memcpy(&value, Data + i * sizeof(int), sizeof(int));
-        json_object_array_add(jsonArray, json_object_new_int(value));
+    // Create a new table with pointer keys
+    struct lh_table *table = lh_kptr_table_new(4, free_entry);
+    if (!table) return 0;
+
+    // Use some of the data as a key and value
+    size_t key_len = Size / 2;
+    size_t value_len = Size - key_len;
+    char *key = (char *)malloc(key_len + 1);
+    char *value = (char *)malloc(value_len + 1);
+
+    if (!key || !value) {
+        free(key);
+        free(value);
+        lh_table_free(table);
+        return 0;
     }
 
-    // Sort the JSON array using a simple comparison function
-    json_object_array_sort(jsonArray, compare_json_object);
+    memcpy(key, Data, key_len);
+    key[key_len] = '\0';
+    memcpy(value, Data + key_len, value_len);
+    value[value_len] = '\0';
 
-    // Retrieve the underlying array list
-    struct array_list *arrList = json_object_get_array(jsonArray);
-    if (arrList) {
-        // Sort the array list using the same comparison function
-        array_list_sort(arrList, compare_json_object);
+    // Insert the key-value pair into the table
+    lh_table_insert(table, key, value);
 
-        // Perform a binary search on the sorted array list
-        if (numElements > 0) {
-            int searchValue;
-            memcpy(&searchValue, Data, sizeof(int));
-            const void *key = &searchValue;
-            void *result = array_list_bsearch(&key, arrList, compare_int_with_json_object);
+    // Lookup the key in the table
+    void *found_value = NULL;
+    lh_table_lookup_ex(table, key, &found_value);
+
+    // Delete the entry if found
+    if (found_value) {
+        struct lh_entry *entry = lh_table_lookup_entry(table, key);
+        if (entry) {
+            lh_table_delete_entry(table, entry);
         }
     }
 
     // Clean up
-    json_object_put(jsonArray);
+    lh_table_free(table);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,45 +1,34 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_231(const uint8_t *data, size_t size) {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
     int rc;
 
-    // Open a new in-memory SQLite database
+    // Open a temporary in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, return immediately
+        return 0;
     }
 
-    // Create a SQL statement from the input data
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
-
-    // Execute the SQL statement
-    char *errMsg = 0;
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free the SQL statement
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_readonly
-    const void* ret_sqlite3_errmsg16_luzbr = sqlite3_errmsg16(db);
-    if (ret_sqlite3_errmsg16_luzbr == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_db_readonly_fflxv = sqlite3_db_readonly(db, errMsg);
-    if (ret_sqlite3_db_readonly_fflxv < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sqlite3_free(sql);
-
-    // If there was an error, free the error message
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    // Prepare a statement using the provided data as SQL
+    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Close the SQLite database
+    // Call the function-under-test
+    sqlite3 *db_handle = sqlite3_db_handle(stmt);
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

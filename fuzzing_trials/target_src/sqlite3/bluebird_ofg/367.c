@@ -1,41 +1,60 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
 #include "sqlite3.h"
+#include <string.h>
 
-int LLVMFuzzerTestOneInput_367(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
+// Function to create a new sqlite3_value object
+static sqlite3_value* create_sqlite3_value(const uint8_t *data, int size) {
+    sqlite3_value *value;
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
 
     // Open a temporary in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return NULL;
+    }
+
+    // Prepare a dummy statement to use sqlite3_bind functions
+    if (sqlite3_prepare_v2(db, "SELECT ?", -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        return NULL;
+    }
+
+    // Bind the data to the first parameter as a text
+    if (sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return NULL;
+    }
+
+    // Get the value bound to the first parameter
+    value = (sqlite3_value *)sqlite3_column_value(stmt, 0);
+
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
+    return value;
+}
+
+int LLVMFuzzerTestOneInput_367(const uint8_t *data, size_t size) {
+    if (size == 0) {
         return 0;
     }
 
-    // Execute the SQL statement to create a table
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Prepare a statement from the input data
-    const char *tail;
-    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, &tail);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
+    // Initialize a sqlite3_value object using the provided data
+    sqlite3_value *original_value = create_sqlite3_value(data, size);
+    if (!original_value) {
         return 0;
     }
 
     // Call the function-under-test
-    int readonly = sqlite3_stmt_readonly(stmt);
+    sqlite3_value *duplicated_value = sqlite3_value_dup(original_value);
 
-    // Clean up
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
+    // Cleanup
+    if (duplicated_value) {
+        sqlite3_value_free(duplicated_value);
+    }
 
     return 0;
 }

@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,69 +9,108 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "/src/json-c/json_util.h"
-#include "/src/json-c/json_object.h"
-#include <fcntl.h>
-#include <unistd.h>
+extern "C" {
+#include "/src/json-c/arraylist.h"
+}
+
 #include <cstdint>
 #include <cstdlib>
-#include <cstdio>
 
-static void write_to_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void dummy_free(void *data) {
+    // Dummy free function for demonstration purposes.
+    // Normally, you would free any allocated resources here.
 }
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    // Step 1: Write data to a dummy file
-    write_to_dummy_file(Data, Size);
-
-    // Step 2: Test json_object_from_file
-    struct json_object *obj = json_object_from_file("./dummy_file");
-    if (obj) {
-        // Step 3: Test json_object_to_json_string_length
-        size_t length;
-        const char *json_str = json_object_to_json_string_length(obj, JSON_C_TO_STRING_PLAIN, &length);
-
-        // Step 4: Test json_object_to_json_string_ext
-        const char *json_str_ext = json_object_to_json_string_ext(obj, JSON_C_TO_STRING_PRETTY);
-
-        // Step 5: Test json_object_to_file
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of json_object_to_file
-        const char weopukso[1024] = "vyivs";
-        int result = json_object_to_file(weopukso, obj);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-        // Step 6: Test json_object_to_fd
-        int fd = open("./dummy_file", O_WRONLY | O_CREAT, 0644);
-        if (fd != -1) {
-            result = json_object_to_fd(fd, obj, JSON_C_TO_STRING_PLAIN);
-            close(fd);
-        }
-
-        // Step 7: Test json_object_to_file_ext
-        result = json_object_to_file_ext("./dummy_file", obj, JSON_C_TO_STRING_PRETTY);
-
-        // Clean up
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_put to json_object_set_serializer
-        struct json_object* ret_json_object_new_int64_ootir = json_object_new_int64(JSON_C_TO_STRING_NOSLASHESCAPE);
-        if (ret_json_object_new_int64_ootir == NULL){
-        	return 0;
-        }
-
-        json_object_set_serializer(obj, NULL, (void *)ret_json_object_new_int64_ootir, NULL);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        json_object_put(obj);
+    if (Size < 1) {
+        return 0;
     }
 
+    // Use the first byte of data to decide initial size for array_list_new2
+    int initial_size = Data[0];
+
+    // Create a new array_list using array_list_new2
+    struct array_list *al = array_list_new2(dummy_free, initial_size);
+    if (!al) {
+        return 0;
+    }
+
+    // Insert data into the array list at various indices
+    for (size_t i = 1; i < Size; ++i) {
+        void *data = malloc(1);  // Allocate dummy data
+        if (!data) {
+            array_list_free(al);
+            return 0;
+        }
+
+        // Try to insert at index i
+        array_list_insert_idx(al, i % (initial_size + 1), data);
+    }
+
+    // Add data to the end of the array list
+    for (size_t i = 1; i < Size; ++i) {
+        void *data = malloc(1);  // Allocate dummy data
+        if (!data) {
+            array_list_free(al);
+            return 0;
+        }
+
+        // Try to add data to the end of the list
+        array_list_add(al, data);
+    }
+
+    // Put data at specific indices
+    for (size_t i = 1; i < Size; ++i) {
+        void *data = malloc(1);  // Allocate dummy data
+        if (!data) {
+            array_list_free(al);
+            return 0;
+        }
+
+        // Try to put data at index i
+        array_list_put_idx(al, i % (initial_size + 1), data);
+    }
+
+    // Free the array list
+    array_list_free(al);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

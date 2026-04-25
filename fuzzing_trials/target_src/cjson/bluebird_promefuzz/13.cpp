@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,68 +17,87 @@ extern "C" {
 #include <cstdint>
 #include <cstring>
 
-static char* createNullTerminatedString(const uint8_t* data, size_t size) {
-    char* str = static_cast<char*>(malloc(size + 1));
-    if (str == nullptr) {
-        return nullptr;
-    }
-    memcpy(str, data, size);
-    str[size] = '\0';
-    return str;
-}
-
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    // Step 1: Create a cJSON object
+    cJSON *jsonObject = cJSON_CreateObject();
+    if (jsonObject == nullptr) {
+        // If creation fails, return early
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char* inputString = createNullTerminatedString(Data, Size);
-    if (inputString == nullptr) {
-        return 0;
+    // Step 2: Prepare data for cJSON_AddRawToObject
+    // Use the first part of the data as the key
+    const size_t keyLength = Size > 0 ? (Size / 2) : 0;
+    const size_t rawLength = Size - keyLength;
+
+    char *key = nullptr;
+    char *raw = nullptr;
+
+    if (keyLength > 0) {
+        key = new char[keyLength + 1];
+        std::memcpy(key, Data, keyLength);
+        key[keyLength] = '\0';
     }
 
-    // Initialize cJSON hooks with default (NULL)
-    cJSON_Hooks hooks;
-    hooks.malloc_fn = nullptr;
-    hooks.free_fn = nullptr;
-    cJSON_InitHooks(&hooks);
-
-    // Create cJSON string
-    cJSON* jsonString1 = cJSON_CreateString(inputString);
-    cJSON* jsonString2 = cJSON_CreateString(inputString);
-    cJSON* jsonString3 = cJSON_CreateString(inputString);
-
-    // Create cJSON array
-    cJSON* jsonArray = cJSON_CreateArray();
-
-    // Add items to array
-    if (jsonArray != nullptr && jsonString1 != nullptr) {
-        cJSON_AddItemToArray(jsonArray, jsonString1);
+    if (rawLength > 0) {
+        raw = new char[rawLength + 1];
+        std::memcpy(raw, Data + keyLength, rawLength);
+        raw[rawLength] = '\0';
     }
 
-    if (jsonArray != nullptr && jsonString2 != nullptr) {
-        cJSON_AddItemToArray(jsonArray, jsonString2);
+    // Step 3: Add raw JSON string to the object
+    cJSON *item = cJSON_AddRawToObject(jsonObject, key, raw);
+
+    // Step 4: Clean up allocated memory
+    if (key != nullptr) {
+        delete[] key;
+    }
+    if (raw != nullptr) {
+        delete[] raw;
     }
 
-    // Create a cJSON object
-    cJSON* jsonObject = cJSON_CreateObject();
-
-    // Add item to object
-    if (jsonObject != nullptr && jsonString3 != nullptr) {
-        cJSON_AddItemToObject(jsonObject, "key", jsonString3);
-    }
-
-    // Get array size
-    if (jsonArray != nullptr) {
-        int arraySize = cJSON_GetArraySize(jsonArray);
-    }
-
-    // Clean up
-    cJSON_Delete(jsonArray);
+    // Step 5: Delete the cJSON object
     cJSON_Delete(jsonObject);
 
-    free(inputString);
-
+    // Return 0 to indicate successful execution
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

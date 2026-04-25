@@ -1,47 +1,25 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
+#include <stdlib.h> // Include this for malloc and free
 
 int LLVMFuzzerTestOneInput_349(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
-
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
+    // Ensure the data is null-terminated for sqlite3_complete
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
         return 0;
     }
 
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open((const char *)"w", &db);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                sqlite3_close(db);
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-            sqlite3_changes(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Call the function-under-test
+    sqlite3_complete(null_terminated_data);
 
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
-    }
+    // Free allocated memory
+    free(null_terminated_data);
 
     return 0;
 }

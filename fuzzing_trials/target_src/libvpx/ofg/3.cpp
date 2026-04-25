@@ -1,59 +1,71 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio> // Include the C standard I/O library for printf
-
-extern "C" {
-#include <vpx/vpx_codec.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <vpx/vpx_decoder.h>
-#include <vpx/vp8dx.h> // Include the header for vpx_codec_vp8_dx
+#include <vpx/vp8dx.h>
 
-// Define a dummy callback function
-void put_frame_callback_3(void *user_priv, const vpx_image_t *img) {
-    // For demonstration, print the image dimensions
-    if (img) {
-        printf("Image dimensions: %dx%d\n", img->d_w, img->d_h);
-    }
-}
+extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
+    vpx_codec_ctx_t codec;
+    vpx_codec_iter_t iter = NULL;
+    vpx_image_t *img;
 
-int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Initialize a codec context
-    vpx_codec_ctx_t codec_ctx;
-    vpx_codec_err_t err;
+    // Initialize codec interface
+    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
 
-    // Check if the size is sufficient to initialize the codec context
-    if (size < sizeof(vpx_codec_ctx_t)) {
-        return 0;
-    }
-
-    // Initialize codec context
-    err = vpx_codec_dec_init(&codec_ctx, vpx_codec_vp8_dx(), nullptr, 0);
-    if (err != VPX_CODEC_OK) {
-        return 0;
-    }
-
-    // Call the function-under-test with a valid codec context
-    err = vpx_codec_register_put_frame_cb(&codec_ctx, put_frame_callback_3, nullptr);
-    if (err != VPX_CODEC_OK) {
-        vpx_codec_destroy(&codec_ctx);
-        return 0;
+    // Initialize codec context with default configuration
+    if (vpx_codec_dec_init(&codec, iface, NULL, 0)) {
+        return 0; // Return if initialization fails
     }
 
     // Decode the input data
-    err = vpx_codec_decode(&codec_ctx, data, size, nullptr, 0);
-    if (err == VPX_CODEC_OK) {
-        // Retrieve and process decoded frames
-        vpx_codec_iter_t iter = nullptr;
-        const vpx_image_t *img;
-        while ((img = vpx_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
-            // Process the image if needed
-            put_frame_callback_3(nullptr, img);
-        }
+    if (vpx_codec_decode(&codec, data, static_cast<unsigned int>(size), NULL, 0)) {
+        vpx_codec_destroy(&codec);
+        return 0; // Return if decoding fails
     }
 
-    // Clean up
-    vpx_codec_destroy(&codec_ctx);
+    // Retrieve the decoded frame
+    img = vpx_codec_get_frame(&codec, &iter);
+
+    // Clean up codec context
+    vpx_codec_destroy(&codec);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
+#endif

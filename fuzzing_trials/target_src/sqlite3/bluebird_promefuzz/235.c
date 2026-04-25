@@ -1,87 +1,76 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
-#include <stdarg.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-static sqlite3 *initialize_db() {
-    sqlite3 *db = NULL;
-    int rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return NULL;
-    }
-    return db;
+// Dummy authorizer callback function
+static int authorizer_callback(void *pUserData, int action, const char *details1, const char *details2, const char *details3, const char *details4) {
+    // Always allow the action
+    return SQLITE_OK;
 }
 
-static void cleanup_db(sqlite3 *db) {
-    if (db) {
-        sqlite3_close(db);
-    }
+// Dummy callback function for sqlite3_exec
+static int exec_callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
-static char *custom_vmprintf(const char *format, ...) {
-    va_list args;
-    va_start(args, format);
-    char *result = sqlite3_vmprintf(format, args);
-    va_end(args);
-    return result;
-}
-
+// Fuzzing entry point
 int LLVMFuzzerTestOneInput_235(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
+
+    // Open a new database connection
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
         return 0;
     }
 
-    sqlite3 *db = initialize_db();
-    if (!db) {
-        return 0;
+    // Prepare SQL statement from fuzz data
+    char *sql = sqlite3_malloc(Size + 1);
+    if (sql) {
+        memcpy(sql, Data, Size);
+        sql[Size] = '\0';
+
+        // Execute SQL statement
+        sqlite3_exec(db, sql, exec_callback, 0, &errMsg);
+
+        // Free error message if allocated
+        if (errMsg) {
+            sqlite3_free(errMsg);
+        }
+
+        // Free SQL statement
+        sqlite3_free(sql);
     }
 
-    // Use custom_vmprintf to create a format string
-    char *formatted_str = custom_vmprintf("%.*s", (int)Size, Data);
-    if (!formatted_str) {
-        cleanup_db(db);
-        return 0;
+    // Set authorizer callback
+    sqlite3_set_authorizer(db, authorizer_callback, NULL);
+
+    // Retrieve table column metadata
+    const char *dataType, *collSeq;
+    int notNull, primaryKey, autoinc;
+    sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
+
+    // Test control interface
+    sqlite3_test_control(SQLITE_TESTCTRL_FIRST);
+
+    // Allocate memory using sqlite3_malloc
+    void *memory = sqlite3_malloc(100);
+    if (memory) {
+        memset(memory, 0, 100);
+        sqlite3_free(memory);
     }
 
-    // Prepare a statement using sqlite3_prepare_v2
-    sqlite3_stmt *stmt = NULL;
-    const char *tail = NULL;
-    int rc = sqlite3_prepare_v2(db, formatted_str, -1, &stmt, &tail);
-    if (rc != SQLITE_OK) {
-        const char *err_msg = sqlite3_errmsg(db);
+    // Close the database connection
+    sqlite3_close(db);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_errmsg to sqlite3_file_control
-        int ret_sqlite3_error_offset_zajiv = sqlite3_error_offset(db);
-        if (ret_sqlite3_error_offset_zajiv < 0){
-        	return 0;
-        }
-        int ret_sqlite3_file_control_cmeaa = sqlite3_file_control(db, NULL, Size, (void *)db);
-        if (ret_sqlite3_file_control_cmeaa < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        fprintf(stderr, "SQL error: %s\n", err_msg);
-    } else {
-        // If the statement is prepared successfully, get the expanded SQL
-        char *expanded_sql = sqlite3_expanded_sql(stmt);
-        if (expanded_sql) {
-            sqlite3_free(expanded_sql);
-        }
-        sqlite3_finalize(stmt);
-    }
-
-    // Free the formatted string
-    sqlite3_free(formatted_str);
-
-    // Cleanup
-    cleanup_db(db);
     return 0;
 }
 #ifdef INC_MAIN

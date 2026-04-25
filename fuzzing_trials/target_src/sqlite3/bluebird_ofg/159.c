@@ -1,58 +1,40 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    char *errMsg = 0;
-    sqlite3_int64 changes;
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
+        return 0;
+    }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open an in-memory SQLite database
+    sqlite3 *db;
+    const char sicnesjp[1024] = "wnqtz";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open(sicnesjp, &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
         return 0;
     }
 
-    // Create a simple table
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, createTableSQL, NULL, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Insert some data
-    const char *insertSQL = "INSERT INTO test (value) VALUES ('test');";
-    rc = sqlite3_exec(db, insertSQL, NULL, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Attempt to execute the input data as an SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
-
-    rc = sqlite3_exec(db, sql, NULL, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-    free(sql);
-
-    // Call the function-under-test
-    changes = sqlite3_changes64(db);
+    // Execute the query
+    char *errMsg = NULL;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sqlite3_exec
+    sqlite3_exec(db, query, 0, NULL, &errMsg);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
     // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
     sqlite3_close(db);
+    free(query);
 
     return 0;
 }

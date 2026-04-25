@@ -1,93 +1,74 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
-}
-
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static int dummy_callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
-    sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
-
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_blob *blob = NULL;
+    char *errMsg = NULL;
+    char *sql = NULL;
     int rc;
 
     // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        free(sql);
         return 0;
     }
 
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Prepare a dummy statement
+    rc = sqlite3_prepare_v2(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);", -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+        sqlite3_step(stmt);
+    }
+    sqlite3_finalize(stmt);
+
+    // Finalize a prepared statement
+    rc = sqlite3_finalize(NULL);
+
+    // Execute SQL statement
+    if (Size > 0) {
+        // Ensure Data is null-terminated for sqlite3_mprintf
+        char *safeData = (char *)malloc(Size + 1);
+        if (safeData) {
+            memcpy(safeData, Data, Size);
+            safeData[Size] = '\0';
+
+            sql = sqlite3_mprintf("INSERT INTO test (data) VALUES (%Q);", safeData);
+            rc = sqlite3_exec(db, sql, dummy_callback, 0, &errMsg);
+            sqlite3_free(sql);
+            sqlite3_free(errMsg);
+            free(safeData);
+        }
     }
 
-    // Set authorizer
+    // Use sqlite3_mprintf to create a formatted string
+    char *formatted1 = sqlite3_mprintf("Formatted string: %s", "test1");
+    char *formatted2 = sqlite3_mprintf("Formatted string: %s", "test2");
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_drop_modules
-    int ret_sqlite3_errcode_rggre = sqlite3_errcode(db);
-    if (ret_sqlite3_errcode_rggre < 0){
-    	return 0;
-    }
-    int ret_sqlite3_drop_modules_egtbk = sqlite3_drop_modules(db, &errMsg);
-    if (ret_sqlite3_drop_modules_egtbk < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
-    }
+    // Free the formatted strings
+    sqlite3_free(formatted1);
+    sqlite3_free(formatted2);
 
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-//    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_test_control
-//    rc = sqlite3_test_control(-1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
+    // Open a BLOB
+    if (Size > 0) {
+        rc = sqlite3_blob_open(db, "main", "test", "data", 1, 0, &blob);
+        if (rc == SQLITE_OK) {
+            sqlite3_blob_close(blob);
+        }
     }
 
     // Close the database connection
     sqlite3_close(db);
-    free(sql);
+
     return 0;
 }
 #ifdef INC_MAIN

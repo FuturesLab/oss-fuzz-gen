@@ -1,62 +1,36 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include "sqlite3.h"
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_219(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
+    // Check if the input size is large enough to be a valid SQL statement
+    if (size < 1) {
+        return 0;
+    }
+
+    sqlite3 *db;
+    sqlite3_stmt *stmt = NULL;
+    const void *tail = NULL;
     int rc;
-    char *errMsg = 0;
 
-    // Allocate a buffer with an extra byte for the null terminator
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        fprintf(stderr, "Memory allocation failed\n");
-        return 0;
-    }
-
-    // Copy the input data to the buffer and null-terminate it
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Open a new database connection. ":memory:" creates a new database in RAM.
+    // Open a temporary in-memory database
     rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        free(sql);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Execute some SQL statement to potentially generate an error
-    // Using the input data as the SQL statement
+    // Prepare a SQL statement using the provided data
+    rc = sqlite3_prepare_v2(db, (const char *)data, (int)size, &stmt, &tail);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_complete16
-    int ret_sqlite3_complete16_yhoxc = sqlite3_complete16((const void *)db);
-    if (ret_sqlite3_complete16_yhoxc < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        // Call the function-under-test
-        const char *error_message = sqlite3_errmsg(db);
-        // Print the error message for debugging purposes
-        fprintf(stderr, "SQL error: %s\n", error_message);
-
-        // Free the error message if it was allocated
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
+    // Finalize the statement if it was prepared successfully
+    if (stmt != NULL) {
+        sqlite3_finalize(stmt);
     }
 
     // Close the database connection
     sqlite3_close(db);
-
-    // Free the allocated buffer
-    free(sql);
 
     return 0;
 }

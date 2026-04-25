@@ -1,38 +1,77 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "sqlite3.h"
-#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int keyword_count = sqlite3_keyword_count();
-
-    // Use `data` and `size` to create a SQL statement and execute it
-    char *errMsg = 0;
-    sqlite3 *db;
-    sqlite3_open(":memory:", &db);
-
-    // Ensure the input is null-terminated for safety
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Open an in-memory SQLite database
+    sqlite3 *db;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
+        return 0;
+    }
+
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
 
     // Clean up
-    sqlite3_free(errMsg);
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_extended_errcode
-    sqlite3_extended_errcode(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
 
-    // Optionally, you can print the result for debugging purposes
-    printf("Number of SQLite keywords: %d\n", keyword_count);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_get_table
+    sqlite3* ret_sqlite3_db_handle_amcoc = sqlite3_db_handle(NULL);
+    if (ret_sqlite3_db_handle_amcoc == NULL){
+    	return 0;
+    }
+    double ret_sqlite3_value_double_twoyz = sqlite3_value_double(NULL);
+    if (ret_sqlite3_value_double_twoyz < 0){
+    	return 0;
+    }
+    unsigned int ret_sqlite3_value_subtype_zcjdg = sqlite3_value_subtype(NULL);
+    if (ret_sqlite3_value_subtype_zcjdg < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    sqlite3_uint64 ret_sqlite3_msize_yrsxu = sqlite3_msize((void *)errMsg);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_db_handle_amcoc) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    if (!*errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_get_table_jjquz = sqlite3_get_table(ret_sqlite3_db_handle_amcoc, errMsg, (char ***)"w", (int *)&ret_sqlite3_value_double_twoyz, (int *)&ret_sqlite3_value_subtype_zcjdg, errMsg);
+    if (ret_sqlite3_get_table_jjquz < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_close(db);
+    free(query);
 
     return 0;
 }

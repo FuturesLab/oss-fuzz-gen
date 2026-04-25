@@ -1,46 +1,132 @@
-#include "stdint.h"
-#include "stdlib.h"
-#include "string.h"
-#include "../cJSON.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "../cJSON.h"
+
+int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size); /* required by C89 */
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
   if (size < 2) {
     return 0;
   }
 
-  // Create a dummy cJSON object to replace an item in
-  cJSON *json_object = cJSON_CreateObject();
-  cJSON *item_to_replace = cJSON_CreateString("original_value");
-  cJSON_AddItemToObject(json_object, "key", item_to_replace);
+  // Split the input data for two JSON strings
+  size_t mid = size / 2;
+  const uint8_t *data1 = data;
+  size_t size1 = mid;
+  const uint8_t *data2 = data + mid;
+  size_t size2 = size - mid;
 
-  // Create a new cJSON item to replace the existing one
-  cJSON *new_item = cJSON_CreateString("new_value");
-
-  // Ensure the key is null-terminated
-  size_t key_length = size - 1;
-  char *key = (char *)malloc(key_length + 1);
-  if (key == NULL) {
-    cJSON_Delete(json_object);
-    cJSON_Delete(new_item);
+  // Ensure both JSON strings are null-terminated
+  char *json_str1 = (char *)malloc(size1 + 1);
+  char *json_str2 = (char *)malloc(size2 + 1);
+  if (json_str1 == NULL || json_str2 == NULL) {
+    free(json_str1);
+    free(json_str2);
     return 0;
   }
-  memcpy(key, data, key_length);
-  key[key_length] = '\0';
+  memcpy(json_str1, data1, size1);
+  json_str1[size1] = '\0';
+  memcpy(json_str2, data2, size2);
+  json_str2[size2] = '\0';
 
-  // Call the function under test
-  cJSON_ReplaceItemInObject(json_object, key, new_item);
+  // Parse the JSON strings
+  cJSON *json1 = cJSON_Parse(json_str1);
+  cJSON *json2 = cJSON_Parse(json_str2);
+
+
+  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cJSON_Parse to cJSON_Compare
+  cJSON* ret_cJSON_CreateNumber_xbxed = cJSON_CreateNumber(cJSON_String);
+  if (ret_cJSON_CreateNumber_xbxed == NULL){
+  	return 0;
+  }
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!json2) {
+  	return 0;
+  }
+  double ret_cJSON_GetNumberValue_morwh = cJSON_GetNumberValue(json2);
+  if (ret_cJSON_GetNumberValue_morwh < 0){
+  	return 0;
+  }
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!ret_cJSON_CreateNumber_xbxed) {
+  	return 0;
+  }
+  // Ensure dataflow is valid (i.e., non-null)
+  if (!json2) {
+  	return 0;
+  }
+  cJSON_bool ret_cJSON_Compare_vhfsi = cJSON_Compare(ret_cJSON_CreateNumber_xbxed, json2, (int )ret_cJSON_GetNumberValue_morwh);
+  if (ret_cJSON_Compare_vhfsi < 0){
+  	return 0;
+  }
+  // End mutation: Producer.APPEND_MUTATOR
+  
+  free(json_str1);
+  free(json_str2);
+
+  if (json1 == NULL || json2 == NULL) {
+    cJSON_Delete(json1);
+    cJSON_Delete(json2);
+    return 0;
+  }
+
+  // Compare the two JSON objects
+  cJSON_bool case_sensitive = (data[0] % 2 == 0) ? cJSON_True : cJSON_False;
+  cJSON_Compare(json1, json2, case_sensitive);
 
   // Clean up
-  free(key);
-  cJSON_Delete(json_object);
+  cJSON_Delete(json1);
+  cJSON_Delete(json2);
 
   return 0;
 }
 
 #ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

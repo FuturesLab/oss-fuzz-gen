@@ -1,40 +1,73 @@
+#include <vpx/vpx_encoder.h>
+#include <vpx/vp8cx.h>
 #include <cstdint>
 #include <cstdlib>
 
-extern "C" {
-    #include <vpx/vpx_codec.h>
-    #include <vpx/vpx_decoder.h>
-    #include <vpx/vp8dx.h> // Include the necessary header for vpx_codec_vp8_dx
-}
-
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
+    // Ensure there is enough data to initialize the parameters
+    if (size < sizeof(vpx_codec_enc_cfg_t) + sizeof(vpx_rational_t)) {
+        return 0;
+    }
+
     // Initialize the codec context
     vpx_codec_ctx_t codec_ctx;
-    vpx_codec_dec_cfg_t cfg;
-    vpx_codec_err_t res;
+    vpx_codec_iface_t *iface = vpx_codec_vp8_cx();
 
-    // Initialize the codec context with default configuration
-    res = vpx_codec_dec_init(&codec_ctx, vpx_codec_vp8_dx(), &cfg, 0);
-    if (res != VPX_CODEC_OK) {
-        return 0;
-    }
+    // Initialize the encoder configuration
+    const vpx_codec_enc_cfg_t *cfg = reinterpret_cast<const vpx_codec_enc_cfg_t *>(data);
 
-    // Decode the input data
-    res = vpx_codec_decode(&codec_ctx, data, size, NULL, 0);
-    if (res != VPX_CODEC_OK) {
-        vpx_codec_destroy(&codec_ctx);
-        return 0;
-    }
+    // Extract the rational data from the input
+    const vpx_rational_t *rational = reinterpret_cast<const vpx_rational_t *>(data + sizeof(vpx_codec_enc_cfg_t));
 
-    // Initialize the iterator
-    vpx_codec_iter_t iter = NULL;
-    vpx_image_t *img;
+    // Initialize other parameters
+    int num_encoders = 1; // Use a single encoder for simplicity
+    vpx_codec_flags_t flags = 0; // No special flags
+    int ver = VPX_ENCODER_ABI_VERSION; // Use the current ABI version
 
-    // Retrieve the decoded frame
-    img = vpx_codec_get_frame(&codec_ctx, &iter);
+    // Call the function-under-test
+    vpx_codec_err_t result = vpx_codec_enc_init_multi_ver(&codec_ctx, iface, cfg, num_encoders, flags, rational, ver);
 
-    // Cleanup
+    // Clean up (if necessary)
     vpx_codec_destroy(&codec_ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

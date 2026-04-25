@@ -1,21 +1,54 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string>
 
-extern "C" const char * json_util_get_last_err();
+extern "C" int json_global_set_string_hash(const int);
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Since json_util_get_last_err() does not take any input parameters,
-    // we directly call the function to fuzz it.
-    const char *error_message = json_util_get_last_err();
+    FuzzedDataProvider fuzzed_data(data, size);
 
-    // To avoid unused variable warnings, we can check if the error_message
-    // is not nullptr and perform a trivial operation.
-    if (error_message) {
-        volatile size_t length = strlen(error_message);
-        (void)length; // Use the length in a volatile context to avoid optimization.
-    }
+    // Consume an integer value for the function parameter
+    int hash_value = fuzzed_data.ConsumeIntegral<int>();
+
+    // Call the function-under-test
+    json_global_set_string_hash(hash_value);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

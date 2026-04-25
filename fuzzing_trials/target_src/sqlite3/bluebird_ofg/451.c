@@ -1,50 +1,74 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_451(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int checkpoint_threshold = 1000; // Arbitrary non-zero value for testing
-    int result;
+    sqlite3 *db;
+    char *errMsg = 0;
 
-    // Open an in-memory SQLite database
+    // Open an in-memory database
     if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Convert the input data to a string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Execute the SQL command
-    char *errMsg = NULL;
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Call the function-under-test
-    result = sqlite3_wal_autocheckpoint(db, checkpoint_threshold);
-
-    // Free resources
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_wal_autocheckpoint to sqlite3_open16
-    sqlite3_str* ret_sqlite3_str_new_jbrgi = sqlite3_str_new(db);
-    if (ret_sqlite3_str_new_jbrgi == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_open16_kamsm = sqlite3_open16((const void *)ret_sqlite3_str_new_jbrgi, &db);
-    if (ret_sqlite3_open16_kamsm < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
     
-    sqlite3_free(errMsg);
-    free(sql);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_create_module
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        int ret_sqlite3_error_offset_oxknj = sqlite3_error_offset(db);
+        if (ret_sqlite3_error_offset_oxknj < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        int ret_sqlite3_error_offset_xdysw = sqlite3_error_offset(db);
+        if (ret_sqlite3_error_offset_xdysw < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        int ret_sqlite3_create_module_kmosl = sqlite3_create_module(db, errMsg, NULL, (void *)db);
+        if (ret_sqlite3_create_module_kmosl < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

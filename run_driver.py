@@ -22,7 +22,7 @@ BUILDER_RUNNER_TAG = "ghcr.io/gabe-sherman/oss-fuzz-base-runner:latest"
 APPROACHES = ["bluebird_ofg", "ofg", "bluebird_promefuzz", "promefuzz", "ogharn"]
 NUM_TRIALS = 1
 RUN_TIMEOUT = 30
-POOL_SIZE = 8
+POOL_SIZE = 100
 
 # Turn off caching to accomodate for specific dockerfile setups (i.e., sqlite since it has no git commits)
 # We can enable caching for harness gen since this is not the actual fuzzing eval part.

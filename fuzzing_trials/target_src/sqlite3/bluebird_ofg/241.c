@@ -1,44 +1,42 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_241(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = 0;
-    char **result;
-    int rows, columns;
+    sqlite3_stmt *stmt;
     int rc;
+    const char *sql;
 
     // Initialize SQLite database in memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated for use as a SQL query
-    char *query = (char *)malloc(size + 1);
-    if (query == NULL) {
+    // Ensure the data is null-terminated for SQLite
+    char *sql_data = (char *)malloc(size + 1);
+    if (sql_data == NULL) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(query, data, size);
-    query[size] = '\0';
+    memcpy(sql_data, data, size);
+    sql_data[size] = '\0';
 
-    // Fuzz the sqlite3_get_table function
-    rc = sqlite3_get_table(db, query, &result, &rows, &columns, &errMsg);
+    // Prepare the SQL statement
+    rc = sqlite3_prepare_v2(db, sql_data, -1, &stmt, &sql);
+    if (rc == SQLITE_OK) {
+        // Call the function-under-test
+        int readonly = sqlite3_stmt_readonly(stmt);
 
-    // Free resources
-    if (result != NULL) {
-        sqlite3_free_table(result);
+        // Finalize the statement
+        sqlite3_finalize(stmt);
     }
-    if (errMsg != NULL) {
-        sqlite3_free(errMsg);
-    }
-    free(query);
+
+    // Clean up
+    free(sql_data);
     sqlite3_close(db);
 
     return 0;

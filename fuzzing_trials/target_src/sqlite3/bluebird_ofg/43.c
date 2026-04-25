@@ -1,15 +1,12 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
-// Define a callback function to be used with sqlite3_trace
-static void traceCallback(void *unused, const char *sql) {
-    (void)unused; // Avoid unused parameter warning
-    // Just print the SQL statement being traced
-    printf("SQL Trace: %s\n", sql);
+// Dummy busy handler function
+int busy_handler_43(void *data, int count) {
+    return 0; // Always return 0 to indicate that the operation should not be retried
 }
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
@@ -17,13 +14,16 @@ int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
     int rc;
     char *errMsg = 0;
 
-    // Initialize SQLite database in-memory
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+        return 0;
     }
 
-    // Ensure data is null-terminated before using it as a SQL statement
+    // Set the busy handler for the database
+    sqlite3_busy_handler(db, busy_handler_43, NULL);
+
+    // Ensure the input data is null-terminated for use as a SQL statement
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
@@ -32,20 +32,30 @@ int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Set the trace callback
-    sqlite3_trace(db, traceCallback, NULL);
-
     // Execute the SQL statement
     sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Clean up
-    if (errMsg) {
-        sqlite3_free(errMsg);
-    }
+    // Free allocated resources
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_uri_key
-    const char* ret_sqlite3_uri_key_tojnb = sqlite3_uri_key(errMsg, -1);
-    if (ret_sqlite3_uri_key_tojnb == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_wal_checkpoint
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_system_errno_kmfed = sqlite3_system_errno(db);
+    if (ret_sqlite3_system_errno_kmfed < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_wal_checkpoint_yonrc = sqlite3_wal_checkpoint(db, errMsg);
+    if (ret_sqlite3_wal_checkpoint_yonrc < 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR

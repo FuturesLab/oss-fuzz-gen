@@ -1,55 +1,90 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <sqlite3.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for splitting into two non-null strings
-    if (size < 3) { // Adjusted to ensure both strings have at least one character
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    const void *text16;
+    char *errMsg = 0;
+
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Find a position to split the input data into two strings
-    size_t split_pos = 1 + (size - 2) / 2; // Ensure both parts are non-empty
-
-    // Allocate memory for the URI and the parameter name
-    char *uri = (char *)malloc(split_pos + 1);
-    char *param = (char *)malloc(size - split_pos + 1);
-
-    if (!uri || !param) {
-        free(uri);
-        free(param);
-        return 0; // Return if memory allocation fails
-    }
-
-    // Copy data into uri and param, ensuring null-termination
-    memcpy(uri, data, split_pos);
-    uri[split_pos] = '\0';
-
-    memcpy(param, data + split_pos, size - split_pos);
-    param[size - split_pos] = '\0';
-
-    // Validate URI format to prevent heap-buffer-overflow
-    // Ensure uri starts with "file:" or another valid SQLite URI prefix
-    if (strncmp(uri, "file:", 5) != 0) {
-        free(uri);
-        free(param);
+    // Create a simple table for testing
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER, value TEXT);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
         return 0;
     }
 
-    // Call the function under test
-    const char *result = sqlite3_uri_parameter(uri, param);
+    // Prepare an SQL statement using the provided data
+    char *sql = (char *)sqlite3_malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Free allocated memory
-    free(uri);
-    free(param);
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    sqlite3_free(sql);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (result != NULL) {
-        volatile size_t result_len = strlen(result);
-        (void)result_len;
+    if (rc == SQLITE_OK) {
+        // Attempt to step through the statement
+        rc = sqlite3_step(stmt);
+        if (rc == SQLITE_ROW) {
+            // Call the function-under-test
+            text16 = sqlite3_column_text16(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
     }
 
+    sqlite3_close(db);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

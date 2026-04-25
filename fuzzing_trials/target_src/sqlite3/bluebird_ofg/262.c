@@ -1,48 +1,46 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
 #include "sqlite3.h"
+#include <stddef.h> // Include for NULL
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+// Function to initialize a SQLite statement for fuzzing
+static sqlite3_stmt* initialize_statement() {
+    sqlite3 *db;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql = "SELECT * FROM test WHERE id = ?";
+
+    // Open a temporary in-memory database
+    if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
+        // Prepare a simple SQL statement with a parameter
+        sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     }
+
+    // We do not close the database to keep the statement valid
+    return stmt;
 }
 
 int LLVMFuzzerTestOneInput_262(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
+    // Initialize the SQLite statement
+    sqlite3_stmt *stmt = initialize_statement();
 
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+    // Ensure there is a statement and data is not empty
+    if (stmt != NULL && size > 0) {
+        // Use the first byte of data as the integer index for the parameter
+        int index = data[0] % 256; // Limit index to a reasonable range
+
+        // Call the function-under-test
+        const char *param_name = sqlite3_bind_parameter_name(stmt, index);
+
+        // Optionally use the result to avoid compiler optimizations
+        if (param_name != NULL) {
+            // Do something with param_name if needed
+        }
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
-
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Finalize the statement to avoid memory leaks
+    if (stmt != NULL) {
+        sqlite3_finalize(stmt);
     }
 
     return 0;

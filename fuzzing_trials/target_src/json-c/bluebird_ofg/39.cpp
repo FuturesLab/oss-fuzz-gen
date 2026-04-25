@@ -1,39 +1,104 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "fuzzer/FuzzedDataProvider.h"
 #include "/src/json-c/json_object.h"
-#include "/src/json-c/json_tokener.h"  // Include the header for json_tokener_parse
-#include <cstdint>
-#include <string>
+#include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Initialize FuzzedDataProvider
     FuzzedDataProvider fuzzed_data(data, size);
 
-    // Create a json_object
-    struct json_object *json_obj = json_object_new_object();
+    // Consume a portion of the input data for the first JSON object
+    std::string first_json_str = fuzzed_data.ConsumeRandomLengthString();
 
-    // Consume an int64_t value from the fuzzed data
-    int64_t int_value = fuzzed_data.ConsumeIntegral<int64_t>();
+    // Validate that the consumed string has a non-zero length
+    if (first_json_str.empty()) {
+        return 0;
+    }
 
-    // Add an integer to the JSON object
-    json_object_object_add(json_obj, "int_key", json_object_new_int64(int_value));
+    // Consume the remaining data for the second JSON object
+    std::string second_json_str = fuzzed_data.ConsumeRemainingBytesAsString();
 
-    // Consume a string from the fuzzed data
-    std::string str_value = fuzzed_data.ConsumeRandomLengthString(100);
-    json_object_object_add(json_obj, "str_key", json_object_new_string(str_value.c_str()));
+    // Validate that the consumed string has a non-zero length
+    if (second_json_str.empty()) {
+        return 0;
+    }
 
-    // Consume a boolean value from the fuzzed data
-    bool bool_value = fuzzed_data.ConsumeBool();
-    json_object_object_add(json_obj, "bool_key", json_object_new_boolean(bool_value));
+    // Parse the strings into JSON objects
+    struct json_object *json_obj1 = json_tokener_parse(first_json_str.c_str());
+    struct json_object *json_obj2 = json_tokener_parse(second_json_str.c_str());
 
-    // Serialize the JSON object to a string
-    const char *json_str = json_object_to_json_string(json_obj);
+    // Ensure that both JSON objects are not NULL
+    if (json_obj1 != NULL && json_obj2 != NULL) {
+        // Call the function-under-test
+        int result = json_object_equal(json_obj1, json_obj2);
+    }
 
-    // Parse the JSON string back into a new JSON object
-    struct json_object *parsed_json_obj = json_tokener_parse(json_str);
-
-    // Clean up
-    json_object_put(json_obj);
-    json_object_put(parsed_json_obj);
+    // Free the JSON objects
+    if (json_obj1 != NULL) {
+        json_object_put(json_obj1);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from json_object_put to json_object_deep_copy
+        struct json_object* ret_json_object_new_array_ext_hpipv = json_object_new_array_ext(-1);
+        if (ret_json_object_new_array_ext_hpipv == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_json_object_new_array_ext_hpipv) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!json_obj1) {
+        	return 0;
+        }
+        int ret_json_object_deep_copy_bzpiv = json_object_deep_copy(ret_json_object_new_array_ext_hpipv, &json_obj1, NULL);
+        if (ret_json_object_deep_copy_bzpiv < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+    if (json_obj2 != NULL) {
+        json_object_put(json_obj2);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

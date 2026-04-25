@@ -1,34 +1,70 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <stdlib.h>
-
-// Forward declaration of a function to create a valid sqlite3_stmt object
-sqlite3_stmt* create_valid_stmt_107();
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    sqlite3_stmt *stmt = create_valid_stmt_107();
-    
-    if (stmt != NULL) {
-        // Call the function-under-test
-        int result = sqlite3_expired(stmt);
+    sqlite3 *db;
+    char *err_msg = 0;
 
-        // Clean up
-        sqlite3_finalize(stmt);
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
     }
+
+    // Prepare the input data as a SQL statement
+    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
+
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &err_msg);
+
+    // Free the allocated SQL statement
+    sqlite3_free(sql);
+
+    // Close the database connection
+    sqlite3_close(db);
+
+    // Clean up any thread-specific resources
+    sqlite3_thread_cleanup();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-// Example implementation of create_valid_stmt_107
-sqlite3_stmt* create_valid_stmt_107() {
-    sqlite3 *db;
-    sqlite3_stmt *stmt = NULL;
-    const char *sql = "SELECT 1";
+    if(argc < 2)
+        exit(0);
 
-    if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
-        sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    }
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-    // We don't close the database here because the statement needs to be valid
-    return stmt;
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
+#endif

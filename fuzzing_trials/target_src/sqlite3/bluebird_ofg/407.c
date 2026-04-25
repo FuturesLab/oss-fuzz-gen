@@ -1,43 +1,24 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_407(const uint8_t *data, size_t size) {
-    // Check if the input data is non-null and has a non-zero size
-    if (data == NULL || size == 0) {
+    // Ensure the data is null-terminated to be used as a C string
+    char *option = (char *)malloc(size + 1);
+    if (option == NULL) {
         return 0;
     }
+    memcpy(option, data, size);
+    option[size] = '\0';
 
-    sqlite3 *db;
-    char *errMsg = 0;
+    // Call the function-under-test
+    int result = sqlite3_compileoption_used(option);
 
-    // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db)) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        return 0;
-    }
-
-    // Convert the input data to a null-terminated string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL command(s) from the input data
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free allocated resources
-    sqlite3_free(errMsg);
-    free(sql);
-    sqlite3_close(db);
+    // Clean up
+    free(option);
 
     return 0;
 }

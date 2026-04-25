@@ -1,48 +1,55 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <string.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 
+// Fuzzing function
 int LLVMFuzzerTestOneInput_477(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    char *errMsg = 0;
-
-    // Open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
-
-    // Ensure null-terminated string for SQL statement
+    // Convert input data to a null-terminated string
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
+    if (!sql) {
+        return 0; // Fail gracefully on allocation failure
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc == SQLITE_OK) {
-        // Call the function under test
-        const char *original_sql = sqlite3_sql(stmt);
-
-        // Use the result in some way to avoid compiler optimizations
-        if (original_sql != NULL) {
-            (void)strlen(original_sql);
-        }
-
-        // Finalize the statement
-        sqlite3_finalize(stmt);
+    // Initialize an SQLite database in memory
+    sqlite3 *db;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(sql);
+        return 0;
     }
 
-    // Clean up
-    free(sql);
+    // Execute the SQL statement
+    char *errMsg = 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_uri_int64
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    sqlite3_uint64 ret_sqlite3_msize_yftge = sqlite3_msize((void *)db);
+    sqlite3_int64 ret_sqlite3_memory_highwater_gjyfw = sqlite3_memory_highwater(0);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    sqlite3_int64 ret_sqlite3_uri_int64_aqlor = sqlite3_uri_int64(db, errMsg, ret_sqlite3_memory_highwater_gjyfw);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
     sqlite3_close(db);
+    free(sql);
 
     return 0;
 }

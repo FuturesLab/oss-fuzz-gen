@@ -1,22 +1,55 @@
 #include <stdint.h>
-#include <stddef.h> // Include this to define 'size_t'
-#include <sqlite3.h>
+#include <stddef.h>
+#include <stdio.h>
 
-// Mock function to create a non-NULL sqlite3_mutex object
-sqlite3_mutex* create_nonnull_mutex() {
-    return sqlite3_mutex_alloc(SQLITE_MUTEX_FAST);
-}
+// Function signature provided for fuzzing
+const char *sqlite3_sourceid();
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Create a non-NULL sqlite3_mutex object
-    sqlite3_mutex *mutex = create_nonnull_mutex();
-
     // Call the function-under-test
-    sqlite3_mutex_enter(mutex);
+    const char *source_id = sqlite3_sourceid();
 
-    // Release the mutex to avoid resource leaks
-    sqlite3_mutex_leave(mutex);
-    sqlite3_mutex_free(mutex);
+    // Print the result to ensure the function is called and output is captured
+    printf("SQLite Source ID: %s\n", source_id);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_38(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

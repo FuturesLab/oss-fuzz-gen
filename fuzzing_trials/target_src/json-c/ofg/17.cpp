@@ -1,34 +1,59 @@
 #include <fuzzer/FuzzedDataProvider.h>
-#include "/src/json-c/json_object.h"
-#include <stddef.h>
-#include <stdint.h>
+#include "/src/json-c/json_tokener.h"
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Initialize the FuzzedDataProvider with the provided data
-    FuzzedDataProvider fuzzed_data(data, size);
-
-    // Consume a boolean value for the json_bool parameter
-    json_bool bool_value = fuzzed_data.ConsumeBool();
-
-    // Create a JSON object
-    struct json_object *json_obj = json_object_new_object();
-
-    // Ensure the JSON object is not null
-    if (json_obj == NULL) {
-        return 0;
+    // Initialize the FuzzedDataProvider with the input data
+    FuzzedDataProvider fuzzed_data_provider(data, size);
+    
+    // Consume a string from the fuzzed data
+    std::string json_string = fuzzed_data_provider.ConsumeRemainingBytesAsString();
+    
+    // Call the function-under-test with the fuzzed string
+    struct json_object *parsed_json = json_tokener_parse(json_string.c_str());
+    
+    // Clean up the parsed JSON object
+    if (parsed_json != nullptr) {
+        json_object_put(parsed_json);
     }
-
-    // Create a key for the JSON object
-    std::string key = fuzzed_data.ConsumeRandomLengthString(10);
-
-    // Add a boolean value to the JSON object with the generated key
-    json_object_object_add(json_obj, key.c_str(), json_object_new_boolean(bool_value));
-
-    // Optionally, serialize the JSON object to a string to increase code coverage
-    const char *json_str = json_object_to_json_string(json_obj);
-
-    // Free the JSON object
-    json_object_put(json_obj);
-
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

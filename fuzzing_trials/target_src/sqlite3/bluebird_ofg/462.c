@@ -1,36 +1,52 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_462(const uint8_t *data, size_t size) {
     sqlite3 *db;
     char *errMsg = 0;
+    int rc;
 
-    // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
+    // Ensure the SQL statement is null-terminated
     char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL command
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+    }
 
-    // Free the allocated resources
+    // Clean up
     free(sql);
-    sqlite3_free(errMsg);
-    sqlite3_close(db);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_close_v2
+    sqlite3_close_v2(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-    // Return 0 to indicate successful execution of the fuzzer
     return 0;
 }
 #ifdef INC_MAIN

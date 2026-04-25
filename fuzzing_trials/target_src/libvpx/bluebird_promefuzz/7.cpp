@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,98 +9,118 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "vpx/vp8dx.h"
-#include "vpx/vpx_decoder.h"
-#include "/src/libvpx/vpx/vp8cx.h"
-}
-
-#include <cstddef>
 #include <cstdint>
-#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-
-static void dummy_put_frame_cb(void *user_priv, const vpx_image_t *img) {
-  // Dummy callback function for put frame
-}
+#include <iostream>
+#include "/src/libvpx/vpx/vp8cx.h"
+#include "vpx/vp8dx.h"
+#include "/src/libvpx/vpx/vpx_encoder.h"
+#include "/src/libvpx/vpx/vpx_image.h"
+#include "vpx/vpx_decoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-  if (Size < 1) {
+    if (Size < 1) return 0;
+
+    // Initialize codec context
+    vpx_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
+    if (!iface) return 0;
+
+    if (vpx_codec_dec_init(&codec_ctx, iface, nullptr, 0)) {
+        return 0;
+    }
+
+    // Prepare an iterator for vpx_codec_get_frame
+    vpx_codec_iter_t iter = nullptr;
+    vpx_image_t *img = nullptr;
+
+    // Call vpx_codec_get_frame
+    img = vpx_codec_get_frame(&codec_ctx, &iter);
+
+    // Call vpx_codec_get_preview_frame
+    const vpx_image_t *preview_img = vpx_codec_get_preview_frame(&codec_ctx);
+
+    // Prepare an image for vpx_img_set_rect
+    vpx_image_t image;
+    memset(&image, 0, sizeof(image));
+    image.w = 640;
+    image.h = 480;
+    image.planes[0] = (unsigned char *)malloc(640 * 480);
+
+    if (image.planes[0]) {
+        // Call vpx_img_set_rect
+        vpx_img_set_rect(&image, 0, 0, 640, 480);
+        free(image.planes[0]);
+        image.planes[0] = nullptr; // Avoid double free
+    }
+
+    // Prepare data for vpx_img_wrap
+    unsigned char *img_data = (unsigned char *)malloc(640 * 480 * 3 / 2);
+    vpx_image_t *wrapped_img = nullptr;
+    if (img_data) {
+        vpx_img_fmt_t fmt = VPX_IMG_FMT_I420;
+        wrapped_img = vpx_img_wrap(nullptr, fmt, 640, 480, 1, img_data);
+        if (wrapped_img) {
+            vpx_img_flip(wrapped_img);
+        }
+    }
+
+    // Prepare image for vpx_img_alloc
+    vpx_image_t *allocated_img = vpx_img_alloc(nullptr, VPX_IMG_FMT_I420, 640, 480, 1);
+    if (allocated_img) {
+        vpx_img_free(allocated_img);
+    }
+
+    // Cleanup wrapped image data
+    if (wrapped_img) {
+        vpx_img_free(wrapped_img);
+    } else if (img_data) {
+        free(img_data);
+    }
+
+    // Cleanup codec context
+    vpx_codec_destroy(&codec_ctx);
+
     return 0;
-  }
-
-  // Initialize codec interface
-  vpx_codec_iface_t *iface = vpx_codec_vp9_dx();
-  if (!iface) {
-    return 0;
-  }
-
-  // Initialize codec context
-  vpx_codec_ctx_t ctx;
-  vpx_codec_dec_cfg_t cfg = {0};  // Default configuration
-  vpx_codec_err_t res = vpx_codec_dec_init_ver(&ctx, iface, &cfg, 0, VPX_DECODER_ABI_VERSION);
-  if (res != VPX_CODEC_OK) {
-    return 0;
-  }
-
-  // Register dummy callback
-  vpx_codec_register_put_frame_cb(&ctx, dummy_put_frame_cb, nullptr);
-
-  // Decode data
-  vpx_codec_decode(&ctx, Data, static_cast<unsigned int>(Size), nullptr, 0);
-
-  // Peek stream info
-  vpx_codec_stream_info_t si;
-  si.sz = sizeof(si);
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_decode to vpx_codec_enc_init_ver
-  vpx_codec_iface_t* ret_vpx_codec_vp9_dx_zfkab = vpx_codec_vp9_dx();
-  if (ret_vpx_codec_vp9_dx_zfkab == NULL){
-  	return 0;
-  }
-
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of vpx_codec_enc_init_ver
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_vp9_dx to vpx_codec_enc_init_ver
-
-  vpx_codec_err_t ret_vpx_codec_enc_init_ver_njxla = vpx_codec_enc_init_ver(&ctx, ret_vpx_codec_vp9_dx_zfkab, NULL, 0, VPX_TS_MAX_LAYERS);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_enc_init_ver to vpx_codec_set_cx_data_buf
-
-  vpx_codec_err_t ret_vpx_codec_set_cx_data_buf_dlecc = vpx_codec_set_cx_data_buf(&ctx, NULL, 64, VPX_EFLAG_CALCULATE_PSNR);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_err_t ret_vpx_codec_enc_init_ver_grgfh = vpx_codec_enc_init_ver(&ctx, ret_vpx_codec_vp9_dx_zfkab, NULL, 0, VPX_SS_MAX_LAYERS);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_peek_stream_info(iface, Data, static_cast<unsigned int>(Size), &si);
-
-  // Get stream info
-  vpx_codec_get_stream_info(&ctx, &si);
-
-  // Cleanup
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_get_stream_info to vpx_codec_set_cx_data_buf
-
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of vpx_codec_set_cx_data_buf
-  vpx_codec_err_t ret_vpx_codec_set_cx_data_buf_vqtqn = vpx_codec_set_cx_data_buf(&ctx, NULL, VPX_EFLAG_CALCULATE_PSNR, 1);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_destroy(&ctx);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

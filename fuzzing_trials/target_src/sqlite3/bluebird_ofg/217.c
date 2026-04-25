@@ -1,38 +1,48 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_217(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
+        return 0;
+    }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open an in-memory SQLite database
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        free(query);
         return 0;
     }
 
-    // Create a sample table and insert some data
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    sqlite3_exec(db, createTableSQL, 0, 0, 0);
+    // Execute the query
 
-    // Insert data based on provided fuzzing input
-    if (size > 0) {
-        char *insertSQL = (char *)malloc(size + 50);
-        if (insertSQL != NULL) {
-            snprintf(insertSQL, size + 50, "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
-            sqlite3_exec(db, insertSQL, 0, 0, 0);
-            free(insertSQL);
-        }
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_open to sqlite3_prepare_v2 using the plateau pool
+    sqlite3_stmt *stmt;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
-
-    // Call the function-under-test
-    sqlite3_int64 changes = sqlite3_total_changes64(db);
+    int ret_sqlite3_prepare_v2_tvgmy = sqlite3_prepare_v2(db, "SELECT test_function(?);", -1, &stmt, NULL);
+    if (ret_sqlite3_prepare_v2_tvgmy < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
 
     // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
     sqlite3_close(db);
+    free(query);
 
     return 0;
 }

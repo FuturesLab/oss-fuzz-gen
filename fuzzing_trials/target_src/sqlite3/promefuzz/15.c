@@ -1,114 +1,114 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_bind_blob at sqlite3.c:80082:16 in sqlite3.h
-// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
-// sqlite3_column_bytes at sqlite3.c:79724:16 in sqlite3.h
-// sqlite3_column_blob at sqlite3.c:79714:24 in sqlite3.h
-// sqlite3_column_bytes at sqlite3.c:79724:16 in sqlite3.h
-// sqlite3_column_blob at sqlite3.c:79714:24 in sqlite3.h
-// sqlite3_stmt_isexplain at sqlite3.c:80364:16 in sqlite3.h
-// sqlite3_reset at sqlite3.c:78461:16 in sqlite3.h
-// sqlite3_step at sqlite3.c:79246:16 in sqlite3.h
-// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
-// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
-// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
-// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_libversion at sqlite3.c:171116:24 in sqlite3.h
+// sqlite3_sourceid at sqlite3.c:252248:24 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
+// sqlite3_initialize at sqlite3.c:171208:16 in sqlite3.h
+// sqlite3_vfs_find at sqlite3.c:13246:25 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <sqlite3.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
-#include <string.h>
+#include <stdint.h>
+#include <sqlite3.h>
 
-static sqlite3 *initialize_database() {
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return NULL;
-    }
-    return db;
+static void invoke_sqlite3_libversion() {
+    const char *version = sqlite3_libversion();
+    (void)version; // Use the version in some way to avoid compiler warnings
 }
 
-static sqlite3_stmt *prepare_statement(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return NULL;
-    }
-    return stmt;
+static void invoke_sqlite3_sourceid() {
+    const char *sourceid = sqlite3_sourceid();
+    (void)sourceid; // Use the sourceid in some way to avoid compiler warnings
+}
+
+static void invoke_sqlite3_config() {
+    int rc;
+    rc = sqlite3_config(SQLITE_CONFIG_SINGLETHREAD);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_URI, 1);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_MEMSTATUS, 1);
+    if (rc != SQLITE_OK) return;
+    rc = sqlite3_config(SQLITE_CONFIG_LOG, NULL, NULL);
+    if (rc != SQLITE_OK) return;
+}
+
+static void invoke_sqlite3_initialize() {
+    int rc = sqlite3_initialize();
+    (void)rc; // Use the rc in some way to avoid compiler warnings
+}
+
+static void invoke_sqlite3_vfs_find() {
+    sqlite3_vfs *vfs = sqlite3_vfs_find(NULL);
+    (void)vfs; // Use the vfs in some way to avoid compiler warnings
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Step 1: Invoke sqlite3_libversion
+    invoke_sqlite3_libversion();
 
-    sqlite3 *db = initialize_database();
-    if (!db) return 0;
+    // Step 2: Invoke sqlite3_sourceid
+    invoke_sqlite3_sourceid();
 
-    const char *sql = "CREATE TABLE IF NOT EXISTS fuzz (id INTEGER PRIMARY KEY, data BLOB);";
-    sqlite3_stmt *stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Step 3: Invoke sqlite3_config multiple times
+    invoke_sqlite3_config();
 
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
+    // Step 4: Invoke sqlite3_initialize
+    invoke_sqlite3_initialize();
 
-    sql = "INSERT INTO fuzz (data) VALUES (?);";
-    stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    sqlite3_bind_blob(stmt, 1, Data, Size, SQLITE_TRANSIENT);
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    sql = "SELECT data FROM fuzz WHERE id = 1;";
-    stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        int bytes = sqlite3_column_bytes(stmt, 0);
-        const void *blob = sqlite3_column_blob(stmt, 0);
-        (void)blob;  // Use blob to avoid unused variable warning
-
-        bytes = sqlite3_column_bytes(stmt, 0);
-        blob = sqlite3_column_blob(stmt, 0);
-        (void)blob;  // Use blob to avoid unused variable warning
-    }
-
-    int isExplain = sqlite3_stmt_isexplain(stmt);
-    (void)isExplain;  // Use isExplain to avoid unused variable warning
-
-    int resetResult = sqlite3_reset(stmt);
-    (void)resetResult;  // Use resetResult to avoid unused variable warning
-
-    int stepResult = sqlite3_step(stmt);
-    (void)stepResult;  // Use stepResult to avoid unused variable warning
-
-    const char *errMsg = sqlite3_errmsg(db);
-    (void)errMsg;  // Use errMsg to avoid unused variable warning
-
-    errMsg = sqlite3_errmsg(db);
-    (void)errMsg;  // Use errMsg to avoid unused variable warning
-
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
+    // Step 5: Invoke sqlite3_vfs_find
+    invoke_sqlite3_vfs_find();
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

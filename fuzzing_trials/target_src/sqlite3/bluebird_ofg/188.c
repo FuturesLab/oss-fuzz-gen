@@ -1,58 +1,42 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_188(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
+    sqlite3 *db;
     char *errMsg = 0;
-    char *sql;
-    
-    // Initialize an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
         return 0;
     }
 
-    // Create a simple table
-    sql = "CREATE TABLE IF NOT EXISTS test(id INT, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Prepare the input data as an SQL statement
-    char *inputSQL = (char *)malloc(size + 1);
-    if (inputSQL == NULL) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-        sqlite3_db_release_memory(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        return 0;
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
     }
-    memcpy(inputSQL, data, size);
-    inputSQL[size] = '\0';
-
-    // Execute the input SQL statement
-    rc = sqlite3_exec(db, inputSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK && errMsg != NULL) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
-    }
-
-    // Call the function-under-test
-    int changes = sqlite3_changes(db);
-    printf("Number of changes: %d\n", changes);
 
     // Clean up
-    free(inputSQL);
+    if (errMsg) {
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
+        sqlite3_free(NULL);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+    }
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

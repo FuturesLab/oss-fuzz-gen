@@ -1,34 +1,38 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "sqlite3.h"
+#include <sqlite3.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_265(const uint8_t *data, size_t size) {
+    // Initialize SQLite
+    sqlite3_initialize();
+
+    // Create an SQLite memory database
     sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3_open(":memory:", &db);
 
-    // Open a new in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+    // Create an SQLite statement
+    sqlite3_stmt *stmt;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
+    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    // Insert data into the table
+    sql = "INSERT INTO test (value) VALUES (?);";
+    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (size > 0) {
+        sqlite3_bind_text(stmt, 1, (const char*)data, (int)size, SQLITE_STATIC);
+    } else {
+        sqlite3_bind_text(stmt, 1, "default", -1, SQLITE_STATIC);
     }
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
 
-    // Convert the input data to a null-terminated string
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL command
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free the allocated resources
-    free(sql);
-    sqlite3_free(errMsg);
+    // Clean up
     sqlite3_close(db);
 
-    // Return 0 to indicate successful execution of the fuzzer
     return 0;
 }
 #ifdef INC_MAIN
