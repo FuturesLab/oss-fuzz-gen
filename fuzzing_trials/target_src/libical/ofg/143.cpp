@@ -3,47 +3,63 @@
 #include <cstring> // Include for memcpy
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/ical.h> // Assuming the library header file
 }
 
 extern "C" int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create a valid icalcomponent
-    if (size < 1) {
-        return 0;
+    // Ensure the data is null-terminated to safely use it as a C-string
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Initialize an icalcomponent from the input data
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
-        return 0;
-    }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the input
 
-    icalcomponent *component = icalparser_parse_string(input_data);
-    free(input_data);
+    // Call the function-under-test
+    icalrecurrencetype_weekday result = icalrecur_string_to_weekday(input);
 
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Iterate over all possible icalcomponent_kind values
-    for (int kind = ICAL_NO_COMPONENT; kind <= ICAL_XROOT_COMPONENT; ++kind) {
-        icalcomponent_kind component_kind = static_cast<icalcomponent_kind>(kind);
-        
-        // Call the function-under-test
-        icalcomponent *first_component = icalcomponent_get_first_component(component, component_kind);
-        
-        // Optionally, you can perform additional operations or checks on first_component
-        // For example, you could print its kind or check for null
-        if (first_component != NULL) {
-            icalcomponent_kind found_kind = icalcomponent_isa(first_component);
-            // Do something with found_kind if needed
-        }
-    }
-
-    // Clean up
-    icalcomponent_free(component);
+    // Free the allocated memory
+    free(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_143(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

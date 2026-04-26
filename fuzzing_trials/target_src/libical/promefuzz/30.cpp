@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_status at icalcomponent.c:2002:26 in icalcomponent.h
-// icalcomponent_set_status at icalcomponent.c:1990:6 in icalcomponent.h
-// icalcomponent_new_vjournal at icalcomponent.c:2040:16 in icalcomponent.h
-// icalcomponent_normalize at icalcomponent.c:2832:6 in icalcomponent.h
-// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
-// icalcomponent_set_sequence at icalcomponent.c:1955:6 in icalcomponent.h
+// icalcomponent_set_location at icalcomponent.c:1920:6 in icalcomponent.h
+// icalcomponent_get_x_name at icalcomponent.c:337:13 in icalcomponent.h
+// icalcomponent_get_description at icalcomponent.c:1897:13 in icalcomponent.h
+// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
+// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
+// icalcomponent_get_location at icalcomponent.c:1932:13 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,56 +17,87 @@
 #include <iostream>
 #include <fstream>
 #include "ical.h"
-#include <cstdint>
-
-static void setup_dummy_file(const uint8_t *Data, size_t Size) {
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
-}
+#include "ical.h"
+#include "ical.h"
+#include <libical/icalcomponent.h>
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    // Step 1: Create a new XVOTE component
-    icalcomponent *xvoteComponent = icalcomponent_new_xvote();
-    if (!xvoteComponent) return 0;
+    // Convert input data to a string
+    std::string input(reinterpret_cast<const char*>(Data), Size);
 
-    // Step 2: Normalize the component
-    icalcomponent_normalize(xvoteComponent);
+    // Create icalcomponent from input string
+    icalcomponent *comp = icalcomponent_new_from_string(input.c_str());
 
-    // Step 3: Set status based on input data
-    icalproperty_status status = static_cast<icalproperty_status>(Data[0] % (ICAL_STATUS_NONE + 1));
-    icalcomponent_set_status(xvoteComponent, status);
+    if (comp != NULL) {
+        // Fuzz icalcomponent_set_description
+        icalcomponent_set_description(comp, "Sample Description");
 
-    // Step 4: Set sequence using a value derived from input data
-    int sequence = static_cast<int>(Data[0]);
-    icalcomponent_set_sequence(xvoteComponent, sequence);
+        // Fuzz icalcomponent_get_description
+        const char *description = icalcomponent_get_description(comp);
+        if (description) {
+            std::cout << "Description: " << description << std::endl;
+        }
 
-    // Step 5: Get status to explore more states
-    icalproperty_status retrievedStatus = icalcomponent_get_status(xvoteComponent);
-    (void)retrievedStatus; // Suppress unused variable warning
+        // Fuzz icalcomponent_set_location
+        icalcomponent_set_location(comp, "Sample Location");
 
-    // Step 6: Create a new VJOURNAL component
-    icalcomponent *vjournalComponent = icalcomponent_new_vjournal();
-    if (vjournalComponent) {
-        // Normalize the VJOURNAL component
-        icalcomponent_normalize(vjournalComponent);
+        // Fuzz icalcomponent_get_location
+        const char *location = icalcomponent_get_location(comp);
+        if (location) {
+            std::cout << "Location: " << location << std::endl;
+        }
 
-        // Set status and sequence for VJOURNAL
-        icalcomponent_set_status(vjournalComponent, status);
-        icalcomponent_set_sequence(vjournalComponent, sequence);
+        // Fuzz icalcomponent_get_x_name
+        const char *x_name = icalcomponent_get_x_name(comp);
+        if (x_name) {
+            std::cout << "X-Name: " << x_name << std::endl;
+        }
 
-        // Get status from VJOURNAL
-        retrievedStatus = icalcomponent_get_status(vjournalComponent);
-        (void)retrievedStatus; // Suppress unused variable warning
-
-        // Free the VJOURNAL component
-        icalcomponent_free(vjournalComponent);
+        // Clean up
+        icalcomponent_free(comp);
     }
-
-    // Free the XVOTE component
-    icalcomponent_free(xvoteComponent);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

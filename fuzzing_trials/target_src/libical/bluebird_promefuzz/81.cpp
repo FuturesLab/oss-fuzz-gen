@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,89 +8,171 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstring>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Convert input data to a null-terminated string
-    char *inputData = (char *)malloc(Size + 1);
-    if (!inputData) {
+    // Prepare an icalcomponent
+    icalcomponent_kind kind;
+    memcpy(&kind, Data, sizeof(icalcomponent_kind));
+    Data += sizeof(icalcomponent_kind);
+    Size -= sizeof(icalcomponent_kind);
+
+    icalcomponent *comp = icalcomponent_new(kind);
+    if (!comp) {
         return 0;
     }
-    memcpy(inputData, Data, Size);
-    inputData[Size] = '\0';
 
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(inputData);
-    if (comp) {
-        // Set description
-        icalcomponent_set_description(comp, "Sample Description");
+    // Use the remaining data to create dummy properties or comments
+    if (Size > 0) {
+        char *dummyData = (char *)malloc(Size + 1);
+        if (dummyData) {
+            memcpy(dummyData, Data, Size);
+            dummyData[Size] = '\0';
 
-        // Set comment
+            // Set a dummy comment
+            icalcomponent_set_comment(comp, dummyData);
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_comment with icalcomponent_set_x_name
+            // Set a dummy UID
+            icalcomponent_set_uid(comp, dummyData);
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_x_name with icalcomponent_set_description
-        icalcomponent_set_description(comp, "Sample Comment");
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Set UID
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_comment to icalcomponent_set_dtstamp
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_description to icalcomponent_remove_component
-        icalcomponent* ret_icalcomponent_get_current_component_cfxpk = icalcomponent_get_current_component(comp);
-        if (ret_icalcomponent_get_current_component_cfxpk == NULL){
-        	return 0;
+            // Clean up
+            free(dummyData);
         }
-
-        icalcomponent_remove_component(comp, ret_icalcomponent_get_current_component_cfxpk);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        struct icaltimetype ret_icalcomponent_get_dtstamp_ordtj = icalcomponent_get_dtstamp(comp);
-
-        icalcomponent_set_dtstamp(comp, ret_icalcomponent_get_dtstamp_ordtj);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_dtstamp to icalcomponent_check_restrictions
-
-        bool ret_icalcomponent_check_restrictions_hoxfi = icalcomponent_check_restrictions(comp);
-        if (ret_icalcomponent_check_restrictions_hoxfi == 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        icalcomponent_set_uid(comp, "Sample UID");
-
-        // Set summary
-        icalcomponent_set_summary(comp, "Sample Summary");
-
-        // Convert back to string
-        char *icalString = icalcomponent_as_ical_string_r(comp);
-        if (icalString) {
-            // Normally, we would do something with the string, but for fuzzing, just free it
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        icalcomponent_free(comp);
     }
 
-    free(inputData);
+    // Fuzz the API functions
+    char *icalStringR = icalcomponent_as_ical_string_r(comp);
+    if (icalStringR) {
+        free(icalStringR);
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icalproperty_set_capversion
+    icalproperty* ret_icalproperty_new_cmd_shrcv = icalproperty_new_cmd(ICAL_CMD_CREATE);
+    if (ret_icalproperty_new_cmd_shrcv == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_icalproperty_new_cmd_shrcv) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!icalStringR) {
+    	return 0;
+    }
+    icalproperty_set_capversion(ret_icalproperty_new_cmd_shrcv, icalStringR);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    const char *comment = icalcomponent_get_comment(comp);
+    if (comment) {
+        // Do something with comment if needed
+    }
+
+    const char *componentName = icalcomponent_get_component_name(comp);
+    if (componentName) {
+        // Do something with componentName if needed
+    }
+
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        // Do something with relcalid if needed
+    }
+
+    char *icalString = icalcomponent_as_ical_string(comp);
+    if (icalString) {
+        free(icalString);
+    }
+
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_as_ical_string to icalproperty_get_parameter_as_string_r using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_icalproperty_new_cmd_shrcv) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!icalString) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string to icalparameter_set_localize
+    icalparameter* ret_icalparameter_new_cutype_lqnqf = icalparameter_new_cutype(ICAL_CUTYPE_ROOM);
+    if (ret_icalparameter_new_cutype_lqnqf == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_icalparameter_new_cutype_lqnqf) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!icalString) {
+    	return 0;
+    }
+    icalparameter_set_localize(ret_icalparameter_new_cutype_lqnqf, icalString);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char* ret_icalproperty_get_parameter_as_string_r_srbpy = icalproperty_get_parameter_as_string_r(ret_icalproperty_new_cmd_shrcv, icalString);
+    if (ret_icalproperty_get_parameter_as_string_r_srbpy == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        // Do something with uid if needed
+    }
+
+    // Clean up
+    icalcomponent_free(comp);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_81(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

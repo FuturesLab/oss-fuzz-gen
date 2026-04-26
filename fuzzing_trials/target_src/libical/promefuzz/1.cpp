@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
-// icalcomponent_new_vfreebusy at icalcomponent.c:2050:16 in icalcomponent.h
-// icalcomponent_new_vquery at icalcomponent.c:2075:16 in icalcomponent.h
-// icalcomponent_new_vtodo at icalcomponent.c:2035:16 in icalcomponent.h
-// icalcomponent_new_vpatch at icalcomponent.c:2110:16 in icalcomponent.h
-// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
+// icalcompiter_next at icalcomponent.c:1387:16 in icalcomponent.h
+// icalcompiter_deref at icalcomponent.c:1425:16 in icalcomponent.h
+// icalcompiter_prior at icalcomponent.c:1406:16 in icalcomponent.h
+// icalcomponent_begin_component at icalcomponent.c:1342:14 in icalcomponent.h
+// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
+// icalcomponent_get_inner at icalcomponent.c:1490:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,50 +14,86 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <cstring>
 #include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <icalcomponent.h>
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    // Initialize components
-    icalcomponent *vquery = nullptr;
-    icalcomponent *vfreebusy = nullptr;
-    icalcomponent *vpatch = nullptr;
-    icalcomponent *vtodo = nullptr;
-    icalcomponent *xpatch = nullptr;
-    icalcomponent *vresource = nullptr;
-
-    // Try to create each component and handle potential NULL returns
-    vquery = icalcomponent_new_vquery();
-    if (vquery) {
-        icalcomponent_free(vquery);
+    if (Size < sizeof(icalcomponent_kind)) {
+        return 0;
     }
 
-    vfreebusy = icalcomponent_new_vfreebusy();
-    if (vfreebusy) {
-        icalcomponent_free(vfreebusy);
+    // Prepare a dummy icalcomponent
+    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *child = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+
+    // Add the child component to the parent
+    icalcomponent_add_component(parent, child);
+
+    // Initialize an iterator for the parent component
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    icalcompiter iter = icalcomponent_begin_component(parent, kind);
+
+    // Explore the iterator
+    icalcomponent *current = nullptr;
+    while ((current = icalcompiter_deref(&iter)) != nullptr) {
+        // Get the inner component
+        icalcomponent *inner = icalcomponent_get_inner(current);
+
+        // Move to the next component
+        icalcompiter_next(&iter);
     }
 
-    vpatch = icalcomponent_new_vpatch();
-    if (vpatch) {
-        icalcomponent_free(vpatch);
-    }
+    // Try to get the previous component
+    icalcomponent *prev = icalcompiter_prior(&iter);
 
-    vtodo = icalcomponent_new_vtodo();
-    if (vtodo) {
-        icalcomponent_free(vtodo);
-    }
-
-    xpatch = icalcomponent_new_xpatch();
-    if (xpatch) {
-        icalcomponent_free(xpatch);
-    }
-
-    vresource = icalcomponent_new_vresource();
-    if (vresource) {
-        icalcomponent_free(vresource);
-    }
+    // Clean up
+    icalcomponent_free(parent);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

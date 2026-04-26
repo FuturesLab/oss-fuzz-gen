@@ -1,39 +1,116 @@
+#include <string.h>
+#include <sys/stat.h>
+#include "libical/ical.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
-extern "C" {
-    #include "libical/ical.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for our needs
-    if (size < 1) {
-        return 0;
+    // Initialize a memory context for icalcomponent
+    icalcomponent *component = nullptr;
+
+    // Ensure the data size is sufficient to create a valid icalcomponent
+    if (size > 0) {
+        // Create a string from the input data
+        char *inputData = (char *)malloc(size + 1);
+        if (inputData == nullptr) {
+            return 0; // Memory allocation failed
+        }
+        memcpy(inputData, data, size);
+        inputData[size] = '\0'; // Null-terminate the string
+
+        // Parse the input data into an icalcomponent
+        component = icalparser_parse_string(inputData);
+
+        // Free the input data as it's no longer needed
+        free(inputData);
     }
 
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // If a valid icalcomponent was created, use it
+    if (component != nullptr) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-    // Extract a status value from the input data
-    icalproperty_status status = 
-        static_cast<icalproperty_status>(data[0] % 7); // Assuming there are 7 possible statuses
+        // Free the returned string if not NULL
+        if (icalString != nullptr) {
+            free(icalString);
+        }
 
-    // Create an icalproperty for status and add it to the component
-    icalproperty *status_property = icalproperty_new_status(status);
-    icalcomponent_add_property(component, status_property);
+        // Free the icalcomponent
 
-    // Serialize the component to a string to ensure it is processed
-    char *component_str = icalcomponent_as_ical_string(component);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icaltimezone_get_builtin_timezone_from_offset
 
-    // Check if the component string is not null and has some content
-    if (component_str != nullptr && strlen(component_str) > 0) {
-        // Optionally print or log the component string for debugging
-        // printf("Component: %s\n", component_str);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icalparameter_remove_delegatedto
+        icalparameter* ret_icalparameter_new_publiccomment_ljhet = icalparameter_new_publiccomment((const char *)"w");
+        if (ret_icalparameter_new_publiccomment_ljhet == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalparameter_new_publiccomment_ljhet) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!icalString) {
+        	return 0;
+        }
+        icalparameter_remove_delegatedto(ret_icalparameter_new_publiccomment_ljhet, icalString);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        size_t ret_icallimit_get_pauii = icallimit_get(ICAL_LIMIT_PARSE_SEARCH);
+        if (ret_icallimit_get_pauii < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!icalString) {
+        	return 0;
+        }
+        icaltimezone* ret_icaltimezone_get_builtin_timezone_from_offset_bsaji = icaltimezone_get_builtin_timezone_from_offset((int )ret_icallimit_get_pauii, icalString);
+        if (ret_icaltimezone_get_builtin_timezone_from_offset_bsaji == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_free(component);
     }
-
-    // Clean up
-    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_81(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

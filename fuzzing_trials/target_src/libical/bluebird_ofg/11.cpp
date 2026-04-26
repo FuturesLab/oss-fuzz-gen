@@ -1,49 +1,85 @@
-#include "libical/ical.h"
-#include <stdint.h>
-#include <stddef.h>
 #include <string.h>
+#include <sys/stat.h>
+#include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to extract a property kind
-    if (size < sizeof(icalproperty_kind) + 1) { // Ensure there's at least one character for the string
-        return 0;
+    // Initialize a memory context for icalcomponent
+    icalcomponent *component = nullptr;
+
+    // Ensure the data size is sufficient to create a valid icalcomponent
+    if (size > 0) {
+        // Create a string from the input data
+        char *inputData = (char *)malloc(size + 1);
+        if (inputData == nullptr) {
+            return 0; // Memory allocation failed
+        }
+        memcpy(inputData, data, size);
+        inputData[size] = '\0'; // Null-terminate the string
+
+        // Parse the input data into an icalcomponent
+        component = icalparser_parse_string(inputData);
+
+        // Free the input data as it's no longer needed
+        free(inputData);
     }
 
-    // Ensure the data is null-terminated to prevent buffer overflows in string functions
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0;
+    // If a valid icalcomponent was created, use it
+    if (component != nullptr) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if not NULL
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_convert_errors
+        icalcomponent_convert_errors(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    // Create an icalcomponent from the input data
-    icalcomponent *component = icalcomponent_new_from_string(null_terminated_data);
-    if (component == NULL) {
-        free(null_terminated_data);
-        return 0;
-    }
-
-    // Extract icalproperty_kind from the input data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_set_due
-    struct icaltimetype ret_icalcomponent_get_dtend_knqwe = icalcomponent_get_dtend(component);
-
-    icalcomponent_set_due(component, ret_icalcomponent_get_dtend_knqwe);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0]);
-
-    // Call the function under test
-    icalproperty *property = icalcomponent_get_first_property(component, kind);
-
-    // Clean up
-    if (property != NULL) {
-        icalproperty_free(property);
-    }
-    icalcomponent_free(component);
-    free(null_terminated_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

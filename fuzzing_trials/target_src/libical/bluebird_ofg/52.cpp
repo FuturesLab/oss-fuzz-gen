@@ -1,68 +1,89 @@
-#include "libical/ical.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+#include <iostream>
+
+extern "C" {
+    // Assuming the function is declared in a header file
+    bool icalvalue_decode_ical_string(const char *input, char *output, int output_size);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Ensure the input size is reasonable to prevent excessive memory allocation
-    if (size == 0 || size > 1024) {
+    // Ensure that the input size is sufficient for the function call
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the input data and ensure it's null-terminated
-    char *ical_data = (char *)malloc(size + 1);
-    if (ical_data == NULL) {
-        return 0;
-    }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
+    // Allocate memory for the input and output strings
+    const char *input = reinterpret_cast<const char *>(data);
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_data);
-    free(ical_data);
+    // Define a reasonable size for the output buffer
+    int output_size = 256;
+    char output[output_size];
 
-    if (component == NULL) {
+    // Copy input data to ensure null-termination
+    char *input_copy = new char[size + 1];
+    std::memcpy(input_copy, input, size);
+    input_copy[size] = '\0'; // Null-terminate the input string
+
+    // Initialize the output buffer to ensure it's in a known state
+    std::memset(output, 0, output_size);
+
+    // Check if the input is valid before calling the function
+    if (std::strlen(input_copy) == 0) {
+        delete[] input_copy;
         return 0;
     }
 
     // Call the function-under-test
+    bool result = icalvalue_decode_ical_string(input_copy, output, output_size);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_get_recurrenceid with icalcomponent_get_dtstamp
+    // Optionally, print the result for debugging purposes
+    std::cout << "Result: " << result << ", Output: " << output << std::endl;
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_get_dtstamp with icalcomponent_get_due
-    struct icaltimetype recurrence_id = icalcomponent_get_due(component);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_free to icalcomponent_set_description
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_due to icalcomponent_set_uid
-
-    icalcomponent_set_uid(component, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char* ret_icalcomponent_as_ical_string_mbaee = icalcomponent_as_ical_string(component);
-    if (ret_icalcomponent_as_ical_string_mbaee == NULL){
-    	return 0;
-    }
-
-    icalcomponent_set_description(component, ret_icalcomponent_as_ical_string_mbaee);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-    icalcomponent_normalize(component);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Clean up allocated memory
+    delete[] input_copy;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_52(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

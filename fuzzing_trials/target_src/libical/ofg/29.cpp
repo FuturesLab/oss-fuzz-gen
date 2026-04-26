@@ -1,36 +1,81 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h> // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h> // Correct header for libical
-}
+#include <string.h>
+#include <stdlib.h>
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a valid icalcomponent
+    // Ensure the data is not empty
     if (size == 0) {
         return 0;
     }
 
-    // Create a temporary buffer to store the input data as a string
-    char *input_data = new char[size + 1];
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';  // Null-terminate the string
+    // Ensure the data is null-terminated to safely convert it to a string
+    char *locationtype = (char *)malloc(size + 1);
+    if (locationtype == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(locationtype, data, size);
+    locationtype[size] = '\0';
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(input_data);
+    // Call the function-under-test
+    icalproperty *prop = icalproperty_new_locationtype(locationtype);
 
-    // Check if parsing was successful
-    if (component != NULL) {
-        // Call the function-under-test
-        struct icaltimetype dtstamp = icalcomponent_get_dtstamp(component);
-
-        // Clean up the icalcomponent
-        icalcomponent_free(component);
+    // Check if the property was created successfully
+    if (prop != NULL) {
+        // Access some property fields to increase code coverage
+        icalproperty_kind kind = icalproperty_isa(prop);
+        if (kind == ICAL_LOCATIONTYPE_PROPERTY) {
+            const char *value = icalproperty_get_locationtype(prop);
+            if (value != NULL) {
+                // Do something with the value to further increase coverage
+                (void)strlen(value); // Example of accessing the value
+            }
+        }
+        // Clean up
+        icalproperty_free(prop);
     }
 
-    // Clean up the temporary buffer
-    delete[] input_data;
+    free(locationtype);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

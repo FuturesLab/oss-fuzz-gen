@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalproperty_set_parent at icalproperty.c:900:6 in icalcomponent.h
-// icalcomponent_remove_property at icalcomponent.c:400:6 in icalcomponent.h
-// icalproperty_get_parent at icalproperty.c:907:16 in icalcomponent.h
-// icalcomponent_get_current_property at icalcomponent.c:463:15 in icalcomponent.h
-// icalcomponent_get_first_property at icalcomponent.c:474:15 in icalcomponent.h
-// icalcomponent_get_next_property at icalcomponent.c:489:15 in icalcomponent.h
+// icalenumarray_free at icalenumarray.c:132:6 in icalenumarray.h
+// icalarray_copy at icalarray.c:60:12 in icalarray.h
+// icalenumarray_clone at icalenumarray.c:155:16 in icalenumarray.h
+// icalarray_free at icalarray.c:95:6 in icalarray.h
+// icalenumarray_append at icalenumarray.c:75:6 in icalenumarray.h
+// icalenumarray_sort at icalenumarray.c:146:6 in icalenumarray.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,68 +14,130 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <cstdint>
-#include <cstring>
+extern "C" {
 #include "ical.h"
-
-static icalproperty* create_icalproperty_from_data(const uint8_t* Data, size_t Size) {
-    if (Size < sizeof(icalproperty_kind)) {
-        return nullptr;
-    }
-    icalproperty_kind kind;
-    std::memcpy(&kind, Data, sizeof(icalproperty_kind));
-    return icalproperty_new(kind);
+#include "ical.h"
+#include "ical.h"
+#include "icalenumarray.h"
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalarray.h"
 }
 
-static icalcomponent* create_icalcomponent_from_data(const uint8_t* Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+
+static icalenumarray* create_test_icalenumarray(size_t element_size, size_t num_elements) {
+    icalenumarray* array = static_cast<icalenumarray*>(malloc(sizeof(icalenumarray)));
+    if (!array) return nullptr;
+    
+    array->element_size = element_size;
+    array->chunks = static_cast<void**>(malloc(num_elements * sizeof(void*)));
+    if (!array->chunks) {
+        free(array);
         return nullptr;
     }
-    icalcomponent_kind kind;
-    std::memcpy(&kind, Data, sizeof(icalcomponent_kind));
-    return icalcomponent_new(kind);
+    
+    for (size_t i = 0; i < num_elements; ++i) {
+        array->chunks[i] = malloc(element_size);
+        if (!array->chunks[i]) {
+            for (size_t j = 0; j < i; ++j) {
+                free(array->chunks[j]);
+            }
+            free(array->chunks);
+            free(array);
+            return nullptr;
+        }
+        memset(array->chunks[i], i, element_size); // Fill with some data
+    }
+    
+    return array;
+}
+
+static void free_test_icalenumarray(icalenumarray* array, size_t num_elements) {
+    if (!array) return;
+    if (array->chunks) {
+        for (size_t i = 0; i < num_elements; ++i) {
+            free(array->chunks[i]);
+        }
+        free(array->chunks);
+    }
+    free(array);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
-    // Prepare icalproperty and icalcomponent objects
-    icalproperty* property = create_icalproperty_from_data(Data, Size);
-    icalcomponent* component = create_icalcomponent_from_data(Data, Size);
+    if (Size < sizeof(size_t) * 2) return 0;
 
-    if (property && component) {
-        // Test icalproperty_set_parent
-        icalproperty_set_parent(property, component);
+    size_t element_size = reinterpret_cast<const size_t*>(Data)[0];
+    size_t num_elements = reinterpret_cast<const size_t*>(Data)[1];
+    if (element_size == 0 || num_elements == 0) return 0;
 
-        // Test icalproperty_get_parent
-        icalcomponent* parent = icalproperty_get_parent(property);
+    icalenumarray* array = create_test_icalenumarray(element_size, num_elements);
+    if (!array) return 0;
 
-        // Test icalcomponent_get_first_property
-        icalproperty* first_property = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
+    // Test icalenumarray_sort
+    icalenumarray_sort(array);
 
-        // Test icalcomponent_get_next_property
-        icalproperty* next_property = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY);
-
-        // Test icalcomponent_get_current_property
-        icalproperty* current_property = icalcomponent_get_current_property(component);
-
-        // Test icalcomponent_remove_property
-        if (first_property) {
-            icalcomponent_remove_property(component, first_property);
-            icalproperty_free(first_property);
-        }
-
-        // Test cleanup
-        icalcomponent_remove_property(component, property);
+    // Test icalenumarray_clone
+    icalenumarray* cloned_array = icalenumarray_clone(array);
+    if (cloned_array) {
+        icalenumarray_free(cloned_array);
     }
+
+    // Test icalarray_copy
+    icalarray* copied_array = icalarray_copy(reinterpret_cast<icalarray*>(array));
+    if (copied_array) {
+        icalarray_free(copied_array);
+    }
+
+    // Test icalenumarray_append
+    icalenumarray_element elem;
+    icalenumarray_append(array, &elem);
 
     // Cleanup
-    if (property) {
-        icalproperty_free(property);
-    }
-    if (component) {
-        icalcomponent_free(component);
-    }
+    free_test_icalenumarray(array, num_elements);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

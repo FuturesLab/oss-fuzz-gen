@@ -1,36 +1,81 @@
-#include <cstdint> // Include standard library for uint8_t
-#include <cstddef> // Include standard library for size_t
-#include <cstring> // Include standard library for strlen
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h> // Include for malloc and free
 
 extern "C" {
-#include "libical/ical.h"
+    #include "libical/ical.h" // Assuming the correct path for the ical library
+    struct icaltriggertype icaltriggertype_from_string(const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty and is null-terminated
-    if (size == 0) return 0;
-
-    // Create a null-terminated string from the input data
-    char *inputData = (char *)malloc(size + 1);
-    if (inputData == NULL) return 0;
-    memcpy(inputData, data, size);
-    inputData[size] = '\0'; // Null-terminate the string
-
-    // Create an icalcomponent from the input data
-    icalcomponent *component = icalcomponent_new_from_string(inputData);
-    free(inputData); // Free the allocated memory for inputData
-    if (component == NULL) return 0;
-
-    // Define a callback function for icalcomponent_foreach_tzid
-    auto callback = [](icalparameter *param, void *user_data) {
-        // Do nothing in the callback for now
-    };
+    // Ensure that the data is null-terminated to be used as a string
+    char *inputString = (char *)malloc(size + 1);
+    if (inputString == NULL) {
+        return 0; // Memory allocation failed
+    }
+    
+    memcpy(inputString, data, size);
+    inputString[size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    icalcomponent_foreach_tzid(component, callback, nullptr);
+    struct icaltriggertype result = icaltriggertype_from_string(inputString);
 
     // Clean up
-    icalcomponent_free(component);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltriggertype_from_string to icalproperty_set_trigger
+    icalproperty* ret_icalproperty_new_tzid_fzjey = icalproperty_new_tzid((const char *)"r");
+    if (ret_icalproperty_new_tzid_fzjey == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_icalproperty_new_tzid_fzjey) {
+    	return 0;
+    }
+    icalproperty_set_trigger(ret_icalproperty_new_tzid_fzjey, result);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(inputString);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

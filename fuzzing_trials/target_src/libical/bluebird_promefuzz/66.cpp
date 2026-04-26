@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,89 +9,94 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstring>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 #include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_66(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    // Fuzz icalcomponent_new_vjournal
+    icalcomponent *vjournal = icalcomponent_new_vjournal();
+    if (vjournal) {
+        // Perform operations if needed
+        icalcomponent_free(vjournal);
     }
 
-    // Convert input data to a null-terminated string
-    char *inputData = (char *)malloc(Size + 1);
-    if (!inputData) {
-        return 0;
-    }
-    memcpy(inputData, Data, Size);
-    inputData[Size] = '\0';
-
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(inputData);
-    if (comp) {
-        // Set description
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_description with icalcomponent_set_comment
-        icalcomponent_set_comment(comp, "Sample Description");
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Set comment
-        icalcomponent_set_comment(comp, "Sample Comment");
-
-        // Set UID
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_comment to icalcomponent_set_dtstamp
-        struct icaltimetype ret_icalcomponent_get_recurrenceid_ghxec = icalcomponent_get_recurrenceid(NULL);
-
-        icalcomponent_set_dtstamp(comp, ret_icalcomponent_get_recurrenceid_ghxec);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_dtstamp to icalcomponent_set_due
-        struct icaltimetype ret_icalcomponent_get_dtstart_yryoi = icalcomponent_get_dtstart(comp);
-
-        icalcomponent_set_due(comp, ret_icalcomponent_get_dtstart_yryoi);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_due to icalcomponent_get_duration
-
-        struct icaldurationtype ret_icalcomponent_get_duration_ckhfn = icalcomponent_get_duration(comp);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        icalcomponent_set_uid(comp, "Sample UID");
-
-        // Set summary
-        icalcomponent_set_summary(comp, "Sample Summary");
-
-        // Convert back to string
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_summary to icalcomponent_remove_component
-        int ret_icalcomponent_count_errors_omzty = icalcomponent_count_errors(comp);
-        if (ret_icalcomponent_count_errors_omzty < 0){
-        	return 0;
-        }
-
-        icalcomponent_remove_component(comp, comp);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        char *icalString = icalcomponent_as_ical_string_r(comp);
-        if (icalString) {
-            // Normally, we would do something with the string, but for fuzzing, just free it
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        icalcomponent_free(comp);
+    // Fuzz icalcomponent_new_vagenda
+    icalcomponent *vagenda = icalcomponent_new_vagenda();
+    if (vagenda) {
+        // Perform operations if needed
+        icalcomponent_free(vagenda);
     }
 
-    free(inputData);
+    // Fuzz icalcomponent_new_vlocation
+    icalcomponent *vlocation = icalcomponent_new_vlocation();
+    if (vlocation) {
+        // Perform operations if needed
+        icalcomponent_free(vlocation);
+    }
+
+    // Fuzz icalcomponent_new_valarm
+    icalcomponent *valarm = icalcomponent_new_valarm();
+    if (valarm) {
+        // Perform operations if needed
+        icalcomponent_free(valarm);
+    }
+
+    // Fuzz icalcomponent_new_vresource
+    icalcomponent *vresource = icalcomponent_new_vresource();
+    if (vresource) {
+        // Perform operations if needed
+        icalcomponent_free(vresource);
+    }
+
+    // Fuzz icalcomponent_new_vquery
+    icalcomponent *vquery = icalcomponent_new_vquery();
+    if (vquery) {
+        // Perform operations if needed
+        icalcomponent_free(vquery);
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_66(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

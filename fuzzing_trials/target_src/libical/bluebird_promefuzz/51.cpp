@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,85 +10,96 @@
 #include <cstdint>
 #include <cstddef>
 #include <iostream>
+#include <fstream>
+#include <string>
 #include <cstring>
-#include <cstdlib>
 #include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalproperty.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalvalue.h"
 
 extern "C" int LLVMFuzzerTestOneInput_51(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // 1. Fuzz icalproperty_participanttype_to_string
+    icalproperty_participanttype participant_type = static_cast<icalproperty_participanttype>(Data[0]);
+    const char *participant_type_str = icalproperty_participanttype_to_string(participant_type);
+    if (participant_type_str) {
+        std::cout << "Participant Type String: " << participant_type_str << std::endl;
     }
 
-    // Convert input data to a null-terminated string
-    char *inputData = (char *)malloc(Size + 1);
-    if (!inputData) {
-        return 0;
-    }
-    memcpy(inputData, Data, Size);
-    inputData[Size] = '\0';
+    // 2. Fuzz icalproperty_string_to_participanttype
+    char *participant_string = new char[Size + 1];
+    memcpy(participant_string, Data, Size);
+    participant_string[Size] = '\0';
+    icalproperty_participanttype participant_type_enum = icalproperty_string_to_participanttype(participant_string);
+    delete[] participant_string;
 
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(inputData);
-    if (comp) {
-        // Set description
-        icalcomponent_set_description(comp, "Sample Description");
+    // 3. Create a dummy icalproperty for further tests
+    icalproperty *prop = icalproperty_new(ICAL_ANY_PROPERTY);
 
-        // Set comment
-        icalcomponent_set_comment(comp, "Sample Comment");
+    // 4. Fuzz icalproperty_set_value_from_string
+    const char *value_str = reinterpret_cast<const char*>(Data);
+    icalproperty_set_value_from_string(prop, value_str, "TEXT");
 
-        // Set UID
-        icalcomponent_set_uid(comp, "Sample UID");
-
-        // Set summary
-        icalcomponent_set_summary(comp, "Sample Summary");
-
-        // Convert back to string
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_summary to icalcomponent_set_comment
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_summary to icalcomponent_set_dtstamp
-        struct icaltimetype ret_icalcomponent_get_due_nnxar = icalcomponent_get_due(comp);
-
-        icalcomponent_set_dtstamp(comp, ret_icalcomponent_get_due_nnxar);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_as_ical_string_r with icalcomponent_as_ical_string
-        char* ret_icalcomponent_as_ical_string_r_esthn = icalcomponent_as_ical_string(comp);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        if (ret_icalcomponent_as_ical_string_r_esthn == NULL){
-        	return 0;
-        }
-
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_comment with icalcomponent_set_summary
-        icalcomponent_set_summary(comp, ret_icalcomponent_as_ical_string_r_esthn);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_comment to icalcomponent_normalize
-
-        icalcomponent_normalize(comp);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        char *icalString = icalcomponent_as_ical_string_r(comp);
-        if (icalString) {
-            // Normally, we would do something with the string, but for fuzzing, just free it
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        icalcomponent_free(comp);
+    // 5. Fuzz icalproperty_get_value_as_string_r
+    char *value_as_string = icalproperty_get_value_as_string_r(prop);
+    if (value_as_string) {
+        std::cout << "Value as String: " << value_as_string << std::endl;
+        icalmemory_free_buffer(value_as_string);
     }
 
-    free(inputData);
+    // 6. Fuzz icalproperty_get_property_name
+    const char *property_name = icalproperty_get_property_name(prop);
+    if (property_name) {
+        std::cout << "Property Name: " << property_name << std::endl;
+    }
+
+    // Cleanup
+    icalproperty_free(prop);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_51(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

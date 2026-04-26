@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,58 +9,84 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "libical/ical.h"
+#include <cstdint>
 #include <cstdlib>
-#include <fstream>
+#include <cstring>
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    // Prepare a dummy file for operations that require a file
-    std::ofstream dummyFile("./dummy_file");
-    if (!dummyFile.is_open()) {
+    if (Size < 1) {
         return 0;
     }
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
 
-    // Initialize a component and properties for testing
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalproperty *property = icalproperty_new_summary("Test Summary");
-    icalcomponent_add_property(component, property);
-
-    // Test icalcomponent_begin_property
-    icalpropiter iter = icalcomponent_begin_property(component, ICAL_SUMMARY_PROPERTY);
-
-    // Test icalpropiter_deref
-    icalproperty *currentProperty = icalpropiter_deref(&iter);
-    if (currentProperty) {
-        const char *summary = icalproperty_get_summary(currentProperty);
+    // Initialize a dummy icalcomponent
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!comp) {
+        return 0;
     }
 
-    // Test icalpropiter_next
-    while ((currentProperty = icalpropiter_next(&iter)) != nullptr) {
-        const char *summary = icalproperty_get_summary(currentProperty);
+    // Prepare a null-terminated string from the input data
+    char *inputString = static_cast<char*>(malloc(Size + 1));
+    if (!inputString) {
+        icalcomponent_free(comp);
+        return 0;
     }
+    memcpy(inputString, Data, Size);
+    inputString[Size] = '\0';
 
-    // Test icalcomponent_get_next_property
-    currentProperty = icalcomponent_get_next_property(component, ICAL_SUMMARY_PROPERTY);
-    if (currentProperty) {
-        const char *summary = icalproperty_get_summary(currentProperty);
-    }
-
-    // Test icalcomponent_get_current_property
-    currentProperty = icalcomponent_get_current_property(component);
-    if (currentProperty) {
-        const char *summary = icalproperty_get_summary(currentProperty);
-    }
-
-    // Test icalcomponent_get_first_property
-    currentProperty = icalcomponent_get_first_property(component, ICAL_SUMMARY_PROPERTY);
-    if (currentProperty) {
-        const char *summary = icalproperty_get_summary(currentProperty);
-    }
+    // Fuzz the target functions
+    icalcomponent_set_x_name(comp, inputString);
+    icalcomponent_set_relcalid(comp, inputString);
+    icalcomponent_set_comment(comp, inputString);
+    icalcomponent_set_summary(comp, inputString);
+    icalcomponent_set_location(comp, inputString);
+    icalcomponent_set_uid(comp, inputString);
 
     // Cleanup
-    icalcomponent_free(component);
+    free(inputString);
+    icalcomponent_free(comp);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

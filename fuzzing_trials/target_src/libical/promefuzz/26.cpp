@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalproperty_recurrence_is_excluded at icalcomponent.c:738:6 in icalcomponent.h
-// icalcomponent_get_recurrenceid at icalcomponent.c:1859:21 in icalcomponent.h
-// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
-// icalcomponent_set_recurrenceid at icalcomponent.c:1839:6 in icalcomponent.h
-// icalcomponent_foreach_recurrence at icalcomponent.c:927:6 in icalcomponent.h
-// icalcomponent_set_dtend at icalcomponent.c:1622:6 in icalcomponent.h
+// icalproperty_remove_parameter_by_kind at icalproperty.c:624:6 in icalproperty.h
+// icalproperty_free at icalproperty.c:176:6 in icalproperty.h
+// icalproperty_normalize at icalproperty.c:921:6 in icalproperty.h
+// icalproperty_clone at icalproperty.c:92:15 in icalproperty.h
+// icalproperty_new_from_string at icalproperty.c:130:15 in icalproperty.h
+// icalproperty_new at icalproperty.c:83:15 in icalproperty.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,52 +16,88 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
 #include <cstring>
-
-void dummy_callback(icalcomponent *comp, const struct icaltime_span *span, void *data) {
-    // ...
-}
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalproperty.h"
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind) + 2 * sizeof(icaltimetype)) {
-        return 0; // Not enough data to proceed
+    if (Size == 0) {
+        return 0;
     }
 
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalcomponent *comp = icalcomponent_new(kind);
+    // Prepare a null-terminated string for icalproperty_new_from_string
+    char *icalStr = new char[Size + 1];
+    memcpy(icalStr, Data, Size);
+    icalStr[Size] = '\0';
 
-    struct icaltimetype start, end;
-    std::memcpy(&start, Data + 1, sizeof(icaltimetype));
-    std::memcpy(&end, Data + 1 + sizeof(icaltimetype), sizeof(icaltimetype));
+    // Test icalproperty_new_from_string
+    icalproperty *prop = icalproperty_new_from_string(icalStr);
 
-    // Initialize timezones to avoid null pointer dereference
-    const icaltimezone *utc_zone = icaltimezone_get_utc_timezone();
-    start.zone = utc_zone;
-    end.zone = utc_zone;
+    // If property creation was successful, perform further operations
+    if (prop) {
+        // Test icalproperty_remove_parameter_by_kind with a random parameter kind
+        icalproperty_remove_parameter_by_kind(prop, ICAL_TZID_PARAMETER);
 
-    // Test icalcomponent_get_dtstart
-    struct icaltimetype dtstart = icalcomponent_get_dtstart(comp);
+        // Test icalproperty_normalize
+        icalproperty_normalize(prop);
 
-    // Test icalcomponent_foreach_recurrence
-    icalcomponent_foreach_recurrence(comp, start, end, dummy_callback, nullptr);
+        // Test icalproperty_clone
+        icalproperty *clonedProp = icalproperty_clone(prop);
+        if (clonedProp) {
+            icalproperty_free(clonedProp);
+        }
 
-    // Test icalcomponent_set_dtend
-    icalcomponent_set_dtend(comp, end);
+        icalproperty_free(prop);
+    }
 
-    // Test icalcomponent_set_recurrenceid
-    icalcomponent_set_recurrenceid(comp, start);
+    // Test icalproperty_new with a random property kind
+    icalproperty *newProp = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+    if (newProp) {
+        icalproperty_free(newProp);
+    }
 
-    // Test icalproperty_recurrence_is_excluded
-    bool is_excluded = icalproperty_recurrence_is_excluded(comp, &start, &end);
-
-    // Test icalcomponent_get_recurrenceid
-    struct icaltimetype recurrence_id = icalcomponent_get_recurrenceid(comp);
-
-    // Cleanup
-    icalcomponent_free(comp);
-
+    delete[] icalStr;
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

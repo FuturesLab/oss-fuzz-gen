@@ -1,46 +1,81 @@
+#include <sys/stat.h>
 #include "libical/ical.h"
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string.h> // Include for memcpy
+
+// Define a non-null timezone for testing
+extern "C" {
+    icaltimezone *get_test_timezone() {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icaltimezone_get_utc_timezone with icaltimezone_new
+        return icaltimezone_new();
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Ensure the input size is reasonable to prevent excessive memory allocation
-    if (size == 0 || size > 1024) {
-        return 0;
+    if (size < sizeof(struct icaltimetype) * 2) {
+        return 0; // Not enough data to create two icaltimetype structures
     }
 
-    // Allocate memory for the input data and ensure it's null-terminated
-    char *ical_data = (char *)malloc(size + 1);
-    if (ical_data == NULL) {
-        return 0;
+    // Initialize two icaltimetype structures from the input data
+    struct icaltimetype time1, time2;
+    icaltimezone *tz = get_test_timezone();
+
+    // Copy data into the first icaltimetype structure
+    memcpy(&time1, data, sizeof(struct icaltimetype));
+    // Copy data into the second icaltimetype structure
+    memcpy(&time2, data + sizeof(struct icaltimetype), sizeof(struct icaltimetype));
+
+    // Call the function under test
+    int result = icaltime_compare_date_only_tz(time1, time2, tz);
+
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (result == 0) {
+        // Do something trivial
+        volatile int x = result;
+        (void)x;
     }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_data);
-    free(ical_data);
-
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Call the function-under-test
-    struct icaltimetype recurrence_id = icalcomponent_get_recurrenceid(component);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_free to icalcomponent_set_description
-    char* ret_icalcomponent_as_ical_string_mbaee = icalcomponent_as_ical_string(component);
-    if (ret_icalcomponent_as_ical_string_mbaee == NULL){
-    	return 0;
-    }
-
-    icalcomponent_set_description(component, ret_icalcomponent_as_ical_string_mbaee);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,31 +1,68 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <string.h>
+#include <sys/stat.h>
 #include "libical/ical.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Initialize variables
-    icalcomponent *component;
-    int sequence;
-
-    // Ensure size is sufficient to extract an integer
-    if (size < sizeof(int)) {
+    // Ensure the input size is sufficient to create a null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Create a dummy icalcomponent
-    component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Extract an integer from the input data
-    sequence = *(reinterpret_cast<const int*>(data));
+    // Create a null-terminated string from the input data
+    char *link = new char[size + 1];
+    memcpy(link, data, size);
+    link[size] = '\0';
 
     // Call the function-under-test
-    icalcomponent_set_sequence(component, sequence);
+    icalproperty *property = icalproperty_vanew_link(link, icalparameter_new_role(ICAL_ROLE_CHAIR));
 
     // Clean up
-    icalcomponent_free(component);
+    if (property != nullptr) {
+        icalproperty_free(property);
+    }
+    delete[] link;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

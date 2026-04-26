@@ -1,49 +1,64 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
-#include <cstring>  // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Initialize the iCalendar library
-    icalcomponent *parent_component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *child_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Ensure the components are not NULL
-    if (parent_component == NULL || child_component == NULL) {
-        if (parent_component != NULL) {
-            icalcomponent_free(parent_component);
-        }
-        if (child_component != NULL) {
-            icalcomponent_free(child_component);
-        }
-        return 0;
+    // Ensure that the input data is null-terminated to be used as a C string
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Create a string from the input data
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
-        icalcomponent_free(parent_component);
-        icalcomponent_free(child_component);
-        return 0;
-    }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';  // Null-terminate the string
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *parsed_component = icalparser_parse_string(input_data);
-
-    // If parsing is successful, add the parsed component to the parent
-    if (parsed_component != NULL) {
-        icalcomponent_add_component(parent_component, parsed_component);
-    }
+    // Call the function-under-test with the null-terminated string
+    icalcomponent *component = icalparser_parse_string(null_terminated_data);
 
     // Clean up
-    free(input_data);
-    icalcomponent_free(parent_component);
-    // Note: child_component and parsed_component are freed by icalcomponent_free(parent_component)
+    if (component != NULL) {
+        icalcomponent_free(component);
+    }
+    free(null_terminated_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_117(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

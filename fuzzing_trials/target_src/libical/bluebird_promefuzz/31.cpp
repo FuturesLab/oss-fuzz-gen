@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,83 +9,126 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+#include <cassert>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalparser.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalerror.h"
 
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    // Prepare a dummy file if needed
-    std::ofstream dummyFile("./dummy_file");
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
+    // Ensure the input data is null-terminated for string processing functions
+    char *icalString = new char[Size + 1];
+    memcpy(icalString, Data, Size);
+    icalString[Size] = '\0';
+
+    // Test icalparser_parse_string
+    icalcomponent *component = icalparser_parse_string(icalString);
+    if (component != NULL) {
+        // Test icalcomponent_convert_errors
+        icalcomponent_convert_errors(component);
+
+        // Free the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_convert_errors to icalcomponent_set_parent
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        enum icalproperty_status ret_icalcomponent_get_status_hykkp = icalcomponent_get_status(component);
+        if (ret_icalcomponent_get_status_hykkp == ICAL_STATUS_FAILED){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_get_status to icalcomponent_end_component using the plateau pool
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcompiter ret_icalcomponent_end_component_aofty = icalcomponent_end_component(component, ICAL_VEVENT_COMPONENT);
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+        icalcomponent_set_parent(component, component);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
-    // Create components using the target API functions
-    icalcomponent *vavailability = icalcomponent_new_vavailability();
-    icalcomponent *xstandard = icalcomponent_new_xstandard();
-    icalcomponent *vagenda = icalcomponent_new_vagenda();
-    icalcomponent *xavailable = icalcomponent_new_xavailable();
-
-    // Create a dummy icalproperty
-    icalproperty *dummyProperty1 = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    icalproperty_set_summary(dummyProperty1, "Dummy Summary 1");
-
-    icalproperty *dummyProperty2 = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    icalproperty_set_summary(dummyProperty2, "Dummy Summary 2");
-
-    icalproperty *dummyProperty3 = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    icalproperty_set_summary(dummyProperty3, "Dummy Summary 3");
-
-    icalproperty *dummyProperty4 = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    icalproperty_set_summary(dummyProperty4, "Dummy Summary 4");
-
-    // Add the dummy property to the components
-    if (vavailability) {
-        icalcomponent_add_property(vavailability, dummyProperty1);
-    }
-    if (xstandard) {
-        icalcomponent_add_property(xstandard, dummyProperty2);
-    }
-    if (vagenda) {
-        icalcomponent_add_property(vagenda, dummyProperty3);
-    }
-    if (xavailable) {
-        icalcomponent_add_property(xavailable, dummyProperty4);
+    // Check for errors and print backtrace if any
+    if (*icalerror_icalerrno() != ICAL_NO_ERROR) {
+        icalerror_backtrace();
     }
 
-    // Set a dummy DTSTAMP for each component
-    struct icaltimetype dtstamp = icaltime_current_time_with_zone(icaltimezone_get_utc_timezone());
-    if (vavailability) {
-        icalcomponent_set_dtstamp(vavailability, dtstamp);
-    }
-    if (xstandard) {
-        icalcomponent_set_dtstamp(xstandard, dtstamp);
-    }
-    if (vagenda) {
-        icalcomponent_set_dtstamp(vagenda, dtstamp);
-    }
-    if (xavailable) {
-        icalcomponent_set_dtstamp(xavailable, dtstamp);
+    // Test icalerror_error_from_string with the input string
+    icalerrorenum errorEnum = icalerror_error_from_string(icalString);
+    assert(errorEnum >= ICAL_NO_ERROR && errorEnum <= ICAL_UNKNOWN_ERROR);
+
+    // Test icalcomponent_new_from_string
+    component = icalcomponent_new_from_string(icalString);
+    if (component != NULL) {
+        // Free the component
+        icalcomponent_free(component);
     }
 
-    // Clean up components
-    if (vavailability) {
-        icalcomponent_free(vavailability);
-    }
-    if (xstandard) {
-        icalcomponent_free(xstandard);
-    }
-    if (vagenda) {
-        icalcomponent_free(vagenda);
-    }
-    if (xavailable) {
-        icalcomponent_free(xavailable);
-    }
-
-    // Properties are freed by icalcomponent_free, no need to call icalproperty_free
-
+    delete[] icalString;
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

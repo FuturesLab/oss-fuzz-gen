@@ -1,55 +1,82 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h> // Include the string.h library for memcpy
 
 extern "C" {
-#include "/src/libical/src/libical/icalcomponent.h"
+    #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid icalcomponent
-    if (size < 1) {
+    // Ensure there is enough data to proceed
+    if (size < sizeof(struct icaltimetype)) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
+    // Create an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Extract an icaltimetype from the input data
+    struct icaltimetype recurrence_id;
+    memcpy(&recurrence_id, data, sizeof(struct icaltimetype));
 
-    // Create an icalcomponent from the buffer
-    icalcomponent *component = icalcomponent_new_from_string(buffer);
-
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != NULL) {
-        // Call the function-under-test
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Clean up the component
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_isa to icalcomponent_get_next_component
-        icalcomponent* ret_icalcomponent_new_vtodo_qruie = icalcomponent_new_vtodo();
-        if (ret_icalcomponent_new_vtodo_qruie == NULL){
-        	return 0;
-        }
-
-        icalcomponent* ret_icalcomponent_get_next_component_tnmfc = icalcomponent_get_next_component(ret_icalcomponent_new_vtodo_qruie, kind);
-        if (ret_icalcomponent_get_next_component_tnmfc == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
+    // Initialize the timezone to avoid null dereference
+    icaltimezone *timezone = icaltimezone_get_builtin_timezone("UTC");
+    if (timezone == NULL) {
         icalcomponent_free(component);
+        return 0;
     }
+    
+    // Set the timezone in the icaltimetype
+    recurrence_id.zone = timezone;
 
-    // Free the temporary buffer
-    free(buffer);
+    // Call the function-under-test
+    icalcomponent_set_recurrenceid(component, recurrence_id);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_59(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

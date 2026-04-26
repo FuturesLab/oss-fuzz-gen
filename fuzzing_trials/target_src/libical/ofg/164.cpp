@@ -1,64 +1,66 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create an icalproperty
-    if (size < 1) {
-        return 0;
-    }
-
-    // Create a dummy icalproperty
-    icalproperty *property = icalproperty_new(ICAL_ANY_PROPERTY);
-    if (property == NULL) {
-        return 0;
-    }
-
-    // Initialize an icalproperty_kind
-    icalproperty_kind kind = icalproperty_isa(property);
-
-    // Create a string from the input data
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
-        icalproperty_free(property);
-        return 0;
-    }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';
-
-    // Convert icalproperty_kind to icalvalue_kind
-    icalvalue_kind value_kind = ICAL_NO_VALUE;
-    switch (kind) {
-        case ICAL_ANY_PROPERTY:
-            value_kind = ICAL_STRING_VALUE;
-            break;
-        // Add additional cases here for different property kinds if needed
-        default:
-            value_kind = ICAL_STRING_VALUE;
-            break;
-    }
-
-    // Set the property value from input data
-    icalvalue *value = icalvalue_new_from_string(value_kind, input_str);
-    if (value != NULL) {
-        icalproperty_set_value(property, value);
-    }
-
-    // Iterate over parameters instead of properties
-    icalparameter *iter = icalproperty_get_first_parameter(property, ICAL_ANY_PARAMETER);
-
     // Call the function-under-test
-    bool is_valid = (iter != NULL);
+    icalcomponent *component = icalcomponent_new_vtodo();
 
-    // Cleanup
-    free(input_str);
-    icalproperty_free(property);
+    // Perform operations on the component if necessary
+    if (component != NULL) {
+        // Example operation: Convert to string and print (for debugging)
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // In a real fuzzing scenario, you might log or further process the string
+            // For now, we just free it
+            icalmemory_free_buffer(component_str);
+        }
 
-    return is_valid ? 1 : 0;
+        // Free the component after use
+        icalcomponent_free(component);
+    }
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_164(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

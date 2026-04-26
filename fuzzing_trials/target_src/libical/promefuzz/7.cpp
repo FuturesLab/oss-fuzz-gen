@@ -1,85 +1,111 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_set_due at icalcomponent.c:2634:6 in icalcomponent.h
-// icalcomponent_set_dtend at icalcomponent.c:1622:6 in icalcomponent.h
-// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
-// icalcomponent_set_recurrenceid at icalcomponent.c:1839:6 in icalcomponent.h
-// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
-// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
+// icalmemory_set_mem_alloc_funcs at icalmemory.c:279:6 in icalmemory.h
+// icalmemory_free_ring at icalmemory.c:197:6 in icalmemory.h
+// icalmemory_free_buffer at icalmemory.c:348:6 in icalmemory.h
+// icalmemory_add_tmp_buffer at icalmemory.c:151:6 in icalmemory.h
+// icalmemory_append_char at icalmemory.c:399:6 in icalmemory.h
 #include <iostream>
-#include <fstream>
+#include <sstream>
 #include <string>
+#include <vector>
 #include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdint>
+#include <cstddef>
+extern "C" {
 #include "ical.h"
 #include "ical.h"
+#include "ical.h"
+#include "icalmemory.h"
+}
+
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+
+static void custom_free(void *ptr) {
+    free(ptr);
+}
+
+static void* custom_malloc(size_t size) {
+    return malloc(size);
+}
+
+static void* custom_realloc(void *ptr, size_t size) {
+    return realloc(ptr, size);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) + sizeof(int)) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Set custom memory allocation functions
+    icalmemory_set_mem_alloc_funcs(custom_malloc, custom_realloc, custom_free);
+
+    // Test icalmemory_add_tmp_buffer and icalmemory_free_ring
+    char *buffer = static_cast<char*>(custom_malloc(Size));
+    if (buffer) {
+        memcpy(buffer, Data, Size);
+        icalmemory_add_tmp_buffer(buffer);
+        icalmemory_free_ring();
     }
 
-    // Create a dummy file if needed
-    std::ofstream dummyFile("./dummy_file");
-    if (!dummyFile.is_open()) {
-        return 0;
-    }
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
-
-    // Extract data from input
-    int year = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
-
-    int componentType = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
-
-    // Initialize timezone
-    icaltimezone *timezone = icaltimezone_get_utc_timezone();
-
-    // Initialize icaltimetype
-    icaltimetype timeType;
-    timeType.year = year;
-    timeType.zone = timezone;
-
-    // Initialize icalcomponent
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(componentType % ICAL_NUM_COMPONENT_TYPES);
-    icalcomponent *component = icalcomponent_new(kind);
-
-    if (!component) {
-        return 0;
-    }
-
-    // Fuzz the target functions
-    try {
-        // icalcomponent_set_due
-        if (kind == ICAL_VTODO_COMPONENT) {
-            icalcomponent_set_due(component, timeType);
+    // Test icalmemory_append_char
+    size_t buffer_len = 15;
+    char *append_buffer = static_cast<char*>(custom_malloc(buffer_len));
+    if (append_buffer) {
+        strcpy(append_buffer, "My number is: ");
+        size_t buffer_end = strlen(append_buffer);
+        char *buffer_end_pos = append_buffer + buffer_end;
+        if (buffer_end_pos < append_buffer + buffer_len) {
+            icalmemory_append_char(&append_buffer, &buffer_end_pos, &buffer_len, Data[0]);
         }
-
-        // icalcomponent_set_dtstart
-        icalcomponent_set_dtstart(component, timeType);
-
-        // icalcomponent_set_dtend
-        icalcomponent_set_dtend(component, timeType);
-
-        // icalcomponent_set_recurrenceid
-        icalcomponent_set_recurrenceid(component, timeType);
-
-        // icalcomponent_set_dtstamp
-        icalcomponent_set_dtstamp(component, timeType);
-
-        // icalcomponent_new_valarm
-        icalcomponent *valarm = icalcomponent_new_valarm();
-        if (valarm) {
-            icalcomponent_free(valarm);
-        }
-    } catch (...) {
-        // Handle any exceptions
+        icalmemory_free_buffer(append_buffer);
     }
 
-    // Cleanup
-    icalcomponent_free(component);
+    // Reset memory allocation functions to default
+    icalmemory_set_mem_alloc_funcs(nullptr, nullptr, nullptr);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

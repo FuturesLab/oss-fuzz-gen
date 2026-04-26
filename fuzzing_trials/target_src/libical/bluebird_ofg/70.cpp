@@ -1,95 +1,116 @@
+#include <string.h>
+#include <sys/stat.h>
+#include "libical/ical.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
-extern "C" {
-#include "/src/libical/src/libical/icalcomponent.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid icalcomponent
-    if (size < 1) {
-        return 0;
+    // Initialize a memory context for icalcomponent
+    icalcomponent *component = nullptr;
+
+    // Ensure the data size is sufficient to create a valid icalcomponent
+    if (size > 0) {
+        // Create a string from the input data
+        char *inputData = (char *)malloc(size + 1);
+        if (inputData == nullptr) {
+            return 0; // Memory allocation failed
+        }
+        memcpy(inputData, data, size);
+        inputData[size] = '\0'; // Null-terminate the string
+
+        // Parse the input data into an icalcomponent
+        component = icalparser_parse_string(inputData);
+
+        // Free the input data as it's no longer needed
+        free(inputData);
     }
 
-    // Create a temporary buffer to hold the data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0;
-    }
-
-    // Copy the data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Create an icalcomponent from the buffer
-    icalcomponent *component = icalcomponent_new_from_string(buffer);
-
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != NULL) {
+    // If a valid icalcomponent was created, use it
+    if (component != nullptr) {
         // Call the function-under-test
-        icalcomponent_kind kind = icalcomponent_isa(component);
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-        // Clean up the component
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_isa to icalcomponent_count_components
-        struct icaltimetype ret_icalcomponent_get_dtend_lvyzk = icalcomponent_get_dtend(component);
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_dtend to icalcomponent_set_due
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_dtend to icalcomponent_set_dtstamp
-        icalcomponent* ret_icalcomponent_new_vevent_jiqhv = icalcomponent_new_vevent();
-        if (ret_icalcomponent_new_vevent_jiqhv == NULL){
-        	return 0;
+        // Free the returned string if not NULL
+        if (icalString != nullptr) {
+            free(icalString);
         }
 
-        icalcomponent_set_dtstamp(ret_icalcomponent_new_vevent_jiqhv, ret_icalcomponent_get_dtend_lvyzk);
+        // Free the icalcomponent
 
-        // End mutation: Producer.APPEND_MUTATOR
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icaltimezone_get_builtin_timezone_from_offset
 
-        struct icaltimetype ret_icalcomponent_get_due_riylh = icalcomponent_get_due(component);
-
-        icalcomponent_set_due(component, ret_icalcomponent_get_due_riylh);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        int ret_icalcomponent_count_components_jwjaa = icalcomponent_count_components(component, kind);
-        if (ret_icalcomponent_count_components_jwjaa < 0){
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icalparameter_remove_delegatedto
+        icalparameter* ret_icalparameter_new_fbtype_zmmec = icalparameter_new_fbtype(ICAL_FBTYPE_BUSYTENTATIVE);
+        if (ret_icalparameter_new_fbtype_zmmec == NULL){
         	return 0;
         }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_count_components to icalcomponent_set_recurrenceid
-        struct icaltimetype ret_icalcomponent_get_dtstart_gsfvx = icalcomponent_get_dtstart(component);
-
-        icalcomponent_set_recurrenceid(component, ret_icalcomponent_get_dtstart_gsfvx);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_recurrenceid to icalcomponent_remove_component
-        icalcomponent* ret_icalcomponent_clone_eviqw = icalcomponent_clone(component);
-        if (ret_icalcomponent_clone_eviqw == NULL){
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalparameter_new_fbtype_zmmec) {
         	return 0;
         }
-
-        icalcomponent_remove_component(component, ret_icalcomponent_clone_eviqw);
-
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!icalString) {
+        	return 0;
+        }
+        icalparameter_remove_delegatedto(ret_icalparameter_new_fbtype_zmmec, icalString);
         // End mutation: Producer.APPEND_MUTATOR
-
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+        
+        size_t ret_icallimit_get_pauii = icallimit_get(ICAL_LIMIT_PARSE_SEARCH);
+        if (ret_icallimit_get_pauii < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!icalString) {
+        	return 0;
+        }
+        icaltimezone* ret_icaltimezone_get_builtin_timezone_from_offset_bsaji = icaltimezone_get_builtin_timezone_from_offset((int )ret_icallimit_get_pauii, icalString);
+        if (ret_icaltimezone_get_builtin_timezone_from_offset_bsaji == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_free(component);
     }
-
-    // Free the temporary buffer
-    free(buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_70(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

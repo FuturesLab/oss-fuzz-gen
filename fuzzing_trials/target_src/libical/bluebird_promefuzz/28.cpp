@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,74 +9,98 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstring>
+#include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalrecur.h"
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size == 0) return 0;
 
-    // Convert input data to a null-terminated string
-    char *inputData = (char *)malloc(Size + 1);
-    if (!inputData) {
-        return 0;
-    }
-    memcpy(inputData, Data, Size);
-    inputData[Size] = '\0';
+    // Create a new icalrecurrencetype instance
+    struct icalrecurrencetype *recur = icalrecurrencetype_new();
+    if (!recur) return 0;
 
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(inputData);
-    if (comp) {
-        // Set description
-        icalcomponent_set_description(comp, "Sample Description");
+    // Fuzz icalrecurrencetype_ref
+    icalrecurrencetype_ref(recur);
 
-        // Set comment
-        icalcomponent_set_comment(comp, "Sample Comment");
-
-        // Set UID
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_comment to icalcomponent_set_dtstamp
-        struct icaltimetype ret_icalcomponent_get_recurrenceid_ghxec = icalcomponent_get_recurrenceid(NULL);
-
-        icalcomponent_set_dtstamp(comp, ret_icalcomponent_get_recurrenceid_ghxec);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_dtstamp to icalcomponent_set_due
-        struct icaltimetype ret_icalcomponent_get_dtstart_yryoi = icalcomponent_get_dtstart(comp);
-
-        icalcomponent_set_due(comp, ret_icalcomponent_get_dtstart_yryoi);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        icalcomponent_set_uid(comp, "Sample UID");
-
-        // Set summary
-        icalcomponent_set_summary(comp, "Sample Summary");
-
-        // Convert back to string
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_summary to icalcomponent_remove_component
-        icalproperty_method ret_icalcomponent_get_method_ydbjq = icalcomponent_get_method(comp);
-
-        icalcomponent_remove_component(comp, comp);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        char *icalString = icalcomponent_as_ical_string_r(comp);
-        if (icalString) {
-            // Normally, we would do something with the string, but for fuzzing, just free it
-            free(icalString);
+    // Convert recurrence type to string
+    char *recurStr = icalrecurrencetype_as_string(recur);
+    if (recurStr) {
+        // Fuzz icalrecurrencetype_new_from_string
+        struct icalrecurrencetype *newRecur = icalrecurrencetype_new_from_string(recurStr);
+        if (newRecur) {
+            // Fuzz icalrecurrencetype_as_string_r
+            char *recurStrR = icalrecurrencetype_as_string_r(newRecur);
+            if (recurStrR) {
+                free(recurStrR);
+            }
+            icalrecurrencetype_unref(newRecur);
         }
-
-        // Free the icalcomponent
-        icalcomponent_free(comp);
+        free(recurStr);
     }
 
-    free(inputData);
+    // Fuzz icalrecurrencetype_unref
+    icalrecurrencetype_unref(recur);
+
+    // Use the input data to create a string and fuzz icalrecurrencetype_new_from_string
+    char *inputStr = static_cast<char*>(malloc(Size + 1));
+    if (inputStr) {
+        memcpy(inputStr, Data, Size);
+        inputStr[Size] = '\0';
+
+        struct icalrecurrencetype *inputRecur = icalrecurrencetype_new_from_string(inputStr);
+        if (inputRecur) {
+            char *inputRecurStr = icalrecurrencetype_as_string_r(inputRecur);
+            if (inputRecurStr) {
+                free(inputRecurStr);
+            }
+            icalrecurrencetype_unref(inputRecur);
+        }
+        free(inputStr);
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

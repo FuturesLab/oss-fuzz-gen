@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,93 +9,131 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstring>
-#include <cstdlib>
+extern "C" {
 #include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalvalue.h"
+}
+
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+
+static icalvalue_kind GetRandomIcalValueKind() {
+    const icalvalue_kind kinds[] = {
+        ICAL_ANY_VALUE, ICAL_ACTION_VALUE, ICAL_ATTACH_VALUE, ICAL_BINARY_VALUE,
+        ICAL_BOOLEAN_VALUE, ICAL_BUSYTYPE_VALUE, ICAL_CALADDRESS_VALUE,
+        ICAL_CARLEVEL_VALUE, ICAL_CLASS_VALUE, ICAL_CMD_VALUE, ICAL_DATE_VALUE,
+        ICAL_DATETIME_VALUE, ICAL_DATETIMEDATE_VALUE, ICAL_DATETIMEPERIOD_VALUE,
+        ICAL_DURATION_VALUE, ICAL_FLOAT_VALUE, ICAL_GEO_VALUE, ICAL_INTEGER_VALUE,
+        ICAL_LINK_VALUE, ICAL_METHOD_VALUE, ICAL_PARTICIPANTTYPE_VALUE,
+        ICAL_PERIOD_VALUE, ICAL_POLLCOMPLETION_VALUE, ICAL_POLLMODE_VALUE,
+        ICAL_PROXIMITY_VALUE, ICAL_QUERY_VALUE, ICAL_QUERYLEVEL_VALUE,
+        ICAL_RECUR_VALUE, ICAL_RELATEDTO_VALUE, ICAL_REQUESTSTATUS_VALUE,
+        ICAL_RESOURCETYPE_VALUE, ICAL_STATUS_VALUE, ICAL_STRING_VALUE,
+        ICAL_TASKMODE_VALUE, ICAL_TEXT_VALUE, ICAL_TRANSP_VALUE, ICAL_TRIGGER_VALUE,
+        ICAL_UID_VALUE, ICAL_URI_VALUE, ICAL_UTCOFFSET_VALUE, ICAL_X_VALUE,
+        ICAL_XLICCLASS_VALUE, ICAL_XMLREFERENCE_VALUE, ICAL_NO_VALUE
+    };
+    size_t index = rand() % (sizeof(kinds) / sizeof(kinds[0]));
+    return kinds[index];
+}
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Convert input data to a null-terminated string
-    char *inputData = (char *)malloc(Size + 1);
-    if (!inputData) {
+    // Convert the input data to a null-terminated string
+    char *inputStr = static_cast<char *>(malloc(Size + 1));
+    if (!inputStr) {
         return 0;
     }
-    memcpy(inputData, Data, Size);
-    inputData[Size] = '\0';
+    memcpy(inputStr, Data, Size);
+    inputStr[Size] = '\0';
 
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(inputData);
-    if (comp) {
-        // Set description
-        icalcomponent_set_description(comp, "Sample Description");
+    // Fuzz icalvalue_new_from_string
+    icalvalue_kind kind = GetRandomIcalValueKind();
+    icalvalue *value = icalvalue_new_from_string(kind, inputStr);
+    if (value) {
+        // Fuzz icalvalue_clone
+        icalvalue *clonedValue = icalvalue_clone(value);
+        if (clonedValue) {
+            // Fuzz icalvalue_compare
+            icalparameter_xliccomparetype compareResult = icalvalue_compare(value, clonedValue);
 
-        // Set comment
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_comment with icalcomponent_set_x_name
-        icalcomponent_set_x_name(comp, "Sample Comment");
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Set UID
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_comment to icalcomponent_set_dtstamp
-        struct icaltimetype ret_icalcomponent_get_dtstamp_ordtj = icalcomponent_get_dtstamp(comp);
-
-        icalcomponent_set_dtstamp(comp, ret_icalcomponent_get_dtstamp_ordtj);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_dtstamp to icalcomponent_check_restrictions
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_dtstamp to icalcomponent_get_x_name
-
-        const char* ret_icalcomponent_get_x_name_xrloa = icalcomponent_get_x_name(comp);
-        if (ret_icalcomponent_get_x_name_xrloa == NULL){
-        	return 0;
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalvalue_compare to icalparameter_set_xliccomparetype
+            icalparameter* ret_icalparameter_new_schedulestatus_gxrqb = icalparameter_new_schedulestatus((const char *)"r");
+            if (ret_icalparameter_new_schedulestatus_gxrqb == NULL){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!ret_icalparameter_new_schedulestatus_gxrqb) {
+            	return 0;
+            }
+            icalparameter_set_xliccomparetype(ret_icalparameter_new_schedulestatus_gxrqb, compareResult);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            (void)compareResult; // Suppress unused variable warning
+            icalvalue_free(clonedValue);
         }
 
-        // End mutation: Producer.APPEND_MUTATOR
+        // Fuzz icalvalue_isa
+        icalvalue_kind isaKind = icalvalue_isa(value);
+        (void)isaKind; // Suppress unused variable warning
 
-        bool ret_icalcomponent_check_restrictions_hoxfi = icalcomponent_check_restrictions(comp);
-        if (ret_icalcomponent_check_restrictions_hoxfi == 0){
-        	return 0;
-        }
+        // Fuzz icalvalue_reset_kind
+        icalvalue_reset_kind(value);
 
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_uid with icalcomponent_set_location
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_location with icalcomponent_set_relcalid
-        icalcomponent_set_relcalid(comp, "Sample UID");
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Set summary
-        icalcomponent_set_summary(comp, "Sample Summary");
-
-        // Convert back to string
-        char *icalString = icalcomponent_as_ical_string_r(comp);
-        if (icalString) {
-            // Normally, we would do something with the string, but for fuzzing, just free it
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        icalcomponent_free(comp);
+        icalvalue_free(value);
     }
 
-    free(inputData);
+    // Fuzz icalvalue_new
+    icalvalue *newValue = icalvalue_new(kind);
+    if (newValue) {
+        icalvalue_free(newValue);
+    }
+
+    free(inputStr);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

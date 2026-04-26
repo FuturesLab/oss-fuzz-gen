@@ -1,60 +1,63 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
-extern "C" {
-#include "/src/libical/src/libical/icalcomponent.h"
-}
+#include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "libical/ical.h"
 
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid icalcomponent
-    if (size < 1) {
-        return 0;
-    }
+    // Initialize the library
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+    icalparameter *parameter = icalparameter_new(ICAL_ROLE_PARAMETER);
 
-    // Create a temporary buffer to hold the data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0;
-    }
+    // Ensure the property and parameter are added to the component
+    icalproperty_add_parameter(property, parameter);
+    icalcomponent_add_property(component, property);
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Call the function-under-test
+    icalproperty_remove_parameter_by_ref(property, parameter);
 
-    // Create an icalcomponent from the buffer
-    icalcomponent *component = icalcomponent_new_from_string(buffer);
-
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != NULL) {
-        // Call the function-under-test
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Clean up the component
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_isa to icalcomponent_get_next_component
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_new_vtimezone with icalcomponent_new_vcalendar
-        icalcomponent* ret_icalcomponent_new_vtimezone_jgsyw = icalcomponent_new_vcalendar();
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        if (ret_icalcomponent_new_vtimezone_jgsyw == NULL){
-        	return 0;
-        }
-
-        icalcomponent* ret_icalcomponent_get_next_component_jzxxz = icalcomponent_get_next_component(ret_icalcomponent_new_vtimezone_jgsyw, kind);
-        if (ret_icalcomponent_get_next_component_jzxxz == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        icalcomponent_free(component);
-    }
-
-    // Free the temporary buffer
-    free(buffer);
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_45(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
