@@ -1,27 +1,70 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <libical/ical.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h> // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract a method
-    if (size < sizeof(icalproperty_method)) {
+    // Ensure the input size is sufficient to fill the icaltimetype structure
+    if (size < sizeof(struct icaltimetype)) {
         return 0;
     }
 
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Extract a method from the data
-    icalproperty_method method = static_cast<icalproperty_method>(data[0] % ICAL_METHOD_NONE);
+    // Create and initialize a icaltimetype structure from the input data
+    struct icaltimetype time;
+    memcpy(&time, data, sizeof(struct icaltimetype));
 
     // Call the function-under-test
-    icalcomponent_set_method(component, method);
+    bool result = icaltime_is_valid_time(time);
 
-    // Clean up
-    icalcomponent_free(component);
+    // Use the result in some way to prevent optimization out
+    if (result) {
+        // Do something if the time is valid
+    } else {
+        // Do something else if the time is invalid
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

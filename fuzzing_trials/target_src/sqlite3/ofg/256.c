@@ -1,29 +1,77 @@
 #include <stdint.h>
-#include <stddef.h>  // For size_t
-#include <stdlib.h>  // For NULL
 #include <sqlite3.h>
-
-// Define a callback function for tracing
-static int traceCallback(unsigned int traceType, void *context, void *p, void *x) {
-    // Simple callback function that does nothing
-    return 0;
-}
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_256(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    unsigned int mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW | SQLITE_TRACE_CLOSE;  // Trace event mask
-    void *userData = NULL;  // User data for the callback
+    int rc;
+    int config_option;
+    void *config_value;
 
-    // Initialize SQLite database in memory
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;  // If opening fails, return early
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Call the function-under-test
-    sqlite3_trace_v2(db, mask, traceCallback, userData);
+    // Ensure size is sufficient for extracting an int and a pointer-sized value
+    if (size < sizeof(int) + sizeof(void *)) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Close the SQLite database
+    // Extract an integer from the data for the config option
+    config_option = *(int *)data;
+    data += sizeof(int);
+    size -= sizeof(int);
+
+    // Extract a pointer-sized value from the data for the config value
+    config_value = (void *)*(uintptr_t *)data;
+
+    // Call the function-under-test
+    sqlite3_db_config(db, config_option, config_value);
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_256(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

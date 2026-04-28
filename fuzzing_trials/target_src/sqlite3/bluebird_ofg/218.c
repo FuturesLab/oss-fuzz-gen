@@ -1,64 +1,48 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
-#include <string.h>  // Include for strlen and memcpy
+#include <stddef.h>
 #include "sqlite3.h"
-
-// Callback function to be used with sqlite3_trace_v2
-static int trace_callback(unsigned int trace, void *ctx, void *p, void *x) {
-    // Implement a simple callback that does nothing
-    return 0;
-}
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_218(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    unsigned int mask = 0;
-    void *user_data = NULL;
-    int result;
+    sqlite3 *db = NULL;
+    sqlite3_blob *blob = NULL;
+    const char *db_name = "main"; // Use "main" for in-memory database
+    const char *table_name = "test_table";
+    const char *column_name = "test_column";
+    sqlite_int64 rowid = 1;
+    int flags = 0;
 
-    // Open an in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Initialize SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Set the trace mask to a fixed value for fuzzing
-    mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW;
-
-    // Call the function-under-test
-    result = sqlite3_trace_v2(db, mask, trace_callback, user_data);
-
-    // Execute the input data as an SQL statement if it's not empty
-    if (size > 0) {
-        // Allocate a new buffer with an additional byte for the null terminator
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0;
-        }
-
-        // Copy the input data to the new buffer and null-terminate it
-        memcpy(sql, data, size);
-        sql[size] = '\0';
-
-        char *errMsg = 0;
-        sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
-
-        // Free the allocated buffer
-        free(sql);
+    // Create a table for testing
+    char *err_msg = NULL;
+    const char *create_table_sql = "CREATE TABLE test_table (id INTEGER PRIMARY KEY, test_column BLOB);";
+    if (sqlite3_exec(db, create_table_sql, 0, 0, &err_msg) != SQLITE_OK) {
+        sqlite3_free(err_msg);
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Close the SQLite database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_db_release_memory with sqlite3_total_changes
-    sqlite3_total_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Insert a row for testing
+    const char *insert_sql = "INSERT INTO test_table (test_column) VALUES (zeroblob(10));";
+    if (sqlite3_exec(db, insert_sql, 0, 0, &err_msg) != SQLITE_OK) {
+        sqlite3_free(err_msg);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Call the function-under-test
+    int result = sqlite3_blob_open(db, db_name, table_name, column_name, rowid, flags, &blob);
+
+    // Clean up
+    if (blob) {
+        sqlite3_blob_close(blob);
+    }
+    sqlite3_close(db);
 
     return 0;
 }

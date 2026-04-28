@@ -1,12 +1,17 @@
 #include <sndfile.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include <unistd.h>
+#include <unistd.h>   // For close, unlink, and write functions
+#include <fcntl.h>    // For mkstemp function
+
+extern "C" {
+    // Include necessary C headers, source files, functions, and code here.
+}
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    // Create a temporary file to simulate a sound file
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
@@ -21,30 +26,61 @@ extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
     }
     close(fd);
 
-    // Open the file with libsndfile
+    // Open the temporary file as a sound file
     SF_INFO sfinfo;
-    memset(&sfinfo, 0, sizeof(SF_INFO));
     SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
-    if (sndfile == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Try a few different string types
-    const int string_types[] = {SF_STR_TITLE, SF_STR_ARTIST, SF_STR_COMMENT, SF_STR_DATE, SF_STR_ALBUM};
-    size_t num_types = sizeof(string_types) / sizeof(string_types[0]);
-
-    for (size_t i = 0; i < num_types; ++i) {
-        const char *str = sf_get_string(sndfile, string_types[i]);
-        if (str != NULL) {
-            // Optionally, you can print or log the retrieved string
-            // printf("Retrieved string: %s\n", str);
+    
+    // Call the function-under-test
+    if (sndfile != NULL) {
+        const char *error = sf_strerror(sndfile);
+        // Use the error string in some way to avoid compiler optimization removing the call
+        if (error) {
+            printf("Error: %s\n", error);
         }
+        sf_close(sndfile);
     }
 
-    // Clean up
-    sf_close(sndfile);
+    // Clean up the temporary file
     unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -3,21 +3,51 @@
 #include <stdio.h>
 #include <zlib.h>
 
-// Remove the 'extern "C"' as it is not needed in a C file
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
     // Call the function-under-test
     const char *version = zlibVersion();
 
-    // Print the version to verify the function call
+    // Optionally, print the version to verify the function call
     printf("Zlib version: %s\n", version);
-
-    // Utilize the input data to maximize fuzzing result
-    if (size > 0) {
-        // Example usage of data: calculate CRC32 checksum
-        uLong crc = crc32(0L, Z_NULL, 0);
-        crc = crc32(crc, data, size);
-        printf("CRC32: %lu\n", crc);
-    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

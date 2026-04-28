@@ -3,38 +3,65 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    z_stream stream;
+    z_stream strm;
     int ret;
 
     // Initialize the z_stream structure
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
 
-    // Initialize deflate with default compression level
-    ret = deflateInit(&stream, Z_DEFAULT_COMPRESSION);
+    // Initialize the deflate operation
+    ret = deflateInit(&strm, Z_DEFAULT_COMPRESSION);
     if (ret != Z_OK) {
         return 0;
     }
 
-    // Set input data for the z_stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = (uInt)size;
+    // Set the input data for the z_stream
+    strm.next_in = (Bytef *)data;
+    strm.avail_in = (uInt)size;
 
-    // Prepare an output buffer
-    uint8_t out_buffer[1024];
-    stream.next_out = out_buffer;
-    stream.avail_out = sizeof(out_buffer);
-
-    // Perform deflate operation
-    ret = deflate(&stream, Z_FINISH);
-    if (ret != Z_STREAM_END) {
-        deflateEnd(&stream);
-        return 0;
-    }
-
-    // End deflation and clean up
-    deflateEnd(&stream);
+    // Call deflateEnd to clean up
+    deflateEnd(&strm);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_117(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

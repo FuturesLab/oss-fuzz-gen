@@ -1,52 +1,46 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include "sqlite3.h"
 #include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-
-// Callback function for sqlite3_exec
-static int callback_57(void *data, int argc, char **argv, char **azColName) {
-    return 0;
-}
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = NULL;
+    char *errMsg = 0;
+    char **result;
+    int rows, columns;
     int rc;
 
-    // Initialize database connection
-    rc = sqlite3_open(":memory:", &db);
+    // Ensure data is null-terminated for use as a SQL query
+    char *sqlQuery = (char *)malloc(size + 1);
+    if (sqlQuery == NULL) {
+        return 0;
+    }
+    memcpy(sqlQuery, data, size);
+    sqlQuery[size] = '\0';
+
+    // Open a temporary in-memory SQLite database
+    const char bvsdeqfe[1024] = "uzkoy";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(bvsdeqfe, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
+        free(sqlQuery);
         return 0;
     }
 
-    // Ensure the input data is null-terminated for use as a string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL command
-    sqlite3_exec(db, sql, callback_57, NULL, &errMsg);
+    // Execute the SQL query using sqlite3_get_table
+    rc = sqlite3_get_table(db, sqlQuery, &result, &rows, &columns, &errMsg);
 
     // Clean up
+    if (result) {
+        sqlite3_free_table(result);
+    }
     if (errMsg) {
         sqlite3_free(errMsg);
     }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
-    int ret_sqlite3_strlike_qkmrf = sqlite3_strlike(errMsg, NULL, 64);
-    if (ret_sqlite3_strlike_qkmrf < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
     sqlite3_close(db);
+    free(sqlQuery);
 
     return 0;
 }

@@ -1,39 +1,81 @@
+#include <libical/ical.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 
-extern "C" {
-    #include <libical/ical.h>
-}
-
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for our needs
-    if (size < 1) {
+    // Ensure the data is large enough to create a null-terminated string
+    if (size == 0) {
         return 0;
     }
 
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Create a null-terminated string from the input data
+    char *str_data = new char[size + 1];
+    memcpy(str_data, data, size);
+    str_data[size] = '\0';
 
-    // Extract a status value from the input data
-    icalproperty_status status = 
-        static_cast<icalproperty_status>(data[0] % 7); // Assuming there are 7 possible statuses
+    // Call the function-under-test
+    icalproperty *prop = icalproperty_vanew_xlicmimeoptinfo(str_data, nullptr);
 
-    // Create an icalproperty for status and add it to the component
-    icalproperty *status_property = icalproperty_new_status(status);
-    icalcomponent_add_property(component, status_property);
+    // Additional operations to increase code coverage
+    if (prop != nullptr) {
+        // Access some properties of the created icalproperty to increase coverage
+        icalproperty_kind kind = icalproperty_isa(prop);
+        const char *name = icalproperty_get_xlicmimeoptinfo(prop);
+        
+        // Use the retrieved information in some way
+        if (kind == ICAL_XLICMIMEOPTINFO_PROPERTY && name != nullptr) {
+            // Do something with the name, e.g., check its length
+            size_t name_length = strlen(name);
+            if (name_length > 0) {
+                // Simulate further processing
+            }
+        }
 
-    // Serialize the component to a string to ensure it is processed
-    char *component_str = icalcomponent_as_ical_string(component);
-
-    // Check if the component string is not null and has some content
-    if (component_str != nullptr && strlen(component_str) > 0) {
-        // Optionally print or log the component string for debugging
-        // printf("Component: %s\n", component_str);
+        // Clean up
+        icalproperty_free(prop);
     }
 
-    // Clean up
-    icalcomponent_free(component);
+    delete[] str_data;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

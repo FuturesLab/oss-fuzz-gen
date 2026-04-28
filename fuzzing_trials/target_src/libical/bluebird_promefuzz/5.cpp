@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,78 +9,113 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+#include <cassert>
 #include "libical/ical.h"
-
-static icalcomponent* create_dummy_icalcomponent(const uint8_t *Data, size_t Size) {
-    // Attempt to parse the input data as an iCalendar string
-    std::string ical_data(reinterpret_cast<const char*>(Data), Size);
-    icalcomponent *component = icalparser_parse_string(ical_data.c_str());
-    if (!component) {
-        // If parsing fails, create a simple VEVENT component
-        component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    }
-    return component;
-}
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalparser.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalerror.h"
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    // Create a dummy icalcomponent from the input data
-    icalcomponent *component = create_dummy_icalcomponent(Data, Size);
-    if (!component) {
-        return 0;
+    // Ensure the input data is null-terminated for string processing functions
+    char *icalString = new char[Size + 1];
+    memcpy(icalString, Data, Size);
+    icalString[Size] = '\0';
+
+    // Test icalparser_parse_string
+    icalcomponent *component = icalparser_parse_string(icalString);
+    if (component != NULL) {
+        // Test icalcomponent_convert_errors
+        icalcomponent_convert_errors(component);
+
+        // Free the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_convert_errors to icalcomponent_get_span using the plateau pool
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        struct icaltime_span ret_icalcomponent_get_span_mkyst = icalcomponent_get_span(component);
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_span to icaltime_span_contains
+        bool ret_icaltime_span_contains_vaktg = icaltime_span_contains(&ret_icalcomponent_get_span_mkyst, &ret_icalcomponent_get_span_mkyst);
+        if (ret_icaltime_span_contains_vaktg == 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
-    // Test icalcomponent_as_ical_string
-    char *ical_string = icalcomponent_as_ical_string(component);
-    if (ical_string) {
-        std::cout << "iCal String: " << ical_string << std::endl;
+    // Check for errors and print backtrace if any
+    if (*icalerror_icalerrno() != ICAL_NO_ERROR) {
+        icalerror_backtrace();
     }
 
-    // Test icalcomponent_get_uid
-    const char *uid = icalcomponent_get_uid(component);
-    if (uid) {
-        std::cout << "UID: " << uid << std::endl;
+    // Test icalerror_error_from_string with the input string
+    icalerrorenum errorEnum = icalerror_error_from_string(icalString);
+    assert(errorEnum >= ICAL_NO_ERROR && errorEnum <= ICAL_UNKNOWN_ERROR);
+
+    // Test icalcomponent_new_from_string
+    component = icalcomponent_new_from_string(icalString);
+    if (component != NULL) {
+        // Free the component
+        icalcomponent_free(component);
     }
 
-    // Test icalcomponent_get_comment
-    const char *comment = icalcomponent_get_comment(component);
-    if (comment) {
-        std::cout << "Comment: " << comment << std::endl;
-    }
-
-    // Test icalcomponent_get_description
-    const char *description = icalcomponent_get_description(component);
-    if (description) {
-        std::cout << "Description: " << description << std::endl;
-    }
-
-    // Test icalcomponent_get_component_name
-    const char *component_name = icalcomponent_get_component_name(component);
-    if (component_name) {
-        std::cout << "Component Name: " << component_name << std::endl;
-    }
-
-    // Test icalcomponent_get_location
-    const char *location = icalcomponent_get_location(component);
-    if (location) {
-        std::cout << "Location: " << location << std::endl;
-    }
-
-    // Clean up the component
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_location to icalproperty_recurrence_is_excluded
-    struct icaltimetype ret_icalcomponent_get_dtstart_wjavx = icalcomponent_get_dtstart(component);
-    struct icaltimetype ret_icalcomponent_get_due_euiug = icalcomponent_get_due(component);
-
-    bool ret_icalproperty_recurrence_is_excluded_venir = icalproperty_recurrence_is_excluded(component, &ret_icalcomponent_get_dtstart_wjavx, &ret_icalcomponent_get_due_euiug);
-    if (ret_icalproperty_recurrence_is_excluded_venir == 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    icalcomponent_free(component);
-    
+    delete[] icalString;
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

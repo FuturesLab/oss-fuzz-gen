@@ -1,40 +1,66 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h> // Include for size_t
+#include <stdlib.h> // Include for NULL
 #include "sqlite3.h"
-#include <string.h>
+#include <string.h> // Include for memcpy
 
 int LLVMFuzzerTestOneInput_360(const uint8_t *data, size_t size) {
-    // Check if the input data is non-null and has a non-zero size
-    if (data == NULL || size == 0) {
-        return 0;
-    }
-
     sqlite3 *db;
+    int rc;
     char *errMsg = 0;
 
-    // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db)) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        sqlite3_close(db);
-        return 0;
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0; // If opening the database fails, exit early
     }
 
-    // Convert the input data to a null-terminated string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
+    // Ensure that the database is not NULL
+    if (db != NULL) {
+        // Create a table to ensure some database activity
+        const char *createTableSQL = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
+        rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(errMsg);
+            sqlite3_close(db);
+            return 0;
+        }
+
+        // Insert data into the table using fuzz input
+        if (size > 0) {
+            // Create a null-terminated copy of the data
+            char *dataCopy = (char *)malloc(size + 1);
+            if (dataCopy == NULL) {
+                sqlite3_close(db);
+                return 0;
+            }
+            memcpy(dataCopy, data, size);
+            dataCopy[size] = '\0';
+
+            char *insertSQL = sqlite3_mprintf("INSERT INTO test (value) VALUES (%Q);", dataCopy);
+            free(dataCopy); // Free the allocated memory for dataCopy
+            rc = sqlite3_exec(db, insertSQL, 0, 0, &errMsg);
+            sqlite3_free(insertSQL);
+            if (rc != SQLITE_OK) {
+                sqlite3_free(errMsg);
+                sqlite3_close(db);
+                return 0;
+            }
+        }
+
+        // Call the function-under-test
+        int autocommit = sqlite3_get_autocommit(db);
+        
+        // Use the result in some way to avoid compiler optimizations
+        if (autocommit) {
+            // Do something if autocommit is enabled
+        } else {
+            // Do something if autocommit is disabled
+        }
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL command(s) from the input data
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free allocated resources
-    sqlite3_free(errMsg);
-    free(sql);
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

@@ -1,99 +1,88 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "sqlite3.h"
+#include <string.h>
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
+static void fuzz_sqlite3_complete16(const uint8_t *Data, size_t Size) {
+    // Ensure the input data is a multiple of 2 for UTF-16 encoding
+    if (Size % 2 != 0) return;
+
+    // Null-terminate the input data for UTF-16
+    uint16_t *utf16_sql = (uint16_t *)sqlite3_malloc(Size + 2);
+    if (!utf16_sql) return;
+    memcpy(utf16_sql, Data, Size);
+    utf16_sql[Size / 2] = 0;
+
+    // Call the target function
+    sqlite3_complete16(utf16_sql);
+
+    // Free allocated memory
+    sqlite3_free(utf16_sql);
 }
 
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static void fuzz_sqlite3_complete(const uint8_t *Data, size_t Size) {
+    // Null-terminate the input data for UTF-8
+    char *utf8_sql = (char *)sqlite3_malloc(Size + 1);
+    if (!utf8_sql) return;
+    memcpy(utf8_sql, Data, Size);
+    utf8_sql[Size] = '\0';
+
+    // Call the target function
+    sqlite3_complete(utf8_sql);
+
+    // Free allocated memory
+    sqlite3_free(utf8_sql);
+}
+
+static void fuzz_sqlite3_drop_modules(const uint8_t *Data, size_t Size) {
+    // Initialize SQLite
+    if (sqlite3_initialize() != SQLITE_OK) return;
+
+    // Create a dummy database connection
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) return;
+
+    // Prepare a keep list
+    const char *azKeep[] = { "module1", "module2", NULL };
+
+    // Call the target function
+    sqlite3_drop_modules(db, azKeep);
+
+    // Close the database connection
+    sqlite3_close(db);
+}
+
+static void fuzz_sqlite3_realloc(const uint8_t *Data, size_t Size) {
+    // Allocate initial memory block
+    void *pOld = sqlite3_malloc(100);
+    if (!pOld) return;
+
+    // Call the target function with new size
+    void *pNew = sqlite3_realloc(pOld, (int)Size);
+
+    // Free the memory if realloc was successful
+    if (pNew) sqlite3_free(pNew);
+}
+
+static void fuzz_sqlite3_malloc(const uint8_t *Data, size_t Size) {
+    // Allocate memory using the size from the input data
+    void *pMem = sqlite3_malloc((int)Size);
+
+    // Free the allocated memory
+    if (pMem) sqlite3_free(pMem);
 }
 
 int LLVMFuzzerTestOneInput_233(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
-    sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
-
-    int rc;
-
-    // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
-
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    // Set authorizer
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_limit
-    int ret_sqlite3_limit_jqpbs = sqlite3_limit(db, 0, 1);
-    if (ret_sqlite3_limit_jqpbs < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
-    }
-
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
-    }
-
-    // Close the database connection
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_malloc to sqlite3_strglob
-    char* ret_sqlite3_str_value_hrmpz = sqlite3_str_value(NULL);
-    if (ret_sqlite3_str_value_hrmpz == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_strglob_oausl = sqlite3_strglob((const char *)ptr, ret_sqlite3_str_value_hrmpz);
-    if (ret_sqlite3_strglob_oausl < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sqlite3_close(db);
-    free(sql);
+    fuzz_sqlite3_complete16(Data, Size);
+    fuzz_sqlite3_complete(Data, Size);
+    fuzz_sqlite3_drop_modules(Data, Size);
+    fuzz_sqlite3_realloc(Data, Size);
+    fuzz_sqlite3_malloc(Data, Size);
     return 0;
 }
 #ifdef INC_MAIN

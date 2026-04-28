@@ -1,48 +1,37 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <stdio.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_375(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int keyword_count = sqlite3_keyword_count();
-
-    // Use `data` and `size` to create a SQL statement and execute it
-    char *errMsg = 0;
     sqlite3 *db;
-    sqlite3_open(":memory:", &db);
+    char *errMsg = 0;
+    int rc;
 
-    // Ensure the input is null-terminated for safety
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if(rc) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Convert the fuzz input into a null-terminated string
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    if (!sql) {
         sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL statement
+    // Execute the SQL command
     sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_txn_state
-    char* ret_sqlite3_str_value_uhgfv = sqlite3_str_value(NULL);
-    if (ret_sqlite3_str_value_uhgfv == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_txn_state_crvqv = sqlite3_txn_state(db, ret_sqlite3_str_value_uhgfv);
-    if (ret_sqlite3_txn_state_crvqv < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Free allocated resources
     sqlite3_free(errMsg);
     free(sql);
     sqlite3_close(db);
-
-    // Optionally, you can print the result for debugging purposes
-    printf("Number of SQLite keywords: %d\n", keyword_count);
 
     return 0;
 }

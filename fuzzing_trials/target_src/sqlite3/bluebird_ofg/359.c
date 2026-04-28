@@ -1,36 +1,50 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_359(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    const void *result;
-    int columnIndex = 0;
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0; // If opening the database fails, return early
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if(rc) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Prepare a statement using the SQLite library
-    if (sqlite3_prepare_v2(db, (const char *)data, (int)size, &stmt, NULL) == SQLITE_OK) {
-        // Execute the statement to ensure a row is available
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-            // Call the function-under-test
-            result = sqlite3_column_text16(stmt, columnIndex);
-
-            // Optionally, you can add checks or further processing on 'result'
-            if (result != NULL) {
-                // Do something with the result if needed
-            }
-        }
-
-        // Finalize the statement to clean up resources
-        sqlite3_finalize(stmt);
+    // Convert the fuzz input into a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Close the SQLite database
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_stricmp
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_stricmp with sqlite3_strglob
+    int ret_sqlite3_stricmp_ahuyy = sqlite3_strglob((const char *)"r", errMsg);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (ret_sqlite3_stricmp_ahuyy < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
+    free(sql);
     sqlite3_close(db);
 
     return 0;

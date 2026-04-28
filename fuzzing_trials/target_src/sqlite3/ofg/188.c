@@ -1,53 +1,94 @@
 #include <stdint.h>
-#include <stddef.h> // Include this header for size_t
+#include <stddef.h>  // Include for size_t and NULL
 #include <sqlite3.h>
 
+// Mock function to simulate sqlite3_context
+void mock_sqlite3_function(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
+    if (argc > 0) {
+        uint64_t n = sqlite3_value_int64(argv[0]);
+        sqlite3_result_zeroblob64(ctx, n);
+    }
+}
+
 int LLVMFuzzerTestOneInput_188(const uint8_t *data, size_t size) {
+    // Ensure size is large enough to extract a uint64_t value
+    if (size < sizeof(uint64_t)) {
+        return 0;
+    }
+
+    // Extract a uint64_t value from the input data
+    uint64_t n = *(const uint64_t*)data;
+
+    // Create a mock sqlite3_context and sqlite3_value
     sqlite3 *db;
+    sqlite3_open(":memory:", &db);
+
+    // Prepare a statement to create a context
     sqlite3_stmt *stmt;
-    int rc;
-    sqlite3_int64 result = 0;
+    sqlite3_prepare_v2(db, "SELECT zeroblob(?)", -1, &stmt, NULL);
 
-    // Initialize SQLite in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
+    // Bind the integer value
+    sqlite3_bind_int64(stmt, 1, n);
 
-    // Create a simple table for testing
-    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value INTEGER);";
-    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Step the statement to ensure the context is set
+    if (sqlite3_step(stmt) != SQLITE_ROW) {
+        // If stepping the statement doesn't return a row, finalize and close
+        sqlite3_finalize(stmt);
         sqlite3_close(db);
         return 0;
     }
 
-    // Insert some test data
-    const char *insert_sql = "INSERT INTO test (value) VALUES (42);";
-    rc = sqlite3_exec(db, insert_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Create a mock sqlite3_value
+    sqlite3_value *argv[1];
+    argv[0] = sqlite3_column_value(stmt, 0);
 
-    // Prepare a statement to select data
-    const char *select_sql = "SELECT value FROM test WHERE id = 1;";
-    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Create a mock sqlite3_context
+    sqlite3_context *ctx = sqlite3_user_data(stmt); // Correctly get the context
 
-    // Execute the statement and step to the first row
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Call the function-under-test
-        result = sqlite3_column_int64(stmt, 0);
-    }
+    // Execute the mock function with the correct context and value
+    mock_sqlite3_function(ctx, 1, argv);
 
-    // Finalize the statement and close the database
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_188(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

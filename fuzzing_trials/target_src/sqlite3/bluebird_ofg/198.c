@@ -1,48 +1,38 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
+#include <stddef.h>
 #include "sqlite3.h"
-#include <string.h>  // Include for memcpy
 
+// Fuzzing function
 int LLVMFuzzerTestOneInput_198(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    char *errMsg = NULL;
-
-    // Initialize the SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, return early
+    // Convert input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        return 0; // Fail gracefully on allocation failure
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Ensure the database pointer is not NULL before calling the function
-    if (db != NULL) {
-        // Allocate memory for the SQL statement
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close_v2(db);
-            return 0;
-        }
-
-        // Copy the fuzz input into the SQL statement buffer
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
-
-        // Execute the SQL statement
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        
-        // Free the allocated memory for the SQL statement
+    // Initialize an SQLite database in memory
+    sqlite3 *db;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
         free(sql);
-
-        // Free the error message if it was set
-        if (errMsg != NULL) {
-            sqlite3_free(errMsg);
-        }
-
-        // Close the database
-        sqlite3_close_v2(db);
+        return 0;
     }
+
+    // Execute the SQL statement
+    char *errMsg = 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free resources
+    sqlite3_free(errMsg);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_extended_errcode
+    sqlite3_extended_errcode(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    free(sql);
 
     return 0;
 }

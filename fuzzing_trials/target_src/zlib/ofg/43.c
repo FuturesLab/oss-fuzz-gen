@@ -1,39 +1,61 @@
 #include <stdint.h>
 #include <zlib.h>
-#include <stdlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Ensure the input size is not zero to avoid undefined behavior
+    // Ensure that the size is not zero to avoid undefined behavior
     if (size == 0) {
         return 0;
     }
 
-    // Use the input data to create a uLong value for compressBound
-    uLong input_value = (uLong)size; // Use the size of the data for compressBound
+    // Use the first bytes of data to create a uLong value
+    uLong input = (uLong)data[0];
 
-    // Calculate the maximum compressed size
-    uLong compressed_size = compressBound(input_value);
+    // Call the function-under-test
+    uLong result = compressBound(input);
 
-    // Allocate memory for the compressed data
-    uint8_t *compressed_data = (uint8_t *)malloc(compressed_size);
-    if (compressed_data == NULL) {
-        return 0; // Memory allocation failed
+    // Use the result in some way to avoid compiler optimizations removing the call
+    if (result == 0) {
+        return 0;
     }
-
-    // Compress the data
-    int result = compress(compressed_data, &compressed_size, data, size);
-
-    // Free the allocated memory
-    free(compressed_data);
-
-    // Check the result of the compression
-    if (result != Z_OK) {
-        return 0; // Compression failed
-    }
-
-    // Optionally, you can add some checks or assertions on the result
-    // For fuzzing purposes, we generally don't need to check the result
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

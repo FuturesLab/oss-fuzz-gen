@@ -1,25 +1,65 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_171(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent structure
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!component) {
-        return 0; // If component creation fails, return early
+    // Ensure the data is null-terminated to be used as a string.
+    char *inputString = (char *)malloc(size + 1);
+    if (inputString == NULL) {
+        return 0; // Memory allocation failed, exit early.
     }
+    memcpy(inputString, data, size);
+    inputString[size] = '\0';
 
-    // Initialize the icalcompiter structure correctly
-    icalcompiter iterator = icalcomponent_begin_component(component, ICAL_VEVENT_COMPONENT);
+    // Call the function-under-test with the input string.
+    icalerrorstate result = icalerror_supress(inputString);
 
-    // Call the function-under-test
-    bool result = icalcompiter_is_valid(&iterator);
-
-    // Clean up
-    icalcomponent_free(component);
+    // Clean up allocated memory.
+    free(inputString);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_171(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

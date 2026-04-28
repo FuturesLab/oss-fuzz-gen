@@ -1,60 +1,78 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>  // For malloc and free
-#include <string.h>  // For memcpy
+#include <stdlib.h> // For free()
 
 extern "C" {
-#include <libical/ical.h>
+    #include <libical/ical.h> // Assuming this is the correct path for libical headers
+
+    // Include the function-under-test
+    char * icalrecurrencetype_as_string(struct icalrecurrencetype *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to be meaningful
-    if (size < 1) {
-        return 0;
+    if (size < 4) {
+        return 0; // Ensure there is enough data to initialize the struct
     }
 
-    // Create a temporary buffer to hold the data
-    char *tempData = (char *)malloc(size + 1);
-    if (tempData == NULL) {
-        return 0;
+    // Declare and initialize a struct icalrecurrencetype
+    struct icalrecurrencetype recurrence;
+    
+    // Initialize the struct with non-NULL values
+    recurrence.freq = (enum icalrecurrencetype_frequency)(data[0] % 8); // Assuming there are 8 frequency types
+    recurrence.interval = data[1];
+    recurrence.count = data[2];
+    recurrence.week_start = (enum icalrecurrencetype_weekday)(data[3] % 7); // Assuming 7 weekdays
+    
+    // Correctly initialize the 'until' field as an icaltimetype
+    struct icaltimetype until_time = icaltime_null_time(); // Use a valid icaltimetype initialization
+    recurrence.until = until_time;
+
+    // Call the function-under-test
+    char *result = icalrecurrencetype_as_string(&recurrence);
+
+    // Free the result if necessary
+    if (result != NULL) {
+        free(result);
     }
-
-    // Copy data into the temporary buffer and null-terminate it
-    memcpy(tempData, data, size);
-    tempData[size] = '\0';
-
-    // Parse the data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(tempData);
-
-    // Ensure the component is not NULL before proceeding
-    if (component != NULL) {
-        // Fuzz different kinds of icalcomponent_kind
-        icalcomponent_kind kinds[] = {
-            ICAL_VEVENT_COMPONENT,
-            ICAL_VTODO_COMPONENT,
-            ICAL_VJOURNAL_COMPONENT,
-            ICAL_VFREEBUSY_COMPONENT,
-            ICAL_VTIMEZONE_COMPONENT,
-            ICAL_XSTANDARD_COMPONENT,
-            ICAL_XDAYLIGHT_COMPONENT,
-            ICAL_X_COMPONENT,
-            ICAL_VCALENDAR_COMPONENT,
-            ICAL_VSCHEDULE_COMPONENT,
-            ICAL_ANY_COMPONENT
-        };
-
-        // Iterate over the kinds and call the function-under-test
-        for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); ++i) {
-            int count = icalcomponent_count_components(component, kinds[i]);
-            (void)count; // Suppress unused variable warning
-        }
-
-        // Free the component after use
-        icalcomponent_free(component);
-    }
-
-    // Free the temporary buffer
-    free(tempData);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_78(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

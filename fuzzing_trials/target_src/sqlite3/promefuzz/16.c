@@ -1,64 +1,125 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
-// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
-// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
-// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
-// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
-// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
-// sqlite3_config at sqlite3.c:171444:16 in sqlite3.h
-// sqlite3_libversion at sqlite3.c:171116:24 in sqlite3.h
-// sqlite3_sourceid at sqlite3.c:252248:24 in sqlite3.h
-// sqlite3_initialize at sqlite3.c:171208:16 in sqlite3.h
-// sqlite3_vfs_find at sqlite3.c:13246:25 in sqlite3.h
+// sqlite3_vmprintf at sqlite3.c:19305:18 in sqlite3.h
+// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
+// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
+// sqlite3_expanded_sql at sqlite3.c:80485:18 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sqlite3.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <stdarg.h>
 
-static void invoke_sqlite3_config() {
-    sqlite3_config(SQLITE_CONFIG_SINGLETHREAD);
-    sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
-    sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-    sqlite3_config(SQLITE_CONFIG_MEMSTATUS, 1);
-    sqlite3_config(SQLITE_CONFIG_SCRATCH, NULL, 0, 0);
-    sqlite3_config(SQLITE_CONFIG_PAGECACHE, NULL, 0, 0);
-    sqlite3_config(SQLITE_CONFIG_HEAP, NULL, 0, 0);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
+
+static char *custom_vmprintf(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    char *result = sqlite3_vmprintf(format, args);
+    va_end(args);
+    return result;
 }
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    // Step 1: Invoke sqlite3_libversion and sqlite3_sourceid
-    const char *version = sqlite3_libversion();
-    const char *sourceId = sqlite3_sourceid();
+    if (Size < 1) return 0;
 
-    // Step 2: Configure SQLite using sqlite3_config
-    invoke_sqlite3_config();
+    // Initialize SQLite
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    const char *tail = NULL;
+    char *sql = NULL;
+    char *expandedSql = NULL;
+    int rc;
 
-    // Step 3: Initialize SQLite library
-    int initResult = sqlite3_initialize();
-    if (initResult != SQLITE_OK) {
-        return 0; // Early exit if initialization fails
+    // Create a dummy file for any file-based operations
+    write_dummy_file(Data, Size);
+
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Step 4: Find a VFS using sqlite3_vfs_find
-    char *vfsName = NULL;
-    if (Size > 0) {
-        vfsName = (char *)malloc(Size + 1);
-        if (vfsName == NULL) {
-            return 0; // Early exit if memory allocation fails
+    // Use custom_vmprintf to format a string
+    sql = custom_vmprintf("%.*s", (int)Size, Data);
+
+    if (sql) {
+        // Prepare the SQL statement
+        rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &tail);
+        if (rc == SQLITE_OK) {
+            // Retrieve the last error message
+            const char *errmsg = sqlite3_errmsg(db);
+
+            // Get the expanded SQL
+            expandedSql = sqlite3_expanded_sql(stmt);
+
+            // Free the expanded SQL string
+            sqlite3_free(expandedSql);
         }
-        memcpy(vfsName, Data, Size);
-        vfsName[Size] = '\0'; // Null-terminate the string
     }
-    sqlite3_vfs *vfs = sqlite3_vfs_find(vfsName);
 
-    // Cleanup
-    free(vfsName);
-    // Normally, we'd call sqlite3_shutdown() here, but it's not thread-safe
-    // and must be called from a single thread after all database connections are closed.
+    // Free the formatted SQL string
+    sqlite3_free(sql);
+
+    // Finalize the statement
+    if (stmt) {
+        sqlite3_finalize(stmt);
+    }
+
+    // Close the database connection
+    sqlite3_close(db);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

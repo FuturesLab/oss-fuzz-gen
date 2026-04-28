@@ -1,49 +1,45 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <string.h> // Include string.h for strlen function
+#include <string.h>
+
+// Dummy busy handler function
+int busy_handler_112(void *data, int count) {
+    return 0; // Always return 0 to indicate that the operation should not be retried
+}
 
 int LLVMFuzzerTestOneInput_112(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
+    sqlite3 *db;
     int rc;
+    char *errMsg = 0;
 
-    // Open a new database connection using in-memory database
-    rc = sqlite3_open(":memory:", &db);
+    // Open an in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // If size is greater than zero, attempt to execute the data as SQL
-    if (size > 0) {
-        // Ensure the data is null-terminated before passing to sqlite3_exec
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close_v2(db);
-            return 0;
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
+    // Set the busy handler for the database
+    sqlite3_busy_handler(db, busy_handler_112, NULL);
 
-        char *errMsg = 0;
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open_v2
-        const char atkdowcg[1024] = "gtwce";
-        int ret_sqlite3_open_v2_mhnfv = sqlite3_open_v2(atkdowcg, &db, 1, NULL);
-        if (ret_sqlite3_open_v2_mhnfv < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        free(sql); // Free the allocated memory
+    // Ensure the input data is null-terminated for use as a SQL statement
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Close the database connection
-    sqlite3_close_v2(db);
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free allocated resources
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

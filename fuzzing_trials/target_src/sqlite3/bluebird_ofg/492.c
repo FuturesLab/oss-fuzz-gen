@@ -1,35 +1,59 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
+#include <stdlib.h>
+#include <string.h> // Include for memcpy and malloc
 
-// Fuzzing function
 int LLVMFuzzerTestOneInput_492(const uint8_t *data, size_t size) {
-    // Initialize SQLite library
-    if (sqlite3_initialize() != SQLITE_OK) {
-        return 0; // If initialization fails, return 0 to continue fuzzing
-    }
-
-    // Create an in-memory database
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        sqlite3_shutdown();
+    sqlite3 *db = NULL;
+    int rc;
+    
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Create a statement from the input data
-    sqlite3_stmt *stmt;
-    sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
 
-    // Finalize the statement to clean up
-    sqlite3_finalize(stmt);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_blob_write
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_blob_write_qwutp = sqlite3_blob_write(NULL, (const void *)db, size, 64);
+    if (ret_sqlite3_blob_write_qwutp < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Copy the input data to the new buffer and null-terminate it
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
+
+    // Call the function-under-test
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
+
+    // Free the allocated buffer
+    free(sql);
 
     // Close the database
     sqlite3_close(db);
 
-    // Shutdown SQLite library
-    sqlite3_shutdown();
-
-    return 0; // Return 0 to indicate the fuzzer should continue testing
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

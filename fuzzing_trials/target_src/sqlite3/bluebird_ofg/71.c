@@ -1,56 +1,47 @@
-#include <stddef.h>  // For size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // For NULL
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
-#include <string.h>  // For strlen
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
+    sqlite3 *db;
     int rc;
+    char *errMsg = 0;
 
-    // Attempt to open an in-memory SQLite database
+    // Initialize SQLite database in memory
     rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    // Create a table
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INT, value TEXT);";
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        return 0; // Exit if the database couldn't be opened
+        sqlite3_free(errMsg);
     }
 
-    // If there's data, attempt to execute it as an SQL statement
-    if (size > 0) {
-        // Ensure the data is null-terminated before passing to sqlite3_exec
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0; // Exit if memory allocation fails
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
+    // Use the fuzz data to execute a SQL command
+    char *fuzzSql = (char *)malloc(size + 1);
+    if (fuzzSql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(fuzzSql, data, size);
+    fuzzSql[size] = '\0';
 
-        char *errMsg = 0;
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-
-        free(sql); // Free the allocated memory
+    rc = sqlite3_exec(db, fuzzSql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        // Call the function-under-test
+        const char *errmsg = sqlite3_errmsg(db);
+        printf("SQLite Error: %s\n", errmsg);
+        sqlite3_free(errMsg);
     }
 
-    // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_db_readonly
-    void* ret_sqlite3_malloc_ssmed = sqlite3_malloc(size);
-    if (ret_sqlite3_malloc_ssmed == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_db_readonly_bmqqp = sqlite3_db_readonly(db, (const char *)ret_sqlite3_malloc_ssmed);
-    if (ret_sqlite3_db_readonly_bmqqp < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int errno_result = sqlite3_system_errno(db);
-
-    // Clean up and close the database
+    free(fuzzSql);
     sqlite3_close(db);
 
     return 0;

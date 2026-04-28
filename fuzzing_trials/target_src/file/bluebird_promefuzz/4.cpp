@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,126 +9,135 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include "magic.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include "magic.h"
+#include <cstdio>
+
+static magic_t createMagicSet() {
+    return magic_open(MAGIC_NONE);
+}
+
+static void closeMagicSet(magic_t magic) {
+    magic_close(magic);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    // Initialize magic_t object
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of magic_open
-    magic_t cookie = magic_open(Size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (cookie == NULL) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Prepare a dummy file if necessary
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file != NULL) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
+    // Create a separate magic_set for each function
+    magic_t magicSetList = createMagicSet();
+    magic_t magicSetLoadBuffers = createMagicSet();
+    magic_t magicSetBuffer = createMagicSet();
+    magic_t magicSetGetParam = createMagicSet();
+    magic_t magicSetCompile = createMagicSet();
+
+    if (!magicSetList || !magicSetLoadBuffers || !magicSetBuffer || !magicSetGetParam || !magicSetCompile) {
+        closeMagicSet(magicSetList);
+        closeMagicSet(magicSetLoadBuffers);
+        closeMagicSet(magicSetBuffer);
+        closeMagicSet(magicSetGetParam);
+        closeMagicSet(magicSetCompile);
+        return 0;
     }
 
-    // Fuzz magic_load
-    const char *filename = Size > 0 ? "./dummy_file" : NULL;
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function magic_load with magic_check
-    magic_check(cookie, filename);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz magic_errno
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_check to magic_buffer
-    const char* ret_magic_error_ftvpu = magic_error(cookie);
-    if (ret_magic_error_ftvpu == NULL){
-    	return 0;
+    // Dummy database file
+    const char *dummyFile = "./dummy_file";
+    FILE *file = fopen(dummyFile, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 
-    const char* ret_magic_buffer_arvro = magic_buffer(cookie, (const void *)cookie, MAGIC_PARAM_MAGWARN_MAX);
-    if (ret_magic_buffer_arvro == NULL){
-    	return 0;
-    }
+    // Test magic_list
+    magic_list(magicSetList, dummyFile);
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_buffer to magic_file
-
-    const char* ret_magic_file_kgzpn = magic_file(cookie, NULL);
-    if (ret_magic_file_kgzpn == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int err = magic_errno(cookie);
-
-    // Fuzz magic_version
-    int version = magic_version();
-
-    // Fuzz magic_getparam
-    int param_type = (Size > 0) ? Data[0] : 0;
-    size_t param_value;
-    magic_getparam(cookie, param_type, &param_value);
-
-    // Fuzz magic_load_buffers
+    // Test magic_load_buffers
     void *buffers[] = { (void *)Data };
-    size_t buffer_sizes[] = { Size };
-    magic_load_buffers(cookie, buffers, buffer_sizes, 1);
+    size_t sizes[] = { Size };
+    magic_load_buffers(magicSetLoadBuffers, buffers, sizes, 1);
 
-    // Fuzz magic_setparam
+    // Test magic_buffer
+    magic_buffer(magicSetBuffer, Data, Size);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_load_buffers to magic_descriptor
+    // Test magic_getparam
+    int param = MAGIC_PARAM_INDIR_MAX;
+    size_t val;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of magic_getparam
+    magic_getparam(magicSetGetParam, param, (void *)sizes);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    const char* ret_magic_descriptor_slfkm = magic_descriptor(cookie, MAGIC_PARAM_ELF_NOTES_MAX);
-    if (ret_magic_descriptor_slfkm == NULL){
+    // Test magic_compile
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_getparam to magic_file
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!magicSetList) {
     	return 0;
     }
-
+    const char* ret_magic_error_wcdbs = magic_error(magicSetList);
+    if (ret_magic_error_wcdbs == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!magicSetList) {
+    	return 0;
+    }
+    const char* ret_magic_file_uxmoy = magic_file(magicSetList, (const char *)&val);
+    if (ret_magic_file_uxmoy == NULL){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    magic_compile(magicSetCompile, dummyFile);
 
-    magic_setparam(cookie, param_type, &param_value);
-
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_close to magic_load_buffers
-    int ret_magic_errno_demnv = magic_errno(cookie);
-    if (ret_magic_errno_demnv < 0){
-    	return 0;
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_errno to magic_setparam
-    int ret_magic_getflags_cidil = magic_getflags(cookie);
-    if (ret_magic_getflags_cidil < 0){
-    	return 0;
-    }
-
-    int ret_magic_setparam_mffmq = magic_setparam(cookie, ret_magic_errno_demnv, (const void *)cookie);
-    if (ret_magic_setparam_mffmq < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_magic_errno_kaflu = magic_errno(cookie);
-    if (ret_magic_errno_kaflu < 0){
-    	return 0;
-    }
-
-    int ret_magic_load_buffers_qkaqg = magic_load_buffers(cookie, (void **)&cookie, (size_t *)&ret_magic_errno_kaflu, MAGIC_PARAM_NAME_MAX);
-    if (ret_magic_load_buffers_qkaqg < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    magic_close(cookie);
+    // Clean up
+    closeMagicSet(magicSetList);
+    closeMagicSet(magicSetLoadBuffers);
+    closeMagicSet(magicSetBuffer);
+    closeMagicSet(magicSetGetParam);
+    closeMagicSet(magicSetCompile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

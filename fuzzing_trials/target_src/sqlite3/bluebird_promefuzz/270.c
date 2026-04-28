@@ -1,73 +1,74 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "sqlite3.h"
 #include <stdint.h>
-#include <stddef.h>
+#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
 
-static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt = NULL;
-    const char *pzTail = NULL;
+static sqlite3_str* create_sqlite3_str() {
+    sqlite3 *db = NULL;
+    sqlite3_str *str = sqlite3_str_new(db);
+    return str;
+}
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_prepare_v2 with sqlite3_prepare
-    int rc = sqlite3_prepare(db, sql, -1, &stmt, &pzTail);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    if (rc != SQLITE_OK) {
-        const char *errmsg = sqlite3_errmsg(db);
-        (void)errmsg;  // Suppress unused variable warning
-        return;
+static void fuzz_sqlite3_str_functions(sqlite3_str *str, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    int choice = Data[0] % 5;
+    Data++;
+    Size--;
+
+    switch(choice) {
+        case 0: {
+            // Test sqlite3_str_appendchar
+            if (Size < 2) return;
+            int N = Data[0];
+            char C = (char)Data[1];
+            sqlite3_str_appendchar(str, N, C);
+            break;
+        }
+        case 1: {
+            // Test sqlite3_str_append
+            if (Size < 1) return;
+            int N = Size;
+            sqlite3_str_append(str, (const char*)Data, N);
+            break;
+        }
+        case 2: {
+            // Test sqlite3_str_truncate
+            if (Size < 1) return;
+            int N = Data[0];
+            sqlite3_str_truncate(str, N);
+            break;
+        }
+        case 3: {
+            // Test sqlite3_str_length
+            int length = sqlite3_str_length(str);
+            (void)length; // Avoid unused variable warning
+            break;
+        }
+        case 4: {
+            // Test sqlite3_str_errcode
+            int errcode = sqlite3_str_errcode(str);
+            (void)errcode; // Avoid unused variable warning
+            break;
+        }
     }
-
-    rc = sqlite3_step(stmt);
-    rc = sqlite3_step(stmt);  // Call sqlite3_step twice as required
-
-    int column_count = sqlite3_column_count(stmt);
-    for (int i = 0; i < column_count; i++) {
-        int col_type = sqlite3_column_type(stmt, i);
-        const char *col_name = sqlite3_column_name(stmt, i);
-        const unsigned char *col_text = sqlite3_column_text(stmt, i);
-        int col_bytes = sqlite3_column_bytes(stmt, i);
-
-        (void)col_type;  // Suppress unused variable warning
-        (void)col_name;
-        (void)col_text;
-        (void)col_bytes;
-    }
-
-    sqlite3_finalize(stmt);
 }
 
 int LLVMFuzzerTestOneInput_270(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    sqlite3_str *str = create_sqlite3_str();
+    if (str == NULL) {
         return 0;
     }
 
-    // Initialize SQLite
-    sqlite3 *db;
-    int rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
+    fuzz_sqlite3_str_functions(str, Data, Size);
 
-    // Copy input data to a null-terminated string
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0';
-
-    // Execute fuzzing with the given SQL
-    execute_sqlite_fuzzing(db, sql);
-
-    // Cleanup
-    free(sql);
-    sqlite3_close(db);
+    sqlite3_str_free(str);
     return 0;
 }
 #ifdef INC_MAIN

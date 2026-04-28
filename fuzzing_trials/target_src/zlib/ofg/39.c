@@ -3,15 +3,16 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Initialize a z_stream structure
     z_stream stream;
+    int ret;
+
+    // Initialize the z_stream structure
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
 
-    // Initialize the stream for decompression
-    int ret = inflateInit(&stream);
-    if (ret != Z_OK) {
+    // Initialize the inflate state
+    if (inflateInit(&stream) != Z_OK) {
         return 0;
     }
 
@@ -19,22 +20,55 @@ int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
     stream.next_in = (Bytef *)data;
     stream.avail_in = (uInt)size;
 
-    // Allocate some output buffer
-    unsigned char out[1024];
-    stream.next_out = out;
-    stream.avail_out = sizeof(out);
+    // Assume some output buffer
+    unsigned char outbuffer[1024];
+    stream.next_out = outbuffer;
+    stream.avail_out = sizeof(outbuffer);
 
-    // Call the function-under-test
-    int inflateRet;
-    do {
-        inflateRet = inflate(&stream, Z_NO_FLUSH);
-        if (inflateRet == Z_STREAM_ERROR || inflateRet == Z_DATA_ERROR || inflateRet == Z_MEM_ERROR) {
-            break;
-        }
-    } while (stream.avail_out == 0);
+    // Call inflate to decompress the data
+    ret = inflate(&stream, Z_NO_FLUSH);
 
-    // Clean up and end the decompression
+    // Clean up
     inflateEnd(&stream);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

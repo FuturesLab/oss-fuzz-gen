@@ -1,51 +1,79 @@
-#include "libical/ical.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Ensure the input size is reasonable to prevent excessive memory allocation
-    if (size == 0 || size > 1024) {
+    // Ensure the input is null-terminated
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the input data and ensure it's null-terminated
-    char *ical_data = (char *)malloc(size + 1);
-    if (ical_data == NULL) {
+    // Allocate memory for a null-terminated string
+    char *tzid = (char *)malloc(size + 1);
+    if (tzid == NULL) {
         return 0;
     }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_data);
-    free(ical_data);
-
-    if (component == NULL) {
-        return 0;
-    }
+    // Copy the input data and null-terminate it
+    memcpy(tzid, data, size);
+    tzid[size] = '\0';
 
     // Call the function-under-test
-    struct icaltimetype recurrence_id = icalcomponent_get_recurrenceid(component);
+    icaltimezone *timezone = icaltimezone_get_builtin_timezone_from_tzid(tzid);
 
     // Clean up
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_free to icalcomponent_set_description
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_as_ical_string with icalcomponent_get_component_name_r
-    char* ret_icalcomponent_as_ical_string_mbaee = icalcomponent_get_component_name_r(component);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_icalcomponent_as_ical_string_mbaee == NULL){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icaltimezone_get_builtin_timezone_from_tzid to icaltime_from_timet_with_zone using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!timezone) {
     	return 0;
     }
-
-    icalcomponent_set_description(component, ret_icalcomponent_as_ical_string_mbaee);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    icalcomponent_free(component);
+    struct icaltimetype ret_icaltime_from_timet_with_zone_iqfxn = icaltime_from_timet_with_zone(time(NULL) + 3600, 0, timezone);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    free(tzid);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

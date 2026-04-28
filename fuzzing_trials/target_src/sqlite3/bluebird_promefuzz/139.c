@@ -1,77 +1,118 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
-static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt = NULL;
-    const char *pzTail = NULL;
-
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &pzTail);
-    if (rc != SQLITE_OK) {
-        const char *errmsg = sqlite3_errmsg(db);
-        (void)errmsg;  // Suppress unused variable warning
-        return;
-    }
-
-    rc = sqlite3_step(stmt);
-    rc = sqlite3_step(stmt);  // Call sqlite3_step twice as required
-
-    int column_count = sqlite3_column_count(stmt);
-    for (int i = 0; i < column_count; i++) {
-        int col_type = sqlite3_column_type(stmt, i);
-        const char *col_name = sqlite3_column_name(stmt, i);
-        const unsigned char *col_text = sqlite3_column_text(stmt, i);
-        int col_bytes = sqlite3_column_bytes(stmt, i);
-
-        (void)col_type;  // Suppress unused variable warning
-        (void)col_name;
-        (void)col_text;
-        (void)col_bytes;
-    }
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_finalize with sqlite3_data_count
-    sqlite3_data_count(stmt);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+static int dummy_callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_139(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) return 0;
+
+    sqlite3 *db = NULL;
+    char *errMsg = NULL;
+    int rc;
+    int cur, hiwtr;
+    char *formattedStr1 = NULL;
+    char *formattedStr2 = NULL;
+
+    // Ensure the input data is null-terminated
+    char *sqlInput = (char *)malloc(Size + 1);
+    if (!sqlInput) return 0;
+    memcpy(sqlInput, Data, Size);
+    sqlInput[Size] = '\0';
+
+    // Step 1: sqlite3_config
+    rc = sqlite3_config(SQLITE_CONFIG_SINGLETHREAD);
+    if (rc != SQLITE_OK && rc != SQLITE_MISUSE) {
+        free(sqlInput);
         return 0;
     }
 
-    // Initialize SQLite
-    sqlite3 *db;
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Step 2: sqlite3_open
+    rc = sqlite3_open("./dummy_file", &db);
     if (rc != SQLITE_OK) {
+        free(sqlInput);
         return 0;
     }
 
-    // Copy input data to a null-terminated string
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        sqlite3_close(db);
+    // Step 3: sqlite3_errmsg
+    const char *errmsg = sqlite3_errmsg(db);
+
+    // Step 4: sqlite3_exec
+    rc = sqlite3_exec(db, sqlInput, dummy_callback, 0, &errMsg);
+    if (rc != SQLITE_OK && errMsg) {
+        sqlite3_free(errMsg);
+        errMsg = NULL;
+    }
+
+    // Step 5: sqlite3_free
+    sqlite3_free(errMsg);
+
+    // Step 6-14: sqlite3_db_status
+    for (int i = 0; i < 9; i++) {
+        rc = sqlite3_db_status(db, SQLITE_DBSTATUS_LOOKASIDE_USED, &cur, &hiwtr, 0);
+        if (rc != SQLITE_OK) {
+            break;
+        }
+    }
+
+    // Step 15: sqlite3_close
+    rc = sqlite3_close(db);
+    if (rc != SQLITE_OK) {
+        free(sqlInput);
         return 0;
     }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0';
 
-    // Execute fuzzing with the given SQL
-    execute_sqlite_fuzzing(db, sql);
+    // Step 16-20: sqlite3_status
+    for (int i = 0; i < 5; i++) {
+        rc = sqlite3_status(SQLITE_STATUS_MEMORY_USED, &cur, &hiwtr, 0);
+        if (rc != SQLITE_OK) {
+            break;
+        }
+    }
 
-    // Cleanup
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_total_changes
-    sqlite3_total_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Step 21: sqlite3_mprintf
+    formattedStr1 = sqlite3_mprintf("%s", "fuzzing with sqlite3");
+    sqlite3_free(formattedStr1);
+
+    // Step 22: sqlite3_mprintf
+    formattedStr2 = sqlite3_mprintf("%s", "another test");
+    sqlite3_free(formattedStr2);
+
+    // Step 23: sqlite3_open
+    rc = sqlite3_open("./dummy_file", &db);
+    if (rc != SQLITE_OK) {
+        free(sqlInput);
+        return 0;
+    }
+
+    // Step 24: sqlite3_errmsg
+    errmsg = sqlite3_errmsg(db);
+
+    // Step 25-27: sqlite3_exec
+    for (int i = 0; i < 3; i++) {
+        rc = sqlite3_exec(db, sqlInput, dummy_callback, 0, &errMsg);
+        if (rc != SQLITE_OK && errMsg) {
+            sqlite3_free(errMsg);
+            errMsg = NULL;
+        }
+    }
+
+    // Step 28: sqlite3_free
+    sqlite3_free(errMsg);
+
+    // Step 29: sqlite3_close
+    rc = sqlite3_close(db);
+
+    free(sqlInput);
     return 0;
 }
 #ifdef INC_MAIN

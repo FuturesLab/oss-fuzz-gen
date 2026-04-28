@@ -1,47 +1,82 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
 
-    // Initialize a SQLite database in memory
+    // Initialize SQLite (required before using any SQLite functions)
+    if (sqlite3_initialize() != SQLITE_OK) {
+        return 0;
+    }
+
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
+        sqlite3_shutdown();
         return 0;
     }
 
-    // Ensure data is null-terminated for use as a string
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_enable_load_extension
-    int ret_sqlite3_enable_load_extension_qokum = sqlite3_enable_load_extension(db, 1);
-    if (ret_sqlite3_enable_load_extension_qokum < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    char *clientDataKey = (char *)malloc(size + 1);
-    if (clientDataKey == NULL) {
+    // Ensure the input data is null-terminated
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
+        sqlite3_shutdown();
         return 0;
     }
-    memcpy(clientDataKey, data, size);
-    clientDataKey[size] = '\0';
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Example of executing a SQL statement using the input data
-    rc = sqlite3_exec(db, clientDataKey, 0, 0, &errMsg);
+    // Attempt to execute the input data as SQL
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
 
-    // Clean up
-    free(clientDataKey);
+    // Free the allocated memory for SQL
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_prepare_v2
+    sqlite3* ret_sqlite3_db_handle_qcibu = sqlite3_db_handle(NULL);
+    if (ret_sqlite3_db_handle_qcibu == NULL){
+    	return 0;
+    }
+    double ret_sqlite3_value_double_tdctf = sqlite3_value_double(NULL);
+    if (ret_sqlite3_value_double_tdctf < 0){
+    	return 0;
+    }
+    char* ret_sqlite3_str_value_wfmuq = sqlite3_str_value(NULL);
+    if (ret_sqlite3_str_value_wfmuq == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_db_handle_qcibu) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_str_value_wfmuq) {
+    	return 0;
+    }
+    int ret_sqlite3_prepare_v2_xfkdr = sqlite3_prepare_v2(ret_sqlite3_db_handle_qcibu, errMsg, (int )ret_sqlite3_value_double_tdctf, NULL, &ret_sqlite3_str_value_wfmuq);
+    if (ret_sqlite3_prepare_v2_xfkdr < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(sql);
+
+    // Close the database
     sqlite3_close(db);
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
 
     return 0;
 }

@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new at icalcomponent.c:100:16 in icalcomponent.h
-// icalcomponent_get_next_component at icalcomponent.c:627:16 in icalcomponent.h
-// icalcomponent_new_vpoll at icalcomponent.c:2095:16 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
-// icalcomponent_new_vreply at icalcomponent.c:2080:16 in icalcomponent.h
-// icalcomponent_new_vavailability at icalcomponent.c:2085:16 in icalcomponent.h
+// icalmemory_resize_buffer at icalmemory.c:329:7 in icalmemory.h
+// icalmemory_new_buffer at icalmemory.c:308:7 in icalmemory.h
+// icalmemory_tmp_buffer at icalmemory.c:175:7 in icalmemory.h
+// icalmemory_append_string at icalmemory.c:358:6 in icalmemory.h
+// icalmemory_append_encoded_string at icalmemory.c:476:6 in icalmemory.h
+// icalmemory_append_char at icalmemory.c:399:6 in icalmemory.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,69 +14,99 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+extern "C" {
 #include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalmemory.h"
+}
+
+#include <cstddef>
 #include <cstdint>
-
-static void test_icalcomponent_new_vavailability() {
-    icalcomponent *component = icalcomponent_new_vavailability();
-    if (component) {
-        icalcomponent_free(component);
-    }
-}
-
-static void test_icalcomponent_new_vreply() {
-    icalcomponent *component = icalcomponent_new_vreply();
-    if (component) {
-        icalcomponent_free(component);
-    }
-}
-
-static void test_icalcomponent_new(icalcomponent_kind kind) {
-    icalcomponent *component = icalcomponent_new(kind);
-    if (component) {
-        icalcomponent_free(component);
-    }
-}
-
-static void test_icalcomponent_new_vpoll() {
-    icalcomponent *component = icalcomponent_new_vpoll();
-    if (component) {
-        icalcomponent_free(component);
-    }
-}
-
-static void test_icalcomponent_new_vcalendar() {
-    icalcomponent *component = icalcomponent_new_vcalendar();
-    if (component) {
-        icalcomponent_free(component);
-    }
-}
-
-static void test_icalcomponent_get_next_component(icalcomponent *component, icalcomponent_kind kind) {
-    icalcomponent *next_component = icalcomponent_get_next_component(component, kind);
-    if (next_component) {
-        // Do something with next_component if needed
-    }
-}
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) return 0;
+    if (Size < 1) return 0;
 
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    // Test icalmemory_new_buffer
+    size_t buffer_size = 10;
+    char *buffer = (char *)icalmemory_new_buffer(buffer_size);
+    if (!buffer) return 0;
 
-    test_icalcomponent_new_vavailability();
-    test_icalcomponent_new_vreply();
-    test_icalcomponent_new(kind);
-    test_icalcomponent_new_vpoll();
-    test_icalcomponent_new_vcalendar();
+    // Initialize buffer with some data
+    strcpy(buffer, "data");
+    size_t pos = strlen(buffer);
+    char *pos_ptr = buffer + pos;
 
-    icalcomponent *component = icalcomponent_new(kind);
-    if (component) {
-        test_icalcomponent_get_next_component(component, kind);
-        icalcomponent_free(component);
+    // Ensure the input string is null-terminated
+    std::string append_str(reinterpret_cast<const char*>(Data), Size);
+    
+    // Test icalmemory_append_string
+    icalmemory_append_string(&buffer, &pos_ptr, &buffer_size, append_str.c_str());
+
+    // Test icalmemory_append_encoded_string
+    icalmemory_append_encoded_string(&buffer, &pos_ptr, &buffer_size, append_str.c_str());
+
+    // Test icalmemory_append_char
+    char append_char = static_cast<char>(Data[0]);
+    icalmemory_append_char(&buffer, &pos_ptr, &buffer_size, append_char);
+
+    // Test icalmemory_resize_buffer
+    size_t new_buffer_size = buffer_size + 20;
+    char *resized_buffer = (char *)icalmemory_resize_buffer(buffer, new_buffer_size);
+    if (resized_buffer) {
+        buffer = resized_buffer;
+        buffer_size = new_buffer_size;
     }
+
+    // Test icalmemory_tmp_buffer
+    char *tmp_buffer = (char *)icalmemory_tmp_buffer(50);
+    if (tmp_buffer) {
+        strcpy(tmp_buffer, "temporary data");
+    }
+
+    // Cleanup
+    icalmemory_free_buffer(buffer);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

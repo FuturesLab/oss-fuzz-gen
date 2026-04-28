@@ -1,26 +1,21 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 #include "zlib.h"
 
-#define CHUNK 256
-
-static unsigned int dummy_in_func(void FAR *in_desc, z_const unsigned char FAR **buf) {
-    size_t *remaining = (size_t *)in_desc;
-    *buf = (z_const unsigned char FAR *)(remaining + 1);
-    unsigned int to_read = (*remaining < CHUNK) ? (unsigned int)(*remaining) : CHUNK;
-    *remaining -= to_read;
-    return to_read;
-}
-
-static int dummy_out_func(void FAR *out_desc, unsigned char FAR *buf, unsigned len) {
-    unsigned char *output_buffer = (unsigned char *)out_desc;
-    if (output_buffer) {
-        memcpy(output_buffer, buf, len);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    return 0;
 }
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
@@ -28,79 +23,81 @@ int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    z_stream strm;
-    unsigned char out[CHUNK];
-    int ret;
+    // Prepare the dummy file with the provided data
+    write_dummy_file(Data, Size);
 
-    // inflateInit2_
-    memset(&strm, 0, sizeof(z_stream));
-    ret = inflateInit2_(&strm, 15, ZLIB_VERSION, sizeof(z_stream));
-    if (ret != Z_OK) {
+    // Open the file for writing in gzip format
+    gzFile gz_file = gzopen("./dummy_file", "wb");
+    if (gz_file == NULL) {
         return 0;
     }
 
-    // Set up input
-    strm.next_in = (Bytef *)Data;
-    strm.avail_in = Size;
+    // Use gzputc to write a character
+    gzputc(gz_file, Data[0]);
 
-    // Set up output
-    strm.next_out = out;
-    strm.avail_out = CHUNK;
+    // Use gzputs to write a string (ensure null-termination)
+    char str[256];
+    size_t str_len = (Size < 255) ? Size : 255;
+    memcpy(str, Data, str_len);
+    str[str_len] = '\0';
+    gzputs(gz_file, str);
 
-    // inflate
-    do {
+    // Check for errors
+    int errnum;
+    gzerror(gz_file, &errnum);
 
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of inflate
-        ret = inflate(&strm, Size);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Use gzprintf to write formatted data
+    gzprintf(gz_file, "Formatted data: %d\n", Data[0]);
 
+    // Check for errors again
+    gzerror(gz_file, &errnum);
 
-        if (ret == Z_STREAM_ERROR) {
-                break;
-        }
-        if (ret == Z_MEM_ERROR || ret == Z_DATA_ERROR || ret == Z_BUF_ERROR) {
-                break;
-        }
-        if (strm.avail_out == 0) {
-            strm.next_out = out;
-            strm.avail_out = CHUNK;
-        }
-    } while (ret != Z_STREAM_END);
+    // Seek to the beginning of the file
+    gzseek(gz_file, 0, SEEK_SET);
 
-    // inflateEnd
-    inflateEnd(&strm);
-
-    // inflateBackInit_
-    unsigned char window[CHUNK];
-    ret = inflateBackInit_(&strm, 15, window, ZLIB_VERSION, sizeof(z_stream));
-    if (ret != Z_OK) {
-        return 0;
-    }
-
-    // Prepare data for inflateBack
-    size_t remaining = Size;
-    size_t *input_desc = malloc(Size + sizeof(size_t));
-    if (!input_desc) {
-        return 0;
-    }
-    *input_desc = remaining;
-    memcpy(input_desc + 1, Data, Size);
-
-    // Allocate output buffer for inflateBack
-    unsigned char *back_output = malloc(CHUNK);
-    if (!back_output) {
-        free(input_desc);
-        return 0;
-    }
-
-    // inflateBack
-    ret = inflateBack(&strm, dummy_in_func, input_desc, dummy_out_func, back_output);
-
-    // inflateBackEnd
-    inflateBackEnd(&strm);
-
-    free(input_desc);
-    free(back_output);
+    // Close the file
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzclose with gzdirect
+    gzdirect(gz_file);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

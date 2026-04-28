@@ -1,58 +1,71 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "sqlite3.h"
-
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-}
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    sqlite3_blob *blob;
     int rc;
+    void *buffer;
+    int buffer_size;
+    int offset;
 
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(lwzpauru, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
+    // Create a table and insert a blob for testing
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);";
+    const char *insert_blob_sql = "INSERT INTO test (data) VALUES (zeroblob(100));";
 
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_error_offset
-        sqlite3_error_offset(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_error_offset to sqlite3_db_filename
-        void* ret_sqlite3_malloc_jqdjn = sqlite3_malloc(1);
-        if (ret_sqlite3_malloc_jqdjn == NULL){
-        	return 0;
-        }
-        sqlite3_filename ret_sqlite3_db_filename_bmuaz = sqlite3_db_filename(db, (const char *)ret_sqlite3_malloc_jqdjn);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
+    rc = sqlite3_exec(db, create_table_sql, NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    rc = sqlite3_exec(db, insert_blob_sql, NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Open a blob for reading
+    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 0, &blob);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare buffer and offset for reading
+    buffer_size = size > 100 ? 100 : (int)size; // Limit to 100 bytes
+    buffer = malloc(buffer_size);
+    if (buffer == NULL) {
+        sqlite3_blob_close(blob);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    offset = 0; // Start reading from the beginning of the blob
+
+    // Call the function-under-test
+    rc = sqlite3_blob_read(blob, buffer, buffer_size, offset);
+    if (rc != SQLITE_OK) {
+        // Handle read error
+        free(buffer);
+        sqlite3_blob_close(blob);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Clean up
+    free(buffer);
+    sqlite3_blob_close(blob);
+    sqlite3_close(db);
 
     return 0;
 }

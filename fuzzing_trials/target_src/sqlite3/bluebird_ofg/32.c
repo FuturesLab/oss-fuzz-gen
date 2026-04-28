@@ -1,51 +1,43 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <string.h>
 
-// Define a function pointer type for an infinite loop function
-typedef void (*infinite_loop_func)(void);
-
-// Dummy infinite loop function
-int dummy_infinite_loop_32(void) {
-    while (1) {
-        // Infinite loop
-    }
-    return 0;
-}
-
-// Fuzzer entry point
 int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
     sqlite3 *db;
     char *errMsg = 0;
 
-    // Initialize SQLite3 database in memory
+    // Initialize a SQLite database in memory
     if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+        return 0; // If opening the database fails, return
     }
 
-    // Ensure the data is null-terminated to prevent buffer overflow
+    // Ensure the input data is null-terminated
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    if (!sql) {
         sqlite3_close(db);
-        return 0;
+        return 0; // If memory allocation fails, return
     }
     memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
+    sql[size] = '\0';
 
-    // Execute SQL command
-    if (sqlite3_exec(db, sql, 0, 0, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Use the input data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sql, 0, 0, &errMsg);
     }
 
-    // Free the allocated memory for SQL command
+    // Reset auto extension (function under test)
+    sqlite3_reset_auto_extension();
+
+    // Clean up
+    sqlite3_close(db);
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
     free(sql);
 
-    // Close the SQLite3 database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
+    // Return 0 to indicate successful execution
     return 0;
 }
 #ifdef INC_MAIN

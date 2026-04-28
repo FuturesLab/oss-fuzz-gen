@@ -1,55 +1,99 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errMsg = 0;
-    int rc;
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
+        return 0;
+    }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Open a new database connection in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open an in-memory SQLite database
+    sqlite3 *db;
+    const char sicnesjp[1024] = "wnqtz";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open(sicnesjp, &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
         return 0;
     }
 
-    if (size > 0) {
-        // Ensure the input data is null-terminated to prevent buffer overflow
-        char *sql = (char *)malloc(size + 1);
-        if (!sql) {
-            sqlite3_close(db);
-            return 0;
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0';
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
 
-        // Execute the input data as an SQL statement
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        
-        // Free the allocated SQL statement
-        free(sql);
-
-        // Free the error message if it was allocated
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
 
-    // Close the database connection
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_wal_checkpoint
-    char* ret_sqlite3_expanded_sql_nzwyk = sqlite3_expanded_sql(NULL);
-    if (ret_sqlite3_expanded_sql_nzwyk == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_backup_init
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
     	return 0;
     }
-    int ret_sqlite3_wal_checkpoint_wzrxh = sqlite3_wal_checkpoint(db, ret_sqlite3_expanded_sql_nzwyk);
-    if (ret_sqlite3_wal_checkpoint_wzrxh < 0){
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_exec to sqlite3_prepare_v2 using the plateau pool
+    sqlite3_stmt *stmt;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_prepare_v2_rmisg = sqlite3_prepare_v2(db, "SELECT test_function(?);", -1, &stmt, &errMsg);
+    if (ret_sqlite3_prepare_v2_rmisg < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int ret_sqlite3_db_release_memory_mrudg = sqlite3_db_release_memory(db);
+    if (ret_sqlite3_db_release_memory_mrudg < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    const char* ret_sqlite3_errmsg_utwkp = sqlite3_errmsg(db);
+    if (ret_sqlite3_errmsg_utwkp == NULL){
+    	return 0;
+    }
+    void* ret_sqlite3_malloc_vupbv = sqlite3_malloc(size);
+    if (ret_sqlite3_malloc_vupbv == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_vupbv) {
+    	return 0;
+    }
+    sqlite3_backup* ret_sqlite3_backup_init_rpltm = sqlite3_backup_init(db, errMsg, db, (const char *)ret_sqlite3_malloc_vupbv);
+    if (ret_sqlite3_backup_init_rpltm == NULL){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
     sqlite3_close(db);
+    free(query);
 
     return 0;
 }

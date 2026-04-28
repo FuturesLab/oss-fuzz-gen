@@ -1,35 +1,94 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
+#include "libical/ical.h"
 
 extern "C" {
     #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated to prevent buffer overflow issues
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (!null_terminated_data) {
-        return 0; // If memory allocation fails, return early
+    // Ensure the input size is sufficient for creating a valid icalcomponent
+    if (size == 0) {
+        return 0;
     }
-    
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0'; // Null-terminate the string
 
-    // Initialize an icalcomponent from the input data
-    icalcomponent *component = icalcomponent_new_from_string(null_terminated_data);
+    // Create a temporary string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (!inputData) {
+        return 0;
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // If the component is successfully created, call the function-under-test
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
+
+    // Ensure the component is not NULL
     if (component != NULL) {
         // Call the function-under-test
-        icalproperty_status status = icalcomponent_get_status(component);
+        struct icaldurationtype duration = icalcomponent_get_duration(component);
 
-        // Clean up the icalcomponent
+        // Clean up the component
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_duration to icalparameter_set_gap
+        icalparameter* ret_icalparameter_new_delegatedto_gwwcy = icalparameter_new_delegatedto(NULL);
+        if (ret_icalparameter_new_delegatedto_gwwcy == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalparameter_new_delegatedto_gwwcy) {
+        	return 0;
+        }
+        icalparameter_set_gap(ret_icalparameter_new_delegatedto_gwwcy, duration);
+        // End mutation: Producer.APPEND_MUTATOR
+        
         icalcomponent_free(component);
     }
 
-    // Free the allocated memory for the null-terminated data
-    free(null_terminated_data);
+    // Free the allocated input data
+    free(inputData);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,48 +1,93 @@
-extern "C" {
 #include <sndfile.h>
-#include <unistd.h>  // For close() and unlink()
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h> // Include for close() and write()
+
+extern "C" {
+    // Wrap the C headers and functions in extern "C"
+    #include <sndfile.h>
 }
 
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Create a temporary file to use with SNDFILE
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
-
-    // Define the SF_INFO structure
-    SF_INFO sfinfo;
-    memset(&sfinfo, 0, sizeof(SF_INFO));
-
-    // Set some default values for the SF_INFO structure
-    sfinfo.samplerate = 44100;
-    sfinfo.channels = 2;
-    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
-
-    // Open the temporary file with sf_open_fd
-    SNDFILE *sndfile = sf_open_fd(fd, SFM_WRITE, &sfinfo, 1);
-    if (!sndfile) {
+    
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
         return 0;
     }
+    close(fd);
 
-    // Ensure the data size is a multiple of sizeof(float)
-    size_t float_count = size / sizeof(float);
-    float *float_data = reinterpret_cast<float *>(const_cast<uint8_t *>(data));
+    // Open the temporary file using libsndfile
+    SF_INFO sfinfo;
+    memset(&sfinfo, 0, sizeof(SF_INFO));
+    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
+    if (sndfile == NULL) {
+        // If the file cannot be opened, return
+        return 0;
+    }
+
+    // Allocate an array of integers to read into
+    sf_count_t frames_to_read = 1024; // Arbitrary number of frames
+    int *buffer = (int *)malloc(frames_to_read * sfinfo.channels * sizeof(int));
+    if (buffer == NULL) {
+        sf_close(sndfile);
+        return 0;
+    }
 
     // Call the function-under-test
-    sf_count_t written = sf_write_float(sndfile, float_data, static_cast<sf_count_t>(float_count));
+    sf_read_int(sndfile, buffer, frames_to_read);
 
     // Clean up
+    free(buffer);
     sf_close(sndfile);
-    close(fd);
-    unlink(tmpl);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

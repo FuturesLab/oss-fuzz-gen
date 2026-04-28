@@ -1,49 +1,80 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <libical/ical.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+
+extern "C" {
+    #include <libical/icalproperty.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
-        return 0;
-    }
+    // Ensure the data is null-terminated and non-empty
+    if (size == 0) return 0;
 
-    // Copy the input data to a null-terminated string
-    char *ical_data = (char *)malloc(size + 1);
-    if (ical_data == NULL) {
-        return 0;
-    }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
+    // Allocate memory for the null-terminated string
+    char *queryid = (char *)malloc(size + 1);
+    if (queryid == NULL) return 0;
 
-    // Parse the input data as an iCalendar component
-    icalcomponent *component = icalparser_parse_string(ical_data);
-    free(ical_data);
+    // Copy data and null-terminate
+    memcpy(queryid, data, size);
+    queryid[size] = '\0';
 
-    // Check if parsing was successful
-    if (component == NULL) {
-        return 0;
-    }
+    // Call the function-under-test
+    icalproperty *prop = icalproperty_new_queryid(queryid);
 
-    // Perform operations on the component
-    icalproperty *property = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
-    while (property != NULL) {
-        // Perform operations on the property
-        icalvalue *value = icalproperty_get_value(property);
-        if (value != NULL) {
-            // Example operation: Get the string representation of the value
-            const char *value_str = icalvalue_as_ical_string(value);
-            if (value_str != NULL) {
-                // Do something with value_str (e.g., log, analyze, etc.)
-            }
+    // Check if the property was created successfully
+    if (prop != NULL) {
+        // Utilize the property to ensure code paths are exercised
+        const char *retrieved_queryid = icalproperty_get_queryid(prop);
+        
+        // Compare the original and retrieved queryid to ensure correctness
+        if (retrieved_queryid != NULL && strcmp(queryid, retrieved_queryid) == 0) {
+            // Additional logic can be added here to further exercise the property
         }
-        property = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY);
+
+        // Clean up
+        icalproperty_free(prop);
     }
 
-    // Clean up
-    icalcomponent_free(component);
+    free(queryid);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_66(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

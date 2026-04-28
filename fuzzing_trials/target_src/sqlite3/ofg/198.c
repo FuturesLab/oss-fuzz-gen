@@ -1,53 +1,64 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
-
-// Function to prepare a simple SQL statement for testing
-static sqlite3_stmt* prepare_test_statement(sqlite3 *db) {
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER, data BLOB);"
-                      "INSERT INTO test (id, data) VALUES (1, ?);"
-                      "SELECT data FROM test WHERE id = 1;";
-    sqlite3_stmt *stmt;
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        return NULL;
-    }
-    return stmt;
-}
 
 int LLVMFuzzerTestOneInput_198(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt = NULL;
-    int rc;
-
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Ensure there is enough data to extract parameters
+    if (size < 2) {
         return 0;
     }
 
-    // Prepare the test statement
-    stmt = prepare_test_statement(db);
-    if (stmt == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Initialize the sqlite3_str object
+    sqlite3_str *str = sqlite3_str_new(NULL);
 
-    // Bind the input data as a BLOB to the statement
-    sqlite3_bind_blob(stmt, 1, data, (int)size, SQLITE_STATIC);
+    // Extract parameters from the data
+    int count = (int)data[0];  // Use the first byte as the count
+    char character = (char)data[1];  // Use the second byte as the character
 
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Call the function-under-test
-        const void *blob_data = sqlite3_column_blob(stmt, 0);
-        // Use blob_data for further testing if needed
-        (void)blob_data; // Suppress unused variable warning
-    }
+    // Call the function-under-test
+    sqlite3_str_appendchar(str, count, character);
 
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
+    // Clean up
+    sqlite3_str_finish(str);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_198(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

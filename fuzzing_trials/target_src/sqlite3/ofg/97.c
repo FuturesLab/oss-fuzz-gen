@@ -1,34 +1,65 @@
+#include <stddef.h>  // Include this header for size_t
 #include <stdint.h>
-#include <stddef.h>  // Include this for size_t
 #include <sqlite3.h>
 
-// Fuzzing function
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    // Ensure that the size is large enough to extract integers
-    if (size < sizeof(int) + 2 * sizeof(sqlite3_int64)) {
+    int error_code;
+    
+    // Ensure there is enough data to read an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Extract the first integer from the data
-    int status_op = *(const int*)data;
-    data += sizeof(int);
-    size -= sizeof(int);
-
-    // Extract the first sqlite3_int64 from the data
-    sqlite3_int64 current = *(const sqlite3_int64*)data;
-    data += sizeof(sqlite3_int64);
-    size -= sizeof(sqlite3_int64);
-
-    // Extract the second sqlite3_int64 from the data
-    sqlite3_int64 highwater = *(const sqlite3_int64*)data;
-    data += sizeof(sqlite3_int64);
-    size -= sizeof(sqlite3_int64);
-
-    // Extract the final integer from the data
-    int reset_flag = *(const int*)data;
+    // Copy the first bytes of data into error_code
+    error_code = *(const int*)data;
 
     // Call the function-under-test
-    sqlite3_status64(status_op, &current, &highwater, reset_flag);
+    const char *error_message = sqlite3_errstr(error_code);
+
+    // Use the error_message to ensure it is not optimized away
+    if (error_message) {
+        // Normally you might do something with error_message
+        // Here we just ensure it is not NULL
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_97(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

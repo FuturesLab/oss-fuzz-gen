@@ -1,54 +1,63 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_370(const uint8_t *data, size_t size) {
+    // Initialize SQLite
     sqlite3 *db;
-    char *errMsg = 0;
-
-    // Initialize variables
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // If the database cannot be opened, exit early
     }
 
-    // Ensure data is not empty
-    if (size == 0) {
+    // Create a dummy table
+    if (sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, 0) != SQLITE_OK) {
         sqlite3_close(db);
-        return 0;
+        return 0; // If table creation fails, exit early
     }
 
-    // Allocate memory for a null-terminated SQL command
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    // Prepare the insert statement
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, "INSERT INTO test (value) VALUES (?);", -1, &stmt, 0) != SQLITE_OK) {
         sqlite3_close(db);
-        return 0;
+        return 0; // If statement preparation fails, exit early
     }
 
-    // Copy data to sql and ensure it is null-terminated
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Bind the input data to the statement
+    if (sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0; // If binding fails, exit early
+    }
 
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Execute the insert statement
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0; // If execution fails, exit early
+    }
+    sqlite3_finalize(stmt);
+
+    // Prepare the select statement
+    if (sqlite3_prepare_v2(db, "SELECT value FROM test;", -1, &stmt, 0) != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0; // If statement preparation fails, exit early
+    }
+
+    // Execute the select statement and process the result
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Get the value as sqlite3_value
+        const unsigned char *text = sqlite3_column_text(stmt, 0);
+
+        // Use the result to avoid unused variable warning
+        if (text) {
+            // Do something with text, like checking its length
+            volatile size_t length = strlen((const char *)text);
+        }
     }
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
-    int ret_sqlite3_extended_result_codes_rhmkz = sqlite3_extended_result_codes(db, 0);
-    if (ret_sqlite3_extended_result_codes_rhmkz < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

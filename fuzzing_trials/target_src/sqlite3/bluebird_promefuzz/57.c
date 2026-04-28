@@ -1,88 +1,91 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <string.h>
 
-static void prepare_database(sqlite3 **db) {
-    int rc = sqlite3_open(":memory:", db);
-    if (rc != SQLITE_OK) {
-        *db = NULL;
-    }
-}
-
-static sqlite3_blob* prepare_blob(sqlite3 *db) {
-    sqlite3_blob *blob = NULL;
-    char *errMsg = 0;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);"
-                      "INSERT INTO test (data) VALUES (zeroblob(10));";
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc == SQLITE_OK) {
-        rc = sqlite3_blob_open(db, "main", "test", "data", 1, 1, &blob);
-    }
-    if (rc != SQLITE_OK && blob) {
-        sqlite3_blob_close(blob);
-        blob = NULL;
-    }
-    return blob;
+static void dummyFunction(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Example function implementation for sqlite3_create_function
+    sqlite3_result_null(context);
 }
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *Data, size_t Size) {
-    sqlite3 *db = NULL;
-    prepare_database(&db);
-    if (!db) return 0;
+    if (Size < 1) return 0;
 
-    // sqlite3_errmsg
-    const char *errmsg = sqlite3_errmsg(db);
+    sqlite3 *db;
+    sqlite3_blob *blob = NULL;
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+    char *errMsg = NULL;
 
-    // sqlite3_blob_reopen
-    sqlite3_blob *blob = prepare_blob(db);
-    if (blob) {
-        sqlite3_int64 rowid = 1;
-        if (Size >= sizeof(sqlite3_int64)) {
-            memcpy(&rowid, Data, sizeof(sqlite3_int64));
-        }
-        sqlite3_blob_reopen(blob, rowid);
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // sqlite3_blob_bytes
-    if (blob) {
-        int blob_size = sqlite3_blob_bytes(blob);
+    // Create a dummy table and blob
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);", NULL, NULL, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // sqlite3_realloc64
-    void *pOld = sqlite3_malloc(100);
-    if (pOld) {
-        sqlite3_uint64 newSize = 100;
-        if (Size >= sizeof(sqlite3_uint64)) {
-            memcpy(&newSize, Data, sizeof(sqlite3_uint64));
-        }
-        void *pNew = sqlite3_realloc64(pOld, newSize);
-        if (pNew) {
-            sqlite3_free(pNew);
-        } else {
-            sqlite3_free(pOld);
-        }
+    rc = sqlite3_exec(db, "INSERT INTO test (data) VALUES (zeroblob(100));", NULL, NULL, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // sqlite3_randomness
-    if (Size > 0) {
-        void *randomBuffer = sqlite3_malloc(Size);
-        if (randomBuffer) {
-            sqlite3_randomness((int)Size, randomBuffer);
-            sqlite3_free(randomBuffer);
-        }
+    // Open a blob for writing
+    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 1, &blob);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    if (blob) sqlite3_blob_close(blob);
+    // Use a portion of the input data to write to the blob
+    int writeSize = Size > 100 ? 100 : Size;
+    rc = sqlite3_blob_write(blob, Data, writeSize, 0);
+    sqlite3_errmsg(db); // Get error message
+
+    // Close the blob
+    sqlite3_blob_close(blob);
+
+    // Open a blob for reading
+    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 0, &blob);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Read from the blob
+    char buffer[100];
+    rc = sqlite3_blob_read(blob, buffer, 100, 0);
+    sqlite3_errmsg(db); // Get error message
+
+    // Close the blob
+    sqlite3_blob_close(blob);
+
+    // Create a custom function
+    rc = sqlite3_create_function(db, "dummy", 1, SQLITE_UTF8, NULL, dummyFunction, NULL, NULL);
+
+    // Prepare a SQL statement
+    const char *tail;
+    rc = sqlite3_prepare_v2(db, "SELECT dummy(data) FROM test;", -1, &stmt, &tail);
+    if (rc == SQLITE_OK) {
+        sqlite3_step(stmt); // Execute the statement
+        sqlite3_finalize(stmt); // Finalize the statement
+    }
+
+    // Clean up
     sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,52 +1,70 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
 #include "sqlite3.h"
-
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-        sqlite3_free(NULL);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-    }
-}
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_264(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
-
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(lwzpauru, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        return 0;
     }
-
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
-
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_close
+    
+    // Create a simple table
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER, value REAL);";
+    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        return 0;
     }
-
+    
+    // Prepare an insert statement
+    const char *insert_sql = "INSERT INTO test (id, value) VALUES (?, ?);";
+    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+    
+    // Ensure there's enough data to extract an integer and a double
+    if (size < sizeof(int) + sizeof(double)) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+    
+    // Extract an integer and a double from the data
+    int id = *(int *)data;
+    double value = *(double *)(data + sizeof(int));
+    
+    // Bind the integer to the first parameter
+    rc = sqlite3_bind_int(stmt, 1, id);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+    
+    // Bind the double to the second parameter using the function-under-test
+    rc = sqlite3_bind_double(stmt, 2, value);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+    
+    // Execute the statement
+    sqlite3_step(stmt);
+    
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    
     return 0;
 }
 #ifdef INC_MAIN

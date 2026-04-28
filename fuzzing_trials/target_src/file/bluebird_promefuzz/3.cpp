@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,95 +9,105 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include "magic.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include "magic.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    // Initialize magic_t object
-    magic_t cookie = magic_open(MAGIC_NONE);
-    if (cookie == NULL) {
+    // Create a temporary file for testing purposes
+    const char *filename = "./dummy_file";
+    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        return 0;
+    }
+    if (write(fd, Data, Size) != (ssize_t)Size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    // Open a new magic_set
+    magic_t magic = magic_open(MAGIC_NONE);
+    if (!magic) {
         return 0;
     }
 
-    // Prepare a dummy file if necessary
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file != NULL) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
+    // Test magic_check with the dummy file
+    magic_check(magic, filename);
+
+    // Test magic_load with the dummy file
+    magic_load(magic, filename);
+
+    // Test magic_setparam with arbitrary parameter and value
+    int param = MAGIC_PARAM_INDIR_MAX;
+    size_t value = 10;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of magic_setparam
+    magic_setparam(magic, MAGIC_PARAM_ELF_SHSIZE_MAX, &value);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    // Test magic_getflags
+    magic_getflags(magic);
+
+    // Test magic_setflags with arbitrary flags
+    int flags = MAGIC_SYMLINK;
+    magic_setflags(magic, flags);
+
+    // Test magic_descriptor with the file descriptor
+    fd = open(filename, O_RDONLY);
+    if (fd >= 0) {
+        magic_descriptor(magic, fd);
+        close(fd);
     }
 
-    // Fuzz magic_load
-    const char *filename = Size > 0 ? "./dummy_file" : NULL;
+    // Clean up
+    magic_close(magic);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function magic_load with magic_check
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function magic_check with magic_list
-    magic_list(cookie, filename);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz magic_errno
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_check to magic_buffer
-    const char* ret_magic_error_ftvpu = magic_error(cookie);
-    if (ret_magic_error_ftvpu == NULL){
-    	return 0;
-    }
-
-    const char* ret_magic_buffer_arvro = magic_buffer(cookie, (const void *)cookie, MAGIC_PARAM_MAGWARN_MAX);
-    if (ret_magic_buffer_arvro == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int err = magic_errno(cookie);
-
-    // Fuzz magic_version
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_errno to magic_buffer
-    char ceovvhwj[1024] = "tndiv";
-
-    const char* ret_magic_buffer_toodm = magic_buffer(cookie, ceovvhwj, MAGIC_VERSION);
-    if (ret_magic_buffer_toodm == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int version = magic_version();
-
-    // Fuzz magic_getparam
-    int param_type = (Size > 0) ? Data[0] : 0;
-    size_t param_value;
-    magic_getparam(cookie, param_type, &param_value);
-
-    // Fuzz magic_load_buffers
-    void *buffers[] = { (void *)Data };
-    size_t buffer_sizes[] = { Size };
-    magic_load_buffers(cookie, buffers, buffer_sizes, 1);
-
-    // Fuzz magic_setparam
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_load_buffers to magic_descriptor
-
-    const char* ret_magic_descriptor_slfkm = magic_descriptor(cookie, MAGIC_PARAM_ELF_NOTES_MAX);
-    if (ret_magic_descriptor_slfkm == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    magic_setparam(cookie, param_type, &param_value);
-
-    // Cleanup
-    magic_close(cookie);
+    // Remove the temporary file
+    unlink(filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

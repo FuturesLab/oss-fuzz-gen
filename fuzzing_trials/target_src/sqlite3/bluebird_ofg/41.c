@@ -1,61 +1,56 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // For size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // For malloc, free, and NULL
-#include <string.h>  // For memcpy
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    int rc;
     char *errMsg = 0;
+    int rc;
 
-    // Initialize a database in memory
+    // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
-
-    // Execute a simple SQL statement to ensure the database is in a valid state
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    if(rc) {
         sqlite3_close(db);
         return 0;
     }
 
-    // If size is greater than 0, use the data to execute a SQL statement
-    if (size > 0) {
-        // Interpret the data as a SQL statement
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0;
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
-
-        // Execute the SQL statement
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_txn_state
-        int ret_sqlite3_txn_state_chagj = sqlite3_txn_state(db, NULL);
-        if (ret_sqlite3_txn_state_chagj < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        free(sql);
+    // Convert the fuzz input into a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Call the function-under-test
-    int autocommit = sqlite3_get_autocommit(db);
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Cleanup
+    // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_stricmp
+    void* ret_sqlite3_malloc_qggbn = sqlite3_malloc(64);
+    if (ret_sqlite3_malloc_qggbn == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_qggbn) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_stricmp_rkmsu = sqlite3_stricmp((const char *)ret_sqlite3_malloc_qggbn, errMsg);
+    if (ret_sqlite3_stricmp_rkmsu < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
+    free(sql);
     sqlite3_close(db);
 
     return 0;

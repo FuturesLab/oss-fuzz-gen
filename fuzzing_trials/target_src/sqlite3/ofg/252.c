@@ -1,54 +1,81 @@
-#include <sqlite3.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_252(const uint8_t *data, size_t size) {
-    sqlite3 *srcDb = NULL;
-    sqlite3 *destDb = NULL;
-    sqlite3_backup *pBackup = NULL;
-    int rc;
+    // Ensure the data is not empty
+    if (size > 0) {
+        // Create a new SQLite memory database
+        sqlite3 *db;
+        sqlite3_open(":memory:", &db);
 
-    // Initialize SQLite databases
-    rc = sqlite3_open(":memory:", &srcDb);
-    if (rc != SQLITE_OK || srcDb == NULL) {
-        return 0;
+        // Prepare a dummy SQL statement
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT ?";
+
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            // Copy the input data into a buffer
+            void *buffer = malloc(size);
+            if (buffer != NULL) {
+                memcpy(buffer, data, size);
+
+                // Bind the buffer to the SQL statement
+                sqlite3_bind_blob(stmt, 1, buffer, size, SQLITE_TRANSIENT);
+
+                // Step through the statement to trigger the function-under-test
+                sqlite3_step(stmt);
+
+                // Free the buffer
+                free(buffer);
+            }
+
+            // Finalize the statement
+            sqlite3_finalize(stmt);
+        }
+
+        // Close the database
+        sqlite3_close(db);
     }
-
-    rc = sqlite3_open(":memory:", &destDb);
-    if (rc != SQLITE_OK || destDb == NULL) {
-        sqlite3_close(srcDb);
-        return 0;
-    }
-
-    // Execute some SQL on the source database to ensure it has content
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);"
-                      "INSERT INTO test (value) VALUES ('test');";
-    rc = sqlite3_exec(srcDb, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(srcDb);
-        sqlite3_close(destDb);
-        return 0;
-    }
-
-    // Create a backup object
-    pBackup = sqlite3_backup_init(destDb, "main", srcDb, "main");
-    if (pBackup == NULL) {
-        sqlite3_close(srcDb);
-        sqlite3_close(destDb);
-        return 0;
-    }
-
-    // Perform the backup step
-    do {
-        rc = sqlite3_backup_step(pBackup, -1);
-    } while (rc == SQLITE_OK || rc == SQLITE_BUSY || rc == SQLITE_LOCKED);
-
-    // Fuzz the sqlite3_backup_finish function
-    rc = sqlite3_backup_finish(pBackup);
-
-    // Clean up
-    sqlite3_close(srcDb);
-    sqlite3_close(destDb);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_252(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

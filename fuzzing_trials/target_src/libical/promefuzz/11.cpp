@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_is_valid at icalcomponent.c:295:6 in icalcomponent.h
-// icalcomponent_check_restrictions at icalcomponent.c:1117:6 in icalcomponent.h
-// icalcomponent_strip_errors at icalcomponent.c:1145:6 in icalcomponent.h
-// icalcomponent_new_participant at icalcomponent.c:2120:16 in icalcomponent.h
-// icalcomponent_normalize at icalcomponent.c:2832:6 in icalcomponent.h
-// icalcomponent_vanew at icalcomponent.c:105:16 in icalcomponent.h
+// icalparameter_get_xvalue at icalparameter.c:329:13 in icalparameter.h
+// icalparameter_get_xname at icalparameter.c:309:13 in icalparameter.h
+// icalparameter_set_xvalue at icalparameter.c:316:6 in icalparameter.h
+// icalparameter_get_iana_name at icalparameter.c:351:13 in icalparameter.h
+// icalparameter_as_ical_string_r at icalparameter.c:190:7 in icalparameter.h
+// icalparameter_new_from_string at icalparameter.c:123:16 in icalparameter.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,47 +14,102 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <string>
-#include <cstddef>
+#include <cassert>
 #include <cstdint>
-#include "ical.h"
-#include <cstdlib>
 #include <cstring>
-#include <cstdarg>
+#include <cstdlib>
+#include <iostream>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalparameter.h"
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind) + 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalcomponent *comp = icalcomponent_vanew(kind, NULL);
-
-    if (!comp) {
+    // Create a null-terminated string from the input data
+    char *inputString = static_cast<char *>(malloc(Size + 1));
+    if (!inputString) {
         return 0;
     }
+    memcpy(inputString, Data, Size);
+    inputString[Size] = '\0';
 
-    // Test icalcomponent_normalize
-    icalcomponent_normalize(comp);
+    // Test icalparameter_new_from_string
+    icalparameter *param = icalparameter_new_from_string(inputString);
+    if (param) {
+        // Test icalparameter_get_iana_name
+        const char *iana_name = icalparameter_get_iana_name(param);
+        if (iana_name) {
+            std::cout << "IANA Name: " << iana_name << std::endl;
+        }
 
-    // Test icalcomponent_check_restrictions
-    bool check_passed = icalcomponent_check_restrictions(comp);
+        // Test icalparameter_as_ical_string_r
+        char *ical_string = icalparameter_as_ical_string_r(param);
+        if (ical_string) {
+            std::cout << "iCal String: " << ical_string << std::endl;
+            icalmemory_free_buffer(ical_string);
+        }
 
-    // Test icalcomponent_new_participant
-    icalcomponent *participant = icalcomponent_new_participant();
-    if (participant) {
-        icalcomponent_add_component(comp, participant);
+        // Test icalparameter_set_xvalue and icalparameter_get_xvalue
+        icalparameter_set_xvalue(param, "TestValue");
+        const char *xvalue = icalparameter_get_xvalue(param);
+        if (xvalue) {
+            std::cout << "X-Value: " << xvalue << std::endl;
+        }
+
+        // Test icalparameter_get_xname
+        const char *xname = icalparameter_get_xname(param);
+        if (xname) {
+            std::cout << "X-Name: " << xname << std::endl;
+        }
+
+        // Free the parameter
+        icalparameter_free(param);
     }
 
-    // Test icalcomponent_strip_errors
-    icalcomponent_strip_errors(comp);
-
-    // Test icalcomponent_is_valid
-    bool is_valid = icalcomponent_is_valid(comp);
-
-    // Clean up
-    icalcomponent_free(comp);
-
+    free(inputString);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

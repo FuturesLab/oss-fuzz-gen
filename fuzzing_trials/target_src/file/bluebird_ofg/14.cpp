@@ -1,88 +1,95 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "stdlib.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "magic.h"
 
 extern "C" {
-    // Include the necessary headers for the project-under-test.
-    // Assume that the magic.h header is part of the project-under-test.
     #include "magic.h"
 }
 
-// Function-under-test declaration
-extern "C" int magic_list(struct magic_set *, const char *);
-
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables required for the function-under-test
-    struct magic_set *magic = NULL;
-    char *filename = NULL;
+    struct magic_set *magic;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
 
-    // Initialize the magic_set structure
+    // Ensure the data is not too large for the temporary file
+    if (size == 0 || size > 65535) {
+        return 0;
+    }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of magic_open
-    magic = magic_open(MAGIC_PARAM_REGEX_MAX);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
 
+    // Close the file descriptor
+    close(fd);
+
+    // Initialize the magic set
+    magic = magic_open(MAGIC_NONE);
     if (magic == NULL) {
-        return 0; // Exit if magic_open fails
+        unlink(tmpl);
+        return 0;
     }
-
-    // Allocate memory for the filename and ensure it's null-terminated
-    filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        magic_close(magic);
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(filename, data, size);
-    filename[size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    magic_list(magic, filename);
+    magic_compile(magic, tmpl);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_list to magic_buffer
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_list to magic_setparam
-    int ret_magic_getflags_jjszu = magic_getflags(magic);
-    if (ret_magic_getflags_jjszu < 0){
-    	return 0;
-    }
-
-    int ret_magic_setparam_nuuzw = magic_setparam(magic, MAGIC_PARAM_ENCODING_MAX, (const void *)magic);
-    if (ret_magic_setparam_nuuzw < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    const char* ret_magic_buffer_ahrvs = magic_buffer(magic, (const void *)data, MAGIC_PARAM_ELF_SHSIZE_MAX);
-    if (ret_magic_buffer_ahrvs == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(filename);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_close to magic_compile
-
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function magic_compile with magic_load
-        int ret_magic_compile_peicm = magic_load(magic, (const char *)"w");
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        if (ret_magic_compile_peicm < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
     magic_close(magic);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

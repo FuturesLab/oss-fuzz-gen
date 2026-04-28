@@ -1,33 +1,66 @@
-#include <cstdint> // Include for uint8_t
-#include <cstdlib> // Include for malloc and free
-#include <cstring> // Include for memcpy
+#include <stdint.h>
+#include <stddef.h>
 
+// Since the header file 'icalrecurrence.h' is not available, we need to declare the function prototype directly.
 extern "C" {
-    #include <libical/ical.h>
+    // Declare the function-under-test
+    int icalrecurrencetype_day_position(short day);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent from the input data
-    icalcomponent *component = nullptr;
-
-    // Ensure the size is reasonable to prevent excessive memory usage
-    if (size > 0 && size < 1024) {
-        // Create an icalcomponent from the input data
-        char *input_data = (char *)malloc(size + 1);
-        if (input_data != nullptr) {
-            memcpy(input_data, data, size);
-            input_data[size] = '\0'; // Null-terminate the string
-
-            component = icalparser_parse_string(input_data);
-            free(input_data);
-        }
+    // Ensure the input size is sufficient to extract a short value
+    if (size < sizeof(short)) {
+        return 0;
     }
+
+    // Extract a short value from the input data
+    short day_position = *(reinterpret_cast<const short*>(data));
 
     // Call the function-under-test
-    if (component != nullptr) {
-        icalcomponent_convert_errors(component);
-        icalcomponent_free(component);
-    }
+    int result = icalrecurrencetype_day_position(day_position);
+
+    // Use the result in some way to avoid compiler optimizations removing the call
+    volatile int prevent_optimization = result;
+    (void)prevent_optimization;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,66 +1,61 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
 #include <string.h>
+#include "sqlite3.h"
+
+// A simple SQLite function to be used as a context
+static void dummy_sql_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
+    // Do nothing
+    if (argc > 0) {
+        // Use the first argument to avoid unused variable warnings
+        const unsigned char *text = sqlite3_value_text(argv[0]);
+        if (text) {
+            // Simulate some processing
+            sqlite3_result_text(context, (const char *)text, -1, SQLITE_TRANSIENT);
+        }
+    }
+}
 
 int LLVMFuzzerTestOneInput_281(const uint8_t *data, size_t size) {
-    sqlite3 *srcDb = NULL;
-    sqlite3 *destDb = NULL;
-    sqlite3_backup *backup = NULL;
-    int rc;
+    unsigned int subtype;
 
-    // Open source and destination databases in memory
-    rc = sqlite3_open(":memory:", &srcDb);
-    if (rc != SQLITE_OK) {
+    // Ensure that the data size is sufficient to extract an unsigned int
+    if (size < sizeof(unsigned int)) {
         return 0;
     }
 
-    rc = sqlite3_open(":memory:", &destDb);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(srcDb);
+    // Initialize the subtype by extracting it from the data
+    subtype = *((unsigned int *)data);
+
+    // Create an SQLite database in memory
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare a statement to execute on the source database
-    if (size > 0) {
-        // Ensure the data is null-terminated to prevent buffer overflow
-        char *query = (char *)malloc(size + 1);
-        if (query == NULL) {
-            sqlite3_close(srcDb);
-            sqlite3_close(destDb);
-            return 0;
-        }
-        memcpy(query, data, size);
-        query[size] = '\0';
+    // Register a dummy function to create a valid context
+    sqlite3_create_function(db, "dummy", 1, SQLITE_UTF8, NULL, dummy_sql_function, NULL, NULL);
 
-        sqlite3_exec(srcDb, query, 0, 0, 0);
-        free(query);
-    }
-
-    // Create a backup from source to destination
-    backup = sqlite3_backup_init(destDb, "main", srcDb, "main");
-    if (backup == NULL) {
-        sqlite3_close(srcDb);
-        sqlite3_close(destDb);
+    // Prepare a dummy SQL statement
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, "SELECT dummy(?)", -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
         return 0;
     }
 
-    // Call the function under test
+    // Bind the data to the SQL statement to ensure the function is called with valid input
+    sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_backup_init to sqlite3_realloc64
-    sqlite3_uint64 ret_sqlite3_msize_nlbvm = sqlite3_msize(NULL);
-    void* ret_sqlite3_realloc64_ivbpe = sqlite3_realloc64((void *)srcDb, ret_sqlite3_msize_nlbvm);
-    if (ret_sqlite3_realloc64_ivbpe == NULL){
-    	return 0;
+    // Step through the statement to invoke the function
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // The function is invoked through the SQL statement execution
+        // The context is used within the dummy_sql_function
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int remaining = sqlite3_backup_remaining(backup);
 
-    // Clean up
-    sqlite3_backup_finish(backup);
-    sqlite3_close(srcDb);
-    sqlite3_close(destDb);
+    // Clean up the statement and database
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

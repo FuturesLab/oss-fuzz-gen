@@ -1,53 +1,53 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include "sqlite3.h"
-#include <stddef.h>
-#include <string.h>
+#include <stdlib.h>
+#include <stdio.h> // Include stdio.h for snprintf
 
 int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errmsg = 0;
-    int rc;
+    sqlite3 *srcDb = NULL;
+    sqlite3 *destDb = NULL;
+    sqlite3_backup *backup = NULL;
+    int nPage = 1; // Number of pages to copy in each step
 
-    // Open a new in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Initialize SQLite databases
+    if (sqlite3_open(":memory:", &srcDb) != SQLITE_OK) {
+        return 0;
+    }
+    if (sqlite3_open(":memory:", &destDb) != SQLITE_OK) {
+        sqlite3_close(srcDb);
         return 0;
     }
 
-    // Ensure the input data is null-terminated to prevent buffer overflow
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    // Create a table in the source database
+    sqlite3_exec(srcDb, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, NULL);
 
-    // Execute the function-under-test
+    // Insert data into the source database
     if (size > 0) {
-        rc = sqlite3_exec(db, sql, 0, 0, &errmsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errmsg);
-        }
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_readonly
-        void* ret_sqlite3_malloc_nzjsx = sqlite3_malloc(1);
-        if (ret_sqlite3_malloc_nzjsx == NULL){
-        	return 0;
-        }
-        int ret_sqlite3_db_readonly_fcany = sqlite3_db_readonly(db, (const char *)ret_sqlite3_malloc_nzjsx);
-        if (ret_sqlite3_db_readonly_fcany < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
+        char *sql = (char *)malloc(size + 100);
+        snprintf(sql, size + 100, "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
+        sqlite3_exec(srcDb, sql, NULL, NULL, NULL);
+        free(sql);
+    }
 
-    // Free the allocated memory
-    free(sql);
+    // Initialize the backup process
+    backup = sqlite3_backup_init(destDb, "main", srcDb, "main");
+    if (backup == NULL) {
+        sqlite3_close(srcDb);
+        sqlite3_close(destDb);
+        return 0;
+    }
 
-    // Close the database
-    sqlite3_close(db);
+    // Perform the backup step
+    sqlite3_backup_step(backup, nPage);
+
+    // Finish the backup process
+    sqlite3_backup_finish(backup);
+
+    // Close the databases
+    sqlite3_close(srcDb);
+    sqlite3_close(destDb);
 
     return 0;
 }

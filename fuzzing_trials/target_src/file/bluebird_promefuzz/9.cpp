@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,84 +9,102 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include "magic.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include "magic.h"
+#include <cerrno>
+#include <iostream>
+#include <fstream>
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    std::ofstream outfile("./dummy_file", std::ios::binary);
+    outfile.write(reinterpret_cast<const char*>(Data), Size);
+    outfile.close();
+}
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    // Initialize magic_t object
-    magic_t cookie = magic_open(MAGIC_NONE);
-    if (cookie == NULL) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Prepare a dummy file if necessary
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file != NULL) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
+    // Initialize a new magic set
+    magic_t magic = magic_open(MAGIC_NONE);
+    if (magic == nullptr) {
+        return 0;
     }
 
-    // Fuzz magic_load
-    const char *filename = Size > 0 ? "./dummy_file" : NULL;
+    // Write data to a dummy file
+    write_dummy_file(Data, Size);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function magic_load with magic_check
-    magic_check(cookie, filename);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz magic_errno
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_check to magic_buffer
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function magic_getflags with magic_errno
-    int ret_magic_getflags_afqwb = magic_errno(cookie);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_magic_getflags_afqwb < 0){
-    	return 0;
-    }
-
-    const char* ret_magic_buffer_qfefw = magic_buffer(cookie, (const void *)cookie, MAGIC_PARAM_MAGWARN_MAX);
-    if (ret_magic_buffer_qfefw == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int err = magic_errno(cookie);
+    // Fuzz magic_list
+    const char *dummyPath = "./dummy_file";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of magic_list
+    magic_list(magic, (const char *)"r");
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
     // Fuzz magic_version
     int version = magic_version();
+    (void)version; // Suppress unused variable warning
+
+    // Prepare buffer for magic_load_buffers
+    void *buffers[1] = { const_cast<uint8_t*>(Data) };
+    size_t buffer_sizes[1] = { Size };
+    magic_load_buffers(magic, buffers, buffer_sizes, 1);
 
     // Fuzz magic_getparam
-    int param_type = (Size > 0) ? Data[0] : 0;
-    size_t param_value;
-    magic_getparam(cookie, param_type, &param_value);
+    int param = MAGIC_PARAM_INDIR_MAX;
+    int64_t val;
+    magic_getparam(magic, param, &val);
 
-    // Fuzz magic_load_buffers
-    void *buffers[] = { (void *)Data };
-    size_t buffer_sizes[] = { Size };
-    magic_load_buffers(cookie, buffers, buffer_sizes, 1);
+    // Fuzz magic_errno
+    int err = magic_errno(magic);
+    (void)err; // Suppress unused variable warning
 
-    // Fuzz magic_setparam
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_load_buffers to magic_descriptor
-
-    const char* ret_magic_descriptor_slfkm = magic_descriptor(cookie, MAGIC_PARAM_ELF_NOTES_MAX);
-    if (ret_magic_descriptor_slfkm == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    magic_setparam(cookie, param_type, &param_value);
+    // Fuzz magic_compile
+    magic_compile(magic, dummyPath);
 
     // Cleanup
-    magic_close(cookie);
+    magic_close(magic);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,59 +1,68 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    (void)NotUsed;
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
     }
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_249(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    char *errMsg = 0;
     int rc;
 
-    // Open a new in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Initialize database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    // Convert fuzz data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        sqlite3_free(errMsg);
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
+    // Clean up
 
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_db_readonly
-    char* ret_sqlite3_str_value_mhwyd = sqlite3_str_value(NULL);
-    if (ret_sqlite3_str_value_mhwyd == NULL){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_exec to sqlite3_prepare_v2 using the plateau pool
+    sqlite3_stmt *stmt;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
     	return 0;
     }
-    int ret_sqlite3_db_readonly_ibqsa = sqlite3_db_readonly(db, ret_sqlite3_str_value_mhwyd);
-    if (ret_sqlite3_db_readonly_ibqsa < 0){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
     	return 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
+    int ret_sqlite3_prepare_v2_kfcyg = sqlite3_prepare_v2(db, "SELECT ?;", -1, &stmt, &errMsg);
+    if (ret_sqlite3_prepare_v2_kfcyg < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
     
+    free(sql);
+    sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

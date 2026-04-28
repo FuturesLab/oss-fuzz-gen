@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,77 +9,143 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include <cstring>
 #include <cstdint>
 #include <cstdlib>
-
-static icalcomponent* create_vtodo_component() {
-    icalcomponent* comp = icalcomponent_new(ICAL_VTODO_COMPONENT);
-    return comp;
-}
-
-static struct icaltimetype create_random_icaltime() {
-    struct icaltimetype time;
-    time.year = rand() % 3000; // Random year
-    time.zone = icaltimezone_get_utc_timezone(); // Use UTC for simplicity
-    return time;
-}
-
-static struct icaldurationtype create_random_icalduration() {
-    struct icaldurationtype duration;
-    duration.is_neg = rand() % 2;
-    duration.days = rand() % 100;
-    return duration;
-}
+#include <cstring>
+#include <fstream>
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icaltimezone.h"
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
-    } // Not enough data to proceed
+    }
 
-    icalcomponent* comp = create_vtodo_component();
-    if (!comp) {
+    // Prepare a null-terminated string from the input data
+    char *inputString = (char *)malloc(Size + 1);
+    if (!inputString) {
         return 0;
-    } // Failed to create component
+    }
+    memcpy(inputString, Data, Size);
+    inputString[Size] = '\0';
 
-    struct icaltimetype due_time = create_random_icaltime();
-    struct icaltimetype dtstart_time = create_random_icaltime();
-    struct icaldurationtype duration = create_random_icalduration();
+    // Test icaltimezone_get_builtin_timezone
+    icaltimezone *builtinTimezone = icaltimezone_get_builtin_timezone(inputString);
+    if (builtinTimezone) {
+        // Test icaltimezone_copy
+        icaltimezone *copiedTimezone = icaltimezone_copy(builtinTimezone);
+        if (copiedTimezone) {
+            // Test icaltimezone_get_latitude
+            double latitude = icaltimezone_get_latitude(copiedTimezone);
+            (void)latitude; // Suppress unused variable warning
 
-    int sequence = Data[0]; // Use first byte as sequence number
+            // Test icaltimezone_get_longitude
+            double longitude = icaltimezone_get_longitude(copiedTimezone);
 
-    // Fuzz the set_due function
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltimezone_get_longitude to icalproperty_set_expand
+            const char njjcapdn[1024] = "mddnx";
+            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalproperty_vanew_refid with icalproperty_new_owner
+            icalproperty* ret_icalproperty_vanew_refid_mxqod = icalproperty_new_owner(njjcapdn);
+            // End mutation: Producer.REPLACE_FUNC_MUTATOR
+            if (ret_icalproperty_vanew_refid_mxqod == NULL){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!ret_icalproperty_vanew_refid_mxqod) {
+            	return 0;
+            }
+            icalproperty_set_expand(ret_icalproperty_vanew_refid_mxqod, (int )longitude);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            (void)longitude; // Suppress unused variable warning
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_due with icalcomponent_set_dtend
-    icalcomponent_set_dtend(comp, due_time);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+            // Free the copied timezone
+            icaltimezone_free(copiedTimezone, 1);
+        }
+    }
 
+    // Test icaltimezone_new
+    icaltimezone *newTimezone = icaltimezone_new();
+    if (newTimezone) {
+        // Test icaltimezone_get_latitude
+        double latitude = icaltimezone_get_latitude(newTimezone);
 
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltimezone_get_latitude to icalproperty_set_tzoffsetfrom
+        icalproperty* ret_icalproperty_vanew_status_gxlhk = icalproperty_vanew_status(ICAL_STATUS_CONFIRMED);
+        if (ret_icalproperty_vanew_status_gxlhk == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalproperty_vanew_status_gxlhk) {
+        	return 0;
+        }
+        icalproperty_set_tzoffsetfrom(ret_icalproperty_vanew_status_gxlhk, (int )latitude);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        (void)latitude; // Suppress unused variable warning
 
-    // Fuzz the set_dtstart function
+        // Test icaltimezone_get_longitude
+        double longitude = icaltimezone_get_longitude(newTimezone);
+        (void)longitude; // Suppress unused variable warning
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_dtstart with icalcomponent_set_due
-    icalcomponent_set_due(comp, dtstart_time);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        // Free the new timezone
+        icaltimezone_free(newTimezone, 1);
+    }
 
+    // Test icaltimezone_get_builtin_timezone_from_tzid
+    icaltimezone *builtinTimezoneFromTzid = icaltimezone_get_builtin_timezone_from_tzid(inputString);
+    if (builtinTimezoneFromTzid) {
+        // Test icaltimezone_get_latitude
+        double latitude = icaltimezone_get_latitude(builtinTimezoneFromTzid);
+        (void)latitude; // Suppress unused variable warning
 
-
-    // Fuzz the get_due function
-    icalcomponent_get_due(comp);
-
-    // Fuzz the set_duration function
-    icalcomponent_set_duration(comp, duration);
-
-    // Fuzz the set_sequence function
-    icalcomponent_set_sequence(comp, sequence);
-
-    // Fuzz the set_dtstamp function
-    icalcomponent_set_dtstamp(comp, dtstart_time);
+        // Test icaltimezone_get_longitude
+        double longitude = icaltimezone_get_longitude(builtinTimezoneFromTzid);
+        (void)longitude; // Suppress unused variable warning
+    }
 
     // Clean up
-    icalcomponent_free(comp);
-
+    free(inputString);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_59(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

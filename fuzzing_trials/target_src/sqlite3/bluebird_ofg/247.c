@@ -1,72 +1,57 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
-#include <string.h>  // Include for strlen and memcpy
+#include <stddef.h>  // Include for size_t and NULL
 #include "sqlite3.h"
 
-// Callback function to be used with sqlite3_trace_v2
-static int trace_callback(unsigned int trace, void *ctx, void *p, void *x) {
-    // Implement a simple callback that does nothing
-    return 0;
+// Mock function to simulate sqlite3_context
+void mock_sqlite3_function(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
+    if (argc > 0) {
+        uint64_t n = sqlite3_value_int64(argv[0]);
+        sqlite3_result_zeroblob64(ctx, n);
+    }
 }
 
 int LLVMFuzzerTestOneInput_247(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    unsigned int mask = 0;
-    void *user_data = NULL;
-    int result;
-
-    // Open an in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Ensure size is large enough to extract a uint64_t value
+    if (size < sizeof(uint64_t)) {
         return 0;
     }
 
-    // Set the trace mask to a fixed value for fuzzing
-    mask = SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW;
+    // Extract a uint64_t value from the input data
+    uint64_t n = *(const uint64_t*)data;
 
-    // Call the function-under-test
-    result = sqlite3_trace_v2(db, mask, trace_callback, user_data);
+    // Create a mock sqlite3_context and sqlite3_value
+    sqlite3 *db;
+    sqlite3_open(":memory:", &db);
 
-    // Execute the input data as an SQL statement if it's not empty
-    if (size > 0) {
-        // Allocate a new buffer with an additional byte for the null terminator
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_error_offset
-            sqlite3_error_offset(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-            return 0;
-        }
+    // Prepare a statement to create a context
+    sqlite3_stmt *stmt;
+    sqlite3_prepare_v2(db, "SELECT zeroblob(?)", -1, &stmt, NULL);
 
-        // Copy the input data to the new buffer and null-terminate it
-        memcpy(sql, data, size);
-        sql[size] = '\0';
+    // Bind the integer value
+    sqlite3_bind_int64(stmt, 1, n);
 
-        char *errMsg = 0;
-        sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
-
-        // Free the allocated buffer
-        free(sql);
+    // Step the statement to ensure the context is set
+    if (sqlite3_step(stmt) != SQLITE_ROW) {
+        // If stepping the statement doesn't return a row, finalize and close
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Close the SQLite database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
+    // Create a mock sqlite3_value
+    sqlite3_value *argv[1];
+    argv[0] = sqlite3_column_value(stmt, 0);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_trace_v2 to sqlite3_db_config
-    int ret_sqlite3_db_config_jzzuh = sqlite3_db_config(db, 0);
-    if (ret_sqlite3_db_config_jzzuh < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Create a mock sqlite3_context
+    sqlite3_context *ctx = sqlite3_user_data(stmt); // Correctly get the context
+
+    // Execute the mock function with the correct context and value
+    mock_sqlite3_function(ctx, 1, argv);
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

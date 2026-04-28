@@ -1,101 +1,98 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <stdio.h>
 #include "sqlite3.h"
-#include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <stdio.h>
 
-static void prepare_database(sqlite3 **db) {
-    int rc = sqlite3_open(":memory:", db);
-    if (rc != SQLITE_OK) {
-        *db = NULL;
-    }
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
-static sqlite3_blob* prepare_blob(sqlite3 *db) {
-    sqlite3_blob *blob = NULL;
-    char *errMsg = 0;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);"
-                      "INSERT INTO test (data) VALUES (zeroblob(10));";
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc == SQLITE_OK) {
-        rc = sqlite3_blob_open(db, "main", "test", "data", 1, 1, &blob);
-    }
-    if (rc != SQLITE_OK && blob) {
-        sqlite3_blob_close(blob);
-        blob = NULL;
-    }
-    return blob;
-}
-
-int LLVMFuzzerTestOneInput_131(const uint8_t *Data, size_t Size) {
-    sqlite3 *db = NULL;
-    prepare_database(&db);
-    if (!db) {
+int LLVMFuzzerTestOneInput_131(const unsigned char *Data, size_t Size) {
+    if (Size == 0) {
         return 0;
     }
 
-    // sqlite3_errmsg
-    const char *errmsg = sqlite3_errmsg(db);
+    // Ensure null-terminated SQL input
+    char *sql = (char *)malloc(Size + 1);
+    if (!sql) {
+        return 0;
+    }
+    memcpy(sql, Data, Size);
+    sql[Size] = '\0';
 
-    // sqlite3_blob_reopen
-    sqlite3_blob *blob = prepare_blob(db);
-    if (blob) {
-        sqlite3_int64 rowid = 1;
-        if (Size >= sizeof(sqlite3_int64)) {
-            memcpy(&rowid, Data, sizeof(sqlite3_int64));
-        }
-        sqlite3_blob_reopen(blob, rowid);
+    // Initialize variables
+    sqlite3 *db = NULL;
+    sqlite3 *backupDb = NULL;
+    sqlite3_backup *backup = NULL;
+    char *errMsg = NULL;
+    int rc;
+
+    // Prepare filename
+    char filename[256];
+    snprintf(filename, sizeof(filename), "./dummy_file_%zu", Size);
+
+    // Open a database connection
+    const char amvzptky[1024] = "dxxvg";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(amvzptky, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK || db == NULL) {
+        free(sql);
+        return 0;
     }
 
-    // sqlite3_blob_bytes
-    if (blob) {
-        int blob_size = sqlite3_blob_bytes(blob);
+    // Execute some SQL
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
+        sqlite3_free(errMsg);
     }
 
-    // sqlite3_realloc64
-    void *pOld = sqlite3_malloc(100);
-    if (pOld) {
-        sqlite3_uint64 newSize = 100;
-        if (Size >= sizeof(sqlite3_uint64)) {
-            memcpy(&newSize, Data, sizeof(sqlite3_uint64));
-        }
-        void *pNew = sqlite3_realloc64(pOld, newSize);
-        if (pNew) {
-            sqlite3_free(pNew);
-        } else {
-            sqlite3_free(pOld);
-        }
+    // Backup operation
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_log
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    sqlite3_log(64, errMsg);
+    // End mutation: Producer.APPEND_MUTATOR
     
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_realloc64 to sqlite3_uri_int64
-        char* ret_sqlite3_str_finish_weiob = sqlite3_str_finish(NULL);
-        if (ret_sqlite3_str_finish_weiob == NULL){
-        	return 0;
+    rc = sqlite3_open(":memory:", &backupDb);
+    if (rc == SQLITE_OK && backupDb != NULL) {
+        const char qyhygyyf[1024] = "lgyab";
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sqlite3_backup_init
+        backup = sqlite3_backup_init(backupDb, "main", db, qyhygyyf);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+        if (backup) {
+            while ((rc = sqlite3_backup_step(backup, 5)) == SQLITE_OK) {
+                // Do nothing, just step
+            }
+            sqlite3_backup_finish(backup);
         }
-        sqlite3_int64 ret_sqlite3_uri_int64_stjyg = sqlite3_uri_int64(ret_sqlite3_str_finish_weiob, (const char *)pNew, 0);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
+        sqlite3_errcode(backupDb);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
 
-    // sqlite3_randomness
-    if (Size > 0) {
-        void *randomBuffer = sqlite3_malloc(Size);
-        if (randomBuffer) {
-            sqlite3_randomness((int)Size, randomBuffer);
-            sqlite3_free(randomBuffer);
+    // Deserialize operation
+    unsigned char *serializedData;
+    sqlite3_int64 serializedSize;
+    serializedData = sqlite3_serialize(db, "main", &serializedSize, 0);
+    if (serializedData) {
+        rc = sqlite3_deserialize(db, "main", serializedData, serializedSize, serializedSize, 0);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(serializedData);
         }
     }
 
-    if (blob) {
-        sqlite3_blob_close(blob);
-    }
+    // Close the database connection
     sqlite3_close(db);
+
+    // Free allocated memory
+    free(sql);
+
     return 0;
 }
 #ifdef INC_MAIN

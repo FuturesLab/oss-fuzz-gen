@@ -1,104 +1,137 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "stdlib.h"
-#include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h> // Include string.h for memcpy
 #include "magic.h"
 
 extern "C" {
-    // Include the necessary headers for the project-under-test.
-    // Assume that the magic.h header is part of the project-under-test.
+    // Include the necessary headers for the function-under-test
     #include "magic.h"
 }
 
-// Function-under-test declaration
-extern "C" int magic_list(struct magic_set *, const char *);
-
+// Define the LLVMFuzzerTestOneInput function
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables required for the function-under-test
-    struct magic_set *magic = NULL;
-    char *filename = NULL;
+    // Declare and initialize variables
+    struct magic_set *ms;
+    void *buffers[1];
+    size_t sizes[1];
 
     // Initialize the magic_set structure
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of magic_open
-    magic = magic_open(size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (magic == NULL) {
-        return 0; // Exit if magic_open fails
+    ms = magic_open(MAGIC_NONE);
+    if (ms == NULL) {
+        return 0;
     }
 
-    // Allocate memory for the filename and ensure it's null-terminated
-    filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        magic_close(magic);
-        return 0; // Exit if memory allocation fails
+    // Allocate memory for the buffer and copy data into it
+    buffers[0] = malloc(size);
+    if (buffers[0] == NULL) {
+        magic_close(ms);
+        return 0;
     }
-    memcpy(filename, data, size);
-    filename[size] = '\0'; // Null-terminate the string
+    memcpy(buffers[0], data, size);
+
+    // Set the size of the buffer
+    sizes[0] = size;
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function magic_list with magic_load
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function magic_load with magic_compile
-    magic_compile(magic, filename);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    magic_load_buffers(ms, buffers, sizes, 1);
 
     // Clean up
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_list to magic_buffer
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from magic_load_buffers to magic_descriptor using the plateau pool
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_list to magic_buffer
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of magic_buffer
-    const char* ret_magic_buffer_erdre = magic_buffer(magic, (const void *)magic, MAGIC_PARAM_ELF_SHSIZE_MAX);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_magic_buffer_erdre == NULL){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from magic_load_buffers to magic_buffer using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sizes) {
     	return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    const char* ret_magic_buffer_ahrvs = magic_buffer(magic, (const void *)data, MAGIC_PARAM_ELF_SHSIZE_MAX);
-    if (ret_magic_buffer_ahrvs == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_load_buffers to magic_file
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
     	return 0;
     }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_buffer to magic_errno
-
-    int ret_magic_errno_fglib = magic_errno(magic);
-    if (ret_magic_errno_fglib < 0){
+    int ret_magic_getflags_vlvrc = magic_getflags(ms);
+    if (ret_magic_getflags_vlvrc < 0){
     	return 0;
     }
-
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!buffers) {
+    	return 0;
+    }
+    const char* ret_magic_file_hvqnf = magic_file(ms, (const char *)*buffers);
+    if (ret_magic_file_hvqnf == NULL){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
-    free(filename);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_close to magic_compile
-
-        int ret_magic_compile_peicm = magic_compile(magic, (const char *)"w");
-        if (ret_magic_compile_peicm < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    magic_close(magic);
+    
+    const char* ret_magic_buffer_wgfmg = magic_buffer(ms, (const void *)sizes, *sizes);
+    if (ret_magic_buffer_wgfmg == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int descriptor;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
+    	return 0;
+    }
+    const char* ret_magic_descriptor_yggyr = magic_descriptor(ms, descriptor);
+    if (ret_magic_descriptor_yggyr == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    free(buffers[0]);
+    magic_close(ms);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -11,61 +13,160 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
 #include <iostream>
-#include <fstream>
 
-static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    std::ofstream ofs("./dummy_file", std::ios::binary);
-    ofs.write(reinterpret_cast<const char*>(Data), Size);
-    ofs.close();
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd != -1) {
+        write(fd, Data, Size);
+        close(fd);
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-    
-    magic_t magic_cookie = magic_open(MAGIC_NONE);
-    if (magic_cookie == NULL) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Prepare dummy file
-    writeDummyFile(Data, Size);
+    // Prepare a dummy file for testing
+    write_dummy_file(Data, Size);
 
-    // Test magic_compile
-    magic_compile(magic_cookie, "./dummy_file");
+    // Create a new magic_set
+    magic_t ms = magic_open(MAGIC_NONE);
+    if (ms == nullptr) {
+        return 0;
+    }
 
-    // Test magic_errno
-    int err = magic_errno(magic_cookie);
+    // Test magic_load with dummy file
+    magic_load(ms, "./dummy_file");
 
-    // Test magic_setflags
-    int flags = Data[0] % 256; // Simple flag selection
-    magic_setflags(magic_cookie, flags);
+    // Test magic_check with dummy file
 
-    // Test magic_getparam with correct size parameter
-    size_t param = 0; // Use size_t instead of int to match expected type
-    magic_getparam(magic_cookie, MAGIC_PARAM_INDIR_MAX, &param);
-
-    // Test magic_load_buffers
-    void *buffers[1] = {const_cast<uint8_t*>(Data)};
-    size_t sizes[1] = {Size};
-    magic_load_buffers(magic_cookie, buffers, sizes, 1);
-
-    // Test magic_list
-    magic_list(magic_cookie, "./dummy_file");
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_list to magic_file
-
-    const char* ret_magic_file_fvwie = magic_file(magic_cookie, (const char *)"w");
-    if (ret_magic_file_fvwie == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_load to magic_buffer
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
     	return 0;
     }
-
+    int ret_magic_getflags_qxblh = magic_getflags(ms);
+    if (ret_magic_getflags_qxblh < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
+    	return 0;
+    }
+    const char* ret_magic_buffer_glknx = magic_buffer(ms, (const void *)ms, MAGIC_PARAM_ELF_PHNUM_MAX);
+    if (ret_magic_buffer_glknx == NULL){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    magic_check(ms, "./dummy_file");
 
-    magic_close(magic_cookie);
+    // Test magic_setflags with a random flag from input
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from magic_check to magic_file using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
+    	return 0;
+    }
+    const char* ret_magic_file_xsipm = magic_file(ms, "./dummy_file");
+    if (ret_magic_file_xsipm == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int flags = Data[0];  // Use the first byte as a flag
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of magic_setflags
+    magic_setflags(ms, -1);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    // Test magic_getflags
+    magic_getflags(ms);
+
+    // Test magic_setparam with a random parameter and value from input
+    int param = Data[0] % 5;  // Just a simple way to get a parameter type
+    magic_setparam(ms, param, &Size);
+
+    // Test magic_descriptor with dummy file descriptor
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_setparam to magic_load_buffers
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
+    	return 0;
+    }
+    int ret_magic_errno_zrwfq = magic_errno(ms);
+    if (ret_magic_errno_zrwfq < 0){
+    	return 0;
+    }
+    size_t hhedfizi = 64;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ms) {
+    	return 0;
+    }
+    int ret_magic_load_buffers_blyuf = magic_load_buffers(ms, (void **)&ms, &hhedfizi, MAGIC_PARAM_REGEX_MAX);
+    if (ret_magic_load_buffers_blyuf < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int fd = open("./dummy_file", O_RDONLY);
+    if (fd != -1) {
+        magic_descriptor(ms, fd);
+        close(fd);
+    }
+
+    // Clean up
+    magic_close(ms);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

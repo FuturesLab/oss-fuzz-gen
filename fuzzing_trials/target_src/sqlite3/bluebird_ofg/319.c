@@ -1,63 +1,68 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_319(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
-    const char *sql = "CREATE TABLE test (id INT, name TEXT); INSERT INTO test (id, name) VALUES (1, 'Alice');";
-    const char *tail = NULL;
-    const char *column_name;
-    int column_index = 0;
-    int column_count;
 
-    // Initialize SQLite database in memory
+    // Open a temporary in-memory database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Execute SQL to create table and insert data
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(db));
+    // Ensure the SQL statement is null-terminated
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Prepare a statement using the input data
-    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, &tail);
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 0;
+        sqlite3_free(errMsg);
     }
 
-    // Execute the statement to ensure it's valid and can be stepped through
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
-        fprintf(stderr, "Failed to execute statement: %s\n", sqlite3_errmsg(db));
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
+    // Clean up
 
-    // Check the number of columns and get the column name if valid
-    column_count = sqlite3_column_count(stmt);
-    if (column_index < column_count) {
-        column_name = sqlite3_column_name(stmt, column_index);
-        if (column_name != NULL) {
-            printf("Column name: %s\n", column_name);
-        }
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
+    char* ret_sqlite3_str_value_zyald = sqlite3_str_value(NULL);
+    if (ret_sqlite3_str_value_zyald == NULL){
+    	return 0;
     }
-
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_str_value_zyald) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open_rjwql = sqlite3_open(ret_sqlite3_str_value_zyald, &db);
+    if (ret_sqlite3_open_rjwql < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(sql);
     sqlite3_close(db);
 
     return 0;

@@ -1,61 +1,76 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 #include "sqlite3.h"
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-}
-
 int LLVMFuzzerTestOneInput_170(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    int rc;
+    char *errMsg = 0;
 
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
+    // Open an in-memory database
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(lwzpauru, &db);
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
-
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open_v2
-    sqlite3_free((void *)db);
-    char* ret_sqlite3_expanded_sql_hcsmm = sqlite3_expanded_sql(NULL);
-    if (ret_sqlite3_expanded_sql_hcsmm == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_open_v2_hsqvi = sqlite3_open_v2(db, &db, 64, ret_sqlite3_expanded_sql_hcsmm);
-    if (ret_sqlite3_open_v2_hsqvi < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
     
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_create_filename
+        void* ret_sqlite3_malloc_gzboc = sqlite3_malloc(0);
+        if (ret_sqlite3_malloc_gzboc == NULL){
+        	return 0;
+        }
+        char ycqacxym[1024] = "qzvgw";
+        sqlite3_uint64 ret_sqlite3_msize_swiqa = sqlite3_msize(ycqacxym);
+        double ret_sqlite3_value_double_wllqa = sqlite3_value_double(NULL);
+        if (ret_sqlite3_value_double_wllqa < 0){
+        	return 0;
+        }
+        void* ret_sqlite3_user_data_qyzhz = sqlite3_user_data(NULL);
+        if (ret_sqlite3_user_data_qyzhz == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_malloc_gzboc) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ycqacxym) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_user_data_qyzhz) {
+        	return 0;
+        }
+        sqlite3_filename ret_sqlite3_create_filename_syrln = sqlite3_create_filename((const char *)ret_sqlite3_malloc_gzboc, errMsg, (const char *)ycqacxym, (int )ret_sqlite3_value_double_wllqa, (const char **)&ret_sqlite3_user_data_qyzhz);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
+    sqlite3_close(db);
+    free(sqlStatement);
+
     return 0;
 }
 #ifdef INC_MAIN

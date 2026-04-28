@@ -1,66 +1,73 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h> // For malloc and free
-#include <string.h> // For memcpy
+#include <string.h>
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/icalproperty.h>  // Correct header for icalproperty
 }
 
 extern "C" int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent from the input data
-    icalcomponent *component = nullptr;
-    icalparser *parser = icalparser_new();
+    // Initialize variables
+    icalproperty *property = icalproperty_new(ICAL_ANY_PROPERTY);
+    char *patchdelete_str = nullptr;
 
-    if (parser == nullptr) {
-        return 0;
+    // Ensure the data is not empty
+    if (size > 0) {
+        // Allocate memory for patchdelete_str and copy data into it
+        patchdelete_str = new char[size + 1];
+        memcpy(patchdelete_str, data, size);
+        patchdelete_str[size] = '\0';  // Null-terminate the string
+    } else {
+        // Provide a default non-NULL string
+        patchdelete_str = new char[1];
+        patchdelete_str[0] = '\0';
     }
 
-    // Create a temporary string buffer to hold the input data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == nullptr) {
-        icalparser_free(parser);
-        return 0;
-    }
+    // Call the function under test
+    icalproperty_set_patchdelete(property, patchdelete_str);
 
-    // Copy the input data to the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Define a line generator function for the parser
-    auto line_gen_func = [](char *line, size_t size, void *data) -> char* {
-        char **buffer = (char **)data;
-        if (*buffer == nullptr) {
-            return nullptr;
-        }
-        char *line_copy = strdup(*buffer);
-        *buffer = nullptr; // Return the buffer only once
-        return line_copy;
-    };
-
-    // Set the line generator function and data for the parser
-    icalparser_set_gen_data(parser, &buffer);
-
-    // Since icalparser_set_gen_func is not a valid function, we directly use the line generator
-    // function when calling icalparser_parse
-    component = icalparser_parse(parser, line_gen_func);
-
-    // Free the buffer
-    free(buffer);
-
-    if (component != nullptr) {
-        // Call the function-under-test
-        const char *description = icalcomponent_get_description(component);
-
-        // Optionally, you could do something with the description here
-        // For example, you could print it or check its properties
-
-        // Free the icalcomponent
-        icalcomponent_free(component);
-    }
-
-    // Free the parser
-    icalparser_free(parser);
+    // Clean up
+    delete[] patchdelete_str;
+    icalproperty_free(property);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_136(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,90 +1,99 @@
+#include <sys/stat.h>
+#include "sndfile.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>  // For write and close
-#include <fcntl.h>   // For mkstemp
-#include <stdio.h>   // For remove
-#include <string.h>  // For memset
-
-extern "C" {
-    #include "sndfile.h"
-}
+#include <string.h>
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Temporary file creation
+    // Create a temporary file
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
+    // Write the fuzzing data to the temporary file
     if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
+        unlink(tmpl);
         return 0;
     }
+
+    // Close the file descriptor
     close(fd);
 
-    // Open the file with libsndfile
+    // Open the temporary file with libsndfile
     SF_INFO sfinfo;
     SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
     if (sndfile == NULL) {
-        remove(tmpl);
+        unlink(tmpl);
         return 0;
     }
 
-    // Initialize SF_CHUNK_INFO
-    SF_CHUNK_INFO chunk_info;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_read_int
-    int ret_sf_error_xjdvl = sf_error(sndfile);
-    if (ret_sf_error_xjdvl < 0){
-    	return 0;
+    // Prepare buffer for reading samples
+    sf_count_t frames_to_read = 1024; // Arbitrary number of frames to read
+    double *buffer = (double *)malloc(frames_to_read * sfinfo.channels * sizeof(double));
+    if (buffer == NULL) {
+        sf_close(sndfile);
+        unlink(tmpl);
+        return 0;
     }
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_error to sf_current_byterate
-
-    int ret_sf_current_byterate_pplhf = sf_current_byterate(sndfile);
-    if (ret_sf_current_byterate_pplhf < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    sf_count_t ret_sf_read_int_fseqh = sf_read_int(sndfile, &ret_sf_error_xjdvl, 1);
-    if (ret_sf_read_int_fseqh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_read_int to sf_writef_int
-    int ret_sf_current_byterate_nrhrh = sf_current_byterate(sndfile);
-    if (ret_sf_current_byterate_nrhrh < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_writef_int_ueput = sf_writef_int(sndfile, &ret_sf_current_byterate_nrhrh, (int64_t )ret_sf_error_xjdvl);
-    if (ret_sf_writef_int_ueput < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    memset(chunk_info.id, 0, sizeof(chunk_info.id));  // Proper initialization
-    chunk_info.datalen = 0;
-    chunk_info.data = NULL;
-
-    // Call the function-under-test
-    SF_CHUNK_ITERATOR *iterator = sf_get_chunk_iterator(sndfile, &chunk_info);
+    // Call the function under test
+    sf_count_t frames_read = sf_readf_double(sndfile, buffer, frames_to_read);
 
     // Clean up
-    if (iterator != NULL) {
-        sf_next_chunk_iterator(iterator);  // Use the correct function
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sf_readf_double to sf_open_fd using the plateau pool
+    SNDFILE* ret_sf_open_fd_ovdry = sf_open_fd((int )frames_read, SFM_WRITE, &sfinfo, (int )*buffer);
+    if (ret_sf_open_fd_ovdry == NULL){
+    	return 0;
     }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    free(buffer);
     sf_close(sndfile);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,106 +1,53 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
-}
-
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
-}
-
 int LLVMFuzzerTestOneInput_201(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
-    sqlite3 *db;
-    char *errMsg = 0;
+    // Ensure the input data is null-terminated for sqlite3_complete
     char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
+    if (!sql) return 0;
     memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
+    sql[Size] = '\0';
 
-    int rc;
+    // Step 1: Test sqlite3_complete
+    int complete = sqlite3_complete(sql);
 
-    // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
-
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    // Set authorizer
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
-    int ret_sqlite3_extended_result_codes_mkdqf = sqlite3_extended_result_codes(db, Size);
-    if (ret_sqlite3_extended_result_codes_mkdqf < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int ret_sqlite3_extended_result_codes_cxcaq = sqlite3_extended_result_codes(db, -1);
-    if (ret_sqlite3_extended_result_codes_cxcaq < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
-    }
-
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
-    }
-
-    // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_malloc to sqlite3_keyword_name
-    int jkzyvxip = 0;
-    int ret_sqlite3_keyword_name_nnjzf = sqlite3_keyword_name(Size, (const char **)&ptr, &jkzyvxip);
-    if (ret_sqlite3_keyword_name_nnjzf < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Step 2: Since the memory was allocated using malloc, free it using free
     free(sql);
+
+    // Step 3: Test sqlite3_close
+    sqlite3 *db;
+    sqlite3_open(":memory:", &db);
+    int close_result = sqlite3_close(db);
+
+    // Step 4: Test sqlite3_memory_highwater
+    sqlite3_int64 highwater = sqlite3_memory_highwater(1);
+
+    // Step 5: Test sqlite3_memory_used
+    sqlite3_int64 memory_used_before = sqlite3_memory_used();
+
+    // Step 6: Test sqlite3_status
+    int current, highwater_status;
+    int status_result = sqlite3_status(SQLITE_STATUS_MEMORY_USED, &current, &highwater_status, 1);
+
+    // Step 7: Test sqlite3_memory_used again
+    sqlite3_int64 memory_used_after = sqlite3_memory_used();
+
+    // Step 8: Test sqlite3_hard_heap_limit64
+    sqlite3_int64 previous_hard_limit = sqlite3_hard_heap_limit64(1024 * 1024);
+
+    // Step 9: Test sqlite3_soft_heap_limit64
+    sqlite3_int64 previous_soft_limit = sqlite3_soft_heap_limit64(512 * 1024);
+
+    // Cleanup: Ensure db is closed
+    if (close_result != SQLITE_OK) {
+        sqlite3_close(db);
+    }
+
     return 0;
 }
 #ifdef INC_MAIN

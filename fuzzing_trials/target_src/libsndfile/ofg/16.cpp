@@ -1,36 +1,85 @@
 #include <sndfile.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure that size is sufficient for our needs
-    if (size < sizeof(SF_VIRTUAL_IO) + sizeof(SF_INFO)) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Prepare SF_VIRTUAL_IO structure with dummy functions
-    SF_VIRTUAL_IO vio;
-    vio.get_filelen = [](void *user_data) -> sf_count_t { return 0; };
-    vio.seek = [](sf_count_t offset, int whence, void *user_data) -> sf_count_t { return 0; };
-    vio.read = [](void *ptr, sf_count_t count, void *user_data) -> sf_count_t { return 0; };
-    vio.write = [](const void *ptr, sf_count_t count, void *user_data) -> sf_count_t { return 0; };
-    vio.tell = [](void *user_data) -> sf_count_t { return 0; };
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
 
-    // Prepare SF_INFO structure
+    // Open the temporary file with libsndfile
     SF_INFO sfinfo;
     memset(&sfinfo, 0, sizeof(SF_INFO));
+    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
+    if (sndfile == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Dummy user data
-    void *user_data = (void *)data;
+    // Prepare a buffer to read samples into
+    sf_count_t frames = 1024; // Arbitrary number of frames to read
+    int *buffer = new int[frames * sfinfo.channels]; // Allocate buffer for samples
 
     // Call the function-under-test
-    SNDFILE *sndfile = sf_open_virtual(&vio, SFM_READ, &sfinfo, user_data);
+    sf_readf_int(sndfile, buffer, frames);
 
-    // If the file was successfully opened, close it
-    if (sndfile != NULL) {
-        sf_close(sndfile);
-    }
+    // Clean up
+    sf_close(sndfile);
+    delete[] buffer;
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,74 +1,66 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
+#include <string.h> // Include for memcpy and malloc
 
 int LLVMFuzzerTestOneInput_368(const uint8_t *data, size_t size) {
-    // Check if the input data is not null and has a valid size
-    if (data == NULL || size == 0) {
+    sqlite3 *db = NULL;
+    int rc;
+    
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Initialize SQLite
-    sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
-    }
-
-    // Create a statement to use sqlite3_value
-    sqlite3_stmt *stmt;
-    const char *sql = "CREATE TABLE IF NOT EXISTS fuzz_table (data BLOB);";
-    if (sqlite3_exec(db, sql, NULL, NULL, NULL) != SQLITE_OK) {
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Insert the input data into the table
-    sql = "INSERT INTO fuzz_table (data) VALUES (?);";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Copy the input data to the new buffer and null-terminate it
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
 
-    // Bind the input data to the statement as a blob
-    if (sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC) != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
+    // Call the function-under-test
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
+    void* ret_sqlite3_malloc_colzd = sqlite3_malloc(-1);
+    if (ret_sqlite3_malloc_colzd == NULL){
+    	return 0;
     }
-
-    // Execute the statement
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_colzd) {
+    	return 0;
     }
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Query the data back to ensure it was inserted
-    sql = "SELECT data FROM fuzz_table;";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
-
-    // Step to the first result row
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        // Get the sqlite3_value from the statement
-        const unsigned char *text = sqlite3_column_text(stmt, 0);
-
-        // Use the result to prevent optimization out
-        if (text) {
-            volatile unsigned char dummy = text[0];
-            (void)dummy;
-        }
+    int ret_sqlite3_open_diend = sqlite3_open((const char *)ret_sqlite3_malloc_colzd, &db);
+    if (ret_sqlite3_open_diend < 0){
+    	return 0;
     }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Free the allocated buffer
+    free(sql);
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

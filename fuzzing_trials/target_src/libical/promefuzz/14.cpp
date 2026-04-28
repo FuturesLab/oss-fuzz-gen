@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_normalize at icalcomponent.c:2832:6 in icalcomponent.h
-// icalcomponent_new_participant at icalcomponent.c:2120:16 in icalcomponent.h
-// icalcomponent_new_xdaylight at icalcomponent.c:2065:16 in icalcomponent.h
-// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
-// icalcomponent_vanew at icalcomponent.c:105:16 in icalcomponent.h
-// icalcomponent_set_uid at icalcomponent.c:1804:6 in icalcomponent.h
+// icaldurationtype_as_utc_seconds at icalduration.c:246:5 in icalduration.h
+// icaldurationtype_as_seconds at icalduration.c:233:5 in icalduration.h
+// icaldurationtype_from_seconds at icalduration.c:23:25 in icalduration.h
+// icaldurationtype_null_duration at icalduration.c:256:25 in icalduration.h
+// icaldurationtype_normalize at icalduration.c:364:25 in icalduration.h
+// icaldurationtype_from_string at icalduration.c:38:25 in icalduration.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,76 +14,89 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstdint>
-#include <cstddef>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <assert.h>
 #include "ical.h"
-
-static void fuzz_icalcomponent_normalize(icalcomponent *comp) {
-    if (comp) {
-        icalcomponent_normalize(comp);
-    }
-}
-
-static void fuzz_icalcomponent_set_uid(icalcomponent *comp, const char *uid) {
-    if (comp && uid) {
-        icalcomponent_set_uid(comp, uid);
-    }
-}
+#include "ical.h"
+#include "ical.h"
+#include <icalduration.h>
+#include <string.h>
+#include <iostream>
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create a new VALARM component
-    icalcomponent *valarm = icalcomponent_new_valarm();
-    fuzz_icalcomponent_normalize(valarm);
+    // Convert input data to an integer for seconds
+    int seconds = static_cast<int>(Data[0]);
 
-    // Create a new PARTICIPANT component
-    icalcomponent *participant = icalcomponent_new_participant();
-    fuzz_icalcomponent_normalize(participant);
+    // Test icaldurationtype_from_seconds
+    struct icaldurationtype duration = icaldurationtype_from_seconds(seconds);
 
-    // Create a new XDAYLIGHT component
-    icalcomponent *xdaylight = icalcomponent_new_xdaylight();
-    fuzz_icalcomponent_normalize(xdaylight);
+    // Test icaldurationtype_as_utc_seconds
+    int utc_seconds = icaldurationtype_as_utc_seconds(duration);
 
-    // Use a portion of the input data to set a UID
-    size_t uid_length = Size > 32 ? 32 : Size;
-    char *uid = static_cast<char *>(malloc(uid_length + 1));
-    if (uid) {
-        memcpy(uid, Data, uid_length);
-        uid[uid_length] = '\0';
-        fuzz_icalcomponent_set_uid(valarm, uid);
-        fuzz_icalcomponent_set_uid(participant, uid);
-        fuzz_icalcomponent_set_uid(xdaylight, uid);
-        free(uid);
-    }
+    // Test icaldurationtype_normalize
+    struct icaldurationtype normalized_duration = icaldurationtype_normalize(duration);
 
-    // Create a new complex component using icalcomponent_vanew
-    icalcomponent *complex_component = icalcomponent_vanew(
-        ICAL_VEVENT_COMPONENT,
-        valarm,
-        participant,
-        xdaylight,
-        NULL
-    );
+    // Test icaldurationtype_null_duration
+    struct icaldurationtype null_duration = icaldurationtype_null_duration();
+    assert(null_duration.days == 0);
+    assert(null_duration.weeks == 0);
+    assert(null_duration.hours == 0);
+    assert(null_duration.minutes == 0);
+    assert(null_duration.seconds == 0);
 
-    if (complex_component) {
-        fuzz_icalcomponent_normalize(complex_component);
-        icalcomponent_free(complex_component);
-    } else {
-        // If complex_component creation failed, free individual components
-        if (valarm) {
-            icalcomponent_free(valarm);
-        }
-        if (participant) {
-            icalcomponent_free(participant);
-        }
-        if (xdaylight) {
-            icalcomponent_free(xdaylight);
-        }
-    }
+    // Test icaldurationtype_as_seconds
+    int duration_seconds = icaldurationtype_as_seconds(duration);
+
+    // Prepare a string for icaldurationtype_from_string
+    char duration_str[Size + 1];
+    memcpy(duration_str, Data, Size);
+    duration_str[Size] = '\0';
+
+    // Test icaldurationtype_from_string
+    struct icaldurationtype from_string_duration = icaldurationtype_from_string(duration_str);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,66 +1,79 @@
-#include "sndfile.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
+// Assuming these are the structures defined in the library for SF_CHUNK_ITERATOR and SF_CHUNK_INFO
+typedef struct {
+    // Add relevant fields here
+    int dummy_field; // Example field
+} SF_CHUNK_ITERATOR;
+
+typedef struct {
+    // Add relevant fields here
+    int dummy_field; // Example field
+} SF_CHUNK_INFO;
+
+// Function signature from the task
+extern "C" int sf_get_chunk_data(const SF_CHUNK_ITERATOR *, SF_CHUNK_INFO *);
+
+// Fuzzing harness
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the input size is sufficient to fill the structures
+    if (size < sizeof(SF_CHUNK_ITERATOR) + sizeof(SF_CHUNK_INFO)) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
+    // Initialize SF_CHUNK_ITERATOR
+    SF_CHUNK_ITERATOR chunk_iterator;
+    std::memcpy(&chunk_iterator, data, sizeof(SF_CHUNK_ITERATOR));
 
-    // Close the file descriptor so that libsndfile can open it
-    close(fd);
-
-    // Open the temporary file with libsndfile
-    SF_INFO sfinfo;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sf_open
-    SNDFILE *sndfile = sf_open(tmpl, size, &sfinfo);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (sndfile == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Prepare buffer to read samples into
-    sf_count_t frames = 1024;  // Arbitrary number of frames to read
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_set_chunk
-
-    int ret_sf_set_chunk_ywaih = sf_set_chunk(sndfile, NULL);
-    if (ret_sf_set_chunk_ywaih < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    double *buffer = (double *)malloc(frames * sfinfo.channels * sizeof(double));
-    if (buffer == NULL) {
-        sf_close(sndfile);
-        unlink(tmpl);
-        return 0;
-    }
+    // Initialize SF_CHUNK_INFO
+    SF_CHUNK_INFO chunk_info;
+    std::memcpy(&chunk_info, data + sizeof(SF_CHUNK_ITERATOR), sizeof(SF_CHUNK_INFO));
 
     // Call the function-under-test
-    sf_count_t read_frames = sf_readf_double(sndfile, buffer, frames);
-
-    // Clean up
-    free(buffer);
-    sf_close(sndfile);
-    unlink(tmpl);
+    sf_get_chunk_data(&chunk_iterator, &chunk_info);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_41(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

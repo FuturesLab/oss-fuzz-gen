@@ -1,41 +1,80 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_497(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    unsigned char *serialized_data;
-    sqlite3_int64 serialized_size;
-    unsigned int flags = 0;
+    sqlite3 *db;
+    char *errMsg = 0;
 
     // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the data is null-terminated and use it as the schema name
-    char *schema_name = (char *)malloc(size + 1);
-    if (schema_name == NULL) {
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(schema_name, data, size);
-    schema_name[size] = '\0';
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Call the function-under-test
-    serialized_data = sqlite3_serialize(db, schema_name, &serialized_size, flags);
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_backup_init
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        sqlite3_int64 ret_sqlite3_changes64_nzpvn = sqlite3_changes64(db);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        const void* ret_sqlite3_errmsg16_twuzy = sqlite3_errmsg16(db);
+        if (ret_sqlite3_errmsg16_twuzy == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        sqlite3_uint64 ret_sqlite3_msize_egppo = sqlite3_msize((void *)db);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        sqlite3_backup* ret_sqlite3_backup_init_zgprh = sqlite3_backup_init(db, errMsg, db, db);
+        if (ret_sqlite3_backup_init_zgprh == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
-    // Free the allocated resources
-    free(schema_name);
-    if (serialized_data != NULL) {
-        sqlite3_free(serialized_data);
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

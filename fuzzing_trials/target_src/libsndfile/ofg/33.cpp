@@ -1,58 +1,77 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <cstring> // Include for memset
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
-extern "C" {
-    #include <sndfile.h>
-}
+// Assuming these are the structures defined in the library for SF_CHUNK_ITERATOR and SF_CHUNK_INFO
+typedef struct {
+    // Add relevant fields here
+    int dummy_field; // Example field
+} SF_CHUNK_ITERATOR;
 
+typedef struct {
+    // Add relevant fields here
+    int dummy_field; // Example field
+} SF_CHUNK_INFO;
+
+// Function signature from the task
+extern "C" int sf_get_chunk_data(const SF_CHUNK_ITERATOR *, SF_CHUNK_INFO *);
+
+// Fuzzing harness
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Temporary file creation
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    
-    // Write data to the temporary file
-    if (write(fd, data, size) != static_cast<ssize_t>(size)) { // Cast size to match ssize_t
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    
-    // Rewind the file descriptor to the beginning
-    lseek(fd, 0, SEEK_SET);
-
-    // Open the temporary file with libsndfile
-    SF_INFO sfinfo;
-    SNDFILE *sndfile = sf_open_fd(fd, SFM_READ, &sfinfo, 0);
-    if (sndfile == NULL) {
-        close(fd);
-        unlink(tmpl);
+    // Ensure the input size is sufficient to fill the structures
+    if (size < sizeof(SF_CHUNK_ITERATOR) + sizeof(SF_CHUNK_INFO)) {
         return 0;
     }
 
-    // Initialize SF_CHUNK_INFO for testing
+    // Initialize SF_CHUNK_ITERATOR
+    SF_CHUNK_ITERATOR chunk_iterator;
+    std::memcpy(&chunk_iterator, data, sizeof(SF_CHUNK_ITERATOR));
+
+    // Initialize SF_CHUNK_INFO
     SF_CHUNK_INFO chunk_info;
-    memset(chunk_info.id, 0, sizeof(chunk_info.id));  // Correctly initialize the id
-    chunk_info.datalen = 0;  // Example value, adjust as necessary
-    chunk_info.data = NULL;  // Example value, adjust as necessary
+    std::memcpy(&chunk_info, data + sizeof(SF_CHUNK_ITERATOR), sizeof(SF_CHUNK_INFO));
 
     // Call the function-under-test
-    SF_CHUNK_ITERATOR *iterator = sf_get_chunk_iterator(sndfile, &chunk_info);
-
-    // Clean up
-    if (iterator != NULL) {
-        sf_next_chunk_iterator(iterator);
-    }
-    sf_close(sndfile);
-    close(fd);
-    unlink(tmpl);
+    sf_get_chunk_data(&chunk_iterator, &chunk_info);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

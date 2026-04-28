@@ -1,93 +1,125 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-
-extern "C" {
-    #include "libical/ical.h"
-}
+#include <sys/stat.h>
+#include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty to avoid unnecessary processing
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize a memory context for icalcomponent
+    icalcomponent *component = nullptr;
 
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Copy the data to a null-terminated string
-    char *description = (char *)malloc(size + 1);
-    if (description == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(description, data, size);
-    description[size] = '\0';
-
-    // Call the function-under-test
-    icalcomponent_set_description(component, description);
-
-    // Additional operation to ensure code coverage
-    const char *retrieved_description = icalcomponent_get_description(component);
-    if (retrieved_description != NULL) {
-        // Process retrieved description to ensure it's being used
-        size_t retrieved_length = strlen(retrieved_description);
-        if (retrieved_length > 0) {
-            // Perform some operation, e.g., logging or further manipulation
-            // For fuzzing purposes, we can attempt to parse it back or perform other operations
-            char *parsed_description = strdup(retrieved_description);
-            if (parsed_description) {
-                // Simulate further processing
-                free(parsed_description);
-            }
+    // Ensure the data size is sufficient to create a valid icalcomponent
+    if (size > 0) {
+        // Create a string from the input data
+        char *inputData = (char *)malloc(size + 1);
+        if (inputData == nullptr) {
+            return 0; // Memory allocation failed
         }
+        memcpy(inputData, data, size);
+        inputData[size] = '\0'; // Null-terminate the string
+
+        // Parse the input data into an icalcomponent
+        component = icalparser_parse_string(inputData);
+
+        // Free the input data as it's no longer needed
+        free(inputData);
     }
 
-    // Perform additional operations on the component to increase coverage
-    icalcomponent_kind kind = icalcomponent_isa(component);
-    if (kind == ICAL_VEVENT_COMPONENT) {
-        // Further manipulate the component
-        icalcomponent_set_summary(component, "Sample Summary");
+    // If a valid icalcomponent was created, use it
+    if (component != nullptr) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-        // Try adding an attendee to increase code coverage
-        icalproperty *attendee = icalproperty_new_attendee("mailto:example@example.com");
-        if (attendee) {
-            icalcomponent_add_property(component, attendee);
+        // Free the returned string if not NULL
+        if (icalString != nullptr) {
+            free(icalString);
         }
-    }
 
-    // Additional operations to further increase coverage
-    // Attempt to serialize the component to a string
-    char *component_str = icalcomponent_as_ical_string(component);
-    if (component_str) {
-        // Simulate processing of the serialized string
-        size_t component_str_length = strlen(component_str);
-        if (component_str_length > 0) {
-            char *processed_str = strdup(component_str);
-            if (processed_str) {
-                // Simulate further processing
-                free(processed_str);
-            }
+        // Free the icalcomponent
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icaltimezone_get_builtin_timezone_from_offset
+        size_t ret_icallimit_get_pauii = icallimit_get(ICAL_LIMIT_PARSE_SEARCH);
+        if (ret_icallimit_get_pauii < 0){
+        	return 0;
         }
-    }
-
-    // Clean up
-    free(description);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_free to icalcomponent_get_x_name
-
-        const char* ret_icalcomponent_get_x_name_aaren = icalcomponent_get_x_name(component);
-        if (ret_icalcomponent_get_x_name_aaren == NULL){
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!icalString) {
         	return 0;
         }
 
-        // End mutation: Producer.APPEND_MUTATOR
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icallimit_get to icalparameter_get_feature_nth
 
-    icalcomponent_free(component);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icallimit_get to icalparameter_get_feature_nth
+        icalparameter* ret_icalparameter_new_rsvp_mpnry = icalparameter_new_rsvp(ICAL_RSVP_X);
+        if (ret_icalparameter_new_rsvp_mpnry == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalparameter_new_rsvp_mpnry) {
+        	return 0;
+        }
+        icalparameter_feature ret_icalparameter_get_feature_nth_ippdr = icalparameter_get_feature_nth(ret_icalparameter_new_rsvp_mpnry, ret_icallimit_get_pauii);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalparameter* ret_icalparameter_new_required_pfify = icalparameter_new_required(ICAL_REQUIRED_FALSE);
+        if (ret_icalparameter_new_required_pfify == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalparameter_new_required_pfify) {
+        	return 0;
+        }
+        icalparameter_feature ret_icalparameter_get_feature_nth_dwefi = icalparameter_get_feature_nth(ret_icalparameter_new_required_pfify, ret_icallimit_get_pauii);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icaltimezone* ret_icaltimezone_get_builtin_timezone_from_offset_bsaji = icaltimezone_get_builtin_timezone_from_offset((int )ret_icallimit_get_pauii, icalString);
+        if (ret_icaltimezone_get_builtin_timezone_from_offset_bsaji == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_free(component);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,61 +1,83 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "sqlite3.h"
-#include <stddef.h> // Include for size_t
 
 int LLVMFuzzerTestOneInput_300(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_blob *blob = NULL;
-    int rc;
+    char *errMsg = 0;
 
-    // Open a connection to an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Create a sample table and insert a blob
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);", 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Insert a sample blob
-    sqlite3_stmt *stmt;
-    rc = sqlite3_prepare_v2(db, "INSERT INTO test (data) VALUES (?);", -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    rc = sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
-    if (rc != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    sqlite3_finalize(stmt);
-
-    // Open the blob for reading
-    rc = sqlite3_blob_open(db, "main", "test", "data", 1, 0, &blob);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Call the function-under-test
-    rc = sqlite3_blob_close(blob);
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_backup_init
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        sqlite3_mutex* ret_sqlite3_db_mutex_cgdmc = sqlite3_db_mutex(db);
+        if (ret_sqlite3_db_mutex_cgdmc == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        int ret_sqlite3_errcode_dfiza = sqlite3_errcode(db);
+        if (ret_sqlite3_errcode_dfiza < 0){
+        	return 0;
+        }
+        char* ret_sqlite3_expanded_sql_szekj = sqlite3_expanded_sql(NULL);
+        if (ret_sqlite3_expanded_sql_szekj == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_expanded_sql_szekj) {
+        	return 0;
+        }
+        sqlite3_backup* ret_sqlite3_backup_init_zrdwt = sqlite3_backup_init(db, errMsg, db, ret_sqlite3_expanded_sql_szekj);
+        if (ret_sqlite3_backup_init_zrdwt == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
     // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
     sqlite3_close(db);
+    free(sqlStatement);
+
     return 0;
 }
 #ifdef INC_MAIN

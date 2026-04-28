@@ -1,61 +1,91 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdio.h>
 #include "zlib.h"
+#include <unistd.h> // Include for mkstemp and close
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    gzFile file;
-    off_t offset;
-    int whence;
-    off_t result;
-
-    // Create a temporary file to work with
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    // Create a temporary file to simulate a gzFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Open a gzFile for writing to compress the input data
-    gzFile gzTempFile = gzdopen(fileno(tempFile), "wb");
-    if (gzTempFile == NULL) {
-        fclose(tempFile);
+    // Open the temporary file with gzopen
+    gzFile gzfile = gzdopen(fd, "wb");
+    if (gzfile == NULL) {
+        close(fd);
         return 0;
     }
 
-    // Write the input data to the gzFile to compress it
-    gzwrite(gzTempFile, data, size);
+    // Write the input data to the gzFile
+    if (gzwrite(gzfile, data, size) == 0) {
+        gzclose(gzfile);
+        return 0;
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzclose with gzeof
-    gzeof(gzTempFile);
+    // Call gzflush with a non-NULL gzFile and a valid flush parameter
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from gzdopen to gzsetparams using the plateau pool
+    int level = (size > 0) ? data[0] % 10 : 0;
+    int strategy = (size > 1) ? data[1] % 4 : 0;
+    int ret_gzsetparams_pxbfl = gzsetparams(gzfile, level, strategy);
+    if (ret_gzsetparams_pxbfl < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int flush = Z_SYNC_FLUSH; // Use a valid flush option
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzflush with gzputc
+    gzputc(gzfile, flush);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
+    // Close the gzFile
+    gzclose(gzfile);
 
+    // Remove the temporary file
+    remove(tmpl);
 
-    // Rewind the file to the beginning for reading
-    rewind(tempFile);
-
-    // Open the temporary file as a gzFile for reading
-    file = gzdopen(fileno(tempFile), "rb");
-    if (file == NULL) {
-        fclose(tempFile);
-        return 0;
-    }
-
-    // Set offset and whence to some values for testing
-    offset = (off_t)(size / 2); // Use half of the size as an offset
-    whence = SEEK_SET; // Use SEEK_SET as the whence value
-
-    // Call the function-under-test
-    result = gzseek(file, offset, whence);
-
-    // Close the gzFile and the temporary file
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzclose with gzgetc
-    gzgetc(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    fclose(tempFile);
-
-    // Return a non-zero value if gzseek fails to increase code coverage
-    return (result == -1) ? 1 : 0;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

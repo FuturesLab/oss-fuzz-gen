@@ -1,48 +1,41 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
 #include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
+#include <string.h>
 #include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_405(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
-    int rc;
+    sqlite3 *db;
+    char *errMsg = 0;
 
     // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Prepare an SQL statement using the input data
-    // Note: The input data is not null-terminated, so we need to handle it carefully
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    
-    // Free the allocated SQL string
-    sqlite3_free(sql);
-
-    // Check for errors
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
     }
 
-    // Close the database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_changes to sqlite3_str_new
-    sqlite3_str* ret_sqlite3_str_new_jfjby = sqlite3_str_new(db);
-    if (ret_sqlite3_str_new_jfjby == NULL){
-    	return 0;
+    // Clean up
+    if (errMsg) {
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
+        sqlite3_free(NULL);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    sqlite3_close(db);
+    free(sqlStatement);
+
     return 0;
 }
 #ifdef INC_MAIN

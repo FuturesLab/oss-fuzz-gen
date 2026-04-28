@@ -1,48 +1,76 @@
-extern "C" {
+#include <sys/stat.h>
+#include <string.h>
 #include "sndfile.h"
-#include <unistd.h>  // For close() and unlink()
-}
-
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Create a temporary file to use with SNDFILE
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Define the SF_INFO structure
-    SF_INFO sfinfo;
-    memset(&sfinfo, 0, sizeof(SF_INFO));
-
-    // Set some default values for the SF_INFO structure
-    sfinfo.samplerate = 44100;
-    sfinfo.channels = 2;
-    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
-
-    // Open the temporary file with sf_open_fd
-    SNDFILE *sndfile = sf_open_fd(fd, SFM_WRITE, &sfinfo, 1);
-    if (!sndfile) {
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
+        unlink(tmpl);
         return 0;
     }
-
-    // Ensure the data size is a multiple of sizeof(float)
-    size_t float_count = size / sizeof(float);
-    float *float_data = reinterpret_cast<float *>(const_cast<uint8_t *>(data));
-
-    // Call the function-under-test
-    sf_count_t written = sf_write_float(sndfile, float_data, static_cast<sf_count_t>(float_count));
-
-    // Clean up
-    sf_close(sndfile);
     close(fd);
+
+    // Open the temporary file with libsndfile
+    SF_INFO sfinfo;
+    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
+    if (sndfile != NULL) {
+        // Call the function-under-test
+        sf_close(sndfile);
+    }
+
+    // Clean up the temporary file
     unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

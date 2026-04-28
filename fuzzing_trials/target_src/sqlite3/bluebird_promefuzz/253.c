@@ -1,81 +1,40 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
-
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
-}
-
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_253(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    // Step 1: Shutdown the SQLite library
+    sqlite3_shutdown();
 
-    sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
+    // Step 2: Configure SQLite (using a dummy configuration option)
+    int config_option = SQLITE_CONFIG_SINGLETHREAD; // Example configuration option
+    sqlite3_config(config_option);
 
-    int rc;
+    // Step 3: Set a hard heap limit
+    sqlite3_int64 heap_limit = Size > sizeof(sqlite3_int64) ? *((sqlite3_int64*)Data) : 0;
+    sqlite3_hard_heap_limit64(heap_limit);
 
-    // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
+    // Step 4: Set another hard heap limit
+    heap_limit = Size > 2 * sizeof(sqlite3_int64) ? *((sqlite3_int64*)(Data + sizeof(sqlite3_int64))) : 0;
+    sqlite3_hard_heap_limit64(heap_limit);
 
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+    // Step 5: Configure SQLite again (using a dummy configuration option)
+    sqlite3_config(config_option);
 
-    // Set authorizer
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
-    }
+    // Step 6: Use sqlite3_snprintf to format a string
+    char buffer[100];
+    const char* format = "Formatted data: %d";
+    int value = Size > sizeof(int) ? *((int*)Data) : 0;
+    sqlite3_snprintf(sizeof(buffer), buffer, format, value);
 
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-//    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_test_control
-//    rc = sqlite3_test_control(64);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
-    }
-
-    // Close the database connection
-    sqlite3_close(db);
-    free(sql);
     return 0;
 }
 #ifdef INC_MAIN

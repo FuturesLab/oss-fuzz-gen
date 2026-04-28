@@ -1,57 +1,54 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
-#include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_369(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
     char *errMsg = 0;
-
-    // Allocate a buffer with an extra byte for the null terminator
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        fprintf(stderr, "Memory allocation failed\n");
+    char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO test (value) VALUES ('test');";
+    const char *tail;
+    
+    // Open a temporary in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Copy the input data to the buffer and null-terminate it
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Open a new database connection. ":memory:" creates a new database in RAM.
-    const char syazxect[1024] = "juapz";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(syazxect, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        free(sql);
-        return 0;
-    }
-
-    // Execute some SQL statement to potentially generate an error
-    // Using the input data as the SQL statement
+    // Execute SQL to create a table and insert a row
     rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        // Call the function-under-test
-        const char *error_message = sqlite3_errmsg(db);
-        // Print the error message for debugging purposes
-        fprintf(stderr, "SQL error: %s\n", error_message);
-
-        // Free the error message if it was allocated
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Close the database connection
-    sqlite3_close(db);
+    // Prepare a statement to select from the table
+    rc = sqlite3_prepare_v2(db, "SELECT * FROM test;", -1, &stmt, &tail);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Free the allocated buffer
-    free(sql);
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        // Use the fuzz data to determine the column index to retrieve
+        int column_index = 0;
+        if (size > 0) {
+            column_index = data[0] % sqlite3_column_count(stmt);
+        }
+
+        // Call the function-under-test
+        sqlite3_int64 result = sqlite3_column_int64(stmt, column_index);
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

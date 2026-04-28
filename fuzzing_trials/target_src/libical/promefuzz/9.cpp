@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_set_due at icalcomponent.c:2634:6 in icalcomponent.h
-// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
-// icalcomponent_get_due at icalcomponent.c:2613:21 in icalcomponent.h
-// icalcomponent_set_sequence at icalcomponent.c:1955:6 in icalcomponent.h
-// icalcomponent_set_duration at icalcomponent.c:1647:6 in icalcomponent.h
-// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
+// icalcomponent_get_uid at icalcomponent.c:1816:13 in icalcomponent.h
+// icalcomponent_get_location at icalcomponent.c:1932:13 in icalcomponent.h
+// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
+// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
+// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
+// icalcomponent_as_ical_string at icalcomponent.c:215:7 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,63 +14,98 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
+#include <fstream>
+#include <string>
 #include "ical.h"
 #include "ical.h"
-#include <cstring>
-#include <cstdint>
-#include <cstdlib>
-
-static icalcomponent* create_vtodo_component() {
-    icalcomponent* comp = icalcomponent_new(ICAL_VTODO_COMPONENT);
-    return comp;
-}
-
-static struct icaltimetype create_random_icaltime() {
-    struct icaltimetype time;
-    time.year = rand() % 3000; // Random year
-    time.zone = icaltimezone_get_utc_timezone(); // Use UTC for simplicity
-    return time;
-}
-
-static struct icaldurationtype create_random_icalduration() {
-    struct icaldurationtype duration;
-    duration.is_neg = rand() % 2;
-    duration.days = rand() % 100;
-    return duration;
-}
+#include "ical.h"
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Not enough data to proceed
+    if (Size == 0) {
+        return 0;
+    }
 
-    icalcomponent* comp = create_vtodo_component();
-    if (!comp) return 0; // Failed to create component
+    // Create a dummy icalcomponent for testing purposes
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!comp) {
+        return 0;
+    }
 
-    struct icaltimetype due_time = create_random_icaltime();
-    struct icaltimetype dtstart_time = create_random_icaltime();
-    struct icaldurationtype duration = create_random_icalduration();
+    // Use the data to set a description
+    std::string description(reinterpret_cast<const char*>(Data), Size);
+    icalcomponent_set_description(comp, description.c_str());
 
-    int sequence = Data[0]; // Use first byte as sequence number
+    // Retrieve and print various properties
+    const char *comment = icalcomponent_get_comment(comp);
+    if (comment) {
+        std::cout << "Comment: " << comment << std::endl;
+    }
 
-    // Fuzz the set_due function
-    icalcomponent_set_due(comp, due_time);
+    const char *location = icalcomponent_get_location(comp);
+    if (location) {
+        std::cout << "Location: " << location << std::endl;
+    }
 
-    // Fuzz the set_dtstart function
-    icalcomponent_set_dtstart(comp, dtstart_time);
+    const char *summary = icalcomponent_get_summary(comp);
+    if (summary) {
+        std::cout << "Summary: " << summary << std::endl;
+    }
 
-    // Fuzz the get_due function
-    icalcomponent_get_due(comp);
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
 
-    // Fuzz the set_duration function
-    icalcomponent_set_duration(comp, duration);
+    char *ical_str = icalcomponent_as_ical_string(comp);
+    if (ical_str) {
+        std::cout << "iCalendar String: " << ical_str << std::endl;
+        // Do not free ical_str as it is managed by libical's internal memory management
+    }
 
-    // Fuzz the set_sequence function
-    icalcomponent_set_sequence(comp, sequence);
-
-    // Fuzz the set_dtstamp function
-    icalcomponent_set_dtstamp(comp, dtstart_time);
-
-    // Clean up
+    // Cleanup
     icalcomponent_free(comp);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

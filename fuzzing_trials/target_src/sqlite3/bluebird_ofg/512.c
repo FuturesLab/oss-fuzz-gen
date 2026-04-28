@@ -1,47 +1,51 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_512(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
-
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
+    // Ensure there is at least some data to work with
+    if (size == 0) {
         return 0;
     }
 
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open((const char *)"r", &db);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_close_v2
-                sqlite3_close_v2(db);
-                // End mutation: Producer.REPLACE_FUNC_MUTATOR
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
+    // Initialize an sqlite3_value object
+    sqlite3_value *value = NULL;
+    sqlite3_initialize();
 
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            sqlite3_close(db);
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
+    // Create a new sqlite3_value from the input data
+    // Instead of using sqlite3ValueNew, use sqlite3_bind_blob to set the value
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(NULL, "SELECT ?", -1, &stmt, NULL);
+    if (rc != SQLITE_OK || stmt == NULL) {
+        sqlite3_finalize(stmt);
+        sqlite3_shutdown();
+        return 0;
     }
+
+    // Bind the input data to the statement
+    rc = sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_shutdown();
+        return 0;
+    }
+
+    // Execute the statement to create the value
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        value = sqlite3_column_value(stmt, 0);
+    }
+
+    // Call the function-under-test if value is not null
+    if (value != NULL) {
+        unsigned int subtype = sqlite3_value_subtype(value);
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_shutdown();
 
     return 0;
 }

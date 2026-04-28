@@ -1,94 +1,68 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
+static unsigned int autovacuum_pages_callback(void *pClientData, const char *zSchema, unsigned int nDbPage, unsigned int nFreePage, unsigned int nBytePerPage) {
+    // Simple callback that returns a random number of free pages to vacuum
+    return nFreePage > 0 ? nFreePage / 2 : 0;
 }
 
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static void autovacuum_pages_destructor(void *p) {
+    // Destructor for the client data
+    if (p) {
+        free(p);
+    }
 }
 
 int LLVMFuzzerTestOneInput_256(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 1) return 0; // Ensure there is at least some data
 
+    // Initialize SQLite database connection
     sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
-
-    int rc;
-
-    // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Test sqlite3_autovacuum_pages
+    void *clientData = malloc(10); // Allocate some dummy client data
+    if (clientData) {
+        sqlite3_autovacuum_pages(db, autovacuum_pages_callback, clientData, autovacuum_pages_destructor);
     }
 
-    // Set authorizer
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_create_filename
-    void* ret_sqlite3_malloc_rcxbm = sqlite3_malloc(Size);
-    if (ret_sqlite3_malloc_rcxbm == NULL){
-    	return 0;
-    }
-    char* ret_sqlite3_str_finish_luhel = sqlite3_str_finish(NULL);
-    if (ret_sqlite3_str_finish_luhel == NULL){
-    	return 0;
-    }
-    sqlite3_filename ret_sqlite3_create_filename_wdxbt = sqlite3_create_filename((const char *)ret_sqlite3_malloc_rcxbm, errMsg, ret_sqlite3_str_finish_luhel, 0, (const char **)"w");
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
+    // Test sqlite3_set_clientdata
+    char *name = "client_data_name";
+    void *clientDataSet = malloc(10);
+    if (clientDataSet) {
+        sqlite3_set_clientdata(db, name, clientDataSet, autovacuum_pages_destructor);
     }
 
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
+    // Test sqlite3_mutex_enter
+    sqlite3_mutex *mutex = sqlite3_db_mutex(db);
+    if (mutex) {
+        sqlite3_mutex_enter(mutex);
+        sqlite3_mutex_leave(mutex);
     }
 
-    // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    free(sql);
+    // Test sqlite3_create_collation_v2
+    sqlite3_create_collation_v2(db, "my_collation", SQLITE_UTF8, NULL, NULL, NULL);
+
+    // Test sqlite3_get_clientdata
+    void *retrievedData = sqlite3_get_clientdata(db, name);
+
+    // Test sqlite3_extended_result_codes
+    sqlite3_extended_result_codes(db, 1);
+
+    // Clean up
+    sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

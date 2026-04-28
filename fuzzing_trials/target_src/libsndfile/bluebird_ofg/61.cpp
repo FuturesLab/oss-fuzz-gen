@@ -1,89 +1,87 @@
-#include "sndfile.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <cstdint>
+#include <cstdlib>
+
+extern "C" {
+    #include "sndfile.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Close the file descriptor
-    close(fd);
-
-    // Open the temporary file with libsndfile
+    // Open a virtual file from the data to create a valid SNDFILE object
+    SF_VIRTUAL_IO vio;
+    SNDFILE *sndfile;
     SF_INFO sfinfo;
-    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
-    if (sndfile == NULL) {
-        unlink(tmpl);
+    
+    // Initialize the SF_VIRTUAL_IO structure
+    vio.get_filelen = nullptr;
+    vio.seek = nullptr;
+    vio.read = nullptr;
+    vio.write = nullptr;
+    vio.tell = nullptr;
+
+    // Open the virtual file
+    sndfile = sf_open_virtual(&vio, SFM_READ, &sfinfo, nullptr);
+    if (sndfile == nullptr) {
         return 0;
     }
 
-    // Prepare a buffer to read floats
-    sf_count_t num_frames = 1024; // Number of frames to read
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_write_short
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_error_str
-    int ret_sf_perror_gnxga = sf_perror(NULL);
-    if (ret_sf_perror_gnxga < 0){
-    	return 0;
-    }
-
-    int ret_sf_error_str_jogld = sf_error_str(sndfile, (char *)"w", (size_t )ret_sf_perror_gnxga);
-    if (ret_sf_error_str_jogld < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_sf_current_byterate_tkhbz = sf_current_byterate(sndfile);
-    if (ret_sf_current_byterate_tkhbz < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_current_byterate to sf_strerror
-
-    const char* ret_sf_strerror_xwbgu = sf_strerror(sndfile);
-    if (ret_sf_strerror_xwbgu == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    sf_count_t ret_sf_write_short_xuagt = sf_write_short(sndfile, (const short *)&ret_sf_current_byterate_tkhbz, size);
-    if (ret_sf_write_short_xuagt < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    float *buffer = (float *)malloc(num_frames * sfinfo.channels * sizeof(float));
-    if (buffer == NULL) {
+    // Initialize a SF_CHUNK_ITERATOR object
+    SF_CHUNK_ITERATOR* iterator = sf_get_chunk_iterator(sndfile, nullptr);
+    if (iterator == nullptr) {
         sf_close(sndfile);
-        unlink(tmpl);
         return 0;
     }
 
-    // Call the function-under-test
-    sf_read_float(sndfile, buffer, num_frames);
+    // Fuzz the sf_next_chunk_iterator function
+    SF_CHUNK_ITERATOR* result = sf_next_chunk_iterator(iterator);
+
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (result != nullptr) {
+        // Do something with the result, like printing or logging
+    }
 
     // Clean up
-    free(buffer);
     sf_close(sndfile);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_61(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

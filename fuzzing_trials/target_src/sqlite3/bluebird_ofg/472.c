@@ -1,44 +1,30 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 
-// Remove 'extern "C"' as it is not needed in C code
 int LLVMFuzzerTestOneInput_472(const uint8_t *data, size_t size) {
-    // Initialize SQLite3 context
-    sqlite3 *db;
-    sqlite3_open(":memory:", &db);
+    // Declare and initialize variables
+    sqlite3 *db = NULL;
+    int result = 0;
+    int flags = 0;
 
-    // Ensure the data is not NULL and size is greater than 0
-    if (data != NULL && size > 0) {
-        // Create a buffer to hold the data
-        void *buffer = malloc(size);
-        if (buffer != NULL) {
-            // Copy the data into the buffer
-            memcpy(buffer, data, size);
-
-            // Prepare a statement
-            sqlite3_stmt *stmt;
-            if (sqlite3_prepare_v2(db, (const char *)buffer, size, &stmt, NULL) == SQLITE_OK) {
-                // Bind the value
-                sqlite3_bind_text(stmt, 1, (const char *)buffer, size, SQLITE_TRANSIENT);
-
-                // Step through the statement
-                while (sqlite3_step(stmt) == SQLITE_ROW) {
-                    // Process the row
-                }
-
-                // Finalize the statement
-                sqlite3_finalize(stmt);
-            }
-
-            // Free the buffer
-            free(buffer);
-        }
+    // Open a new in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // If the database can't be opened, exit early
     }
 
-    // Close the SQLite3 database
+    // Ensure the size is at least 1 to avoid accessing out-of-bounds
+    if (size > 0) {
+        // Use the first byte of data to determine the flags value
+        flags = data[0];
+    }
+
+    // Call the function-under-test
+    result = sqlite3_extended_result_codes(db, flags);
+
+    // Clean up and close the database
     sqlite3_close(db);
 
     return 0;

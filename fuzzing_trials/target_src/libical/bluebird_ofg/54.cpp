@@ -1,64 +1,93 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
-#include "/src/libical/src/libical/icalcomponent.h"
+    #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid icalcomponent
-    if (size < 1) {
+    // Ensure the data size is sufficient for creating a null-terminated string
+    if (size == 0) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
+    // Create an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Create a null-terminated string from the input data
+    char *comment = (char *)malloc(size + 1);
+    if (comment == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(comment, data, size);
+    comment[size] = '\0';
 
-    // Create an icalcomponent from the buffer
-    icalcomponent *component = icalcomponent_new_from_string(buffer);
-
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != NULL) {
-        // Call the function-under-test
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Clean up the component
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_isa to icalcomponent_begin_component
-        icalcomponent* ret_icalcomponent_new_vquery_qloqk = icalcomponent_new_vquery();
-        if (ret_icalcomponent_new_vquery_qloqk == NULL){
-        	return 0;
-        }
-
-        icalcompiter ret_icalcomponent_begin_component_yhjvg = icalcomponent_begin_component(ret_icalcomponent_new_vquery_qloqk, kind);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Ensure the comment is not empty
+    if (strlen(comment) == 0) {
+        free(comment);
+        icalcomponent_free(component);
+        return 0;
     }
 
-    // Free the temporary buffer
+    // Call the function under test
+    icalcomponent_set_comment(component, comment);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_get_method
+    // Additional operations to increase code coverage
+    // For example, retrieve the comment and check it
+    const char *retrieved_comment = icalcomponent_get_comment(component);
+    if (retrieved_comment != NULL) {
+        // Do something with retrieved_comment if needed
+    }
 
-    icalproperty_method ret_icalcomponent_get_method_dhicx = icalcomponent_get_method(component);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(buffer);
+    // Clean up
+    free(comment);
+    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_54(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

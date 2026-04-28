@@ -1,91 +1,69 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include for memcpy
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient to create a valid string
-    if (size == 0) {
-        return 0;
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vfreebusy();
+    
+    // Check if the component was created successfully
+    if (component != NULL) {
+        // Perform operations on the component if needed
+        // For example, you can convert it to a string and print
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print the component string (for debugging purposes)
+            // printf("%s\n", component_str);
+        }
+
+        // Free the component string if allocated
+        icalmemory_free_buffer(component_str);
+
+        // Free the component to avoid memory leaks
+        icalcomponent_free(component);
     }
-
-    // Create a null-terminated string from the input data
-    char *ical_string = static_cast<char*>(malloc(size + 1));
-    if (ical_string == nullptr) {
-        return 0;
-    }
-    memcpy(ical_string, data, size);
-    ical_string[size] = '\0';
-
-    // Parse the string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_string);
-
-    // Free the allocated string
-    free(ical_string);
-
-    if (component == nullptr) {
-        return 0;
-    }
-
-    // Fuzzing different icalproperty_kind values
-    icalproperty_kind kinds[] = {
-        ICAL_ANY_PROPERTY,
-        ICAL_NO_PROPERTY,
-        ICAL_X_PROPERTY,
-        ICAL_ATTACH_PROPERTY,
-        ICAL_CATEGORIES_PROPERTY,
-        ICAL_CLASS_PROPERTY,
-        ICAL_COMMENT_PROPERTY,
-        ICAL_DESCRIPTION_PROPERTY,
-        ICAL_GEO_PROPERTY,
-        ICAL_LOCATION_PROPERTY,
-        ICAL_PERCENTCOMPLETE_PROPERTY,
-        ICAL_PRIORITY_PROPERTY,
-        ICAL_RESOURCES_PROPERTY,
-        ICAL_STATUS_PROPERTY,
-        ICAL_SUMMARY_PROPERTY,
-        ICAL_COMPLETED_PROPERTY,
-        ICAL_DTEND_PROPERTY,
-        ICAL_DUE_PROPERTY,
-        ICAL_DTSTART_PROPERTY,
-        ICAL_DURATION_PROPERTY,
-        ICAL_FREEBUSY_PROPERTY,
-        ICAL_TRANSP_PROPERTY,
-        ICAL_TZID_PROPERTY,
-        ICAL_TZNAME_PROPERTY,
-        ICAL_TZOFFSETFROM_PROPERTY,
-        ICAL_TZOFFSETTO_PROPERTY,
-        ICAL_TZURL_PROPERTY,
-        ICAL_ATTENDEE_PROPERTY,
-        ICAL_CONTACT_PROPERTY,
-        ICAL_ORGANIZER_PROPERTY,
-        ICAL_RECURRENCEID_PROPERTY,
-        ICAL_RELATEDTO_PROPERTY,
-        ICAL_URL_PROPERTY,
-        ICAL_UID_PROPERTY,
-        ICAL_EXDATE_PROPERTY,
-        ICAL_RDATE_PROPERTY,
-        ICAL_RRULE_PROPERTY,
-        ICAL_ACTION_PROPERTY,
-        ICAL_REPEAT_PROPERTY,
-        ICAL_TRIGGER_PROPERTY,
-        ICAL_CREATED_PROPERTY,
-        ICAL_DTSTAMP_PROPERTY,
-        ICAL_LASTMODIFIED_PROPERTY,
-        ICAL_SEQUENCE_PROPERTY,
-        ICAL_REQUESTSTATUS_PROPERTY
-    };
-
-    for (icalproperty_kind kind : kinds) {
-        // Call the function-under-test
-        icalcomponent_count_properties(component, kind);
-    }
-
-    // Clean up
-    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

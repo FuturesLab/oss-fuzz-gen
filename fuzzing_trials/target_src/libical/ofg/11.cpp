@@ -1,32 +1,57 @@
 #include <stdint.h>
 #include <stddef.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Initialize two icalcomponent pointers
-    icalcomponent *component1 = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcomponent *component2 = icalcomponent_new(ICAL_VTODO_COMPONENT);
-
-    // Ensure that the components are not NULL
-    if (component1 == NULL || component2 == NULL) {
-        if (component1 != NULL) {
-            icalcomponent_free(component1);
-        }
-        if (component2 != NULL) {
-            icalcomponent_free(component2);
-        }
-        return 0;
-    }
-
     // Call the function-under-test
-    icalcomponent_set_parent(component1, component2);
+    struct icaldurationtype duration = icaldurationtype_bad_duration();
 
-    // Clean up
-    icalcomponent_free(component1);
-    icalcomponent_free(component2);
+    // Use the returned duration in some way to ensure it's processed
+    // Here, we will simply check if the duration is valid or not
+    int is_bad = icaldurationtype_is_bad_duration(duration);
+
+    // Optionally, print the result to verify the behavior
+    // This line can be commented out if not needed
+    // printf("Is bad duration: %d\n", is_bad);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library file, aiming to fuzz the following functions:
 // magic_open at magic.c:267:1 in magic.h
-// magic_load at magic.c:317:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
-// magic_close at magic.c:306:1 in magic.h
-// magic_setflags at magic.c:594:1 in magic.h
-// magic_getflags at magic.c:585:1 in magic.h
-// magic_descriptor at magic.c:403:1 in magic.h
+// magic_setparam at magic.c:613:1 in magic.h
+// magic_load_buffers at magic.c:329:1 in magic.h
+// magic_getparam at magic.c:656:1 in magic.h
 // magic_errno at magic.c:577:1 in magic.h
+// magic_compile at magic.c:340:1 in magic.h
+// magic_setflags at magic.c:594:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
@@ -18,61 +18,102 @@
 #include <cstdint>
 #include <cstddef>
 #include <magic.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <fstream>
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+    std::ofstream ofs("./dummy_file", std::ios::binary);
+    ofs.write(reinterpret_cast<const char *>(Data), Size);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Initialize the magic library
-    magic_t magic = magic_open(MAGIC_NONE);
-    if (magic == NULL) {
+    // Initialize magic cookie
+    magic_t magic_cookie = magic_open(MAGIC_NONE);
+    if (!magic_cookie) {
         return 0;
     }
 
-    // Load the magic database
-    if (magic_load(magic, NULL) == -1) {
-        magic_close(magic);
+    // Prepare parameters
+    int param = Data[0];
+    size_t value_size = sizeof(size_t);
+    if (Size < value_size + 1) {
+        magic_close(magic_cookie);
         return 0;
     }
+    const void *value = static_cast<const void *>(&Data[1]);
 
-    // Write data to a dummy file
+    // Test magic_setparam with proper size
+    magic_setparam(magic_cookie, param, value);
+
+    // Prepare buffers for magic_load_buffers
+    void *buffers[1] = {const_cast<uint8_t *>(Data)};
+    size_t buffer_sizes[1] = {Size};
+
+    // Test magic_load_buffers
+    magic_load_buffers(magic_cookie, buffers, buffer_sizes, 1);
+
+    // Test magic_getparam with proper size
+    void *get_value = malloc(value_size);
+    if (get_value) {
+        magic_getparam(magic_cookie, param, get_value);
+        free(get_value);
+    }
+
+    // Test magic_errno
+    magic_errno(magic_cookie);
+
+    // Write dummy file for magic_compile
     write_dummy_file(Data, Size);
 
-    // Open the dummy file
-    int fd = open("./dummy_file", O_RDONLY);
-    if (fd == -1) {
-        magic_close(magic);
-        return 0;
-    }
+    // Test magic_compile
+    magic_compile(magic_cookie, "./dummy_file");
 
-    // Set flags
-    int flags = Data[0]; // Use the first byte of data as flags
-    magic_setflags(magic, flags);
-
-    // Get flags
-    magic_getflags(magic);
-
-    // Use the magic_descriptor function
-    const char *description = magic_descriptor(magic, fd);
-    if (description == NULL) {
-        magic_errno(magic);
-    }
+    // Test magic_setflags
+    magic_setflags(magic_cookie, param);
 
     // Clean up
-    close(fd);
-    magic_close(magic);
+    magic_close(magic_cookie);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

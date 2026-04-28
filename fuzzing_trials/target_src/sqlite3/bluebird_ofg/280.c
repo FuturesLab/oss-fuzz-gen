@@ -1,62 +1,50 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
 #include "sqlite3.h"
-
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-}
+#include <stdio.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_280(const uint8_t *data, size_t size) {
     sqlite3 *db;
     int rc;
+    char *errMsg = 0;
+    const char *sql;
 
-    // Open a new in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Initialize the SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    // Create a table
+    sql = "CREATE TABLE IF NOT EXISTS test(id INT, value TEXT);";
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        fprintf(stderr, "SQL error: %s\n", errMsg);
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
-
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Insert some data
+    sql = "INSERT INTO test (id, value) VALUES (1, 'Hello');";
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
 
+    // Call the function-under-test
+    int changes = sqlite3_changes(db);
+    printf("Number of changes: %d\n", changes);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_create_module
-    void* ret_sqlite3_malloc_ewxds = sqlite3_malloc(64);
-    if (ret_sqlite3_malloc_ewxds == NULL){
-    	return 0;
-    }
-    const char iwntfflu[1024] = "uyuhd";
-    const sqlite3_module vxshmrsv;
-    memset(&vxshmrsv, 0, sizeof(vxshmrsv));
-    int ret_sqlite3_create_module_tiwmg = sqlite3_create_module(db, iwntfflu, &vxshmrsv, ret_sqlite3_malloc_ewxds);
-    if (ret_sqlite3_create_module_tiwmg < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Cleanup
+    sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

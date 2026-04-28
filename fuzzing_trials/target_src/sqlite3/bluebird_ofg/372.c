@@ -1,83 +1,38 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_372(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
-    const void *blob_data;
-    int column_index = 0; // Default column index
 
-    // Create a temporary in-memory database
+    // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
-        return 0;
-    }
-
-    // Create a simple table for testing
-    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, data BLOB);";
-    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(db));
+    if(rc) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare an insert statement
-    const char *insert_sql = "INSERT INTO test (data) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
+    // Convert the fuzz input into a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_error_offset
+        sqlite3_error_offset(db);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Bind the input data as a blob
-    rc = sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to bind blob: %s\n", sqlite3_errmsg(db));
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Execute the insert statement
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Prepare a select statement
-    const char *select_sql = "SELECT data FROM test WHERE id = 1;";
-    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare select statement: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the select statement
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        // Call the function-under-test
-        blob_data = sqlite3_column_blob(stmt, column_index);
-    }
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Close the database
+    // Free allocated resources
+    sqlite3_free(errMsg);
+    free(sql);
     sqlite3_close(db);
 
     return 0;

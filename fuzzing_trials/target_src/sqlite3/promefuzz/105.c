@@ -1,14 +1,12 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_busy_timeout at sqlite3.c:172853:16 in sqlite3.h
+// sqlite3_sleep at sqlite3.c:175133:16 in sqlite3.h
+// sqlite3_changes at sqlite3.c:172160:16 in sqlite3.h
+// sqlite3_threadsafe at sqlite3.c:171135:16 in sqlite3.h
+// sqlite3_global_recover at sqlite3.c:174934:16 in sqlite3.h
+// sqlite3_db_status at sqlite3.c:11036:16 in sqlite3.h
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_backup_init at sqlite3.c:69968:28 in sqlite3.h
-// sqlite3_backup_step at sqlite3.c:70142:16 in sqlite3.h
-// sqlite3_backup_remaining at sqlite3.c:70453:16 in sqlite3.h
-// sqlite3_backup_pagecount at sqlite3.c:70467:16 in sqlite3.h
-// sqlite3_backup_finish at sqlite3.c:70399:16 in sqlite3.h
-// sqlite3_close_v2 at sqlite3.c:172362:16 in sqlite3.h
-// sqlite3_close_v2 at sqlite3.c:172362:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -16,59 +14,99 @@
 #include <stdio.h>
 #include <sqlite3.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
-static void write_dummy_file(const char *data, size_t size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(data, 1, size, file);
-        fclose(file);
-    }
+static void fuzz_sqlite3_busy_timeout(sqlite3 *db, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return; // Ensure there's enough data for an int
+    int ms;
+    memcpy(&ms, Data, sizeof(int));
+    sqlite3_busy_timeout(db, ms);
+}
+
+static void fuzz_sqlite3_sleep(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return; // Ensure there's enough data for an int
+    int ms;
+    memcpy(&ms, Data, sizeof(int));
+    sqlite3_sleep(ms);
+}
+
+static void fuzz_sqlite3_changes(sqlite3 *db) {
+    sqlite3_changes(db);
+}
+
+static void fuzz_sqlite3_threadsafe() {
+    sqlite3_threadsafe();
+}
+
+static void fuzz_sqlite3_global_recover() {
+    sqlite3_global_recover();
+}
+
+static void fuzz_sqlite3_db_status(sqlite3 *db, const uint8_t *Data, size_t Size) {
+    if (Size < 3 * sizeof(int)) return; // Ensure there's enough data for three ints
+    int op, resetFlg;
+    int cur = 0, hiwtr = 0;
+    memcpy(&op, Data, sizeof(int));
+    memcpy(&resetFlg, Data + sizeof(int), sizeof(int));
+    sqlite3_db_status(db, op, &cur, &hiwtr, resetFlg);
 }
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    sqlite3 *sourceDb = NULL;
-    sqlite3 *destDb = NULL;
-    sqlite3_backup *backup = NULL;
-    int rc;
-    int nPage = Data[0] % 10 + 1; // Number of pages to copy
-
-    // Write data to dummy file
-    write_dummy_file((const char *)Data, Size);
-
-    // Open source database
-    rc = sqlite3_open("./dummy_file", &sourceDb);
+    sqlite3 *db;
+    int rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Open destination database
-    rc = sqlite3_open(":memory:", &destDb);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(sourceDb);
-        return 0;
-    }
+    fuzz_sqlite3_busy_timeout(db, Data, Size);
+    fuzz_sqlite3_sleep(Data, Size);
+    fuzz_sqlite3_changes(db);
+    fuzz_sqlite3_threadsafe();
+    fuzz_sqlite3_global_recover();
+    fuzz_sqlite3_db_status(db, Data, Size);
 
-    // Initialize backup
-    backup = sqlite3_backup_init(destDb, "main", sourceDb, "main");
-    if (backup) {
-        // Perform backup steps
-        while ((rc = sqlite3_backup_step(backup, nPage)) == SQLITE_OK) {
-            // Optionally, check progress
-            int remaining = sqlite3_backup_remaining(backup);
-            int pageCount = sqlite3_backup_pagecount(backup);
-        }
-        
-        // Finalize backup
-        sqlite3_backup_finish(backup);
-    }
-
-    // Close databases
-    sqlite3_close_v2(destDb);
-    sqlite3_close_v2(sourceDb);
-
+    sqlite3_close(db);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_105(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

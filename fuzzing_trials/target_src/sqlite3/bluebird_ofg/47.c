@@ -1,44 +1,70 @@
-#include <stddef.h>  // For size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // For NULL
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
-#include <string.h>  // For strlen
+#include <stdlib.h>
+#include <string.h> // Include for memcpy and malloc
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
     sqlite3 *db = NULL;
     int rc;
-
-    // Attempt to open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
+    
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
-        return 0; // Exit if the database couldn't be opened
+        return 0;
     }
 
-    // If there's data, attempt to execute it as an SQL statement
-    if (size > 0) {
-        // Ensure the data is null-terminated before passing to sqlite3_exec
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0; // Exit if memory allocation fails
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-        char *errMsg = 0;
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
+    // Copy the input data to the new buffer and null-terminate it
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-        free(sql); // Free the allocated memory
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
 
     // Call the function-under-test
-    int errno_result = sqlite3_system_errno(db);
 
-    // Clean up and close the database
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
+    char* ret_sqlite3_expanded_sql_hnsbs = sqlite3_expanded_sql(NULL);
+    if (ret_sqlite3_expanded_sql_hnsbs == NULL){
+    	return 0;
+    }
+    double ret_sqlite3_value_double_bhngd = sqlite3_value_double(NULL);
+    if (ret_sqlite3_value_double_bhngd < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_expanded_sql_hnsbs) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strlike_gjvcc = sqlite3_strlike(ret_sqlite3_expanded_sql_hnsbs, errMsg, (unsigned int )ret_sqlite3_value_double_bhngd);
+    if (ret_sqlite3_strlike_gjvcc < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
+
+    // Free the allocated buffer
+    free(sql);
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

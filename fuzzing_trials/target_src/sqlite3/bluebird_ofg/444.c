@@ -1,65 +1,52 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // For size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // For malloc, free, and NULL
-#include <string.h>  // For memcpy
 #include "sqlite3.h"
+#include <stdlib.h>
+#include <string.h> // Include for memcpy and malloc
 
 int LLVMFuzzerTestOneInput_444(const uint8_t *data, size_t size) {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
     int rc;
-    char *errMsg = 0;
-
-    // Initialize a database in memory
+    
+    // Open an in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Execute a simple SQL statement to ensure the database is in a valid state
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
 
-    // If size is greater than 0, use the data to execute a SQL statement
-    if (size > 0) {
-        // Interpret the data as a SQL statement
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0;
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
+    // Copy the input data to the new buffer and null-terminate it
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-        // Execute the SQL statement
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-
-        free(sql);
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
 
     // Call the function-under-test
-    int autocommit = sqlite3_get_autocommit(db);
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
 
-    // Cleanup
+    // Free the allocated buffer
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_get_autocommit to sqlite3_open16
-    int ret_sqlite3_error_offset_rfimz = sqlite3_error_offset(db);
-    if (ret_sqlite3_error_offset_rfimz < 0){
-    	return 0;
-    }
-    int ret_sqlite3_open16_dvifa = sqlite3_open16((const void *)db, &db);
-    if (ret_sqlite3_open16_dvifa < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_total_changes64 to sqlite3_blob_reopen
+    int ret_sqlite3_blob_reopen_qfpvs = sqlite3_blob_reopen(NULL, changes);
+    if (ret_sqlite3_blob_reopen_qfpvs < 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
+    free(sql);
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

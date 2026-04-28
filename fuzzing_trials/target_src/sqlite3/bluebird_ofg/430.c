@@ -1,46 +1,50 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
-#include <stdio.h>  // Include stdio.h for snprintf
 
 int LLVMFuzzerTestOneInput_430(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
     char *errMsg = 0;
+    int rc;
 
-    // Initialize SQLite in-memory database
+    // Initialize SQLite (required before using any SQLite functions)
+    if (sqlite3_initialize() != SQLITE_OK) {
+        return 0;
+    }
+
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
+        sqlite3_shutdown();
         return 0;
     }
 
-    // Create a simple table for testing
-    const char *createTableSQL = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+    // Ensure the input data is null-terminated
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        sqlite3_shutdown();
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Attempt to execute the input data as SQL
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
     }
 
-    // Convert input data to a SQL statement
-    char sql[256];
-    snprintf(sql, sizeof(sql), "INSERT INTO test (value) VALUES ('%.*s');", (int)size, data);
+    // Free the allocated memory for SQL
+    free(sql);
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Call the function-under-test
-    sqlite3 *db_handle = sqlite3_db_handle(stmt);
-
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Close the database
     sqlite3_close(db);
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
 
     return 0;
 }

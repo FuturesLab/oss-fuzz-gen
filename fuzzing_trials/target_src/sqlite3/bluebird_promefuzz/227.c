@@ -1,101 +1,100 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
+#include <assert.h>
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
+static void initialize_database(sqlite3 **db) {
+    int rc = sqlite3_open(":memory:", db);
+    assert(rc == SQLITE_OK);
 }
 
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static void cleanup_database(sqlite3 *db) {
+    sqlite3_close(db);
+}
+
+static void fuzz_sqlite3_txn_state(sqlite3 *db, const uint8_t *Data, size_t Size) {
+    char *zSchema = NULL;
+    if (Size > 0) {
+        zSchema = (char *)malloc(Size + 1);
+        memcpy(zSchema, Data, Size);
+        zSchema[Size] = '\0';
+    }
+    int state = sqlite3_txn_state(db, zSchema);
+    (void)state; // Suppress unused variable warning
+    free(zSchema);
+}
+
+static void fuzz_sqlite3_backup_step(sqlite3 *db, const uint8_t *Data, size_t Size) {
+    sqlite3_backup *backup = sqlite3_backup_init(db, "main", db, "temp");
+    if (backup) {
+        int nPage = (Size > 0) ? Data[0] : 0;
+        int rc = sqlite3_backup_step(backup, nPage);
+        (void)rc; // Suppress unused variable warning
+        sqlite3_backup_finish(backup);
+    }
+}
+
+static void fuzz_sqlite3_wal_checkpoint(sqlite3 *db, const uint8_t *Data, size_t Size) {
+    char *zDb = NULL;
+    if (Size > 0) {
+        zDb = (char *)malloc(Size + 1);
+        memcpy(zDb, Data, Size);
+        zDb[Size] = '\0';
+    }
+    int rc = sqlite3_wal_checkpoint(db, zDb);
+    (void)rc; // Suppress unused variable warning
+    free(zDb);
+}
+
+static void fuzz_sqlite3_wal_autocheckpoint(sqlite3 *db, const uint8_t *Data, size_t Size) {
+    int N = (Size > 0) ? Data[0] : 0;
+    int rc = sqlite3_wal_autocheckpoint(db, N);
+    (void)rc; // Suppress unused variable warning
+}
+
+static int wal_hook_callback(void *pArg, sqlite3 *db, const char *zDb, int nPages) {
+    (void)pArg;
+    (void)db;
+    (void)zDb;
+    (void)nPages;
+    return SQLITE_OK;
+}
+
+static void fuzz_sqlite3_wal_hook(sqlite3 *db, const uint8_t *Data, size_t Size) {
+    void *prev = sqlite3_wal_hook(db, wal_hook_callback, NULL);
+    (void)prev; // Suppress unused variable warning
+}
+
+static void fuzz_sqlite3_wal_checkpoint_v2(sqlite3 *db, const uint8_t *Data, size_t Size) {
+    char *zDb = NULL;
+    if (Size > 0) {
+        zDb = (char *)malloc(Size + 1);
+        memcpy(zDb, Data, Size);
+        zDb[Size] = '\0';
+    }
+    int eMode = (Size > 1) ? Data[1] : SQLITE_CHECKPOINT_PASSIVE;
+    int pnLog = 0, pnCkpt = 0;
+    int rc = sqlite3_wal_checkpoint_v2(db, zDb, eMode, &pnLog, &pnCkpt);
+    (void)rc; // Suppress unused variable warning
+    free(zDb);
 }
 
 int LLVMFuzzerTestOneInput_227(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
     sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
+    initialize_database(&db);
 
-    int rc;
+    fuzz_sqlite3_txn_state(db, Data, Size);
+    fuzz_sqlite3_backup_step(db, Data, Size);
+    fuzz_sqlite3_wal_checkpoint(db, Data, Size);
+    fuzz_sqlite3_wal_autocheckpoint(db, Data, Size);
+    fuzz_sqlite3_wal_hook(db, Data, Size);
+    fuzz_sqlite3_wal_checkpoint_v2(db, Data, Size);
 
-    // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
-
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    // Set authorizer
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_load_extension
-    char* ret_sqlite3_expanded_sql_jtrvw = sqlite3_expanded_sql(NULL);
-    if (ret_sqlite3_expanded_sql_jtrvw == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_load_extension_srvve = sqlite3_load_extension(db, ret_sqlite3_expanded_sql_jtrvw, NULL, (char **)Data);
-    if (ret_sqlite3_load_extension_srvve < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int ret_sqlite3_extended_result_codes_cxcaq = sqlite3_extended_result_codes(db, -1);
-    if (ret_sqlite3_extended_result_codes_cxcaq < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
-    }
-
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
-    }
-
-    // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    free(sql);
+    cleanup_database(db);
     return 0;
 }
 #ifdef INC_MAIN

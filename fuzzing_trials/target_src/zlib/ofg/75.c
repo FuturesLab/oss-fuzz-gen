@@ -1,20 +1,57 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
     // Call the function-under-test
     const z_crc_t *crc_table = get_crc_table();
 
-    // Use the crc_table in some way to ensure the function is being tested
-    // For example, we can print the first few values to verify it's not NULL
+    // Use the returned crc_table in some way to ensure it is accessed
+    // For example, print the first element if it's not NULL
     if (crc_table != NULL) {
-        for (int i = 0; i < 5; i++) {
-            // Print the first 5 values of the CRC table
-            printf("CRC Table Entry %d: %u\n", i, crc_table[i]);
-        }
+        // Access the first element to ensure the table is not NULL
+        z_crc_t first_value = crc_table[0];
+        (void)first_value; // Suppress unused variable warning
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_75(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

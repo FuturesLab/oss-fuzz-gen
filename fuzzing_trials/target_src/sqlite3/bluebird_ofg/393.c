@@ -1,54 +1,42 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
 #include <string.h>
+#include <stdlib.h>  // Include this library for malloc and free
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_393(const uint8_t *data, size_t size) {
-    // Initialize SQLite3
-    sqlite3_initialize();
-
-    // Create a new SQLite database in memory
-    sqlite3 *db;
-    const char esmsqpuc[1024] = "hpwzj";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    sqlite3_open(esmsqpuc, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-    // Ensure the data is not NULL and has a valid size
-    if (data != NULL && size > 0) {
-        // Create a SQL statement from the input data
-        // Ensure the data is null-terminated to prevent buffer overflow
-        char *sql = (char *)malloc(size + 1);
-        if (sql) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the string
-
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            
-            // If there was an error, free the error message
-            if (errMsg) {
-                sqlite3_free(errMsg);
-            }
-            free(sql);
-        }
-    } else {
-        // If data is NULL or size is 0, execute a default SQL statement
-        const char *defaultData = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-        char *errMsg = 0;
-        sqlite3_exec(db, defaultData, 0, 0, &errMsg);
-        
-        // If there was an error, free the error message
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
+    // Ensure there is enough data for two non-empty strings
+    if (size < 2) {
+        return 0;
     }
 
-    // Close the SQLite database
-    sqlite3_close(db);
+    // Find a midpoint to split the data into two strings
+    size_t midpoint = size / 2;
 
-    // Finalize SQLite3
-    sqlite3_shutdown();
+    // Allocate memory for the two strings and ensure they are null-terminated
+    char *pattern = (char *)malloc(midpoint + 1);
+    char *string = (char *)malloc(size - midpoint + 1);
+
+    if (pattern == NULL || string == NULL) {
+        free(pattern);
+        free(string);
+        return 0;
+    }
+
+    // Copy data into the strings
+    memcpy(pattern, data, midpoint);
+    pattern[midpoint] = '\0';
+
+    memcpy(string, data + midpoint, size - midpoint);
+    string[size - midpoint] = '\0';
+
+    // Call the function under test
+    sqlite3_strglob(pattern, string);
+
+    // Free allocated memory
+    free(pattern);
+    free(string);
 
     return 0;
 }

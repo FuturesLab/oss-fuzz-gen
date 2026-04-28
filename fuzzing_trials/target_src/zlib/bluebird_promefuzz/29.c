@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -6,73 +7,100 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "zlib.h"
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (file != NULL) {
+    if (file) {
         fwrite(Data, 1, Size, file);
         fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Initialize z_stream structures
-    z_stream strm_inflate;
-    z_stream strm_deflate;
-    memset(&strm_inflate, 0, sizeof(z_stream));
-    memset(&strm_deflate, 0, sizeof(z_stream));
-
-    // Allocate output buffers
-    Bytef out_buffer_inflate[1024];
-    Bytef out_buffer_deflate[1024];
-
-    // Initialize inflate
-    int windowBits = 15;
-    if (inflateInit2_(&strm_inflate, windowBits, ZLIB_VERSION, sizeof(z_stream)) != Z_OK) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Compute crc32
-    uLong crc = crc32(0L, Z_NULL, 0);
-    crc = crc32(crc, Data, (uInt)Size);
+    // Prepare the dummy file with the provided data
+    write_dummy_file(Data, Size);
 
-    // Set input for inflate
-    strm_inflate.next_in = (Bytef *)Data;
-    strm_inflate.avail_in = (uInt)Size;
-    strm_inflate.next_out = out_buffer_inflate;
-    strm_inflate.avail_out = sizeof(out_buffer_inflate);
-
-    // Perform inflate
-    inflate(&strm_inflate, Z_NO_FLUSH);
-    crc = crc32(crc, out_buffer_inflate, sizeof(out_buffer_inflate) - strm_inflate.avail_out);
-
-    // End inflate
-    inflateEnd(&strm_inflate);
-
-    // Initialize deflate
-    int level = Z_DEFAULT_COMPRESSION;
-    int method = Z_DEFLATED;
-    int memLevel = 8;
-    int strategy = Z_DEFAULT_STRATEGY;
-    if (deflateInit2_(&strm_deflate, level, method, windowBits, memLevel, strategy, ZLIB_VERSION, sizeof(z_stream)) != Z_OK) {
+    // Open the file for writing in gzip format
+    const char lrbmwtbq[1024] = "mpgmx";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of gzopen
+    gzFile gz_file = gzopen("./dummy_file", lrbmwtbq);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (gz_file == NULL) {
         return 0;
     }
 
-    // Set dictionary for deflate
-    if (Size > 0) {
-        deflateSetDictionary(&strm_deflate, Data, (uInt)Size);
-    }
+    // Use gzputc to write a character
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzputc with gzflush
+    gzflush(gz_file, Data[0]);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-    // Prime deflate with some bits
-    deflatePrime(&strm_deflate, 8, Data[0]);
+    // Use gzputs to write a string (ensure null-termination)
+    char str[256];
+    size_t str_len = (Size < 255) ? Size : 255;
+    memcpy(str, Data, str_len);
+    str[str_len] = '\0';
+    gzputs(gz_file, str);
 
-    // Cleanup deflate
-    deflateEnd(&strm_deflate);
+    // Check for errors
+    int errnum;
+    gzerror(gz_file, &errnum);
+
+    // Use gzprintf to write formatted data
+    gzprintf(gz_file, "Formatted data: %d\n", Data[0]);
+
+    // Check for errors again
+    gzerror(gz_file, &errnum);
+
+    // Seek to the beginning of the file
+    gzseek(gz_file, 0, SEEK_SET);
+
+    // Close the file
+    gzclose(gz_file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

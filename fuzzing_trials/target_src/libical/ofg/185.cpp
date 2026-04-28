@@ -1,38 +1,70 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <cstring> // Include for memcpy
+#include <stddef.h>
+#include <libical/ical.h>
+#include <string.h> // Include the necessary header for strlen
 
 extern "C" {
+    // Wrap the libical includes and functions in extern "C" to ensure proper linkage
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_185(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    // Ensure that the size is sufficient to extract an icalproperty_class value
+    if (size < sizeof(icalproperty_class)) {
         return 0;
     }
 
-    // Initialize the icaltimetype structures
-    struct icaltimetype start_time;
-    struct icaltimetype end_time;
-
-    // Ensure that the data size is sufficient to populate the icaltimetype structures
-    if (size >= sizeof(struct icaltimetype) * 2) {
-        // Populate start_time and end_time with data
-        memcpy(&start_time, data, sizeof(struct icaltimetype));
-        memcpy(&end_time, data + sizeof(struct icaltimetype), sizeof(struct icaltimetype));
-    } else {
-        // Use default values if data size is insufficient
-        start_time = icaltime_null_time();
-        end_time = icaltime_null_time();
-    }
+    // Extract an icalproperty_class value from the input data
+    icalproperty_class prop_class = static_cast<icalproperty_class>(data[0]);
 
     // Call the function-under-test
-    bool result = icalproperty_recurrence_is_excluded(component, &start_time, &end_time);
+    const char *result = icalproperty_class_to_string(prop_class);
 
-    // Clean up
-    icalcomponent_free(component);
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (result != NULL) {
+        // Just a simple operation to use the result
+        volatile size_t length = strlen(result);
+        (void)length;
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_185(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

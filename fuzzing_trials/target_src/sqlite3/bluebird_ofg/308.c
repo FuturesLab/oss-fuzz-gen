@@ -1,47 +1,44 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_308(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
+    // Initialize SQLite library
+    sqlite3_initialize();
 
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
-        return 0;
-    }
-
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Create a new SQLite database in memory
         sqlite3 *db;
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open((const char *)"w", &db);
+        sqlite3_open(":memory:", &db);
+
+        // Create a SQL statement using the input data
+        char *sql = sqlite3_mprintf("%.*s", (int)size, (const char*)data);
+
+        // Prepare the SQL statement
+        sqlite3_stmt *stmt;
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of sqlite3_prepare_v2
+        int rc = sqlite3_prepare_v2(db, sql, 1, &stmt, NULL);
         // End mutation: Producer.REPLACE_ARG_MUTATOR
+
         if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-                sqlite3_changes(db);
-                // End mutation: Producer.REPLACE_FUNC_MUTATOR
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
-
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            sqlite3_close(db);
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
+            // Execute the SQL statement
+            sqlite3_step(stmt);
+            // Finalize the statement to clean up
+            sqlite3_finalize(stmt);
         }
+
+        // Free the SQL string
+        sqlite3_free(sql);
+
+        // Close the SQLite database
+        sqlite3_close(db);
     }
+
+    // Shutdown SQLite library
+    sqlite3_shutdown();
 
     return 0;
 }

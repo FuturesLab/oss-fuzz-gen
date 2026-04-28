@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "sndfile.h"
 #include <stdint.h>
 #include <stdlib.h>
@@ -5,60 +7,41 @@
 #include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    if (size < 1) return 0;
+
+    // Create a temporary file to write the fuzz input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    if (fd == -1) return 0;
 
     // Write the fuzz data to the temporary file
     if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
-        unlink(tmpl);
         return 0;
     }
 
-    // Close the file descriptor so that libsndfile can open it
+    // Close the file descriptor to flush the data
     close(fd);
 
     // Open the temporary file with libsndfile
     SF_INFO sfinfo;
     SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
     if (sndfile == NULL) {
+        // Clean up the temporary file
         unlink(tmpl);
         return 0;
     }
 
-    // Prepare buffer to read samples into
-    sf_count_t frames = 1024;  // Arbitrary number of frames to read
-    double *buffer = (double *)malloc(frames * sfinfo.channels * sizeof(double));
+    // Allocate a buffer for reading raw data
+    void *buffer = malloc(size);
     if (buffer == NULL) {
         sf_close(sndfile);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_close to sf_seek
-        int ret_sf_format_check_oxlve = sf_format_check(&sfinfo);
-        if (ret_sf_format_check_oxlve < 0){
-        	return 0;
-        }
-        int ret_sf_error_bzpim = sf_error(NULL);
-        if (ret_sf_error_bzpim < 0){
-        	return 0;
-        }
-
-        sf_count_t ret_sf_seek_wuilh = sf_seek(sndfile, (int64_t )ret_sf_format_check_oxlve, ret_sf_error_bzpim);
-        if (ret_sf_seek_wuilh < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
         unlink(tmpl);
         return 0;
     }
 
     // Call the function-under-test
-    sf_count_t read_frames = sf_readf_double(sndfile, buffer, frames);
+    sf_count_t frames_read = sf_read_raw(sndfile, buffer, (sf_count_t)size);
 
     // Clean up
     free(buffer);
@@ -67,3 +50,42 @@ extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

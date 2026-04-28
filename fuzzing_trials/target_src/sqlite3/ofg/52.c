@@ -1,22 +1,58 @@
 #include <stdint.h>
-#include <stddef.h> // Include this for size_t
+#include <stddef.h>
 #include <sqlite3.h>
 
+// Define a dummy function to act as an extension entry point
+int dummy_extension_entry_point(void) {
+    return SQLITE_OK;
+}
+
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Ensure there is at least one byte to interpret as an int
-    if (size < sizeof(int)) {
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Interpret the first few bytes of data as an integer
-    int flag = *(int*)data;
-
-    // Call the function-under-test
-    sqlite3_int64 highwater = sqlite3_memory_highwater(flag);
-
-    // Use highwater in some way to prevent compiler optimizations from removing the call
-    volatile sqlite3_int64 use_result = highwater;
-    (void)use_result; // Prevent unused variable warning
+    // Call the function-under-test with the dummy extension entry point
+    sqlite3_auto_extension((void(*)(void))dummy_extension_entry_point);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_52(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,35 +1,109 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdio.h>
 #include "zlib.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 
-// Define the fuzzer test function
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Ensure that the size is non-zero to create a valid file
-    if (size == 0) return 0;
+    // Compress the input data
+    uLongf compressedSize = compressBound(size);
+    uint8_t *compressedData = (uint8_t *)malloc(compressedSize);
+    if (compressedData == NULL) {
+        return 0;
+    }
 
-    // Create a temporary file to simulate a gzFile
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) return 0;
+    if (compress(compressedData, &compressedSize, data, size) != Z_OK) {
+        free(compressedData);
+        return 0;
+    }
 
-    // Write the data to the temporary file
-    fwrite(data, 1, size, tempFile);
 
-    // Rewind the file to the beginning
-    rewind(tempFile);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from compress to compress2
+    uLong ret_compressBound_oywhs = compressBound(compressedSize);
+    unsigned long ret_inflateCodesUsed_uhoua = inflateCodesUsed(0);
+    if (ret_inflateCodesUsed_uhoua < 0){
+    	return 0;
+    }
+    int ret_compress2_obxpm = compress2(compressedData, &compressedSize, compressedData, ret_compressBound_oywhs, (int )ret_inflateCodesUsed_uhoua);
+    if (ret_compress2_obxpm < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        free(compressedData);
+        return 0;
+    }
 
-    // Open the temporary file as a gzFile
-    gzFile gzfile = gzdopen(fileno(tempFile), "rb");
+    // Write the compressed data to the temporary file
+    if (write(fd, compressedData, compressedSize) != (ssize_t)compressedSize) {
+        close(fd);
+        free(compressedData);
+        return 0;
+    }
+
+    // Close the file descriptor so that gzopen can open it
+    close(fd);
+    free(compressedData);
+
+    // Open the file with gzopen
+    gzFile gzfile = gzopen(tmpl, "rb");
     if (gzfile == NULL) {
-        fclose(tempFile);
+        unlink(tmpl);
         return 0;
     }
 
     // Call the function-under-test
-    gzclearerr(gzfile);
+    off_t offset = gztell(gzfile);
 
-    // Close the gzFile and the temporary file
+    // Close the gzFile
     gzclose(gzfile);
-    fclose(tempFile);
+
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

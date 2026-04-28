@@ -1,40 +1,42 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <string.h>
 
-// Define a sample authorizer callback function
-int authorizer_callback_42(void *pArg, int action, const char *detail1, const char *detail2, const char *detail3, const char *detail4) {
-    // For fuzzing purposes, return SQLITE_OK to allow all actions
-    return SQLITE_OK;
-}
-
+// Ensure that the function is defined with C linkage
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
+    // Ensure the size is sufficient for creating a sqlite3 database
+    if (size == 0) {
+        return 0;
+    }
+
     sqlite3 *db;
-    int rc;
     char *errMsg = 0;
 
-    // Open a new in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
+    // Open a new in-memory database
+    int rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Set the authorizer with the callback function
+    // Convert input data to a null-terminated string
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_randomness
-    sqlite3_randomness(-1, (void *)db);
-    // End mutation: Producer.APPEND_MUTATOR
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_open to sqlite3_prepare_v2 using the plateau pool
+    const char *insertSQL = "INSERT INTO fuzz_table (data) VALUES (?);";
+    sqlite3_stmt *stmt;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_prepare_v2_yuuvf = sqlite3_prepare_v2(db, insertSQL, -1, &stmt, NULL);
+    if (ret_sqlite3_prepare_v2_yuuvf < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
     
-    rc = sqlite3_set_authorizer(db, authorizer_callback_42, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Ensure the input data is null-terminated before using it as an SQL statement
     char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
@@ -42,13 +44,17 @@ int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
     sql[size] = '\0';
 
     // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free the error message if it was allocated
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
 
-    // Clean up
+    // Free the allocated SQL string
     free(sql);
+
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

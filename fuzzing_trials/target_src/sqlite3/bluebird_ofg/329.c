@@ -1,48 +1,49 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>  // Include for size_t
+#include <stdlib.h>  // Include for NULL
+#include "sqlite3.h"
+#include <string.h>  // Include for memcpy
 
 int LLVMFuzzerTestOneInput_329(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
+    sqlite3 *db;
+    char *errMsg = NULL;
+    int rc;
 
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
+    // Initialize SQLite library
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_initialize with sqlite3_global_recover
+    if (sqlite3_global_recover() != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
         return 0;
     }
 
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        const char szrtjywl[1024] = "ehqzl";
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open(szrtjywl, &db);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                sqlite3_close(db);
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
-
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_close_v2
-            sqlite3_close_v2(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0;
     }
+
+    // Create a null-terminated string from the input data
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        sqlite3_shutdown();
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute the input data as an SQL statement
+    rc = sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
+        sqlite3_free(errMsg);
+    }
+
+    // Clean up
+    free(sql);
+    sqlite3_close(db);
+    sqlite3_shutdown();
 
     return 0;
 }

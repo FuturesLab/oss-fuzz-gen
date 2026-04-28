@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,50 +9,99 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <vector>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icaltimezone.h"
 
-static icalcomponent* create_dummy_component() {
-    icalcomponent* component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component) {
-        icalproperty* prop = icalproperty_new_summary("Dummy Summary");
-        icalcomponent_add_property(component, prop);
-    }
-    return component;
+static void fuzz_icaltimezone_set_zone_directory(const uint8_t *Data, size_t Size) {
+    char *path = static_cast<char *>(malloc(Size + 1));
+    if (path == nullptr) return;
+    memcpy(path, Data, Size);
+    path[Size] = '\0';
+    icaltimezone_set_zone_directory(path);
+    free(path);
 }
 
-static void fuzz_icalcomponent_functions(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
+static void fuzz_icaltimezone_set_system_zone_directory(const uint8_t *Data, size_t Size) {
+    char *zonepath = static_cast<char *>(malloc(Size + 1));
+    if (zonepath == nullptr) return;
+    memcpy(zonepath, Data, Size);
+    zonepath[Size] = '\0';
+    icaltimezone_set_system_zone_directory(zonepath);
+    free(zonepath);
+}
 
-    icalcomponent* component = create_dummy_component();
-    if (!component) return;
+static void fuzz_icaltimezone_get_display_name() {
+    // As we don't have constructor methods for icaltimezone, we simulate with nullptr
+    icaltimezone *zone = nullptr;
+    const char *name = icaltimezone_get_display_name(zone);
+    (void)name; // Avoid unused variable warning
+}
 
-    icalproperty_kind kind = static_cast<icalproperty_kind>(Data[0] % ICAL_NO_PROPERTY);
+static void fuzz_icaltimezone_get_system_zone_directory() {
+    const char *system_zone_dir = icaltimezone_get_system_zone_directory();
+    (void)system_zone_dir; // Avoid unused variable warning
+}
 
-    // Test icalcomponent_begin_property
-    icalpropiter iter = icalcomponent_begin_property(component, kind);
+static void fuzz_icaltimezone_get_zone_directory() {
+    const char *zone_dir = icaltimezone_get_zone_directory();
+    (void)zone_dir; // Avoid unused variable warning
+}
 
-    // Test icalcomponent_get_next_property
-    icalproperty* next_prop = icalcomponent_get_next_property(component, kind);
-
-    // Test icalcomponent_get_first_property
-    icalproperty* first_prop = icalcomponent_get_first_property(component, kind);
-
-    // Test icalcomponent_count_properties
-    int count = icalcomponent_count_properties(component, kind);
-
-    // Test icalcomponent_remove_property_by_kind
-    icalcomponent_remove_property_by_kind(component, kind);
-
-    // Clean up
-    icalcomponent_free(component);
+static void fuzz_icaltimezone_free_zone_directory() {
+    icaltimezone_free_zone_directory();
 }
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    fuzz_icalcomponent_functions(Data, Size);
+    fuzz_icaltimezone_set_zone_directory(Data, Size);
+    fuzz_icaltimezone_set_system_zone_directory(Data, Size);
+    fuzz_icaltimezone_get_display_name();
+    fuzz_icaltimezone_get_system_zone_directory();
+    fuzz_icaltimezone_get_zone_directory();
+    fuzz_icaltimezone_free_zone_directory();
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

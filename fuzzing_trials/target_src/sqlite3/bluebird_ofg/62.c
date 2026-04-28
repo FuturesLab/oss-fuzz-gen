@@ -1,42 +1,50 @@
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
     sqlite3 *db;
     int rc;
-
-    // Open a new in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, return immediately
-    }
-
-    // Create a SQL statement from the input data
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
-
-    // Execute the SQL statement
-    char *errMsg = 0;
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free the SQL statement
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_filename
-    const void* ret_sqlite3_errmsg16_prtcj = sqlite3_errmsg16(db);
-    if (ret_sqlite3_errmsg16_prtcj == NULL){
-    	return 0;
-    }
-    sqlite3_filename ret_sqlite3_db_filename_mynod = sqlite3_db_filename(db, errMsg);
-    // End mutation: Producer.APPEND_MUTATOR
     
-    sqlite3_free(sql);
-
-    // If there was an error, free the error message
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    // Open a new in-memory database
+    const char vfalotux[1024] = "npmue";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(vfalotux, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Close the SQLite database
+    // If there's data, execute it as SQL
+    if (size > 0) {
+        char *errMsg = 0;
+        
+        // Ensure the data is null-terminated before passing it to sqlite3_exec
+        char *sql = (char *)malloc(size + 1);
+        if (sql == NULL) {
+            sqlite3_close(db);
+            return 0;
+        }
+        memcpy(sql, data, size);
+        sql[size] = '\0';
+
+        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+        if (errMsg) {
+            sqlite3_free(errMsg);
+        }
+
+        free(sql);
+    }
+
+    // Call the function-under-test
+    int errcode = sqlite3_errcode(db);
+
+    // Use the errcode in some way to avoid unused variable warning
+    (void)errcode;
+
+    // Close the database
     sqlite3_close(db);
 
     return 0;

@@ -1,43 +1,56 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include "sqlite3.h"
 #include <string.h>
+#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_226(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    int rc;
     char *errMsg = 0;
-    
-    // Initialize a new in-memory database
-    rc = sqlite3_open(":memory:", &db);
+    int rc;
+
+    // Ensure the data size is sufficient for a meaningful database name
+    if (size < 5) {
+        return 0;
+    }
+
+    // Create a temporary file for the SQLite database
+    char db_filename[] = "/tmp/fuzzdbXXXXXX";
+    int fd = mkstemp(db_filename);
+    if (fd == -1) {
+        return 0;
+    }
+    close(fd);
+
+    // Open the SQLite database
+    rc = sqlite3_open(db_filename, &db);
     if (rc) {
         sqlite3_close(db);
+        unlink(db_filename);
         return 0;
     }
 
-    // Allocate memory for a null-terminated version of the input data
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    // Create a table to ensure the database is in a usable state
+    const char *create_table_sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_exec(db, create_table_sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
         sqlite3_close(db);
+        unlink(db_filename);
         return 0;
     }
-    
-    // Copy the input data and null-terminate it
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the input data as SQL commands
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Use part of the data as the schema name
+    char schema_name[size + 1];
+    memcpy(schema_name, data, size);
+    schema_name[size] = '\0';
 
     // Call the function-under-test
-    int offset = sqlite3_error_offset(db);
+    sqlite3_wal_checkpoint(db, schema_name);
 
-    // Clean up and close the database
-    sqlite3_free(errMsg);
+    // Clean up
     sqlite3_close(db);
-    free(sql);
+    unlink(db_filename);
 
     return 0;
 }

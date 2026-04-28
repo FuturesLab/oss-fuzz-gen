@@ -1,12 +1,20 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
+// sqlite3_create_collation at sqlite3.c:174754:16 in sqlite3.h
 // sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
+// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
-// sqlite3_db_readonly at sqlite3.c:175999:16 in sqlite3.h
-// sqlite3_filename_wal at sqlite3.c:175942:24 in sqlite3.h
-// sqlite3_wal_checkpoint_v2 at sqlite3.c:173557:16 in sqlite3.h
-// sqlite3_set_errmsg at sqlite3.c:173751:16 in sqlite3.h
-// sqlite3_wal_checkpoint at sqlite3.c:173627:16 in sqlite3.h
-// sqlite3_uri_parameter at sqlite3.c:175873:24 in sqlite3.h
+// sqlite3_create_collation at sqlite3.c:174754:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_vtab_collation at sqlite3.c:157071:24 in sqlite3.h
+// sqlite3_collation_needed at sqlite3.c:174822:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_table_column_metadata at sqlite3.c:175018:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_create_module_v2 at sqlite3.c:145711:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_create_collation_v2 at sqlite3.c:174767:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
@@ -15,86 +23,124 @@
 #include <stdio.h>
 #include <sqlite3.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
-// Helper function to create a dummy SQLite database
-static sqlite3* create_dummy_db() {
-    sqlite3 *db = NULL;
-    int rc = sqlite3_open("./dummy_file", &db);
-    if (rc != SQLITE_OK) {
-        if (db) sqlite3_close(db);
-        return NULL;
-    }
-    return db;
+static int sample_compare(void* pArg, int len1, const void* str1, int len2, const void* str2) {
+    // Simple comparison function for demonstration
+    return strncmp((const char*)str1, (const char*)str2, len1 < len2 ? len1 : len2);
 }
 
-// Helper function to create a dummy file
-static void create_dummy_file() {
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        fputs("Dummy content", file);
-        fclose(file);
-    }
-}
-
-// Helper function to extract a string from the input data
-static const char* extract_string(const uint8_t *Data, size_t Size, size_t *offset) {
-    if (*offset >= Size) return NULL;
-    const char *str = (const char *)&Data[*offset];
-    size_t str_len = strnlen(str, Size - *offset);
-    if (*offset + str_len >= Size) return NULL; // Ensure null-terminator is within bounds
-    *offset += str_len + 1;
-    return str;
+static void collation_needed_callback(void* pArg, sqlite3* db, int eTextRep, const char* zName) {
+    // Register a simple collation when needed
+    sqlite3_create_collation(db, zName, eTextRep, NULL, sample_compare);
 }
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *Data, size_t Size) {
-    create_dummy_file();
-
-    sqlite3 *db = create_dummy_db();
-    if (!db) return 0;
-
-    size_t offset = 0;
-    const char *zDbName = extract_string(Data, Size, &offset);
-    const char *zParam = extract_string(Data, Size, &offset);
-    const char *zErrMsg = extract_string(Data, Size, &offset);
-
-    // Test sqlite3_db_readonly
-    if (zDbName) {
-        int readonly = sqlite3_db_readonly(db, zDbName);
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
+    
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // Test sqlite3_filename_wal
-    if (zDbName && strlen(zDbName) > 0) {
-        const char *wal_filename = sqlite3_filename_wal(zDbName);
-        // Ensure that wal_filename is not NULL before accessing it
-        if (wal_filename) {
-            // Use wal_filename for any further operations if needed
-        }
+    // Create a dummy table
+    rc = sqlite3_exec(db, "CREATE TABLE foo (bar TEXT);", 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Test sqlite3_wal_checkpoint_v2
-    int pnLog, pnCkpt;
-    int checkpoint_mode = SQLITE_CHECKPOINT_PASSIVE;
-    if (offset < Size) {
-        checkpoint_mode = Data[offset] % 5; // Randomly select a mode
-        offset++;
-    }
-    int rc = sqlite3_wal_checkpoint_v2(db, zDbName, checkpoint_mode, &pnLog, &pnCkpt);
-
-    // Test sqlite3_set_errmsg
-    if (zErrMsg) {
-        sqlite3_set_errmsg(db, rc, zErrMsg);
+    // Fuzz sqlite3_create_collation
+    rc = sqlite3_create_collation(db, "fuzz_collation", SQLITE_UTF8, NULL, sample_compare);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Test sqlite3_wal_checkpoint
-    rc = sqlite3_wal_checkpoint(db, zDbName);
+    // Fuzz sqlite3_vtab_collation
+    sqlite3_index_info index_info;
+    memset(&index_info, 0, sizeof(index_info));
+    const char *collation = sqlite3_vtab_collation(&index_info, 0);
 
-    // Test sqlite3_uri_parameter
-    if (zParam) {
-        const char *param_value = sqlite3_uri_parameter(zDbName, zParam);
+    // Fuzz sqlite3_collation_needed
+    rc = sqlite3_collation_needed(db, NULL, collation_needed_callback);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
+    // Fuzz sqlite3_table_column_metadata
+    const char *dataType, *collSeq;
+    int notNull, primaryKey, autoinc;
+    rc = sqlite3_table_column_metadata(db, "main", "foo", "bar", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Fuzz sqlite3_create_module_v2
+    const sqlite3_module dummy_module = {0};
+    rc = sqlite3_create_module_v2(db, "fuzz_module", &dummy_module, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Fuzz sqlite3_create_collation_v2
+    rc = sqlite3_create_collation_v2(db, "fuzz_collation_v2", SQLITE_UTF8, NULL, sample_compare, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Cleanup
     sqlite3_close(db);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_115(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

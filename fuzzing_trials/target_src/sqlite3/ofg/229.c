@@ -1,51 +1,74 @@
-#include <sqlite3.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
+#include <sqlite3.h>
 
-// Dummy comparison function
-static int dummyCompare(void *pArg, int len1, const void *str1, int len2, const void *str2) {
-    return strncmp((const char *)str1, (const char *)str2, len1 < len2 ? len1 : len2);
-}
+typedef void (*update_hook_callback)(void*, int, char const*, char const*, sqlite3_int64);
 
-// Dummy destructor_229 function
-static void dummyDestructor(void *pArg) {
-    // No operation
+void update_hook(void* arg, int op, char const* db, char const* table, sqlite3_int64 rowid) {
+    // This is a simple callback function for demonstration purposes
 }
 
 int LLVMFuzzerTestOneInput_229(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    char *errMsg = 0;
     int rc;
 
-    if (size == 0) {
-        return 0;
-    }
-
-    // Open an in-memory SQLite database
+    // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc) {
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Use the input data as the collation name
-    char collationName[256];
-    size_t collationNameLen = size < 255 ? size : 255;
-    memcpy(collationName, data, collationNameLen);
-    collationName[collationNameLen] = '\0';
+    // Set the update hook with a simple callback function
+    sqlite3_update_hook(db, update_hook, NULL);
 
-    // Call the function-under-test
-    sqlite3_create_collation_v2(
-        db,
-        collationName,
-        SQLITE_UTF8,
-        NULL,
-        dummyCompare,
-        dummyDestructor
-    );
+    // Execute some SQL commands to trigger the update hook
+    char *errMsg = 0;
+    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);"
+                      "INSERT INTO test (value) VALUES ('Hello');"
+                      "UPDATE test SET value = 'World' WHERE id = 1;";
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
     // Close the database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_229(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

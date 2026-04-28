@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_vlocation at icalcomponent.c:2125:16 in icalcomponent.h
-// icalcomponent_new_vevent at icalcomponent.c:2030:16 in icalcomponent.h
-// icalcomponent_new_vfreebusy at icalcomponent.c:2050:16 in icalcomponent.h
-// icalcomponent_new_vavailability at icalcomponent.c:2085:16 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
-// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
+// icalrecurrencetype_as_string at icalrecur.c:993:7 in icalrecur.h
+// icalrecurrencetype_new_from_string at icalrecur.c:818:28 in icalrecur.h
+// icalrecurrencetype_as_string_r at icalrecur.c:1002:7 in icalrecur.h
+// icalrecurrencetype_ref at icalrecur.c:731:6 in icalrecur.h
+// icalrecurrencetype_new at icalrecur.c:694:28 in icalrecur.h
+// icalrecurrencetype_unref at icalrecur.c:739:6 in icalrecur.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,58 +14,99 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalrecur.h"
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    // Prepare environment
-    icalcomponent *comp_vavailability = nullptr;
-    icalcomponent *comp_vlocation = nullptr;
-    icalcomponent *comp_vfreebusy = nullptr;
-    icalcomponent *comp_vevent = nullptr;
-    icalcomponent *comp_vresource = nullptr;
-    icalcomponent *comp_vcalendar = nullptr;
+    if (Size == 0) return 0;
 
-    try {
-        // Invoke target functions
-        comp_vavailability = icalcomponent_new_vavailability();
-        comp_vlocation = icalcomponent_new_vlocation();
-        comp_vfreebusy = icalcomponent_new_vfreebusy();
-        comp_vevent = icalcomponent_new_vevent();
-        comp_vresource = icalcomponent_new_vresource();
-        comp_vcalendar = icalcomponent_new_vcalendar();
+    // Create a new icalrecurrencetype instance
+    struct icalrecurrencetype *recur = icalrecurrencetype_new();
+    if (!recur) return 0;
 
-        // Simulate diverse usage
-        if (Size > 0 && Data[0] % 2 == 0) {
-            icalcomponent_add_component(comp_vcalendar, comp_vevent);
-            icalcomponent_add_component(comp_vcalendar, comp_vavailability);
-        } else {
-            icalcomponent_add_component(comp_vcalendar, comp_vlocation);
-            icalcomponent_add_component(comp_vcalendar, comp_vfreebusy);
+    // Fuzz icalrecurrencetype_ref
+    icalrecurrencetype_ref(recur);
+
+    // Convert recurrence type to string
+    char *recurStr = icalrecurrencetype_as_string(recur);
+    if (recurStr) {
+        // Fuzz icalrecurrencetype_new_from_string
+        struct icalrecurrencetype *newRecur = icalrecurrencetype_new_from_string(recurStr);
+        if (newRecur) {
+            // Fuzz icalrecurrencetype_as_string_r
+            char *recurStrR = icalrecurrencetype_as_string_r(newRecur);
+            if (recurStrR) {
+                free(recurStrR);
+            }
+            icalrecurrencetype_unref(newRecur);
         }
-
-        // Write to a dummy file if needed
-        std::ofstream dummyFile("./dummy_file");
-        if (dummyFile.is_open()) {
-            dummyFile << "BEGIN:VCALENDAR\n";
-            dummyFile << "VERSION:2.0\n";
-            dummyFile << "PRODID:-//Example Corp//NONSGML Event//EN\n";
-            dummyFile << "END:VCALENDAR\n";
-            dummyFile.close();
-        }
-
-    } catch (...) {
-        // Handle any exceptions
+        free(recurStr);
     }
 
-    // Cleanup
-    if (comp_vavailability) icalcomponent_free(comp_vavailability);
-    if (comp_vlocation) icalcomponent_free(comp_vlocation);
-    if (comp_vfreebusy) icalcomponent_free(comp_vfreebusy);
-    if (comp_vevent) icalcomponent_free(comp_vevent);
-    if (comp_vresource) icalcomponent_free(comp_vresource);
-    if (comp_vcalendar) icalcomponent_free(comp_vcalendar);
+    // Fuzz icalrecurrencetype_unref
+    icalrecurrencetype_unref(recur);
+
+    // Use the input data to create a string and fuzz icalrecurrencetype_new_from_string
+    char *inputStr = static_cast<char*>(malloc(Size + 1));
+    if (inputStr) {
+        memcpy(inputStr, Data, Size);
+        inputStr[Size] = '\0';
+
+        struct icalrecurrencetype *inputRecur = icalrecurrencetype_new_from_string(inputStr);
+        if (inputRecur) {
+            char *inputRecurStr = icalrecurrencetype_as_string_r(inputRecur);
+            if (inputRecurStr) {
+                free(inputRecurStr);
+            }
+            icalrecurrencetype_unref(inputRecur);
+        }
+        free(inputStr);
+    }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -2,27 +2,71 @@
 #include <stddef.h>  // Include this header to define size_t
 #include <sqlite3.h>
 
-// Dummy callback function to be used as the update hook
-void update_hook_callback_232(void *pArg, int op, char const *zDb, char const *zTbl, sqlite3_int64 rowid) {
-    // This is a placeholder function. It does nothing in this context.
-}
-
 int LLVMFuzzerTestOneInput_232(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-    void *pArg = (void *)data;  // Use the input data as a dummy argument
+    // Ensure there is enough data to extract meaningful values
+    if (size < sizeof(int) * 2) {
+        return 0;
+    }
 
-    // Open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
+    // Initialize SQLite database
+    sqlite3 *db;
+    int rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Set the update hook with a dummy callback
-    sqlite3_update_hook(db, update_hook_callback_232, pArg);
+    // Extract values from the input data
+    int op = *((int *)data); // Read an integer for the operation code
+    int resetFlag = *((int *)(data + sizeof(int))); // Read another integer for the reset flag
 
-    // Close the database
+    // Prepare output variables
+    int current = 0;
+    int highwater = 0;
+
+    // Call the function-under-test
+    sqlite3_db_status(db, op, &current, &highwater, resetFlag);
+
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_232(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

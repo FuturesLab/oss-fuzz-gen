@@ -1,48 +1,108 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
-static void update_callback(void *pArg, int op, const char *zDb, const char *zTbl, sqlite3_int64 rowid) {
-    // Simple update callback function
+// Dummy authorizer callback function
+static int authorizer_callback(void *pUserData, int action, const char *details1, const char *details2, const char *details3, const char *details4) {
+    // Always allow the action
+    return SQLITE_OK;
 }
 
+// Dummy callback function for sqlite3_exec
+static int exec_callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
+}
+
+// Fuzzing entry point
 int LLVMFuzzerTestOneInput_190(const uint8_t *Data, size_t Size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    const char *tail = NULL;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
 
-    // Open a SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open a new database connection
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc) {
         return 0;
     }
 
-    // Prepare a statement
-    rc = sqlite3_prepare_v3(db, (const char *)Data, Size, 0, &stmt, &tail);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Prepare SQL statement from fuzz data
+    char *sql = sqlite3_malloc(Size + 1);
+    if (sql) {
+        memcpy(sql, Data, Size);
+        sql[Size] = '\0';
+
+        // Execute SQL statement
+        sqlite3_exec(db, sql, exec_callback, 0, &errMsg);
+
+        // Free error message if allocated
+        if (errMsg) {
+            sqlite3_free(errMsg);
+        }
+
+        // Free SQL statement
+        sqlite3_free(sql);
     }
 
-    // Test sqlite3_db_handle
-    sqlite3 *db_handle = sqlite3_db_handle(stmt);
+    // Set authorizer callback
+    sqlite3_set_authorizer(db, authorizer_callback, NULL);
 
-    // Test sqlite3_stmt_readonly
-    int is_readonly = sqlite3_stmt_readonly(stmt);
+    // Retrieve table column metadata
+    const char *dataType, *collSeq;
+    int notNull, primaryKey, autoinc;
+    sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
 
-    // Register an update hook
-    sqlite3_update_hook(db, update_callback, NULL);
+    // Test control interface
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_table_column_metadata to sqlite3_blob_read
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_blob_read_yvtfl = sqlite3_blob_read(NULL, (void *)db, -1, -1);
+    if (ret_sqlite3_blob_read_yvtfl < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_test_control(SQLITE_TESTCTRL_FIRST);
+
+    // Allocate memory using sqlite3_malloc
+    void *memory = sqlite3_malloc(100);
+    if (memory) {
+        memset(memory, 0, 100);
+        sqlite3_free(memory);
+    }
+
+    // Close the database connection
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_malloc to sqlite3_keyword_name
+    double ret_sqlite3_value_double_vmzvd = sqlite3_value_double(db);
+    if (ret_sqlite3_value_double_vmzvd < 0){
+    	return 0;
+    }
+    double ret_sqlite3_value_double_emzzq = sqlite3_value_double(db);
+    if (ret_sqlite3_value_double_emzzq < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sql) {
+    	return 0;
+    }
+    int ret_sqlite3_keyword_name_pkurz = sqlite3_keyword_name((int )ret_sqlite3_value_double_vmzvd, (const char **)&sql, (int *)&ret_sqlite3_value_double_emzzq);
+    if (ret_sqlite3_keyword_name_pkurz < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     sqlite3_close(db);
 
     return 0;

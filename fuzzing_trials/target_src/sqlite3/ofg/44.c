@@ -1,42 +1,72 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    int rc;
-    
-    // Open a temporary in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if (size < 5) return 0; // Ensure there is enough data for the test
+
+    // Initialize a SQLite database in memory
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table
-    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Prepare a filename string from the input data
+    char filename[256];
+    size_t filename_len = size < 255 ? size : 255;
+    memcpy(filename, data, filename_len);
+    filename[filename_len] = '\0'; // Null-terminate the string
 
-    // Prepare a statement using the input data as SQL
-    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Extract an integer from the input data
+    int control_op = data[0];
 
-    // Execute the statement
-    rc = sqlite3_step(stmt);
+    // Prepare a buffer for the void* parameter
+    void *arg = (void *)(data + 1);
 
     // Call the function-under-test
-    int data_count = sqlite3_data_count(stmt);
+    sqlite3_file_control(db, filename, control_op, arg);
 
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

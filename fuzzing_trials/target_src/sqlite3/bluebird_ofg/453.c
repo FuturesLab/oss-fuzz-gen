@@ -1,64 +1,42 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "sqlite3.h"
 
-// Custom destructor function to match the signature required by sqlite3_result_text16le
-void custom_destructor_453(void* data) {
-    // In a real scenario, you would free or clean up resources here if necessary
-    (void)data; // Avoid unused parameter warning
-}
-
-// Dummy function to be used with sqlite3_create_function
-void dummy_function(sqlite3_context *context, int argc, sqlite3_value **argv) {
-    // Use the first argument as text data for the function-under-test
-    if (argc > 0) {
-        const void *text_data = sqlite3_value_text16(argv[0]);
-        int text_size = sqlite3_value_bytes16(argv[0]);
-
-        // Call the function-under-test
-        sqlite3_result_text16le(context, text_data, text_size, custom_destructor_453);
-    }
-}
-
 int LLVMFuzzerTestOneInput_453(const uint8_t *data, size_t size) {
-    // Ensure that the data is not NULL and size is non-negative
-    if (data == NULL || size <= 0) {
-        return 0;
-    }
-
-    // Create a dummy database connection to use with the context
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    char *errMsg = 0;
+
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
         return 0;
     }
 
-    // Create a function in the SQLite database
-    if (sqlite3_create_function(db, "dummy_function", 1, SQLITE_UTF16, NULL, dummy_function, NULL, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
+        sqlite3_errcode(db);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
         return 0;
     }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Prepare a statement that uses the dummy function
-    sqlite3_stmt *stmt;
-    const char *sql = "SELECT dummy_function(?)";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
     }
-
-    // Bind the fuzz input data as a parameter to the statement
-    if (sqlite3_bind_text16(stmt, 1, data, size, SQLITE_TRANSIENT) != SQLITE_OK) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement to invoke the function
-    sqlite3_step(stmt);
 
     // Clean up
-    sqlite3_finalize(stmt);
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

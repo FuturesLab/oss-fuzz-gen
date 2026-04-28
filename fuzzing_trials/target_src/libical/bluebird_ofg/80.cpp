@@ -1,56 +1,115 @@
-#include "libical/ical.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Ensure the input size is reasonable to prevent excessive memory allocation
-    if (size == 0 || size > 1024) {
-        return 0;
+    // Initialize a memory context for icalcomponent
+    icalcomponent *component = nullptr;
+
+    // Ensure the data size is sufficient to create a valid icalcomponent
+    if (size > 0) {
+        // Create a string from the input data
+        char *inputData = (char *)malloc(size + 1);
+        if (inputData == nullptr) {
+            return 0; // Memory allocation failed
+        }
+        memcpy(inputData, data, size);
+        inputData[size] = '\0'; // Null-terminate the string
+
+        // Parse the input data into an icalcomponent
+        component = icalparser_parse_string(inputData);
+
+        // Free the input data as it's no longer needed
+        free(inputData);
     }
 
-    // Allocate memory for the input data and ensure it's null-terminated
-    char *ical_data = (char *)malloc(size + 1);
-    if (ical_data == NULL) {
-        return 0;
+    // If a valid icalcomponent was created, use it
+    if (component != nullptr) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if not NULL
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icaltimezone_get_builtin_timezone_from_offset
+        size_t ret_icallimit_get_pauii = icallimit_get(ICAL_LIMIT_PARSE_SEARCH);
+        if (ret_icallimit_get_pauii < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!icalString) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icallimit_get to icalparameter_get_member_nth
+        icalparameter* ret_icalparameter_new_fmttype_ydlnm = icalparameter_new_fmttype((const char *)"r");
+        if (ret_icalparameter_new_fmttype_ydlnm == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalparameter_new_fmttype_ydlnm) {
+        	return 0;
+        }
+        const char* ret_icalparameter_get_member_nth_wntni = icalparameter_get_member_nth(ret_icalparameter_new_fmttype_ydlnm, ret_icallimit_get_pauii);
+        if (ret_icalparameter_get_member_nth_wntni == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icaltimezone* ret_icaltimezone_get_builtin_timezone_from_offset_bsaji = icaltimezone_get_builtin_timezone_from_offset((int )ret_icallimit_get_pauii, icalString);
+        if (ret_icaltimezone_get_builtin_timezone_from_offset_bsaji == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_free(component);
     }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_data);
-    free(ical_data);
-
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_get_recurrenceid with icalcomponent_get_dtstamp
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_get_dtstamp with icalcomponent_get_due
-    struct icaltimetype recurrence_id = icalcomponent_get_due(component);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_free to icalcomponent_set_description
-    char* ret_icalcomponent_as_ical_string_mbaee = icalcomponent_as_ical_string(component);
-    if (ret_icalcomponent_as_ical_string_mbaee == NULL){
-    	return 0;
-    }
-
-    icalcomponent_set_description(component, ret_icalcomponent_as_ical_string_mbaee);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_80(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

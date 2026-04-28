@@ -1,42 +1,43 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
+#include <stddef.h>
 #include "sqlite3.h"
-#include <string.h> // Include for strlen
 
-extern int LLVMFuzzerTestOneInput_392(const uint8_t *data, size_t size) {
+// Define the LLVMFuzzerTestOneInput function in C
+int LLVMFuzzerTestOneInput_392(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    sqlite3_stmt *stmt;
     int rc;
 
-    // Open an in-memory database
+    // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+        return 0;
     }
 
-    // Ensure the input data is not null, has a reasonable size, and is null-terminated
-    if (data != NULL && size > 0) {
-        // Allocate a buffer for the SQL statement and ensure it's null-terminated
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
-            sqlite3_errcode(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-            return 0; // Exit if memory allocation fails
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
-
-        // Use the data in some way, e.g., as a SQL statement
-        char *errMsg = 0;
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-
-        free(sql); // Free the allocated buffer
+    // Prepare a simple SQL statement
+    rc = sqlite3_prepare_v2(db, "SELECT ?;", -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Close the database
+    // Bind the input data as a blob to the SQL statement
+    rc = sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the SQL statement
+    rc = sqlite3_step(stmt);
+
+    // Finalize the statement to clean up
+    sqlite3_finalize(stmt);
+
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

@@ -1,44 +1,50 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include "sqlite3.h"
-#include <string.h>
+#include <stddef.h>
 
-// Function to be fuzzed
 int LLVMFuzzerTestOneInput_189(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
+    // Ensure the data size is sufficient to create a meaningful sqlite3_value
+    if (size < sizeof(int64_t)) {
+        return 0;
+    }
+
+    // Initialize SQLite
     sqlite3 *db;
-    char *errMsg = 0;
+    sqlite3_stmt *stmt;
+    int rc;
 
-    // Open an in-memory database
-    if (sqlite3_open(":memory:", &db)) {
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+
+    // Create a simple table
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER);", 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Convert input data to a string
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_db_status
-    int uugrmlgg = 64;
-    int mdiwmggz = -1;
-    int ret_sqlite3_db_status_qeaxm = sqlite3_db_status(db, -1, &uugrmlgg, &mdiwmggz, -1);
-    if (ret_sqlite3_db_status_qeaxm < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    // Prepare an SQL statement
+    rc = sqlite3_prepare_v2(db, "INSERT INTO test (id) VALUES (?);", -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Set the value to an integer using the input data
+    int64_t intValue = *(int64_t *)data;
+    sqlite3_bind_int64(stmt, 1, intValue);
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
 
     // Clean up
-    sqlite3_free(errMsg);
-    free(sql);
     sqlite3_close(db);
 
     return 0;
