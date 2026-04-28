@@ -31,7 +31,7 @@ fi
 
 
 $CC $CFLAGS  \
-     -I$SRC/croaring/include \
+     -I$SRC/croaring/include -I$SRC/croaring/include/roaring \
      -r /src/synthesized_driver/*.c* -o fuzzer.o
 
 $CXX $CXXFLAGS fuzzer.o   \
