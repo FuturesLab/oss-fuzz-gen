@@ -1,41 +1,75 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include "/src/hoextdown/src/buffer.h" // Include the correct header for hoedown_buffer
-// #include "/src/hoextdown/src/autolink.c" // Include the correct path for the function declaration
+#include <string.h> // Include string.h for memcpy
+
+#include "/src/hoextdown/src/buffer.h" // Assuming this is where hoedown_buffer is defined
+
+// Define the function signature for the function-under-test
+size_t hoedown_autolink__www(size_t *rewind_p, hoedown_buffer *link, uint8_t *data, size_t offset, size_t size, unsigned int flags);
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to process
-    }
-    
-    size_t link_end = 0;
-    hoedown_buffer buffer;
-    size_t link_size = size / 2; // Use half of the data for link
-    size_t offset = size / 4; // Use a quarter of the data for offset
-    unsigned int flags = (unsigned int)data[0]; // Use the first byte as flags
+    // Initialize variables
+    size_t rewind_p = 0;
+    hoedown_buffer link;
+    link.data = (uint8_t *)malloc(size);
+    link.size = size;
+    link.asize = size;
+    link.unit = 1;
 
-    // Ensure offset and link_size are within bounds
-    if (offset + link_size > size) {
-        return 0; // Invalid offset or link size
+    // Ensure that the data is not NULL
+    if (size == 0 || link.data == NULL) {
+        free(link.data);
+        return 0;
     }
 
-    // Initialize the hoedown_buffer
-    buffer.data = (uint8_t *)malloc(size);
-    if (buffer.data == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(buffer.data, data, size);
-    buffer.size = size;
-    buffer.asize = size;
-    buffer.unit = 64; // Arbitrary unit size
+    // Copy input data to link buffer
+    memcpy(link.data, data, size);
 
     // Call the function-under-test
-    hoedown_autolink__www(&link_end, &buffer, buffer.data + offset, link_size, offset, flags);
+    hoedown_autolink__www(&rewind_p, &link, (uint8_t *)data, 0, size, 0);
 
-    // Free the allocated memory
-    free(buffer.data);
+    // Clean up
+    free(link.data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

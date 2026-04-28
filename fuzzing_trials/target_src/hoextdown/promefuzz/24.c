@@ -1,63 +1,105 @@
 // This fuzz driver is generated for library hoextdown, aiming to fuzz the following functions:
-// hoedown_malloc at buffer.c:9:1 in buffer.h
-// hoedown_realloc at buffer.c:35:1 in buffer.h
-// hoedown_buffer_init at buffer.c:48:1 in buffer.h
-// hoedown_buffer_put at buffer.c:120:1 in buffer.h
-// hoedown_buffer_slurp at buffer.c:210:1 in buffer.h
-// hoedown_calloc at buffer.c:22:1 in buffer.h
+// hoedown_buffer_new at buffer.c:73:1 in buffer.h
+// hoedown_buffer_eq at buffer.c:181:1 in buffer.h
+// hoedown_escape_html at escape.c:160:1 in escape.h
+// hoedown_buffer_prefix at buffer.c:194:1 in buffer.h
+// hoedown_buffer_put_utf8 at buffer.c:276:6 in buffer.h
+// hoedown_buffer_grow at buffer.c:103:1 in buffer.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "buffer.h"
+#include "escape.h"
 
-static void *custom_realloc(void *ptr, size_t size) {
-    return realloc(ptr, size);
-}
-
-static void custom_free(void *ptr) {
-    free(ptr);
+static void initialize_buffer(hoedown_buffer *buf, size_t unit) {
+    buf->data = NULL;
+    buf->size = 0;
+    buf->asize = 0;
+    buf->unit = unit;
+    buf->data_realloc = realloc;
+    buf->data_free = free;
+    buf->buffer_free = free;
 }
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Fuzz hoedown_malloc
-    void *allocated_memory = hoedown_malloc(Size);
-    if (!allocated_memory) return 0;
+    // Fuzz hoedown_buffer_new
+    size_t unit_size = Data[0] ? Data[0] : 1;
+    hoedown_buffer *buffer = hoedown_buffer_new(unit_size);
+    if (!buffer) return 0;
 
-    // Fuzz hoedown_realloc
-    void *reallocated_memory = hoedown_realloc(allocated_memory, Size / 2 + 1);
-    if (!reallocated_memory) {
-        free(allocated_memory);
-        return 0;
+    // Fuzz hoedown_buffer_eq
+    hoedown_buffer_eq(buffer, Data, Size);
+
+    // Fuzz hoedown_escape_html
+    hoedown_escape_html(buffer, Data, Size, 1);
+
+    // Fuzz hoedown_buffer_prefix
+    char *prefix = (char *)malloc(Size + 1);
+    if (prefix) {
+        memcpy(prefix, Data, Size);
+        prefix[Size] = '\0';
+        hoedown_buffer_prefix(buffer, prefix);
+        free(prefix);
     }
 
-    // Initialize hoedown_buffer
-    hoedown_buffer buffer;
-    hoedown_buffer_init(&buffer, 64, custom_realloc, custom_free, custom_free);
+    // Fuzz hoedown_buffer_put_utf8
+    unsigned int codepoint = Data[0];
+    hoedown_buffer_put_utf8(buffer, codepoint);
 
-    // Fuzz hoedown_buffer_put
-    hoedown_buffer_put(&buffer, Data, Size);
-
-    // Fuzz hoedown_buffer_slurp
-    hoedown_buffer_slurp(&buffer, Size / 2);
-
-    // Fuzz hoedown_calloc
-    void *calloc_memory = hoedown_calloc(1, Size);
-    if (!calloc_memory) {
-        buffer.data_free(buffer.data);
-        return 0;
-    }
+    // Fuzz hoedown_buffer_grow
+    size_t new_size = Size + (Size / 2);
+    hoedown_buffer_grow(buffer, new_size);
 
     // Cleanup
-    buffer.data_free(buffer.data);
-    free(calloc_memory);
+    buffer->buffer_free(buffer);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,40 +1,67 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/hoextdown/src/buffer.h"
+#include "/src/hoextdown/src/buffer.h"  // Correct path for hoedown_buffer
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Ensure there is input data to work with
     if (size == 0) {
-        return 0; // No data to process
+        return 0; // Exit early if input size is zero
     }
 
-    // Initialize hoedown_buffer
-    hoedown_buffer buffer;
-    buffer.data = (uint8_t *)malloc(size);
-    if (buffer.data == NULL) {
-        return 0; // Allocation failed, exit
+    // Initialize a hoedown_buffer
+    hoedown_buffer *buffer = hoedown_buffer_new(size);
+
+    if (buffer == NULL) {
+        return 0; // Exit if buffer allocation fails
     }
-    buffer.size = size;
-    buffer.asize = size;
-    buffer.unit = 1;
 
-    // Copy the input data into the buffer
-    memcpy(buffer.data, data, size);
+    // Copy data into buffer
+    hoedown_buffer_put(buffer, data, size);
 
-    // Call the function-under-test with meaningful input
-    // Assuming hoedown_buffer_eq checks if the buffer content equals the input data
-    int result = hoedown_buffer_eq(&buffer, data, size);
-
-    // Use the result in some way to ensure the function is being tested
-    if (result) {
-        // Do something if the buffer and data are equal
-        // This is just to ensure the function is invoked meaningfully
-    }
+    // Call the function-under-test
+    int result = hoedown_buffer_eq(buffer, data, size);
 
     // Clean up
-    free(buffer.data);
+    hoedown_buffer_free(buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
