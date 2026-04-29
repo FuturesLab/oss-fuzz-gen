@@ -1,85 +1,143 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <errno.h>
-#include "/src/libbpf/include/uapi/linux/fcntl.h"
-#include <unistd.h>
-#include <sys/stat.h>
-#include "/src/libbpf/include/linux/types.h"
-#include "/src/libbpf/include/uapi/linux/perf_event.h"
+#include <stdbool.h>
 #include "libbpf.h"
 
-static void sample_cb(void *ctx, int cpu, void *data, __u32 size) {
-    // Sample callback function for received data
+// Define a minimal bpf_map structure for testing purposes
+struct bpf_map {
+    struct bpf_object *obj;
+    char *name;
+    char *real_name;
+    int fd;
+    int sec_idx;
+    size_t sec_offset;
+    int map_ifindex;
+    int inner_map_fd;
+    struct bpf_map_def {
+        unsigned int type;
+        unsigned int key_size;
+        unsigned int value_size;
+        unsigned int max_entries;
+        unsigned int map_flags;
+    } def;
+    __u32 numa_node;
+    __u32 btf_var_idx;
+    int mod_btf_fd;
+    __u32 btf_key_type_id;
+    __u32 btf_value_type_id;
+    __u32 btf_vmlinux_value_type_id;
+    enum libbpf_map_type {
+        LIBBPF_MAP_UNSPEC,
+        LIBBPF_MAP_DATA,
+        LIBBPF_MAP_BSS,
+        LIBBPF_MAP_RODATA,
+        LIBBPF_MAP_KCONFIG,
+    } libbpf_type;
+    void *mmaped;
+    struct bpf_struct_ops *st_ops;
+    struct bpf_map *inner_map;
+    void **init_slots;
+    int init_slots_sz;
+    char *pin_path;
+    bool pinned;
+    bool reused;
+    bool autocreate;
+    bool autoattach;
+    __u64 map_extra;
+    struct bpf_program *excl_prog;
+};
+
+static struct bpf_map *initialize_bpf_map() {
+    struct bpf_map *map = (struct bpf_map *)malloc(sizeof(struct bpf_map));
+    if (!map) return NULL;
+    memset(map, 0, sizeof(struct bpf_map)); // Initialize all fields to zero/NULL
+    map->fd = -1;
+    map->inner_map_fd = -1;
+    map->mod_btf_fd = -1;
+    return map;
 }
 
-static void lost_cb(void *ctx, int cpu, __u64 count) {
-    // Lost callback function for lost records
-}
-
-static enum bpf_perf_event_ret event_cb(void *ctx, int cpu, struct perf_event_header *event) {
-    // Event callback function for raw events
-    return LIBBPF_PERF_EVENT_CONT;
+static void cleanup_bpf_map(struct bpf_map *map) {
+    if (map) {
+        free(map->name);
+        free(map->real_name);
+        free(map->pin_path);
+        free(map);
+    }
 }
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
-    int map_fd = open("./dummy_file", O_CREAT | O_RDWR, 0644);
-    if (map_fd < 0) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Initialize perf_buffer_opts and perf_buffer_raw_opts
-    struct perf_buffer_opts pb_opts = {
-        .sz = sizeof(struct perf_buffer_opts),
-        .sample_period = 0
-    };
+    struct bpf_map *map = initialize_bpf_map();
+    if (!map) return 0;
 
-    struct perf_buffer_raw_opts pb_raw_opts = {
-        .sz = sizeof(struct perf_buffer_raw_opts),
-        .cpu_cnt = 0,
-        .cpus = NULL,
-        .map_keys = NULL
-    };
+    bool flag = Data[0] % 2;
 
-    struct perf_event_attr attr = {
-        .type = PERF_TYPE_SOFTWARE,
-        .size = sizeof(struct perf_event_attr),
-        .config = PERF_COUNT_SW_CPU_CLOCK,
-        .sample_period = 0,
-        .sample_type = 0,
-        .read_format = 0
-    };
+    // Fuzz bpf_map__set_autoattach
+    int ret = bpf_map__set_autoattach(map, flag);
+    if (ret < 0) goto cleanup;
 
-    // Create perf_buffer using perf_buffer__new
-    struct perf_buffer *pb = perf_buffer__new(map_fd, 1, sample_cb, lost_cb, NULL, &pb_opts);
-    if (pb) {
-        size_t buf_cnt = perf_buffer__buffer_cnt(pb);
-        for (size_t i = 0; i < buf_cnt; i++) {
-            int fd = perf_buffer__buffer_fd(pb, i);
-            if (fd >= 0) {
-                perf_buffer__consume_buffer(pb, i);
-            }
-        }
-        perf_buffer__free(pb);
-    }
+    // Fuzz bpf_map__is_pinned
+    bool is_pinned = bpf_map__is_pinned(map);
 
-    // Create raw perf_buffer using perf_buffer__new_raw
-    struct perf_buffer *pb_raw = perf_buffer__new_raw(map_fd, 1, &attr, event_cb, NULL, &pb_raw_opts);
-    if (pb_raw) {
-        size_t buf_cnt = perf_buffer__buffer_cnt(pb_raw);
-        for (size_t i = 0; i < buf_cnt; i++) {
-            void *buf;
-            size_t buf_size;
-            if (perf_buffer__buffer(pb_raw, i, &buf, &buf_size) == 0) {
-                // Successfully retrieved buffer
-            }
-        }
-        perf_buffer__free(pb_raw);
-    }
+    // Fuzz bpf_map__is_internal
+    bool is_internal = bpf_map__is_internal(map);
 
-    close(map_fd);
-    unlink("./dummy_file");
+    // Fuzz bpf_map__autoattach
+    bool autoattach = bpf_map__autoattach(map);
+
+    // Fuzz bpf_map__set_autocreate
+    ret = bpf_map__set_autocreate(map, flag);
+    if (ret < 0) goto cleanup;
+
+    // Fuzz bpf_map__autocreate
+    bool autocreate = bpf_map__autocreate(map);
+
+cleanup:
+    cleanup_bpf_map(map);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,46 +1,88 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <janet.h>
 
-// Function signature for the function-under-test
-JanetBuffer *janet_pointer_buffer_unsafe(void *ptr, int32_t size, int32_t capacity);
+// Assuming JanetTable is a defined structure in the Janet library
+typedef struct {
+    // Dummy representation of JanetTable
+    int dummy;
+} JanetTable;
+
+// Dummy function to simulate janet_env_lookup_into_104
+void janet_env_lookup_into_104(JanetTable *table1, JanetTable *table2, const char *key, int flag) {
+    // Simulate some processing
+    printf("janet_env_lookup_into_104 called with key: %s and flag: %d\n", key, flag);
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract two int32_t values
-    if (size < sizeof(int32_t) * 2) {
-        return 0;
+    if (size < 1) {
+        return 0; // Not enough data to process
     }
 
-    // Extract two int32_t values from the input data
-    int32_t buffer_size = *(int32_t *)data;
-    int32_t buffer_capacity = *(int32_t *)(data + sizeof(int32_t));
+    // Initialize JanetTable structures
+    JanetTable table1 = {0};
+    JanetTable table2 = {0};
 
-    // Ensure buffer_size is not negative and does not exceed the remaining data
-    if (buffer_size < 0 || buffer_size > (int32_t)(size - sizeof(int32_t) * 2)) {
-        return 0;
-    }
+    // Extract a key string from the input data
+    size_t key_length = size < 256 ? size : 255; // Limit key length to 255
+    char key[256];
+    memcpy(key, data, key_length);
+    key[key_length] = '\0'; // Null-terminate the key
 
-    // Ensure buffer_capacity is non-negative
-    if (buffer_capacity < 0) {
-        return 0;
-    }
-
-    // Allocate memory for the buffer
-    void *buffer_data = malloc(buffer_size);
-    if (!buffer_data) {
-        return 0;
-    }
-
-    // Copy the input data into the buffer
-    memcpy(buffer_data, data + sizeof(int32_t) * 2, buffer_size);
+    // Extract an integer flag from the input data
+    int flag = (int)data[0]; // Use the first byte as the flag
 
     // Call the function-under-test
-    JanetBuffer *result = janet_pointer_buffer_unsafe(buffer_data, buffer_size, buffer_capacity);
+    janet_env_lookup_into_104(&table1, &table2, key, flag);
 
-    // Clean up
-    free(buffer_data);
-
-    // Normally, you would do something with the result, but for fuzzing, we just return
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_104(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

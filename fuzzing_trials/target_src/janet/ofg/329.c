@@ -1,46 +1,81 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h> // Include for abort()
-#include <stdio.h>  // Include for printf(), useful for debugging
-#include <signal.h> // Include for signal handling
-
-// The function-under-test declaration
-void janet_sandbox(uint32_t);
-
-// A helper function to ensure the input data is not all zeros
-uint32_t create_nonzero_uint32(const uint8_t *data) {
-    uint32_t result = 0;
-    memcpy(&result, data, sizeof(uint32_t));
-    // Ensure the result is not zero, as it might be an edge case causing issues
-    if (result == 0) {
-        result = 1; // Set to a non-zero value
-    }
-    return result;
-}
-
-// Signal handler for SIGABRT
-void handle_sigabrt(int sig) {
-    printf("Caught SIGABRT: %d\n", sig);
-    exit(1);
-}
+#include <stdlib.h>
+#include <string.h> // Include string.h for memcpy
+#include "janet.h" // Assuming janet.h is the header file where JanetBuffer is defined
 
 int LLVMFuzzerTestOneInput_329(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to create a uint32_t
-    if (size < sizeof(uint32_t)) {
+    // Initialize JanetBuffer
+    JanetBuffer buffer;
+    buffer.data = (uint8_t *)malloc(size);
+    buffer.count = 0;
+    buffer.capacity = size;
+
+    // Ensure the buffer is not NULL
+    if (buffer.data == NULL) {
         return 0;
     }
 
-    // Set up the signal handler for SIGABRT
-    signal(SIGABRT, handle_sigabrt);
+    // Populate the buffer with input data
+    memcpy(buffer.data, data, size);
+    buffer.count = size; // Set the count to the size of the input data
 
-    // Extract a uint32_t from the input data and ensure it is not zero
-    uint32_t sandbox_input = create_nonzero_uint32(data);
+    // Define the length and growth parameters
+    int32_t length = (int32_t)(size % 1000); // Ensure length is within a reasonable range
+    int32_t growth = (int32_t)(size % 100);  // Ensure growth is within a reasonable range
 
     // Call the function-under-test
-    // Wrap the call in a try-catch-like structure to handle potential crashes
-    // Since C doesn't have exceptions, we use a signal handler for SIGABRT
-    janet_sandbox(sandbox_input);
+    janet_buffer_ensure(&buffer, length, growth);
+
+    // Additional operations to increase code coverage
+    if (buffer.capacity > 0) {
+        // Simulate some operations on the buffer to ensure it's being used
+        for (int32_t i = 0; i < buffer.count; i++) {
+            buffer.data[i] ^= 0xFF; // Example operation: bitwise NOT
+        }
+    }
+
+    // Clean up
+    free(buffer.data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_329(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,51 +1,73 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include <janet.h>   // Include for JanetTable and related functions
+#include <stddef.h>
+#include <janet.h>
+
+// Ensure the function is declared properly
+extern uint64_t janet_optuinteger64(const Janet *argv, int32_t n, int32_t def, uint64_t fallback);
 
 int LLVMFuzzerTestOneInput_188(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract a 32-bit integer
-    if (size < sizeof(int32_t)) {
+    // Check if the input size is sufficient
+    if (size < sizeof(Janet) + sizeof(int32_t) * 2 + sizeof(uint64_t)) {
         return 0;
     }
 
-    // Extract an int32_t from the input data
-    int32_t capacity;
-    memcpy(&capacity, data, sizeof(int32_t));
+    // Initialize the parameters for janet_optuinteger64
+    const Janet *argv = (const Janet *)data;
+    int32_t n = *(const int32_t *)(data + sizeof(Janet));
+    int32_t def = *(const int32_t *)(data + sizeof(Janet) + sizeof(int32_t));
+    uint64_t fallback = *(const uint64_t *)(data + sizeof(Janet) + sizeof(int32_t) * 2);
 
-    // Ensure capacity is positive and within a reasonable range
-    if (capacity <= 0 || capacity > 10000) {
+    // Validate the input data to avoid invalid memory access
+    if (n < 0 || n >= size / sizeof(Janet)) {
         return 0;
     }
-
-    // Initialize a JanetTable
-    JanetTable table;
 
     // Call the function-under-test
-    JanetTable *result = janet_table_init_raw(&table, capacity);
+    uint64_t result = janet_optuinteger64(argv, n, def, fallback);
 
-    // Ensure result is not NULL
-    if (result == NULL) {
+    // Use result in some way to avoid compiler optimizations removing the call
+    if (result == 0) {
         return 0;
-    }
-
-    // Optionally, perform further operations on the result if needed
-    // For example, insert some dummy data to ensure the table is functional
-    for (int i = 0; i < capacity; i++) {
-        Janet key = janet_wrap_integer(i);
-        Janet value = janet_wrap_integer(i * 2);
-        janet_table_put(result, key, value);
-    }
-
-    // Verify the table's content
-    for (int i = 0; i < capacity; i++) {
-        Janet key = janet_wrap_integer(i);
-        Janet expected_value = janet_wrap_integer(i * 2);
-        Janet actual_value = janet_table_get(result, key);
-        if (!janet_equals(expected_value, actual_value)) {
-            return 0;
-        }
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_188(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,28 +1,69 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h> // Include for memcpy
-#include <janet.h> // Assuming the Janet library provides this header
+#include <janet.h>
 
-// Remove the 'extern "C"' as this is C code, not C++
 int LLVMFuzzerTestOneInput_312(const uint8_t *data, size_t size) {
-    // Initialize Janet environment
-    janet_init();
-
-    // Create a JanetArray
-    JanetArray *array = janet_array(10); // Initial size of 10
-
-    // Ensure the size is sufficient to create a Janet object
-    if (size >= sizeof(Janet)) {
-        // Create a Janet object from the input data
-        Janet janet_value;
-        memcpy(&janet_value, data, sizeof(Janet));
-
-        // Call the function-under-test
-        janet_array_push(array, janet_value);
+    if (size < 1) {
+        return 0;
     }
 
-    // Clean up Janet environment
+    // Initialize Janet
+    janet_init();
+
+    // Create a Janet string from the input data
+    Janet janet_str = janet_stringv(data, size);
+
+    // Create a null-terminated C string from the input data
+    char c_str[size + 1];
+    for (size_t i = 0; i < size; i++) {
+        c_str[i] = (char)data[i];
+    }
+    c_str[size] = '\0';
+
+    // Call the function-under-test
+    int result = janet_streq(janet_str, c_str);
+
+    // Clean up Janet
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_312(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

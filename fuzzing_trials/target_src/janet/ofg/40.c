@@ -1,59 +1,72 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <janet.h>
+#include <janet.h> // Ensure that the Janet library is included
 
-// Define a mock JanetAbstractType for testing purposes
-typedef struct {
-    const char *name;
-    // Add other fields as necessary for the JanetAbstractType
-} MockJanetAbstractType;
-
-// Mock implementation of janet_abstract_begin_threaded
-void *janet_abstract_begin_threaded_40(const JanetAbstractType *type, size_t size) {
-    // For the purpose of this harness, simply allocate memory
-    return malloc(size);
-}
-
+// Remove the 'extern "C"' as this is C code, not C++
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Ensure size is non-zero to avoid allocating zero bytes
-    if (size == 0) {
-        return 0;
+    // Initialize Janet runtime
+    janet_init();
+
+    // Create a Janet object from the input data
+    Janet janet_input;
+    if (size >= sizeof(double)) {
+        // Use the first few bytes of data to create a Janet object
+        janet_input = janet_wrap_number(*(double *)data);
+    } else {
+        // Fallback to a default Janet object if data is insufficient
+        janet_input = janet_wrap_nil();
     }
-
-    // Interpret the first few bytes of data as a size for allocation
-    size_t alloc_size = size > sizeof(size_t) ? *((size_t *)data) : size;
-
-    // Ensure alloc_size is non-zero and reasonable
-    if (alloc_size == 0 || alloc_size > 1024 * 1024) { // limit to 1MB for safety
-        return 0;
-    }
-
-    // Initialize a mock JanetAbstractType
-    MockJanetAbstractType mockType;
-    mockType.name = "MockType";
 
     // Call the function-under-test
-    void *result = janet_abstract_begin_threaded_40((const JanetAbstractType *)&mockType, alloc_size);
+    JanetString result = janet_to_string(janet_input);
 
-    // Check if the result is NULL and handle it
-    if (result == NULL) {
-        // If result is NULL, return early
-        return 0;
+    // Use the result to avoid compiler optimizations removing the call
+    if (result) {
+        // Just a dummy operation to use the result
+        (void)result[0];
     }
 
-    // Use the allocated memory to ensure the function is doing something with it
-    // For instance, write some data to it
-    memset(result, 0, alloc_size);
-
-    // Additional logic to simulate more complex usage
-    // Use the input data to modify the allocated memory
-    size_t copy_size = size < alloc_size ? size : alloc_size;
-    memcpy(result, data, copy_size);
-
-    // Clean up allocated memory
-    free(result);
+    // Deinitialize Janet runtime
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

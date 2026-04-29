@@ -1,43 +1,69 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <janet.h>
 
-// Assuming JanetTable is defined somewhere in the included headers
-typedef struct {
-    // Placeholder for actual JanetTable structure members
-    int dummy;
-} JanetTable;
-
-// Function prototype for the function-under-test
-void janet_env_lookup_into(JanetTable *env, JanetTable *dest, const char *key, int flags);
+// Initialize the Janet VM
+__attribute__((constructor))
+static void init_janet_vm() {
+    janet_init();
+}
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for a null-terminated string
-    if (size < 1) {
+    // Ensure the size is non-zero to create a valid Janet string
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for JanetTable structures
-    JanetTable env;
-    JanetTable dest;
-
-    // Copy data to a new buffer and ensure it is null-terminated
-    char *key = (char *)malloc(size + 1);
-    if (key == NULL) {
-        return 0;
-    }
-    memcpy(key, data, size);
-    key[size] = '\0';
-
-    // Use a fixed integer value for flags
-    int flags = 0;
+    // Create a Janet string from the input data
+    JanetString janetStr = janet_string(data, size);
 
     // Call the function-under-test
-    janet_env_lookup_into(&env, &dest, key, flags);
+    JanetStringHead *head = janet_string_head(janetStr);
 
-    // Free allocated memory
-    free(key);
+    // Use the result to avoid compiler optimizations removing the call
+    if (head != NULL) {
+        // Perform a simple operation to use the head
+        (void)head->length;
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_106(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

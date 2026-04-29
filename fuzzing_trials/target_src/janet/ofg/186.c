@@ -1,30 +1,67 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <janet.h>
+#include "/src/janet/src/include/janet.h"
 
+// Fuzzing function
 int LLVMFuzzerTestOneInput_186(const uint8_t *data, size_t size) {
-    if (size < sizeof(Janet)) {
-        return 0;
-    }
-
-    // Initialize Janet VM
+    // Initialize the Janet environment
     janet_init();
 
-    // Create a Janet array to hold the input data
-    Janet *janet_array = (Janet *)data;
+    // Create a Janet array from the input data
+    JanetArray *array = janet_array(size);
 
-    // Define default string (non-NULL)
-    const uint8_t *default_string = (const uint8_t *)"default";
+    // Fill the array with data from the fuzz input
+    for (size_t i = 0; i < size; i++) {
+        janet_array_push(array, janet_wrap_integer(data[i]));
+    }
 
-    // Set index and count within bounds
-    int32_t index = 0;
-    int32_t count = (int32_t)(size / sizeof(Janet));
+    // Perform some operations on the array to simulate usage
+    // For example, get the length of the array
+    Janet length = janet_wrap_integer(array->count);
 
     // Call the function-under-test
-    JanetString result = janet_optstring(janet_array, index, count, default_string);
+    janet_sweep();
 
-    // Clean up Janet VM
+    // Clean up the Janet environment
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_186(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

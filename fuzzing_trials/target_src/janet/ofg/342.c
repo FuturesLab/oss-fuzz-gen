@@ -1,29 +1,57 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <janet.h>
 
-// Declare the function-under-test
-Janet janet_dyn(const char *);
+// Function-under-test declaration
+size_t janet_os_rwlock_size();
 
-// Fuzzing harness
+// Fuzzing harness for janet_os_rwlock_size
 int LLVMFuzzerTestOneInput_342(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated to be used as a string
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-
-    // Copy the input data and null-terminate it
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
     // Call the function-under-test
-    Janet result = janet_dyn(null_terminated_data);
+    size_t rwlock_size = janet_os_rwlock_size();
 
-    // Free the allocated memory
-    free(null_terminated_data);
+    // Use the result in some way to avoid compiler optimizations
+    // Here, we simply print it, but in a real fuzzing environment, 
+    // you might want to check the value or use it in further logic.
+    (void)rwlock_size;
 
-    // Return 0 to indicate the fuzzer can continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_342(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

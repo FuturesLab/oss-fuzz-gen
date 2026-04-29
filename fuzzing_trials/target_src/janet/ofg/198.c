@@ -1,39 +1,58 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <janet.h>
 
-// Define a simple struct to use as a JanetAbstract
-typedef struct {
-    int field1;
-    double field2;
-} MyAbstract;
-
-// Function to create a JanetAbstract
-static JanetAbstract create_abstract() {
-    // Allocate memory for the abstract type
-    MyAbstract *abstract = (MyAbstract *)malloc(sizeof(MyAbstract));
-    if (abstract == NULL) {
-        // Handle memory allocation failure
-        exit(1);
-    }
-
-    // Initialize the fields of the abstract type
-    abstract->field1 = 42;
-    abstract->field2 = 3.14;
-
-    // Return the abstract as a JanetAbstract
-    return (JanetAbstract)abstract;
-}
-
 int LLVMFuzzerTestOneInput_198(const uint8_t *data, size_t size) {
-    // Create a JanetAbstract
-    JanetAbstract abstract = create_abstract();
+    Janet janet_value;
 
-    // Call the function-under-test
-    Janet result = janet_wrap_abstract(abstract);
+    // Ensure there is enough data to create a Janet integer
+    if (size >= sizeof(int32_t)) {
+        // Convert the first 4 bytes of data into a Janet integer
+        int32_t integer_value = *(int32_t *)data;
+        janet_value = janet_wrap_integer(integer_value);
 
-    // Clean up
-    free((void *)abstract);
+        // Call the function-under-test
+        janet_checkint(janet_value);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_198(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

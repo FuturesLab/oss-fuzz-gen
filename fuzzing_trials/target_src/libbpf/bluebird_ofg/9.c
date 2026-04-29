@@ -1,138 +1,82 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
 #include "libbpf.h"
+#include <stdint.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    struct bpf_program *prog;
-    int attach_type;
-    char *target;
-    struct bpf_object *obj;
+    struct bpf_program *prog = NULL;
+    struct bpf_link *link = NULL;
+    struct bpf_object *obj = NULL;
+    int err;
 
-    // Ensure data size is sufficient for creating a string
-    if (size < 1) {
-        return 0;
-    }
-
-    // Load a dummy BPF object to initialize a bpf_program
+    // Create a BPF object from the provided data
     obj = bpf_object__open_mem(data, size, NULL);
     if (!obj) {
         return 0;
     }
 
-    // Get the first program from the BPF object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__prev_map
-
-    struct bpf_map* ret_bpf_object__prev_map_bljoe = bpf_object__prev_map(obj, NULL);
-    if (ret_bpf_object__prev_map_bljoe == NULL){
-    	return 0;
+    // Load the BPF object
+    err = bpf_object__load(obj);
+    if (err) {
+        bpf_object__close(obj);
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Get the first program in the object
     prog = bpf_object__next_program(obj, NULL);
     if (!prog) {
         bpf_object__close(obj);
         return 0;
     }
 
-    // Use the first byte of data to determine the attach_type
-    attach_type = (int)data[0];
-
-    // Allocate memory for the target string and copy data into it
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_xdp
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__set_autoattach
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__set_flags
-    __u32 ret_bpf_map__btf_value_type_id_jjizi = bpf_map__btf_value_type_id(NULL);
-
-    int ret_bpf_program__set_flags_bzslg = bpf_program__set_flags(prog, ret_bpf_map__btf_value_type_id_jjizi);
-    if (ret_bpf_program__set_flags_bzslg < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    bpf_program__set_autoattach(prog, 1);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_bpf_object__load_jqurq = bpf_object__load(obj);
-    if (ret_bpf_object__load_jqurq < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach_xdp with bpf_program__attach_perf_event
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__attach_perf_event
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__attach_perf_event
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__attach_perf_event
-    struct bpf_link* ret_bpf_program__attach_xdp_vvvez = bpf_program__attach_perf_event(prog, 1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_bpf_program__attach_xdp_vvvez == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    target = (char *)malloc(size);
-    if (target == NULL) {
-        bpf_object__close(obj);
-        return 0;
-    }
-    memcpy(target, data + 1, size - 1);
-    target[size - 1] = '\0'; // Ensure null-termination
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__set_attach_target
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__set_attach_target
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__set_attach_target
-    bpf_program__set_attach_target(prog, 0, target);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Attempt to attach the BPF program
+    link = bpf_program__attach(prog);
 
     // Clean up
-    free(target);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__kversion
-
-        unsigned int ret_bpf_object__kversion_gmwuy = bpf_object__kversion(obj);
-        if (ret_bpf_object__kversion_gmwuy < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
+    if (link) {
+        bpf_link__destroy(link);
+    }
     bpf_object__close(obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

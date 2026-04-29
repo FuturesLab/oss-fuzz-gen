@@ -1,96 +1,115 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include "/src/libbpf/include/uapi/linux/fcntl.h"
-#include <unistd.h>
+#include "/src/libbpf/src/libbpf_legacy.h"
 #include "libbpf.h"
 
-static void initialize_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+#define DUMMY_FILE_PATH "./dummy_file"
+
+static int custom_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
 }
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
-    struct bpf_object *obj = NULL;
-    struct bpf_program *prog = NULL;
-    struct bpf_link *link = NULL;
-    struct bpf_insn insns[10];
-    int cgroup_fd = -1;
-    int ret;
-
-    // Initialize dummy file with fuzzer data
-    initialize_dummy_file(Data, Size);
-
-    // Attempt to open a BPF object from the dummy file
-    obj = bpf_object__open_file("./dummy_file", NULL);
-    if (!obj)
-        {
+    if (Size == 0) {
         return 0;
     }
 
-    // Load the BPF object
-    if (bpf_object__load(obj) < 0)
-        {
-        goto cleanup;
+    // Step 1: Set a custom print function
+    libbpf_set_print(custom_print_fn);
+
+    // Step 2: Open a BPF object from memory
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts),
+        .object_name = "fuzzed_object",
+    };
+
+    struct bpf_object *obj = bpf_object__open_mem(Data, Size, &opts);
+
+    // Step 3: Check for errors using deprecated function
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__load
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
     }
-
-    // Get the first program
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__next_program with bpf_object__prev_program
-    prog = bpf_object__prev_program(obj, NULL);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (!prog)
-        {
-        goto cleanup;
+    int ret_bpf_object__load_tpajl = bpf_object__load(obj);
+    if (ret_bpf_object__load_tpajl < 0){
+    	return 0;
     }
-
-    // Fuzz bpf_program__insn_cnt
-    size_t insn_cnt = bpf_program__insn_cnt(prog);
-
-    // Fuzz bpf_program__set_insns
-    ret = bpf_program__set_insns(prog, insns, insn_cnt);
+    // End mutation: Producer.APPEND_MUTATOR
     
-    // Fuzz bpf_program__expected_attach_type
-    enum bpf_attach_type attach_type = bpf_program__expected_attach_type(prog);
 
-    // Fuzz bpf_program__attach_cgroup
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach_cgroup with bpf_program__attach_perf_event
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__attach_perf_event
-    link = bpf_program__attach_perf_event(prog, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from bpf_object__load to bpf_object__pin using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__pin with bpf_object__unpin
+    int ret_bpf_object__pin_xfilp = bpf_object__unpin(obj, "./dummy_file");
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (link) {
-        // Fuzz bpf_link__update_program
-        ret = bpf_link__update_program(link, prog);
+    if (ret_bpf_object__pin_xfilp < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    long err = libbpf_get_error(obj);
+    if (err) {
+        // Handle error (deprecated function, just for demonstration)
+        fprintf(stderr, "Error opening BPF object: %ld\n", err);
+        return 0;
     }
 
-cleanup:
-    // Clean up
-    if (link)
-        {
-        bpf_link__destroy(link);
-    }
-    if (obj)
-        {
+    // Step 4: Close the BPF object if it was successfully opened
+    if (obj != NULL) {
         bpf_object__close(obj);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

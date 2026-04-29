@@ -1,62 +1,79 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include "janet.h" // Assuming the necessary header for JanetAbstractType is included here
+#include <janet.h>
 
+// Ensure that Janet is initialized before using any Janet functions
+__attribute__((constructor))
+static void initialize_janet_126() {
+    janet_init();
+}
+
+// Fuzzing entry point
 int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to create a JanetAbstractType and a size
-    if (size < sizeof(JanetAbstractType)) {
+    // Ensure size is large enough to create a JanetFiber
+    if (size < sizeof(JanetFiber)) {
         return 0;
     }
 
-    // Allocate memory for a JanetAbstractType object
-    JanetAbstractType *abstractType = (JanetAbstractType *)malloc(sizeof(JanetAbstractType));
-    if (abstractType == NULL) {
-        return 0; // Handle allocation failure
+    // Allocate memory for a JanetFiber
+    JanetFiber *fiber = (JanetFiber *)malloc(sizeof(JanetFiber));
+    if (!fiber) {
+        return 0;
     }
 
-    // Copy data into the allocated JanetAbstractType object
-    memcpy(abstractType, data, sizeof(JanetAbstractType));
+    // Initialize the fiber with some data
+    // Note: This is a simplified initialization. In a real scenario,
+    // you would properly initialize the fiber according to the Janet API.
+    fiber->capacity = 10;
+    fiber->frame = 0;
+    fiber->stackstart = 0;
+    fiber->stacktop = 0;
+    fiber->flags = 0;
 
-    // Calculate the remaining size after extracting JanetAbstractType
-    size_t remaining_size = size - sizeof(JanetAbstractType);
+    // Call the function-under-test
+    JanetFiberStatus status = janet_fiber_status(fiber);
 
-    // Ensure remaining_size is valid for the function under test
-    if (remaining_size > 0) {
-        // Allocate memory for additional data to pass to the function
-        void *additional_data = malloc(remaining_size);
-        if (additional_data == NULL) {
-            free(abstractType);
-            return 0; // Handle allocation failure
-        }
-
-        // Copy the remaining data into additional_data
-        memcpy(additional_data, data + sizeof(JanetAbstractType), remaining_size);
-
-        // Call the function-under-test
-        void *result = janet_abstract_threaded(abstractType, additional_data);
-
-        // Use the result in some way to avoid compiler optimizations removing the call
-        if (result != NULL) {
-            // Perform some operation with result if needed
-            // For example, we can simulate using the result by checking a property
-            volatile uint8_t *result_data = (uint8_t *)result;
-            for (size_t i = 0; i < sizeof(JanetAbstractType); ++i) {
-                if (result_data[i] == 0) {
-                    // Do something trivial to prevent optimization
-                    volatile int dummy = 0;
-                    dummy++;
-                }
-            }
-        }
-
-        // Free the allocated memory for additional_data
-        free(additional_data);
-    }
-
-    // Free the allocated memory for JanetAbstractType
-    free(abstractType);
+    // Clean up
+    free(fiber);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_126(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

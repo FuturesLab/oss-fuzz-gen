@@ -1,31 +1,64 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <string.h> // Include for memcpy
 #include <janet.h>
-#include "/src/janet/src/include/janet.h"
-
-// Remove the non-existent Janet core library inclusion
 
 int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-    // Initialize Janet runtime
-    janet_init();
+    Janet janet_value;
+    JanetKeyword keyword_result;
 
-    // Ensure there is enough data to create a Janet value
-    if (size < sizeof(double)) {
-        janet_deinit();
+    if (size < sizeof(Janet)) {
         return 0;
     }
 
-    // Create a Janet value from the input data
-    Janet janet_value = janet_wrap_number(*(const double *)data); // Wrap data as a Janet number
+    // Copy the input data into a Janet value
+    memcpy(&janet_value, data, sizeof(Janet));
 
-    // Create a buffer to use with Janet
-    JanetBuffer *buffer = janet_buffer(10); // Initialize a buffer with some initial capacity
+    // Call the function-under-test
+    keyword_result = janet_unwrap_keyword(janet_value);
 
-    // Use the Janet value and buffer in some way
-    janet_buffer_push_u8(buffer, janet_unwrap_number(janet_value)); // Use janet_buffer_push_u8 instead
-
-    // Clean up Janet runtime
-    janet_deinit();
+    // Use the result in some way to prevent optimizations from removing the call
+    if (keyword_result != NULL) {
+        // Do something with keyword_result, e.g., print or log
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_157(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

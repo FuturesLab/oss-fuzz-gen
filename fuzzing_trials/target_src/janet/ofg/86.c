@@ -1,31 +1,85 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include "janet.h" // Assuming this is the header where JanetRNG is defined
+#include <string.h>
+#include <janet.h>
+
+// Initialize the Janet environment
+static void initialize_janet_86() {
+    static int initialized = 0;
+    if (!initialized) {
+        janet_init();
+        initialized = 1;
+    }
+}
 
 int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    JanetRNG rng;
-    const uint8_t *seed_data;
-    int32_t seed_size;
-
-    // Ensure that seed_size is not greater than the actual data size
-    if (size < sizeof(int32_t)) {
+    // Ensure there is enough data to create a Janet object and an index
+    if (size < sizeof(Janet) + sizeof(int32_t)) {
         return 0;
     }
 
-    // Use the first 4 bytes of data as the seed size
-    seed_size = (int32_t)(data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24));
+    // Initialize the Janet environment
+    initialize_janet_86();
 
-    // Ensure seed_size is non-negative and does not exceed the remaining data
-    if (seed_size < 0 || (size - sizeof(int32_t)) < (size_t)seed_size) {
+    // Initialize the Janet object from the input data
+    Janet janet_obj;
+    memcpy(&janet_obj, data, sizeof(Janet));
+
+    // Extract the index from the remaining data
+    int32_t index;
+    memcpy(&index, data + sizeof(Janet), sizeof(int32_t));
+
+    // Ensure the Janet object is a valid string
+    if (!janet_checktype(janet_obj, JANET_STRING)) {
         return 0;
     }
 
-    // Set seed_data to the remaining bytes after the seed size
-    seed_data = data + sizeof(int32_t);
+    // Call the function-under-test with the address of janet_obj
+    JanetString result = janet_getstring(&janet_obj, index);
 
-    // Call the function-under-test
-    janet_rng_longseed(&rng, seed_data, seed_size);
+    // Use the result in some way to avoid compiler optimizations ignoring the call
+    if (result != NULL) {
+        // Do something with result, e.g., print or log it
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_86(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

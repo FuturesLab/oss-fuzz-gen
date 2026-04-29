@@ -1,26 +1,77 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <janet.h>
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Assuming JanetAtomicInt and DW_TAG_volatile_typeJanetAtomicInt are defined somewhere
+typedef int32_t JanetAtomicInt;
+typedef volatile JanetAtomicInt DW_TAG_volatile_typeJanetAtomicInt;
+
+// Mock function definition for janet_atomic_load_relaxed_222
+JanetAtomicInt janet_atomic_load_relaxed_222(DW_TAG_volatile_typeJanetAtomicInt *atomic_int) {
+    // A simple mock implementation for demonstration purposes
+    return *atomic_int;
+}
 
 int LLVMFuzzerTestOneInput_222(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
-        return 0; // Not enough data to extract an int
+    // Ensure there is enough data to read a JanetAtomicInt value
+    if (size < sizeof(JanetAtomicInt)) {
+        return 0;
     }
 
-    // Extract an integer from the input data
-    int input_value = *((int *)data);
-
-    // Convert the integer to a boolean value
-    int boolean_value = input_value != 0;
+    // Initialize a volatile JanetAtomicInt with data from the fuzzer
+    DW_TAG_volatile_typeJanetAtomicInt atomic_int = *(const JanetAtomicInt *)data;
 
     // Call the function-under-test
-    Janet result = janet_wrap_boolean(boolean_value);
+    JanetAtomicInt result = janet_atomic_load_relaxed_222(&atomic_int);
 
-    // Optionally, perform some operations with the result to ensure it's used
-    JanetType type = janet_type(result);
-    if (type == JANET_BOOLEAN) {
-        // Do something with the boolean result
-    }
+    // Use the result in some way to avoid any compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_222(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

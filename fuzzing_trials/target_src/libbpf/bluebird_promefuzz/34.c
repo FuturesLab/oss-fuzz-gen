@@ -1,61 +1,103 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stddef.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include "/src/libbpf/src/libbpf_legacy.h"
 #include "libbpf.h"
 
-int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+#define DUMMY_FILE_PATH "./dummy_file"
 
-    // Create a dummy bpf_link structure
-    struct bpf_link *link = bpf_link__open("./dummy_file");
-    if (!link) {
+static int custom_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
+}
+
+int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Fuzz bpf_link__disconnect
-    bpf_link__disconnect(link);
+    // Step 1: Set a custom print function
+    libbpf_set_print(custom_print_fn);
 
-    // Fuzz bpf_link__pin_path
-    const char *pin_path = bpf_link__pin_path(link);
-    if (pin_path) {
-        // Simulate accessing the pin path
-        printf("Pin Path: %s\n", pin_path);
+    // Step 2: Open a BPF object from memory
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts),
+        .object_name = "fuzzed_object",
+    };
+
+    struct bpf_object *obj = bpf_object__open_mem(Data, Size, &opts);
+
+    // Step 3: Check for errors using deprecated function
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__gen_loader
+    struct gen_loader_opts ufmfjmdb;
+    memset(&ufmfjmdb, 0, sizeof(ufmfjmdb));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    int ret_bpf_object__gen_loader_msohd = bpf_object__gen_loader(obj, &ufmfjmdb);
+    if (ret_bpf_object__gen_loader_msohd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    long err = libbpf_get_error(obj);
+    if (err) {
+        // Handle error (deprecated function, just for demonstration)
+        fprintf(stderr, "Error opening BPF object: %ld\n", err);
+        return 0;
     }
 
-    // Fuzz bpf_link__pin
-    char path[256];
-    snprintf(path, sizeof(path), "./dummy_file_%zu", Size);
-    FILE *dummy_file = fopen(path, "w");
-    if (dummy_file) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
+    // Step 4: Close the BPF object if it was successfully opened
+    if (obj != NULL) {
+        bpf_object__close(obj);
     }
-    int pin_result = bpf_link__pin(link, path);
-    if (pin_result < 0) {
-        // Handle pin error
-        printf("Pin Error: %d\n", pin_result);
-    }
-
-    // Fuzz bpf_link__fd
-    int fd = bpf_link__fd(link);
-    if (fd >= 0) {
-        // Simulate using the file descriptor
-        printf("File Descriptor: %d\n", fd);
-    }
-
-    // Fuzz bpf_link__unpin
-    int unpin_result = bpf_link__unpin(link);
-    if (unpin_result < 0) {
-        // Handle unpin error
-        printf("Unpin Error: %d\n", unpin_result);
-    }
-
-    // Cleanup
-    bpf_link__disconnect(link);
-    bpf_link__unpin(link);
-
-    remove(path);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

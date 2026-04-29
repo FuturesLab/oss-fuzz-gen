@@ -1,122 +1,105 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <unistd.h>
 #include "libbpf.h"
+#include "/src/libbpf/src/bpf.h" // Include the header where struct bpf_program is defined
+#include <stdio.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_139(const uint8_t *data, size_t size) {
-    struct bpf_program *prog;
-    int attach_type;
-    char *target;
-    struct bpf_object *obj;
-
-    // Ensure data size is sufficient for creating a string
-    if (size < 1) {
-        return 0;
+    // Check if the size is sufficient to extract meaningful values
+    if (size < 2) {
+        return 0; // Not enough data to proceed
     }
 
-    // Load a dummy BPF object to initialize a bpf_program
-    obj = bpf_object__open_mem(data, size, NULL);
+    // Initialize variables
+    const struct bpf_program *prog = NULL; // Initialize to NULL as we can't directly cast from data
+    bool retprobe = (data[0] % 2 == 0); // Use the first byte to determine the boolean value
+    pid_t pid = (pid_t)getpid(); // Use the current process ID
+    const char *binary_path = "/bin/ls"; // Example binary path
+    size_t offset = (size > 1) ? (size_t)data[1] : 0; // Use the second byte for offset if available
+
+    // Create a bpf_program object from data
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts),
+    };
+
+    // Use a valid BPF object file path (mock-up for fuzzing)
+    struct bpf_object *obj = bpf_object__open_file("/path/to/valid/bpf/object.o", &opts); // Open a valid BPF object file
     if (!obj) {
-        return 0;
+        return 0; // Failed to open BPF object
     }
 
-    // Get the first program from the BPF object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to perf_buffer__new
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of perf_buffer__new
-    struct perf_buffer* ret_perf_buffer__new_pjlxb = perf_buffer__new(64, 1, NULL, NULL, (void *)obj, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_perf_buffer__new_pjlxb == NULL){
-    	return 0;
+    // Load the BPF object to ensure programs are ready to be used
+    if (bpf_object__load(obj) != 0) {
+        bpf_object__close(obj);
+        return 0; // Failed to load BPF object
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Assume the first program in the object is the one we want
     prog = bpf_object__next_program(obj, NULL);
     if (!prog) {
         bpf_object__close(obj);
-        return 0;
+        return 0; // No program found
     }
 
-    // Use the first byte of data to determine the attach_type
-    attach_type = (int)data[0];
-
-    // Allocate memory for the target string and copy data into it
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_kprobe
-
-    struct bpf_link* ret_bpf_program__attach_kprobe_kelcs = bpf_program__attach_kprobe(prog, 1, NULL);
-    if (ret_bpf_program__attach_kprobe_kelcs == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    target = (char *)malloc(size);
-    if (target == NULL) {
+    // Ensure the bpf_program is valid before using it
+    if (bpf_program__fd(prog) < 0) {
         bpf_object__close(obj);
-        return 0;
+        return 0; // Invalid bpf_program, exit early
     }
-    memcpy(target, data + 1, size - 1);
-    target[size - 1] = '\0'; // Ensure null-termination
 
     // Call the function-under-test
-    bpf_program__set_attach_target(prog, attach_type, target);
+    struct bpf_link *link = bpf_program__attach_uprobe(prog, retprobe, pid, binary_path, offset);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_attach_target to bpf_program__attach_iter
-
-    struct bpf_link* ret_bpf_program__attach_iter_ozpnh = bpf_program__attach_iter(prog, NULL);
-    if (ret_bpf_program__attach_iter_ozpnh == NULL){
-    	return 0;
+    // Clean up if necessary
+    if (link) {
+        bpf_link__destroy(link);
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(target);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__kversion
-
-        unsigned int ret_bpf_object__kversion_gmwuy = bpf_object__kversion(obj);
-        if (ret_bpf_object__kversion_gmwuy < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__pin
-    const char xqjssnmx[1024] = "kkyql";
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__pin with bpf_object__pin_maps
-    int ret_bpf_object__pin_erezz = bpf_object__pin_maps(obj, xqjssnmx);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_bpf_object__pin_erezz < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__pin_maps to libbpf_probe_bpf_map_type
-
-    int ret_libbpf_probe_bpf_map_type_lbaqh = libbpf_probe_bpf_map_type(0, (const void *)obj);
-    if (ret_libbpf_probe_bpf_map_type_lbaqh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    bpf_object__close(obj);
+    bpf_object__close(obj); // Close the bpf object
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_139(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,71 +1,75 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
-#include <janet.h> // Include for Janet-related functions and types
+#include <janet.h>
 
+// Fuzzing harness for janet_buffer_push_cstring
 int LLVMFuzzerTestOneInput_379(const uint8_t *data, size_t size) {
-    // Initialize the Janet environment
-    janet_init();
-
-    // Ensure that the input size is sufficient to create a JanetKV and a Janet
-    if (size < sizeof(JanetKV) + sizeof(Janet)) {
-        janet_deinit(); // Clean up the Janet environment before returning
+    // Ensure that the size is at least 1 to create a valid null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize a JanetKV structure
-    JanetKV kv;
-    kv.key = janet_wrap_nil();  // Initialize key with a default value
-    kv.value = janet_wrap_nil(); // Initialize value with a default value
+    // Allocate memory for a JanetBuffer
+    JanetBuffer buffer;
+    janet_buffer_init(&buffer, 10); // Initialize with a default size
 
-    // Initialize a Janet value
-    Janet janet_value = janet_wrap_nil(); // Initialize with default value
-
-    // Copy data into the JanetKV and Janet structures
-    // Ensure the data is not NULL
-    if (data != NULL) {
-        // Use the first part of data for the JanetKV
-        memcpy(&kv, data, sizeof(JanetKV));
-
-        // Use the remaining part of data for the Janet value
-        if (size >= sizeof(JanetKV) + sizeof(Janet)) {
-            memcpy(&janet_value, data + sizeof(JanetKV), sizeof(Janet));
-        }
-    }
-
-    // Initialize a JanetStruct from the data
-    // This requires allocating a JanetKV array and setting it up correctly
-    size_t kv_size = size / sizeof(JanetKV);
-    if (kv_size == 0) {
-        janet_deinit(); // Clean up the Janet environment before returning
-        return 0; // Avoid division by zero and invalid memory operations
-    }
-    JanetKV *kvs = (JanetKV *)malloc(kv_size * sizeof(JanetKV));
-    if (!kvs) {
-        janet_deinit(); // Clean up the Janet environment before returning
+    // Allocate memory for a null-terminated string
+    char *cstring = (char *)malloc(size + 1);
+    if (!cstring) {
         return 0;
     }
-    memcpy(kvs, data, kv_size * sizeof(JanetKV));
-    JanetStruct janet_struct = janet_struct_begin(kv_size);
-    for (size_t i = 0; i < kv_size; i++) {
-        // Ensure keys and values are valid Janet types
-        Janet key = janet_checktype(kvs[i].key, JANET_NIL) ? janet_wrap_nil() : kvs[i].key;
-        Janet value = janet_checktype(kvs[i].value, JANET_NIL) ? janet_wrap_nil() : kvs[i].value;
-        janet_struct_put(janet_struct, key, value);
-    }
-    janet_struct_end(janet_struct);
+
+    // Copy data into the string and null-terminate it
+    memcpy(cstring, data, size);
+    cstring[size] = '\0';
 
     // Call the function-under-test
-    Janet result = janet_struct_rawget(janet_struct, janet_value);
+    janet_buffer_push_cstring(&buffer, cstring);
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
-
-    // Free allocated memory
-    free(kvs);
-
-    // Deinitialize the Janet environment
-    janet_deinit();
+    // Clean up
+    free(cstring);
+    janet_buffer_deinit(&buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_379(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,70 +1,68 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include "/src/libbpf/include/uapi/linux/fcntl.h"
 #include "libbpf.h"
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    struct bpf_object *obj = NULL;
-    int result;
-
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the size is sufficient to extract a bpf_link_type value
+    if (size < sizeof(enum bpf_link_type)) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-
-    // Load the BPF object from the temporary file
-    obj = bpf_object__open(tmpl);
-    if (!obj) {
-        close(fd);
-        return 0;
-    }
+    // Extract the enum value from the input data
+    enum bpf_link_type link_type = *(const enum bpf_link_type *)data;
 
     // Call the function-under-test
-    result = bpf_object__load(obj);
+    const char *result = libbpf_bpf_link_type_str(link_type);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__load to bpf_program__set_attach_target
-    const char yghqgemc[1024] = "cuzeo";
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__load to perf_buffer__buffer
-    int ret_libbpf_unregister_prog_handler_bxwyf = libbpf_unregister_prog_handler(64);
-    if (ret_libbpf_unregister_prog_handler_bxwyf < 0){
-    	return 0;
+    // Use the result in some way to prevent it from being optimized away
+    if (result) {
+        // Simple operation to use the result
+        volatile size_t length = 0;
+        while (result[length] != '\0') {
+            length++;
+        }
     }
-    int ret_bpf_object__prepare_wnptc = bpf_object__prepare(obj);
-    if (ret_bpf_object__prepare_wnptc < 0){
-    	return 0;
-    }
-
-    int ret_perf_buffer__buffer_spuoi = perf_buffer__buffer(NULL, ret_libbpf_unregister_prog_handler_bxwyf, (void **)&obj, (size_t *)&ret_bpf_object__prepare_wnptc);
-    if (ret_perf_buffer__buffer_spuoi < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_bpf_program__set_attach_target_knnsb = bpf_program__set_attach_target(NULL, result, yghqgemc);
-    if (ret_bpf_program__set_attach_target_knnsb < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    bpf_object__close(obj);
-    close(fd);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_71(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

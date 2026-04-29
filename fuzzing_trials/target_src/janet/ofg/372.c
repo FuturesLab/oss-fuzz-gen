@@ -1,54 +1,61 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <janet.h>
 
-// Declare the fuzzer function correctly for C
 int LLVMFuzzerTestOneInput_372(const uint8_t *data, size_t size) {
-    // Initialize the Janet environment
+    // Initialize Janet runtime
     janet_init();
 
-    // Ensure the size is sufficient to extract an int32_t
-    if (size < sizeof(int32_t)) {
-        janet_deinit();
-        return 0;
-    }
+    // Create a Janet environment
+    JanetTable *env = janet_table(0);
 
-    // Extract an int32_t from the input data
-    int32_t capacity = *((int32_t *)data);
+    // Create a Janet object (e.g., a string) from the input data
+    Janet source = janet_stringv(data, size);
 
-    // Ensure the capacity is non-negative and reasonable
-    if (capacity < 0 || capacity > 1000) { // Arbitrary upper limit for safety
-        janet_deinit();
-        return 0;
-    }
+    // Call the function-under-test
+    JanetCompileResult result = janet_compile(source, env, NULL);
 
-    // Initialize a JanetTable with a valid capacity
-    JanetTable *table = janet_table(capacity);
-
-    // Ensure the table is initialized
-    if (table == NULL) {
-        janet_deinit();
-        return 0;
-    }
-
-    // Use the remaining data to insert into the table
-    const uint8_t *remaining_data = data + sizeof(int32_t);
-    size_t remaining_size = size - sizeof(int32_t);
-
-    // Insert data into the table if there is enough remaining data
-    if (remaining_size >= sizeof(int32_t)) {
-        int32_t key = *((int32_t *)remaining_data);
-        Janet value = janet_wrap_integer(key); // Simple example: wrap the key as a value
-        janet_table_put(table, janet_wrap_integer(key), value);
-    }
-
-    // Additional logic can be added here to further utilize the table if needed
-
-    // Clean up the table
-    janet_table_deinit(table);
-
-    // De-initialize the Janet environment
+    // Clean up Janet runtime
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_372(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

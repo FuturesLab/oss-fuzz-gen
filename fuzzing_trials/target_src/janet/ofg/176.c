@@ -1,39 +1,59 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <janet.h>
+
+// Function-under-test declaration
+int janet_cryptorand(uint8_t *buffer, size_t size);
 
 int LLVMFuzzerTestOneInput_176(const uint8_t *data, size_t size) {
-    // Ensure there's enough data for an integer index
-    if (size < sizeof(int32_t)) {
-        return 0;
+    // Allocate a buffer for the cryptorand function
+    uint8_t buffer[256];
+
+    // Ensure size is within the bounds of the buffer
+    if (size > sizeof(buffer)) {
+        size = sizeof(buffer);
     }
 
-    // Interpret the first 4 bytes of data as an integer index
-    int32_t index = *(const int32_t *)data;
-
-    // Calculate the number of Janet objects we can create from the remaining data
-    size_t num_janets = (size - sizeof(int32_t)) / sizeof(Janet);
-
-    // Allocate an array of Janet objects
-    Janet *janet_array = (Janet *)malloc(num_janets * sizeof(Janet));
-    if (!janet_array) {
-        return 0;
-    }
-
-    // Initialize the Janet objects with the remaining data
-    for (size_t i = 0; i < num_janets; i++) {
-        janet_array[i] = janet_wrap_integer((int32_t)data[sizeof(int32_t) + i]);
-    }
-
-    // Ensure the index is within bounds
-    if (index >= 0 && (size_t)index < num_janets) {
-        // Call the function-under-test
-        int result = janet_getboolean(janet_array, index);
-    }
-
-    // Clean up
-    free(janet_array);
+    // Call the function-under-test
+    janet_cryptorand(buffer, size);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_176(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,36 +1,70 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>  // Include for memcpy
 #include <janet.h>
 
 int LLVMFuzzerTestOneInput_180(const uint8_t *data, size_t size) {
-    // Initialize the Janet environment
+    // Initialize Janet runtime
     janet_init();
 
-    // Ensure there is enough data to create a JanetStruct
-    if (size < sizeof(JanetKV)) {
+    // Check if size is sufficient to create a Janet value
+    if (size < sizeof(Janet)) {
         janet_deinit();
         return 0;
     }
 
-    // Create a JanetKV array from the input data
-    JanetKV *kvs = (JanetKV *)data;
-    size_t kv_count = size / sizeof(JanetKV);
+    // Create a Janet value from the input data
+    Janet janet_value;
+    memcpy(&janet_value, data, sizeof(Janet));
 
-    // Create a JanetKV array for janet_struct_end
-    JanetKV *janet_kv_array = janet_struct_begin(kv_count);
-    for (size_t i = 0; i < kv_count; i++) {
-        janet_kv_array[i] = kvs[i];
-    }
-    JanetStruct janet_struct = janet_struct_end(janet_kv_array);
+    // Initialize output parameters for janet_indexed_view
+    const Janet *view = NULL;
+    int32_t len = 0;
 
     // Call the function-under-test
-    Janet result = janet_wrap_struct(janet_struct);
+    int result = janet_indexed_view(janet_value, &view, &len);
 
-    // Use the result to prevent compiler optimizations from removing the call
-    (void)result;
-
-    // Deinitialize the Janet environment
+    // Cleanup Janet runtime
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_180(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

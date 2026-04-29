@@ -1,49 +1,76 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <janet.h>
 
-// Fuzzing harness for janet_tuple_head
-int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    // Initialize the Janet environment
+// Initialize Janet runtime
+void initialize_janet_73() {
     janet_init();
+    // Use a valid Janet value instead of NULL
+    Janet nil_value = janet_wrap_nil();
+    janet_gcroot(nil_value);
+}
 
-    // Ensure the size is sufficient to form a JanetTuple
-    if (size < sizeof(Janet)) {
-        janet_deinit();
-        return 0;
+// Fuzzer entry point
+int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
+    if (size == 0) return 0;
+
+    // Initialize Janet runtime
+    initialize_janet_73();
+
+    // Create a JanetTable
+    JanetTable *table = janet_table(10);
+
+    // Populate the table with some data from the fuzz input
+    for (size_t i = 0; i < size; i++) {
+        Janet key = janet_wrap_integer(i);
+        Janet value = janet_wrap_integer(data[i]);
+        janet_table_put(table, key, value);
     }
 
-    // Calculate the number of elements that can fit into the size
-    size_t num_elements = size / sizeof(Janet);
-
-    // Allocate memory for the Janet elements
-    Janet *elements = (Janet *)malloc(num_elements * sizeof(Janet));
-    if (elements == NULL) {
-        janet_deinit();
-        return 0;
-    }
-
-    // Copy data into the allocated memory
-    memcpy(elements, data, num_elements * sizeof(Janet));
-
-    // Create a JanetTuple from the elements
-    JanetTuple tuple = janet_tuple_n(elements, num_elements);
-
-    // Check if the tuple is not empty before calling the function-under-test
-    if (num_elements > 0) {
-        // Call the function-under-test
-        const Janet *result = janet_tuple_head(tuple);
-        // Use result to avoid compiler optimizations (if needed)
-        (void)result;
-    }
+    // Call the function-under-test
+    JanetStruct result = janet_table_to_struct(table);
 
     // Clean up
-    free(elements);
-
-    // Deinitialize the Janet environment
     janet_deinit();
 
-    // Note: Janet tuples are immutable and do not require explicit cleanup
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_73(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

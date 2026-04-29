@@ -1,48 +1,106 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "libbpf.h"
-#include <stdlib.h>
-#include <stdint.h>
-#include <errno.h>
-#include <limits.h>
-#include <unistd.h>
 #include "/src/libbpf/include/uapi/linux/fcntl.h"
-#include <sys/epoll.h>
+#include <unistd.h>
+#include <string.h>
 
-static int dummy_sample_cb(void *ctx, void *data, size_t size) {
-    return 0; // Dummy callback function
+static struct bpf_link *initialize_bpf_link() {
+    // As we cannot directly manipulate the internals of struct bpf_link,
+    // we assume that bpf_link__open will handle initialization for us.
+    return bpf_link__open("./dummy_file");
+}
+
+static void cleanup_bpf_link(struct bpf_link *link) {
+    if (link) {
+        bpf_link__disconnect(link);
+        bpf_link__unpin(link);
+        bpf_link__destroy(link);
+    }
 }
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
-        return 0; // Not enough data to extract an int
+    if (Size < 1) return 0;
+
+    // Prepare a dummy file for operations
+    const char *dummy_path = "./dummy_file";
+    int fd = open(dummy_path, O_RDWR | O_CREAT, 0600);
+    if (fd >= 0) {
+        write(fd, Data, Size);
+        close(fd);
     }
 
-    int map_fd = *(int *)Data;
-    const struct ring_buffer_opts opts = { .sz = sizeof(struct ring_buffer_opts) };
-    struct ring_buffer *rb = ring_buffer__new(map_fd, dummy_sample_cb, NULL, &opts);
+    struct bpf_link *link = initialize_bpf_link();
+    if (!link) return 0;
 
-    if (rb) {
-        // Fuzz ring_buffer__poll
-        int timeout_ms = (Size >= sizeof(int) * 2) ? *(int *)(Data + sizeof(int)) : 1000;
-        ring_buffer__poll(rb, timeout_ms);
+    // Fuzz bpf_link__disconnect
+    bpf_link__disconnect(link);
 
-        // Fuzz ring_buffer__ring
-        unsigned int idx = (Size >= sizeof(int) * 3) ? *(unsigned int *)(Data + sizeof(int) * 2) : 0;
-        ring_buffer__ring(rb, idx);
-
-        // Fuzz ring_buffer__consume
-        ring_buffer__consume(rb);
-
-        // Fuzz ring_buffer__epoll_fd
-        ring_buffer__epoll_fd(rb);
-
-        // Cleanup
-        ring_buffer__free(rb);
+    // Fuzz bpf_link__pin_path
+    const char *pin_path = bpf_link__pin_path(link);
+    if (pin_path) {
+        printf("Pin path: %s\n", pin_path);
     }
+
+    // Fuzz bpf_link__pin
+    int pin_result = bpf_link__pin(link, dummy_path);
+    if (pin_result == 0) {
+        printf("Pinned successfully\n");
+    }
+
+    // Fuzz bpf_link__unpin
+    int unpin_result = bpf_link__unpin(link);
+    if (unpin_result == 0) {
+        printf("Unpinned successfully\n");
+    }
+
+    // Fuzz bpf_link__fd
+    int fd_result = bpf_link__fd(link);
+    printf("File descriptor: %d\n", fd_result);
+
+    cleanup_bpf_link(link);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

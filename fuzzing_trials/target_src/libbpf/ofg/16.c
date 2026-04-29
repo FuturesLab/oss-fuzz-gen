@@ -1,66 +1,85 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include "/src/libbpf/src/libbpf.h"
-#include <fcntl.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include "/src/libbpf/src/libbpf.h"
 
-// Define a mock bpf_program structure for testing purposes
-struct bpf_program {
-    // Add fields as necessary for the test
-    int dummy;
-};
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-// Define a mock bpf_link structure to simulate the return type
-struct bpf_link {
-    // Add fields as necessary for the test
-    int dummy;
-};
-
-// Mock implementation of bpf_program__attach_uprobe
-struct bpf_link * bpf_program__attach_uprobe_16(const struct bpf_program *prog, bool retprobe, pid_t pid, const char *binary_path, size_t func_offset) {
-    // Simulate the function behavior for testing purposes
-    struct bpf_link *link = (struct bpf_link *)malloc(sizeof(struct bpf_link));
-    if (link != NULL) {
-        // Initialize fields as necessary
-        link->dummy = 0;
-    }
-    return link;
-}
-
-int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for the parameters
-    if (size < sizeof(pid_t) + 1 + sizeof(size_t)) {
+extern int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
+    // Ensure that we have enough data to initialize the structure
+    if (size < sizeof(struct bpf_object_skeleton)) {
         return 0;
     }
 
-    // Initialize the bpf_program structure
-    struct bpf_program prog;
-    prog.dummy = 0;
+    // Allocate memory for the bpf_object_skeleton structure
+    struct bpf_object_skeleton *skeleton = (struct bpf_object_skeleton *)malloc(sizeof(struct bpf_object_skeleton));
+    if (!skeleton) {
+        return 0; // Handle memory allocation failure
+    }
 
-    // Extract parameters from the fuzzing data
-    bool retprobe = data[0] % 2; // Convert byte to bool
-    pid_t pid = *(pid_t *)(data + 1);
-    size_t func_offset = *(size_t *)(data + 1 + sizeof(pid_t));
+    // Initialize the skeleton structure to zero
+    memset(skeleton, 0, sizeof(struct bpf_object_skeleton));
 
-    // Create a temporary file to simulate the binary path
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Copy data into the allocated structure
+    memcpy(skeleton, data, sizeof(struct bpf_object_skeleton));
+
+    // Ensure that the skeleton is properly initialized before use
+    if (skeleton->name == NULL || skeleton->progs == NULL || skeleton->maps == NULL) {
+        free(skeleton);
         return 0;
     }
-    close(fd);
 
     // Call the function-under-test
-    struct bpf_link *link = bpf_program__attach_uprobe_16(&prog, retprobe, pid, tmpl, func_offset);
+    bpf_object__detach_skeleton(skeleton);
 
-    // Clean up
-    if (link != NULL) {
-        free(link);
-    }
-    unlink(tmpl);
+    // Free the allocated memory
+    free(skeleton);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,28 +1,73 @@
-#include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
-#include "/src/libbpf/src/libbpf.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h> // Include string.h for memcpy
 
-// Define a mock structure for bpf_map to use in the fuzzing harness
+// Assuming the definition of struct bpf_map is available from the relevant header
 struct bpf_map {
-    int dummy; // Placeholder member to ensure non-NULL structure
+    // Members of the struct are assumed to be defined here
+    int dummy; // Placeholder member
 };
 
-// Fuzzing harness for bpf_map__ifindex
+// Function-under-test declaration
+bool bpf_map__autoattach(const struct bpf_map *map);
+
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to initialize the bpf_map structure
+    // Check if the size is sufficient to initialize a bpf_map structure
     if (size < sizeof(struct bpf_map)) {
         return 0;
     }
 
-    // Initialize a bpf_map structure using the input data
+    // Initialize bpf_map with data from the fuzzer input
     struct bpf_map map;
-    map.dummy = *(int *)data; // Use the input data to set the dummy member
+    // Copy the data into the map structure, assuming the structure size is less than or equal to the data size
+    memcpy(&map, data, sizeof(struct bpf_map));
 
     // Call the function-under-test
-    __u32 ifindex = bpf_map__ifindex(&map);
+    bool result = bpf_map__autoattach(&map);
 
-    // Use the result (if necessary) to prevent compiler optimizations
-    (void)ifindex;
+    // Use the result to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

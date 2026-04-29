@@ -2,23 +2,67 @@
 #include <stddef.h>
 #include <janet.h>
 
-// The extern declaration is unnecessary because janet_wrap_integer is a macro
-// extern Janet janet_wrap_integer(int32_t x);
-
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    if (size < sizeof(int32_t)) {
-        return 0;
+    // Initialize the Janet environment
+    janet_init();
+
+    // Create a JanetTable
+    JanetTable *table = janet_table(10);
+
+    // Populate the table with some data derived from the input
+    // Ensure the table is not NULL and has some entries
+    if (size > 0) {
+        for (size_t i = 0; i < size; i++) {
+            Janet key = janet_wrap_integer(i);
+            Janet value = janet_wrap_integer(data[i]);
+            janet_table_put(table, key, value);
+        }
     }
 
-    int32_t input;
-    // Copy the first 4 bytes from data to input
-    input = *(int32_t *)data;
-
     // Call the function-under-test
-    Janet result = janet_wrap_integer(input);
+    JanetStruct result = janet_table_to_struct(table);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    // Clean up and deinitialize the Janet environment
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_74(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

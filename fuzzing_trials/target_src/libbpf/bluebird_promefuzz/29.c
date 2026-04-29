@@ -1,21 +1,20 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
+#include <stddef.h>
 #include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include "/src/libbpf/src/libbpf_legacy.h"
 #include "libbpf.h"
 
-static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+#define DUMMY_FILE_PATH "./dummy_file"
+
+static int custom_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
 }
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
@@ -23,53 +22,78 @@ int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Prepare a dummy file with the input data
-    prepare_dummy_file(Data, Size);
+    // Step 1: Set a custom print function
+    libbpf_set_print(custom_print_fn);
 
-    // Attempt to open the BPF object
-    struct bpf_object *obj = bpf_object__open("./dummy_file");
-    if (!obj) {
-        // Failed to open, cleanup and return
+    // Step 2: Open a BPF object from memory
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts),
+        .object_name = "fuzzed_object",
+    };
+
+    struct bpf_object *obj = bpf_object__open_mem(Data, Size, &opts);
+
+    // Step 3: Check for errors using deprecated function
+    long err = libbpf_get_error(obj);
+    if (err) {
+        // Handle error (deprecated function, just for demonstration)
+        fprintf(stderr, "Error opening BPF object: %ld\n", err);
         return 0;
     }
 
-    // Test bpf_object__btf_fd
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__btf_fd with bpf_object__token_fd
-    int btf_fd = bpf_object__token_fd(obj);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (btf_fd < 0) {
-        // Handle error case if needed
+    // Step 4: Close the BPF object if it was successfully opened
+    if (obj != NULL) {
+        bpf_object__close(obj);
     }
 
-    // Test bpf_object__name
-    const char *name = bpf_object__name(obj);
-    if (name) {
-        // Use the name if needed
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from libbpf_get_error to bpf_program__attach_netkit
+    struct bpf_netkit_opts tihzvqpo;
+    memset(&tihzvqpo, 0, sizeof(tihzvqpo));
+    struct bpf_link* ret_bpf_program__attach_netkit_pxzjb = bpf_program__attach_netkit(NULL, (int )err, &tihzvqpo);
+    if (ret_bpf_program__attach_netkit_pxzjb == NULL){
+    	return 0;
     }
-
-    // Test bpf_object__token_fd
-    int token_fd = bpf_object__token_fd(obj);
-    if (token_fd < 0) {
-        // Handle error case if needed
-    }
-
-    // Test bpf_object__find_map_fd_by_name
-    int map_fd = bpf_object__find_map_fd_by_name(obj, "dummy_map_name");
-    if (map_fd < 0) {
-        // Handle error case if needed
-    }
-
-    // Test bpf_object__find_program_by_name
-    struct bpf_program *prog = bpf_object__find_program_by_name(obj, "dummy_program_name");
-    if (!prog) {
-        // Handle error case if needed
-    }
-
-    // Cleanup
-    bpf_object__close(obj);
-
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

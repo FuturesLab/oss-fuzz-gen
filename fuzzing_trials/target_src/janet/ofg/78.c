@@ -1,35 +1,51 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <janet.h>
+
+// Assume the function is declared in some header file
+void janet_ev_dec_refcount();
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient to create Janet values
-    if (size < 3 * sizeof(Janet)) {
-        return 0;
-    }
-
-    // Initialize Janet environment
-    janet_init();
-
-    // Create a JanetKV structure
-    JanetKV *kv = janet_struct_begin(1);
-
-    // Extract Janet values from the input data
-    Janet key = janet_wrap_integer(((int32_t *)data)[0]);
-    Janet value = janet_wrap_integer(((int32_t *)data)[1]);
-    Janet another_value = janet_wrap_integer(((int32_t *)data)[2]);
-
     // Call the function-under-test
-    janet_struct_put(kv, key, value);
-
-    // Optionally, add another value to test different scenarios
-    janet_struct_put(kv, key, another_value);
-
-    // Finalize the JanetKV structure
-    JanetStruct final_struct = janet_struct_end(kv);
-
-    // Clean up Janet environment
-    janet_deinit();
+    janet_ev_dec_refcount();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_78(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -2,20 +2,65 @@
 #include <stddef.h>
 #include <janet.h>
 
+// Define the fuzzer test function
 int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    JanetRNG *rng = janet_default_rng();
-
-    // Use the rng in some way to ensure it is not optimized away
-    if (rng != NULL) {
-        // For example, generate a random number
-        uint32_t random_number = janet_rng_u32(rng);
-        
-        // Optionally, use the random number in some dummy operation
-        if (random_number == 0) {
-            return 0;
-        }
+    // Ensure the size is sufficient to create a Janet object
+    if (size < sizeof(Janet)) {
+        return 0;
     }
 
+    // Create a Janet object from the input data
+    Janet janet_obj;
+    janet_obj.u64 = *((uint64_t *)data);
+
+    // Initialize the Janet runtime (if not already initialized)
+    janet_init();
+
+    // Call the function under test
+    int result = janet_gcunroot(janet_obj);
+
+    // Deinitialize the Janet runtime (if necessary)
+    janet_deinit();
+
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_92(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

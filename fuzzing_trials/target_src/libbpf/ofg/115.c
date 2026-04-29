@@ -1,39 +1,81 @@
 #include <stddef.h>
 #include <stdint.h>
-
-// Define the bpf_map structure based on typical usage
-struct bpf_map {
-    int map_type;
-    int key_size;
-    int value_size;
-    int max_entries;
-    // Add other fields as necessary
-};
-
-// Mock function for bpf_map__map_extra to be called in the fuzzing harness
-uint64_t bpf_map__map_extra_115(const struct bpf_map *map) {
-    // Mock implementation
-    return (uint64_t)(map->map_type + map->key_size + map->value_size + map->max_entries);
-}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <libbpf.h>  // Corrected include path for libbpf
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    if (size < sizeof(struct bpf_map)) {
-        return 0; // Not enough data to fill a bpf_map structure
+    // Ensure the size is sufficient to create a valid null-terminated string
+    if (size == 0 || data[size - 1] != '\0') {
+        return 0;
     }
 
-    // Initialize a bpf_map structure using the input data
-    struct bpf_map map;
-    map.map_type = data[0];
-    map.key_size = data[1];
-    map.value_size = data[2];
-    map.max_entries = data[3];
+    // Create a temporary file to use as a filename input
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    uint64_t result = bpf_map__map_extra_115(&map);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
 
-    // Use the result to prevent compiler optimizations from removing the call
-    volatile uint64_t prevent_optimization = result;
-    (void)prevent_optimization;
+    // Close the file descriptor
+    close(fd);
+
+    // Call the function-under-test with the temporary filename
+    struct bpf_link *link = bpf_link__open(tmpl);
+
+    // Clean up
+    if (link) {
+        bpf_link__destroy(link);
+    }
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_115(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,35 +1,66 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>  // Include this for memcpy
 #include <janet.h>
 
-// Ensure that the Janet library is initialized before using it
-static void initialize_janet_332() {
-    static int initialized = 0;
-    if (!initialized) {
-        janet_init();
-        initialized = 1;
-    }
-}
-
 int LLVMFuzzerTestOneInput_332(const uint8_t *data, size_t size) {
-    // Initialize Janet
-    initialize_janet_332();
+    // Initialize the Janet library
+    janet_init();
 
-    // Define and initialize JanetSignal and Janet
-    JanetSignal signal = (JanetSignal)(size % 5); // Example: mod size to limit to known signals
-    Janet janet_value;
+    // Create a JanetArray with an initial capacity
+    JanetArray *array = janet_array(10);
 
-    // Ensure data is not empty to create a valid Janet string
-    if (size > 0) {
-        janet_value = janet_wrap_string(janet_string(data, size));
-    } else {
-        // Create a default Janet value if data is empty
-        const char *default_str = "default";
-        janet_value = janet_wrap_string(janet_cstring(default_str));
+    // Ensure that the data size is sufficient to create a Janet value
+    if (size >= sizeof(Janet)) {
+        // Create a Janet value from the input data
+        Janet janet_value;
+        memcpy(&janet_value, data, sizeof(Janet));
+
+        // Push the Janet value into the JanetArray
+        janet_array_push(array, janet_value);
     }
 
-    // Call the function-under-test
-    janet_signalv(signal, janet_value);
+    // Clean up Janet resources
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_332(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

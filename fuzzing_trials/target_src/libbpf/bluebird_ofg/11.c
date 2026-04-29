@@ -1,100 +1,112 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdio.h>
-#include "libbpf.h" // Corrected the include path for libbpf
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdbool.h>
+#include "/src/libbpf/include/uapi/linux/fcntl.h" // Include for open() flags
+#include "libbpf.h"
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Check for null data
-    if (data == NULL) {
-        fprintf(stderr, "Input data is null\n");
+    if (size == 0) {
+        return 0; // If there's no data, return early
+    }
+
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Ensure that the size is large enough to create a valid bpf_object_open_opts structure
-    if (size < sizeof(struct bpf_object_open_opts)) {
-        fprintf(stderr, "Input size is too small\n");
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
 
-    // Create a bpf_object_open_opts structure
+    // Ensure the file is closed before attempting to open it with libbpf
+    close(fd);
+
+    // Prepare options struct
     struct bpf_object_open_opts opts = {
         .sz = sizeof(struct bpf_object_open_opts),
-        .relaxed_maps = true // Example option, can be modified
+        .relaxed_maps = false
     };
 
-    // Attempt to open the BPF object from memory
-    struct bpf_object *obj = bpf_object__open_mem(data, size, &opts);
-
-    // Check if the object was successfully created
+    // Call the function-under-test
+    struct bpf_object *obj = bpf_object__open_file(tmpl, &opts);
     if (!obj) {
-        fprintf(stderr, "Failed to open BPF object from memory\n");
-        return 0;
+        unlink(tmpl);
+        return 0; // If object creation fails, return early
     }
 
-    // Perform additional operations on the BPF object if needed
-    // For example, load the BPF program
+    // Validate the object
     if (bpf_object__load(obj) != 0) {
-        fprintf(stderr, "Failed to load BPF object\n");
         bpf_object__close(obj);
-        return 0;
+        unlink(tmpl);
+        return 0; // If loading fails, return early
     }
 
-    // Iterate over programs in the object
-    struct bpf_program *prog;
-    bpf_object__for_each_program(prog, obj) {
-        // Attach program (this is just an example, actual attachment depends on the program type)
+    // Clean up
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach with bpf_program__attach_trace
-        if (bpf_program__attach_trace(prog) == NULL) {
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-            fprintf(stderr, "Failed to attach BPF program\n");
-            continue; // Instead of returning, continue to the next program
-        }
-    }
-
-    // Clean up the BPF object
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_map__get_next_key
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__load to libbpf_probe_bpf_helper
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of libbpf_probe_bpf_helper
-    int ret_libbpf_probe_bpf_helper_htpkh = libbpf_probe_bpf_helper(0, 0, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_libbpf_probe_bpf_helper_htpkh < 0){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from bpf_object__open_file to perf_buffer__new_raw using the plateau pool
+    size_t page_cnt = 8;
+    struct perf_event_attr *attr = (struct perf_event_attr *)data;
+    perf_buffer_event_fn cb = NULL;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
     	return 0;
     }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bpf_link__open
-    struct bpf_link* ret_bpf_link__open_jqpns = bpf_link__open((const char *)"w");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_bpf_link__open_jqpns == NULL){
+    struct perf_buffer* ret_perf_buffer__new_raw_qnnuz = perf_buffer__new_raw(fd, page_cnt, attr, cb, (void *)obj, NULL);
+    if (ret_perf_buffer__new_raw_qnnuz == NULL){
     	return 0;
     }
-    int ret_bpf_object__attach_skeleton_kkvxq = bpf_object__attach_skeleton(NULL);
-    if (ret_bpf_object__attach_skeleton_kkvxq < 0){
-    	return 0;
-    }
-
-    int ret_bpf_map__get_next_key_tzzyi = bpf_map__get_next_key(NULL, (const void *)obj, (void *)ret_bpf_link__open_jqpns, (size_t )ret_bpf_object__attach_skeleton_kkvxq);
-    if (ret_bpf_map__get_next_key_tzzyi < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // End mutation: Producer.SPLICE_MUTATOR
+    
     bpf_object__close(obj);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

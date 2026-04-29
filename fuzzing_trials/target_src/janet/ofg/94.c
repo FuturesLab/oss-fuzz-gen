@@ -1,34 +1,59 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <janet.h> // Include the Janet library header
 
-// Define a dummy JanetCFunction for testing purposes
-typedef void (*JanetCFunction)(void);
+// Function signature provided for fuzzing
+JanetRNG * janet_default_rng();
 
-// Dummy function to act as JanetCFunction
-void dummy_function_94(void) {
-    // Do nothing
-}
-
-// Function-under-test
-void janet_register(const char *name, JanetCFunction cfun);
-
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid string
-    if (size < 1) return 0;
+    // Call the function-under-test
+    JanetRNG *rng = janet_default_rng();
 
-    // Allocate memory for the string and ensure it is null-terminated
-    char *name = (char *)malloc(size + 1);
-    if (!name) return 0;
-    memcpy(name, data, size);
-    name[size] = '\0';
-
-    // Call the function-under-test with the fuzzed input
-    janet_register(name, dummy_function_94);
-
-    // Free allocated memory
-    free(name);
+    // Use the RNG to generate a random number (for demonstration purposes)
+    if (rng != NULL) {
+        double random_value = janet_rng_double(rng);
+        (void)random_value; // Suppress unused variable warning
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_94(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

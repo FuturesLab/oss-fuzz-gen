@@ -1,36 +1,61 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <janet.h>
+#include <stddef.h>
+#include <inttypes.h>
+#include <limits.h> // Include limits.h for INT32_MAX
+
+// Function-under-test declaration
+int janet_scan_int64(const uint8_t *data, int32_t length, int64_t *output);
 
 int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    // Initialize Janet VM
-    janet_init();
-
-    // Create a JanetTable
-    JanetTable *table = janet_table(10);
-
-    // Ensure the data size is sufficient to extract a Janet key
-    if (size < sizeof(Janet)) {
-        janet_deinit();
+    // Ensure size is non-zero and within a reasonable range for int32_t
+    if (size == 0 || size > INT32_MAX) {
         return 0;
     }
 
-    // Use the data to create a Janet key
-    Janet key;
-    memcpy(&key, data, sizeof(Janet));
-
-    // Insert a dummy value into the table to ensure it's not empty
-    Janet dummy_value = janet_wrap_integer(42);
-    janet_table_put(table, key, dummy_value);
+    int32_t length = (int32_t)size;
+    int64_t output = 0;
 
     // Call the function-under-test
-    Janet result = janet_table_get(table, key);
-
-    // Optionally, you can verify the result or perform other checks here
-
-    // Clean up
-    janet_deinit();
+    janet_scan_int64(data, length, &output);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_143(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

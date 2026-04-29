@@ -1,54 +1,87 @@
+#include <sys/stat.h>
+#include "libbpf.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "libbpf.h"
+#include <stdlib.h>
+#include <string.h>
+
+// Removed the incorrect include for bpf/libbpf.h
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bpf_object__open_mem
-    struct bpf_object *obj = bpf_object__open_mem((const void *)data, size, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (obj == NULL) {
-        return 0; // If object creation fails, exit early
+    // Ensure there is enough data for a non-empty string
+    if (size < 1) {
+        return 0;
     }
+
+    // Create a dummy bpf_program structure using libbpf functions
+    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
+    if (!obj) {
+        return 0;
+    }
+
+    struct bpf_program *prog = bpf_object__next_program(obj, NULL);
+    if (!prog) {
+        bpf_object__close(obj);
+        return 0;
+    }
+
+    // Ensure the string is null-terminated
+    char *tracepoint_name = (char *)malloc(size + 1);
+    if (!tracepoint_name) {
+        bpf_object__close(obj);
+        return 0;
+    }
+    memcpy(tracepoint_name, data, size);
+    tracepoint_name[size] = '\0';
 
     // Call the function-under-test
-    int result = bpf_object__prepare(obj);
+    struct bpf_link *link = bpf_program__attach_raw_tracepoint(prog, tracepoint_name);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prepare to bpf_object__pin_maps
-
-    int ret_bpf_object__pin_maps_rezow = bpf_object__pin_maps(obj, (const char *)"w");
-    if (ret_bpf_object__pin_maps_rezow < 0){
-    	return 0;
+    free(tracepoint_name);
+    if (link) {
+        bpf_link__destroy(link);
     }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__pin_maps to bpf_object__find_map_by_name
-    const char wmbizucg[1024] = "weaes";
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__pin_maps to bpf_object__prepare
-
-    int ret_bpf_object__prepare_kauqy = bpf_object__prepare(obj);
-    if (ret_bpf_object__prepare_kauqy < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    struct bpf_map* ret_bpf_object__find_map_by_name_zwipw = bpf_object__find_map_by_name(obj, wmbizucg);
-    if (ret_bpf_object__find_map_by_name_zwipw == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     bpf_object__close(obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_60(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

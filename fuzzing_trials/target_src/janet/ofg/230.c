@@ -1,30 +1,67 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h> // Include for memset
+#include <janet.h>
 
-// Function signature provided for fuzzing
-void *janet_smalloc(size_t size);
+// Define a simple JanetReg array for testing
+static const JanetReg sample_cfuns[] = {
+    {"example", NULL, NULL},
+    {NULL, NULL, NULL} // Null terminate the array
+};
 
-// Fuzzing harness for the janet_smalloc function
 int LLVMFuzzerTestOneInput_230(const uint8_t *data, size_t size) {
-    // Ensure size is non-zero to avoid passing 0 to janet_smalloc
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize the Janet VM
+    janet_init();
 
-    // Call the function-under-test with the size derived from the input
-    void *allocated_memory = janet_smalloc(size);
+    // Create a new JanetTable
+    JanetTable *env = janet_table(10);
 
-    // Use the allocated memory if it's not NULL
-    if (allocated_memory != NULL) {
-        // Write to the allocated memory to increase code coverage
-        // For simplicity, use memset to fill the memory with data
-        memset(allocated_memory, 0xAA, size);
+    // Ensure the data is null-terminated for use as a string
+    char *prefix = (char *)janet_string(data, size);
 
-        // Assuming there's a corresponding free function, e.g., janet_sfree
-        // Uncomment the line below if such a function exists
-        // janet_sfree(allocated_memory);
-    }
+    // Call the function-under-test
+    janet_cfuns_prefix(env, prefix, sample_cfuns);
+
+    // Clean up the Janet VM
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_230(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

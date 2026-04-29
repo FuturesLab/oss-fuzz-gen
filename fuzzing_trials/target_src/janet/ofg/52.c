@@ -1,43 +1,84 @@
+#include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <janet.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-// Ensure that Janet is initialized before using any Janet functions
-static void initialize_janet_52() {
-    static int initialized = 0;
-    if (!initialized) {
-        janet_init();
-        initialized = 1;
-    }
-}
+// Assuming janet_dynfile is defined elsewhere and linked properly
+extern FILE *janet_dynfile(const char *, FILE *);
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Initialize Janet
-    initialize_janet_52();
-
-    // Check if the input data is not empty
-    if (size == 0) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Create a new Janet string from the input data
-    Janet input_string = janet_stringv(data, size);
+    FILE *file = fdopen(fd, "w+");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+
+    // Write the fuzz data to the temporary file
+    fwrite(data, 1, size, file);
+    fflush(file);
+    fseek(file, 0, SEEK_SET);
 
     // Call the function-under-test
-    JanetFiber *fiber = janet_root_fiber();
+    FILE *result = janet_dynfile(tmpl, file);
 
-    // Use the fiber in some way if necessary
-    // For this example, we will just check if the fiber is not NULL
-    if (fiber == NULL) {
-        return 0;
+    // Check the result to ensure the function is being utilized
+    if (result != NULL) {
+        // Perform some operation with the result to influence code coverage
+        char buffer[256];
+        while (fgets(buffer, sizeof(buffer), result)) {
+            // Process the buffer if needed
+        }
     }
 
-    // Perform any additional operations or checks on the fiber if needed
-    // For example, we might want to simulate running some Janet code
-    // Here we just print the input string to demonstrate usage
-    JanetTable *env = janet_core_env(NULL);
-    Janet out;
-    janet_dostring(env, (const char *)janet_unwrap_string(input_string), "fuzz_input", &out);
+    // Clean up
+    fclose(file);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_52(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -2,64 +2,66 @@
 #include <stddef.h>
 #include <janet.h>
 
-// Initialize the Janet environment before using any Janet functions
-static void initialize_janet_270() {
-    static int initialized = 0;
-    if (!initialized) {
-        janet_init();
-        initialized = 1;
-    }
-}
-
+// Fuzzing harness for janet_dictionary_get
 int LLVMFuzzerTestOneInput_270(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract parameters
-    if (size < sizeof(Janet) + 2 * sizeof(int32_t) + sizeof(void *)) {
+    // Ensure there is enough data for at least one key-value pair
+    if (size < sizeof(JanetKV)) {
         return 0;
     }
 
-    // Initialize Janet environment
-    initialize_janet_270();
+    // Calculate the number of key-value pairs
+    int32_t count = size / sizeof(JanetKV);
 
-    // Extract parameters from the input data
-    const Janet *janet_ptr = (const Janet *)(data);
-    int32_t n = *(const int32_t *)(data + sizeof(Janet));
-    int32_t def = *(const int32_t *)(data + sizeof(Janet) + sizeof(int32_t));
-    void *dflt = (void *)(data + sizeof(Janet) + 2 * sizeof(int32_t));
+    // Allocate memory for the key-value pairs
+    JanetKV *kvs = (JanetKV *)data;
 
-    // Validate the extracted pointers
-    if (janet_ptr == NULL || dflt == NULL) {
-        return 0;
-    }
-
-    // Ensure the Janet pointer is valid by checking its type
-    if (!janet_checktype(*janet_ptr, JANET_NIL) && 
-        !janet_checktype(*janet_ptr, JANET_NUMBER) && 
-        !janet_checktype(*janet_ptr, JANET_STRING) && 
-        !janet_checktype(*janet_ptr, JANET_SYMBOL) && 
-        !janet_checktype(*janet_ptr, JANET_KEYWORD) && 
-        !janet_checktype(*janet_ptr, JANET_ARRAY) && 
-        !janet_checktype(*janet_ptr, JANET_TUPLE) && 
-        !janet_checktype(*janet_ptr, JANET_TABLE) && 
-        !janet_checktype(*janet_ptr, JANET_STRUCT) && 
-        !janet_checktype(*janet_ptr, JANET_BUFFER) && 
-        !janet_checktype(*janet_ptr, JANET_FUNCTION) && 
-        !janet_checktype(*janet_ptr, JANET_CFUNCTION) && 
-        !janet_checktype(*janet_ptr, JANET_FIBER) && 
-        !janet_checktype(*janet_ptr, JANET_ABSTRACT) && 
-        !janet_checktype(*janet_ptr, JANET_POINTER)) {
-        return 0;
-    }
-
-    // Check if 'n' is within a reasonable range
-    if (n < 0 || n > 100) { // Assuming 100 as a reasonable upper limit for demonstration
-        return 0;
-    }
+    // Create a dummy Janet value for the key
+    Janet key = janet_wrap_integer(42);
 
     // Call the function-under-test
-    void *result = janet_optpointer(janet_ptr, n, def, dflt);
+    Janet result = janet_dictionary_get(kvs, count, key);
 
-    // Use the result to avoid any compiler optimizations that might skip the call
+    // Use the result in some way to avoid compiler optimizations
     (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_270(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
