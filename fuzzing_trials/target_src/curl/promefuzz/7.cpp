@@ -1,13 +1,20 @@
 // This fuzz driver is generated for library curl, aiming to fuzz the following functions:
-// curl_easy_init at easy.c:330:7 in easy.h
-// curl_easy_setopt at setopt.c:2956:10 in easy.h
-// curl_easy_setopt at setopt.c:2956:10 in easy.h
-// curl_easy_perform at easy.c:817:10 in easy.h
-// curl_easy_send at easy.c:1302:10 in easy.h
-// curl_easy_recv at easy.c:1224:10 in easy.h
-// curl_easy_pause at easy.c:1136:10 in curl.h
-// curl_ws_send at ws.c:1761:10 in websockets.h
-// curl_easy_cleanup at easy.c:837:6 in easy.h
+// curl_mime_init at mime.c:1202:12 in curl.h
+// curl_mime_addpart at mime.c:1236:16 in curl.h
+// curl_mime_init at mime.c:1202:12 in curl.h
+// curl_mime_addpart at mime.c:1236:16 in curl.h
+// curl_mime_subparts at mime.c:1511:10 in curl.h
+// curl_mime_free at mime.c:1104:6 in curl.h
+// curl_mime_filename at mime.c:1278:10 in curl.h
+// curl_mime_filename at mime.c:1278:10 in curl.h
+// curl_mime_encoder at mime.c:1396:10 in curl.h
+// curl_mime_encoder at mime.c:1396:10 in curl.h
+// curl_mime_data_cb at mime.c:1437:10 in curl.h
+// curl_mime_name at mime.c:1261:10 in curl.h
+// curl_mime_name at mime.c:1261:10 in curl.h
+// curl_slist_append at slist.c:85:20 in curl.h
+// curl_mime_headers at mime.c:1419:10 in curl.h
+// curl_mime_free at mime.c:1104:6 in curl.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,55 +25,119 @@
 #include <cstdint>
 #include <cstddef>
 #include <curl/curl.h>
-#include <curl/easy.h>
-#include <curl/websockets.h>
-#include <iostream>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <cstdio>
+
+static size_t dummy_read_callback(char *buffer, size_t size, size_t nitems, void *instream) {
+    return size * nitems;
+}
+
+static int dummy_seek_callback(void *instream, curl_off_t offset, int origin) {
+    return CURL_SEEKFUNC_OK;
+}
+
+static void dummy_free_callback(void *ptr) {
+    // No operation
+}
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    CURL *curl = curl_easy_init();
-    if (!curl) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    char dummy_file[] = "./dummy_file";
-    FILE *file = fopen(dummy_file, "wb");
+    CURLcode res;
+    curl_mime *mime = curl_mime_init(NULL);
+    curl_mimepart *part = curl_mime_addpart(mime);
+
+    // Fuzz curl_mime_subparts
+    curl_mime *subparts = curl_mime_init(NULL);
+    curl_mime_addpart(subparts);
+    res = curl_mime_subparts(part, subparts);
+    if (res != CURLE_OK) {
+        curl_mime_free(subparts);
+    }
+
+    // Fuzz curl_mime_filename
+    char filename[256];
+    snprintf(filename, sizeof(filename), "./dummy_file_%zu", Size);
+    FILE *file = fopen(filename, "wb");
     if (file) {
         fwrite(Data, 1, Size, file);
         fclose(file);
     }
+    res = curl_mime_filename(part, filename);
+    if (res == CURLE_OK) {
+        curl_mime_filename(part, NULL);
+    }
 
-    CURLcode res;
-    size_t n = 0;
-    size_t sent = 0;
+    // Fuzz curl_mime_encoder
+    const char *encodings[] = {"binary", "8bit", "7bit", "quoted-printable", "base64", NULL};
+    for (int i = 0; encodings[i] != NULL; ++i) {
+        res = curl_mime_encoder(part, encodings[i]);
+    }
+    curl_mime_encoder(part, NULL);
 
-    // Set options
-    res = curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
-    if (res != CURLE_OK) goto cleanup;
+    // Fuzz curl_mime_data_cb
+    res = curl_mime_data_cb(part, Size, dummy_read_callback, dummy_seek_callback, dummy_free_callback, NULL);
 
-    res = curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
-    if (res != CURLE_OK) goto cleanup;
+    // Fuzz curl_mime_name
+    char name[256];
+    snprintf(name, sizeof(name), "name_%zu", Size);
+    res = curl_mime_name(part, name);
+    if (res == CURLE_OK) {
+        curl_mime_name(part, NULL);
+    }
 
-    // Perform connection
-    res = curl_easy_perform(curl);
-    if (res != CURLE_OK) goto cleanup;
+    // Fuzz curl_mime_headers
+    struct curl_slist *headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: text/plain");
+    res = curl_mime_headers(part, headers, 1);
+    // No need to free headers manually as curl_mime_headers with take_ownership=1 takes care of it
 
-    // Test curl_easy_send
-    res = curl_easy_send(curl, Data, Size, &n);
-    if (res != CURLE_OK) goto cleanup;
+    curl_mime_free(mime);
+    remove(filename);
 
-    // Test curl_easy_recv
-    char buffer[1024];
-    res = curl_easy_recv(curl, buffer, sizeof(buffer), &n);
-    if (res != CURLE_OK) goto cleanup;
-
-    // Test curl_easy_pause
-    res = curl_easy_pause(curl, CURLPAUSE_SEND);
-    if (res != CURLE_OK) goto cleanup;
-
-    // Test curl_ws_send
-    res = curl_ws_send(curl, Data, Size, &sent, 1024, 0);
-    if (res != CURLE_OK) goto cleanup;
-
-cleanup:
-    curl_easy_cleanup(curl);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,53 +1,71 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include <linux/types.h> // Include for __u64
-
-// Assuming the definition of struct bpf_map is available in the included headers
-struct bpf_map {
-    // Example fields, actual struct definition may vary
-    int map_type;
-    int key_size;
-    int value_size;
-    int max_entries;
-};
-
-// Function-under-test
-extern __u64 bpf_map__map_extra(const struct bpf_map *map);
+#include <stdio.h>
+#include "/src/libbpf/src/libbpf.h"
+#include "/src/libbpf/src/bpf.h" // Include additional header for perf_buffer-related functions
 
 int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    if (size < sizeof(struct bpf_map)) {
-        return 0; // Not enough data to fill a bpf_map structure
+    struct perf_buffer *pb;
+    struct perf_buffer_opts pb_opts = {};
+    int timeout;
+
+    // Use the first few bytes of data to set the timeout value
+    if (size >= sizeof(int)) {
+        timeout = *((int *)data);
+    } else {
+        timeout = 100; // Default timeout if not enough data
     }
 
-    // Allocate memory for a bpf_map structure
-    struct bpf_map *map = (struct bpf_map *)malloc(sizeof(struct bpf_map));
-    if (map == NULL) {
-        return 0; // Memory allocation failed
-    }
-
-    // Initialize the bpf_map structure with data
-    // Use memcpy to safely copy the data into the structure
-    memcpy(map, data, sizeof(struct bpf_map));
-
-    // Validate and sanitize the input data to prevent invalid memory access
-    if (map->key_size < 0 || map->value_size < 0 || map->max_entries < 0) {
-        free(map);
-        return 0; // Invalid values in the structure
-    }
-
-    // Additional validation to prevent buffer overflow
-    if (map->key_size > 1024 || map->value_size > 1024 || map->max_entries > 1024) {
-        free(map);
-        return 0; // Values are too large and may cause overflow
+    // Initialize the perf_buffer using libbpf's API
+    pb = perf_buffer__new(-1, 1, NULL, &pb_opts, NULL, NULL);
+    if (!pb) {
+        return 0; // Exit if perf_buffer creation fails
     }
 
     // Call the function-under-test
-    __u64 result = bpf_map__map_extra(map);
+    int result = perf_buffer__poll(pb, timeout);
 
-    // Free the allocated memory
-    free(map);
+    // Clean up
+    perf_buffer__free(pb);
 
+    return result;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_116(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

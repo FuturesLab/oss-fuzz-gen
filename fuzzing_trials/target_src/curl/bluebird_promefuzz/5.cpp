@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,55 +10,102 @@
 #include <cstdint>
 #include <cstddef>
 #include "curl/curl.h"
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include "/src/curl/include/curl/websockets.h"
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
+    // Initialize CURL
     CURL *curl = curl_easy_init();
-    if (!curl) return 0;
+    if (!curl) {
+        return 0;
+    }
 
-    // Set URL to something valid; this is necessary for perform.
-    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
-
-    // Prepare a dummy file for any file-related operations.
-    FILE *dummyFile = fopen("./dummy_file", "wb");
-    if (!dummyFile) {
+    // Prepare a dummy file for any file operations
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (!dummy_file) {
         curl_easy_cleanup(curl);
         return 0;
     }
-    fwrite(Data, 1, Size, dummyFile);
-    fclose(dummyFile);
+    fwrite(Data, 1, Size, dummy_file);
+    fclose(dummy_file);
 
-    // Perform the connection using CURLOPT_CONNECT_ONLY.
+    // Set CURL options for CONNECT_ONLY
+    curl_easy_setopt(curl, CURLOPT_URL, "ws://localhost:8080");
     curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
+
+    // Perform the connection
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         curl_easy_cleanup(curl);
         return 0;
     }
 
-    // Try to send data over the connected socket.
-    size_t sentBytes = 0;
-    curl_easy_send(curl, Data, Size, &sentBytes);
+    // Prepare buffers and variables for sending/receiving
+    size_t sent = 0;
+    size_t received = 0;
+    unsigned int flags = 0;
+    curl_off_t fragsize = 0;
+    const struct curl_ws_frame *metap = nullptr;
 
-    // Pause and unpause the connection.
-    curl_easy_pause(curl, CURLPAUSE_ALL);
-    curl_easy_pause(curl, CURLPAUSE_CONT);
+    // Test curl_ws_send
+    res = curl_ws_send(curl, Data, Size, &sent, fragsize, flags);
 
-    // Get some information after the transfer.
-    long responseCode;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
+    // Test curl_easy_send
+    res = curl_easy_send(curl, Data, Size, &sent);
 
-    // Perform connection upkeep.
-    curl_easy_upkeep(curl);
+    // Prepare a buffer for receiving data
+    char recv_buffer[1024];
+    size_t recv_size = sizeof(recv_buffer);
+
+    // Test curl_easy_recv
+    res = curl_easy_recv(curl, recv_buffer, recv_size, &received);
+
+    // Test curl_ws_recv
+    res = curl_ws_recv(curl, recv_buffer, recv_size, &received, &metap);
+
+    // Test curl_ws_start_frame
+    res = curl_ws_start_frame(curl, flags, fragsize);
 
     // Cleanup
     curl_easy_cleanup(curl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

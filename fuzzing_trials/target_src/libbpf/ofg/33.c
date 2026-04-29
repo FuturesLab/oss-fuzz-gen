@@ -1,53 +1,70 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include "/src/libbpf/src/libbpf.h"
-#include <stdio.h>
 #include <string.h>
-#include <unistd.h>
+#include <errno.h>
+#include <stdio.h>
+
+// Function-under-test
+int libbpf_strerror(int err, char *buf, size_t size);
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    struct bpf_object *obj;
-    char *path;
-    int fd;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-
-    // Check if size is sufficient to create a path
-    if (size < 1) {
+    // Ensure there is enough data to use for the parameters
+    if (size < sizeof(int) + 1) {
         return 0;
     }
 
-    // Create a temporary file to use as a path
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    close(fd);
+    // Extract an integer error code from the data
+    int err = *(int *)data;
 
-    // Allocate memory for the path and ensure it's null-terminated
-    path = (char *)malloc(size + 1);
-    if (path == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
-    memcpy(path, data, size);
-    path[size] = '\0';
+    // Prepare a buffer for the error message
+    size_t buf_size = size - sizeof(int);
+    char buf[buf_size];
+    memset(buf, 0, buf_size);
 
-    // Load BPF object from the path
-    obj = bpf_object__open(path);
-    if (!obj) {
-        free(path);
-        unlink(tmpl);
-        return 0;
-    }
+    // Call the function-under-test
+    libbpf_strerror(err, buf, buf_size);
 
-    // Call the function under test
-    bpf_object__unpin(obj, tmpl);
-
-    // Clean up
-    bpf_object__close(obj);
-    free(path);
-    unlink(tmpl);
+    // Optionally, print the error message for debugging
+    // printf("Error message: %s\n", buf);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

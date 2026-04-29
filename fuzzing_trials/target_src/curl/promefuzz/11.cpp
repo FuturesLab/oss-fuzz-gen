@@ -1,14 +1,9 @@
 // This fuzz driver is generated for library curl, aiming to fuzz the following functions:
-// curl_multi_init at multi.c:335:8 in multi.h
-// curl_easy_init at easy.c:330:7 in easy.h
-// curl_multi_cleanup at multi.c:2821:11 in multi.h
-// curl_easy_cleanup at easy.c:837:6 in easy.h
-// curl_multi_notify_enable at multi.c:3964:11 in multi.h
-// curl_multi_add_handle at multi.c:422:11 in multi.h
-// curl_multi_perform at multi.c:2811:11 in multi.h
-// curl_multi_poll at multi.c:1584:11 in multi.h
-// curl_multi_assign at multi.c:3635:11 in multi.h
-// curl_multi_notify_disable at multi.c:3973:11 in multi.h
+// curl_pushheader_bynum at http2.c:3015:7 in multi.h
+// curl_easy_option_next at easygetopt.c:65:31 in options.h
+// curl_url_strerror at strerror.c:420:13 in urlapi.h
+// curl_easy_option_by_id at easygetopt.c:59:31 in options.h
+// curl_easy_option_by_name at easygetopt.c:53:31 in options.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,69 +13,84 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
 #include <curl/multi.h>
-
-static CURLM *initialize_multi_handle() {
-    return curl_multi_init();
-}
-
-static CURL *initialize_curl_handle() {
-    return curl_easy_init();
-}
-
-static void cleanup_multi_handle(CURLM *multi_handle) {
-    if (multi_handle) {
-        curl_multi_cleanup(multi_handle);
-    }
-}
-
-static void cleanup_curl_handle(CURL *curl_handle) {
-    if (curl_handle) {
-        curl_easy_cleanup(curl_handle);
-    }
-}
+#include <curl/options.h>
+#include <curl/typecheck-gcc.h>
+#include <curl/urlapi.h>
+#include <cstdint>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(unsigned int)) return 0;
+    if (Size < 1) return 0;
 
-    CURLM *multi_handle = initialize_multi_handle();
-    if (!multi_handle) return 0;
-
-    CURL *curl_handle = initialize_curl_handle();
-    if (!curl_handle) {
-        cleanup_multi_handle(multi_handle);
-        return 0;
+    // Fuzz curl_pushheader_bynum
+    struct curl_pushheaders *h = nullptr;
+    size_t num = Data[0] % 10;  // Use a small number for index
+    char *header = curl_pushheader_bynum(h, num);
+    if (header) {
+        // Do something with header
     }
 
-    unsigned int notification = *reinterpret_cast<const unsigned int *>(Data);
-    CURLMcode res;
+    // Fuzz curl_easy_option_next
+    const struct curl_easyoption *option = nullptr;
+    const struct curl_easyoption *next_option = curl_easy_option_next(option);
 
-    // Fuzz curl_multi_notify_enable
-    res = curl_multi_notify_enable(multi_handle, notification);
+    // Fuzz curl_url_strerror
+    CURLUcode error = static_cast<CURLUcode>(Data[0]);
+    const char *error_str = curl_url_strerror(error);
 
-    // Fuzz curl_multi_add_handle
-    res = curl_multi_add_handle(multi_handle, curl_handle);
+    // Fuzz curl_easy_option_by_id
+    CURLoption id = static_cast<CURLoption>(Data[0]);
+    const struct curl_easyoption *option_by_id = curl_easy_option_by_id(id);
 
-    // Fuzz curl_multi_perform
-    int running_handles;
-    res = curl_multi_perform(multi_handle, &running_handles);
-
-    // Fuzz curl_multi_poll
-    struct curl_waitfd extra_fds[1];
-    int numfds;
-    res = curl_multi_poll(multi_handle, extra_fds, 0, 1000, &numfds);
-
-    // Fuzz curl_multi_assign
-    curl_socket_t sockfd = static_cast<curl_socket_t>(notification);
-    res = curl_multi_assign(multi_handle, sockfd, reinterpret_cast<void *>(notification));
-
-    // Fuzz curl_multi_notify_disable
-    res = curl_multi_notify_disable(multi_handle, notification);
-
-    cleanup_curl_handle(curl_handle);
-    cleanup_multi_handle(multi_handle);
+    // Fuzz curl_easy_option_by_name
+    char name_buffer[256];
+    if (Size > 1) {
+        size_t copy_size = Size - 1 < sizeof(name_buffer) - 1 ? Size - 1 : sizeof(name_buffer) - 1;
+        memcpy(name_buffer, &Data[1], copy_size);
+        name_buffer[copy_size] = '\0';
+        const struct curl_easyoption *option_by_name = curl_easy_option_by_name(name_buffer);
+    }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

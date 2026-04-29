@@ -1,81 +1,101 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stddef.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include "/src/libbpf/src/libbpf_legacy.h"
 #include "libbpf.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-static struct bpf_object *load_bpf_object(const char *file)
-{
-    struct bpf_object *obj = bpf_object__open_file(file, NULL);
-    if (!obj) {
-        fprintf(stderr, "Failed to open BPF object file %s\n", file);
-        return NULL;
+#define DUMMY_FILE_PATH "./dummy_file"
+
+static int custom_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
+}
+
+int LLVMFuzzerTestOneInput_50(const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
+        return 0;
     }
 
-    if (bpf_object__load(obj)) {
-        fprintf(stderr, "Failed to load BPF object\n");
+    // Step 1: Set a custom print function
+    libbpf_set_print(custom_print_fn);
+
+    // Step 2: Open a BPF object from memory
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts),
+        .object_name = "fuzzed_object",
+    };
+
+    struct bpf_object *obj = bpf_object__open_mem(Data, Size, &opts);
+
+    // Step 3: Check for errors using deprecated function
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__token_fd
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    int ret_bpf_object__token_fd_bnpia = bpf_object__token_fd(obj);
+    if (ret_bpf_object__token_fd_bnpia < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    long err = libbpf_get_error(obj);
+    if (err) {
+        // Handle error (deprecated function, just for demonstration)
+        fprintf(stderr, "Error opening BPF object: %ld\n", err);
+        return 0;
+    }
+
+    // Step 4: Close the BPF object if it was successfully opened
+    if (obj != NULL) {
         bpf_object__close(obj);
-        return NULL;
     }
-
-    return obj;
-}
-
-static void fuzz_bpf_program(const struct bpf_program *prog)
-{
-    const char *name = bpf_program__name(prog);
-    const char *section_name = bpf_program__section_name(prog);
-    __u32 line_info_cnt = bpf_program__line_info_cnt(prog);
-    struct bpf_func_info *func_info = bpf_program__func_info(prog);
-
-    if (name)
-        printf("Program name: %s\n", name);
-    if (section_name)
-        printf("Section name: %s\n", section_name);
-    printf("Line info count: %u\n", line_info_cnt);
-    if (func_info)
-        printf("Function info: insn_off=%u, type_id=%u\n", func_info->insn_off, func_info->type_id);
-}
-
-static void fuzz_bpf_object(struct bpf_object *obj)
-{
-    struct bpf_program *prog = NULL;
-    while ((prog = bpf_object__next_program(obj, prog)) != NULL) {
-        fuzz_bpf_program(prog);
-    }
-}
-
-int LLVMFuzzerTestOneInput_50(const uint8_t *Data, size_t Size)
-{
-    // Create a dummy file to simulate a BPF object file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        perror("fopen");
-        return 0;
-    }
-
-    if (fwrite(Data, 1, Size, file) != Size) {
-        perror("fwrite");
-        fclose(file);
-        return 0;
-    }
-    fclose(file);
-
-    struct bpf_object *obj = load_bpf_object("./dummy_file");
-    if (!obj) {
-        return 0;
-    }
-
-    fuzz_bpf_object(obj);
-
-    bpf_object__close(obj);
-    remove("./dummy_file");
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_50(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,56 +9,131 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "curl/curl.h"
-#include "/src/curl/include/curl/easy.h"
-#include "/src/curl/include/curl/websockets.h"
+#include "/src/curl/include/curl/multi.h"
 #include <iostream>
-#include <cstring>
+#include <fstream>
 
+size_t vvmxdccj_15(void *arg, const char *buf,
+                                        size_t len){
+	return NULL;
+}
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    CURL *curl = curl_easy_init();
-    if (!curl) return 0;
-
-    char dummy_file[] = "./dummy_file";
-    FILE *file = fopen(dummy_file, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    CURLM *multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        return 0;
     }
 
-    CURLcode res;
-    size_t n = 0;
-    size_t sent = 0;
+    CURL *easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0;
+    }
 
-    // Set options
-    res = curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
-    if (res != CURLE_OK) goto cleanup;
+    // Use a dummy file if needed by any of the functions
+    std::ofstream dummy_file("./dummy_file");
+    if (dummy_file.is_open()) {
+        dummy_file.write(reinterpret_cast<const char*>(Data), Size);
+        dummy_file.close();
+    }
 
-    res = curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
-    if (res != CURLE_OK) goto cleanup;
+    // Fuzz curl_multi_notify_enable
+    unsigned int notification = Size > 0 ? Data[0] : 0;
+    curl_multi_notify_enable(multi_handle, notification);
 
-    // Perform connection
-    res = curl_easy_perform(curl);
-    if (res != CURLE_OK) goto cleanup;
+    // Fuzz curl_multi_add_handle
+    curl_multi_add_handle(multi_handle, easy_handle);
 
-    // Test curl_easy_send
-    res = curl_easy_send(curl, Data, Size, &n);
-    if (res != CURLE_OK) goto cleanup;
+    // Fuzz curl_multi_perform
+    int running_handles;
+    curl_multi_perform(multi_handle, &running_handles);
 
-    // Test curl_easy_recv
-    char buffer[1024];
-    res = curl_easy_recv(curl, buffer, sizeof(buffer), &n);
-    if (res != CURLE_OK) goto cleanup;
+    // Fuzz curl_multi_timeout
+    long timeout_ms;
+    curl_multi_timeout(multi_handle, &timeout_ms);
 
-    // Test curl_easy_pause
-    res = curl_easy_pause(curl, CURLPAUSE_SEND);
-    if (res != CURLE_OK) goto cleanup;
+    // Fuzz curl_multi_setopt
 
-    // Test curl_ws_send
-    res = curl_ws_send(curl, Data, Size, &sent, 1024, 0);
-    if (res != CURLE_OK) goto cleanup;
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_multi_timeout to curl_easy_nextheader
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!easy_handle) {
+    	return 0;
+    }
+    CURLcode ret_curl_easy_upkeep_klsjg = curl_easy_upkeep(easy_handle);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!easy_handle) {
+    	return 0;
+    }
+    struct curl_header* ret_curl_easy_nextheader_azrre = curl_easy_nextheader(easy_handle, (unsigned int )timeout_ms, CURL_BLOB_NOCOPY, NULL);
+    if (ret_curl_easy_nextheader_azrre == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    CURLMoption option = static_cast<CURLMoption>(Size > 1 ? Data[1] : 0);
+    curl_multi_setopt(multi_handle, option, nullptr);
 
-cleanup:
-    curl_easy_cleanup(curl);
+    // Fuzz curl_multi_get_offt
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_multi_setopt to curl_formget
+    struct curl_httppost wipzvrqb;
+    memset(&wipzvrqb, 0, sizeof(wipzvrqb));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!multi_handle) {
+    	return 0;
+    }
+    int ret_curl_formget_nqvnt = curl_formget(&wipzvrqb, (void *)multi_handle, vvmxdccj_15);
+    if (ret_curl_formget_nqvnt < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    CURLMinfo_offt info = static_cast<CURLMinfo_offt>(Size > 2 ? Data[2] : 0);
+    curl_off_t value;
+    curl_multi_get_offt(multi_handle, info, &value);
+
+    // Cleanup
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
+    curl_multi_cleanup(multi_handle);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

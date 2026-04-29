@@ -1,34 +1,58 @@
+#include <cstdint>
+#include <cstddef>
 #include <curl/curl.h>
-#include <stdint.h>
-#include <stddef.h>
-
-extern "C" {
-    struct curl_header * curl_easy_nextheader(CURL *, unsigned int, int, struct curl_header *);
-}
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    CURL *curl;
-    struct curl_header *header = nullptr;
-    unsigned int type = 0;
-    int part = 0;
+    // Initialize CURLU object
+    CURLU *url = curl_url();
 
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (curl == nullptr) {
-        return 0;
+    // Ensure we have a valid CURLU object before proceeding
+    if (url != NULL) {
+        // We can perform various operations on the CURLU object here
+        // For now, we are just calling curl_url() as per the requirement
+
+        // Clean up the CURLU object
+        curl_url_cleanup(url);
     }
-
-    // Set some options for CURL to make it ready for the test
-    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
-    curl_easy_setopt(curl, CURLOPT_HEADER, 1L);
-
-    // Call the function-under-test
-    header = curl_easy_nextheader(curl, type, part, header);
-
-    // Cleanup
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

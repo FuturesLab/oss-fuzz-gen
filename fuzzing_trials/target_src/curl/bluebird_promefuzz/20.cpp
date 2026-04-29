@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,61 +9,131 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstring>
-#include "curl/curl.h"
 #include "/src/curl/include/curl/multi.h"
+#include <iostream>
+#include <fstream>
 
-static curl_mimepart* create_mime_part(curl_mime *mime) {
-    return curl_mime_addpart(mime);
+size_t vvmxdccj_20(void *arg, const char *buf,
+                                        size_t len){
+	return NULL;
 }
-
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Initialize CURL
-    CURL *easy_handle = curl_easy_init();
     CURLM *multi_handle = curl_multi_init();
-    if (!easy_handle || !multi_handle) {
-        if (easy_handle) curl_easy_cleanup(easy_handle);
-        if (multi_handle) curl_multi_cleanup(multi_handle);
+    if (!multi_handle) {
         return 0;
     }
 
-    // Create MIME structure
-    curl_mime *mime = curl_mime_init(easy_handle);
-    curl_mimepart *part = create_mime_part(mime);
-
-    // Test curl_mime_data
-    curl_mime_data(part, reinterpret_cast<const char*>(Data), Size);
-
-    // Test curl_mime_filedata
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-        curl_mime_filedata(part, "./dummy_file");
+    CURL *easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0;
     }
 
-    // Test curl_mime_subparts
-    curl_mime *subparts = curl_mime_init(easy_handle);
-    curl_mimepart *subpart = create_mime_part(subparts);
-    curl_mime_data(subpart, "subpart_data", 12);
-    curl_mime_subparts(part, subparts);
+    // Use a dummy file if needed by any of the functions
+    std::ofstream dummy_file("./dummy_file");
+    if (dummy_file.is_open()) {
+        dummy_file.write(reinterpret_cast<const char*>(Data), Size);
+        dummy_file.close();
+    }
 
-    // Test curl_mime_headers
-    struct curl_slist *headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: text/plain");
-    curl_mime_headers(part, headers, 1);
+    // Fuzz curl_multi_notify_enable
+    unsigned int notification = Size > 0 ? Data[0] : 0;
+    curl_multi_notify_enable(multi_handle, notification);
 
-    // Test curl_multi_remove_handle
+    // Fuzz curl_multi_add_handle
     curl_multi_add_handle(multi_handle, easy_handle);
-    curl_multi_remove_handle(multi_handle, easy_handle);
+
+    // Fuzz curl_multi_perform
+    int running_handles;
+    curl_multi_perform(multi_handle, &running_handles);
+
+    // Fuzz curl_multi_timeout
+    long timeout_ms;
+    curl_multi_timeout(multi_handle, &timeout_ms);
+
+    // Fuzz curl_multi_setopt
+    CURLMoption option = static_cast<CURLMoption>(Size > 1 ? Data[1] : 0);
+    curl_multi_setopt(multi_handle, option, nullptr);
+
+    // Fuzz curl_multi_get_offt
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_multi_setopt to curl_formget
+    struct curl_httppost wipzvrqb;
+    memset(&wipzvrqb, 0, sizeof(wipzvrqb));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!multi_handle) {
+    	return 0;
+    }
+    int ret_curl_formget_nqvnt = curl_formget(&wipzvrqb, (void *)multi_handle, vvmxdccj_20);
+    if (ret_curl_formget_nqvnt < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    CURLMinfo_offt info = static_cast<CURLMinfo_offt>(Size > 2 ? Data[2] : 0);
+    curl_off_t value;
+    curl_multi_get_offt(multi_handle, info, &value);
 
     // Cleanup
-    curl_mime_free(mime);
+    curl_multi_remove_handle(multi_handle, easy_handle);
     curl_easy_cleanup(easy_handle);
     curl_multi_cleanup(multi_handle);
 
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_multi_cleanup to curl_easy_header
+    curl_mime* ret_curl_mime_init_sibxv = curl_mime_init(NULL);
+    if (ret_curl_mime_init_sibxv == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_curl_mime_init_sibxv) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!multi_handle) {
+    	return 0;
+    }
+    CURLHcode ret_curl_easy_header_flljd = curl_easy_header((void *)ret_curl_mime_init_sibxv, (const char *)multi_handle, CURL_GLOBAL_ACK_EINTR, CURL_SEEKFUNC_FAIL, CURL_GLOBAL_ACK_EINTR, NULL);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

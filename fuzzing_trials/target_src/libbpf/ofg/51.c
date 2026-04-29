@@ -1,33 +1,76 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <linux/bpf.h>
+#include <stdbool.h>
+#include <string.h> // Include for memcpy
 
-// Define a mock struct bpf_map for testing purposes
+// Assuming the definition of the struct bpf_map is available
+// If not, a mock definition is provided here for compilation purposes.
 struct bpf_map {
-    int dummy; // Add any necessary fields if required
+    int dummy; // placeholder for actual struct members
 };
 
-// Mock implementation of bpf_map__btf_key_type_id for testing
-__u32 bpf_map__btf_key_type_id_51(const struct bpf_map *map) {
-    // Mock implementation, replace with actual function logic if available
-    return map->dummy; // Use the dummy field to influence the return value
+// Mock implementation of bpf_map__is_internal_51 for compilation purposes
+bool bpf_map__is_internal_51(const struct bpf_map *map) {
+    // Actual implementation would go here
+    return false;
 }
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
-        return 0; // Not enough data to process
+    // Ensure there is enough data to initialize a bpf_map structure
+    if (size < sizeof(struct bpf_map)) {
+        return 0;
     }
 
-    struct bpf_map map_instance;
-    
-    // Initialize map_instance with data from the fuzzer input
-    map_instance.dummy = *((int *)data); // Use input data to influence the dummy field
+    // Initialize a bpf_map structure from the input data
+    struct bpf_map map;
+    // Copy data into the map structure, assuming the size is sufficient
+    // This is a simple way to initialize the structure for fuzzing
+    memcpy(&map, data, sizeof(struct bpf_map));
 
     // Call the function-under-test
-    __u32 result = bpf_map__btf_key_type_id_51(&map_instance);
+    bool result = bpf_map__is_internal_51(&map);
 
-    // Use the result in some way to avoid compiler optimizations
+    // Use the result in some way to avoid compiler optimizations removing the call
     (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_51(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

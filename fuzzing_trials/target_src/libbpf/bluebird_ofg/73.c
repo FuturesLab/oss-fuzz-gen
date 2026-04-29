@@ -1,63 +1,121 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include "/src/libbpf/include/uapi/linux/fcntl.h"
+#include "/src/libbpf/src/bpf.h"
 #include "libbpf.h"
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    struct bpf_object *obj = NULL;
-    int result;
+    // Declare and initialize variables
+    struct bpf_program *prog = NULL;
+    int perf_event_fd = 1; // Using a non-zero file descriptor value
 
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure size is non-zero to avoid passing NULL data
+    if (size == 0) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-
-    // Load the BPF object from the temporary file
-    obj = bpf_object__open(tmpl);
+    // Create a BPF object from the input data
+    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
     if (!obj) {
-        close(fd);
+        return 0;
+    }
+
+    // Load the BPF object
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__load with bpf_object__prepare
+    if (bpf_object__prepare(obj) < 0) {
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        bpf_object__close(obj);
+        return 0;
+    }
+
+    // Get the first program in the BPF object
+    prog = bpf_object__next_program(obj, NULL);
+    if (!prog) {
+        bpf_object__close(obj);
         return 0;
     }
 
     // Call the function-under-test
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__load with bpf_object__prepare
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_ksyscall
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-    result = bpf_object__load(obj);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__load to bpf_object__gen_loader
-    struct gen_loader_opts qcymaueg;
-    memset(&qcymaueg, 0, sizeof(qcymaueg));
-
-    int ret_bpf_object__gen_loader_jdtkw = bpf_object__gen_loader(obj, &qcymaueg);
-    if (ret_bpf_object__gen_loader_jdtkw < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_uprobe
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!prog) {
     	return 0;
     }
-
+    size_t ret_bpf_program__insn_cnt_ypkcz = bpf_program__insn_cnt(prog);
+    if (ret_bpf_program__insn_cnt_ypkcz < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!prog) {
+    	return 0;
+    }
+    struct bpf_link* ret_bpf_program__attach_uprobe_vhryp = bpf_program__attach_uprobe(prog, 1, 0, (const char *)"w", ret_bpf_program__insn_cnt_ypkcz);
+    if (ret_bpf_program__attach_uprobe_vhryp == NULL){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    const char euavhiii[1024] = "uriqh";
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!prog) {
+    	return 0;
+    }
+    struct bpf_link* ret_bpf_program__attach_ksyscall_jujzx = bpf_program__attach_ksyscall(prog, euavhiii, NULL);
+    if (ret_bpf_program__attach_ksyscall_jujzx == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    struct bpf_link *link = bpf_program__attach_perf_event(prog, perf_event_fd);
 
+    // Clean up
+    if (link) {
+        bpf_link__destroy(link);
+    }
     bpf_object__close(obj);
-    close(fd);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_73(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

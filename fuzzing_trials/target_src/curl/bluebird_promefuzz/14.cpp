@@ -1,78 +1,92 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
+#include "curl/curl.h"
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstdio>
-#include <cstdint>
-#include <cstddef>
-#include "/src/curl/include/curl/multi.h"
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
 
-static CURLM *initialize_multi_handle() {
-    CURLM *multi_handle = curl_multi_init();
-    return multi_handle;
+// Dummy callback functions to satisfy type requirements
+static int fnmatch_callback(void *ptr, const char *pattern, const char *string) {
+    return 0;
 }
 
-static void cleanup_multi_handle(CURLM *multi_handle) {
-    if (multi_handle) {
-        curl_multi_cleanup(multi_handle);
-    }
+static CURLcode ssl_ctx_callback(CURL *curl, void *ssl_ctx, void *userptr) {
+    return CURLE_OK;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0; // Ensure there's enough data for at least an integer
+    // Initialize CURL
+    CURL *curl = curl_easy_init();
+    if (!curl) return 0;
 
-    CURLM *multi_handle = initialize_multi_handle();
-    if (!multi_handle) return 0;
-
-    int running_handles = 0;
-    int timeout_ms = 1000;
-    struct curl_waitfd extra_fds[1];
-    extra_fds[0].fd = 0;
-    extra_fds[0].events = CURL_WAIT_POLLIN;
-    extra_fds[0].revents = 0;
-
-    // Fuzz curl_multi_wait
-    CURLMcode mcode = curl_multi_wait(multi_handle, extra_fds, 1, timeout_ms, &running_handles);
-    if (mcode != CURLM_OK) {
-        cleanup_multi_handle(multi_handle);
+    // Create a dummy file for file-related options
+    FILE *dummy_file = fopen("./dummy_file", "wb+");
+    if (!dummy_file) {
+        curl_easy_cleanup(curl);
         return 0;
     }
 
-    // Fuzz curl_multi_socket
-    curl_socket_t s = 0;
-    mcode = curl_multi_socket(multi_handle, s, &running_handles);
-    if (mcode != CURLM_OK) {
-        cleanup_multi_handle(multi_handle);
-        return 0;
-    }
+    // Write data to dummy file
+    fwrite(Data, Size, 1, dummy_file);
+    rewind(dummy_file);
 
-    // Fuzz curl_multi_setopt
-    CURLMoption option = static_cast<CURLMoption>(Data[0]);
-    mcode = curl_multi_setopt(multi_handle, option, nullptr);
-    if (mcode != CURLM_OK) {
-        cleanup_multi_handle(multi_handle);
-        return 0;
-    }
+    // Variables for different options
+    char error_buffer[CURL_ERROR_SIZE] = {0};
 
-    // Fuzz curl_multi_socket_all
-    mcode = curl_multi_socket_all(multi_handle, &running_handles);
-    if (mcode != CURLM_OK) {
-        cleanup_multi_handle(multi_handle);
-        return 0;
-    }
+    // Attempt to set various options with the data provided
+    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, dummy_file);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, NULL);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, NULL);
+    curl_easy_setopt(curl, CURLOPT_PRIVATE, NULL);
+    curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_callback);
+    curl_easy_setopt(curl, CURLOPT_FNMATCH_FUNCTION, fnmatch_callback);
 
-    // Fuzz curl_multi_info_read
-    int msgs_in_queue = 0;
-    CURLMsg *msg;
-    do {
-        msg = curl_multi_info_read(multi_handle, &msgs_in_queue);
-    } while (msg);
+    // Cleanup
+    fclose(dummy_file);
+    curl_easy_cleanup(curl);
 
-    cleanup_multi_handle(multi_handle);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

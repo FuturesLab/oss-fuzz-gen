@@ -1,57 +1,119 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include "libbpf.h"
+#include "/src/libbpf/src/bpf.h"
+#include "/src/libbpf/src/bpf.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include "/src/libbpf/include/uapi/linux/fcntl.h"
 
-// Define the fuzzing function
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to initialize the structure
-    if (size < sizeof(struct bpf_object_skeleton)) {
+    struct bpf_object *obj = NULL;
+    int result;
+
+    // Create a temporary file to hold the BPF object data
+    char tmpl[] = "/tmp/fuzzbpfXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        perror("mkstemp");
         return 0;
     }
 
-    // Allocate memory for bpf_object_skeleton
-    struct bpf_object_skeleton *skeleton = malloc(sizeof(struct bpf_object_skeleton));
-    if (skeleton == NULL) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        perror("write");
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
 
-    // Initialize the skeleton with the input data
-    // Note: Ensure that the data is correctly mapped to the structure fields.
-    memcpy(skeleton, data, sizeof(struct bpf_object_skeleton));
-
-    // Create an options structure for opening the skeleton
-    struct bpf_object_open_opts opts = {
-        .sz = sizeof(struct bpf_object_open_opts), // Ensure the size is set correctly
-    };
-
-    // Open the skeleton with the provided options
-    if (bpf_object__open_skeleton(skeleton, &opts) != 0) {
-        free(skeleton);
+    // Load the BPF object from the file
+    obj = bpf_object__open_file(tmpl, NULL);
+    if (!obj) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
 
     // Call the function-under-test
-    int result = bpf_object__load_skeleton(skeleton);
-    if (result != 0) {
-        // Handle error if needed
-        bpf_object__destroy_skeleton(skeleton);
-        return 0;
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_file to bpf_object__prev_map
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    struct bpf_map* ret_bpf_object__prev_map_nsfsx = bpf_object__prev_map(obj, NULL);
+    if (ret_bpf_object__prev_map_nsfsx == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prev_map to bpf_map__key_size
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bpf_object__prev_map_nsfsx) {
+    	return 0;
     }
 
-    // Perform additional operations to ensure the skeleton is utilized
-    // Ensure that the skeleton is used in a meaningful way
-    // For demonstration, assume we are calling a hypothetical function
-    // bpf_object__do_something(skeleton);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prev_map to bpf_map__value_size
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bpf_object__prev_map_nsfsx) {
+    	return 0;
+    }
+    __u32 ret_bpf_map__value_size_kruoo = bpf_map__value_size(ret_bpf_object__prev_map_nsfsx);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    __u32 ret_bpf_map__key_size_wctsz = bpf_map__key_size(ret_bpf_object__prev_map_nsfsx);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    result = bpf_object__load(obj);
 
-    // Ensure the skeleton is utilized by calling a valid function
-    // Here we assume bpf_object__do_something is a valid function for demonstration
-    // Note: Replace with actual function if available
-    // bpf_object__do_something(skeleton);
-
-    // Free the allocated memory
-    bpf_object__destroy_skeleton(skeleton);
+    // Clean up
+    bpf_object__close(obj);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

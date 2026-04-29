@@ -1,39 +1,70 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
-
-// Include the correct path for libbpf.h
 #include "/src/libbpf/src/libbpf.h"
 
-// Mock structure for demonstration purposes
-struct perf_buffer {
-    // Add necessary fields here
+// Define a mock structure for bpf_program as it is typically defined in libbpf
+struct bpf_program {
+    // Mock fields for the purpose of fuzzing
+    int dummy_field;
 };
 
-// Mock function for demonstration purposes
-int perf_buffer__consume_buffer_80(struct perf_buffer *pb, size_t size) {
-    // Implement the function logic or mock behavior here
-    return 0; // Return a mock result
-}
-
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Ensure size is non-zero to avoid unnecessary calls
-    if (size == 0) {
+    // Ensure that we have enough data to create a bpf_program structure
+    if (size < sizeof(struct bpf_program)) {
         return 0;
     }
 
-    // Allocate and initialize a perf_buffer structure
-    struct perf_buffer *pb = (struct perf_buffer *)malloc(sizeof(struct perf_buffer));
-    if (pb == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
+    // Initialize the bpf_program structure with data from the fuzzing input
+    struct bpf_program prog;
+    // Copy data into the dummy_field or other fields if they exist
+    prog.dummy_field = *((int *)data);
 
     // Call the function-under-test
-    int result = perf_buffer__consume_buffer_80(pb, size);
+    enum bpf_attach_type attach_type = bpf_program__expected_attach_type(&prog);
 
-    // Free allocated resources
-    free(pb);
+    // Use the result in some way to prevent compiler optimizations
+    (void)attach_type;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_80(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

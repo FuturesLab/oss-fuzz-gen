@@ -1,17 +1,15 @@
 // This fuzz driver is generated for library curl, aiming to fuzz the following functions:
-// curl_mvfprintf at mprintf.c:1230:5 in mprintf.h
-// curl_unescape at escape.c:42:7 in curl.h
-// curl_free at escape.c:189:6 in curl.h
 // curl_easy_init at easy.c:330:7 in easy.h
-// curl_easy_escape at escape.c:50:7 in curl.h
-// curl_free at escape.c:189:6 in curl.h
-// curl_easy_cleanup at easy.c:837:6 in easy.h
-// curl_escape at escape.c:36:7 in curl.h
-// curl_free at escape.c:189:6 in curl.h
-// curl_easy_init at easy.c:330:7 in easy.h
-// curl_easy_unescape at escape.c:163:7 in curl.h
-// curl_free at escape.c:189:6 in curl.h
-// curl_easy_cleanup at easy.c:837:6 in easy.h
+// curl_easy_duphandle at easy.c:953:7 in easy.h
+// curl_easy_cleanup at easy.c:838:6 in easy.h
+// curl_easy_perform at easy.c:818:10 in easy.h
+// curl_easy_send at easy.c:1301:10 in easy.h
+// curl_easy_recv at easy.c:1223:10 in easy.h
+// curl_share_init at curl_share.c:68:9 in curl.h
+// curl_share_setopt at curl_share.c:191:12 in curl.h
+// curl_share_cleanup at curl_share.c:356:12 in curl.h
+// curl_easy_ssls_import at easy.c:1334:10 in curl.h
+// curl_easy_cleanup at easy.c:838:6 in easy.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,81 +20,95 @@
 #include <cstdint>
 #include <cstddef>
 #include <curl/curl.h>
-#include <curl/mprintf.h>
-#include <curl/multi.h>
-#include <cstdarg>
-#include <cstdio>
+#include <curl/easy.h>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
-
-static int fuzz_curl_mvfprintf(FILE *fd, const char *format, ...) {
-    va_list args;
-    va_start(args, format);
-    int result = curl_mvfprintf(fd, format, args);
-    va_end(args);
-    return result;
-}
+#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Prepare input data
-    char *inputString = (char *)malloc(Size + 1);
-    if (!inputString) return 0;
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
+    CURL *curl = curl_easy_init();
+    if (!curl) return 0;
 
-    // Fuzz curl_unescape
-    {
-        char *unescaped = curl_unescape(inputString, Size);
-        if (unescaped) {
-            curl_free(unescaped);
-        }
+    // Fuzz curl_easy_duphandle
+    CURL *dup_handle = curl_easy_duphandle(curl);
+    if (dup_handle) {
+        curl_easy_cleanup(dup_handle);
     }
 
-    // Fuzz curl_easy_escape
-    {
-        CURL *curl = curl_easy_init();
-        if (curl) {
-            char *escaped = curl_easy_escape(curl, inputString, Size);
-            if (escaped) {
-                curl_free(escaped);
-            }
-            curl_easy_cleanup(curl);
-        }
+    // Fuzz curl_easy_perform
+    CURLcode res = curl_easy_perform(curl);
+
+    // Fuzz curl_easy_send and curl_easy_recv if connection is established
+    if (res == CURLE_OK) {
+        char buffer[256];
+        size_t n;
+
+        // Fuzz curl_easy_send
+        curl_easy_send(curl, Data, Size, &n);
+
+        // Fuzz curl_easy_recv
+        curl_easy_recv(curl, buffer, sizeof(buffer), &n);
     }
 
-    // Fuzz curl_escape
-    {
-        char *escaped = curl_escape(inputString, Size);
-        if (escaped) {
-            curl_free(escaped);
-        }
+    // Fuzz curl_share_setopt
+    CURLSH *share = curl_share_init();
+    if (share) {
+        CURLSHcode sh_res = curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+        curl_share_cleanup(share);
     }
 
-    // Fuzz curl_easy_unescape
-    {
-        CURL *curl = curl_easy_init();
-        if (curl) {
-            int outlength;
-            char *unescaped = curl_easy_unescape(curl, inputString, Size, &outlength);
-            if (unescaped) {
-                curl_free(unescaped);
-            }
-            curl_easy_cleanup(curl);
-        }
-    }
+    // Fuzz curl_easy_ssls_import
+    const char *session_key = "dummy_key";
+    const unsigned char *shmac = Data;
+    size_t shmac_len = (Size > 20) ? 20 : Size;
+    const unsigned char *sdata = Data;
+    size_t sdata_len = Size;
 
-    // Fuzz curl_mvfprintf
-    {
-        FILE *dummyFile = fopen("./dummy_file", "w");
-        if (dummyFile) {
-            fuzz_curl_mvfprintf(dummyFile, "%s", inputString);
-            fclose(dummyFile);
-        }
-    }
+    curl_easy_ssls_import(curl, session_key, shmac, shmac_len, sdata, sdata_len);
 
-    // Clean up
-    free(inputString);
-
+    curl_easy_cleanup(curl);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_52(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

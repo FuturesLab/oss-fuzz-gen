@@ -1,40 +1,57 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
 #include "/src/libbpf/src/libbpf.h"
 
-// Remove the redefinition of gen_loader_opts since it's already defined in libbpf.h
-
-// Define a mock structure for bpf_object
-struct bpf_object {
-    // Add necessary fields for the mock structure if needed
-};
-
-// Mock implementation of the function-under-test
-int bpf_object__gen_loader_73(struct bpf_object *obj, struct gen_loader_opts *opts) {
-    // Implement the function logic or mock behavior for testing
-    return 0; // Return a dummy value
-}
-
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    struct bpf_object obj;
-    struct gen_loader_opts opts;
-
-    // Initialize the structures with non-zero values to avoid NULL
-    // Use data and size to influence the initialization if needed
-    if (size > 0) {
-        // Example initialization using data
-        // This is just a placeholder, actual initialization will depend on the structure
-        opts.sz = sizeof(struct gen_loader_opts);
-        opts.data = (const char *)data;
-        opts.insns = (const char *)data;
-        opts.data_sz = (size > sizeof(__u32)) ? *((__u32 *)data) : 0;
-        opts.insns_sz = (size > sizeof(__u32)) ? *((__u32 *)data) : 0;
-        opts.gen_hash = true; // or false, depending on desired test behavior
-    }
+    // Declare and initialize the variable of type bpf_attach_type
+    enum bpf_attach_type attach_type = BPF_CGROUP_INET_INGRESS;
 
     // Call the function-under-test
-    bpf_object__gen_loader_73(&obj, &opts);
+    const char *result = libbpf_bpf_attach_type_str(attach_type);
+
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (result) {
+        // Do something with result, e.g., print or log
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_73(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

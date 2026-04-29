@@ -1,59 +1,115 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "libbpf.h"
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <errno.h>
 #include "/src/libbpf/include/uapi/linux/fcntl.h"
 #include <unistd.h>
 #include <string.h>
-#include <errno.h>
-#include <sys/mman.h>
+#include "libbpf.h"
 
-static void initialize_dummy_file() {
-    FILE *file = fopen("./dummy_file", "w");
+static struct bpf_linker_opts default_opts = {
+    .sz = sizeof(struct bpf_linker_opts),
+};
+
+static void write_dummy_file(const char *filename) {
+    FILE *file = fopen(filename, "w");
     if (file) {
-        fwrite("dummy content", 1, 13, file);
+        fputs("dummy content", file);
         fclose(file);
     }
-}
-
-static struct bpf_linker *create_dummy_linker() {
-    int fd = open("./dummy_file", O_RDONLY);
-    if (fd < 0) return NULL;
-
-    struct bpf_linker_opts opts = { .sz = sizeof(struct bpf_linker_opts) };
-    struct bpf_linker *linker = bpf_linker__new_fd(fd, &opts);
-    close(fd);
-    return linker;
 }
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    initialize_dummy_file();
+    // Create a dummy file to use with bpf_linker__new and bpf_linker__add_file
+    const char *dummy_filename = "./dummy_file";
+    write_dummy_file(dummy_filename);
 
-    struct bpf_linker *linker = create_dummy_linker();
-    if (!linker) return 0;
+    // Convert first byte of data to a file descriptor
+    int fd = open(dummy_filename, O_RDONLY);
+    if (fd < 0) return 0;
 
-    struct bpf_linker_file_opts file_opts = { .sz = sizeof(struct bpf_linker_file_opts) };
-    int fd = open("./dummy_file", O_RDONLY);
-    if (fd >= 0) {
-        bpf_linker__add_fd(linker, fd, &file_opts);
-        close(fd);
+    struct bpf_linker *linker = NULL;
+    struct bpf_linker_opts opts = default_opts;
+
+    // Fuzz bpf_linker__new
+    linker = bpf_linker__new(dummy_filename, &opts);
+    if (linker) {
+        // Fuzz bpf_linker__add_file
+        bpf_linker__add_file(linker, dummy_filename, NULL);
+
+        // Fuzz bpf_linker__add_fd
+        bpf_linker__add_fd(linker, fd, NULL);
+
+        // Fuzz bpf_linker__finalize
+        bpf_linker__finalize(linker);
+
+        // Free the linker
+        bpf_linker__free(linker);
     }
 
-    bpf_linker__add_buf(linker, (void *)Data, Size, &file_opts);
+    // Fuzz bpf_linker__new_fd
+    linker = bpf_linker__new_fd(fd, &opts);
+    if (linker) {
+        // Fuzz bpf_linker__add_file
+        bpf_linker__add_file(linker, dummy_filename, NULL);
 
-    bpf_linker__add_file(linker, "./dummy_file", &file_opts);
+        // Fuzz bpf_linker__add_fd
+        bpf_linker__add_fd(linker, fd, NULL);
 
-    bpf_linker__finalize(linker);
+        // Fuzz bpf_linker__finalize
+        bpf_linker__finalize(linker);
 
-    bpf_linker__free(linker);
+        // Free the linker
+        bpf_linker__free(linker);
+    }
 
+    close(fd);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

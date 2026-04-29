@@ -1,36 +1,76 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include "/src/libbpf/src/libbpf.h"
 
+// Function prototype for bpf_link__unpin
+int bpf_link__unpin(struct bpf_link *link);
+
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    struct bpf_link *link;
+    char *path;
+
+    // Convert the input data to a null-terminated string to use as a path
+    path = (char *)malloc(size + 1);
+    if (path == NULL) {
+        return 0;
+    }
+    memcpy(path, data, size);
+    path[size] = '\0';
+
+    // Initialize a mock bpf_link object
+    link = bpf_link__open(path);
+    if (link == NULL) {
+        free(path);
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    close(fd);
-
-    // Call the function-under-test with the temporary file path
-    struct bpf_object *obj = bpf_object__open(tmpl);
+    // Call the function-under-test
+    int result = bpf_link__unpin(link);
 
     // Clean up
-    if (obj) {
-        bpf_object__close(obj);
-    }
-    unlink(tmpl);
+    bpf_link__destroy(link);
+    free(path);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_72(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

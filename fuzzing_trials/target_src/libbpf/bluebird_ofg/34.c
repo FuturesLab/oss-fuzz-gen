@@ -1,58 +1,98 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "/src/libbpf/src/bpf.h"
 #include "libbpf.h"
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
+    // Declare and initialize variables
+    struct bpf_program *prog = NULL;
+    int perf_event_fd = 1; // Using a non-zero file descriptor value
+
+    // Ensure size is non-zero to avoid passing NULL data
+    if (size == 0) {
+        return 0;
+    }
+
+    // Create a BPF object from the input data
     struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
-    if (obj == NULL) {
-        return 0; // If object creation fails, exit early
+    if (!obj) {
+        return 0;
+    }
+
+    // Load the BPF object
+    if (bpf_object__load(obj) < 0) {
+        bpf_object__close(obj);
+        return 0;
+    }
+
+    // Get the first program in the BPF object
+    prog = bpf_object__next_program(obj, NULL);
+    if (!prog) {
+        bpf_object__close(obj);
+        return 0;
     }
 
     // Call the function-under-test
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-    int result = bpf_object__load(obj);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__func_info
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!prog) {
+    	return 0;
+    }
+    struct bpf_func_info* ret_bpf_program__func_info_pddbl = bpf_program__func_info(prog);
+    if (ret_bpf_program__func_info_pddbl == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    struct bpf_link *link = bpf_program__attach_perf_event(prog, perf_event_fd);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prepare to bpf_object__pin_maps
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__pin_maps with bpf_object__pin
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__load to bpf_map__update_elem
-    int ret_bpf_link__destroy_dxiro = bpf_link__destroy(NULL);
-    if (ret_bpf_link__destroy_dxiro < 0){
-    	return 0;
+    if (link) {
+        bpf_link__destroy(link);
     }
-    int ret_libbpf_unregister_prog_handler_ghthy = libbpf_unregister_prog_handler(-1);
-    if (ret_libbpf_unregister_prog_handler_ghthy < 0){
-    	return 0;
-    }
-    __u64 ret_bpf_map__map_extra_opiwu = bpf_map__map_extra(NULL);
-    char hhtbibcv[1024] = "qpidq";
-
-    int ret_bpf_map__update_elem_sxyta = bpf_map__update_elem(NULL, hhtbibcv, (size_t )ret_bpf_link__destroy_dxiro, (const void *)obj, (size_t )ret_libbpf_unregister_prog_handler_ghthy, ret_bpf_map__map_extra_opiwu);
-    if (ret_bpf_map__update_elem_sxyta < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_bpf_object__pin_maps_rezow = bpf_object__pin(obj, (const char *)"w");
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_bpf_object__pin_maps_rezow < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     bpf_object__close(obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

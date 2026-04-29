@@ -1,81 +1,103 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include "/src/libbpf/src/libbpf_legacy.h"
 #include "libbpf.h"
 
-static void initialize_bpf_tc_hook(struct bpf_tc_hook *hook) {
-    hook->sz = sizeof(*hook);
-    hook->ifindex = 1; // Assuming 1 is a valid interface index for fuzzing
-    hook->attach_point = BPF_TC_INGRESS;
-    hook->parent = 0;
-    hook->handle = 0;
-    hook->qdisc = NULL;
-}
+#define DUMMY_FILE_PATH "./dummy_file"
 
-static void initialize_bpf_tc_opts(struct bpf_tc_opts *opts) {
-    opts->sz = sizeof(*opts);
-    opts->prog_fd = -1; // Invalid FD for fuzzing
-    opts->flags = 0;
-    opts->prog_id = 0;
-    opts->handle = 0;
-    opts->priority = 0;
+static int custom_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
 }
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(struct bpf_tc_hook) + sizeof(struct bpf_tc_opts)) {
+    if (Size == 0) {
         return 0;
     }
 
-    struct bpf_tc_hook hook;
-    struct bpf_tc_opts opts;
-    initialize_bpf_tc_hook(&hook);
-    initialize_bpf_tc_opts(&opts);
+    // Step 1: Set a custom print function
+    libbpf_set_print(custom_print_fn);
 
-    // Try creating a TC hook
-    int ret_create = bpf_tc_hook_create(&hook);
-    if (ret_create < 0 && ret_create != -EINVAL) {
-        // Handle unexpected errors
-        fprintf(stderr, "Unexpected error in bpf_tc_hook_create: %d\n", ret_create);
+    // Step 2: Open a BPF object from memory
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts),
+        .object_name = "fuzzed_object",
+    };
+
+    struct bpf_object *obj = bpf_object__open_mem(Data, Size, &opts);
+
+    // Step 3: Check for errors using deprecated function
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to libbpf_probe_bpf_prog_type
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of libbpf_probe_bpf_prog_type
+    int ret_libbpf_probe_bpf_prog_type_fejbs = libbpf_probe_bpf_prog_type(0, NULL);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (ret_libbpf_probe_bpf_prog_type_fejbs < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    long err = libbpf_get_error(obj);
+    if (err) {
+        // Handle error (deprecated function, just for demonstration)
+        fprintf(stderr, "Error opening BPF object: %ld\n", err);
+        return 0;
     }
 
-    // Try querying the TC hook
-    int ret_query = bpf_tc_query(&hook, &opts);
-    if (ret_query < 0 && ret_query != -EINVAL) {
-        // Handle unexpected errors
-        fprintf(stderr, "Unexpected error in bpf_tc_query: %d\n", ret_query);
+    // Step 4: Close the BPF object if it was successfully opened
+    if (obj != NULL) {
+        bpf_object__close(obj);
     }
-
-    // Try attaching a BPF program
-    int ret_attach = bpf_tc_attach(&hook, &opts);
-    if (ret_attach < 0 && ret_attach != -EINVAL) {
-        // Handle unexpected errors
-        fprintf(stderr, "Unexpected error in bpf_tc_attach: %d\n", ret_attach);
-    }
-
-    // Try detaching a BPF program
-    int ret_detach = bpf_tc_detach(&hook, &opts);
-    if (ret_detach < 0 && ret_detach != -EINVAL) {
-        // Handle unexpected errors
-        fprintf(stderr, "Unexpected error in bpf_tc_detach: %d\n", ret_detach);
-    }
-
-    // Try destroying the TC hook
-    int ret_destroy = bpf_tc_hook_destroy(&hook);
-    if (ret_destroy < 0 && ret_destroy != -EINVAL) {
-        // Handle unexpected errors
-        fprintf(stderr, "Unexpected error in bpf_tc_hook_destroy: %d\n", ret_destroy);
-    }
-
-    // Optionally, explore more states by varying hook and opts
-    // For example, change ifindex, attach_point, etc.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

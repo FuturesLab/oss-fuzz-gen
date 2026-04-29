@@ -1,45 +1,71 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h> // Include this for memcpy
-
-// Assuming the definition of struct perf_buffer is available
-struct perf_buffer {
-    int dummy; // Placeholder for actual struct fields
-};
-
-// Mock function for perf_buffer__epoll_fd
-int perf_buffer__epoll_fd_65(const struct perf_buffer *pb) {
-    // Placeholder implementation
-    if (pb == NULL) {
-        return -1;
-    }
-    return pb->dummy; // Dummy return value
-}
+#include <stddef.h>
+#include "/src/libbpf/src/libbpf.h"
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    if (size < sizeof(struct perf_buffer)) {
-        return 0; // Not enough data to fill struct perf_buffer
+    struct bpf_object *bpf_obj = NULL;
+    struct bpf_program *bpf_prog = NULL;
+    struct bpf_program *next_prog;
+
+    // Assuming data contains a valid BPF object file content
+    // Initialize bpf_obj from data (this is a placeholder, actual initialization may vary)
+    bpf_obj = bpf_object__open_mem(data, size, NULL);
+    if (!bpf_obj) {
+        return 0;
     }
 
-    // Allocate memory for perf_buffer
-    struct perf_buffer *pb = (struct perf_buffer *)malloc(sizeof(struct perf_buffer));
-    if (pb == NULL) {
-        return 0; // Memory allocation failed
+    // Iterate through programs in the BPF object
+    next_prog = bpf_object__next_program(bpf_obj, bpf_prog);
+    while (next_prog) {
+        // Do something with next_prog if needed
+        // For this harness, we just iterate over all programs
+
+        // Move to the next program
+        bpf_prog = next_prog;
+        next_prog = bpf_object__next_program(bpf_obj, bpf_prog);
     }
 
-    // Initialize perf_buffer with input data
-    memcpy(pb, data, sizeof(struct perf_buffer));
-
-    // Call the function-under-test
-    int result = perf_buffer__epoll_fd_65(pb);
-
-    // Print the result (for debugging purposes)
-    printf("Result: %d\n", result);
-
-    // Free allocated memory
-    free(pb);
+    // Clean up
+    bpf_object__close(bpf_obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_65(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,41 +1,64 @@
-#include <curl/curl.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include for memcpy
+
+extern "C" {
+    #include <curl/curl.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    size_t received_bytes = 0;
-    void *buffer;
+    // Ensure the size is non-zero to allocate memory
+    if (size == 0) return 0;
 
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
+    // Allocate memory and copy the fuzz data into it
+    void *memory = malloc(size);
+    if (memory == NULL) return 0; // Ensure memory allocation was successful
 
-    if(curl) {
-        // Set a dummy URL, as we are not actually performing a real transfer
-        curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+    // Copy the data into the allocated memory
+    memcpy(memory, data, size);
 
-        // Allocate a buffer to receive data
-        buffer = malloc(size);
-        if (buffer == NULL) {
-            curl_easy_cleanup(curl);
-            curl_global_cleanup();
-            return 0;
-        }
+    // Call the function-under-test
+    curl_free(memory);
 
-        // Copy data to buffer
-        memcpy(buffer, data, size);
-
-        // Call the function-under-test
-        res = curl_easy_recv(curl, buffer, size, &received_bytes);
-
-        // Clean up
-        free(buffer);
-        curl_easy_cleanup(curl);
-    }
-
-    curl_global_cleanup();
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

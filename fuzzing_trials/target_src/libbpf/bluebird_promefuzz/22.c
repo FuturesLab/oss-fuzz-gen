@@ -1,111 +1,101 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <limits.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include "/src/libbpf/src/libbpf_legacy.h"
 #include "libbpf.h"
 
-// Dummy implementations for ring buffer and ring structures
-struct ring_buffer {
-    struct epoll_event *events;
-    struct ring **rings;
-    size_t page_size;
-    int epoll_fd;
-    int ring_cnt;
-};
+#define DUMMY_FILE_PATH "./dummy_file"
 
-struct ring {
-    ring_buffer_sample_fn sample_cb;
-    void *ctx;
-    void *data;
-    unsigned long *consumer_pos;
-    unsigned long *producer_pos;
-    unsigned long mask;
-    int map_fd;
-};
-
-static struct ring_buffer *create_dummy_ring_buffer() {
-    struct ring_buffer *rb = (struct ring_buffer *)malloc(sizeof(struct ring_buffer));
-    if (!rb) return NULL;
-    rb->events = NULL;
-    rb->rings = NULL;
-    rb->page_size = 4096;
-    rb->epoll_fd = -1;
-    rb->ring_cnt = 0;
-    return rb;
-}
-
-static struct ring *create_dummy_ring() {
-    struct ring *r = (struct ring *)malloc(sizeof(struct ring));
-    if (!r) return NULL;
-    r->sample_cb = NULL;
-    r->ctx = NULL;
-    r->data = NULL;
-    r->consumer_pos = (unsigned long *)malloc(sizeof(unsigned long));
-    r->producer_pos = (unsigned long *)malloc(sizeof(unsigned long));
-    r->mask = 0;
-    r->map_fd = -1;
-    if (r->consumer_pos) *r->consumer_pos = 0;
-    if (r->producer_pos) *r->producer_pos = 0;
-    return r;
-}
-
-static void cleanup_ring_buffer(struct ring_buffer *rb) {
-    if (rb) {
-        free(rb);
-    }
-}
-
-static void cleanup_ring(struct ring *r) {
-    if (r) {
-        free(r->consumer_pos);
-        free(r->producer_pos);
-        free(r);
-    }
+static int custom_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
 }
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    struct ring_buffer *rb = create_dummy_ring_buffer();
-    struct ring *r = create_dummy_ring();
-    if (!rb || !r) {
-        cleanup_ring_buffer(rb);
-        cleanup_ring(r);
+    if (Size == 0) {
         return 0;
     }
 
-    size_t n = Size > 0 ? Data[0] : 0;
+    // Step 1: Set a custom print function
+    libbpf_set_print(custom_print_fn);
 
-    // Fuzz ring_buffer__consume_n
-    int consumed_n = ring_buffer__consume_n(rb, n);
-    if (consumed_n < 0) {
-        // Handle error
+    // Step 2: Open a BPF object from memory
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts),
+        .object_name = "fuzzed_object",
+    };
+
+    struct bpf_object *obj = bpf_object__open_mem(Data, Size, &opts);
+
+    // Step 3: Check for errors using deprecated function
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__find_map_fd_by_name
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    int ret_bpf_object__find_map_fd_by_name_abxvd = bpf_object__find_map_fd_by_name(obj, (const char *)"w");
+    if (ret_bpf_object__find_map_fd_by_name_abxvd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    long err = libbpf_get_error(obj);
+    if (err) {
+        // Handle error (deprecated function, just for demonstration)
+        fprintf(stderr, "Error opening BPF object: %ld\n", err);
+        return 0;
     }
 
-    // Fuzz ring__consume_n
-    int consumed_items = ring__consume_n(r, n);
-    if (consumed_items < 0) {
-        // Handle error
+    // Step 4: Close the BPF object if it was successfully opened
+    if (obj != NULL) {
+        bpf_object__close(obj);
     }
-
-    // Fuzz ring__consumer_pos
-    unsigned long consumer_pos = ring__consumer_pos(r);
-
-    // Fuzz ring__avail_data_size
-    size_t avail_data_size = ring__avail_data_size(r);
-
-    // Fuzz ring__producer_pos
-    unsigned long producer_pos = ring__producer_pos(r);
-
-    // Fuzz ring__size
-    size_t ring_size = ring__size(r);
-
-    // Cleanup
-    cleanup_ring_buffer(rb);
-    cleanup_ring(r);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
