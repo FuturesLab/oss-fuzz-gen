@@ -3,22 +3,63 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_495(const uint8_t *data, size_t size) {
-    cmsFloat64Number temp;
-    cmsCIExyY whitePoint;
+    cmsContext context = (cmsContext) data; // Interpret data as cmsContext
+    cmsUInt32Number nItems;
 
-    // Initialize cmsCIExyY structure with non-NULL values
-    whitePoint.x = size > 0 ? ((cmsFloat64Number)data[0] / 255.0) : 0.3127;
-    whitePoint.y = size > 1 ? ((cmsFloat64Number)data[1] / 255.0) : 0.3290;
-    whitePoint.Y = size > 2 ? ((cmsFloat64Number)data[2] / 255.0) : 1.0;
+    // Ensure size is sufficient to extract a cmsUInt32Number
+    if (size < sizeof(cmsUInt32Number)) {
+        return 0;
+    }
+
+    // Extract cmsUInt32Number from data
+    nItems = *((cmsUInt32Number*) data);
 
     // Call the function-under-test
-    cmsBool result = cmsTempFromWhitePoint(&temp, &whitePoint);
+    cmsMLU *mlu = cmsMLUalloc(context, nItems);
 
-    // Use the result to avoid compiler optimizations
-    if (result) {
-        volatile cmsFloat64Number avoid_optimization = temp;
-        (void)avoid_optimization;
+    // Clean up if allocation was successful
+    if (mlu != NULL) {
+        cmsMLUfree(mlu);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_495(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

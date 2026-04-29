@@ -1,57 +1,122 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
-static cmsHANDLE createDummyIT8Handle() {
-    // This function should create a valid IT8 handle for testing purposes.
-    // In a real scenario, you would use an appropriate function from the library to create it.
-    // Placeholder for actual IT8 handle creation
-    return cmsIT8Alloc(NULL);
-}
-
-static void releaseDummyIT8Handle(cmsHANDLE hIT8) {
-    if (hIT8) {
-        cmsIT8Free(hIT8);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Not enough data
+    if (Size < 1) {
+        return 0;
+    }
 
-    cmsHANDLE hIT8 = createDummyIT8Handle();
-    if (!hIT8) return 0;
+    write_dummy_file(Data, Size);
 
-    // Prepare some dummy strings from the input data
-    char cSet[256], cField[256], ExpectedType[256];
-    char cSample[256], Val[256], cComment[256], buffer[256];
-    snprintf(cSet, sizeof(cSet), "%.*s", (int)(Size / 6), Data);
-    snprintf(cField, sizeof(cField), "%.*s", (int)(Size / 6), Data + Size / 6);
-    snprintf(ExpectedType, sizeof(ExpectedType), "%.*s", (int)(Size / 6), Data + 2 * (Size / 6));
-    snprintf(cSample, sizeof(cSample), "%.*s", (int)(Size / 6), Data + 3 * (Size / 6));
-    snprintf(Val, sizeof(Val), "%.*s", (int)(Size / 6), Data + 4 * (Size / 6));
-    snprintf(cComment, sizeof(cComment), "%.*s", (int)(Size / 6), Data + 5 * (Size / 6));
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
+    }
 
-    // Fuzz cmsIT8SetTableByLabel
-    cmsIT8SetTableByLabel(hIT8, cSet, cField, ExpectedType);
 
-    // Fuzz cmsIT8SetSheetType
-    cmsIT8SetSheetType(hIT8, cSet);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectRGBProfileGamma
+    cmsBool ret_cmsPlugin_aizyx = cmsPlugin(NULL);
+    if (ret_cmsPlugin_aizyx < 0){
+    	return 0;
+    }
+    cmsFloat64Number ret_cmsDetectRGBProfileGamma_mbsbe = cmsDetectRGBProfileGamma(hProfile, (double )ret_cmsPlugin_aizyx);
+    if (ret_cmsDetectRGBProfileGamma_mbsbe < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    }
 
-    // Fuzz cmsIT8SetData
-    cmsIT8SetData(hIT8, cSet, cSample, Val);
 
-    // Fuzz cmsIT8SetIndexColumn
-    cmsIT8SetIndexColumn(hIT8, cSample);
-
-    // Fuzz cmsIT8GetPatchName
-    cmsIT8GetPatchName(hIT8, 0, buffer);
-
-    // Fuzz cmsIT8SetComment
-    cmsIT8SetComment(hIT8, cComment);
-
-    releaseDummyIT8Handle(hIT8);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTagCount to cmsIT8SetDataDbl
+    cmsHANDLE ret_cmsIT8Alloc_xadaz = cmsIT8Alloc(0);
+    char kuhbsigc[1024] = "iyndw";
+    cmsBool ret_cmsPlugin_fypot = cmsPlugin(kuhbsigc);
+    if (ret_cmsPlugin_fypot < 0){
+    	return 0;
+    }
+    char fhbujhsu[1024] = "dwgsd";
+    cmsBool ret_cmsPlugin_biora = cmsPlugin(fhbujhsu);
+    if (ret_cmsPlugin_biora < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!kuhbsigc) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!fhbujhsu) {
+    	return 0;
+    }
+    cmsBool ret_cmsIT8SetDataDbl_mbqac = cmsIT8SetDataDbl(ret_cmsIT8Alloc_xadaz, (const char *)kuhbsigc, (const char *)fhbujhsu, (double )tagCount);
+    if (ret_cmsIT8SetDataDbl_mbqac < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

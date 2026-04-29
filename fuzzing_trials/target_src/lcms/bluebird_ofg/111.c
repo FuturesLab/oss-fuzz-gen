@@ -1,51 +1,64 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include "lcms2.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "lcms2.h" // Include the Little CMS library header
 
+// Remove 'extern "C"' as it is not needed for C code
 int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    char *firstProperty;
-    char *secondProperty;
-    const char *result;
+    cmsContext context;
+    void *userData;
 
-    if (size < 2) {
-        return 0; // Not enough data to proceed
+    // Initialize the context with some non-NULL value
+    context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
+        return 0; // If context creation fails, return early
     }
-
-    // Initialize handle (for demonstration purposes, using a dummy handle)
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
-        return 0; // Allocation failed, exit early
-    }
-
-    // Allocate and copy data for firstProperty and secondProperty
-    firstProperty = (char *)malloc(size / 2 + 1);
-    secondProperty = (char *)malloc(size / 2 + 1);
-
-    if (firstProperty == NULL || secondProperty == NULL) {
-        cmsIT8Free(handle);
-        free(firstProperty);
-        free(secondProperty);
-        return 0; // Memory allocation failed
-    }
-
-    // Copy the first half of the data to firstProperty
-    memcpy(firstProperty, data, size / 2);
-    firstProperty[size / 2] = '\0'; // Null-terminate
-
-    // Copy the second half of the data to secondProperty
-    memcpy(secondProperty, data + size / 2, size / 2);
-    secondProperty[size / 2] = '\0'; // Null-terminate
 
     // Call the function-under-test
-    result = cmsIT8GetPropertyMulti(handle, firstProperty, secondProperty);
+    userData = cmsGetContextUserData(context);
 
-    // Clean up
-    cmsIT8Free(handle);
-    free(firstProperty);
-    free(secondProperty);
+    // Clean up the context
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_111(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

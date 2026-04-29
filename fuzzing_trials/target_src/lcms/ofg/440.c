@@ -1,45 +1,80 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <lcms2.h>
 #include <stdlib.h>
 #include <string.h>
-#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_440(const uint8_t *data, size_t size) {
-    // Ensure the input size is large enough to split into meaningful parts
-    if (size < 4) {
-        return 0;
+    if (size < sizeof(cmsTagSignature) + sizeof(cmsUInt32Number)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Initialize variables
-    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
-    const char *language = "en";
-    const char *country = "US";
+    // Extract cmsTagSignature from the input data
+    cmsTagSignature tagSig;
+    memcpy(&tagSig, data, sizeof(cmsTagSignature));
 
-    // Split the input data into two parts for the ASCII string
-    size_t ascii_len = size / 2;
-    char *ascii_str1 = (char *)malloc(ascii_len + 1);
-    char *ascii_str2 = (char *)malloc(ascii_len + 1);
+    // Extract cmsUInt32Number from the input data
+    cmsUInt32Number bufferSize;
+    memcpy(&bufferSize, data + sizeof(cmsTagSignature), sizeof(cmsUInt32Number));
 
-    if (ascii_str1 == NULL || ascii_str2 == NULL) {
-        cmsMLUfree(mlu);
-        free(ascii_str1);
-        free(ascii_str2);
-        return 0;
+    // Create a dummy profile for testing
+    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0; // Failed to create profile
     }
 
-    memcpy(ascii_str1, data, ascii_len);
-    ascii_str1[ascii_len] = '\0';
-
-    memcpy(ascii_str2, data + ascii_len, ascii_len);
-    ascii_str2[ascii_len] = '\0';
+    // Allocate memory for the buffer
+    void *buffer = malloc(bufferSize);
+    if (buffer == NULL) {
+        cmsCloseProfile(hProfile);
+        return 0; // Failed to allocate buffer
+    }
 
     // Call the function-under-test
-    cmsMLUsetASCII(mlu, language, country, ascii_str1);
-    cmsMLUsetASCII(mlu, language, country, ascii_str2);
+    cmsUInt32Number result = cmsReadRawTag(hProfile, tagSig, buffer, bufferSize);
 
     // Clean up
-    cmsMLUfree(mlu);
-    free(ascii_str1);
-    free(ascii_str2);
+    free(buffer);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_440(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

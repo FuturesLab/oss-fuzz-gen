@@ -1,47 +1,67 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_483(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    cmsHANDLE handle;
-    char *propertyName;
-    char *subPropertyName;
-    const char *result;
-
-    // Allocate memory for propertyName and subPropertyName
-    propertyName = (char *)malloc(size + 1);
-    subPropertyName = (char *)malloc(size + 1);
-
-    // Ensure the allocated memory is not NULL
-    if (propertyName == NULL || subPropertyName == NULL) {
-        free(propertyName);
-        free(subPropertyName);
+    // Ensure the data size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
         return 0;
     }
 
-    // Copy data into propertyName and subPropertyName with null-termination
-    memcpy(propertyName, data, size);
-    propertyName[size] = '\0';
-    memcpy(subPropertyName, data, size);
-    subPropertyName[size] = '\0';
-
-    // Create a dummy cmsHANDLE for testing purposes
-    handle = cmsIT8Alloc(NULL);
-
-    if (handle != NULL) {
-        // Call the function-under-test
-        result = cmsIT8GetPropertyMulti(handle, propertyName, subPropertyName);
-
-        // Free the cmsHANDLE
-        cmsIT8Free(handle);
+    // Create a memory profile from the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
     }
 
-    // Free allocated memory
-    free(propertyName);
-    free(subPropertyName);
+    // Initialize a struct tm to store the date-time
+    struct tm creationDateTime;
+    
+    // Call the function under test
+    cmsBool result = cmsGetHeaderCreationDateTime(hProfile, &creationDateTime);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_483(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

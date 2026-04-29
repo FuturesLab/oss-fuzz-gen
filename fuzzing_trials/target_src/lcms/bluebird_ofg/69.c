@@ -1,56 +1,76 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include "lcms2.h"
 
-// Fuzzing harness for cmsGetTransformInputFormat
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    cmsHTRANSFORM transform;
     cmsHPROFILE hProfile;
-    cmsUInt32Number inputFormat;
-    cmsUInt32Number outputFormat;
-    cmsUInt32Number intent;
-    cmsUInt32Number flags;
+    cmsInfoType infoType;
+    char languageCode[3] = "en";
+    char countryCode[3] = "US";
+    char buffer[256];
+    cmsUInt32Number bufferSize = sizeof(buffer);
 
-    // Initialize the LCMS library
-    cmsSetLogErrorHandler(NULL);
+    // Ensure the data is large enough to contain necessary information
+    if (size < sizeof(cmsInfoType)) {
+        return 0;
+    }
 
-    // Create a dummy profile to use for the transform
-    hProfile = cmsCreate_sRGBProfile();
+    // Initialize the profile using the data
+    hProfile = cmsOpenProfileFromMem(data, size);
     if (hProfile == NULL) {
         return 0;
     }
 
-    // Set up dummy values for transform creation
-    inputFormat = TYPE_RGB_8;  // Use a common format
-    outputFormat = TYPE_RGB_8; // Use a common format
-    intent = INTENT_PERCEPTUAL;
-    flags = 0;
-
-    // Create a transform using the dummy profile and formats
-    transform = cmsCreateTransform(hProfile, inputFormat, hProfile, outputFormat, intent, flags);
-    if (transform == NULL) {
-        cmsCloseProfile(hProfile);
-        return 0;
-    }
+    // Extract the infoType from the data
+    memcpy(&infoType, data, sizeof(cmsInfoType));
 
     // Call the function-under-test
-    cmsUInt32Number result = cmsGetTransformInputFormat(transform);
+    cmsGetProfileInfoASCII(hProfile, infoType, languageCode, countryCode, buffer, bufferSize);
 
-    // To maximize fuzzing, use the data input to affect the transform
-    if (size >= 3) { // Ensure there's enough data for at least one RGB pixel
-        uint8_t input[3];
-        input[0] = data[0];
-        input[1] = data[1];
-        input[2] = data[2];
-
-        // Process the input data with the transform
-        uint8_t output[3];
-        cmsDoTransform(transform, input, output, 1);
-    }
-
-    // Clean up
-    cmsDeleteTransform(transform);
+    // Close the profile
     cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_69(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

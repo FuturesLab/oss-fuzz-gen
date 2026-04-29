@@ -1,39 +1,63 @@
-#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <lcms2.h>
 
-// Function under test
-long cmsfilelength(FILE *file);
-
-// Fuzzer function
 int LLVMFuzzerTestOneInput_443(const uint8_t *data, size_t size) {
-    // Check if the input size is zero, which means there's nothing to write
-    if (size == 0) {
+    // Ensure there is enough data to read for cmsUInt16Number array
+    if (size < sizeof(cmsUInt16Number) * 3) {
         return 0;
     }
 
-    // Create a temporary file
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
-        return 0;
-    }
+    // Initialize cmsCIEXYZ structure
+    cmsCIEXYZ xyz;
+    xyz.X = 0.0;
+    xyz.Y = 0.0;
+    xyz.Z = 0.0;
 
-    // Write the input data to the temporary file
-    fwrite(data, 1, size, tempFile);
+    // Cast data to cmsUInt16Number pointer
+    const cmsUInt16Number *encodedData = (const cmsUInt16Number *)data;
 
-    // Rewind the file to the beginning for reading
-    rewind(tempFile);
-
-    // Call the function under test
-    long length = cmsfilelength(tempFile);
-
-    // Check the length to ensure the function is being tested
-    if (length != size) {
-        fprintf(stderr, "Mismatch in file length: expected %zu, got %ld\n", size, length);
-    }
-
-    // Close the temporary file
-    fclose(tempFile);
+    // Call the function-under-test
+    cmsXYZEncoded2Float(&xyz, encodedData);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_443(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

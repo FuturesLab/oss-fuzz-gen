@@ -1,32 +1,62 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    char propertyName[256];
-
-    // Initialize the handle with a valid cmsHANDLE object
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Ensure that the input size is sufficient to populate cmsCIEXYZ structure
+    if (size < sizeof(cmsCIEXYZ)) {
         return 0;
     }
 
-    // Ensure the propertyName is null-terminated and non-empty
-    if (size > 0) {
-        size_t copySize = size < sizeof(propertyName) - 1 ? size : sizeof(propertyName) - 1;
-        memcpy(propertyName, data, copySize);
-        propertyName[copySize] = '\0';
-    } else {
-        strcpy(propertyName, "DefaultPropertyName");
-    }
+    // Initialize input structures
+    cmsCIExyY xyY;
+    cmsCIEXYZ XYZ;
+
+    // Copy data into the cmsCIEXYZ structure
+    memcpy(&XYZ, data, sizeof(cmsCIEXYZ));
 
     // Call the function-under-test
-    cmsFloat64Number result = cmsIT8GetPropertyDbl(handle, propertyName);
-
-    // Free the allocated handle
-    cmsIT8Free(handle);
+    cmsXYZ2xyY(&xyY, &XYZ);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

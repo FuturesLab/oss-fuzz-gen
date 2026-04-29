@@ -1,35 +1,63 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <lcms2.h>
-#include <string.h> // Include for memcpy
 
-extern int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    if (size < sizeof(double) * 3 + sizeof(cmsCurveSegment)) {
-        return 0; // Not enough data to construct a segment
+int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
+    // Ensure there is enough data to extract meaningful values
+    if (size < sizeof(cmsInt32Number)) {
+        return 0;
     }
 
-    // Initialize variables for the function call
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsUInt32Number nSegments = 1; // Use a simple case with one segment
+    // Extract a cmsInt32Number from the data
+    cmsInt32Number index = *(const cmsInt32Number *)data;
 
-    // Define a simple cmsCurveSegment
-    cmsCurveSegment segment;
-    segment.Type = 1; // Assume a simple type for demonstration
-
-    // Copy data into segment parameters
-    memcpy(segment.Params, data, sizeof(double) * 3);
-    segment.x0 = 0.0; // Starting point of the segment
-    segment.x1 = 1.0; // Ending point of the segment
-    segment.nGridPoints = 0; // Not used for Type != 0
-    segment.SampledPoints = NULL; // Not used for Type != 0
+    // Create a cmsToneCurve object for testing
+    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Example gamma value
 
     // Call the function-under-test
-    cmsToneCurve *toneCurve = cmsBuildSegmentedToneCurve(context, nSegments, &segment);
+    const cmsCurveSegment *segment = cmsGetToneCurveSegment(index, toneCurve);
 
     // Clean up
-    if (toneCurve != NULL) {
-        cmsFreeToneCurve(toneCurve);
-    }
-    cmsDeleteContext(context);
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_67(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,41 +1,71 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for null-terminated strings
-    if (size < 3) {
+    // Declare and initialize the variables for the function call
+    cmsColorSpaceSignature colorSpaceSignature;
+    cmsFloat64Number inkLimit;
+
+    // Ensure that the size is sufficient to extract the required data
+    if (size < sizeof(cmsColorSpaceSignature) + sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Allocate memory for the file name and mode strings
-    char filename[2];
-    char mode[2];
+    // Extract the cmsColorSpaceSignature from the input data
+    colorSpaceSignature = *(cmsColorSpaceSignature *)data;
 
-    // Copy the first byte to filename and ensure null-termination
-    filename[0] = (char)data[0];
-    filename[1] = '\0';
-
-    // Copy the second byte to mode and ensure null-termination
-    mode[0] = (char)data[1];
-    mode[1] = '\0';
+    // Extract the cmsFloat64Number for inkLimit from the input data
+    inkLimit = *(cmsFloat64Number *)(data + sizeof(cmsColorSpaceSignature));
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsOpenProfileFromFile(filename, mode);
+    cmsHPROFILE profile = cmsCreateInkLimitingDeviceLink(colorSpaceSignature, inkLimit);
 
-    // If a valid profile was returned, close it
+    // Clean up the profile if it was successfully created
     if (profile != NULL) {
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsGetProfileInfoASCII
-
-    cmsUInt32Number ret_cmsGetProfileInfoASCII_cdqix = cmsGetProfileInfoASCII(profile, 0, (const char *)"r", (const char *)"r", NULL, cmsERROR_SEEK);
-    if (ret_cmsGetProfileInfoASCII_cdqix < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
         cmsCloseProfile(profile);
     }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

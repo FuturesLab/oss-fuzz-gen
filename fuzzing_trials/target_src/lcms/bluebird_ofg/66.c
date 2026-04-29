@@ -1,64 +1,74 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsTagSignature) + sizeof(void*)) {
-        return 0; // Not enough data to proceed
-    }
+    // Declare and initialize variables
+    cmsHPROFILE hProfile;
+    cmsUInt32Number dwFlags;
+    cmsBool bInput;
 
-    // Initialize variables
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of cmsOpenProfileFromMem
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem((const void *)data, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    cmsTagSignature tagSig = *(cmsTagSignature*)data;
-    const void *tagData = (const void*)(data + sizeof(cmsTagSignature));
-
-    // Ensure hProfile is valid
-    if (hProfile == NULL) {
+    // Check if the size is sufficient to extract the necessary values
+    if (size < sizeof(cmsUInt32Number) + sizeof(cmsBool)) {
         return 0;
     }
 
+    // Create a profile from memory
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0; // Exit if profile creation fails
+    }
+
+    // Extract dwFlags and bInput from the data
+    dwFlags = *(cmsUInt32Number *)(data);
+    bInput = *(cmsBool *)(data + sizeof(cmsUInt32Number));
+
     // Call the function-under-test
+    cmsUInt32Number result = cmsFormatterForPCSOfProfile(hProfile, dwFlags, bInput);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetHeaderFlags
-
-    cmsSetHeaderFlags(hProfile, cmsSPOT_LINE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsWriteTag(hProfile, tagSig, tagData);
-
-    // Close the profile
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMD5computeID with cmsIsMatrixShaper
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsIsMatrixShaper with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMD5computeID with cmsCloseProfile
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-    cmsMD5computeID(hProfile);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_66(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

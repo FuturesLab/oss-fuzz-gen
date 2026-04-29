@@ -1,24 +1,58 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_480(const uint8_t *data, size_t size) {
-    // Initialize a cmsHPROFILE
-    cmsHPROFILE hProfile = NULL;
+    // Initialize a cmsContext
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Check if the size is sufficient to create a profile from memory
-    if (size >= sizeof(cmsHPROFILE)) {
-        // Create a profile from memory using the input data
-        hProfile = cmsOpenProfileFromMem(data, size);
-    }
+    // Call the function-under-test
+    cmsHPROFILE profile = cmsCreateXYZProfileTHR(context);
 
-    // If the profile is successfully created, call the function-under-test
-    if (hProfile != NULL) {
-        cmsColorSpaceSignature pcs = cmsGetPCS(hProfile);
-        
-        // Close the profile after use
-        cmsCloseProfile(hProfile);
+    // Clean up
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_480(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

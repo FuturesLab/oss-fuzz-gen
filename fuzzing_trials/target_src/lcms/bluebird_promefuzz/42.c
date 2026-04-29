@@ -1,18 +1,12 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
-
-static cmsHPROFILE create_dummy_profile() {
-    // Create a dummy ICC profile for testing purposes
-    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
-    return hProfile;
-}
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
@@ -23,42 +17,89 @@ static void write_dummy_file(const uint8_t *Data, size_t Size) {
 }
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) + sizeof(cmsColorSpaceSignature)) {
+    if (Size < 1) {
         return 0;
     }
 
-    cmsHPROFILE hProfile = create_dummy_profile();
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
     if (!hProfile) {
         return 0;
     }
 
-    // Use the first part of the data as an integer for _cmsICCcolorSpace
-    int ourNotation = *((int *)Data);
-    cmsColorSpaceSignature iccSig = _cmsICCcolorSpace(ourNotation);
 
-    // Use the second part of the data as a cmsColorSpaceSignature
-    cmsColorSpaceSignature sig = *((cmsColorSpaceSignature *)(Data + sizeof(int)));
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectRGBProfileGamma
+    cmsBool ret_cmsPlugin_aizyx = cmsPlugin(NULL);
+    if (ret_cmsPlugin_aizyx < 0){
+    	return 0;
+    }
 
-    // Test cmsSetColorSpace
-    cmsSetColorSpace(hProfile, sig);
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from cmsPlugin to cmsGetPostScriptCRD using the plateau pool
+    cmsContext context = NULL;
+    cmsUInt32Number intent = 0;
+    cmsUInt32Number ret_cmsGetPostScriptCRD_rdtrf = cmsGetPostScriptCRD(context, hProfile, intent, (unsigned long )ret_cmsPlugin_aizyx, NULL, (unsigned long )ret_cmsPlugin_aizyx);
+    if (ret_cmsGetPostScriptCRD_rdtrf < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    cmsFloat64Number ret_cmsDetectRGBProfileGamma_mbsbe = cmsDetectRGBProfileGamma(hProfile, (double )ret_cmsPlugin_aizyx);
+    if (ret_cmsDetectRGBProfileGamma_mbsbe < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    }
 
-    // Test cmsGetColorSpace
-    cmsColorSpaceSignature colorSpace = cmsGetColorSpace(hProfile);
-
-    // Test cmsGetPCS
-    cmsColorSpaceSignature pcs = cmsGetPCS(hProfile);
-
-    // Test cmsSetPCS
-    cmsSetPCS(hProfile, sig);
-
-    // Test _cmsLCMScolorSpace
-    int lcmsSpace = _cmsLCMScolorSpace(colorSpace);
-
-    // Write dummy file if needed
-    write_dummy_file(Data, Size);
-
-    // Clean up
     cmsCloseProfile(hProfile);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

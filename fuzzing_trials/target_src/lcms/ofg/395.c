@@ -1,55 +1,62 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include "lcms2.h"  // Assuming this is where cmsIT8Alloc, cmsIT8Free, and cmsIT8GetPatchByName are declared
+#include <string.h>  // Include for memcpy
+#include <lcms2.h>   // Include for Little CMS functions and types
 
 int LLVMFuzzerTestOneInput_395(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    const char *patchName;
-
-    // Initialize the handle with a non-NULL value
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
-        return 0; // Exit if allocation failed
-    }
-
-    // Ensure the data is null-terminated for use as a string
-    char *dataCopy = (char *)malloc(size + 1);
-    if (dataCopy == NULL) {
-        cmsIT8Free(handle);
-        return 0; // Exit if memory allocation failed
-    }
-    memcpy(dataCopy, data, size);
-    dataCopy[size] = '\0';
-
-    // Load the data into the handle, assuming cmsIT8LoadFromMem is a valid function
-    // Ensure that size is correctly passed as the length of the dataCopy
-    if (!cmsIT8LoadFromMem(handle, dataCopy, size + 1)) {
-        free(dataCopy);
-        cmsIT8Free(handle);
-        return 0; // Exit if loading data failed
-    }
-
-    // Use a fixed patch name for testing
-    patchName = "SamplePatchName";
-
-    // Check if the patch name exists before calling cmsIT8GetPatchByName
-    const char *patchValue = cmsIT8GetPatchByName(handle, patchName);
-    if (patchValue == NULL) {
-        // If the patch name does not exist, handle the error gracefully
-        free(dataCopy);
-        cmsIT8Free(handle);
+    // Check if the input data is large enough to fill a cmsCIExyY structure
+    if (size < sizeof(cmsCIExyY)) {
         return 0;
     }
 
-    // Call the function under test with valid input
-    int result = cmsIT8GetPatchByName(handle, patchName) != NULL;
+    // Initialize the cmsCIExyY structure from the input data
+    cmsCIExyY input_xyY;
+    memcpy(&input_xyY, data, sizeof(cmsCIExyY));
 
-    // Clean up
-    free(dataCopy);
-    cmsIT8Free(handle);
+    // Initialize the cmsCIEXYZ structure
+    cmsCIEXYZ output_XYZ;
 
-    return result;
+    // Call the function-under-test
+    cmsxyY2XYZ(&output_XYZ, &input_xyY);
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_395(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

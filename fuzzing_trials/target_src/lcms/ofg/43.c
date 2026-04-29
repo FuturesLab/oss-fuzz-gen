@@ -1,44 +1,73 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Initialize the cmsPipeline structure
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
-    if (pipeline == NULL) {
+    // Ensure the input size is sufficient for our needs
+    if (size < sizeof(cmsStageLoc)) {
         return 0;
     }
 
-    // Create a cmsStage
-    cmsToneCurve* toneCurves[3];
-    for (int i = 0; i < 3; i++) {
-        toneCurves[i] = cmsBuildTabulatedToneCurve16(NULL, 2, (const uint16_t[]){0, 65535});
-        if (toneCurves[i] == NULL) {
-            for (int j = 0; j < i; j++) {
-                cmsFreeToneCurve(toneCurves[j]);
-            }
-            cmsPipelineFree(pipeline);
-            return 0;
-        }
-    }
+    // Initialize the memory context
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    cmsStage *stage = cmsStageAllocToneCurves(NULL, 3, toneCurves);
-    if (stage == NULL) {
-        for (int i = 0; i < 3; i++) {
-            cmsFreeToneCurve(toneCurves[i]);
-        }
-        cmsPipelineFree(pipeline);
-        return 0;
-    }
+    // Create a pipeline
+    cmsPipeline *pipeline = cmsPipelineAlloc(context, 3, 3);
 
-    // Insert the stage at the beginning of the pipeline
-    cmsBool result = cmsPipelineInsertStage(pipeline, cmsAT_BEGIN, stage);
+    // Create a stage
+    cmsStage *stage = cmsStageAllocIdentity(context, 3);
+
+    // Extract cmsStageLoc from the input data
+    cmsStageLoc stageLoc;
+    memcpy(&stageLoc, data, sizeof(cmsStageLoc));
+
+    // Call the function-under-test
+    cmsBool result = cmsPipelineInsertStage(pipeline, stageLoc, stage);
 
     // Clean up
     cmsPipelineFree(pipeline);
-    for (int i = 0; i < 3; i++) {
-        cmsFreeToneCurve(toneCurves[i]);
-    }
-    
+    cmsStageFree(stage);
+    cmsDeleteContext(context);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

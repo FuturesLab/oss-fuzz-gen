@@ -1,32 +1,82 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_261(const uint8_t *data, size_t size) {
-    // Initialize a memory context
+    // Declare and initialize the variables
     cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsToneCurve *curve1 = NULL;
+    cmsToneCurve *curve2 = NULL;
+    cmsUInt32Number location = 0;
 
-    // Create a dummy cmsPipeline object to use as input
-    cmsPipeline *pipeline = cmsPipelineAlloc(context, 3, 3); // Assuming 3 input and 3 output channels
-    if (pipeline == NULL) {
+    // Ensure size is sufficient to create tone curves
+    if (size < 2) {
         return 0;
     }
 
-    // Add a dummy stage to the pipeline to ensure it's not empty
-    cmsStage *stage = cmsStageAllocIdentity(context, 3); // Assuming 3 channels
-    if (stage != NULL) {
-        cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
-    }
+    // Create tone curves with some sample points
+    cmsUInt16Number samplePoints1[] = { 0, 65535 };
+    cmsUInt16Number samplePoints2[] = { 65535, 0 };
 
-    // Call the function-under-test
-    cmsPipeline *dup_pipeline = cmsPipelineDup(pipeline);
+    curve1 = cmsBuildTabulatedToneCurve16(context, 2, samplePoints1);
+    curve2 = cmsBuildTabulatedToneCurve16(context, 2, samplePoints2);
+
+    // Use the first byte of data as the location
+    location = (cmsUInt32Number)data[0];
+
+    // Call the function under test
+    cmsToneCurve *resultCurve = cmsJoinToneCurve(context, curve1, curve2, location);
 
     // Clean up
-    if (dup_pipeline != NULL) {
-        cmsPipelineFree(dup_pipeline);
+    if (resultCurve != NULL) {
+        cmsFreeToneCurve(resultCurve);
     }
-    cmsPipelineFree(pipeline);
+    if (curve1 != NULL) {
+        cmsFreeToneCurve(curve1);
+    }
+    if (curve2 != NULL) {
+        cmsFreeToneCurve(curve2);
+    }
     cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_261(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

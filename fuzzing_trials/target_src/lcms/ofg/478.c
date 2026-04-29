@@ -1,44 +1,76 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_478(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    cmsHPROFILE hProfile;
-    cmsTagSignature tagSignature;
-    const void *tagData;
-    cmsUInt32Number tagSize;
+    cmsHANDLE handle;
+    void *memoryBuffer;
+    cmsUInt32Number bufferSize;
+    cmsBool result;
 
-    // Create a dummy profile for testing
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
+    // Initialize handle with a valid IT8 table
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    // Ensure there's enough data to extract tagSignature and tagSize
-    if (size < sizeof(cmsTagSignature) + sizeof(cmsUInt32Number)) {
-        cmsCloseProfile(hProfile);
+    // Initialize memoryBuffer with a non-null value
+    memoryBuffer = malloc(size);
+    if (memoryBuffer == NULL) {
+        cmsIT8Free(handle);
         return 0;
     }
+    memcpy(memoryBuffer, data, size);
 
-    // Extract tagSignature and tagSize from the input data
-    tagSignature = *(cmsTagSignature *)data;
-    tagSize = *(cmsUInt32Number *)(data + sizeof(cmsTagSignature));
-
-    // Ensure tagSize does not exceed the remaining data size
-    if (tagSize > size - sizeof(cmsTagSignature) - sizeof(cmsUInt32Number)) {
-        cmsCloseProfile(hProfile);
-        return 0;
-    }
-
-    // Set tagData to point to the appropriate location in the input data
-    tagData = (const void *)(data + sizeof(cmsTagSignature) + sizeof(cmsUInt32Number));
+    // Initialize bufferSize with a non-zero value
+    bufferSize = (cmsUInt32Number)size;
 
     // Call the function-under-test
-    cmsWriteRawTag(hProfile, tagSignature, tagData, tagSize);
+    result = cmsIT8SaveToMem(handle, memoryBuffer, &bufferSize);
 
     // Clean up
-    cmsCloseProfile(hProfile);
+    free(memoryBuffer);
+    cmsIT8Free(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_478(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,40 +1,78 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
-// Fuzzing harness for cmsIT8GetDataRowCol
 int LLVMFuzzerTestOneInput_344(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    int row, col;
-    const char *result;
-
-    // Initialize handle with a non-NULL value
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Ensure there is enough data for the parameters
+    if (size < sizeof(cmsInt32Number) + sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Ensure size is sufficient to extract two integers for row and col
-    if (size < sizeof(int) * 2) {
-        cmsIT8Free(handle);
-        return 0;
-    }
+    // Initialize a cmsContext
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Extract row and col from the input data
-    row = *((int*)data);
-    col = *((int*)(data + sizeof(int)));
+    // Extract cmsInt32Number from data
+    cmsInt32Number parametricType = *(cmsInt32Number *)data;
+    data += sizeof(cmsInt32Number);
+    size -= sizeof(cmsInt32Number);
+
+    // Allocate space for cmsFloat64Number array
+    size_t numParams = size / sizeof(cmsFloat64Number);
+    cmsFloat64Number *params = (cmsFloat64Number *)malloc(numParams * sizeof(cmsFloat64Number));
+
+    // Copy data into the cmsFloat64Number array
+    for (size_t i = 0; i < numParams; i++) {
+        params[i] = ((cmsFloat64Number *)data)[i];
+    }
 
     // Call the function-under-test
-    result = cmsIT8GetDataRowCol(handle, row, col);
+    cmsToneCurve *toneCurve = cmsBuildParametricToneCurve(context, parametricType, params);
 
-    // Print the result for debugging purposes
-    if (result != NULL) {
-        printf("Result: %s\n", result);
+    // Clean up
+    if (toneCurve != NULL) {
+        cmsFreeToneCurve(toneCurve);
     }
-
-    // Free the allocated handle
-    cmsIT8Free(handle);
+    free(params);
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_344(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

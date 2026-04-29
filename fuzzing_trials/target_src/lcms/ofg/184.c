@@ -1,35 +1,61 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_184(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsUInt32Number nIntents = 0;
-    char *description = NULL;
+    cmsHPROFILE hProfile = NULL;
 
-    // Ensure that size is large enough to extract a cmsUInt32Number
-    if (size < sizeof(cmsUInt32Number)) {
-        cmsDeleteContext(context);
-        return 0;
+    // Ensure there's enough data to create a profile
+    if (size >= sizeof(cmsHPROFILE)) {
+        hProfile = cmsOpenProfileFromMem((void*)data, size);
     }
 
-    // Use the first part of the data as the intent
-    cmsUInt32Number intent = *(const cmsUInt32Number *)data;
+    if (hProfile != NULL) {
+        // Call the function-under-test
+        cmsFloat64Number result = cmsDetectTAC(hProfile);
 
-    // Check if the intent is within a reasonable range
-    if (intent >= INTENT_PERCEPTUAL && intent <= INTENT_ABSOLUTE_COLORIMETRIC) {
-        // Ensure that nIntents and description are valid pointers before calling the function
-        if (cmsGetSupportedIntentsTHR(context, intent, &nIntents, &description)) {
-            // Process the result if needed
-        }
+        // Close the profile after use
+        cmsCloseProfile(hProfile);
     }
-
-    // Clean up
-    if (description != NULL) {
-        free(description);
-    }
-    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_184(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,39 +1,68 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h> // Added for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_208(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to perform operations
-    if (size < sizeof(float) * 9) {
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsCIExyY whitePoint;
+
+    // Ensure the input data is large enough to populate whitePoint
+    if (size < sizeof(cmsCIExyY)) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
-    if (pipeline == NULL) {
-        return 0;
-    }
+    // Copy data into whitePoint, ensuring no overflow
+    memcpy(&whitePoint, data, sizeof(cmsCIExyY));
 
-    // Use the input data to create a matrix for the stage
-    const float *matrixData = (const float *)data;
-    cmsStage *stage = cmsStageAllocMatrix(NULL, 3, 3, matrixData, NULL);
-    if (stage != NULL) {
-        cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
-    }
-
-    // Call the function-under-test
-    cmsStage *lastStage = cmsPipelineGetPtrToLastStage(pipeline);
-
-    // Use the lastStage in some way to ensure it is not optimized away
-    if (lastStage != NULL) {
-        // For example, retrieve some information from it
-        int inputChannels = cmsStageInputChannels(lastStage);
-        int outputChannels = cmsStageOutputChannels(lastStage);
-        (void)inputChannels;
-        (void)outputChannels;
-    }
+    // Call the function under test
+    cmsHPROFILE profile = cmsCreateLab4ProfileTHR(context, &whitePoint);
 
     // Clean up
-    cmsPipelineFree(pipeline);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_208(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

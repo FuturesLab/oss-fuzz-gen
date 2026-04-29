@@ -1,47 +1,86 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>  // Include for memcpy
+#include <unistd.h>  // Include for close and unlink
+#include <fcntl.h>   // Include for mkstemp
 #include "lcms2.h"
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    cmsHANDLE handle;
-    int row, col;
-    cmsFloat64Number value;
-
-    // Ensure the data size is sufficient for extracting the parameters
-    if (size < sizeof(cmsHANDLE) + 2 * sizeof(int) + sizeof(cmsFloat64Number)) {
-        return 0;
+    if (size < sizeof(cmsFloat64Number)) {
+        return 0; // Not enough data to form a cmsFloat64Number
     }
 
-    // Create a new IT8 handle
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
-        return 0; // Allocation failed, return
+    // Create a temporary file to store the profile data
+    char tmpl[] = "/tmp/fuzzprofileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Failed to create temporary file
     }
 
-    // Extract values from the input data
-    // Note: We should not directly cast data to cmsHANDLE, instead we use a valid cmsIT8 handle
-    row = (int)*(int*)data;
-    data += sizeof(int);
-    size -= sizeof(int);
+    // Write the profile data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0; // Failed to write all data
+    }
+    close(fd);
 
-    col = (int)*(int*)data;
-    data += sizeof(int);
-    size -= sizeof(int);
+    // Open the profile from the temporary file
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile(tmpl, "r");
+    if (hProfile == NULL) {
+        unlink(tmpl); // Remove the temporary file
+        return 0; // Failed to open profile
+    }
 
-    value = (cmsFloat64Number)*(double*)data;
-
-    // Ensure row and col are within a reasonable range to prevent out-of-bounds access
-    row = row % 100; // Assuming a maximum of 100 rows
-    col = col % 100; // Assuming a maximum of 100 columns
+    // Use the first 8 bytes of data as a cmsFloat64Number
+    cmsFloat64Number gammaValue;
+    memcpy(&gammaValue, data, sizeof(cmsFloat64Number));
 
     // Call the function-under-test
-    cmsBool result = cmsIT8SetDataRowColDbl(handle, row, col, value);
+    cmsFloat64Number result = cmsDetectRGBProfileGamma(hProfile, gammaValue);
 
-    // Free the IT8 handle
-    cmsIT8Free(handle);
+    // Clean up
+    cmsCloseProfile(hProfile);
+    unlink(tmpl); // Remove the temporary file
 
-    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

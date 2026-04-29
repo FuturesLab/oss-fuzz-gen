@@ -1,28 +1,81 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <lcms2.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include unistd.h for close()
+
+// Dummy implementation of cmsfilelength_450 for demonstration purposes
+long cmsfilelength_450(FILE *file) {
+    if (file == NULL) {
+        return -1;
+    }
+    fseek(file, 0, SEEK_END);
+    long length = ftell(file);
+    fseek(file, 0, SEEK_SET); // Reset file pointer to the beginning
+    return length;
+}
 
 int LLVMFuzzerTestOneInput_450(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsFloat64Number gammaValue;
-    cmsToneCurve *toneCurve = NULL;
-
-    if (size < sizeof(cmsFloat64Number)) {
-        cmsDeleteContext(context);
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Ensure the data is used to form a valid cmsFloat64Number
-    gammaValue = *((cmsFloat64Number *)data);
+    FILE *file = fdopen(fd, "wb+");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+
+    fwrite(data, 1, size, file);
+    fflush(file);
+    rewind(file);
 
     // Call the function-under-test
-    toneCurve = cmsBuildGamma(context, gammaValue);
+    long length = cmsfilelength_450(file);
 
-    // Clean up
-    if (toneCurve != NULL) {
-        cmsFreeToneCurve(toneCurve);
-    }
-    cmsDeleteContext(context);
+    fclose(file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_450(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

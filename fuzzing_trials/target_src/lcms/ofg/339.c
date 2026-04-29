@@ -1,31 +1,67 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_339(const uint8_t *data, size_t size) {
-    // Initialize a memory context
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsContext context = NULL; // Assuming NULL context for simplicity
+    cmsUInt32Number inputChannels;
+    cmsUInt32Number outputChannels;
 
-    // Create a profile from the input data
-    cmsHPROFILE profile = cmsOpenProfileFromMemTHR(context, data, size);
-
-    // Check if the profile is valid
-    if (profile != NULL) {
-        // Call the function-under-test
-        cmsUInt32Number version = cmsGetEncodedICCversion(profile);
-
-        // Use the version in some way to prevent it from being optimized away
-        if (version == 0) {
-            // Do something trivial
-            version = 1;
-        }
-
-        // Close the profile
-        cmsCloseProfile(profile);
+    // Ensure that we have enough data to extract input and output channels
+    if (size < 2 * sizeof(cmsUInt32Number)) {
+        return 0;
     }
 
-    // Free the memory context
-    cmsDeleteContext(context);
+    // Extract input and output channels from the data
+    inputChannels = *((const cmsUInt32Number *)data);
+    outputChannels = *((const cmsUInt32Number *)(data + sizeof(cmsUInt32Number)));
+
+    // Call the function-under-test
+    cmsPipeline *pipeline = cmsPipelineAlloc(context, inputChannels, outputChannels);
+
+    // Clean up if the pipeline was allocated
+    if (pipeline != NULL) {
+        cmsPipelineFree(pipeline);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_339(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

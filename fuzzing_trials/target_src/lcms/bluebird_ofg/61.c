@@ -1,31 +1,95 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "lcms2.h"
 
+// Define a simple log error handler function
+void myLogErrorHandler_61(cmsContext contextID, cmsUInt32Number ErrorCode, const char *Text) {
+    // Do nothing, just a placeholder for the fuzzing
+}
+
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to fill our structures
-    if (size < sizeof(cmsCIEXYZ) * 4) {
+    // Call the function-under-test with a non-NULL error handler
+    cmsSetLogErrorHandler(myLogErrorHandler_61);
+
+    // Check if the size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
         return 0;
     }
 
-    // Initialize cmsCIEXYZ structures
-    cmsCIEXYZ sourceIlluminant;
-    cmsCIEXYZ destIlluminant;
-    cmsCIEXYZ sourceWhitePoint;
-    cmsCIEXYZ destWhitePoint;
+    // Create a profile from the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0; // If profile creation fails, exit early
+    }
 
-    // Copy data into cmsCIEXYZ structures
-    memcpy(&sourceIlluminant, data, sizeof(cmsCIEXYZ));
-    memcpy(&destIlluminant, data + sizeof(cmsCIEXYZ), sizeof(cmsCIEXYZ));
-    memcpy(&sourceWhitePoint, data + 2 * sizeof(cmsCIEXYZ), sizeof(cmsCIEXYZ));
-    memcpy(&destWhitePoint, data + 3 * sizeof(cmsCIEXYZ), sizeof(cmsCIEXYZ));
+    // Perform a simple operation using the profile
+    cmsHTRANSFORM hTransform = cmsCreateTransform(hProfile, TYPE_RGB_8, hProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
+    if (hTransform != NULL) {
+        uint8_t sample[3] = {0, 0, 0};
+        char ahtvozos[1024] = "pjutz";
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of cmsDoTransform
+        cmsDoTransform(hTransform, ahtvozos, sample, 1);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Call the function-under-test
-    cmsBool result = cmsAdaptToIlluminant(&sourceIlluminant, &destIlluminant, &sourceWhitePoint, &destWhitePoint);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransform to cmsOpenProfileFromMemTHR
+        cmsContext ret_cmsGetTransformContextID_vlqdn = cmsGetTransformContextID(0);
+        cmsBool ret_cmsMD5computeID_ztwwg = cmsMD5computeID(hProfile);
+        if (ret_cmsMD5computeID_ztwwg < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sample) {
+        	return 0;
+        }
+        cmsHPROFILE ret_cmsOpenProfileFromMemTHR_mwbhc = cmsOpenProfileFromMemTHR(ret_cmsGetTransformContextID_vlqdn, sample, (unsigned long )ret_cmsMD5computeID_ztwwg);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        cmsDeleteTransform(hTransform);
+    }
 
-    // Use the result to prevent compiler optimizations
-    (void)result;
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_61(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

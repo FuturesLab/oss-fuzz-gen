@@ -1,30 +1,63 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-#include "lcms2.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "lcms2.h" // Include the correct lcms2 library for cmsDICTentry
 
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    // Initialize the cmsHANDLE
-    cmsHANDLE handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Ensure the data size is enough to create a dummy cmsDICTentry object
+    if (size < sizeof(cmsDICTentry)) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated for a valid C-string
-    char *comment = (char *)malloc(size + 1);
-    if (comment == NULL) {
-        cmsIT8Free(handle);
-        return 0;
-    }
-    memcpy(comment, data, size);
-    comment[size] = '\0';
+    // Create a dummy cmsDICTentry object
+    cmsDICTentry dummyEntry;
+    dummyEntry.Next = NULL; // Initialize the Next pointer to NULL
 
-    // Call the function under test
-    cmsBool result = cmsIT8SetComment(handle, comment);
+    // Call the function-under-test
+    const cmsDICTentry *nextEntry = cmsDictNextEntry(&dummyEntry);
 
-    // Clean up
-    free(comment);
-    cmsIT8Free(handle);
+    // We can add additional logic here if needed to further test the output
+    // For now, we are simply calling the function to ensure it executes
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_114(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

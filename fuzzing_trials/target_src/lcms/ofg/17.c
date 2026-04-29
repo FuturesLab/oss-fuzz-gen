@@ -1,35 +1,68 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Define the number of input and output channels
-    const int numChannels = 3;
-
-    // Allocate memory for input and output arrays
-    cmsFloat32Number input[numChannels];
-    cmsFloat32Number output[numChannels];
-
-    // Initialize input array with data from the fuzzer
-    for (int i = 0; i < numChannels; i++) {
-        if (i * sizeof(cmsFloat32Number) < size) {
-            input[i] = ((cmsFloat32Number *)data)[i];
-        } else {
-            input[i] = 0.0f; // Default value if not enough data
-        }
+    if (size < sizeof(cmsHPROFILE) + sizeof(cmsInfoType) + 2) {
+        return 0;
     }
 
-    // Create a dummy cmsPipeline for testing
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, numChannels, numChannels);
-    if (pipeline == NULL) {
-        return 0; // Exit if pipeline allocation fails
-    }
+    // Initialize variables
+    cmsHPROFILE hProfile = *(cmsHPROFILE*)data;
+    cmsInfoType infoType = *(cmsInfoType*)(data + sizeof(cmsHPROFILE));
+    const char *languageCode = (const char *)(data + sizeof(cmsHPROFILE) + sizeof(cmsInfoType));
+    const char *countryCode = (const char *)(data + sizeof(cmsHPROFILE) + sizeof(cmsInfoType) + 1);
+    char outputBuffer[256];
+    cmsUInt32Number bufferSize = sizeof(outputBuffer);
+
+    // Ensure languageCode and countryCode are null-terminated
+    char langCode[3] = {0};
+    char country[3] = {0};
+    strncpy(langCode, languageCode, 2);
+    strncpy(country, countryCode, 2);
 
     // Call the function-under-test
-    cmsPipelineEvalFloat(input, output, pipeline);
-
-    // Free the allocated pipeline
-    cmsPipelineFree(pipeline);
+    cmsUInt32Number result = cmsGetProfileInfoUTF8(hProfile, infoType, langCode, country, outputBuffer, bufferSize);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

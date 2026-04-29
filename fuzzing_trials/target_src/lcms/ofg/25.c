@@ -1,24 +1,68 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to fill both cmsCIELab and cmsCIELCh structures
-    if (size < sizeof(cmsCIELab) + sizeof(cmsCIELCh)) {
+    // Check if the input size is sufficient to extract a cmsFloat64Number
+    if (size < sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Initialize the cmsCIELab structure from the input data
-    cmsCIELab lab;
-    lab.L = ((double)data[0] / 255.0) * 100.0;  // L ranges from 0 to 100
-    lab.a = ((double)data[1] - 128.0);          // a ranges from -128 to 127
-    lab.b = ((double)data[2] - 128.0);          // b ranges from -128 to 127
+    // Initialize a cmsHPROFILE variable
+    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
+    }
 
-    // Initialize an empty cmsCIELCh structure
-    cmsCIELCh lch;
+    // Extract a cmsFloat64Number from the input data
+    cmsFloat64Number version;
+    memcpy(&version, data, sizeof(cmsFloat64Number));
 
     // Call the function-under-test
-    cmsLab2LCh(&lch, &lab);
+    cmsSetProfileVersion(hProfile, version);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

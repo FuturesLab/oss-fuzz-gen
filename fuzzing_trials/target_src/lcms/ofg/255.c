@@ -3,56 +3,84 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_255(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        // Not enough data to proceed
-        return 0;
-    }
-
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsContext context = NULL; // Using NULL for default context
+    cmsUInt32Number intent = 0; // Rendering intent
+    cmsUInt32Number flags = 0; // Flags for the transform
+    cmsUInt32Number inputFormat = TYPE_RGB_8; // Input format
+    cmsUInt32Number outputFormat = TYPE_RGB_8; // Output format
     cmsUInt32Number nProfiles = 2; // Number of profiles
-    cmsUInt32Number inputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number outputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number intent = INTENT_PERCEPTUAL; // Example intent
-    cmsUInt32Number flags = 0; // Example flags
 
     // Allocate memory for profiles
     cmsHPROFILE *profiles = (cmsHPROFILE *)malloc(nProfiles * sizeof(cmsHPROFILE));
-    if (profiles == NULL) {
-        cmsDeleteContext(context);
-        return 0;
+    if (!profiles) {
+        return 0; // Memory allocation failed
     }
 
-    // Initialize profiles with dummy profiles
+    // Create dummy profiles for testing
     for (cmsUInt32Number i = 0; i < nProfiles; i++) {
         profiles[i] = cmsCreate_sRGBProfile();
-        if (profiles[i] == NULL) {
+        if (!profiles[i]) {
             // Clean up and exit if profile creation fails
             for (cmsUInt32Number j = 0; j < i; j++) {
                 cmsCloseProfile(profiles[j]);
             }
             free(profiles);
-            cmsDeleteContext(context);
             return 0;
         }
     }
 
-    // Call the function under test
-    cmsHTRANSFORM transform = cmsCreateMultiprofileTransformTHR(context, profiles, nProfiles, inputFormat, outputFormat, intent, flags);
+    // Call the function-under-test
+    cmsHTRANSFORM transform = cmsCreateMultiprofileTransformTHR(
+        context, profiles, nProfiles, inputFormat, outputFormat, intent, flags);
 
-    // If a transform is created, use it to process the input data
-    if (transform != NULL) {
-        uint8_t input[3] = {data[0], data[1], data[2]};
-        uint8_t output[3];
-        cmsDoTransform(transform, input, output, 1);
+    // Clean up
+    if (transform) {
         cmsDeleteTransform(transform);
     }
 
-    // Clean up
     for (cmsUInt32Number i = 0; i < nProfiles; i++) {
         cmsCloseProfile(profiles[i]);
     }
     free(profiles);
-    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_255(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

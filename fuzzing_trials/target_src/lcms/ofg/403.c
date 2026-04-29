@@ -1,43 +1,75 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_403(const uint8_t *data, size_t size) {
-    cmsHTRANSFORM transform;
-    cmsHPROFILE inputProfile, outputProfile;
-    cmsUInt32Number inputFormat, outputFormat;
-    cmsUInt32Number stride;
-
-    // Check if size is sufficient for the input buffer
-    if (size < 4) {
+    // Ensure that the size is at least 1 to create a null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Create dummy profiles for input and output
-    inputProfile = cmsCreate_sRGBProfile();
-    outputProfile = cmsCreate_sRGBProfile();
+    // Create a null-terminated string for the patch name
+    char *patchName = (char *)malloc(size + 1);
+    if (patchName == NULL) {
+        return 0;
+    }
+    memcpy(patchName, data, size);
+    patchName[size] = '\0';
 
-    // Create a transform
-    transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
-
-    // Initialize input and output buffers
-    const void *inputBuffer = (const void *)data;
-    void *outputBuffer = (void *)malloc(size);
-
-    // Set dummy values for inputFormat, outputFormat, and stride
-    inputFormat = TYPE_RGB_8;
-    outputFormat = TYPE_RGB_8;
-    stride = 3;  // Assuming RGB format
+    // Create a dummy cmsHANDLE for testing
+    cmsHANDLE handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
+        free(patchName);
+        return 0;
+    }
 
     // Call the function-under-test
-    cmsDoTransformStride(transform, inputBuffer, outputBuffer, size / stride, stride);
+    cmsIT8GetPatchByName(handle, patchName);
 
     // Clean up
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
-    free(outputBuffer);
+    cmsIT8Free(handle);
+    free(patchName);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_403(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

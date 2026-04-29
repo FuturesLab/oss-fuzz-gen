@@ -1,55 +1,96 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include "lcms2.h"  // Assuming the library providing cmsIT8GetProperty is Little CMS
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_278(const uint8_t *data, size_t size) {
-    // Initialize a cmsHANDLE
-    cmsHANDLE handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    if (size < 128) {
+        // Not enough data to create a profile
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a string
-    char *propertyName = (char *)malloc(size + 1);
-    if (propertyName == NULL) {
-        cmsIT8Free(handle);
+    // Declare and initialize all necessary variables
+    cmsContext context = NULL; // Assuming a null context for simplicity
+    cmsUInt32Number nProfiles = 2; // Number of profiles
+    cmsHPROFILE profiles[2];
+    cmsBool bInput[2] = {TRUE, FALSE}; // Boolean array for input/output
+    cmsUInt32Number intents[2] = {INTENT_PERCEPTUAL, INTENT_RELATIVE_COLORIMETRIC};
+    cmsFloat64Number adapt[2] = {1.0, 0.0}; // Adaptation states
+    cmsHPROFILE hProof = NULL; // Assuming no proofing profile
+    cmsUInt32Number intent = INTENT_PERCEPTUAL;
+    cmsUInt32Number dwFlags = 0; // Flags for the transform
+    cmsUInt32Number dwPrecalcMode = 0; // Precalculation mode
+    cmsUInt32Number dwRenderingIntent = 0; // Rendering intent
+
+    // Create profiles from input data
+    profiles[0] = cmsOpenProfileFromMem(data, size / 2);
+    profiles[1] = cmsOpenProfileFromMem(data + size / 2, size / 2);
+
+    if (profiles[0] == NULL || profiles[1] == NULL) {
+        if (profiles[0] != NULL) cmsCloseProfile(profiles[0]);
+        if (profiles[1] != NULL) cmsCloseProfile(profiles[1]);
         return 0;
     }
-    memcpy(propertyName, data, size);
-    propertyName[size] = '\0';
 
-    // Check if the propertyName is a valid IT8 property name
-    // For the sake of this example, let's assume a valid property name is alphanumeric
-    // and does not exceed a certain length (e.g., 50 characters)
-    size_t maxPropertyNameLength = 50;
-    size_t actualLength = strnlen(propertyName, maxPropertyNameLength + 1);
-    if (actualLength > maxPropertyNameLength || strspn(propertyName, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789") != actualLength) {
-        free(propertyName);
-        cmsIT8Free(handle);
-        return 0;
-    }
-
-    // Call the function under test
-    const char *result = cmsIT8GetProperty(handle, propertyName);
-
-    // Optionally, check the result and perform some operation
-    if (result != NULL) {
-        // Do something with the result if needed
-    }
+    // Call the function-under-test
+    cmsHTRANSFORM transform = cmsCreateExtendedTransform(
+        context,
+        nProfiles,
+        profiles,
+        bInput,
+        intents,
+        adapt,
+        hProof,
+        intent,
+        dwFlags,
+        dwPrecalcMode,
+        dwRenderingIntent
+    );
 
     // Clean up
-    cmsIT8Free(handle);
-    free(propertyName);
+    if (transform != NULL) {
+        cmsDeleteTransform(transform);
+    }
+    cmsCloseProfile(profiles[0]);
+    cmsCloseProfile(profiles[1]);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_278(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

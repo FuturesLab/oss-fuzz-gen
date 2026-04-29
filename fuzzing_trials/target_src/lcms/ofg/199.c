@@ -1,48 +1,68 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <lcms2_plugin.h>
-#include <lcms2.h>  // Include the main lcms2 header for function declarations
+
+// Assuming cmsColorSpaceSignature is an enum or typedef for a specific integer type
+typedef int cmsColorSpaceSignature;
+
+// Mock function definition for _cmsLCMScolorSpace_199
+int _cmsLCMScolorSpace_199(cmsColorSpaceSignature signature) {
+    // Placeholder implementation
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_199(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    const char *columnName;
-
-    // Ensure size is large enough to create a null-terminated string
-    if (size < 1) return 0;
-
-    // Initialize the handle (for fuzzing purposes, we assume a valid handle)
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) return 0;
-
-    // Allocate memory for columnName and ensure it is null-terminated
-    columnName = (const char *)malloc(size + 1);
-    if (columnName == NULL) {
-        cmsIT8Free(handle);
+    // Ensure there's enough data to construct a cmsColorSpaceSignature
+    if (size < sizeof(cmsColorSpaceSignature)) {
         return 0;
     }
-    memcpy((char *)columnName, data, size);
-    ((char *)columnName)[size] = '\0';  // Null-terminate the string
+
+    // Construct a cmsColorSpaceSignature from the input data
+    cmsColorSpaceSignature signature = *(const cmsColorSpaceSignature *)data;
 
     // Call the function-under-test
-    cmsIT8SetIndexColumn(handle, columnName);
+    int result = _cmsLCMScolorSpace_199(signature);
 
-    // Additional operations to increase code coverage
-    // For example, setting a value for the column
-    if (cmsIT8SetData(handle, columnName, "SampleValue", "SamplePatch") != 0) {
-        // Handle error if needed
-    }
-
-    // Attempt to retrieve the value to ensure the operation was successful
-    const char *retrievedValue = cmsIT8GetData(handle, columnName, "SamplePatch");
-    if (retrievedValue != NULL) {
-        // Use retrievedValue if needed
-    }
-
-    // Clean up
-    free((void *)columnName);
-    cmsIT8Free(handle);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_199(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

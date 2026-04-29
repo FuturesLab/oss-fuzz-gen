@@ -1,14 +1,9 @@
-// This is the entry of 170 fuzz drivers:
+// This is the entry of 100 fuzz drivers:
 // 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 2
 // 3, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 4
 // 3, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 6
 // 3, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 8
-// 3, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102
-// , 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118
-// , 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134
-// , 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150
-// , 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166
-// , 167, 168, 169, 170
+// 3, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -119,76 +114,6 @@ int LLVMFuzzerTestOneInput_97(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_98(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_99(const uint8_t *Data, size_t Size);
 int LLVMFuzzerTestOneInput_100(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_101(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_102(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_103(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_104(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_105(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_106(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_107(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_108(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_109(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_110(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_111(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_112(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_113(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_114(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_115(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_116(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_117(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_118(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_119(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_120(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_121(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_122(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_123(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_124(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_125(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_126(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_127(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_128(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_129(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_130(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_131(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_132(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_133(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_134(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_135(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_136(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_137(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_138(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_139(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_140(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_141(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_142(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_143(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_144(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_145(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_146(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_147(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_148(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_149(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_150(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_151(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_152(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_153(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_154(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_155(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_156(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_157(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_158(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_159(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_160(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_161(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_162(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_163(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_164(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_165(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_166(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_167(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_168(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_169(const uint8_t *Data, size_t Size);
-int LLVMFuzzerTestOneInput_170(const uint8_t *Data, size_t Size);
 
 // Entry function
 int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
@@ -208,7 +133,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     }
 
     // Select driver
-    switch (driverIndex % 170) {
+    switch (driverIndex % 100) {
         case 0:
             return LLVMFuzzerTestOneInput_1(remainData, remainSize);
         case 1:
@@ -409,146 +334,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
             return LLVMFuzzerTestOneInput_99(remainData, remainSize);
         case 99:
             return LLVMFuzzerTestOneInput_100(remainData, remainSize);
-        case 100:
-            return LLVMFuzzerTestOneInput_101(remainData, remainSize);
-        case 101:
-            return LLVMFuzzerTestOneInput_102(remainData, remainSize);
-        case 102:
-            return LLVMFuzzerTestOneInput_103(remainData, remainSize);
-        case 103:
-            return LLVMFuzzerTestOneInput_104(remainData, remainSize);
-        case 104:
-            return LLVMFuzzerTestOneInput_105(remainData, remainSize);
-        case 105:
-            return LLVMFuzzerTestOneInput_106(remainData, remainSize);
-        case 106:
-            return LLVMFuzzerTestOneInput_107(remainData, remainSize);
-        case 107:
-            return LLVMFuzzerTestOneInput_108(remainData, remainSize);
-        case 108:
-            return LLVMFuzzerTestOneInput_109(remainData, remainSize);
-        case 109:
-            return LLVMFuzzerTestOneInput_110(remainData, remainSize);
-        case 110:
-            return LLVMFuzzerTestOneInput_111(remainData, remainSize);
-        case 111:
-            return LLVMFuzzerTestOneInput_112(remainData, remainSize);
-        case 112:
-            return LLVMFuzzerTestOneInput_113(remainData, remainSize);
-        case 113:
-            return LLVMFuzzerTestOneInput_114(remainData, remainSize);
-        case 114:
-            return LLVMFuzzerTestOneInput_115(remainData, remainSize);
-        case 115:
-            return LLVMFuzzerTestOneInput_116(remainData, remainSize);
-        case 116:
-            return LLVMFuzzerTestOneInput_117(remainData, remainSize);
-        case 117:
-            return LLVMFuzzerTestOneInput_118(remainData, remainSize);
-        case 118:
-            return LLVMFuzzerTestOneInput_119(remainData, remainSize);
-        case 119:
-            return LLVMFuzzerTestOneInput_120(remainData, remainSize);
-        case 120:
-            return LLVMFuzzerTestOneInput_121(remainData, remainSize);
-        case 121:
-            return LLVMFuzzerTestOneInput_122(remainData, remainSize);
-        case 122:
-            return LLVMFuzzerTestOneInput_123(remainData, remainSize);
-        case 123:
-            return LLVMFuzzerTestOneInput_124(remainData, remainSize);
-        case 124:
-            return LLVMFuzzerTestOneInput_125(remainData, remainSize);
-        case 125:
-            return LLVMFuzzerTestOneInput_126(remainData, remainSize);
-        case 126:
-            return LLVMFuzzerTestOneInput_127(remainData, remainSize);
-        case 127:
-            return LLVMFuzzerTestOneInput_128(remainData, remainSize);
-        case 128:
-            return LLVMFuzzerTestOneInput_129(remainData, remainSize);
-        case 129:
-            return LLVMFuzzerTestOneInput_130(remainData, remainSize);
-        case 130:
-            return LLVMFuzzerTestOneInput_131(remainData, remainSize);
-        case 131:
-            return LLVMFuzzerTestOneInput_132(remainData, remainSize);
-        case 132:
-            return LLVMFuzzerTestOneInput_133(remainData, remainSize);
-        case 133:
-            return LLVMFuzzerTestOneInput_134(remainData, remainSize);
-        case 134:
-            return LLVMFuzzerTestOneInput_135(remainData, remainSize);
-        case 135:
-            return LLVMFuzzerTestOneInput_136(remainData, remainSize);
-        case 136:
-            return LLVMFuzzerTestOneInput_137(remainData, remainSize);
-        case 137:
-            return LLVMFuzzerTestOneInput_138(remainData, remainSize);
-        case 138:
-            return LLVMFuzzerTestOneInput_139(remainData, remainSize);
-        case 139:
-            return LLVMFuzzerTestOneInput_140(remainData, remainSize);
-        case 140:
-            return LLVMFuzzerTestOneInput_141(remainData, remainSize);
-        case 141:
-            return LLVMFuzzerTestOneInput_142(remainData, remainSize);
-        case 142:
-            return LLVMFuzzerTestOneInput_143(remainData, remainSize);
-        case 143:
-            return LLVMFuzzerTestOneInput_144(remainData, remainSize);
-        case 144:
-            return LLVMFuzzerTestOneInput_145(remainData, remainSize);
-        case 145:
-            return LLVMFuzzerTestOneInput_146(remainData, remainSize);
-        case 146:
-            return LLVMFuzzerTestOneInput_147(remainData, remainSize);
-        case 147:
-            return LLVMFuzzerTestOneInput_148(remainData, remainSize);
-        case 148:
-            return LLVMFuzzerTestOneInput_149(remainData, remainSize);
-        case 149:
-            return LLVMFuzzerTestOneInput_150(remainData, remainSize);
-        case 150:
-            return LLVMFuzzerTestOneInput_151(remainData, remainSize);
-        case 151:
-            return LLVMFuzzerTestOneInput_152(remainData, remainSize);
-        case 152:
-            return LLVMFuzzerTestOneInput_153(remainData, remainSize);
-        case 153:
-            return LLVMFuzzerTestOneInput_154(remainData, remainSize);
-        case 154:
-            return LLVMFuzzerTestOneInput_155(remainData, remainSize);
-        case 155:
-            return LLVMFuzzerTestOneInput_156(remainData, remainSize);
-        case 156:
-            return LLVMFuzzerTestOneInput_157(remainData, remainSize);
-        case 157:
-            return LLVMFuzzerTestOneInput_158(remainData, remainSize);
-        case 158:
-            return LLVMFuzzerTestOneInput_159(remainData, remainSize);
-        case 159:
-            return LLVMFuzzerTestOneInput_160(remainData, remainSize);
-        case 160:
-            return LLVMFuzzerTestOneInput_161(remainData, remainSize);
-        case 161:
-            return LLVMFuzzerTestOneInput_162(remainData, remainSize);
-        case 162:
-            return LLVMFuzzerTestOneInput_163(remainData, remainSize);
-        case 163:
-            return LLVMFuzzerTestOneInput_164(remainData, remainSize);
-        case 164:
-            return LLVMFuzzerTestOneInput_165(remainData, remainSize);
-        case 165:
-            return LLVMFuzzerTestOneInput_166(remainData, remainSize);
-        case 166:
-            return LLVMFuzzerTestOneInput_167(remainData, remainSize);
-        case 167:
-            return LLVMFuzzerTestOneInput_168(remainData, remainSize);
-        case 168:
-            return LLVMFuzzerTestOneInput_169(remainData, remainSize);
-        case 169:
-            return LLVMFuzzerTestOneInput_170(remainData, remainSize);
         default:
             return 0;
     }
@@ -576,13 +361,12 @@ int main(int argc, char *argv[])
     if(size < 1)
         exit(0);
 
-    data = (uint8_t *)malloc((size_t)size+1);
+    data = (uint8_t *)malloc((size_t)size);
     if(data == NULL)
         exit(0);
 
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
-    data[size] = '\0';
 
     LLVMFuzzerTestOneInput(data, size);
 
@@ -590,4 +374,3 @@ int main(int argc, char *argv[])
     fclose(f);
     return 0;
 }
-

@@ -1,119 +1,76 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include for mkstemp and close
+#include <fcntl.h>  // Include for write
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    if (size < 8) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    cmsUInt32Number inputFormat = *(cmsUInt32Number*)(data);
-    cmsUInt32Number outputFormat = *(cmsUInt32Number*)(data + 4);
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_sRGBProfile with cmsCreateXYZProfile
-    cmsHPROFILE hInputProfile = cmsCreateXYZProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_sRGBProfile with cmsCreateNULLProfile
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateXYZProfile to cmsCreateTransformTHR
-    cmsContext ret_cmsGetProfileContextID_spqua = cmsGetProfileContextID(0);
-    cmsHPROFILE ret_cmsCreateNULLProfile_gnkhs = cmsCreateNULLProfile();
-    cmsFloat64Number ret_cmsSetAdaptationState_fvfkh = cmsSetAdaptationState(PT_HSV);
-    if (ret_cmsSetAdaptationState_fvfkh < 0){
-    	return 0;
-    }
-
-    cmsHTRANSFORM ret_cmsCreateTransformTHR_uovqh = cmsCreateTransformTHR(ret_cmsGetProfileContextID_spqua, ret_cmsCreateNULLProfile_gnkhs, INTENT_PRESERVE_K_ONLY_RELATIVE_COLORIMETRIC, hInputProfile, (unsigned long )ret_cmsSetAdaptationState_fvfkh, INTENT_RELATIVE_COLORIMETRIC, PT_MCH15);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE hOutputProfile = cmsCreateNULLProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    if (hInputProfile == NULL || hOutputProfile == NULL) {
-        if (hInputProfile != NULL) {
-                cmsCloseProfile(hInputProfile);
-        }
-        if (hOutputProfile != NULL) {
-                cmsCloseProfile(hOutputProfile);
-        }
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
+    close(fd);
 
-    cmsHTRANSFORM transform = cmsCreateTransform(hInputProfile, inputFormat, hOutputProfile, outputFormat, INTENT_PERCEPTUAL, 0);
+    // Call the function-under-test with the temporary file path
+    cmsHPROFILE profile = cmsCreateDeviceLinkFromCubeFile(tmpl);
 
-    if (transform == NULL) {
-        cmsCloseProfile(hInputProfile);
-        cmsCloseProfile(hOutputProfile);
-        return 0;
+    // Clean up: if a profile was created, free it
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
 
-    // Create a small buffer to transform
-    uint8_t inputBuffer[4] = {0, 0, 0, 0};
-    uint8_t outputBuffer[4] = {0};
-
-    // Perform the transformation
-    cmsDoTransform(transform, inputBuffer, outputBuffer, 1);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransform to cmsDoTransformLineStride
-    cmsIOHANDLER* ret_cmsGetProfileIOhandler_csoom = cmsGetProfileIOhandler(hOutputProfile);
-    if (ret_cmsGetProfileIOhandler_csoom == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetProfileIOhandler to cmsSaveProfileToIOhandler
-    cmsHPROFILE ret_cmsCreateNULLProfile_dbfgb = cmsCreateNULLProfile();
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateNULLProfile to cmsCreateTransform
-
-    cmsHTRANSFORM ret_cmsCreateTransform_btwpl = cmsCreateTransform(hOutputProfile, -1, 0, AVG_SURROUND, cmsReflective, cmsSPOT_ROUND);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsUInt32Number ret_cmsSaveProfileToIOhandler_yccff = cmsSaveProfileToIOhandler(ret_cmsCreateNULLProfile_dbfgb, ret_cmsGetProfileIOhandler_csoom);
-    if (ret_cmsSaveProfileToIOhandler_yccff < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsDoTransformLineStride(transform, (const void *)ret_cmsGetProfileIOhandler_csoom, outputBuffer, 0, cmsMAX_PATH, PT_MCH12, PT_YCbCr, PT_HLS, PT_MCH12);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransformLineStride to cmsMLUsetUTF8
-    char nwzbhhia[1024] = "jvtjc";
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of cmsPlugin
-    cmsBool ret_cmsPlugin_wilge = cmsPlugin((void *)data);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_cmsPlugin_wilge < 0){
-    	return 0;
-    }
-
-    cmsBool ret_cmsMLUsetUTF8_dejuh = cmsMLUsetUTF8(NULL, (const char *)"w", (const char *)outputBuffer, (const char *)nwzbhhia);
-    if (ret_cmsMLUsetUTF8_dejuh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(hInputProfile);
-    cmsCloseProfile(hOutputProfile);
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

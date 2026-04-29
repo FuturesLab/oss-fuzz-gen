@@ -1,37 +1,72 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include "lcms2.h"
 #include <stdlib.h>
 #include <string.h>
-#include "lcms2.h" // Assuming Little CMS library is used
 
 int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
-    // Initialize the parameters for cmsIT8SetDataRowCol
-    cmsHANDLE handle;
-    int row, col;
-    const char *text;
+    // Define and initialize the variables needed for cmsStageAllocCLutFloatGranular
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Ensure the size is sufficient to extract at least the row, col, and a text string
-    if (size < sizeof(int) * 2 + 1) {
+    // Ensure there is enough data to extract meaningful values
+    if (size < sizeof(cmsUInt32Number) * 3 + sizeof(cmsFloat32Number)) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Extract row and col from the data
-    row = *((int*)data);
-    col = *((int*)(data + sizeof(int)));
+    // Extract values from the input data
+    const cmsUInt32Number *gridPoints = (const cmsUInt32Number *)data;
+    cmsUInt32Number inputChannels = *(const cmsUInt32Number *)(data + sizeof(cmsUInt32Number));
+    cmsUInt32Number outputChannels = *(const cmsUInt32Number *)(data + 2 * sizeof(cmsUInt32Number));
+    const cmsFloat32Number *table = (const cmsFloat32Number *)(data + 3 * sizeof(cmsUInt32Number));
 
-    // Extract text from the remaining data
-    text = (const char*)(data + sizeof(int) * 2);
-
-    // Create a dummy cmsHANDLE for testing
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
-        return 0;
-    }
-
-    // Call the function-under-test
-    cmsBool result = cmsIT8SetDataRowCol(handle, row, col, text);
+    // Call the function under test
+    cmsStage *stage = cmsStageAllocCLutFloatGranular(context, gridPoints, inputChannels, outputChannels, table);
 
     // Clean up
-    cmsIT8Free(handle);
+    if (stage != NULL) {
+        cmsStageFree(stage);
+    }
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_136(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

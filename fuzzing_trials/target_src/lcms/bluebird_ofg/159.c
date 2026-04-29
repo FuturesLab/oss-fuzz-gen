@@ -1,111 +1,65 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <string.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    if (size < 8) {
+    if (size < sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    cmsUInt32Number inputFormat = *(cmsUInt32Number*)(data);
-    cmsUInt32Number outputFormat = *(cmsUInt32Number*)(data + 4);
+    // Initialize a cmsToneCurve object
+    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Using a default gamma value
 
+    // Extract a cmsFloat32Number from the input data
+    cmsFloat32Number inputNumber;
+    memcpy(&inputNumber, data, sizeof(cmsFloat32Number));
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_sRGBProfile with cmsCreateXYZProfile
-    cmsHPROFILE hInputProfile = cmsCreateXYZProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_sRGBProfile with cmsCreateNULLProfile
-    cmsHPROFILE hOutputProfile = cmsCreateNULLProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    if (hInputProfile == NULL || hOutputProfile == NULL) {
-        if (hInputProfile != NULL) {
-                cmsCloseProfile(hInputProfile);
-        }
-        if (hOutputProfile != NULL) {
-                cmsCloseProfile(hOutputProfile);
-        }
-        return 0;
-    }
-
-    cmsHTRANSFORM transform = cmsCreateTransform(hInputProfile, inputFormat, hOutputProfile, outputFormat, INTENT_PERCEPTUAL, 0);
-
-    if (transform == NULL) {
-        cmsCloseProfile(hInputProfile);
-        cmsCloseProfile(hOutputProfile);
-        return 0;
-    }
-
-    // Create a small buffer to transform
-    uint8_t inputBuffer[4] = {0, 0, 0, 0};
-    uint8_t outputBuffer[4] = {0};
-
-    // Perform the transformation
-    cmsDoTransform(transform, inputBuffer, outputBuffer, 1);
+    // Call the function-under-test
+    cmsFloat32Number result = cmsEvalToneCurveFloat(toneCurve, inputNumber);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransform to cmsDoTransformLineStride
-    cmsIOHANDLER* ret_cmsGetProfileIOhandler_csoom = cmsGetProfileIOhandler(hOutputProfile);
-    if (ret_cmsGetProfileIOhandler_csoom == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetProfileIOhandler to cmsSaveProfileToIOhandler
-    cmsHPROFILE ret_cmsCreateNULLProfile_dbfgb = cmsCreateNULLProfile();
-
-    cmsUInt32Number ret_cmsSaveProfileToIOhandler_yccff = cmsSaveProfileToIOhandler(ret_cmsCreateNULLProfile_dbfgb, ret_cmsGetProfileIOhandler_csoom);
-    if (ret_cmsSaveProfileToIOhandler_yccff < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsDoTransformLineStride(transform, (const void *)ret_cmsGetProfileIOhandler_csoom, outputBuffer, 0, cmsMAX_PATH, PT_MCH12, PT_YCbCr, PT_HLS, PT_MCH12);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransformLineStride to cmsMLUsetUTF8
-    char nwzbhhia[1024] = "jvtjc";
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransformLineStride to cmsOpenProfileFromFileTHR
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of cmsGetProfileContextID
-    cmsContext ret_cmsGetProfileContextID_xoyhe = cmsGetProfileContextID(hOutputProfile);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    cmsBool ret_cmsPlugin_mmuup = cmsPlugin(outputBuffer);
-    if (ret_cmsPlugin_mmuup < 0){
-    	return 0;
-    }
-
-    cmsHPROFILE ret_cmsOpenProfileFromFileTHR_cfxxu = cmsOpenProfileFromFileTHR(ret_cmsGetProfileContextID_xoyhe, (const char *)outputBuffer, (const char *)outputBuffer);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool ret_cmsPlugin_wilge = cmsPlugin(nwzbhhia);
-    if (ret_cmsPlugin_wilge < 0){
-    	return 0;
-    }
-
-    cmsBool ret_cmsMLUsetUTF8_dejuh = cmsMLUsetUTF8(NULL, (const char *)"w", (const char *)outputBuffer, (const char *)nwzbhhia);
-    if (ret_cmsMLUsetUTF8_dejuh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(hInputProfile);
-    cmsCloseProfile(hOutputProfile);
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_159(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

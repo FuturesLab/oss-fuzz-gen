@@ -1,84 +1,126 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
-#define MAX_ROW 10
-#define MAX_COL 10
-
-static cmsHANDLE createValidIT8Handle() {
-    // This function should create and return a valid IT8 handle
-    // The actual implementation will depend on the lcms library's API
-    // For illustration, we assume a function `cmsIT8Alloc` exists
-    return cmsIT8Alloc(NULL);
-}
-
-static void destroyValidIT8Handle(cmsHANDLE hIT8) {
-    if (hIT8) {
-        cmsIT8Free(hIT8);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-}
-
-static char* safeString(const uint8_t* Data, size_t Size, size_t offset) {
-    if (offset >= Size) return strdup("default");
-    size_t maxLength = Size - offset;
-    char* str = (char*)malloc(maxLength + 1);
-    if (!str) return strdup("default");
-    memcpy(str, &Data[offset], maxLength);
-    str[maxLength] = '\0'; // Ensure null-termination
-    return str;
 }
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    cmsHANDLE hIT8 = createValidIT8Handle();
-    if (!hIT8) return 0;
-
-    // Fuzz cmsIT8SetDataRowCol
-    int row = Data[0] % MAX_ROW;
-    int col = (Size > 1) ? Data[1] % MAX_COL : 0;
-    char* val = safeString(Data, Size, 2);
-    cmsIT8SetDataRowCol(hIT8, row, col, val);
-    free(val);
-
-    // Fuzz cmsIT8SetPropertyHex
-    char* cProp = safeString(Data, Size, 3);
-    cmsUInt32Number hexVal = (Size > 7) ? *(cmsUInt32Number*)&Data[4] : 0xDEADBEEF;
-    cmsIT8SetPropertyHex(hIT8, cProp, hexVal);
-    free(cProp);
-
-    // Fuzz cmsIT8GetDataRowCol
-    const char* dataValue = cmsIT8GetDataRowCol(hIT8, row, col);
-
-    // Fuzz cmsIT8EnumDataFormat
-    char **sampleNames = NULL;
-    int numSamples = cmsIT8EnumDataFormat(hIT8, &sampleNames);
-    if (sampleNames) {
-        for (int i = 0; i < numSamples; i++) {
-            free(sampleNames[i]);
-        }
-        free(sampleNames);
+    if (Size < 1) {
+        return 0;
     }
 
-    // Fuzz cmsIT8SetDataFormat
-    char* sampleFormat = safeString(Data, Size, 8);
-    cmsIT8SetDataFormat(hIT8, row, sampleFormat);
-    free(sampleFormat);
+    write_dummy_file(Data, Size);
 
-    // Fuzz cmsIT8SetPropertyMulti
-    char* key = safeString(Data, Size, 9);
-    char* subKey = safeString(Data, Size, 10);
-    char* buffer = safeString(Data, Size, 11);
-    cmsIT8SetPropertyMulti(hIT8, key, subKey, buffer);
-    free(key);
-    free(subKey);
-    free(buffer);
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
+    }
 
-    // Cleanup
-    destroyValidIT8Handle(hIT8);
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectRGBProfileGamma
+    cmsBool ret_cmsPlugin_aizyx = cmsPlugin(NULL);
+    if (ret_cmsPlugin_aizyx < 0){
+    	return 0;
+    }
+    cmsFloat64Number ret_cmsDetectRGBProfileGamma_mbsbe = cmsDetectRGBProfileGamma(hProfile, (double )ret_cmsPlugin_aizyx);
+    if (ret_cmsDetectRGBProfileGamma_mbsbe < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsReadTag to cmsCreateContext
+            char bdhupqre[1024] = "jilrk";
+            cmsBool ret_cmsPlugin_lbguq = cmsPlugin(bdhupqre);
+            if (ret_cmsPlugin_lbguq < 0){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!bdhupqre) {
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tagData) {
+            	return 0;
+            }
+            cmsContext ret_cmsCreateContext_ckzxa = cmsCreateContext(bdhupqre, tagData);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateContext to cmsIT8SaveToFile
+            cmsHANDLE ret_cmsIT8Alloc_cowzx = cmsIT8Alloc(0);
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!bdhupqre) {
+            	return 0;
+            }
+            cmsBool ret_cmsIT8SaveToFile_zjshz = cmsIT8SaveToFile(ret_cmsIT8Alloc_cowzx, (const char *)bdhupqre);
+            if (ret_cmsIT8SaveToFile_zjshz < 0){
+            	return 0;
+            }
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            (void)tagData;
+        }
+    }
+
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

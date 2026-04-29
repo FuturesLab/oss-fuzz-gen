@@ -1,84 +1,81 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include "lcms2.h"
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    if (size < 8) {
-        return 0;
+    if (size < sizeof(cmsTagSignature) + sizeof(cmsUInt32Number)) {
+        return 0; // Not enough data to proceed
     }
 
-    cmsUInt32Number inputFormat = *(cmsUInt32Number*)(data);
-    cmsUInt32Number outputFormat = *(cmsUInt32Number*)(data + 4);
+    // Extract cmsTagSignature from the input data
+    cmsTagSignature tagSig;
+    memcpy(&tagSig, data, sizeof(cmsTagSignature));
 
+    // Extract cmsUInt32Number from the input data
+    cmsUInt32Number bufferSize;
+    memcpy(&bufferSize, data + sizeof(cmsTagSignature), sizeof(cmsUInt32Number));
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_sRGBProfile with cmsCreateXYZProfile
-    cmsHPROFILE hInputProfile = cmsCreateXYZProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_sRGBProfile with cmsCreateNULLProfile
-    cmsHPROFILE hOutputProfile = cmsCreateNULLProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    if (hInputProfile == NULL || hOutputProfile == NULL) {
-        if (hInputProfile != NULL) {
-                cmsCloseProfile(hInputProfile);
-        }
-        if (hOutputProfile != NULL) {
-                cmsCloseProfile(hOutputProfile);
-        }
-        return 0;
+    // Create a dummy profile for testing
+    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0; // Failed to create profile
     }
 
-    cmsHTRANSFORM transform = cmsCreateTransform(hInputProfile, inputFormat, hOutputProfile, outputFormat, INTENT_PERCEPTUAL, 0);
-
-    if (transform == NULL) {
-        cmsCloseProfile(hInputProfile);
-        cmsCloseProfile(hOutputProfile);
-        return 0;
+    // Allocate memory for the buffer
+    void *buffer = malloc(bufferSize);
+    if (buffer == NULL) {
+        cmsCloseProfile(hProfile);
+        return 0; // Failed to allocate buffer
     }
 
-    // Create a small buffer to transform
-    uint8_t inputBuffer[4] = {0, 0, 0, 0};
-    uint8_t outputBuffer[4] = {0};
-
-    // Perform the transformation
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of cmsDoTransform
-    cmsDoTransform(transform, (const void *)data, outputBuffer, 1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Call the function-under-test
+    cmsUInt32Number result = cmsReadRawTag(hProfile, tagSig, buffer, bufferSize);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransform to cmsDoTransformLineStride
-    cmsIOHANDLER* ret_cmsGetProfileIOhandler_csoom = cmsGetProfileIOhandler(hOutputProfile);
-    if (ret_cmsGetProfileIOhandler_csoom == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetProfileIOhandler to cmsSaveProfileToIOhandler
-    cmsHPROFILE ret_cmsCreate_sRGBProfileTHR_ogbkh = cmsCreate_sRGBProfileTHR(0);
-
-    cmsUInt32Number ret_cmsSaveProfileToIOhandler_jvoaa = cmsSaveProfileToIOhandler(ret_cmsCreate_sRGBProfileTHR_ogbkh, ret_cmsGetProfileIOhandler_csoom);
-    if (ret_cmsSaveProfileToIOhandler_jvoaa < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsDoTransformLineStride(transform, (const void *)ret_cmsGetProfileIOhandler_csoom, outputBuffer, 0, cmsMAX_PATH, PT_MCH12, PT_YCbCr, PT_HLS, PT_MCH12);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(hInputProfile);
-    cmsCloseProfile(hOutputProfile);
+    free(buffer);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

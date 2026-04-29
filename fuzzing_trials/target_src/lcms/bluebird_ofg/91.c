@@ -1,65 +1,67 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    cmsHTRANSFORM transform;
-    cmsUInt32Number inputFormat;
-    cmsUInt32Number outputFormat;
-
-    // Check if the size is sufficient to extract required data
-    if (size < sizeof(cmsUInt32Number) * 2) {
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Initialize the parameters with data
-    // Since we cannot directly use uninitialized or arbitrary memory for cmsHTRANSFORM,
-    // we will create a dummy transform for testing purposes.
-    cmsHPROFILE srcProfile = cmsCreate_sRGBProfile();
-    cmsHPROFILE dstProfile = cmsCreate_sRGBProfile();
-
-    if (srcProfile == NULL || dstProfile == NULL) {
-        if (srcProfile) {
-                cmsCloseProfile(srcProfile);
-        }
-        if (dstProfile) {
-                cmsCloseProfile(dstProfile);
-        }
+    // Create a memory-based profile from the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
         return 0;
     }
 
-    inputFormat = *(cmsUInt32Number*)data;
-    outputFormat = *(cmsUInt32Number*)(data + sizeof(cmsUInt32Number));
-
-    transform = cmsCreateTransform(srcProfile, inputFormat, dstProfile, outputFormat, INTENT_PERCEPTUAL, 0);
-
-    if (transform == NULL) {
-        cmsCloseProfile(srcProfile);
-        cmsCloseProfile(dstProfile);
-        return 0;
-    }
+    // Extract a cmsUInt32Number from the input data
+    cmsUInt32Number tagIndex = *(const cmsUInt32Number *)data;
 
     // Call the function-under-test
+    cmsTagSignature tagSignature = cmsGetTagSignature(hProfile, tagIndex);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateTransform to cmsDoTransformLineStride
-
-    cmsDoTransformLineStride(transform, NULL, (void *)data, PT_XYZ, PT_MCH9, D_CALCULATE, PT_CMY, PT_RGB, cmsSPOT_ROUND);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsChangeBuffersFormat(transform, inputFormat, outputFormat);
-
-    // Use the result to avoid compiler optimizations
-    if (result) {
-        // Do something if needed
-    }
-
-    // Clean up
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(srcProfile);
-    cmsCloseProfile(dstProfile);
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_91(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,118 +1,88 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include "lcms2.h"  // Assuming the Little CMS library is used
+#include <stddef.h>
+#include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsGDBCheckPoint
-    cmsHPROFILE handle = cmsOpenProfileFromMem(data, size);  // Create a handle from the input data
-    cmsCIELab cielab;
-
-    // Ensure the handle is not NULL
-    if (handle == NULL) {
+    // Ensure there is enough data to extract three 32-bit integers and a minimum buffer size
+    if (size < 3 * sizeof(cmsUInt32Number) + 1) {
         return 0;
     }
 
-    // Initialize cmsCIELab with non-NULL values
-    cielab.L = 50.0;  // Example value
-    cielab.a = 0.0;   // Example value
-    cielab.b = 0.0;   // Example value
+    // Extract cmsUInt32Number values from the input data
+    cmsUInt32Number format1 = *(const cmsUInt32Number*)(data);
+    cmsUInt32Number format2 = *(const cmsUInt32Number*)(data + sizeof(cmsUInt32Number));
+    cmsUInt32Number dummyTransformValue = *(const cmsUInt32Number*)(data + 2 * sizeof(cmsUInt32Number));
+
+    // Create a dummy transform for testing
+    // For fuzzing, we should create a valid transform using lcms2 functions
+    cmsHPROFILE hInProfile = cmsCreate_sRGBProfile();
+    cmsHPROFILE hOutProfile = cmsCreate_sRGBProfile();
+
+    if (hInProfile == NULL || hOutProfile == NULL) {
+        if (hInProfile) cmsCloseProfile(hInProfile);
+        if (hOutProfile) cmsCloseProfile(hOutProfile);
+        return 0;
+    }
+
+    cmsHTRANSFORM transform = cmsCreateTransform(hInProfile, format1, hOutProfile, format2, INTENT_PERCEPTUAL, 0);
+
+    // Release the profiles as they are no longer needed
+    cmsCloseProfile(hInProfile);
+    cmsCloseProfile(hOutProfile);
+
+    if (transform == NULL) {
+        return 0;
+    }
 
     // Call the function under test
+    cmsBool result = cmsChangeBuffersFormat(transform, format1, format2);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetPCS
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetHeaderFlags
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsGetHeaderFlags with cmsGetHeaderModel
-    cmsUInt32Number ret_cmsGetHeaderFlags_vxdxj = cmsGetHeaderModel(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_cmsGetHeaderFlags_vxdxj < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of _cmsICCcolorSpace
-    cmsColorSpaceSignature ret__cmsICCcolorSpace_fwbyg = _cmsICCcolorSpace(PT_MCH15);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateLinearizationDeviceLink
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsSetColorSpace
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreateNULLProfile with cmsCreate_sRGBProfile
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsChannelsOf
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsSetPCS
-    const cmsCIExyY mjouchpg;
-    memset(&mjouchpg, 0, sizeof(mjouchpg));
-    cmsHPROFILE ret_cmsCreateLab4Profile_qmltt = cmsCreateLab4Profile(&mjouchpg);
-
-    cmsSetPCS(ret_cmsCreateLab4Profile_qmltt, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsUInt32Number ret_cmsChannelsOf_hmpeh = cmsChannelsOf(ret__cmsICCcolorSpace_fwbyg);
-    if (ret_cmsChannelsOf_hmpeh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE ret_cmsCreateNULLProfile_ujjwi = cmsCreate_sRGBProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreate_sRGBProfile to cmsSaveProfileToIOhandler
-    cmsIOHANDLER* ret_cmsOpenIOhandlerFromNULL_xzpxl = cmsOpenIOhandlerFromNULL(0);
-    if (ret_cmsOpenIOhandlerFromNULL_xzpxl == NULL){
-    	return 0;
-    }
-
-    cmsUInt32Number ret_cmsSaveProfileToIOhandler_jnlpv = cmsSaveProfileToIOhandler(ret_cmsCreateNULLProfile_ujjwi, ret_cmsOpenIOhandlerFromNULL_xzpxl);
-    if (ret_cmsSaveProfileToIOhandler_jnlpv < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsSetColorSpace(ret_cmsCreateNULLProfile_ujjwi, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsToneCurve* ret_cmsDupToneCurve_ceffw = cmsDupToneCurve(NULL);
-    if (ret_cmsDupToneCurve_ceffw == NULL){
-    	return 0;
-    }
-
-    cmsHPROFILE ret_cmsCreateLinearizationDeviceLink_stxus = cmsCreateLinearizationDeviceLink(ret__cmsICCcolorSpace_fwbyg, &ret_cmsDupToneCurve_ceffw);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsSetPCS(handle, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
-
-    // Close the profile handle
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-    cmsMD5computeID(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Free the transform
+    cmsDeleteTransform(transform);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_55(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

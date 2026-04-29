@@ -1,42 +1,69 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
+    // Ensure the data size is sufficient to extract a cmsUInt32Number
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Ensure the data size is not zero
-    if (size == 0) {
-        cmsDeleteContext(context);
+    // Extract a cmsUInt32Number from the data
+    cmsUInt32Number nPoints = *(const cmsUInt32Number *)data;
+
+    // Create a dummy tone curve for testing
+    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2);
+    if (toneCurve == NULL) {
         return 0;
     }
-
-    // Allocate memory for the data buffer
-    void *buffer = malloc(size);
-    if (buffer == NULL) {
-        cmsDeleteContext(context);
-        return 0;
-    }
-
-    // Copy the input data to the buffer
-    memcpy(buffer, data, size);
-
-    // Use a non-NULL string for the last parameter
-    const char *accessMode = "r";
 
     // Call the function-under-test
-    cmsIOHANDLER *iohandler = cmsOpenIOhandlerFromMem(context, buffer, (cmsUInt32Number)size, accessMode);
+    cmsToneCurve *reversedCurve = cmsReverseToneCurveEx(nPoints, toneCurve);
 
     // Clean up
-    if (iohandler != NULL) {
-        cmsCloseIOhandler(iohandler);
+    if (reversedCurve != NULL) {
+        cmsFreeToneCurve(reversedCurve);
     }
-    free(buffer);
-    cmsDeleteContext(context);
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_73(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

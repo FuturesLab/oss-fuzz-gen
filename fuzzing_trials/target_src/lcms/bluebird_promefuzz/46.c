@@ -1,84 +1,85 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <math.h>
-#include "/src/lcms/include/lcms2_plugin.h"
+#include <string.h>
+#include "lcms2.h"
 
-static void fuzz_cmsVEC3init(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsVEC3) + 3 * sizeof(cmsFloat64Number)) return;
+static cmsHPROFILE LoadProfileFromData(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return NULL;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    cmsVEC3 vec;
-    cmsFloat64Number x, y, z;
-    memcpy(&x, Data, sizeof(cmsFloat64Number));
-    memcpy(&y, Data + sizeof(cmsFloat64Number), sizeof(cmsFloat64Number));
-    memcpy(&z, Data + 2 * sizeof(cmsFloat64Number), sizeof(cmsFloat64Number));
-
-    _cmsVEC3init(&vec, x, y, z);
-}
-
-static void fuzz_cmsVEC3minus(const uint8_t *Data, size_t Size) {
-    if (Size < 3 * sizeof(cmsVEC3)) return;
-
-    cmsVEC3 a, b, result;
-    memcpy(&a, Data, sizeof(cmsVEC3));
-    memcpy(&b, Data + sizeof(cmsVEC3), sizeof(cmsVEC3));
-
-    _cmsVEC3minus(&result, &a, &b);
-}
-
-static void fuzz_cmsVEC3dot(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(cmsVEC3)) return;
-
-    cmsVEC3 u, v;
-    memcpy(&u, Data, sizeof(cmsVEC3));
-    memcpy(&v, Data + sizeof(cmsVEC3), sizeof(cmsVEC3));
-
-    cmsFloat64Number dot = _cmsVEC3dot(&u, &v);
-    (void)dot; // Suppress unused variable warning
-}
-
-static void fuzz_cmsVEC3distance(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(cmsVEC3)) return;
-
-    cmsVEC3 a, b;
-    memcpy(&a, Data, sizeof(cmsVEC3));
-    memcpy(&b, Data + sizeof(cmsVEC3), sizeof(cmsVEC3));
-
-    cmsFloat64Number distance = _cmsVEC3distance(&a, &b);
-    (void)distance; // Suppress unused variable warning
-}
-
-static void fuzz_cmsVEC3cross(const uint8_t *Data, size_t Size) {
-    if (Size < 3 * sizeof(cmsVEC3)) return;
-
-    cmsVEC3 u, v, result;
-    memcpy(&u, Data, sizeof(cmsVEC3));
-    memcpy(&v, Data + sizeof(cmsVEC3), sizeof(cmsVEC3));
-
-    _cmsVEC3cross(&result, &u, &v);
-}
-
-static void fuzz_cmsVEC3length(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsVEC3)) return;
-
-    cmsVEC3 a;
-    memcpy(&a, Data, sizeof(cmsVEC3));
-
-    cmsFloat64Number length = _cmsVEC3length(&a);
-    (void)length; // Suppress unused variable warning
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    return hProfile;
 }
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
-    fuzz_cmsVEC3init(Data, Size);
-    fuzz_cmsVEC3minus(Data, Size);
-    fuzz_cmsVEC3dot(Data, Size);
-    fuzz_cmsVEC3distance(Data, Size);
-    fuzz_cmsVEC3cross(Data, Size);
-    fuzz_cmsVEC3length(Data, Size);
+    if (Size == 0) return 0;
 
+    cmsHPROFILE hProfile = LoadProfileFromData(Data, Size);
+    if (!hProfile) return 0;
+
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        for (cmsUInt32Number i = 0; i < (cmsUInt32Number)tagCount; i++) {
+            cmsTagSignature tagSig = cmsGetTagSignature(hProfile, i);
+            if (tagSig != 0) {
+                cmsUInt32Number bufferSize = 1024;
+                void *buffer = malloc(bufferSize);
+                if (buffer) {
+                    cmsReadRawTag(hProfile, tagSig, buffer, bufferSize);
+                    free(buffer);
+                }
+            }
+        }
+    }
+
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

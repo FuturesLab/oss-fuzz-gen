@@ -1,40 +1,82 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "unistd.h"
-#include <fcntl.h>
+#include <unistd.h>  // Include this for mkstemp() and unlink()
+#include <fcntl.h>   // Include this for open() and close()
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for cmsIT8LoadFromFile
-    cmsContext context = cmsCreateContext(NULL, NULL);
-
-    // Create a temporary file to write the input data
-    char filename[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(filename);
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
     if (fd == -1) {
-        cmsDeleteContext(context);
         return 0;
     }
 
-    // Write the data to the file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Write data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
-        cmsDeleteContext(context);
         return 0;
     }
     close(fd);
 
+    // Initialize a cmsContext, assuming a default context for simplicity
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
+
     // Call the function-under-test
-    cmsHANDLE handle = cmsIT8LoadFromFile(context, filename);
+    cmsHANDLE handle = cmsIT8LoadFromFile(context, tmpl);
 
     // Clean up
     if (handle != NULL) {
         cmsIT8Free(handle);
     }
     cmsDeleteContext(context);
-    remove(filename);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

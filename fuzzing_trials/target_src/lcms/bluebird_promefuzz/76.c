@@ -1,58 +1,116 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <wchar.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
-#include "/src/lcms/include/lcms2_plugin.h"
 
-static cmsHPROFILE LoadDummyProfile() {
-    // This function is a placeholder to simulate loading a profile.
-    // In a real scenario, you would load an actual ICC profile.
-    return cmsCreate_sRGBProfile(); // Create a standard sRGB profile
-}
-
-static cmsContext CreateDummyContext() {
-    // This function is a placeholder to simulate creating a context.
-    // In a real scenario, you would initialize a proper context.
-    return cmsCreateContext(NULL, NULL); // Create a default context
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_76(const uint8_t *Data, size_t Size) {
-    if (Size < 10) return 0; // Ensure there's enough data for basic operations
-
-    cmsHPROFILE hProfile = LoadDummyProfile();
-    if (!hProfile) return 0;
-
-    cmsContext context = CreateDummyContext();
-    if (!context) {
-        cmsCloseProfile(hProfile);
+    if (Size < 1) {
         return 0;
     }
 
-    wchar_t buffer[256] = {0};
-    cmsUInt32Number bufferSize = sizeof(buffer) / sizeof(buffer[0]);
+    write_dummy_file(Data, Size);
 
-    cmsInfoType infoType = (cmsInfoType)(Data[0] % 5); // Simulate different info types
-    char languageCode[3] = {Data[1], Data[2], '\0'};
-    char countryCode[3] = {Data[3], Data[4], '\0'};
-
-    cmsUInt32Number infoResult = cmsGetProfileInfo(hProfile, infoType, languageCode, countryCode, buffer, bufferSize);
-
-    cmsUInt32Number allocSize = Data[5] | (Data[6] << 8) | (Data[7] << 16) | (Data[8] << 24);
-    void* allocatedMemory = _cmsMalloc(context, allocSize);
-
-    // Call cmsGetProfileInfo again with potentially different parameters
-    infoType = (cmsInfoType)(Data[9] % 5); // Simulate different info types
-    infoResult = cmsGetProfileInfo(hProfile, infoType, languageCode, countryCode, buffer, bufferSize);
-
-    if (allocatedMemory) {
-        _cmsFree(context, allocatedMemory);
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
     }
 
-    cmsDeleteContext(context);
-    cmsCloseProfile(hProfile);
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectRGBProfileGamma
+    cmsBool ret_cmsPlugin_aizyx = cmsPlugin(NULL);
+    if (ret_cmsPlugin_aizyx < 0){
+    	return 0;
+    }
+    cmsFloat64Number ret_cmsDetectRGBProfileGamma_mbsbe = cmsDetectRGBProfileGamma(hProfile, (double )ret_cmsPlugin_aizyx);
+    if (ret_cmsDetectRGBProfileGamma_mbsbe < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTagSignature to cmsReadRawTag
+        cmsHPROFILE ret_cmsCreateNULLProfile_vjnwa = cmsCreateNULLProfile();
+        cmsIOHANDLER* ret_cmsOpenIOhandlerFromNULL_kokkm = cmsOpenIOhandlerFromNULL(0);
+        if (ret_cmsOpenIOhandlerFromNULL_kokkm == NULL){
+        	return 0;
+        }
+        cmsUInt32Number ret_cmsGetHeaderCreator_iahbb = cmsGetHeaderCreator(hProfile);
+        if (ret_cmsGetHeaderCreator_iahbb < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_cmsOpenIOhandlerFromNULL_kokkm) {
+        	return 0;
+        }
+        cmsUInt32Number ret_cmsReadRawTag_odanm = cmsReadRawTag(ret_cmsCreateNULLProfile_vjnwa, tagSig, (void *)ret_cmsOpenIOhandlerFromNULL_kokkm, ret_cmsGetHeaderCreator_iahbb);
+        if (ret_cmsReadRawTag_odanm < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_76(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,67 +1,70 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_89(const uint8_t *data, size_t size) {
-    cmsHTRANSFORM transform;
-    cmsFloat64Number version;
-    cmsUInt32Number flags;
-    cmsHPROFILE profile;
-
-    // Initialize the parameters with non-NULL values
-    cmsHPROFILE inputProfile = cmsOpenProfileFromMem(data, size);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetPostScriptColorResource
-    cmsContext ret_cmsGetProfileContextID_ofspd = cmsGetProfileContextID(inputProfile);
-    cmsIOHANDLER* ret_cmsGetProfileIOhandler_ekvjv = cmsGetProfileIOhandler(inputProfile);
-    if (ret_cmsGetProfileIOhandler_ekvjv == NULL){
-    	return 0;
-    }
-
-    cmsUInt32Number ret_cmsGetPostScriptColorResource_dhpuz = cmsGetPostScriptColorResource(ret_cmsGetProfileContextID_ofspd, 0, inputProfile, LCMS_USED_AS_OUTPUT, DARK_SURROUND, ret_cmsGetProfileIOhandler_ekvjv);
-    if (ret_cmsGetPostScriptColorResource_dhpuz < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
-    if (inputProfile == NULL || outputProfile == NULL) {
-        if (inputProfile != NULL) {
-                cmsCloseProfile(inputProfile);
-        }
-        if (outputProfile != NULL) {
-                cmsCloseProfile(outputProfile);
-        }
+    // Check if the input size is sufficient for a gamma value
+    if (size < sizeof(double)) {
         return 0;
     }
 
-    transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
-    version = 4.3; // Example version number
-    flags = 0; // Example flags, can be varied
+    // Interpret the first bytes of data as a gamma value
+    double gamma;
+    memcpy(&gamma, data, sizeof(double));
 
-    // Ensure transform is valid before proceeding
-    if (transform == NULL) {
-        cmsCloseProfile(inputProfile);
-        cmsCloseProfile(outputProfile);
+    // Create a cmsToneCurve using the gamma value
+    cmsToneCurve* toneCurve = cmsBuildGamma(NULL, gamma);
+    if (toneCurve == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of cmsTransform2DeviceLink
-    profile = cmsTransform2DeviceLink(transform, version, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    cmsInt32Number parametricType = cmsGetToneCurveParametricType(toneCurve);
 
     // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_89(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,52 +1,84 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the parameters
-    cmsContext context = (cmsContext)1; // Example non-NULL context
-    cmsHPROFILE inputProfile = cmsOpenProfileFromMem(data, size);
-    cmsHPROFILE outputProfile = cmsOpenProfileFromMem(data, size);
-    cmsUInt32Number inputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number outputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number intent = INTENT_PERCEPTUAL; // Example intent
-    cmsUInt32Number flags = 0; // No flags
-
-    // Ensure that inputProfile and outputProfile are not NULL
-    if (inputProfile != NULL && outputProfile != NULL) {
-        // Call the function to fuzz
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 6 of cmsCreateTransformTHR
-        cmsHTRANSFORM transform = cmsCreateTransformTHR(context, inputProfile, inputFormat, outputProfile, outputFormat, intent, PT_MCH3);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-        // Clean up
-        if (transform != NULL) {
-            cmsDeleteTransform(transform);
-        }
+    // Check if the size is sufficient for our operations
+    if (size < 3 * sizeof(float)) {
+        return 0; // Not enough data to proceed
     }
 
-    if (inputProfile != NULL) {
+    // Initialize variables
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3); // Allocate a pipeline with 3 input and 3 output channels
+    cmsStage *stage = cmsStageAllocIdentity(NULL, 3); // Allocate an identity stage with 3 channels
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsIsMatrixShaper
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsIsMatrixShaper with cmsCloseProfile
-        cmsCloseProfile(inputProfile);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Ensure that pipeline and stage are not NULL
+    if (pipeline == NULL || stage == NULL) {
+        if (pipeline != NULL) cmsPipelineFree(pipeline);
+        if (stage != NULL) cmsStageFree(stage);
+        return 0;
     }
-    if (outputProfile != NULL) {
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-        cmsMD5computeID(outputProfile);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Add the stage to the pipeline
+    cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
 
+    // Prepare input data for the pipeline
+    float input[3];
+    for (int i = 0; i < 3; i++) {
+        input[i] = ((float*)data)[i]; // Use the fuzzer data as input
+    }
 
-    }  return 0;
+    // Output buffer
+    float output[3];
+
+    // Call the function-under-test
+    cmsPipelineEvalFloat(input, output, pipeline);
+
+    // Clean up
+    cmsPipelineFree(pipeline);
+    // Remove the call to cmsStageFree(stage) since the stage is managed by the pipeline and will be freed with it
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_134(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

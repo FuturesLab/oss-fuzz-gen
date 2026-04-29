@@ -1,94 +1,64 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    cmsHTRANSFORM transform;
-    cmsFloat64Number version;
-    cmsUInt32Number flags;
-    cmsHPROFILE profile;
-
-    // Initialize the parameters with non-NULL values
-    cmsHPROFILE inputProfile = cmsOpenProfileFromMem(data, size);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetPostScriptColorResource
-    cmsContext ret_cmsGetProfileContextID_swxqr = cmsGetProfileContextID(0);
-    cmsIOHANDLER* ret_cmsGetProfileIOhandler_ekvjv = cmsGetProfileIOhandler(inputProfile);
-    if (ret_cmsGetProfileIOhandler_ekvjv == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of cmsGetPostScriptColorResource
-    cmsUInt32Number ret_cmsGetPostScriptColorResource_lavuc = cmsGetPostScriptColorResource(ret_cmsGetProfileContextID_swxqr, 0, inputProfile, cmsERROR_INTERNAL, PT_RGB, ret_cmsGetProfileIOhandler_ekvjv);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_cmsGetPostScriptColorResource_lavuc < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
-    if (inputProfile == NULL || outputProfile == NULL) {
-        if (inputProfile != NULL) {
-                cmsCloseProfile(inputProfile);
-        }
-        if (outputProfile != NULL) {
-                cmsCloseProfile(outputProfile);
-        }
+    // Ensure there is enough data for cmsCIEXYZ structure
+    if (size < sizeof(cmsCIEXYZ)) {
         return 0;
     }
 
+    // Initialize cmsCIEXYZ structure from input data
+    cmsCIEXYZ xyz;
+    const cmsCIEXYZ *pXYZ = &xyz;
+    memcpy(&xyz, data, sizeof(cmsCIEXYZ));
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 5 of cmsCreateTransform
-    transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, -1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    version = 4.3; // Example version number
-    flags = 0; // Example flags, can be varied
-
-    // Ensure transform is valid before proceeding
-    if (transform == NULL) {
-        cmsCloseProfile(inputProfile);
-        cmsCloseProfile(outputProfile);
-        return 0;
-    }
+    // Initialize cmsUInt16Number array
+    cmsUInt16Number encoded[3] = {0, 0, 0};
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of cmsTransform2DeviceLink
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateTransform to cmsDoTransformStride
-    cmsIOHANDLER* ret_cmsOpenIOhandlerFromNULL_cveoo = cmsOpenIOhandlerFromNULL(0);
-    if (ret_cmsOpenIOhandlerFromNULL_cveoo == NULL){
-    	return 0;
-    }
-    char waznzlmb[1024] = "wnqup";
-
-    cmsDoTransformStride(transform, (const void *)ret_cmsOpenIOhandlerFromNULL_cveoo, waznzlmb, cmsSPOT_CROSS, PT_MCH13);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    profile = cmsTransform2DeviceLink(transform, version, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-    if (profile != NULL) {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-        cmsMD5computeID(profile);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
+    cmsFloat2XYZEncoded(encoded, pXYZ);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
