@@ -1,94 +1,140 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stddef.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include "/src/libbpf/src/libbpf_legacy.h"
 #include "libbpf.h"
 
 #define DUMMY_FILE_PATH "./dummy_file"
 
-static struct bpf_link *create_dummy_bpf_link() {
-    // Create a dummy BPF link, normally you would use bpf_link__open with a valid path
-    return NULL;
-}
-
-static struct bpf_program *create_dummy_bpf_program() {
-    struct bpf_object *obj = bpf_object__open(DUMMY_FILE_PATH);
-    if (!obj) return NULL;
-    struct bpf_program *prog = bpf_object__next_program(obj, NULL);
-    bpf_object__close(obj);
-    return prog;
-}
-
-static struct bpf_map *create_dummy_bpf_map() {
-    struct bpf_object *obj = bpf_object__open(DUMMY_FILE_PATH);
-    if (!obj) return NULL;
-    struct bpf_map *map = bpf_object__next_map(obj, NULL);
-    bpf_object__close(obj);
-    return map;
-}
-
-static void cleanup_bpf_link(struct bpf_link *link) {
-    if (link) {
-        bpf_link__destroy(link);
-    }
-}
-
-static void cleanup_bpf_program(struct bpf_program *prog) {
-    // No specific cleanup function for bpf_program in libbpf
-}
-
-static void cleanup_bpf_map(struct bpf_map *map) {
-    // No specific cleanup function for bpf_map in libbpf
+static int custom_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
 }
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) {
+        return 0;
+    }
 
-    struct bpf_link *link = create_dummy_bpf_link();
-    struct bpf_program *prog = create_dummy_bpf_program();
-    struct bpf_map *map = create_dummy_bpf_map();
-    enum bpf_attach_type attach_type = (enum bpf_attach_type)(Data[0] % __MAX_BPF_ATTACH_TYPE);
-    __u32 flags = Data[0];
+    // Step 1: Set a custom print function
+    libbpf_set_print(custom_print_fn);
+
+    // Step 2: Open a BPF object from memory
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts),
+        .object_name = "fuzzed_object",
+    };
+
+    struct bpf_object *obj = bpf_object__open_mem(Data, Size, &opts);
+
+    // Step 3: Check for errors using deprecated function
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__load
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    int ret_bpf_object__load_tpajl = bpf_object__load(obj);
+    if (ret_bpf_object__load_tpajl < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
     
-    if (!prog || !map) goto cleanup;
 
-    // Fuzz bpf_link__update_program
-    if (link) {
-        int ret = bpf_link__update_program(link, prog);
-        if (ret < 0) {
-            // Handle error
-        }
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from bpf_object__load to bpf_object__pin using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_object__pin
+    int ret_bpf_object__pin_xfilp = bpf_object__pin(obj, NULL);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (ret_bpf_object__pin_xfilp < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__pin to bpf_object__prev_map
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
+    	return 0;
+    }
+    struct bpf_map* ret_bpf_object__prev_map_ebzfj = bpf_object__prev_map(obj, NULL);
+    if (ret_bpf_object__prev_map_ebzfj == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from bpf_object__prev_map to bpf_map__set_autocreate using the plateau pool
+    bool flag = Data[0] % 2;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bpf_object__prev_map_ebzfj) {
+    	return 0;
+    }
+    int ret_bpf_map__set_autocreate_oewwf = bpf_map__set_autocreate(ret_bpf_object__prev_map_ebzfj, flag);
+    if (ret_bpf_map__set_autocreate_oewwf < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    long err = libbpf_get_error(obj);
+    if (err) {
+        // Handle error (deprecated function, just for demonstration)
+        fprintf(stderr, "Error opening BPF object: %ld\n", err);
+        return 0;
     }
 
-    // Fuzz bpf_map__exclusive_program
-    struct bpf_program *exclusive_prog = bpf_map__exclusive_program(map);
-    if (exclusive_prog) {
-        // Handle the returned program
+    // Step 4: Close the BPF object if it was successfully opened
+    if (obj != NULL) {
+        bpf_object__close(obj);
     }
-
-    // Fuzz bpf_program__flags
-    __u32 prog_flags = bpf_program__flags(prog);
-
-    // Fuzz bpf_program__set_expected_attach_type
-    int ret = bpf_program__set_expected_attach_type(prog, attach_type);
-    if (ret < 0) {
-        // Handle error
-    }
-
-    // Fuzz bpf_program__assoc_struct_ops
-    // As we don't have a complete definition of bpf_prog_assoc_struct_ops_opts, we skip this part
-
-    // Fuzz bpf_program__set_flags
-    ret = bpf_program__set_flags(prog, flags);
-    if (ret < 0) {
-        // Handle error
-    }
-
-cleanup:
-    cleanup_bpf_link(link);
-    cleanup_bpf_program(prog);
-    cleanup_bpf_map(map);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

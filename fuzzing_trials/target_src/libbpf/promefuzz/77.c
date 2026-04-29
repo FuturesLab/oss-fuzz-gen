@@ -1,72 +1,198 @@
 // This fuzz driver is generated for library libbpf, aiming to fuzz the following functions:
-// bpf_link__destroy at libbpf.c:11103:5 in libbpf.h
-// bpf_program__attach_kprobe at libbpf.c:11749:18 in libbpf.h
-// bpf_program__attach_freplace at libbpf.c:13321:18 in libbpf.h
-// bpf_program__attach_usdt at libbpf.c:12814:18 in libbpf.h
-// bpf_program__attach_uprobe_opts at libbpf.c:12603:1 in libbpf.h
-// bpf_program__attach_uprobe_multi at libbpf.c:12475:1 in libbpf.h
-// bpf_program__attach_uprobe at libbpf.c:12804:18 in libbpf.h
+// ring_buffer__poll at ringbuf.c:336:5 in libbpf.h
+// ring__consume_n at ringbuf.c:406:5 in libbpf.h
+// ring__consume at ringbuf.c:417:5 in libbpf.h
+// ring__map_fd at ringbuf.c:401:5 in libbpf.h
+// ring_buffer__epoll_fd at ringbuf.c:360:5 in libbpf.h
+// ring_buffer__consume at ringbuf.c:312:5 in libbpf.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <libbpf.h>
-#include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/epoll.h>
+#include <limits.h>
 
-static struct bpf_program *create_dummy_bpf_program(void) {
-    // This is a placeholder function to simulate a valid BPF program
-    // In a real case, you would load a BPF program from an ELF file or other source
-    return NULL;
+struct ring_buffer {
+    struct epoll_event *events;
+    struct ring **rings;
+    size_t page_size;
+    int epoll_fd;
+    int ring_cnt;
+};
+
+struct ring {
+    ring_buffer_sample_fn sample_cb;
+    void *ctx;
+    void *data;
+    unsigned long *consumer_pos;
+    unsigned long *producer_pos;
+    unsigned long mask;
+    int map_fd;
+};
+
+static struct ring_buffer* create_dummy_ring_buffer() {
+    struct ring_buffer *rb = malloc(sizeof(struct ring_buffer));
+    if (!rb) return NULL;
+
+    rb->events = malloc(sizeof(struct epoll_event) * 10);
+    if (!rb->events) {
+        free(rb);
+        return NULL;
+    }
+
+    rb->rings = malloc(sizeof(struct ring*) * 10);
+    if (!rb->rings) {
+        free(rb->events);
+        free(rb);
+        return NULL;
+    }
+
+    for (int i = 0; i < 10; i++) {
+        rb->rings[i] = malloc(sizeof(struct ring));
+        if (!rb->rings[i]) {
+            for (int j = 0; j < i; j++) free(rb->rings[j]);
+            free(rb->rings);
+            free(rb->events);
+            free(rb);
+            return NULL;
+        }
+    }
+
+    rb->page_size = 4096;
+    rb->epoll_fd = epoll_create1(0);
+    rb->ring_cnt = 10;
+
+    return rb;
 }
 
-static void cleanup_bpf_link(struct bpf_link *link) {
-    if (link) {
-        bpf_link__destroy(link);
+static void destroy_dummy_ring_buffer(struct ring_buffer *rb) {
+    if (!rb) return;
+    for (int i = 0; i < rb->ring_cnt; i++) {
+        free(rb->rings[i]);
     }
+    free(rb->rings);
+    free(rb->events);
+    close(rb->epoll_fd);
+    free(rb);
+}
+
+static struct ring* create_dummy_ring() {
+    struct ring *r = malloc(sizeof(struct ring));
+    if (!r) return NULL;
+
+    r->consumer_pos = malloc(sizeof(unsigned long));
+    r->producer_pos = malloc(sizeof(unsigned long));
+    if (!r->consumer_pos || !r->producer_pos) {
+        free(r->consumer_pos);
+        free(r->producer_pos);
+        free(r);
+        return NULL;
+    }
+
+    r->map_fd = open("./dummy_file", O_CREAT | O_RDWR, 0666);
+    if (r->map_fd < 0) {
+        free(r->consumer_pos);
+        free(r->producer_pos);
+        free(r);
+        return NULL;
+    }
+
+    r->mask = 0xFFFFFFFF;
+    r->data = NULL;
+    r->ctx = NULL;
+    r->sample_cb = NULL;
+
+    return r;
+}
+
+static void destroy_dummy_ring(struct ring *r) {
+    if (!r) return;
+    close(r->map_fd);
+    free(r->consumer_pos);
+    free(r->producer_pos);
+    free(r);
 }
 
 int LLVMFuzzerTestOneInput_77(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(int)) return 0;
 
-    struct bpf_program *prog = create_dummy_bpf_program();
-    if (!prog) return 0;
+    struct ring_buffer *rb = create_dummy_ring_buffer();
+    if (!rb) return 0;
 
-    char dummy_func_name[] = "dummy_func";
-    char dummy_binary_path[] = "./dummy_file";
-    int dummy_fd = open(dummy_binary_path, O_RDWR | O_CREAT, 0600);
-    if (dummy_fd < 0) {
+    struct ring *r = create_dummy_ring();
+    if (!r) {
+        destroy_dummy_ring_buffer(rb);
         return 0;
     }
 
-    // Fuzz bpf_program__attach_kprobe
-    struct bpf_link *link_kprobe = bpf_program__attach_kprobe(prog, Data[0] % 2, dummy_func_name);
-    cleanup_bpf_link(link_kprobe);
+    int timeout_ms = *(int*)Data;
+    int ret;
 
-    // Fuzz bpf_program__attach_freplace
-    struct bpf_link *link_freplace = bpf_program__attach_freplace(prog, dummy_fd, dummy_func_name);
-    cleanup_bpf_link(link_freplace);
+    // Fuzz ring_buffer__poll
+    ret = ring_buffer__poll(rb, timeout_ms);
 
-    // Fuzz bpf_program__attach_usdt
-    struct bpf_usdt_opts usdt_opts = { .sz = sizeof(usdt_opts), .usdt_cookie = (uint64_t)Data[0] };
-    struct bpf_link *link_usdt = bpf_program__attach_usdt(prog, 0, dummy_binary_path, "provider", "probe", &usdt_opts);
-    cleanup_bpf_link(link_usdt);
+    // Fuzz ring__consume_n
+    size_t n = Size % 1024;
+    ret = ring__consume_n(r, n);
 
-    // Fuzz bpf_program__attach_uprobe_opts
-    struct bpf_uprobe_opts uprobe_opts = { .sz = sizeof(uprobe_opts), .ref_ctr_offset = 0, .bpf_cookie = (uint64_t)Data[0] };
-    struct bpf_link *link_uprobe_opts = bpf_program__attach_uprobe_opts(prog, 0, dummy_binary_path, 0, &uprobe_opts);
-    cleanup_bpf_link(link_uprobe_opts);
+    // Fuzz ring__consume
+    ret = ring__consume(r);
 
-    // Fuzz bpf_program__attach_uprobe_multi
-    struct bpf_uprobe_multi_opts uprobe_multi_opts = { .sz = sizeof(uprobe_multi_opts), .retprobe = Data[0] % 2 };
-    struct bpf_link *link_uprobe_multi = bpf_program__attach_uprobe_multi(prog, 0, dummy_binary_path, "func_pattern", &uprobe_multi_opts);
-    cleanup_bpf_link(link_uprobe_multi);
+    // Fuzz ring__map_fd
+    ret = ring__map_fd(r);
 
-    // Fuzz bpf_program__attach_uprobe
-    struct bpf_link *link_uprobe = bpf_program__attach_uprobe(prog, Data[0] % 2, 0, dummy_binary_path, 0);
-    cleanup_bpf_link(link_uprobe);
+    // Fuzz ring_buffer__epoll_fd
+    ret = ring_buffer__epoll_fd(rb);
 
-    close(dummy_fd);
+    // Fuzz ring_buffer__consume
+    ret = ring_buffer__consume(rb);
+
+    destroy_dummy_ring(r);
+    destroy_dummy_ring_buffer(rb);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_77(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

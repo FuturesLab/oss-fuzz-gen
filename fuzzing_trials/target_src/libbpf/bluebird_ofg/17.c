@@ -1,84 +1,72 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include "/src/libbpf/include/uapi/linux/perf_event.h"
 #include "libbpf.h"
 
-// Define a dummy event callback function
-enum bpf_perf_event_ret dummy_event_callback(void *ctx, int cpu, struct perf_event_header *event) {
-    // No-op
-    return LIBBPF_PERF_EVENT_CONT;
-}
-
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Initialize variables for perf_buffer__new_raw
-    int fd = 1; // File descriptor, using 1 as a placeholder
-    size_t page_cnt = 8; // Number of pages
-    struct perf_event_attr attr;
-    perf_buffer_event_fn event_cb = dummy_event_callback;
-    void *ctx = NULL; // Context, can be NULL
-    struct perf_buffer_raw_opts opts;
-
-    // Initialize perf_event_attr with some values
-    attr.type = PERF_TYPE_SOFTWARE;
-    attr.size = sizeof(struct perf_event_attr);
-    attr.config = PERF_COUNT_SW_CPU_CLOCK;
-    attr.sample_period = 1000;
-    attr.sample_type = PERF_SAMPLE_RAW;
-    attr.read_format = 0;
-    attr.disabled = 1;
-    attr.inherit = 1;
-    attr.pinned = 1;
-    attr.exclusive = 0;
-    attr.exclude_user = 0;
-    attr.exclude_kernel = 0;
-    attr.exclude_hv = 0;
-    attr.exclude_idle = 0;
-    attr.mmap = 1;
-    attr.comm = 1;
-    attr.freq = 0;
-    attr.inherit_stat = 0;
-    attr.enable_on_exec = 0;
-    attr.task = 0;
-    attr.watermark = 0;
-    attr.precise_ip = 0;
-    attr.mmap_data = 0;
-    attr.sample_id_all = 0;
-    attr.exclude_host = 0;
-    attr.exclude_guest = 0;
-    attr.exclude_callchain_kernel = 0;
-    attr.exclude_callchain_user = 0;
-    attr.mmap2 = 0;
-    attr.comm_exec = 0;
-    attr.use_clockid = 0;
-    attr.context_switch = 0;
-    attr.write_backward = 0;
-    attr.namespaces = 0;
-    attr.ksymbol = 0;
-    attr.bpf_event = 0;
-    attr.aux_output = 0;
-    attr.cgroup = 0;
-    attr.text_poke = 0;
-
-    // Use fuzzing input to modify some attributes dynamically
-    if (size >= sizeof(struct perf_event_attr)) {
-        // Copy fuzzing data into the attr structure
-        memcpy(&attr, data, sizeof(struct perf_event_attr));
+    // Create a fake bpf_object with the input data
+    struct bpf_object *bpf_obj = bpf_object__open_mem(data, size, NULL);
+    if (!bpf_obj) {
+        return 0;
     }
-
-    // Initialize perf_buffer_raw_opts with some values
-    opts.sz = sizeof(struct perf_buffer_raw_opts);
-    opts.cpu_cnt = 0; // Default to open on all CPUs
-    opts.cpus = NULL; // No specific CPUs
-    opts.map_keys = NULL; // No specific map keys
 
     // Call the function-under-test
-    struct perf_buffer *pb = perf_buffer__new_raw(fd, page_cnt, &attr, event_cb, ctx, &opts);
 
-    // Clean up if necessary
-    if (pb != NULL) {
-        perf_buffer__free(pb);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__load
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!bpf_obj) {
+    	return 0;
     }
+    int ret_bpf_object__load_zjtpu = bpf_object__load(bpf_obj);
+    if (ret_bpf_object__load_zjtpu < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    struct btf *btf_obj = bpf_object__btf(bpf_obj);
+
+    // Clean up resources
+    bpf_object__close(bpf_obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

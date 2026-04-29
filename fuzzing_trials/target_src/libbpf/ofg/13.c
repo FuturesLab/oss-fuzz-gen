@@ -2,50 +2,88 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <fcntl.h> // Include for mkstemp
 #include "/src/libbpf/src/libbpf.h"
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    struct bpf_program *prog;
-    int attach_type;
-    char *target;
-    struct bpf_object *obj;
+    struct bpf_object *obj = NULL;
+    char *path = NULL;
+    int fd = -1;
 
-    // Ensure data size is sufficient for creating a string
     if (size < 1) {
         return 0;
     }
 
-    // Load a dummy BPF object to initialize a bpf_program
-    obj = bpf_object__open_mem(data, size, NULL);
-    if (!obj) {
+    // Create a temporary file to use as the path
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Get the first program from the BPF object
-    prog = bpf_object__next_program(obj, NULL);
-    if (!prog) {
-        bpf_object__close(obj);
+    // Write data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
 
-    // Use the first byte of data to determine the attach_type
-    attach_type = (int)data[0];
+    // Close the file descriptor
+    close(fd);
 
-    // Allocate memory for the target string and copy data into it
-    target = (char *)malloc(size);
-    if (target == NULL) {
-        bpf_object__close(obj);
+    // Duplicate the path to ensure it's null-terminated
+    path = strdup(tmpl);
+    if (path == NULL) {
+        unlink(tmpl);
         return 0;
     }
-    memcpy(target, data + 1, size - 1);
-    target[size - 1] = '\0'; // Ensure null-termination
 
     // Call the function-under-test
-    bpf_program__set_attach_target(prog, attach_type, target);
+    bpf_object__unpin_programs(obj, path);
 
     // Clean up
-    free(target);
-    bpf_object__close(obj);
+    free(path);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

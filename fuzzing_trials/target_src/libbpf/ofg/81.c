@@ -1,36 +1,76 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h> // Include for memcpy
+#include "/src/libbpf/src/libbpf.h"
 
-// Assuming the definition of struct perf_buffer is available
-struct perf_buffer {
-    // Add necessary fields here for the struct definition
-    int dummy_field; // Example field, replace with actual fields
+// Define a dummy struct bpf_program for illustration purposes.
+// In practice, you should include the appropriate header file
+// that defines the struct bpf_program.
+struct bpf_program {
+    // Add necessary fields here as per the actual definition.
+    int dummy_field;  // Example field
 };
 
-// Mock implementation of the function-under-test
-size_t perf_buffer__buffer_cnt_81(const struct perf_buffer *pb) {
-    // Implement a simple logic for demonstration purposes
-    return pb ? 1 : 0;
-}
+// Assuming DW_TAG_enumeration_typebpf_attach_type is a placeholder for the actual type
+// Replace with the correct type for bpf_attach_type
+typedef int bpf_attach_type;
+
+// Remove the conflicting external declaration
+// The correct declaration is already in libbpf.h
+// extern bpf_attach_type bpf_program__expected_attach_type(const struct bpf_program *);
 
 int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to initialize a perf_buffer structure
-    if (size < sizeof(struct perf_buffer)) {
+    // Check if the input size is sufficient to initialize the bpf_program structure
+    if (size < sizeof(struct bpf_program)) {
         return 0;
     }
 
-    // Initialize a perf_buffer structure using the input data
-    struct perf_buffer pb;
-    // Copy data into the perf_buffer structure
-    // Make sure to not exceed the size of the struct
-    memcpy(&pb, data, sizeof(struct perf_buffer));
+    // Cast the input data to a bpf_program structure
+    const struct bpf_program *prog = (const struct bpf_program *)data;
 
     // Call the function-under-test
-    size_t result = perf_buffer__buffer_cnt_81(&pb);
+    bpf_attach_type result = bpf_program__expected_attach_type(prog);
 
-    // Use the result in some way (for demonstration purposes)
-    (void)result; // Suppress unused variable warning
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_81(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

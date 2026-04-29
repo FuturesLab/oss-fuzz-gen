@@ -1,86 +1,106 @@
 // This fuzz driver is generated for library libbpf, aiming to fuzz the following functions:
-// bpf_object__open_mem at libbpf.c:8413:1 in libbpf.h
-// bpf_object__close at libbpf.c:9432:6 in libbpf.h
-// bpf_object__load at libbpf.c:8994:5 in libbpf.h
-// bpf_object__pin at libbpf.c:9371:5 in libbpf.h
-// bpf_object__open_skeleton at libbpf.c:14365:5 in libbpf.h
-// bpf_object__token_fd at libbpf.c:9506:5 in libbpf.h
-// bpf_object__prepare at libbpf.c:8989:5 in libbpf.h
-// bpf_object__gen_loader at libbpf.c:9531:5 in libbpf.h
+// bpf_object__open_file at libbpf.c:8445:1 in libbpf.h
+// bpf_object__pin at libbpf.c:9417:5 in libbpf.h
+// bpf_object__unpin at libbpf.c:9434:5 in libbpf.h
+// bpf_object__pin_maps at libbpf.c:9279:5 in libbpf.h
+// bpf_object__find_map_fd_by_name at libbpf.c:11079:1 in libbpf.h
+// bpf_object__gen_loader at libbpf.c:9577:5 in libbpf.h
+// bpf_object__close at libbpf.c:9478:6 in libbpf.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <libbpf.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <libbpf.h>
 
-static struct bpf_object *open_bpf_object(const uint8_t *data, size_t size) {
-    struct bpf_object_open_opts opts = {
-        .sz = sizeof(struct bpf_object_open_opts),
-        .object_name = "fuzz_object",
-    };
-    struct bpf_object *obj = bpf_object__open_mem(data, size, &opts);
+static void init_dummy_file() {
+    FILE *file = fopen("./dummy_file", "w");
+    if (file) {
+        fprintf(file, "dummy content");
+        fclose(file);
+    }
+}
+
+static struct bpf_object *open_bpf_object() {
+    init_dummy_file();
+    struct bpf_object *obj = bpf_object__open_file("./dummy_file", NULL);
     return obj;
 }
 
-static void cleanup_bpf_object(struct bpf_object *obj) {
-    if (obj) {
-        bpf_object__close(obj);
-    }
-}
-
 int LLVMFuzzerTestOneInput_55(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size == 0) return 0;
 
-    struct bpf_object *obj = open_bpf_object(Data, Size);
-    if (!obj) {
-        return 0;
-    }
+    char path[256];
+    snprintf(path, sizeof(path), "/sys/fs/bpf/%.*s", (int)Size, Data);
 
-    // Test bpf_object__load
-    int ret = bpf_object__load(obj);
-    if (ret < 0) {
-        fprintf(stderr, "bpf_object__load failed: %s\n", strerror(errno));
-    }
+    struct bpf_object *obj = open_bpf_object();
+    if (!obj) return 0;
 
     // Test bpf_object__pin
-    ret = bpf_object__pin(obj, "./dummy_file");
-    if (ret < 0) {
-        fprintf(stderr, "bpf_object__pin failed: %s\n", strerror(errno));
-    }
+    bpf_object__pin(obj, path);
 
-    // Test bpf_object__open_skeleton
-    struct bpf_object_skeleton skeleton = { .sz = sizeof(skeleton) };
-    ret = bpf_object__open_skeleton(&skeleton, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "bpf_object__open_skeleton failed: %s\n", strerror(errno));
-    }
+    // Test bpf_object__unpin
+    bpf_object__unpin(obj, path);
 
-    // Test bpf_object__token_fd
-    int fd = bpf_object__token_fd(obj);
-    if (fd == -1) {
-        fprintf(stderr, "bpf_object__token_fd returned -1\n");
-    }
+    // Test bpf_object__pin_maps
+    bpf_object__pin_maps(obj, path);
 
-    // Test bpf_object__prepare
-    ret = bpf_object__prepare(obj);
-    if (ret < 0) {
-        fprintf(stderr, "bpf_object__prepare failed: %s\n", strerror(errno));
-    }
+    // Test bpf_object__find_map_fd_by_name
+    char map_name[256];
+    snprintf(map_name, sizeof(map_name), "%.*s", (int)Size, Data);
+    bpf_object__find_map_fd_by_name(obj, map_name);
 
     // Test bpf_object__gen_loader
-    struct gen_loader_opts opts = { .sz = sizeof(opts) };
-    ret = bpf_object__gen_loader(obj, &opts);
-    if (ret < 0) {
-        fprintf(stderr, "bpf_object__gen_loader failed: %s\n", strerror(errno));
-    }
+    struct gen_loader_opts opts = {0};
+    bpf_object__gen_loader(obj, &opts);
 
-    cleanup_bpf_object(obj);
+    bpf_object__close(obj);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_55(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

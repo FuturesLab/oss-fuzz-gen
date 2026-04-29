@@ -1,40 +1,99 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-
-// Assuming the definition of DW_TAG_enumeration_typebpf_attach_type
-typedef struct {
-    int dummy; // Placeholder for actual fields
-} DW_TAG_enumeration_typebpf_attach_type;
-
-// Function-under-test declaration
-int libbpf_attach_type_by_name(const char *name, DW_TAG_enumeration_typebpf_attach_type *attach_type);
+#include "/src/libbpf/src/bpf.h"
+#include "libbpf.h"
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
+    // Declare and initialize variables
+    struct bpf_program *prog = NULL;
+    int perf_event_fd = 1; // Using a non-zero file descriptor value
+
+    // Ensure size is non-zero to avoid passing NULL data
     if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the name string and ensure it's null-terminated
-    char *name = (char *)malloc(size + 1);
-    if (name == NULL) {
-        return 0; // Memory allocation failed
+    // Create a BPF object from the input data
+    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
+    if (!obj) {
+        return 0;
     }
-    memcpy(name, data, size);
-    name[size] = '\0';
 
-    // Initialize the DW_TAG_enumeration_typebpf_attach_type structure
-    DW_TAG_enumeration_typebpf_attach_type attach_type;
-    memset(&attach_type, 0, sizeof(attach_type));
+    // Load the BPF object
+    if (bpf_object__load(obj) < 0) {
+        bpf_object__close(obj);
+        return 0;
+    }
+
+    // Get the first program in the BPF object
+    prog = bpf_object__next_program(obj, NULL);
+    if (!prog) {
+        bpf_object__close(obj);
+        return 0;
+    }
 
     // Call the function-under-test
-    libbpf_attach_type_by_name(name, &attach_type);
 
-    // Free allocated memory
-    free(name);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_usdt
+    const char bwzojbkc[1024] = "nihor";
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!prog) {
+    	return 0;
+    }
+    struct bpf_link* ret_bpf_program__attach_usdt_zzafa = bpf_program__attach_usdt(prog, 0, (const char *)"w", NULL, bwzojbkc, NULL);
+    if (ret_bpf_program__attach_usdt_zzafa == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    struct bpf_link *link = bpf_program__attach_perf_event(prog, perf_event_fd);
+
+    // Clean up
+    if (link) {
+        bpf_link__destroy(link);
+    }
+    bpf_object__close(obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

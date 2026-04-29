@@ -1,87 +1,150 @@
 // This fuzz driver is generated for library libbpf, aiming to fuzz the following functions:
-// bpf_object__open at libbpf.c:8407:20 in libbpf.h
-// bpf_object__find_map_by_name at libbpf.c:10901:1 in libbpf.h
-// bpf_object__close at libbpf.c:9432:6 in libbpf.h
-// bpf_object__prev_map at libbpf.c:10889:1 in libbpf.h
-// bpf_object__find_map_by_name at libbpf.c:10901:1 in libbpf.h
-// bpf_link__update_map at libbpf.c:13547:5 in libbpf.h
-// bpf_object__next_map at libbpf.c:10880:1 in libbpf.h
-// bpf_map__btf_key_type_id at libbpf.c:10747:7 in libbpf.h
-// bpf_map__value_size at libbpf.c:10638:7 in libbpf.h
-// bpf_object__close at libbpf.c:9432:6 in libbpf.h
+// bpf_map__set_autoattach at libbpf.c:5011:5 in libbpf.h
+// bpf_map__is_pinned at libbpf.c:9264:6 in libbpf.h
+// bpf_map__is_internal at libbpf.c:10949:6 in libbpf.h
+// bpf_map__autoattach at libbpf.c:5020:6 in libbpf.h
+// bpf_map__set_autocreate at libbpf.c:5002:5 in libbpf.h
+// bpf_map__autocreate at libbpf.c:4997:6 in libbpf.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <libbpf.h>
 
-static struct bpf_object *create_dummy_bpf_object() {
-    // Create a dummy bpf_object for testing purposes
-    struct bpf_object *obj = bpf_object__open("./dummy_file");
-    if (!obj) {
-        return NULL;
-    }
-    return obj;
-}
+// Define a minimal bpf_map structure for testing purposes
+struct bpf_map {
+    struct bpf_object *obj;
+    char *name;
+    char *real_name;
+    int fd;
+    int sec_idx;
+    size_t sec_offset;
+    int map_ifindex;
+    int inner_map_fd;
+    struct bpf_map_def {
+        unsigned int type;
+        unsigned int key_size;
+        unsigned int value_size;
+        unsigned int max_entries;
+        unsigned int map_flags;
+    } def;
+    __u32 numa_node;
+    __u32 btf_var_idx;
+    int mod_btf_fd;
+    __u32 btf_key_type_id;
+    __u32 btf_value_type_id;
+    __u32 btf_vmlinux_value_type_id;
+    enum libbpf_map_type {
+        LIBBPF_MAP_UNSPEC,
+        LIBBPF_MAP_DATA,
+        LIBBPF_MAP_BSS,
+        LIBBPF_MAP_RODATA,
+        LIBBPF_MAP_KCONFIG,
+    } libbpf_type;
+    void *mmaped;
+    struct bpf_struct_ops *st_ops;
+    struct bpf_map *inner_map;
+    void **init_slots;
+    int init_slots_sz;
+    char *pin_path;
+    bool pinned;
+    bool reused;
+    bool autocreate;
+    bool autoattach;
+    __u64 map_extra;
+    struct bpf_program *excl_prog;
+};
 
-static struct bpf_map *create_dummy_bpf_map(struct bpf_object *obj) {
-    // Create a dummy bpf_map for testing purposes
-    struct bpf_map *map = bpf_object__find_map_by_name(obj, "dummy_map");
+static struct bpf_map *initialize_bpf_map() {
+    struct bpf_map *map = (struct bpf_map *)malloc(sizeof(struct bpf_map));
+    if (!map) return NULL;
+    memset(map, 0, sizeof(struct bpf_map)); // Initialize all fields to zero/NULL
+    map->fd = -1;
+    map->inner_map_fd = -1;
+    map->mod_btf_fd = -1;
     return map;
 }
 
-static struct bpf_link *create_dummy_bpf_link() {
-    // Since bpf_link is an opaque type, we cannot allocate it directly.
-    // Instead, we assume a valid bpf_link is passed in real scenarios.
-    // For this fuzzing example, we return NULL.
-    return NULL;
+static void cleanup_bpf_map(struct bpf_map *map) {
+    if (map) {
+        free(map->name);
+        free(map->real_name);
+        free(map->pin_path);
+        free(map);
+    }
 }
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    struct bpf_object *obj = create_dummy_bpf_object();
-    if (!obj) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    struct bpf_map *map = create_dummy_bpf_map(obj);
-    struct bpf_link *link = create_dummy_bpf_link();
+    struct bpf_map *map = initialize_bpf_map();
+    if (!map) return 0;
 
-    if (!map) {
-        bpf_object__close(obj);
-        return 0;
-    }
+    bool flag = Data[0] % 2;
 
-    // Fuzz bpf_object__prev_map
-    struct bpf_map *prev_map = bpf_object__prev_map(obj, map);
+    // Fuzz bpf_map__set_autoattach
+    int ret = bpf_map__set_autoattach(map, flag);
+    if (ret < 0) goto cleanup;
 
-    // Fuzz bpf_object__find_map_by_name
-    char map_name[256];
-    if (Size < sizeof(map_name)) {
-        memcpy(map_name, Data, Size);
-        map_name[Size] = '\0';
-    } else {
-        memcpy(map_name, Data, sizeof(map_name) - 1);
-        map_name[sizeof(map_name) - 1] = '\0';
-    }
-    struct bpf_map *found_map = bpf_object__find_map_by_name(obj, map_name);
+    // Fuzz bpf_map__is_pinned
+    bool is_pinned = bpf_map__is_pinned(map);
 
-    // Fuzz bpf_link__update_map
-    if (link) {
-        int update_result = bpf_link__update_map(link, map);
-    }
+    // Fuzz bpf_map__is_internal
+    bool is_internal = bpf_map__is_internal(map);
 
-    // Fuzz bpf_object__next_map
-    struct bpf_map *next_map = bpf_object__next_map(obj, map);
+    // Fuzz bpf_map__autoattach
+    bool autoattach = bpf_map__autoattach(map);
 
-    // Fuzz bpf_map__btf_key_type_id
-    __u32 key_type_id = bpf_map__btf_key_type_id(map);
+    // Fuzz bpf_map__set_autocreate
+    ret = bpf_map__set_autocreate(map, flag);
+    if (ret < 0) goto cleanup;
 
-    // Fuzz bpf_map__value_size
-    __u32 value_size = bpf_map__value_size(map);
+    // Fuzz bpf_map__autocreate
+    bool autocreate = bpf_map__autocreate(map);
 
-    // Cleanup
-    bpf_object__close(obj);
-
+cleanup:
+    cleanup_bpf_map(map);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

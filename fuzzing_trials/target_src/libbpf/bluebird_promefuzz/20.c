@@ -1,190 +1,163 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "/src/libbpf/include/uapi/linux/fcntl.h"
-#include <unistd.h>
 #include "libbpf.h"
 
-static void initialize_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+struct bpf_map {
+    struct bpf_object *obj;
+    char *name;
+    char *real_name;
+    int fd;
+    int sec_idx;
+    size_t sec_offset;
+    int map_ifindex;
+    int inner_map_fd;
+    struct bpf_map_def {
+        unsigned int type;
+        unsigned int key_size;
+        unsigned int value_size;
+        unsigned int max_entries;
+        unsigned int map_flags;
+    } def;
+    __u32 numa_node;
+    __u32 btf_var_idx;
+    int mod_btf_fd;
+    __u32 btf_key_type_id;
+    __u32 btf_value_type_id;
+    __u32 btf_vmlinux_value_type_id;
+    enum libbpf_map_type {
+        LIBBPF_MAP_UNSPEC,
+        LIBBPF_MAP_DATA,
+        LIBBPF_MAP_BSS,
+        LIBBPF_MAP_RODATA,
+        LIBBPF_MAP_KCONFIG,
+    } libbpf_type;
+    void *mmaped;
+    struct bpf_struct_ops *st_ops;
+    struct bpf_map *inner_map;
+    void **init_slots;
+    int init_slots_sz;
+    char *pin_path;
+    bool pinned;
+    bool reused;
+    bool autocreate;
+    bool autoattach;
+    __u64 map_extra;
+    struct bpf_program *excl_prog;
+};
+
+static struct bpf_map *create_dummy_bpf_map() {
+    struct bpf_map *map = (struct bpf_map *)calloc(1, sizeof(struct bpf_map));
+    if (!map) return NULL;
+
+    map->name = strdup("dummy_map");
+    map->real_name = strdup(".dummy_map");
+    map->fd = -1;
+    map->sec_idx = 0;
+    map->sec_offset = 0;
+    map->map_ifindex = 0;
+    map->inner_map_fd = -1;
+    map->def.type = BPF_MAP_TYPE_HASH;
+    map->def.key_size = 4;
+    map->def.value_size = 8;
+    map->def.max_entries = 1024;
+    map->def.map_flags = 0;
+    map->numa_node = 0;
+    map->btf_var_idx = 0;
+    map->mod_btf_fd = -1;
+    map->btf_key_type_id = 0;
+    map->btf_value_type_id = 0;
+    map->btf_vmlinux_value_type_id = 0;
+    map->libbpf_type = LIBBPF_MAP_UNSPEC;
+    map->pinned = false;
+    map->reused = false;
+    map->autocreate = false;
+    map->autoattach = false;
+    map->map_extra = 0;
+    return map;
+}
+
+static void cleanup_dummy_bpf_map(struct bpf_map *map) {
+    if (!map) return;
+    free(map->name);
+    free(map->real_name);
+    free(map);
 }
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    struct bpf_object *obj = NULL;
-    struct bpf_program *prog = NULL;
-    struct bpf_link *link = NULL;
-    struct bpf_insn insns[10];
-    int cgroup_fd = -1;
-    int ret;
+    if (Size < sizeof(struct bpf_map)) return 0;
 
-    // Initialize dummy file with fuzzer data
-    initialize_dummy_file(Data, Size);
+    struct bpf_map *map = create_dummy_bpf_map();
+    if (!map) return 0;
 
-    // Attempt to open a BPF object from the dummy file
-    obj = bpf_object__open_file("./dummy_file", NULL);
-    if (!obj)
-        {
-        return 0;
+    // Optionally modify map fields based on input data
+    if (Size >= sizeof(int)) {
+        map->map_ifindex = *(int *)Data;
+    }
+    if (Size >= sizeof(int) * 2) {
+        map->def.key_size = *(unsigned int *)(Data + sizeof(int));
+    }
+    if (Size >= sizeof(int) * 3) {
+        map->def.value_size = *(unsigned int *)(Data + sizeof(int) * 2);
+    }
+    if (Size >= sizeof(int) * 4) {
+        map->def.max_entries = *(unsigned int *)(Data + sizeof(int) * 3);
     }
 
-    // Load the BPF object
-    if (bpf_object__load(obj) < 0)
-        {
-        goto cleanup;
-    }
+    // Fuzz target functions
+    __u32 ifindex = bpf_map__ifindex(map);
+    __u32 value_size = bpf_map__value_size(map);
+    __u32 key_size = bpf_map__key_size(map);
+    __u32 max_entries = bpf_map__max_entries(map);
+    __u32 map_flags = bpf_map__map_flags(map);
+    __u32 btf_key_type_id = bpf_map__btf_key_type_id(map);
 
-    // Get the first program
+    // Print results to avoid compiler optimizing away the calls
+    printf("ifindex: %u, value_size: %u, key_size: %u, max_entries: %u, map_flags: %u, btf_key_type_id: %u\n",
+           ifindex, value_size, key_size, max_entries, map_flags, btf_key_type_id);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__next_program with bpf_object__prev_program
-    prog = bpf_object__prev_program(obj, NULL);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (!prog)
-        {
-        goto cleanup;
-    }
-
-    // Fuzz bpf_program__insn_cnt
-    size_t insn_cnt = bpf_program__insn_cnt(prog);
-
-    // Fuzz bpf_program__set_insns
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of bpf_program__set_insns
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of bpf_program__set_insns
-    ret = bpf_program__set_insns(prog, insns, 1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    
-    // Fuzz bpf_program__expected_attach_type
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_insns to bpf_program__attach_kprobe_opts
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_insns to bpf_program__attach_uprobe
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_insns to bpf_program__attach_tcx
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_insns to bpf_program__attach_uprobe
-    bool ret_bpf_program__autoload_bdawu = bpf_program__autoload(prog);
-    if (ret_bpf_program__autoload_bdawu == 0){
-    	return 0;
-    }
-
-    struct bpf_link* ret_bpf_program__attach_uprobe_nwajr = bpf_program__attach_uprobe(prog, ret_bpf_program__autoload_bdawu, 0, (const char *)"w", -1);
-    if (ret_bpf_program__attach_uprobe_nwajr == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    unsigned int ret_bpf_object__kversion_jgwka = bpf_object__kversion(NULL);
-    if (ret_bpf_object__kversion_jgwka < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__attach_tcx
-    struct bpf_link* ret_bpf_program__attach_tcx_codjd = bpf_program__attach_tcx(prog, 0, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_bpf_program__attach_tcx_codjd == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    struct bpf_link* ret_bpf_program__attach_uprobe_lknrc = bpf_program__attach_uprobe(prog, 1, 0, (const char *)Data, 64);
-    if (ret_bpf_program__attach_uprobe_lknrc == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    struct bpf_link* ret_bpf_program__attach_kprobe_opts_fyvdx = bpf_program__attach_kprobe_opts(prog, NULL, NULL);
-    if (ret_bpf_program__attach_kprobe_opts_fyvdx == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    enum bpf_attach_type attach_type = bpf_program__expected_attach_type(prog);
-
-    // Fuzz bpf_program__attach_cgroup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__expected_attach_type to libbpf_find_vmlinux_btf_id
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__expected_attach_type to libbpf_attach_type_by_name
-
-    int ret_libbpf_attach_type_by_name_gmlan = libbpf_attach_type_by_name(NULL, &attach_type);
-    if (ret_libbpf_attach_type_by_name_gmlan < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of libbpf_find_vmlinux_btf_id
-    const char geczoqfo[1024] = "awmdx";
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of libbpf_find_vmlinux_btf_id
-    int ret_libbpf_find_vmlinux_btf_id_kgzrs = libbpf_find_vmlinux_btf_id((const char *)Data, attach_type);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_libbpf_find_vmlinux_btf_id_kgzrs < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach_cgroup with bpf_program__attach_xdp
-    link = bpf_program__attach_xdp(prog, cgroup_fd);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (link) {
-        // Fuzz bpf_link__update_program
-        ret = bpf_link__update_program(link, prog);
-    }
-
-cleanup:
-    // Clean up
-    if (link)
-        {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_link__destroy with bpf_link__detach
-        bpf_link__detach(link);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }
-    if (obj)
-        {
-        bpf_object__close(obj);
-    }
-
+    cleanup_dummy_bpf_map(map);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

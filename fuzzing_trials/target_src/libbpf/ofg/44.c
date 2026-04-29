@@ -1,37 +1,70 @@
 #include <stdint.h>
 #include <stddef.h>
-#include "/src/libbpf/src/bpf.h"
-#include "/src/libbpf/include/uapi/linux/bpf.h"
-#include "/src/libbpf/src/libbpf.h"
+#include <string.h> // Include for memcpy
+
+// Assuming the definition of struct perf_buffer is available
+struct perf_buffer {
+    int dummy; // Placeholder member, replace with actual members if known
+};
+
+// Function-under-test
+int perf_buffer__epoll_fd(const struct perf_buffer *pb);
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    struct bpf_object *obj;
-    struct bpf_program *program;
-
-    if (size == 0) {
+    // Ensure the data size is sufficient to create a struct perf_buffer
+    if (size < sizeof(struct perf_buffer)) {
         return 0;
     }
 
-    // Load BPF object from data
-    obj = bpf_object__open_mem(data, size, NULL);
-    if (!obj) {
-        return 0;
-    }
+    // Initialize a perf_buffer structure from the input data
+    struct perf_buffer pb;
+    // Copy data into the perf_buffer structure, ensuring no overflow
+    memcpy(&pb, data, sizeof(struct perf_buffer));
 
-    // Iterate over programs in the object
-    bpf_object__for_each_program(program, obj) {
-        // Do something with each program, e.g., load it
-        bpf_program__set_autoload(program, true);
-    }
+    // Call the function-under-test
+    int result = perf_buffer__epoll_fd(&pb);
 
-    // Load the BPF object
-    if (bpf_object__load(obj) < 0) {
-        bpf_object__close(obj);
-        return 0;
-    }
-
-    // Clean up
-    bpf_object__close(obj);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

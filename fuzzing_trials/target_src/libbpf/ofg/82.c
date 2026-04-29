@@ -1,36 +1,56 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 
-// Assume this is the definition of the struct perf_buffer
-struct perf_buffer {
-    // Example fields
-    int some_field;
-    char another_field;
-    // Add other fields as necessary
-};
+// Function-under-test declaration
+int libbpf_num_possible_cpus();
 
-// Forward declaration of the function-under-test
-size_t perf_buffer__buffer_cnt(const struct perf_buffer *);
-
-// LLVMFuzzerTestOneInput function
 int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to initialize the struct
-    if (size < sizeof(struct perf_buffer)) {
-        return 0;
-    }
-
-    // Initialize a perf_buffer instance using the input data
-    struct perf_buffer buffer;
-    // Copy data into the buffer fields, ensuring alignment and size constraints
-    // This is a simple example of initialization
-    buffer.some_field = (int)data[0];
-    buffer.another_field = (char)data[1];
+    // No need to use 'data' and 'size' as the function under test does not take any parameters
 
     // Call the function-under-test
-    size_t count = perf_buffer__buffer_cnt(&buffer);
+    int result = libbpf_num_possible_cpus();
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)count;
+    // Optionally, you can use the result in some way, but it's not necessary for fuzzing
+    (void)result; // Suppress unused variable warning
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_82(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

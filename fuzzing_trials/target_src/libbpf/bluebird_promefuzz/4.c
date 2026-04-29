@@ -1,124 +1,115 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <errno.h>
+#include "/src/libbpf/include/uapi/linux/perf_event.h"
 #include "libbpf.h"
 
-static void clean_up(struct bpf_object *obj) {
-    if (obj) {
-        bpf_object__close(obj);
-    }
+static enum bpf_perf_event_ret dummy_event_cb(void *ctx, int cpu, struct perf_event_header *event) {
+    return LIBBPF_PERF_EVENT_CONT;
+}
+
+static void dummy_sample_cb(void *ctx, int cpu, void *data, __u32 size) {
+}
+
+static void dummy_lost_cb(void *ctx, int cpu, __u64 lost_cnt) {
 }
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 4) {
+    if (Size < sizeof(int) + sizeof(size_t)) {
         return 0;
     }
 
-    // Create a dummy BPF object file
-    const char *dummy_path = "./dummy_file";
-    FILE *file = fopen(dummy_path, "wb");
-    if (!file) {
+    int map_fd = *(int *)Data;
+    size_t page_cnt = *(size_t *)(Data + sizeof(int));
+
+    struct perf_event_attr attr = {
+        .type = PERF_TYPE_SOFTWARE,
+        .size = sizeof(struct perf_event_attr),
+        .config = 0,
+    };
+
+    struct perf_buffer_raw_opts raw_opts = {
+        .sz = sizeof(struct perf_buffer_raw_opts),
+        .cpu_cnt = 0,
+        .cpus = NULL,
+        .map_keys = NULL,
+    };
+
+    struct perf_buffer_opts opts = {
+        .sz = sizeof(struct perf_buffer_opts),
+        .sample_period = 1,
+    };
+
+    struct perf_buffer *pb_raw = perf_buffer__new_raw(map_fd, page_cnt, &attr, dummy_event_cb, NULL, &raw_opts);
+    if (!pb_raw) {
         return 0;
     }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
 
-    // Open the BPF object
-    struct bpf_object *obj = bpf_object__open(dummy_path);
-    if (!obj) {
+    struct perf_buffer *pb = perf_buffer__new(map_fd, page_cnt, dummy_sample_cb, dummy_lost_cb, NULL, &opts);
+    if (!pb) {
+        perf_buffer__free(pb_raw);
         return 0;
     }
 
-    // Fuzz bpf_object__set_kversion
-    __u32 kern_version = *(const __u32 *)Data;
-    bpf_object__set_kversion(obj, kern_version);
-
-    // Fuzz bpf_object__btf
-    struct btf *btf = bpf_object__btf(obj);
-
-    // Fuzz bpf_object__prepare
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__btf to perf_buffer__new
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__btf to libbpf_probe_bpf_prog_type
-
-    int ret_libbpf_probe_bpf_prog_type_ssfro = libbpf_probe_bpf_prog_type(0, (const void *)btf);
-    if (ret_libbpf_probe_bpf_prog_type_ssfro < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    struct perf_buffer* ret_perf_buffer__new_toxsy = perf_buffer__new(0, 64, NULL, NULL, (void *)btf, NULL);
-    if (ret_perf_buffer__new_toxsy == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from perf_buffer__new to libbpf_strerror
-
-    int ret_libbpf_strerror_qtoio = libbpf_strerror(1, btf, -1);
-    if (ret_libbpf_strerror_qtoio < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    bpf_object__prepare(obj);
-
-    // Fuzz bpf_object__open_mem
-    struct bpf_object *mem_obj = bpf_object__open_mem(Data, Size, NULL);
-    if (mem_obj) {
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bpf_object__close
-        bpf_object__close(obj);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    }
-
-    // Cleanup
-    clean_up(obj);
-
-    // Remove dummy file
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__open_mem
-        struct bpf_object_skeleton hzwojhdd;
-        memset(&hzwojhdd, 0, sizeof(hzwojhdd));
-        int ret_bpf_object__attach_skeleton_vabma = bpf_object__attach_skeleton(&hzwojhdd);
-        if (ret_bpf_object__attach_skeleton_vabma < 0){
-        	return 0;
+    size_t cpu_cnt = perf_buffer__buffer_cnt(pb);
+    for (size_t i = 0; i < cpu_cnt; ++i) {
+        int fd = perf_buffer__buffer_fd(pb, i);
+        if (fd < 0) {
+            continue;
         }
 
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__attach_skeleton to bpf_program__attach_freplace
-
-        struct bpf_link* ret_bpf_program__attach_freplace_gtvum = bpf_program__attach_freplace(NULL, ret_bpf_object__attach_skeleton_vabma, NULL);
-        if (ret_bpf_program__attach_freplace_gtvum == NULL){
-        	return 0;
+        void *buf;
+        size_t buf_size;
+        if (perf_buffer__buffer(pb, i, &buf, &buf_size) == 0) {
+            perf_buffer__consume_buffer(pb, i);
         }
+    }
 
-        // End mutation: Producer.APPEND_MUTATOR
-
-        struct bpf_object* ret_bpf_object__open_mem_jbgbp = bpf_object__open_mem((const void *)mem_obj, (size_t )ret_bpf_object__attach_skeleton_vabma, NULL);
-        if (ret_bpf_object__open_mem_jbgbp == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    remove(dummy_path);
+    perf_buffer__free(pb);
+    perf_buffer__free(pb_raw);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

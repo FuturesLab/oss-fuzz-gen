@@ -1,65 +1,101 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "libbpf.h"
+#include "/src/libbpf/src/bpf.h"
+#include "/src/libbpf/src/bpf.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include "/src/libbpf/include/uapi/linux/fcntl.h"
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
-    if (obj == NULL) {
-        return 0; // If object creation fails, exit early
+    struct bpf_object *obj = NULL;
+    int result;
+
+    // Create a temporary file to hold the BPF object data
+    char tmpl[] = "/tmp/fuzzbpfXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        perror("mkstemp");
+        return 0;
+    }
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        perror("write");
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Load the BPF object from the file
+    obj = bpf_object__open_file(tmpl, NULL);
+    if (!obj) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
     }
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__unpin_maps
-    const char yyjbpowx[1024] = "nfmlf";
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__unpin_maps with bpf_object__unpin_programs
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__unpin_programs with bpf_object__unpin
-    int ret_bpf_object__unpin_maps_ijmuh = bpf_object__unpin(obj, yyjbpowx);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_bpf_object__unpin_maps_ijmuh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__unpin_maps to libbpf_probe_bpf_prog_type
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of libbpf_probe_bpf_prog_type
-    int ret_libbpf_probe_bpf_prog_type_ymotg = libbpf_probe_bpf_prog_type(0, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_libbpf_probe_bpf_prog_type_ymotg < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int result = bpf_object__prepare(obj);
+    result = bpf_object__load(obj);
 
     // Clean up
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__prepare to bpf_object__set_kversion
-    __u32 ret_bpf_map__btf_value_type_id_oodsp = bpf_map__btf_value_type_id(NULL);
-
-    int ret_bpf_object__set_kversion_syesv = bpf_object__set_kversion(obj, ret_bpf_map__btf_value_type_id_oodsp);
-    if (ret_bpf_object__set_kversion_syesv < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__load to bpf_object__pin_maps
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!obj) {
     	return 0;
     }
-
+    int ret_bpf_object__pin_maps_zdigq = bpf_object__pin_maps(obj, (const char *)"r");
+    if (ret_bpf_object__pin_maps_zdigq < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
+    
     bpf_object__close(obj);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

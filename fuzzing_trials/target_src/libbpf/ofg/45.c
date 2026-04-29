@@ -1,43 +1,84 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
-// Mock definition of struct bpf_map
-struct bpf_map {
-    int dummy; // Placeholder member to simulate the struct
-};
-
-// Mock implementation of the function-under-test
-const char *bpf_map__pin_path_45(const struct bpf_map *map) {
-    // Simulate returning a constant string path
-    return "/sys/fs/bpf/map";
-}
+#include <stddef.h>
+#include <linux/bpf.h>
+#include "/src/libbpf/src/libbpf.h"
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Allocate memory for a bpf_map structure
-    struct bpf_map *map = (struct bpf_map *)malloc(sizeof(struct bpf_map));
+    // Declare and initialize variables
+    struct bpf_program *prog = NULL;
+    int perf_event_fd = 1; // Using a non-zero file descriptor value
 
-    if (map == NULL || size < sizeof(int)) {
-        free(map);
+    // Ensure size is non-zero to avoid passing NULL data
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize the structure with data from the fuzzer input
-    memcpy(&map->dummy, data, sizeof(int));
+    // Create a BPF object from the input data
+    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
+    if (!obj) {
+        return 0;
+    }
+
+    // Load the BPF object
+    if (bpf_object__load(obj) < 0) {
+        bpf_object__close(obj);
+        return 0;
+    }
+
+    // Get the first program in the BPF object
+    prog = bpf_object__next_program(obj, NULL);
+    if (!prog) {
+        bpf_object__close(obj);
+        return 0;
+    }
 
     // Call the function-under-test
-    const char *result = bpf_map__pin_path_45(map);
+    struct bpf_link *link = bpf_program__attach_perf_event(prog, perf_event_fd);
 
-    // Free allocated memory
-    free(map);
-
-    // Use the result in some way to avoid compiler optimizations
-    if (result) {
-        // Simulate some usage of the result
-        volatile char first_char = result[0];
-        (void)first_char;
+    // Clean up
+    if (link) {
+        bpf_link__destroy(link);
     }
+    bpf_object__close(obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
