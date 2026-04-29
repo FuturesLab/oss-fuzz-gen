@@ -1,31 +1,65 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <string.h>
 #include <janet.h>
 
-// Fuzzing harness for janet_dictionary_next
 int LLVMFuzzerTestOneInput_354(const uint8_t *data, size_t size) {
-    // Ensure that size is sufficient to create a JanetKV array
-    if (size < sizeof(JanetKV) * 3) {
+    if (size < 2 * sizeof(Janet)) {
         return 0;
     }
 
-    // Cast the data to JanetKV pointers
-    const JanetKV *dict = (const JanetKV *)data;
-    const JanetKV *end = (const JanetKV *)(data + size - sizeof(JanetKV));
+    // Initialize Janet
+    janet_init();
 
-    // Initialize index to 0
-    int32_t index = 0;
+    // Create two Janet values from the input data
+    Janet x, y;
+    memcpy(&x, data, sizeof(Janet));
+    memcpy(&y, data + sizeof(Janet), sizeof(Janet));
 
     // Call the function-under-test
-    const JanetKV *result = janet_dictionary_next(dict, index, end);
+    Janet result = janet_in(x, y);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (result != NULL) {
-        // Perform some trivial operation
-        (void)result->key;
-        (void)result->value;
-    }
+    // Clean up Janet
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_354(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

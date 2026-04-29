@@ -3,27 +3,59 @@
 #include <janet.h>
 
 int LLVMFuzzerTestOneInput_397(const uint8_t *data, size_t size) {
-    if (size < sizeof(Janet)) {
+    if (size < sizeof(int32_t)) {
         return 0;
     }
 
-    // Initialize Janet VM
-    janet_init();
-
-    // Prepare the Janet array
-    const Janet *janet_array = (const Janet *)data;
-    int32_t n = size / sizeof(Janet);
-
-    // Define default values for the other parameters
-    int32_t index = 0; // Start with the first element
-    int32_t def = 0;   // Default index
-    int def_value = 0; // Default boolean value
+    // Initialize a Janet object with the input data
+    Janet janetValue;
+    int32_t intValue = *((int32_t *)data);
+    janetValue = janet_wrap_integer(intValue);
 
     // Call the function-under-test
-    janet_optboolean(janet_array, n, index, def_value);
+    int result = janet_checkuint16(janetValue);
 
-    // Clean up Janet VM
-    janet_deinit();
+    // Use the result in some way if necessary
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_397(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,34 +1,73 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h> // Include standard library for abort function
-#include "/src/janet/src/include/janet.h" // Correct path for Janet types and functions
+#include <stdlib.h>
+#include <stdio.h>  // Include for printf
+#include <janet.h>
 
-// Function prototype for the fuzzer
 int LLVMFuzzerTestOneInput_160(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract a uint32_t value
-    if (size < sizeof(uint32_t)) {
-        return 0;
-    }
+    // Initialize Janet environment
+    janet_init();
 
-    // Extract a uint32_t value from the input data
-    uint32_t capacity = *((uint32_t *)data);
+    // Create a JanetParser instance
+    JanetParser parser;
+    janet_parser_init(&parser);
 
-    // Check for a reasonable capacity to avoid potential issues
-    if (capacity == 0 || capacity > 1000000) { // Arbitrary large value to prevent excessive allocation
-        return 0;
+    // Feed the data to the parser, one byte at a time
+    for (size_t i = 0; i < size; i++) {
+        janet_parser_consume(&parser, data[i]);
     }
 
     // Call the function-under-test
-    JanetChannel *channel = janet_channel_make(capacity);
+    const char *error_message = janet_parser_error(&parser);
 
-    // Check if channel is successfully created
-    if (channel == NULL) {
-        return 0;
+    // Optionally, you can print the error message for debugging purposes
+    if (error_message != NULL) {
+        printf("Parser Error: %s\n", error_message);
     }
 
-    // Perform any necessary cleanup
-    janet_gcroot(janet_wrap_pointer(channel));
-    janet_gcunroot(janet_wrap_pointer(channel));
+    // Clean up the parser
+    janet_parser_deinit(&parser);
+
+    // Deinitialize Janet environment
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_160(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

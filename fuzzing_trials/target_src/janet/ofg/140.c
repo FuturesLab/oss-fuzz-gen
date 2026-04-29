@@ -1,43 +1,79 @@
 #include <stdint.h>
-#include <stddef.h>
-#include "/src/janet/src/include/janet.h" // Corrected path for JanetVM
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stdlib.h>
+#include <string.h>
+#include <janet.h>
 
 int LLVMFuzzerTestOneInput_140(const uint8_t *data, size_t size) {
-    // Initialize JanetVM
-    janet_init();
-
-    // Check if data is not null and size is greater than zero
-    if (data != NULL && size > 0) {
-        // Convert the input data into a Janet string or buffer
-        JanetBuffer *buffer = janet_buffer(size);
-        janet_buffer_push_bytes(buffer, data, size);
-
-        // Create a Janet array to hold the buffer
-        Janet argv[1];
-        argv[0] = janet_wrap_buffer(buffer);
-
-        // Resolve the environment and symbol
-        JanetTable *env = janet_core_env(NULL);
-        JanetSymbol sym = janet_csymbol("function_under_test");
-        Janet fun;
-        if (janet_resolve(env, sym, &fun) && janet_checktype(fun, JANET_FUNCTION)) {
-            janet_call(janet_unwrap_function(fun), 1, argv);
-        }
-
-        // Clean up the buffer
-        janet_buffer_deinit(buffer);
+    // Ensure the input size is sufficient to create required objects
+    if (size < sizeof(JanetKV) + sizeof(Janet) + sizeof(JanetStruct)) {
+        return 0;
     }
 
-    // Clean up the JanetVM if necessary
+    // Initialize Janet environment
+    janet_init();
+
+    // Allocate and initialize a JanetKV object
+    JanetKV *kv = janet_struct_begin(1);
+    if (!kv) {
+        janet_deinit();
+        return 0;
+    }
+
+    // Create a Janet object from the input data
+    Janet key;
+    memcpy(&key, data, sizeof(Janet));
+
+    // Allocate and initialize a JanetStruct object
+    JanetStruct *jstruct = janet_struct_end(kv);
+    if (!jstruct) {
+        janet_deinit();
+        return 0;
+    }
+
+    // Call the function-under-test
+    Janet result = janet_struct_get_ex(jstruct, key, NULL);
+
+    // Clean up Janet environment
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_140(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

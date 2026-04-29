@@ -1,32 +1,60 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <janet.h>
+#include <stddef.h> // Include this header to define size_t
 
-// Define a dummy JanetCFunction for testing purposes
-static Janet cfunction_dummy(int32_t argc, Janet *argv) {
-    (void)argc; // Unused parameter
-    (void)argv; // Unused parameter
-    return janet_wrap_nil();
-}
+// Assuming the function is declared in an external library
+extern void janet_gcunlock(int);
 
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Ensure the data size is large enough to extract necessary parameters
-    if (size < sizeof(Janet) * 2 + sizeof(int32_t) * 2) {
+    // Ensure there is at least one byte to read
+    if (size < 1) {
         return 0;
     }
 
-    // Extract parameters from the input data
-    const Janet *janet_array = (const Janet *)data;
-    int32_t n = *((int32_t *)(data + sizeof(Janet) * 2));
-    int32_t def = *((int32_t *)(data + sizeof(Janet) * 2 + sizeof(int32_t)));
-
-    // Ensure n is within a reasonable range to avoid out-of-bounds access
-    if (n < 0 || n > size / sizeof(Janet)) {
-        return 0;
-    }
+    // Use the first byte of data to create a non-null integer
+    int input = (int)data[0];
 
     // Call the function-under-test
-    janet_optcfunction(janet_array, n, def, cfunction_dummy);
+    janet_gcunlock(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

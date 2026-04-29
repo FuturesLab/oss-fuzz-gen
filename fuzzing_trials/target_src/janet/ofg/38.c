@@ -1,47 +1,65 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <limits.h>
-#include <string.h>
-
-// Function-under-test declaration
-void *janet_scalloc(size_t num, size_t size);
+#include "janet.h" // Assuming the header file for Janet library is named janet.h
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract two size_t values
-    if (size < 2 * sizeof(size_t)) {
-        return 0;
+    // Create a temporary file to simulate a JanetFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If file creation fails, exit early
     }
 
-    // Extract two size_t values from the input data
-    size_t num = *((size_t *)data);
-    size_t elem_size = *((size_t *)(data + sizeof(size_t)));
-
-    // Limit the size of num and elem_size to avoid excessive memory allocation
-    // Ensure num and elem_size are at least 1 to avoid trivial allocations
-    num = (num % (SIZE_MAX / 2)) + 1;
-    elem_size = (elem_size % (SIZE_MAX / 2)) + 1;
+    // Initialize a JanetFile structure
+    JanetFile janetFile;
+    janetFile.file = fdopen(fd, "w+");
+    janetFile.flags = JANET_FILE_READ | JANET_FILE_WRITE; // Assuming these are valid flags
 
     // Call the function-under-test
-    void *result = janet_scalloc(num, elem_size);
+    janet_file_close(&janetFile);
 
-    // Check if the allocation was successful
-    if (result != NULL) {
-        // Write some data to the allocated memory to simulate usage
-        memset(result, 0xAA, num * elem_size);
-
-        // Introduce a deliberate out-of-bounds write to test for memory corruption detection
-        // Adjusted to ensure the out-of-bounds write happens within bounds
-        if (num * elem_size > 0) {
-            // Perform a deliberate out-of-bounds write just beyond the allocated memory
-            if (num * elem_size < SIZE_MAX) {
-                ((uint8_t *)result)[num * elem_size] = 0xBB; // Out-of-bounds write
-            }
-        }
-
-        // Free the allocated memory
-        free(result);
-    }
+    // Clean up the temporary file
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_38(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

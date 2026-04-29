@@ -1,31 +1,71 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this header to define size_t
-#include <stdlib.h>  // Include this header for abort function
-
-extern void janet_arity(int32_t, int32_t, int32_t);
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <janet.h>
 
 int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    if (size < 12) {
-        return 0; // Ensure there is enough data for three int32_t values
-    }
-
-    int32_t arg1 = (int32_t)((data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]);
-    int32_t arg2 = (int32_t)((data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7]);
-    int32_t arg3 = (int32_t)((data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11]);
-
-    // Ensure that the arguments are within a valid range for the janet_arity function
-    // Assuming janet_arity expects non-negative values
-    if (arg1 < 0 || arg2 < 0 || arg3 < 0) {
+    // Ensure that the size of the data is non-zero to create a valid symbol
+    if (size == 0) {
         return 0;
     }
 
-    // Additional check to ensure that the arguments are within a reasonable range
-    // This is an assumption based on typical usage, adjust as necessary
-    if (arg1 > 1000 || arg2 > 1000 || arg3 > 1000) {
+    // Create a JanetSymbol from the input data
+    // JanetSymbol is essentially a const char*
+    const char *symbolData = (const char *)data;
+
+    // Ensure the symbol is null-terminated
+    char *symbol = (char *)malloc(size + 1);
+    if (symbol == NULL) {
         return 0;
     }
+    memcpy(symbol, symbolData, size);
+    symbol[size] = '\0';
 
-    janet_arity(arg1, arg2, arg3);
+    // Call the function-under-test
+    Janet result = janet_wrap_symbol(symbol);
+
+    // Clean up
+    free(symbol);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_133(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

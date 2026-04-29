@@ -1,32 +1,57 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <janet.h>
+#include "janet.h"  // Assuming janet.h contains the declaration for JanetTryState and janet_try_init
 
-// Function signature for the function-under-test
-Janet janet_cfun_stream_write(int32_t, Janet *);
-
-// Fuzzing harness for janet_cfun_stream_write
 int LLVMFuzzerTestOneInput_388(const uint8_t *data, size_t size) {
-    // Initialize Janet VM
-    janet_init();
-
-    // Ensure the size is sufficient to create a Janet string
-    if (size < 1) {
-        janet_deinit();
+    // Ensure the data size is sufficient for initializing a JanetTryState
+    if (size < sizeof(JanetTryState)) {
         return 0;
     }
 
-    // Create a Janet string from the input data
-    Janet input = janet_stringv((const uint8_t *)data, size);
-
-    // Create a dummy integer value
-    int32_t dummy_int = 42;
-
+    // Create and initialize a JanetTryState object
+    JanetTryState state;
+    
     // Call the function-under-test
-    janet_cfun_stream_write(dummy_int, &input);
-
-    // Deinitialize Janet VM
-    janet_deinit();
+    janet_try_init(&state);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_388(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

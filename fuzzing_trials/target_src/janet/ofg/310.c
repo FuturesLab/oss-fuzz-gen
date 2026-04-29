@@ -1,45 +1,71 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <janet.h>
+#include <string.h>
+#include "janet.h" // Assuming janet.h is the header file where Janet type is defined
+
+int janet_symeq(Janet j, const char *str);
 
 int LLVMFuzzerTestOneInput_310(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract two int32_t values
-    if (size < sizeof(int32_t) * 2) {
+    // Ensure the data size is at least 1 to create a valid string
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize Janet
-    janet_init();
+    // Initialize a Janet value
+    Janet janet_value = janet_wrap_nil(); // Assuming janet_wrap_nil() is a way to initialize a Janet type
 
-    // Create a JanetBuffer
-    JanetBuffer *buffer = janet_buffer(10); // Initializing with some arbitrary size
-
-    // Extract two int32_t values from the input data
-    int32_t size_hint = *((int32_t *)data);
-    int32_t growth_factor = *((int32_t *)(data + sizeof(int32_t)));
-
-    // Ensure size_hint and growth_factor are within a reasonable range
-    // to avoid excessive memory allocation or undefined behavior
-    size_hint = size_hint < 0 ? -size_hint : size_hint;
-    growth_factor = growth_factor < 0 ? -growth_factor : growth_factor;
-
-    // Add a check to ensure size_hint and growth_factor are not zero
-    // This ensures the function under test is meaningfully invoked
-    if (size_hint == 0) size_hint = 1;
-    if (growth_factor == 0) growth_factor = 1;
+    // Create a null-terminated string from the input data
+    char *input_str = (char *)malloc(size + 1);
+    if (input_str == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(input_str, data, size);
+    input_str[size] = '\0';
 
     // Call the function-under-test
-    janet_buffer_ensure(buffer, size_hint, growth_factor);
+    int result = janet_symeq(janet_value, input_str);
 
-    // Use the buffer to ensure it's not null and perform some operations
-    // This helps to exercise the buffer and potentially reveal issues
-    for (int i = 0; i < size_hint && i < size; i++) {
-        janet_buffer_push_u8(buffer, (uint8_t)(data[i]));
-    }
-
-    // Clean up
-    janet_deinit();
+    // Cleanup
+    free(input_str);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_310(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

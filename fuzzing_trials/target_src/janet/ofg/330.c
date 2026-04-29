@@ -1,70 +1,81 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h> // Include this for abort()
-
-typedef struct {
-    // Assuming Janet is a struct with some fields
-    int type;
-    union {
-        int32_t integer;
-        double number;
-        const char *string;
-    } value;
-} Janet;
-
-int32_t janet_getargindex(const Janet *args, int32_t argc, int32_t index, const char *name);
+#include <stdlib.h>
+#include <janet.h>
 
 int LLVMFuzzerTestOneInput_330(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create at least one Janet argument and a name
-    if (size < sizeof(Janet) + 1) {
+    // Initialize Janet
+    janet_init();
+
+    // Create a JanetBuffer
+    JanetBuffer buffer;
+    janet_buffer_init(&buffer, 10); // Initialize with a default size of 10
+
+    // Ensure the data size is adequate for int32_t values
+    if (size < 8) {
+        janet_deinit();
         return 0;
     }
 
-    // Create a Janet array from the input data
-    Janet args[1];
-    args[0].type = 0; // Assuming a type, this should be set according to the actual type system
-    args[0].value.integer = (int32_t)data[0]; // Use the first byte as an integer
+    // Extract two int32_t values from the data
+    int32_t min_size = (int32_t)((data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]);
+    int32_t growth_factor = (int32_t)((data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7]);
 
-    // Set argc to the number of Janet arguments
-    int32_t argc = 1;
-
-    // Set index to a valid index within the args array
-    int32_t index = 0;
-
-    // Use the remaining data as a string for the name
-    const char *name = (const char *)(data + 1); // Adjust offset to 1 to avoid overlap with args[0]
-    size_t name_length = size - 1; // Adjust size to account for the first byte used for integer
-    char *name_buffer = (char *)malloc(name_length + 1);
-    if (!name_buffer) {
-        return 0; // Handle memory allocation failure
-    }
-    memcpy(name_buffer, name, name_length);
-    name_buffer[name_length] = '\0'; // Ensure null-termination
-
-    // Check if the name is empty, which may cause issues in the function
-    if (name_length == 0) {
-        free(name_buffer);
-        return 0;
-    }
-
-    // Ensure the name is a valid string by checking it contains printable characters
-    for (size_t i = 0; i < name_length; i++) {
-        if (name_buffer[i] == '\0' || (unsigned char)name_buffer[i] < 32 || (unsigned char)name_buffer[i] > 126) {
-            free(name_buffer);
-            return 0;
-        }
+    // Ensure min_size is positive to avoid undefined behavior
+    if (min_size < 0) {
+        min_size = -(min_size);
     }
 
     // Call the function-under-test
-    int32_t result = janet_getargindex(args, argc, index, name_buffer);
+    janet_buffer_ensure(&buffer, min_size, growth_factor);
 
-    // Print the result for debugging purposes
-    printf("Result: %d\n", result);
+    // Manipulate the buffer to increase the chance of finding issues
+    for (size_t i = 0; i < size; i++) {
+        janet_buffer_push_u8(&buffer, data[i]);
+    }
 
-    // Free the allocated memory
-    free(name_buffer);
+    // Clean up
+    janet_buffer_deinit(&buffer);
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_330(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

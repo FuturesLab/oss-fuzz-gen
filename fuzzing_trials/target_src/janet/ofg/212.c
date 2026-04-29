@@ -1,63 +1,80 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include <signal.h>
+#include <janet.h>
 
-// Function-under-test
-void janet_sfree(void *ptr);
-
-// Signal handler to catch abort signals
-void handle_abort_212(int sig) {
-    // Handle the abort signal, possibly logging or cleaning up
-    exit(1);
-}
+double janet_optnumber(const Janet *args, int32_t argc, int32_t n, double def);
 
 int LLVMFuzzerTestOneInput_212(const uint8_t *data, size_t size) {
-    // Register the signal handler for SIGABRT
-    signal(SIGABRT, handle_abort_212);
-
-    // Ensure the size is non-zero to avoid allocating zero bytes
-    if (size == 0) {
+    if (size < sizeof(double) + sizeof(int32_t) * 2) {
         return 0;
     }
 
-    // Allocate memory and copy the fuzz data into it
-    void *buffer = malloc(size);
-    if (buffer == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Initialize the Janet array
+    Janet janet_args[1];
+    double number;
+    memcpy(&number, data, sizeof(double));
+    janet_args[0] = janet_wrap_number(number);
+
+    // Extract int32_t values from data
+    int32_t argc;
+    memcpy(&argc, data + sizeof(double), sizeof(int32_t));
+    int32_t n;
+    memcpy(&n, data + sizeof(double) + sizeof(int32_t), sizeof(int32_t));
+
+    // Ensure argc is within bounds
+    if (argc < 0 || argc > 1) {
+        return 0;
     }
 
-    // Copy the data into the allocated buffer
-    memcpy(buffer, data, size);
+    // Extract default double value
+    double def;
+    memcpy(&def, data + sizeof(double) + sizeof(int32_t) * 2, sizeof(double));
 
-    // Call the function-under-test with the allocated buffer
-    janet_sfree(buffer);
+    // Call the function-under-test
+    double result = janet_optnumber(janet_args, argc, n, def);
 
-    // To maximize fuzzing result, call janet_sfree again with various inputs
-    // Call with a null pointer
-    janet_sfree(NULL);
-
-    // Call with a small buffer
-    void *small_buffer = malloc(1);
-    if (small_buffer != NULL) {
-        // Fill the small buffer with non-zero data
-        memset(small_buffer, 0xFF, 1);
-        janet_sfree(small_buffer);
-        free(small_buffer);
-    }
-
-    // Call with a larger buffer
-    void *large_buffer = malloc(1024);
-    if (large_buffer != NULL) {
-        // Fill the large buffer with non-zero data
-        memset(large_buffer, 0xFF, 1024);
-        janet_sfree(large_buffer);
-        free(large_buffer);
-    }
-
-    // Free the allocated memory
-    free(buffer);
+    // Use the result in some way to avoid optimization out
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_212(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

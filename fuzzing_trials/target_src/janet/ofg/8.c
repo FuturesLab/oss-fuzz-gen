@@ -2,44 +2,66 @@
 #include <stddef.h>
 #include <janet.h>
 
-// Function to safely extract an integer from the input data
-static int32_t safe_extract_int32(const uint8_t *data, size_t size, size_t offset) {
-    if (offset + sizeof(int32_t) <= size) {
-        return *(int32_t *)(data + offset);
-    }
-    return 0; // Return a default value if extraction is not possible
-}
+extern JanetArray * janet_optarray(const Janet *argv, int32_t argc, int32_t n, int32_t def);
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract the necessary parameters
-    if (size < sizeof(Janet) + 3 * sizeof(int32_t)) {
-        return 0;
+    if (size < sizeof(Janet)) {
+        return 0; // Not enough data to form a Janet value
     }
 
-    // Initialize Janet VM
+    // Initialize Janet environment
     janet_init();
 
-    // Extract parameters from the input data
-    Janet janet_data;
-    memcpy(&janet_data, data, sizeof(Janet)); // Safely copy data into janet_data
-    int32_t arg1 = safe_extract_int32(data, size, sizeof(Janet));
-    int32_t arg2 = safe_extract_int32(data, size, sizeof(Janet) + sizeof(int32_t));
-    int32_t arg3 = safe_extract_int32(data, size, sizeof(Janet) + 2 * sizeof(int32_t));
+    // Prepare inputs for janet_optarray
+    const Janet *argv = (const Janet *)data;
+    int32_t argc = size / sizeof(Janet); // Number of Janet elements in data
+    int32_t n = 0; // Index to check in argv
+    int32_t def = 0; // Default value if index is out of bounds
 
-    // Ensure janet_data is valid before calling the function
-    if (janet_checktype(janet_data, JANET_ARRAY)) {
-        // Call the function-under-test
-        JanetArray *result = janet_optarray(&janet_data, arg1, arg2, arg3);
+    // Call the function-under-test
+    JanetArray *result = janet_optarray(argv, argc, n, def);
 
-        // Use the result in some way to avoid compiler optimizations removing the call
-        if (result) {
-            // For instance, access the length of the result array
-            (void)result->count;
-        }
-    }
-
-    // Clean up Janet VM
+    // Clean up Janet environment
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

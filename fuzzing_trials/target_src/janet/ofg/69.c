@@ -1,49 +1,71 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <janet.h>
 
-// Assume JanetKV is a struct defined in the Janet library
-typedef struct {
-    const char *key;
-    int32_t value;
-} JanetKV;
-
-// Prototype of the function-under-test
-int32_t janet_sorted_keys(const JanetKV *kvs, int32_t len, int32_t *result);
-
-// Fuzzer entry point
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create at least one JanetKV element
-    if (size < sizeof(JanetKV)) {
+    if (size < sizeof(Janet)) {
         return 0;
     }
 
-    // Calculate the number of JanetKV elements we can create
-    int32_t num_elements = size / sizeof(JanetKV);
+    // Initialize Janet VM
+    janet_init();
 
-    // Allocate memory for JanetKV array
-    JanetKV *kvs = (JanetKV *)malloc(num_elements * sizeof(JanetKV));
-    if (kvs == NULL) {
-        return 0; // Allocation failed
+    // Create a Janet array to hold the input data
+    JanetArray *array = janet_array(size / sizeof(Janet));
+    
+    // Copy the input data into the Janet array
+    for (size_t i = 0; i < size / sizeof(Janet); i++) {
+        array->data[i] = ((Janet *)data)[i];
     }
+    array->count = size / sizeof(Janet);
 
-    // Copy data into JanetKV array
-    memcpy(kvs, data, num_elements * sizeof(JanetKV));
-
-    // Allocate memory for the result array
-    int32_t *result = (int32_t *)malloc(num_elements * sizeof(int32_t));
-    if (result == NULL) {
-        free(kvs);
-        return 0; // Allocation failed
-    }
+    // Ensure the index is within bounds
+    int32_t index = size / sizeof(Janet) > 0 ? 0 : -1;
 
     // Call the function-under-test
-    int32_t sorted_count = janet_sorted_keys(kvs, num_elements, result);
+    JanetFiber *fiber = janet_getfiber(array->data, index);
 
     // Clean up
-    free(kvs);
-    free(result);
-
+    janet_deinit();
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_69(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

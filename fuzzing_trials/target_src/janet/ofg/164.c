@@ -1,59 +1,70 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>  // Include for memcpy
 #include <janet.h>
 
+// Fuzzing harness for janet_get_abstract_type
 int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    // Ensure the input size is at least the size of an int32_t
-    if (size < sizeof(int32_t)) {
+    // Ensure size is sufficient to create a Janet object
+    if (size < sizeof(Janet)) {
         return 0;
     }
 
-    // Extract an int32_t value from the input data
-    int32_t input_value = 0;
-    for (size_t i = 0; i < sizeof(int32_t); i++) {
-        input_value |= ((int32_t)data[i]) << (8 * i);
-    }
-
-    // Initialize the Janet environment
-    janet_init();
-
-    // Ensure the input value is non-zero and meaningful
-    if (input_value <= 0) {
-        input_value = 1; // Ensure non-zero and positive input
-    }
+    // Create a Janet object from the input data
+    Janet janet_obj;
+    memcpy(&janet_obj, data, sizeof(Janet));
 
     // Call the function-under-test
-    JanetTable *table = janet_table_weakv(input_value);
+    const JanetAbstractType *abstract_type = janet_get_abstract_type(janet_obj);
 
-    // Perform more complex operations on the table
-    if (table) {
-        // Insert multiple dummy values to ensure the table is being used
-        for (int i = 0; i < input_value; i++) {
-            Janet key = janet_wrap_integer(i);
-            Janet value = janet_wrap_string(janet_cstring("test"));
-            janet_table_put(table, key, value);
-        }
-
-        // Perform additional operations to test different code paths
-        for (int i = 0; i < input_value; i++) {
-            Janet key = janet_wrap_integer(i);
-            Janet retrieved_value = janet_table_get(table, key);
-            if (!janet_checktype(retrieved_value, JANET_NIL)) {
-                // Modify the retrieved value
-                Janet new_value = janet_wrap_integer(i * 2);
-                janet_table_put(table, key, new_value);
-            }
-        }
-
-        // Delete some keys to test the table's handling of deletions
-        for (int i = 0; i < input_value / 2; i++) {
-            Janet key = janet_wrap_integer(i);
-            janet_table_remove(table, key);
+    // Use the result to prevent compiler optimizations from removing the call
+    if (abstract_type != NULL) {
+        // Do something trivial with abstract_type, like checking its name
+        const char *type_name = abstract_type->name;
+        if (type_name != NULL) {
+            // Just a dummy operation to use type_name
+            (void)type_name[0];
         }
     }
-
-    // Deinitialize the Janet environment
-    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_164(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

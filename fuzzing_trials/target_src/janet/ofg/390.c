@@ -2,31 +2,59 @@
 #include <stddef.h>
 #include <janet.h>
 
-// A simple example of a JanetCFunction
-static Janet my_cfunction(int32_t argc, Janet *argv) {
-    // This function does nothing, just returns nil
-    (void)argc; // Suppress unused variable warning
-    (void)argv; // Suppress unused variable warning
-    return janet_wrap_nil();
-}
-
 int LLVMFuzzerTestOneInput_390(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for our needs
-    if (size < sizeof(JanetCFunction)) {
+    // Ensure size is sufficient to create a pointer
+    if (size < sizeof(void *)) {
         return 0;
     }
 
-    // Initialize the Janet runtime
-    janet_init();
+    // Use the data as a pointer
+    void *ptr = (void *)data;
 
-    // Use the provided data to create a JanetCFunction pointer
-    JanetCFunction cfunc = my_cfunction;
+    // Call the function-under-test
+    Janet result = janet_wrap_pointer(ptr);
 
-    // Wrap the C function in a Janet object
-    Janet wrapped_function = janet_wrap_cfunction(cfunc);
-
-    // Clean up the Janet runtime
-    janet_deinit();
+    // Use the result to avoid any compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_390(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

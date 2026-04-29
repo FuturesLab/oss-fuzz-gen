@@ -1,31 +1,63 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <janet.h>
 
+extern JanetIntType janet_is_int(Janet);
+
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Initialize Janet
-    janet_init();
+    Janet janet_value;
 
-    // Create a JanetBuffer
-    JanetBuffer *buffer = janet_buffer(size);
-
-    // Ensure the buffer is not NULL
-    if (buffer == NULL) {
+    if (size < sizeof(Janet)) {
         return 0;
     }
 
-    // Copy data to the buffer
-    if (size > 0) {
-        janet_buffer_push_bytes(buffer, data, size);
-    }
+    // Initialize a Janet value from the input data
+    janet_value = *(Janet *)data;
 
-    // Set a count for the buffer using the function-under-test
-    int32_t count = (int32_t)(size / 2); // Arbitrary count value for testing
-    janet_buffer_setcount(buffer, count);
+    // Call the function-under-test
+    JanetIntType result = janet_is_int(janet_value);
 
-    // Clean up
-    janet_deinit();
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_65(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

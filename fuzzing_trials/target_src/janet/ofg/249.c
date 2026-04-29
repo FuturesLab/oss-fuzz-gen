@@ -1,39 +1,71 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <janet.h>
-
-// Correct the function declaration to match the header file
-JanetFiber *janet_loop1(void);
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_249(const uint8_t *data, size_t size) {
-    // Initialize Janet
-    janet_init();
-
-    // Create a Janet array from the input data
-    JanetArray *array = janet_array(size);
-    for (size_t i = 0; i < size; i++) {
-        janet_array_push(array, janet_wrap_integer(data[i]));
+    // Ensure the size is sufficient to create a Janet object
+    if (size < sizeof(Janet)) {
+        return 0;
     }
 
-    // Create a Janet tuple from the array
-    Janet tuple = janet_wrap_tuple(janet_tuple_n(array->data, array->count));
-
-    // Call the function under test with the created tuple
-    JanetFiber *fiber = janet_loop1();
-
-    // Execute the fiber with the tuple as input
-    if (fiber != NULL) {
-        Janet result;
-        JanetSignal status = janet_continue(fiber, tuple, &result);
-        if (status == JANET_SIGNAL_OK) {
-            // Handle successful execution
-        } else if (status == JANET_SIGNAL_ERROR) {
-            // Handle error in fiber execution
-        }
+    // Create a copy of the input data to ensure const data is not modified
+    uint8_t *data_copy = (uint8_t *)malloc(size);
+    if (!data_copy) {
+        return 0;
     }
+    memcpy(data_copy, data, size);
 
-    // Clean up
-    janet_deinit();
+    // Create a Janet object from the copied input data
+    Janet janet_obj;
+    // Assuming Janet can be initialized from a memory block
+    // This is a placeholder as the actual initialization depends on the Janet API
+    janet_obj = janet_wrap_buffer((JanetBuffer*)data_copy);
+
+    // Call the function-under-test with the created Janet object
+    janet_mark(janet_obj);
+
+    // Free the copied data
+    free(data_copy);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_249(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

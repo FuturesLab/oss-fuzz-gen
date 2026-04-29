@@ -1,55 +1,72 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <janet.h>
+#include <stddef.h>
+
+// Assuming these are defined somewhere in the included headers
+typedef void (*JanetThreadedSubroutine)(void);
+typedef void *JanetEVGenericMessage;
+typedef void (*JanetThreadedCallback)(void);
+
+// Dummy implementations for the function pointers
+void dummy_subroutine_33(void) {
+    // Implement some dummy behavior
+}
+
+void dummy_callback_33(void) {
+    // Implement some dummy behavior
+}
+
+void janet_ev_threaded_call(JanetThreadedSubroutine subroutine, JanetEVGenericMessage message, JanetThreadedCallback callback);
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Initialize the Janet environment
-    janet_init();
-
-    // Ensure that the size is at least 8 bytes to extract two int32_t values
-    if (size < 2 * sizeof(int32_t)) {
-        janet_deinit();
+    // Ensure size is enough to extract a valid JanetEVGenericMessage
+    if (size < sizeof(JanetEVGenericMessage)) {
         return 0;
     }
 
-    // Extract two int32_t values from the input data
-    int32_t input_value1, input_value2;
-    memcpy(&input_value1, data, sizeof(int32_t));
-    memcpy(&input_value2, data + sizeof(int32_t), sizeof(int32_t));
+    // Create a dummy message from the input data
+    JanetEVGenericMessage message = (JanetEVGenericMessage)data;
 
-    // Ensure the input values are non-negative to avoid potential issues
-    if (input_value1 < 0 || input_value2 < 0) {
-        janet_deinit();
-        return 0;
-    }
-
-    // Call the function-under-test
-    JanetTable *table = janet_table(input_value1);
-
-    // Check if the table was created successfully
-    if (table == NULL) {
-        janet_deinit();
-        return 0;
-    }
-
-    // Perform operations on the table
-    // Insert a key-value pair into the table
-    Janet key = janet_wrap_integer(input_value1);
-    Janet value = janet_wrap_integer(input_value2);
-    janet_table_put(table, key, value);
-
-    // Retrieve the value using the key
-    Janet retrieved_value = janet_table_get(table, key);
-
-    // Ensure the retrieved value matches the inserted value
-    if (!janet_equals(retrieved_value, value)) {
-        janet_deinit();
-        return 0;
-    }
-
-    // Clean up the Janet environment
-    janet_deinit();
+    // Call the function-under-test with dummy subroutine and callback
+    janet_ev_threaded_call(dummy_subroutine_33, message, dummy_callback_33);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

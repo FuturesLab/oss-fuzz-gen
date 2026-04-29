@@ -1,34 +1,72 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <janet.h>
 
+extern void janet_table_merge_table(JanetTable *dest, JanetTable *src);
+
 int LLVMFuzzerTestOneInput_302(const uint8_t *data, size_t size) {
-    // Initialize Janet VM
+    // Initialize Janet
     janet_init();
 
-    // Create a JanetTable
-    JanetTable *table = janet_table(10);
+    // Create two JanetTable objects
+    JanetTable *table1 = janet_table(10);
+    JanetTable *table2 = janet_table(10);
 
-    // Create a Janet value
-    Janet janet_value = janet_wrap_nil();
-
-    // Ensure the data size is non-zero for valid input
+    // Populate the tables with some data
     if (size > 0) {
-        // Convert data to a Janet string
-        Janet string_value = janet_stringv(data, size);
-
-        // Put the string into the table with a key
-        janet_table_put(table, janet_ckeywordv("key"), string_value);
-
-        // Retrieve the value back to ensure the operation is complete
-        janet_value = janet_table_get(table, janet_ckeywordv("key"));
+        // Use the data to populate the tables
+        for (size_t i = 0; i < size; i++) {
+            Janet key = janet_wrap_integer(i);
+            Janet value = janet_wrap_integer(data[i]);
+            janet_table_put(table1, key, value);
+            janet_table_put(table2, key, value);
+        }
     }
 
-    // Use the value in some way to avoid any compiler optimizations
-    (void)janet_value;
+    // Call the function-under-test
+    janet_table_merge_table(table1, table2);
 
-    // Deinitialize Janet VM
+    // Clean up
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_302(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

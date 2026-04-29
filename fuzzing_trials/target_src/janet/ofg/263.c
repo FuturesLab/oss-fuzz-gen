@@ -1,34 +1,59 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <janet.h>
 
+// Declare the function-under-test
+JanetFiber * janet_loop1();
+
 int LLVMFuzzerTestOneInput_263(const uint8_t *data, size_t size) {
-    // Initialize Janet runtime
-    janet_init();
+    // Fuzz the janet_loop1 function
+    JanetFiber *fiber = janet_loop1();
 
-    // Create a JanetArray with some elements based on input data
-    JanetArray *array = janet_array(size);
-    for (size_t i = 0; i < size; i++) {
-        // Fill the array with values from the input data
-        array->data[i] = janet_wrap_integer(data[i]);
+    // Perform any additional checks or operations on the returned fiber
+    if (fiber != NULL) {
+        // Example operation: check the status of the fiber
+        JanetFiberStatus status = janet_fiber_status(fiber);
+        // You can add more operations or checks here if needed
     }
-    array->count = size;
-
-    // Call the function-under-test
-    if (array->count > 0) {
-        Janet result = janet_array_pop(array);
-        // Optionally, use the result to affect control flow or logic
-        if (janet_checktype(result, JANET_NUMBER)) {
-            double num = janet_unwrap_number(result);
-            // Use num in some way to ensure it's not optimized away
-            if (num < 0) {
-                janet_array_push(array, janet_wrap_number(-num));
-            }
-        }
-    }
-
-    // Cleanup Janet runtime
-    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_263(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
