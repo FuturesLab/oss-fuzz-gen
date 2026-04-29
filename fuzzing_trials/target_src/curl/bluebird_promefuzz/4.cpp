@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,76 +9,102 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstddef>
+#include "curl/curl.h"
+#include "/src/curl/include/curl/multi.h"
 #include <cstdint>
 #include <cstring>
-#include "/src/curl/include/curl/urlapi.h"
-#include "/src/curl/include/curl/options.h"
+#include <cstdio>
 
-extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    // Ensure the data is null-terminated for string operations
-    char *input = new char[Size + 1];
-    memcpy(input, Data, Size);
-    input[Size] = '\0';
-
-    // Initialize CURLU handle
-    CURLU *url_handle = curl_url();
-    if (!url_handle) {
-        delete[] input;
-        return 0;
-    }
-
-    // Fuzz curl_url_set
-    CURLUcode result_set = curl_url_set(url_handle, CURLUPART_URL, input, 0);
-    if (result_set == CURLUE_OK) {
-        // Fuzz curl_url_get
-        char *url_part = nullptr;
-        CURLUcode result_get = curl_url_get(url_handle, CURLUPART_URL, &url_part, 0);
-        if (result_get == CURLUE_OK && url_part) {
-
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_free
-            curl_free(NULL);
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+static void fuzz_curl_share_setopt(CURLSH *share) {
+    CURLSHcode res;
+    CURLSHoption options[] = {CURLSHOPT_SHARE, CURLSHOPT_UNSHARE};
+    for (CURLSHoption option : options) {
+        res = curl_share_setopt(share, option, CURL_LOCK_DATA_COOKIE);
+        if (res != CURLSHE_OK) {
+            const char *error = curl_share_strerror(res);
+            if (error) {
+                fprintf(stderr, "curl_share_setopt error: %s\n", error);
+            }
         }
     }
+}
 
-    // Fuzz curl_url_dup
-    CURLU *url_handle_dup = curl_url_dup(url_handle);
-    if (url_handle_dup) {
-        curl_url_cleanup(url_handle_dup);
+static void fuzz_curl_share_cleanup(CURLSH *share) {
+    CURLSHcode res = curl_share_cleanup(share);
+    if (res != CURLSHE_OK) {
+        const char *error = curl_share_strerror(res);
+        if (error) {
+            fprintf(stderr, "curl_share_cleanup error: %s\n", error);
+        }
     }
+}
 
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_dup to curl_easy_ssls_export
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_easy_ssls_export
-    CURLcode ret_curl_easy_ssls_export_lqmgr = curl_easy_ssls_export((CURL *)Data, NULL, (void *)url_handle_dup);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    curl_url_cleanup(url_handle);
-
-    // Fuzz curl_easy_option_by_name
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_cleanup to curl_easy_ssls_export
-    CURL* ret_curl_easy_duphandle_ubkvf = curl_easy_duphandle(NULL);
-    if (ret_curl_easy_duphandle_ubkvf == NULL){
-    	return 0;
+static void fuzz_curl_getdate(const char *date_str) {
+    time_t date = curl_getdate(date_str, NULL);
+    if (date == -1) {
+        fprintf(stderr, "Failed to parse date: %s\n", date_str);
+    } else {
+        printf("Parsed date: %ld\n", (long)date);
     }
+}
 
-    CURLcode ret_curl_easy_ssls_export_higly = curl_easy_ssls_export(ret_curl_easy_duphandle_ubkvf, NULL, (void *)url_handle);
+extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
+    if (Size == 0) return 0;
 
-    // End mutation: Producer.APPEND_MUTATOR
+    CURLSH *share = curl_share_init();
+    if (!share) return 0;
 
-    const struct curl_easyoption *option = curl_easy_option_by_name(input);
+    // Fuzz curl_share_setopt
+    fuzz_curl_share_setopt(share);
 
-    delete[] input;
+    // Fuzz curl_getdate
+    char date_str[256];
+    size_t copy_size = Size < 255 ? Size : 255;
+    memcpy(date_str, Data, copy_size);
+    date_str[copy_size] = '\0';
+    fuzz_curl_getdate(date_str);
+
+    // Fuzz curl_share_cleanup
+    fuzz_curl_share_cleanup(share);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

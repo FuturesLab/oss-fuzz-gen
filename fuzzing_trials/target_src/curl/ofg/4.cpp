@@ -1,44 +1,65 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    CURLM *multi_handle;
-    curl_socket_t sockfd;
-    int running_handles;
-    CURLMcode result;
+    CURLU *url = curl_url();  // Initialize a CURLU object
+    CURLUcode rc;
 
-    // Initialize libcurl
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-
-    // Create a multi handle
-    multi_handle = curl_multi_init();
-    if (!multi_handle) {
-        curl_global_cleanup();
-        return 0;
+    if (url == NULL || size == 0) {
+        return 0;  // Exit if initialization failed or input size is zero
     }
 
-    // Use the first byte of data to determine a socket value
-    if (size > 0) {
-        sockfd = static_cast<curl_socket_t>(data[0]);
-    } else {
-        sockfd = 0; // Default to 0 if no data is provided
+    // Attempt to set the URL using the provided data
+    rc = curl_url_set(url, CURLUPART_URL, (const char *)data, 0);
+
+    if (rc == CURLUE_OK) {
+        // Duplicate the CURLU object if the URL was set successfully
+        CURLU *dup_url = curl_url_dup(url);
+        if (dup_url != NULL) {
+            curl_url_cleanup(dup_url);  // Clean up the duplicated URL object
+        }
     }
 
-    // Use the rest of the data to determine the running_handles value
-    if (size > 1) {
-        running_handles = static_cast<int>(data[1]);
-    } else {
-        running_handles = 1; // Default to 1 if no additional data is provided
-    }
-
-    // Call the function-under-test
-    result = curl_multi_socket_action(multi_handle, sockfd, 0, &running_handles);
-
-    // Clean up
-    curl_multi_cleanup(multi_handle);
-    curl_global_cleanup();
-
+    curl_url_cleanup(url);  // Clean up the original URL object
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

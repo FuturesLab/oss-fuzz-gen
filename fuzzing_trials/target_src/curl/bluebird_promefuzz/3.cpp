@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,72 +10,137 @@
 #include <cstdint>
 #include <cstddef>
 #include "curl/curl.h"
-#include "/src/curl/include/curl/multi.h"
-#include <cstddef>
-#include <cstdint>
+#include "/src/curl/include/curl/urlapi.h"
 #include <cstring>
-#include <fstream>
+#include <cstdlib>
+#include <iostream>
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Prepare the environment for curl_pushheader_byname and curl_pushheader_bynum
-    struct curl_pushheaders *pushHeaders = nullptr; // Assuming a valid pointer in real scenarios
-    const char *headerName = reinterpret_cast<const char*>(Data);
-
-    // Fuzz curl_pushheader_byname
-    char *headerByName = curl_pushheader_byname(pushHeaders, headerName);
-    if (headerByName) {
-        // Process headerByName if necessary
+    // Initialize CURL globally
+    if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+        return 0;
     }
 
-    // Fuzz curl_pushheader_bynum
-    size_t headerIndex = static_cast<size_t>(Data[0]);
-    char *headerByNum = curl_pushheader_bynum(pushHeaders, headerIndex);
-    if (headerByNum) {
-        // Process headerByNum if necessary
-    }
+    // Ensure the input data is null-terminated
+    std::vector<uint8_t> null_terminated_data(Data, Data + Size);
+    null_terminated_data.push_back(0);
 
-    // Fuzz curl_multi_strerror
+    // Create a CURLU handle for curl_url_get
+    CURLU *url_handle = curl_url();
+    if (url_handle) {
+        char *output = nullptr;
+        CURLUcode uc = curl_url_set(url_handle, CURLUPART_URL, reinterpret_cast<const char*>(null_terminated_data.data()), 0);
+        if (uc == CURLUE_OK) {
+            // Try to extract different parts of the URL
+            curl_url_get(url_handle, CURLUPART_SCHEME, &output, 0);
+            if (output) {
+                curl_free(output);
+            }
+            curl_url_get(url_handle, CURLUPART_HOST, &output, 0);
+            if (output) {
+                curl_free(output);
+            }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_pushheader_bynum to curl_easy_ssls_import
-    char scphbnwf[1024] = "zfgmz";
-    const char egbhsgqq[1024] = "varey";
-
-    CURLcode ret_curl_easy_ssls_import_oeyap = curl_easy_ssls_import(scphbnwf, egbhsgqq, (const unsigned char *)headerByNum, CURL_VERSION_GSSNEGOTIATE, (const unsigned char *)headerByNum, CURL_VERSION_HTTP2);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    CURLMcode dummyCode = static_cast<CURLMcode>(Data[0]);
-    const char *errorString = curl_multi_strerror(dummyCode);
-    if (errorString) {
-        // Process errorString if necessary
-    }
-
-    // Fuzz curl_version
-    char *version = curl_version();
-    if (version) {
-        // Process version if necessary
-    }
-
-    // Fuzz curl_getenv
-    const char *envVar = reinterpret_cast<const char*>(Data);
-    char *envValue = curl_getenv(envVar);
-    if (envValue) {
-        curl_free(envValue);
-    }
-
-    // Fuzz curl_multi_setopt
-    CURLM *multiHandle = curl_multi_init();
-    if (multiHandle) {
-        CURLMoption option = static_cast<CURLMoption>(Data[0]);
-        CURLMcode setoptResult = curl_multi_setopt(multiHandle, option, nullptr);
-        if (setoptResult != CURLM_OK) {
-            // Handle error if necessary
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_get to curl_mime_filedata
+            curl_mimepart* ret_curl_mime_addpart_bhpxu = curl_mime_addpart(NULL);
+            if (ret_curl_mime_addpart_bhpxu == NULL){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!ret_curl_mime_addpart_bhpxu) {
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!output) {
+            	return 0;
+            }
+            CURLcode ret_curl_mime_filedata_udhpz = curl_mime_filedata(ret_curl_mime_addpart_bhpxu, output);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            curl_url_get(url_handle, CURLUPART_PATH, &output, 0);
+            if (output) {
+                curl_free(output);
+            }
         }
-        curl_multi_cleanup(multiHandle);
+        curl_url_cleanup(url_handle);
     }
+
+    // Create a CURL handle for curl_easy_unescape and curl_easy_escape
+    CURL *curl_handle = curl_easy_init();
+    if (curl_handle) {
+        int outlength;
+        char *unescaped = curl_easy_unescape(curl_handle, reinterpret_cast<const char*>(null_terminated_data.data()), Size, &outlength);
+        if (unescaped) {
+            curl_free(unescaped);
+        }
+
+        char *escaped = curl_easy_escape(curl_handle, reinterpret_cast<const char*>(null_terminated_data.data()), Size);
+        if (escaped) {
+            curl_free(escaped);
+        }
+
+        curl_easy_cleanup(curl_handle);
+    }
+
+    // Use curl_global_trace
+    curl_global_trace(reinterpret_cast<const char*>(null_terminated_data.data()));
+
+    // Use deprecated functions curl_unescape and curl_escape
+    char *unescaped_old = curl_unescape(reinterpret_cast<const char*>(null_terminated_data.data()), Size);
+    if (unescaped_old) {
+        curl_free(unescaped_old);
+    }
+
+    char *escaped_old = curl_escape(reinterpret_cast<const char*>(null_terminated_data.data()), Size);
+    if (escaped_old) {
+        curl_free(escaped_old);
+    }
+
+    // Clean up global CURL state
+    curl_global_cleanup();
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

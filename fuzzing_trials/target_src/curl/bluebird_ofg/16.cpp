@@ -1,53 +1,85 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "curl/curl.h"
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    CURLSH *share;
-    CURLSHcode result;
-
-    // Initialize a CURL share handle
-    share = curl_share_init();
-    if (!share) {
+    // Initialize CURLU object
+    CURLU *url = curl_url();
+    if (!url) {
         return 0;
     }
 
-    // Ensure the data size is sufficient for our needs
-    if (size < 1) {
-        curl_share_cleanup(share);
+    // Create a null-terminated string from the input data
+    char *url_string = (char *)malloc(size + 1);
+    if (!url_string) {
+        curl_url_cleanup(url);
+        return 0;
+    }
+    memcpy(url_string, data, size);
+    url_string[size] = '\0';
+
+    // Set the URL
+    CURLUcode set_result = curl_url_set(url, CURLUPART_URL, url_string, 0);
+    free(url_string);
+    if (set_result != CURLUE_OK) {
+        curl_url_cleanup(url);
         return 0;
     }
 
-    // Use the first byte of data to determine the CURLSHoption
-    CURLSHoption option = static_cast<CURLSHoption>(data[0] % CURLSHOPT_LAST);
+    // Prepare to get a part of the URL
+    char *output = NULL;
+    CURLUPart part = CURLUPART_HOST; // Example part to retrieve
+    unsigned int flags = 0; // Example flags
 
-    // Call the function-under-test with different options
-    switch (option) {
-        case CURLSHOPT_SHARE:
-        case CURLSHOPT_UNSHARE:
-            // For these options, a CURL_LOCK_DATA value is needed
-            if (size > 1) {
-                curl_lock_data data_option = static_cast<curl_lock_data>(data[1] % CURL_LOCK_DATA_LAST);
-                result = curl_share_setopt(share, option, (void *)(intptr_t)data_option);
-            }
-            break;
-        case CURLSHOPT_LOCKFUNC:
-        case CURLSHOPT_UNLOCKFUNC:
-            // For these options, a function pointer is needed
-            result = curl_share_setopt(share, option, NULL);
-            break;
-        case CURLSHOPT_USERDATA:
-            // For this option, a user data pointer is needed
-            result = curl_share_setopt(share, option, (void *)(intptr_t)data);
-            break;
-        default:
-            // Handle any other options that might be added in the future
-            result = curl_share_setopt(share, option, NULL);
-            break;
+    // Call the function-under-test
+    CURLUcode get_result = curl_url_get(url, part, &output, flags);
+
+    // Clean up
+    if (output) {
+        curl_free(output);
     }
-
-    // Cleanup the CURL share handle
-    curl_share_cleanup(share);
+    curl_url_cleanup(url);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,53 +10,105 @@
 #include <cstdint>
 #include <cstddef>
 #include "curl/curl.h"
-#include "/src/curl/include/curl/websockets.h"
-#include "/src/curl/include/curl/header.h"
+#include "/src/curl/include/curl/multi.h"
+#include "/src/curl/include/curl/typecheck-gcc.h"
+#include <iostream>
+#include <fstream>
+
+static void fuzz_curl_share_setopt(CURLSH *share) {
+    CURLSHcode res;
+    res = curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+    if(res != CURLSHE_OK) {
+        std::cerr << "curl_share_setopt failed: " << curl_share_strerror(res) << std::endl;
+    }
+}
+
+static void fuzz_curl_pushheader_byname(struct curl_pushheaders *h) {
+    const char *header = curl_pushheader_byname(h, "custom-header");
+    if(header) {
+        std::cout << "Header found: " << header << std::endl;
+    }
+}
+
+static void fuzz_curl_easy_ssls_import(CURL *easy) {
+    const unsigned char sdata[] = {0x01, 0x02, 0x03, 0x04};
+    CURLcode res = curl_easy_ssls_import(easy, nullptr, nullptr, 0, sdata, sizeof(sdata));
+    if(res != CURLE_OK) {
+        std::cerr << "curl_easy_ssls_import failed: " << curl_easy_strerror(res) << std::endl;
+    }
+}
+
+static void fuzz_curl_pushheader_bynum(struct curl_pushheaders *h) {
+    char *header = curl_pushheader_bynum(h, 0);
+    if(header) {
+        std::cout << "Header by num: " << header << std::endl;
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Initialize cURL share and easy handles
+    CURLSH *share = curl_share_init();
+    CURL *easy = curl_easy_init();
 
-    CURL *curl = curl_easy_init();
-    if (!curl) return 0;
+    if(share && easy) {
+        // Fuzz curl_share_setopt
+        fuzz_curl_share_setopt(share);
 
-    // Initialize variables for curl_ws_recv
-    char recv_buffer[1024];
-    size_t recv_size = 0;
-    const struct curl_ws_frame *meta = nullptr;
+        // Fuzz curl_pushheader_byname
+        struct curl_pushheaders *pushheaders = nullptr; // This would be set in a real push callback
+        fuzz_curl_pushheader_byname(pushheaders);
 
-    // Initialize variables for curl_ws_send
-    size_t sent_size = 0;
-    curl_off_t frag_size = 0;
-    unsigned int flags = 0;
+        // Fuzz curl_easy_ssls_import
+        fuzz_curl_easy_ssls_import(easy);
 
-    // Initialize variables for curl_mime_headers
-    struct curl_slist *headers = nullptr;
-    struct curl_mimepart *part = nullptr; // Use a pointer to the mime part
+        // Fuzz curl_pushheader_bynum
+        fuzz_curl_pushheader_bynum(pushheaders);
 
-    // Initialize variables for curl_ws_start_frame
-    curl_off_t frame_len = 0;
-
-    // Initialize variables for curl_easy_header
-    struct curl_header *header_out = nullptr;
-    const char *header_name = "Content-Type";
-
-    // Prepare dummy file if needed
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
+        // Clean up
+        curl_easy_cleanup(easy);
+        curl_share_cleanup(share);
+    } else {
+        std::cerr << "Failed to initialize cURL handles" << std::endl;
     }
-
-    // Simulate calling the functions with the input data
-    curl_ws_recv(curl, recv_buffer, sizeof(recv_buffer), &recv_size, &meta);
-    curl_ws_send(curl, Data, Size, &sent_size, frag_size, flags);
-    curl_mime_headers(part, headers, 1);
-    curl_ws_start_frame(curl, flags, frame_len);
-    curl_easy_header(curl, header_name, 0, 0, 0, &header_out);
-
-    // Cleanup
-    curl_easy_cleanup(curl);
-    curl_slist_free_all(headers);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
