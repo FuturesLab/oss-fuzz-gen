@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,87 +9,97 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
 #include "../../liblouis/liblouis.h"
-#include <cstddef>
+}
+
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <fstream>
+
+static void fuzz_lou_setLogLevel(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(logLevels)) return;
+    logLevels level = static_cast<logLevels>(Data[0]);
+    lou_setLogLevel(level);
+}
+
+static void fuzz_lou_indexTables(const uint8_t *Data, size_t Size) {
+    const char *dummyTables[] = {"table1", "table2", "table3", nullptr};
+    lou_indexTables(dummyTables);
+}
+
+static void fuzz_lou_findTable(const uint8_t *Data, size_t Size) {
+    char *query = static_cast<char *>(malloc(Size + 1));
+    if (!query) return;
+    memcpy(query, Data, Size);
+    query[Size] = '\0';
+    
+    char *result = lou_findTable(query);
+    free(result);
+    free(query);
+}
+
+static void fuzz_lou_findTables(const uint8_t *Data, size_t Size) {
+    char *query = static_cast<char *>(malloc(Size + 1));
+    if (!query) return;
+    memcpy(query, Data, Size);
+    query[Size] = '\0';
+    
+    char **results = lou_findTables(query);
+    if (results) {
+        for (char **ptr = results; *ptr != nullptr; ++ptr) {
+            free(*ptr);
+        }
+        free(results);
+    }
+    free(query);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    // Prepare environment
-    if (Size < 1) {
-        return 0;
-    }
-
-    // Register a log callback
-    lou_registerLogCallback(nullptr);
-
-    // Prepare a dummy table file
-    std::ofstream dummyFile("./dummy_file");
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
-    }
-
-    // Check table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of lou_checkTable
-    lou_checkTable((const char *)"r");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Free resources
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_free with lou_logEnd
-    lou_logEnd();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Prepare input for backTranslateString
-    widechar inbuf[1024];
-    int inlen = std::min(Size / sizeof(widechar), sizeof(inbuf) / sizeof(widechar));
-    std::memcpy(inbuf, Data, inlen * sizeof(widechar));
-
-    widechar outbuf[1024];
-    int outlen = sizeof(outbuf) / sizeof(widechar);
-
-    // Back translate string
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_backTranslateString with lou_translateString
-    lou_translateString("./dummy_file", inbuf, &inlen, outbuf, &outlen, NULL, NULL, 0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Free resources again
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_translateString to lou_charToDots
-    const char oqvkdfxp[1024] = "urbym";
-
-    int ret_lou_charToDots_devci = lou_charToDots(oqvkdfxp, outbuf, NULL, 0, inlen);
-    if (ret_lou_charToDots_devci < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_charToDots to lou_dotsToChar
-    widechar qhqtuivc;
-    memset(&qhqtuivc, 0, sizeof(qhqtuivc));
-    widechar evfnwhhd;
-    memset(&evfnwhhd, 0, sizeof(evfnwhhd));
-
-    int ret_lou_dotsToChar_ubpxv = lou_dotsToChar((const char *)"w", &qhqtuivc, &evfnwhhd, ret_lou_charToDots_devci, 64);
-    if (ret_lou_dotsToChar_ubpxv < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    fuzz_lou_setLogLevel(Data, Size);
+    fuzz_lou_indexTables(Data, Size);
+    fuzz_lou_findTable(Data, Size);
+    fuzz_lou_findTable(Data, Size);
+    fuzz_lou_findTables(Data, Size);
     lou_free();
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

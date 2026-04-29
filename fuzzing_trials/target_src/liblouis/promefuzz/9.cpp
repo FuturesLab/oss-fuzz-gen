@@ -1,9 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_listTables at metadata.c:1172:1 in liblouis.h
-// lou_getTableInfo at metadata.c:1142:1 in liblouis.h
-// lou_freeTableInfo at metadata.c:1167:1 in liblouis.h
-// lou_freeTableFiles at compileTranslationTable.c:4933:1 in liblouis.h
-// lou_freeEmphClasses at compileTranslationTable.c:5095:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5254:1 in liblouis.h
+// lou_backTranslate at lou_backTranslateString.c:176:1 in liblouis.h
+// lou_translate at lou_translateString.c:1135:1 in liblouis.h
+// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
+// lou_dotsToChar at lou_translateString.c:4152:1 in liblouis.h
+// lou_backTranslateString at lou_backTranslateString.c:169:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,43 +14,95 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <liblouis.h>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include "liblouis.h"
+#include <fstream>
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    // Step 1: Prepare the environment
-    char **tableList = lou_listTables();
-    if (tableList != nullptr) {
-        // Fuzzing lou_getTableInfo with table names and fuzzed data as key
-        for (size_t i = 0; tableList[i] != nullptr; ++i) {
-            char *info = lou_getTableInfo(tableList[i], reinterpret_cast<const char*>(Data));
-            if (info != nullptr) {
-                lou_freeTableInfo(info);
-            }
-        }
+    // Prepare a dummy file for table operations
+    std::ofstream dummyFile("./dummy_file");
+    if (!dummyFile.is_open()) {
+        return 0; // Cannot proceed without the dummy file
+    }
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
 
-        // Step 2: Cleanup
-        lou_freeTableFiles(tableList);
+    // 1. Test lou_checkTable
+    char tableList[256];
+    snprintf(tableList, sizeof(tableList), "./dummy_file");
+    lou_checkTable(tableList);
+
+    // Prepare buffers and variables for other function tests
+    widechar inbuf[256], outbuf[256];
+    int inlen = Size < 256 ? Size : 256;
+    int outlen = 256;
+    formtype typeform[256] = {0};
+    char spacing[256] = {0};
+    int outputPos[256] = {0};
+    int inputPos[256] = {0};
+    int cursorPos = 0;
+    int mode = 0;
+
+    // Copy data to widechar buffer
+    for (int i = 0; i < inlen; ++i) {
+        inbuf[i] = Data[i];
     }
 
-    // Fuzzing lou_freeEmphClasses with fuzzed data
-    char *dummyData = static_cast<char*>(malloc(Size + 1));
-    if (dummyData) {
-        memcpy(dummyData, Data, Size);
-        dummyData[Size] = '\0'; // Null-terminate to ensure it can be used as a string
+    // 2. Test lou_backTranslate
+    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
-        char const **emphClasses = static_cast<char const **>(malloc(2 * sizeof(char*)));
-        if (emphClasses) {
-            emphClasses[0] = dummyData;
-            emphClasses[1] = nullptr;
-            lou_freeEmphClasses(emphClasses);
-            // No need to manually free emphClasses, as lou_freeEmphClasses handles it
-        } else {
-            free(dummyData); // Free dummyData if emphClasses allocation fails
-        }
-    }
+    // 3. Test lou_translate
+    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
+
+    // 4. Test lou_translateString
+    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
+
+    // 5. Test lou_dotsToChar
+    lou_dotsToChar(tableList, inbuf, outbuf, inlen, mode);
+
+    // 6. Test lou_backTranslateString
+    lou_backTranslateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

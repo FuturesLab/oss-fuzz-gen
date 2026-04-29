@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,65 +16,104 @@
 #include <fstream>
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    // Prepare environment
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size == 0) return 0;
 
-    // Register a log callback
-    lou_registerLogCallback(nullptr);
-
-    // Prepare a dummy table file
+    // Prepare a dummy file for table-related functions
     std::ofstream dummyFile("./dummy_file");
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
+
+    // Convert input data to a null-terminated string for table names
+    char *tableList = new char[Size + 1];
+    memcpy(tableList, Data, Size);
+    tableList[Size] = '\0';
+
+    // Test lou_checkTable
+    lou_checkTable(tableList);
+
+    // Setup buffers for widechar type
+    widechar *inbuf = new widechar[Size];
+    widechar *outbuf = new widechar[Size];
+    for (size_t i = 0; i < Size; ++i) {
+        inbuf[i] = static_cast<widechar>(Data[i]);
     }
 
-    // Check table
+    // Setup additional parameters
+    int inlen = static_cast<int>(Size);
+    int outlen = static_cast<int>(Size);
+    formtype *typeform = nullptr; // Can be set to null
+    char *spacing = nullptr; // Can be set to null
+    int *outputPos = new int[Size];
+    int *inputPos = new int[Size];
+    int cursorPos = 0;
+    int mode = 0; // Mode can be varied
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of lou_checkTable
-    lou_checkTable((const char *)"w");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Test lou_backTranslate
+    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
+    // Test lou_hyphenate
+    char *hyphens = new char[Size];
+    lou_hyphenate(tableList, inbuf, inlen, hyphens, mode);
 
+    // Test lou_translate
+    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
-    // Free resources
-    lou_free();
+    // Test lou_translatePrehyphenated
+    char *inputHyphens = new char[Size];
+    char *outputHyphens = new char[Size];
+    lou_translatePrehyphenated(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, inputHyphens, outputHyphens, mode);
 
-    // Prepare input for backTranslateString
-    widechar inbuf[1024];
-    int inlen = std::min(Size / sizeof(widechar), sizeof(inbuf) / sizeof(widechar));
-    std::memcpy(inbuf, Data, inlen * sizeof(widechar));
+    // Test lou_dotsToChar
+    lou_dotsToChar(tableList, inbuf, outbuf, static_cast<int>(Size), mode);
 
-    widechar outbuf[1024];
-    int outlen = sizeof(outbuf) / sizeof(widechar);
-
-    // Back translate string
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of lou_backTranslateString
-    lou_backTranslateString("./dummy_file", inbuf, &inlen, outbuf, &outlen, NULL, NULL, Size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Free resources again
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_free with lou_logEnd
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_backTranslateString to lou_readCharFromFile
-
-    int ret_lou_readCharFromFile_xnzdb = lou_readCharFromFile((const char *)"w", &inlen);
-    if (ret_lou_readCharFromFile_xnzdb < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lou_logEnd();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Cleanup
+    delete[] tableList;
+    delete[] inbuf;
+    delete[] outbuf;
+    delete[] outputPos;
+    delete[] inputPos;
+    delete[] hyphens;
+    delete[] inputHyphens;
+    delete[] outputHyphens;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

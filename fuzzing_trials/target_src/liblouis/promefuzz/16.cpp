@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_logFile at logging.c:196:1 in liblouis.h
-// lou_setLogLevel at logging.c:143:1 in liblouis.h
-// lou_registerLogCallback at logging.c:86:1 in liblouis.h
-// lou_indexTables at metadata.c:945:1 in liblouis.h
-// lou_logPrint at logging.c:213:1 in liblouis.h
-// lou_logEnd at logging.c:229:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5254:1 in liblouis.h
+// lou_backTranslate at lou_backTranslateString.c:176:1 in liblouis.h
+// lou_translate at lou_translateString.c:1135:1 in liblouis.h
+// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
+// lou_dotsToChar at lou_translateString.c:4152:1 in liblouis.h
+// lou_backTranslateString at lou_backTranslateString.c:169:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,47 +15,103 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdarg>
-#include <cstdio>
-#include <cstdlib>
-#include "liblouis.h"
-
-static void customLogCallback(logLevels level, const char *message) {
-    // Custom log callback that does nothing
-}
+#include <cstring>
+#include <liblouis.h>
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    // Prepare a dummy file for testing lou_logFile
-    FILE *dummyFile = fopen("./dummy_file", "w");
-    if (dummyFile) {
-        fclose(dummyFile);
+    // Ensure null-termination for tableList
+    std::vector<char> tableListVec(Data, Data + Size);
+    tableListVec.push_back('\0');
+    const char *tableList = tableListVec.data();
+
+    // 1. Test lou_checkTable
+    lou_checkTable(tableList);
+
+    // Prepare buffers and variables for other functions
+    widechar inbuf[256] = {0};
+    widechar outbuf[256] = {0};
+    int inlen = Size < 256 ? Size / sizeof(widechar) : 256;
+    int outlen = 256;
+    formtype typeform[256] = {0};
+    char spacing[256] = {0};
+    int outputPos[256] = {0};
+    int inputPos[256] = {0};
+    int cursorPos = 0;
+    int mode = 0;
+
+    // Ensure the size for memcpy does not exceed the buffer
+    size_t copySize = inlen * sizeof(widechar);
+    if (copySize > sizeof(inbuf)) {
+        copySize = sizeof(inbuf);
     }
 
-    // Set up a dummy log level
-    logLevels dummyLogLevel = static_cast<logLevels>(Data[0] % 5);
+    // Copy data to inbuf
+    std::memcpy(inbuf, Data, copySize);
 
-    // Set a log file
-    lou_logFile("./dummy_file");
+    // 2. Test lou_backTranslate
+    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
-    // Set a log level
-    lou_setLogLevel(dummyLogLevel);
+    // Reset lengths for reuse
+    inlen = Size < 256 ? Size / sizeof(widechar) : 256;
+    outlen = 256;
 
-    // Register a custom log callback
-    lou_registerLogCallback(customLogCallback);
+    // 3. Test lou_translate
+    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
-    // Prepare a NULL-terminated array of strings for lou_indexTables
-    const char *tables[] = { "table1", "table2", nullptr };
+    // 4. Test lou_translateString
+    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
 
-    // Index tables
-    lou_indexTables(tables);
+    // 5. Test lou_dotsToChar
+    lou_dotsToChar(tableList, inbuf, outbuf, inlen, mode);
 
-    // Log a message using lou_logPrint
-    lou_logPrint("Test log message with integer: %d", Data[0]);
+    // Reset lengths for reuse
+    inlen = Size < 256 ? Size / sizeof(widechar) : 256;
+    outlen = 256;
 
-    // End logging
-    lou_logEnd();
+    // 6. Test lou_backTranslateString
+    lou_backTranslateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

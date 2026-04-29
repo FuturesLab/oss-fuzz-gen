@@ -1,58 +1,71 @@
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstddef>
+#include <iostream>
 
-// Assume these types are defined somewhere in the included headers
-typedef unsigned int widechar;
-typedef int formtype;
-
+// Assuming the function is defined in an external C library
 extern "C" {
-    // The function-under-test signature
-    int lou_translatePrehyphenated(const char *, const widechar *, int *, widechar *, int *, formtype *, char *, int *, int *, int *, char *, char *, int);
+    void lou_registerTableResolver(void (*resolver)());
+}
+
+// A mock resolver function to pass to the function-under-test
+void mockResolver() {
+    std::cout << "Mock resolver called." << std::endl;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Define and initialize the parameters for the function-under-test
-
-    // Ensure we have enough data to work with
-    if (size < sizeof(widechar) * 2 + sizeof(int) * 3 + sizeof(formtype) + 10) {
-        return 0;
+    // Check if data is non-null and size is greater than zero
+    if (data == nullptr || size == 0) {
+        return 0; // No operation if input is invalid
     }
 
-    // Initialize the parameters with some values
-    const char *inputString = reinterpret_cast<const char *>(data);
-    const widechar *inputWidechar = reinterpret_cast<const widechar *>(data);
-    
-    int someInt1 = 1;
-    int someInt2 = 2;
-    int someInt3 = 3;
-    
-    widechar outputWidechar[10];
-    formtype someFormtype = static_cast<formtype>(0);
-    
-    char someCharArray1[10];
-    char someCharArray2[10];
-    
-    int someInt4 = 4;
-    int someInt5 = 5;
-    int someInt6 = 6;
+    // Call the function-under-test with the mock resolver
+    lou_registerTableResolver(mockResolver);
 
-    // Call the function-under-test
-    lou_translatePrehyphenated(
-        inputString,
-        inputWidechar,
-        &someInt1,
-        outputWidechar,
-        &someInt2,
-        &someFormtype,
-        someCharArray1,
-        &someInt3,
-        &someInt4,
-        &someInt5,
-        someCharArray2,
-        someCharArray2,
-        someInt6
-    );
+    // Simulate processing the input data in a meaningful way
+    // For example, we could interpret the data as a configuration or input to the resolver
+    for (size_t i = 0; i < size; ++i) {
+        // Simulate some operation with the data
+        std::cout << "Processing byte: " << static_cast<int>(data[i]) << std::endl;
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

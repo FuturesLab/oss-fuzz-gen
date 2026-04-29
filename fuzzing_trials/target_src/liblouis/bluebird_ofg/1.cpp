@@ -1,77 +1,79 @@
+#include <sys/stat.h>
+#include <string.h>
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <unistd.h> // Include this header for POSIX functions like write, close, and unlink
 
-// Assuming the function is from a C library
 extern "C" {
-    #include "../../liblouis/liblouis.h" // Correct path to the header file
+    // Include the header where lou_checkTable is declared
+    int lou_checkTable(const char *);
 }
 
-// Fuzzing harness for lou_getTypeformForEmphClass
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to split into two non-empty strings
-    if (size < 2) {
-        return 0;
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If file creation fails, exit
     }
 
-    // Split the input data into two parts
-    size_t mid = size / 2;
-
-    // Create null-terminated strings from the input data
-    char *str1 = static_cast<char *>(malloc(mid + 1));
-    char *str2 = static_cast<char *>(malloc(size - mid + 1));
-
-    if (str1 == nullptr || str2 == nullptr) {
-        free(str1);
-        free(str2);
-        return 0;
+    // Write the fuzz data to the file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // If write fails, cleanup and exit
     }
 
-    memcpy(str1, data, mid);
-    str1[mid] = '\0';
+    // Close the file descriptor
+    close(fd);
 
-    memcpy(str2, data + mid, size - mid);
-    str2[size - mid] = '\0';
+    // Call the function-under-test with the temporary file name
+    lou_checkTable(tmpl);
 
-    // Call the function under test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lou_getTypeformForEmphClass
-    formtype result = lou_getTypeformForEmphClass(str1, (const char *)data);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_getTypeformForEmphClass to lou_hyphenate
-    char** ret_lou_findTables_jgivt = lou_findTables((const char *)"r");
-    if (ret_lou_findTables_jgivt == NULL){
-    	return 0;
-    }
-    char* ret_lou_setDataPath_dmkqc = lou_setDataPath((const char *)data);
-    if (ret_lou_setDataPath_dmkqc == NULL){
-    	return 0;
-    }
-
-    int ret_lou_hyphenate_ljmaq = lou_hyphenate(*ret_lou_findTables_jgivt, NULL, (int )result, ret_lou_setDataPath_dmkqc, (int )result);
-    if (ret_lou_hyphenate_ljmaq < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_hyphenate to lou_findTables
-
-    char** ret_lou_findTables_svndq = lou_findTables(ret_lou_setDataPath_dmkqc);
-    if (ret_lou_findTables_svndq == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(str1);
-    free(str2);
+    // Clean up: remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

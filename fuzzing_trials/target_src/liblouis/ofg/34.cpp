@@ -1,44 +1,55 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+// Include standard libraries first
+#include <cstddef>  // For size_t
+#include <cstdint>  // For uint8_t
 
-// Assuming the function is from a C library
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h" // Correct path to the header file
+    // Include necessary headers for the project
+    #include "/src/liblouis/liblouis/liblouis.h" // Correct header for lou_free
 }
 
-// Fuzzing harness for lou_getTypeformForEmphClass
+// Fuzzing harness
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to split into two non-empty strings
-    if (size < 2) {
-        return 0;
-    }
-
-    // Split the input data into two parts
-    size_t mid = size / 2;
-
-    // Create null-terminated strings from the input data
-    char *str1 = static_cast<char *>(malloc(mid + 1));
-    char *str2 = static_cast<char *>(malloc(size - mid + 1));
-
-    if (str1 == nullptr || str2 == nullptr) {
-        free(str1);
-        free(str2);
-        return 0;
-    }
-
-    memcpy(str1, data, mid);
-    str1[mid] = '\0';
-
-    memcpy(str2, data + mid, size - mid);
-    str2[size - mid] = '\0';
-
-    // Call the function under test
-    formtype result = lou_getTypeformForEmphClass(str1, str2);
-
-    // Clean up
-    free(str1);
-    free(str2);
+    // Call the function-under-test
+    lou_free();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

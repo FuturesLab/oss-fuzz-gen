@@ -1,8 +1,8 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
+// lou_getTable at compileTranslationTable.c:5134:1 in liblouis.h
 // lou_getEmphClasses at compileTranslationTable.c:5086:1 in liblouis.h
 // lou_freeEmphClasses at compileTranslationTable.c:5111:1 in liblouis.h
-// lou_getTableInfo at metadata.c:1147:1 in liblouis.h
-// lou_freeTableInfo at metadata.c:1172:1 in liblouis.h
+// lou_freeTableFile at metadata.c:1094:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,17 +12,17 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <liblouis.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <liblouis.h>
 
-extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
+extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
     if (Size == 0) {
         return 0;
     }
 
-    // Ensure null-termination for the input data
+    // Prepare a null-terminated string from the input data
     char *tableList = static_cast<char *>(malloc(Size + 1));
     if (!tableList) {
         return 0;
@@ -30,21 +30,21 @@ extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
     memcpy(tableList, Data, Size);
     tableList[Size] = '\0';
 
-    // Test lou_getEmphClasses
+    // Call lou_getTable
+    const void *table = lou_getTable(tableList);
+
+    // Call lou_getEmphClasses
     char const **emphClasses = lou_getEmphClasses(tableList);
+
+    // Free resources if necessary
     if (emphClasses) {
         lou_freeEmphClasses(emphClasses);
     }
 
-    // Test lou_getTableInfo with a dummy key
-    char *key = "dummyKey";
-    char *tableInfo = lou_getTableInfo(tableList, key);
-    if (tableInfo) {
-        lou_freeTableInfo(tableInfo);
+    if (table) {
+        lou_freeTableFile(reinterpret_cast<char *>(const_cast<void *>(table)));
     }
 
-    // Do not free tableList with lou_freeTableFile since it was not allocated by liblouis
-    // Free the allocated tableList
     free(tableList);
 
     return 0;
@@ -81,7 +81,7 @@ extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
         if(fread(data, (size_t)size, 1, f) != 1)
             exit(0);
 
-        LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+        LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
 
         free(data);
         fclose(f);
