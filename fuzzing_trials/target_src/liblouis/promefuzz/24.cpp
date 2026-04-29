@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_backTranslate at lou_backTranslateString.c:159:1 in liblouis.h
-// lou_translate at lou_translateString.c:1135:1 in liblouis.h
-// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
-// lou_translatePrehyphenated at lou_translateString.c:1410:1 in liblouis.h
-// lou_hyphenate at lou_translateString.c:4066:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
+// lou_setDataPath at compileTranslationTable.c:59:1 in liblouis.h
+// lou_indexTables at metadata.c:947:1 in liblouis.h
+// lou_getTableInfo at metadata.c:1147:1 in liblouis.h
+// lou_readCharFromFile at compileTranslationTable.c:4328:1 in liblouis.h
+// lou_findTable at metadata.c:1068:1 in liblouis.h
+// lou_findTables at metadata.c:1115:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,80 +15,96 @@
 #include <cstdint>
 #include <cstddef>
 #include <liblouis.h>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <fstream>
-
-static void writeDummyFile(const char *data, size_t size) {
-    std::ofstream outFile("./dummy_file", std::ios::binary);
-    if (outFile.is_open()) {
-        outFile.write(data, size);
-        outFile.close();
-    }
-}
+#include <cstdlib>
+#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    // Prepare table list from input data
-    const char *tableList = reinterpret_cast<const char*>(Data);
-    size_t tableListSize = strnlen(tableList, Size);
-    if (tableListSize >= Size) return 0;
+    // Prepare a null-terminated string from the input data
+    char *inputStr = static_cast<char *>(malloc(Size + 1));
+    if (!inputStr) return 0;
+    memcpy(inputStr, Data, Size);
+    inputStr[Size] = '\0';
 
-    // Prepare buffers and lengths
-    int inlen = Size / sizeof(widechar);
-    int outlen = Size / sizeof(widechar);
-    widechar *inbuf = new widechar[inlen];
-    widechar *outbuf = new widechar[outlen];
-    std::memcpy(inbuf, Data, inlen * sizeof(widechar));
+    // 1. Test lou_setDataPath
+    lou_setDataPath(inputStr);
 
-    // Prepare additional parameters
-    formtype *typeform = new formtype[inlen];
-    char *spacing = new char[inlen];
-    int *outputPos = new int[inlen];
-    int *inputPos = new int[outlen];
-    int cursorPos = 0;
-    int mode = 0;
+    // 2. Test lou_indexTables
+    const char *tables[] = {inputStr, nullptr};
+    lou_indexTables(tables);
 
-    // Call lou_backTranslate
-    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
+    // 3. Test lou_getTableInfo
+    lou_getTableInfo(inputStr, inputStr);
 
-    // Reset lengths for next function
-    inlen = Size / sizeof(widechar);
-    outlen = Size / sizeof(widechar);
+    // 4. Test lou_readCharFromFile
+    FILE *dummyFile = fopen("./dummy_file", "wb");
+    if (dummyFile) {
+        fwrite(Data, 1, Size, dummyFile);
+        fclose(dummyFile);
 
-    // Call lou_translate
-    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
+        int mode = 0;
+        lou_readCharFromFile("./dummy_file", &mode);
+    }
 
-    // Reset lengths for next function
-    inlen = Size / sizeof(widechar);
-    outlen = Size / sizeof(widechar);
+    // 5. Test lou_findTable
+    char *bestMatch = lou_findTable(inputStr);
+    if (bestMatch) {
+        free(bestMatch);
+    }
 
-    // Call lou_translateString
-    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
+    // 6. Test lou_findTables
+    char **matchingTables = lou_findTables(inputStr);
+    if (matchingTables) {
+        for (char **table = matchingTables; *table != nullptr; ++table) {
+            free(*table);
+        }
+        free(matchingTables);
+    }
 
-    // Call lou_translatePrehyphenated
-    char *inputHyphens = new char[inlen];
-    char *outputHyphens = new char[outlen];
-    lou_translatePrehyphenated(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, inputHyphens, outputHyphens, mode);
-
-    // Call lou_hyphenate
-    char *hyphens = new char[inlen];
-    lou_hyphenate(tableList, inbuf, inlen, hyphens, mode);
-
-    // Call lou_checkTable
-    lou_checkTable(tableList);
-
-    // Cleanup
-    delete[] inbuf;
-    delete[] outbuf;
-    delete[] typeform;
-    delete[] spacing;
-    delete[] outputPos;
-    delete[] inputPos;
-    delete[] inputHyphens;
-    delete[] outputHyphens;
-    delete[] hyphens;
-
+    free(inputStr);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

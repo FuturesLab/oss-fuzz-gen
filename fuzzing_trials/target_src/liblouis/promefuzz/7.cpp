@@ -1,10 +1,11 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_listTables at metadata.c:1172:1 in liblouis.h
-// lou_indexTables at metadata.c:945:1 in liblouis.h
-// lou_getTable at compileTranslationTable.c:5118:1 in liblouis.h
-// lou_setDataPath at compileTranslationTable.c:59:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
-// lou_freeTableFiles at compileTranslationTable.c:4933:1 in liblouis.h
+// lou_getTable at compileTranslationTable.c:5134:1 in liblouis.h
+// lou_compileString at compileTranslationTable.c:5446:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5254:1 in liblouis.h
+// lou_getTable at compileTranslationTable.c:5134:1 in liblouis.h
+// lou_getEmphClasses at compileTranslationTable.c:5086:1 in liblouis.h
+// lou_getTypeformForEmphClass at compileTranslationTable.c:5260:1 in liblouis.h
+// lou_registerTableResolver at compileTranslationTable.c:4878:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,55 +17,117 @@
 #include <cstddef>
 #include <liblouis.h>
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
+#include <cstdio>
+
+static char** dummyResolver(const char* table, const char* base) {
+    // Dummy resolver that returns a static list of paths
+    static char* paths[] = { "./dummy_table_path", NULL };
+    return paths;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Convert input data to a C-style string
-    char *inputData = static_cast<char*>(malloc(Size + 1));
+    // Prepare input data
+    char* inputData = (char*)malloc(Size + 1);
     if (!inputData) return 0;
     memcpy(inputData, Data, Size);
     inputData[Size] = '\0';
 
-    // Fuzz lou_listTables
-    char **tables = lou_listTables();
-    if (tables) {
-        for (int i = 0; tables[i] != nullptr; ++i) {
-            free(tables[i]);
+    // Use the first byte to decide which function to target
+    uint8_t choice = Data[0] % 6;
+
+    switch (choice) {
+        case 0: {
+            // Test lou_compileString
+            // Ensure inString is not empty to avoid dereferencing null
+            if (Size > 1) {
+                char* inString = inputData + 1;
+                // Check if table is valid before calling lou_compileString
+                if (lou_getTable(inputData)) {
+                    lou_compileString(inputData, inString);
+                }
+            }
+            break;
         }
-        free(tables);
-    }
-
-    // Fuzz lou_indexTables
-    const char *tableArray[] = {inputData, nullptr};
-    lou_indexTables(tableArray);
-
-    // Fuzz lou_getTable
-    const void *table = lou_getTable(inputData);
-
-    // Fuzz lou_setDataPath
-    // Note: lou_setDataPath is deprecated and returns a pointer to a static buffer, do not free it.
-    lou_setDataPath(inputData);
-
-    // Fuzz lou_checkTable
-    int checkResult = lou_checkTable(inputData);
-
-    // Fuzz lou_freeTableFiles
-    char **dynamicTableArray = static_cast<char**>(malloc(2 * sizeof(char*)));
-    if (dynamicTableArray) {
-        dynamicTableArray[0] = static_cast<char*>(malloc(Size + 1));
-        if (dynamicTableArray[0]) {
-            memcpy(dynamicTableArray[0], Data, Size);
-            dynamicTableArray[0][Size] = '\0';
-            dynamicTableArray[1] = nullptr;
-            lou_freeTableFiles(dynamicTableArray);
-        } else {
-            free(dynamicTableArray);
+        case 1: {
+            // Test lou_checkTable
+            lou_checkTable(inputData);
+            break;
+        }
+        case 2: {
+            // Test lou_getTable
+            lou_getTable(inputData);
+            break;
+        }
+        case 3: {
+            // Test lou_getEmphClasses
+            char const **emphClasses = lou_getEmphClasses(inputData);
+            if (emphClasses) {
+                for (size_t i = 0; emphClasses[i] != NULL; ++i) {
+                    free((void*)emphClasses[i]);
+                }
+                free(emphClasses);
+            }
+            break;
+        }
+        case 4: {
+            // Test lou_getTypeformForEmphClass
+            // Ensure emphClass is not empty
+            if (Size > 1) {
+                lou_getTypeformForEmphClass(inputData, inputData + 1);
+            }
+            break;
+        }
+        case 5: {
+            // Test lou_registerTableResolver
+            lou_registerTableResolver(dummyResolver);
+            break;
         }
     }
 
     free(inputData);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

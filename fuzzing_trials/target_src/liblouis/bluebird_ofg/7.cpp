@@ -1,68 +1,80 @@
+#include <sys/stat.h>
+#include <string.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 
-// Assuming the function is from a C library
+// Include the header for the function-under-test
 extern "C" {
-    #include "../../liblouis/liblouis.h" // Correct path to the header file
+    char * lou_getTableInfo(const char *tableName, const char *infoType);
 }
 
-// Fuzzing harness for lou_getTypeformForEmphClass
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to split into two non-empty strings
+    // Ensure we have enough data to create two non-empty strings
     if (size < 2) {
         return 0;
     }
 
-    // Split the input data into two parts
+    // Split the input data into two parts for the two string arguments
     size_t mid = size / 2;
 
-    // Create null-terminated strings from the input data
-    char *str1 = static_cast<char *>(malloc(mid + 1));
-    char *str2 = static_cast<char *>(malloc(size - mid + 1));
+    // Create null-terminated strings for the function arguments
+    char tableName[mid + 1];
+    char infoType[size - mid + 1];
 
-    if (str1 == nullptr || str2 == nullptr) {
-        free(str1);
-        free(str2);
-        return 0;
-    }
+    // Copy data into the strings and null-terminate them
+    memcpy(tableName, data, mid);
+    tableName[mid] = '\0';
 
-    memcpy(str1, data, mid);
-    str1[mid] = '\0';
+    memcpy(infoType, data + mid, size - mid);
+    infoType[size - mid] = '\0';
 
-    memcpy(str2, data + mid, size - mid);
-    str2[size - mid] = '\0';
+    // Call the function-under-test
+    char *result = lou_getTableInfo(tableName, infoType);
 
-    // Call the function under test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lou_getTypeformForEmphClass
-    formtype result = lou_getTypeformForEmphClass(str1, (const char *)data);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_getTypeformForEmphClass to lou_dotsToChar
-    int ret_lou_checkTable_nkpaz = lou_checkTable(NULL);
-    if (ret_lou_checkTable_nkpaz < 0){
-    	return 0;
-    }
-    const char rzgabcqc[1024] = "mfold";
-    widechar cbkzmnps;
-    memset(&cbkzmnps, 0, sizeof(cbkzmnps));
-    widechar mlevxnvv;
-    memset(&mlevxnvv, 0, sizeof(mlevxnvv));
-
-    int ret_lou_dotsToChar_lieco = lou_dotsToChar(rzgabcqc, &cbkzmnps, &mlevxnvv, (int )result, ret_lou_checkTable_nkpaz);
-    if (ret_lou_dotsToChar_lieco < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(str1);
-    free(str2);
+    // If the function returns a non-null pointer, we should free it if necessary
+    // However, as we don't have the actual implementation details, we just ensure
+    // that the function is called correctly. If lou_getTableInfo allocates memory,
+    // it should be documented in the API to free it after use.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

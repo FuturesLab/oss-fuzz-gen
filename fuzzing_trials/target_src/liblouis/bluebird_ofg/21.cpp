@@ -1,87 +1,78 @@
+#include <sys/stat.h>
+#include <string.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 
-// Assuming the function is from a C library
 extern "C" {
-    #include "../../liblouis/liblouis.h" // Correct path to the header file
+    #include "../../liblouis/liblouis.h"  // Correct path for lou_dotsToChar declaration
 }
 
-// Fuzzing harness for lou_getTypeformForEmphClass
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to split into two non-empty strings
-    if (size < 2) {
+    // Ensure the input size is sufficient for the function parameters
+    if (size < 2) {  // Adjusted to ensure at least a single character and null terminator for dots
         return 0;
     }
 
-    // Split the input data into two parts
-    size_t mid = size / 2;
+    // Initialize the parameters
+    char dots[256];
+    size_t copySize = size < 255 ? size : 255;  // Ensure we don't exceed buffer size
+    memcpy(dots, data, copySize);
+    dots[copySize] = '\0';  // Null-terminate to prevent overflow in string functions
 
-    // Create null-terminated strings from the input data
-    char *str1 = static_cast<char *>(malloc(mid + 1));
-    char *str2 = static_cast<char *>(malloc(size - mid + 1));
+    // Allocate memory for widechar arrays
+    widechar output1[256];
+    widechar output2[256];
 
-    if (str1 == nullptr || str2 == nullptr) {
-        free(str1);
-        free(str2);
-        return 0;
-    }
+    // Ensure the arrays are not null and have some initial values
+    memset(output1, 0, sizeof(output1));
+    memset(output2, 0, sizeof(output2));
 
-    memcpy(str1, data, mid);
-    str1[mid] = '\0';
+    // Set values for the integer parameters
+    int length = static_cast<int>(copySize);
+    int mode = 0;  // You can vary this value as needed
 
-    memcpy(str2, data + mid, size - mid);
-    str2[size - mid] = '\0';
-
-    // Call the function under test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lou_getTypeformForEmphClass
-    formtype result = lou_getTypeformForEmphClass(str1, (const char *)data);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_getTypeformForEmphClass to lou_hyphenate
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_getTypeformForEmphClass to lou_dotsToChar
-    char* ret_lou_setDataPath_iwcgq = lou_setDataPath((const char *)"r");
-    if (ret_lou_setDataPath_iwcgq == NULL){
-    	return 0;
-    }
-    int ret_lou_checkTable_mnkkq = lou_checkTable(NULL);
-    if (ret_lou_checkTable_mnkkq < 0){
-    	return 0;
-    }
-    widechar pkngoemv;
-    memset(&pkngoemv, 0, sizeof(pkngoemv));
-
-    int ret_lou_dotsToChar_qxpuw = lou_dotsToChar(ret_lou_setDataPath_iwcgq, &pkngoemv, NULL, (int )result, ret_lou_checkTable_mnkkq);
-    if (ret_lou_dotsToChar_qxpuw < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char** ret_lou_findTables_jgivt = lou_findTables((const char *)"r");
-    if (ret_lou_findTables_jgivt == NULL){
-    	return 0;
-    }
-    char* ret_lou_setDataPath_dmkqc = lou_setDataPath((const char *)data);
-    if (ret_lou_setDataPath_dmkqc == NULL){
-    	return 0;
-    }
-
-    int ret_lou_hyphenate_ljmaq = lou_hyphenate(*ret_lou_findTables_jgivt, NULL, (int )result, ret_lou_setDataPath_dmkqc, (int )result);
-    if (ret_lou_hyphenate_ljmaq < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(str1);
-    free(str2);
+    // Call the function-under-test
+    lou_dotsToChar(dots, output1, output2, length, mode);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,66 +15,94 @@
 #include <cstring>
 #include <fstream>
 
+// Dummy log callback function
+static void logCallback(logLevels level, const char *message) {
+    // Simply print the log message
+    (void)level; // Unused parameter
+    (void)message; // Unused parameter
+}
+
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    // Prepare environment
-    if (Size < 1) {
-        return 0;
-    }
-
     // Register a log callback
-    lou_registerLogCallback(nullptr);
+    lou_registerLogCallback(logCallback);
 
-    // Prepare a dummy table file
+    // Prepare a dummy file for table checking
     std::ofstream dummyFile("./dummy_file");
     if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+        dummyFile.write(reinterpret_cast<const char *>(Data), Size);
         dummyFile.close();
     }
 
-    // Check table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of lou_checkTable
-    lou_checkTable((const char *)"r");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Check the table
+    const char *tableList = "./dummy_file";
+    lou_checkTable(tableList);
 
     // Free resources
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_free with lou_logEnd
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_logEnd with lou_free
     lou_free();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
+    // Try to translate a string
+    if (Size > 2) {
+        int inlen = static_cast<int>(Size / 2);
+        int outlen = static_cast<int>(Size);
+        widechar *inbuf = new widechar[inlen];
+        widechar *outbuf = new widechar[outlen];
+        formtype *typeform = nullptr; // No typeform checking
+        char *spacing = nullptr; // No spacing computation
 
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        // Copy data into inbuf
+        std::memcpy(inbuf, Data, inlen * sizeof(widechar));
 
+        // Translate string
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_translateString with lou_backTranslateString
+        lou_backTranslateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, 0);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
+        // Clean up
+        delete[] inbuf;
+        delete[] outbuf;
+    }
 
-    // Prepare input for backTranslateString
-    widechar inbuf[1024];
-    int inlen = std::min(Size / sizeof(widechar), sizeof(inbuf) / sizeof(widechar));
-    std::memcpy(inbuf, Data, inlen * sizeof(widechar));
-
-    widechar outbuf[1024];
-    int outlen = sizeof(outbuf) / sizeof(widechar);
-
-    // Back translate string
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_backTranslateString with lou_translateString
-    lou_translateString("./dummy_file", inbuf, &inlen, outbuf, &outlen, NULL, NULL, 0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Free resources again
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_free with lou_logEnd
-    lou_logEnd();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Free resources
+    lou_free();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

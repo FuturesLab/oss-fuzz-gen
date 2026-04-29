@@ -1,39 +1,52 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstdint> // For uint8_t
+#include <cstddef> // For size_t
 
 extern "C" {
-    // Assuming the function is declared in a header file or elsewhere in the project
-    char ** lou_findTables(const char *);
+    #include "/src/liblouis/liblouis/liblouis.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-
-    memcpy(input, data, size);
-    input[size] = '\0'; // Null-terminate the input string
-
-    // Call the function under test
-    char **result = lou_findTables(input);
-
-    // Normally, we would process the result here, but since we're fuzzing,
-    // we are mainly interested in whether the function can handle the input
-    // without crashing. So we just free the input and return.
-
-    free(input);
-
-    // If result is not NULL, we should free the allocated memory for the result
-    // Assuming the result is a NULL-terminated array of strings
-    if (result != NULL) {
-        for (char **ptr = result; *ptr != NULL; ++ptr) {
-            free(*ptr); // Free each string
-        }
-        free(result); // Free the array itself
-    }
+    // Since lou_logEnd does not take any parameters, we can directly call it.
+    lou_logEnd();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

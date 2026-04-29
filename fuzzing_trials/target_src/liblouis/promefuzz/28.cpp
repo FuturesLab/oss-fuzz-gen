@@ -1,10 +1,11 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
-// lou_compileString at compileTranslationTable.c:5430:1 in liblouis.h
-// lou_hyphenate at lou_translateString.c:4066:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
-// lou_charSize at compileTranslationTable.c:5425:1 in liblouis.h
-// lou_readCharFromFile at compileTranslationTable.c:4352:1 in liblouis.h
+// lou_indexTables at metadata.c:947:1 in liblouis.h
+// lou_getTableInfo at metadata.c:1147:1 in liblouis.h
+// lou_listTables at metadata.c:1177:1 in liblouis.h
+// lou_freeTableFiles at compileTranslationTable.c:4949:1 in liblouis.h
+// lou_findTable at metadata.c:1068:1 in liblouis.h
+// lou_findTables at metadata.c:1115:1 in liblouis.h
+// lou_freeTableFiles at compileTranslationTable.c:4949:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,54 +16,91 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <liblouis.h>
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Early exit if there's no data
-
-    // Prepare dummy file for lou_readCharFromFile
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char *>(Data), Size);
-        dummyFile.close();
+    if (Size == 0) {
+        return 0;
     }
 
-    // Prepare buffers and variables for API calls
-    char tableList[256] = {0};
-    widechar inbuf[256] = {0};
-    widechar outbuf[256] = {0};
-    formtype typeform[256] = {0};
-    char spacing[256] = {0};
-    char hyphens[256] = {0};
+    // Prepare input data as a null-terminated string
+    char *inputData = static_cast<char *>(malloc(Size + 1));
+    if (!inputData) {
+        return 0;
+    }
+    memcpy(inputData, Data, Size);
+    inputData[Size] = '\0';
 
-    int inlen = Size > 255 ? 255 : Size;
-    int outlen = 256;
-    int mode = 0;
-    int fileMode = 1;
+    // Prepare an array of table names for lou_indexTables
+    const char *tables[] = { inputData, nullptr };
+    lou_indexTables(tables);
 
-    // Copy Data to tableList and inbuf
-    std::memcpy(tableList, Data, inlen);
-    std::memcpy(inbuf, Data, inlen); // Corrected to use inlen instead of inlen * sizeof(widechar)
+    // Attempt to retrieve table info using lou_getTableInfo
+    char *info = lou_getTableInfo(inputData, "someKey");
+    if (info) {
+        free(info);
+    }
 
-    // Fuzz lou_translateString
-    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
+    // List available tables using lou_listTables
+    char **listedTables = lou_listTables();
+    if (listedTables) {
+        lou_freeTableFiles(listedTables);
+    }
 
-    // Fuzz lou_compileString
-    lou_compileString(tableList, reinterpret_cast<const char *>(Data));
+    // Find a table using lou_findTable
+    char *foundTable = lou_findTable(inputData);
+    if (foundTable) {
+        free(foundTable);
+    }
 
-    // Fuzz lou_hyphenate
-    lou_hyphenate(tableList, inbuf, inlen, hyphens, mode);
+    // Find tables using lou_findTables
+    char **foundTables = lou_findTables(inputData);
+    if (foundTables) {
+        lou_freeTableFiles(foundTables);
+    }
 
-    // Fuzz lou_checkTable
-    lou_checkTable(tableList);
-
-    // Fuzz lou_charSize
-    lou_charSize();
-
-    // Fuzz lou_readCharFromFile
-    lou_readCharFromFile("./dummy_file", &fileMode);
-
+    free(inputData);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    
