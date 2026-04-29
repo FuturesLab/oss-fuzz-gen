@@ -1,27 +1,67 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include "/src/hoextdown/src/stack.h"  // Correct path for the hoedown_stack functions
+#include "/src/hoextdown/src/buffer.h"  // Correct path for the definition of hoedown_buffer
 
-// Remove the 'extern "C"' as it is not needed for C code
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Initialize the stack
-    hoedown_stack stack;
-    hoedown_stack_init(&stack, 8);  // Initialize with a reasonable initial size
+    hoedown_buffer buffer;
+    size_t initial_size = 64;  // Initial size for the buffer
+    buffer.data = (uint8_t *)malloc(initial_size);
+    buffer.size = initial_size;
+    buffer.asize = initial_size;
+    buffer.unit = 8;  // Unit size, can be any positive number
 
-    // Ensure we have enough data to create a non-null pointer
-    if (size < sizeof(void *)) {
-        return 0;
+    if (buffer.data == NULL) {
+        return 0;  // Exit if memory allocation fails
     }
 
-    // Use the data as a pointer
-    void *ptr = (void *)data;
-
+    // Ensure size is not zero to avoid no-op
+    size_t grow_size = size > 0 ? size : 1;
+    
     // Call the function-under-test
-    hoedown_stack_push(&stack, ptr);
+    hoedown_buffer_grow(&buffer, grow_size);
 
-    // Clean up the stack
-    hoedown_stack_uninit(&stack);
+    // Clean up
+    free(buffer.data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

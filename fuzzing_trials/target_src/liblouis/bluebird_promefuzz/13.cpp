@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,66 +10,117 @@
 #include <cstdint>
 #include <cstddef>
 #include "../../liblouis/liblouis.h"
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <fstream>
+#include <cstdio>
+
+static char** dummyResolver(const char* table, const char* base) {
+    // Dummy resolver that returns a static list of paths
+    static char* paths[] = { "./dummy_table_path", NULL };
+    return paths;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    // Prepare environment
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Prepare input data
+    char* inputData = (char*)malloc(Size + 1);
+    if (!inputData) return 0;
+    memcpy(inputData, Data, Size);
+    inputData[Size] = '\0';
+
+    // Use the first byte to decide which function to target
+    uint8_t choice = Data[0] % 6;
+
+    switch (choice) {
+        case 0: {
+            // Test lou_compileString
+            // Ensure inString is not empty to avoid dereferencing null
+            if (Size > 1) {
+                char* inString = inputData + 1;
+                // Check if table is valid before calling lou_compileString
+                if (lou_getTable(inputData)) {
+                    lou_compileString(inputData, inString);
+                }
+            }
+            break;
+        }
+        case 1: {
+            // Test lou_checkTable
+            lou_checkTable(inputData);
+            break;
+        }
+        case 2: {
+            // Test lou_getTable
+            lou_getTable(inputData);
+            break;
+        }
+        case 3: {
+            // Test lou_getEmphClasses
+            char const **emphClasses = lou_getEmphClasses(inputData);
+            if (emphClasses) {
+                for (size_t i = 0; emphClasses[i] != NULL; ++i) {
+                    free((void*)emphClasses[i]);
+                }
+                free(emphClasses);
+            }
+            break;
+        }
+        case 4: {
+            // Test lou_getTypeformForEmphClass
+            // Ensure emphClass is not empty
+            if (Size > 1) {
+                lou_getTypeformForEmphClass(inputData, inputData + 1);
+            }
+            break;
+        }
+        case 5: {
+            // Test lou_registerTableResolver
+            lou_registerTableResolver(dummyResolver);
+            break;
+        }
     }
 
-    // Register a log callback
-    lou_registerLogCallback(nullptr);
-
-    // Prepare a dummy table file
-    std::ofstream dummyFile("./dummy_file");
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
-    }
-
-    // Check table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of lou_checkTable
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of lou_checkTable
-    lou_checkTable((const char *)"w");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Free resources
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_free with lou_logEnd
-    lou_logEnd();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Prepare input for backTranslateString
-    widechar inbuf[1024];
-    int inlen = std::min(Size / sizeof(widechar), sizeof(inbuf) / sizeof(widechar));
-    std::memcpy(inbuf, Data, inlen * sizeof(widechar));
-
-    widechar outbuf[1024];
-    int outlen = sizeof(outbuf) / sizeof(widechar);
-
-    // Back translate string
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lou_backTranslateString with lou_translateString
-    lou_translateString("./dummy_file", inbuf, &inlen, outbuf, &outlen, NULL, NULL, 0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Free resources again
-    lou_free();
-
+    free(inputData);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

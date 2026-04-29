@@ -1,27 +1,22 @@
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <stdio.h>
 #include <string.h>
-#include "html.h"
-#include "document.h"
+#include "/src/hoextdown/src/buffer.h"
 
-static void *dummy_realloc_callback(void *ptr, size_t size) {
+static void *default_realloc(void *ptr, size_t size) {
     return realloc(ptr, size);
 }
 
-static void dummy_free_callback(void *ptr) {
+static void default_free(void *ptr) {
     free(ptr);
-}
-
-static void dummy_buffer_free_callback(void *buffer) {
-    if (buffer) {
-        hoedown_buffer *buf = (hoedown_buffer *)buffer;
-        if (buf->data_free) {
-                buf->data_free(buf->data);
-        }
-        free(buf);
-    }
 }
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
@@ -29,71 +24,101 @@ int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    int nesting_level = Data[0] % 5; // arbitrary nesting level choice
+    hoedown_buffer buffer;
+    hoedown_buffer_init(&buffer, 64, default_realloc, default_free, default_free);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of hoedown_html_toc_renderer_new
-    hoedown_renderer *renderer = hoedown_html_toc_renderer_new(-1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    size_t action = Data[0] % 6; // Select an action based on the first byte
+    const uint8_t *inputData = Data + 1;
+    size_t inputSize = Size - 1;
 
-
-
-    if (!renderer) {
-        return 0;
-    }
-
-    hoedown_extensions extensions = HOEDOWN_EXT_TABLES | HOEDOWN_EXT_FENCED_CODE;
-    size_t max_nesting = (Size > 1) ? Data[1] : 1;
-    if (max_nesting == 0) {
-        max_nesting = 1;
-    }
-
-    hoedown_user_block user_block = NULL;
-    
-    hoedown_buffer *meta = (hoedown_buffer *)malloc(sizeof(hoedown_buffer));
-    if (!meta) {
-        free(renderer);
-        return 0;
-    }
-    meta->data = NULL;
-    meta->size = 0;
-    meta->asize = 0;
-    meta->unit = 0;
-    meta->data_realloc = dummy_realloc_callback;
-    meta->data_free = dummy_free_callback;
-    meta->buffer_free = dummy_buffer_free_callback;
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hoedown_document_new
-    hoedown_document *document = hoedown_document_new(renderer, HOEDOWN_EXT_MATH, max_nesting, 0, user_block, meta);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    if (document) {
-        hoedown_buffer *output_buffer = (hoedown_buffer *)malloc(sizeof(hoedown_buffer));
-        if (output_buffer) {
-            output_buffer->data = (uint8_t *)malloc(Size);
-            if (output_buffer->data) {
-                output_buffer->size = Size;
-                output_buffer->asize = Size;
-                output_buffer->unit = 1;
-                output_buffer->data_realloc = dummy_realloc_callback;
-                output_buffer->data_free = dummy_free_callback;
-                output_buffer->buffer_free = dummy_buffer_free_callback;
-
-                hoedown_document_render(document, output_buffer, Data, Size);
-                hoedown_document_render_inline(document, output_buffer, Data, Size);
-
-                output_buffer->buffer_free(output_buffer);
-            } else {
-                free(output_buffer);
+    switch (action) {
+        case 0: {
+            // Test hoedown_buffer_putc
+            for (size_t i = 0; i < inputSize; i++) {
+                hoedown_buffer_putc(&buffer, inputData[i]);
             }
+            break;
         }
-        hoedown_document_free(document);
+        case 1: {
+            // Test hoedown_buffer_slurp
+            if (inputSize > 0) {
+                size_t slurpSize = inputData[0] % (buffer.size + 1);
+                hoedown_buffer_slurp(&buffer, slurpSize);
+            }
+            break;
+        }
+        case 2: {
+            // Test hoedown_buffer_printf
+            char formatString[100];
+            snprintf(formatString, sizeof(formatString), "Data: %.*s", (int)inputSize, inputData);
+            hoedown_buffer_printf(&buffer, "%s", formatString);
+            break;
+        }
+        case 3: {
+            // Test hoedown_buffer_reset
+            hoedown_buffer_reset(&buffer);
+            break;
+        }
+        case 4: {
+            // Test hoedown_buffer_uninit
+            hoedown_buffer_uninit(&buffer);
+            break;
+        }
+        case 5: {
+            // Reinitialize buffer and test all functions
+            hoedown_buffer_uninit(&buffer);
+            hoedown_buffer_init(&buffer, 64, default_realloc, default_free, default_free);
+            for (size_t i = 0; i < inputSize; i++) {
+                hoedown_buffer_putc(&buffer, inputData[i]);
+            }
+            hoedown_buffer_reset(&buffer);
+            hoedown_buffer_uninit(&buffer);
+            break;
+        }
+        default:
+            break;
     }
 
-    meta->buffer_free(meta);
-    free(renderer);
-
+    // Cleanup
+    hoedown_buffer_uninit(&buffer);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

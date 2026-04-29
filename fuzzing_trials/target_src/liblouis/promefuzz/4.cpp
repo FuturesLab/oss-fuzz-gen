@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
+// lou_logFile at logging.c:196:1 in liblouis.h
+// lou_logPrint at logging.c:213:1 in liblouis.h
+// lou_setLogLevel at logging.c:143:1 in liblouis.h
 // lou_registerLogCallback at logging.c:86:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
-// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
-// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
-// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
-// lou_free at compileTranslationTable.c:5363:1 in liblouis.h
+// lou_findTable at metadata.c:1068:1 in liblouis.h
+// lou_logEnd at logging.c:229:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,64 +14,109 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <liblouis.h>
-#include <cstddef>
 #include <cstdint>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include "liblouis.h"
 
-static void customLogCallback(logLevels level, const char *message) {
-    std::cerr << "Log level: " << level << ", Message: " << message << std::endl;
+static void fuzz_lou_logFile(const uint8_t *Data, size_t Size) {
+    char filename[256];
+    if (Size < sizeof(filename)) {
+        memcpy(filename, Data, Size);
+        filename[Size] = '\0';
+        lou_logFile(filename);
+    }
+}
+
+static void fuzz_lou_logPrint(const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        char format[256];
+        if (Size < sizeof(format)) {
+            memcpy(format, Data, Size);
+            format[Size] = '\0';
+            lou_logPrint(format);
+        }
+    }
+}
+
+static void fuzz_lou_setLogLevel(const uint8_t *Data, size_t Size) {
+    if (Size >= sizeof(logLevels)) {
+        logLevels level;
+        memcpy(&level, Data, sizeof(logLevels));
+        lou_setLogLevel(level);
+    }
+}
+
+static void fuzz_lou_registerLogCallback(const uint8_t *Data, size_t Size) {
+    // For simplicity, we won't actually implement a callback function here
+    // since it's not straightforward to fuzz function pointers.
+    lou_registerLogCallback(NULL);
+}
+
+static void fuzz_lou_findTable(const uint8_t *Data, size_t Size) {
+    char query[256];
+    if (Size < sizeof(query)) {
+        memcpy(query, Data, Size);
+        query[Size] = '\0';
+        char *result = lou_findTable(query);
+        if (result) {
+            free(result);
+        }
+    }
+}
+
+static void fuzz_lou_logEnd() {
+    lou_logEnd();
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
-
-    // Ensure null-terminated tableList
-    char *tableList = new char[Size + 1];
-    memcpy(tableList, Data, Size);
-    tableList[Size] = '\0';
-
-    widechar *inbuf = new widechar[Size];
-    int inlen = static_cast<int>(Size);
-    widechar *outbuf = new widechar[Size];
-    int outlen = static_cast<int>(Size);
-    formtype *typeform = new formtype[Size];
-    char *spacing = new char[Size];
-
-    // Initialize buffers with data
-    for (size_t i = 0; i < Size; ++i) {
-        inbuf[i] = static_cast<widechar>(Data[i]);
-        typeform[i] = static_cast<formtype>(Data[i] % 4); // Random typeform
-        spacing[i] = static_cast<char>(Data[i] % 2);      // Random spacing
-    }
-
-    // Register a custom log callback
-    lou_registerLogCallback(customLogCallback);
-
-    // Check the table
-    lou_checkTable(tableList);
-
-    // Free memory
-    lou_free();
-
-    // Free memory again to check for improper use
-    lou_free();
-
-    // Translate string
-    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, 0);
-
-    // Free memory
-    lou_free();
-
-    // Clean up
-    delete[] tableList;
-    delete[] inbuf;
-    delete[] outbuf;
-    delete[] typeform;
-    delete[] spacing;
-
+    fuzz_lou_logFile(Data, Size);
+    fuzz_lou_logPrint(Data, Size);
+    fuzz_lou_setLogLevel(Data, Size);
+    fuzz_lou_registerLogCallback(Data, Size);
+    fuzz_lou_findTable(Data, Size);
+    fuzz_lou_logEnd();
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

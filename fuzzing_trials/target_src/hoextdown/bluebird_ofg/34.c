@@ -1,51 +1,120 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include "document.h"
-#include "/src/hoextdown/src/buffer.h"
-#include "html.h"
-
-// Define a dummy user block function
-void dummy_user_block_34(const uint8_t *data, size_t size, void *context) {
-    // This function does nothing, it's just a placeholder
-}
+#include "document.h" // Correct path for hoedown_document and related functions
+#include "/src/hoextdown/src/buffer.h" // Include necessary for hoedown_buffer
+#include "html.h" // Include necessary for hoedown_html_renderer
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Initialize hoedown_document and hoedown_buffer
-    hoedown_document *doc;
-    hoedown_buffer *buffer;
-    hoedown_renderer *renderer;
+    // Initialize a hoedown_renderer object using a specific renderer like HTML
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of hoedown_html_renderer_new
+    hoedown_renderer *renderer = hoedown_html_renderer_new(HOEDOWN_HTML_HEADER_ID, 0); // Initialize renderer with appropriate flags
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Create a renderer
-    renderer = hoedown_html_renderer_new(0, 0);
-
-    // Create a document with the renderer
-    doc = hoedown_document_new(renderer, 0, 16, 0, dummy_user_block_34, NULL);
-
-    // Create a buffer to store the output
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hoedown_document_new to hoedown_document_hrule_char
-
-    uint8_t ret_hoedown_document_hrule_char_wtxqc = hoedown_document_hrule_char(doc);
-    if (ret_hoedown_document_hrule_char_wtxqc < 0){
-    	return 0;
+    // Check if the renderer is successfully created
+    if (renderer == NULL) {
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Create a hoedown_buffer for output
+    hoedown_buffer *ob = hoedown_buffer_new(64);
 
-    buffer = hoedown_buffer_new(64);
-
-    // Ensure the data is not NULL and size is greater than zero
-    if (data != NULL && size > 0) {
-        // Call the function-under-test
-        hoedown_document_render_inline(doc, buffer, data, size);
+    // Check if the buffer is successfully created
+    if (ob == NULL) {
+        hoedown_html_renderer_free(renderer);
+        return 0;
     }
+
+    // Initialize hoedown_document with all required parameters
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hoedown_document_new
+    hoedown_document *doc = hoedown_document_new(renderer, HOEDOWN_EXT_TABLES, 16, 0, NULL, NULL);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    // Check if the document is successfully created
+    if (doc == NULL) {
+        hoedown_buffer_free(ob);
+        hoedown_html_renderer_free(renderer);
+        return 0;
+    }
+
+    // Call the function-under-test using the input data
+    if (size > 0 && data != NULL) {
+        hoedown_document_render(doc, ob, data, size);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hoedown_document_render to hoedown_document_render_inline
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!doc) {
+        	return 0;
+        }
+        const hoedown_buffer* ret_hoedown_document_ol_numeral_sxdar = hoedown_document_ol_numeral(doc);
+        if (ret_hoedown_document_ol_numeral_sxdar == NULL){
+        	return 0;
+        }
+        uint8_t ret_hoedown_document_hrule_char_uiify = hoedown_document_hrule_char(NULL);
+        if (ret_hoedown_document_hrule_char_uiify < 0){
+        	return 0;
+        }
+        uint8_t ret_hoedown_document_ul_item_char_kesey = hoedown_document_ul_item_char(NULL);
+        if (ret_hoedown_document_ul_item_char_kesey < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!doc) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ob) {
+        	return 0;
+        }
+        hoedown_document_render_inline(doc, ob, &ret_hoedown_document_hrule_char_uiify, (size_t )ret_hoedown_document_ul_item_char_kesey);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
     // Clean up
-    hoedown_buffer_free(buffer);
     hoedown_document_free(doc);
+    hoedown_buffer_free(ob);
     hoedown_html_renderer_free(renderer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

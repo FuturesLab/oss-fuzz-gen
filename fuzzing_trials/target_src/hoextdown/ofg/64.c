@@ -1,37 +1,63 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include "/src/hoextdown/src/document.h" // Ensure this path is correct
-
-// Assuming hoedown_stack and hoedown_stack_top are declared in document.h
-// If not, they should be declared here based on the library's documentation or source code.
-
-// Example declaration based on typical stack structure
-typedef struct {
-    void **item;
-    size_t size;
-    size_t asize;
-} hoedown_stack;
-
-// Example function prototype if not declared in document.h
-void *hoedown_stack_top(hoedown_stack *stack);
+#include "/src/hoextdown/src/stack.h"  // Correct header file for hoedown_stack
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
     hoedown_stack stack;
     void *result;
 
-    // Initialize the stack
-    stack.item = (void **)data; // Casting data to void** for demonstration
-    stack.size = size / sizeof(void *); // Assuming each item is a pointer
-    stack.asize = stack.size; // Assuming the allocated size is initially the same as the size
+    // Initialize the stack with some default values
+    hoedown_stack_init(&stack, 8);  // Initialize with a size of 8
+
+    // Populate the stack with some data from the input
+    for (size_t i = 0; i < size; ++i) {
+        hoedown_stack_push(&stack, (void *)(uintptr_t)data[i]);
+    }
 
     // Call the function-under-test
-    result = hoedown_stack_top(&stack);
+    result = hoedown_stack_pop(&stack);
 
-    // Use result to prevent compiler optimizations from removing the call
-    if (result != NULL) {
-        // Do something with result if needed
-    }
+    // Clean up the stack
+    hoedown_stack_uninit(&stack);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_64(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
