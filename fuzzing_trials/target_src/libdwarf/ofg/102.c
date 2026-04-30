@@ -1,20 +1,67 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <libdwarf.h> // Include the relevant header file for Dwarf_Debug and related functions
+#include <stdint.h>
+
+// Assume the function is defined in some external library
+extern int dwarf_get_ACCESS_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    // Initialize the parameters for the function-under-test
-    Dwarf_Debug dbg = (Dwarf_Debug)0x1; // Assuming a non-NULL valid Dwarf_Debug handle
-    unsigned int list_size = 0;
-
-    // Ensure the size is not zero to avoid division by zero or similar issues
-    if (size > 0) {
-        list_size = (unsigned int)(data[0]) + 1; // Use the first byte of data to set list_size
+    // Ensure there is enough data to extract an unsigned int
+    if (size < sizeof(unsigned int)) {
+        return 0;
     }
 
-    // Call the function-under-test
-    unsigned int result = dwarf_set_harmless_error_list_size(dbg, list_size);
+    // Extract an unsigned int from the input data
+    unsigned int access_code = *(unsigned int *)data;
 
-    // Return 0 to indicate successful execution
+    // Initialize a pointer for the name
+    const char *name = NULL;
+
+    // Call the function-under-test
+    int result = dwarf_get_ACCESS_name(access_code, &name);
+
+    // Optionally, perform some checks or operations with the result and name
+    if (result == 0 && name != NULL) {
+        // Do something with the name, if needed
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_102(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,79 +1,85 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdio.h>
-#include <string.h>
-#include <stdint.h>
+#include <stdlib.h>
 #include "lcms2.h"
-#include "/src/lcms/include/lcms2_plugin.h"
 
-static cmsUInt32Number DummyRead(struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count) {
-    // Dummy read function
-    return size * count;
-}
-
-static cmsBool DummySeek(struct _cms_io_handler* iohandler, cmsUInt32Number offset) {
-    // Dummy seek function
-    return TRUE;
-}
-
-static cmsBool DummyClose(struct _cms_io_handler* iohandler) {
-    // Dummy close function
-    return TRUE;
-}
-
-static cmsUInt32Number DummyTell(struct _cms_io_handler* iohandler) {
-    // Dummy tell function
-    return 0;
-}
-
-static cmsBool DummyWrite(struct _cms_io_handler* iohandler, cmsUInt32Number size, const void* Buffer) {
-    // Dummy write function
-    return TRUE;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsTagTypeSignature) + sizeof(cmsFloat32Number)) {
+    if (Size < 1) {
         return 0;
     }
 
-    cmsIOHANDLER iohandler;
-    memset(&iohandler, 0, sizeof(iohandler));
-    iohandler.Read = DummyRead;
-    iohandler.Seek = DummySeek;
-    iohandler.Close = DummyClose;
-    iohandler.Tell = DummyTell;
-    iohandler.Write = DummyWrite;
+    write_dummy_file(Data, Size);
 
-    cmsTagTypeSignature sig;
-    memcpy(&sig, Data, sizeof(cmsTagTypeSignature));
-    Data += sizeof(cmsTagTypeSignature);
-    Size -= sizeof(cmsTagTypeSignature);
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
+    }
 
-    cmsFloat32Number number;
-    memcpy(&number, Data, sizeof(cmsFloat32Number));
-    Data += sizeof(cmsFloat32Number);
-    Size -= sizeof(cmsFloat32Number);
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of cmsGetTagSignature
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, INTENT_PRESERVE_K_PLANE_PERCEPTUAL);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    }
 
-    // Test _cmsWriteTypeBase
-    _cmsWriteTypeBase(&iohandler, sig);
-
-    // Test _cmsReadFloat32Number
-    _cmsReadFloat32Number(&iohandler, &number);
-
-    // Test _cmsWriteFloat32Number
-    _cmsWriteFloat32Number(&iohandler, number);
-
-    // Test cmsCloseIOhandler
-    cmsCloseIOhandler(&iohandler);
-
-    // Test _cmsReadAlignment
-    _cmsReadAlignment(&iohandler);
-
-    // Test _cmsWriteAlignment
-    _cmsWriteAlignment(&iohandler);
-
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

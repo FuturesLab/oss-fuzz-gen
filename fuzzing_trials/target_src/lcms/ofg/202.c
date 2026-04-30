@@ -1,20 +1,77 @@
 #include <stdint.h>
-#include <stddef.h>
-#include "lcms2.h"  // Assuming this is the correct header file where cmsColorSpaceSignature is defined
+#include <stdlib.h>
+#include <string.h>
+#include <lcms2.h>
 
-// Remove 'extern "C"' as it is not valid in C code
 int LLVMFuzzerTestOneInput_202(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to extract a cmsColorSpaceSignature
-    if (size < sizeof(cmsColorSpaceSignature)) {
-        return 0;
+    cmsMLU *mlu = NULL;
+
+    // Ensure that the size is sufficient to contain at least one character
+    if (size > 0) {
+        // Create a new cmsMLU object
+        mlu = cmsMLUalloc(NULL, 1);
+        if (mlu != NULL) {
+            // Assuming the data contains a language code and country code
+            // For demonstration, we'll use "en" and "US" as placeholders
+            const char *languageCode = "en";
+            const char *countryCode = "US";
+
+            // Use a portion of the data as a string for the MLU
+            char *stringData = (char *)malloc(size + 1);
+            if (stringData != NULL) {
+                memcpy(stringData, data, size);
+                stringData[size] = '\0'; // Null-terminate the string
+
+                // Set the MLU value
+                cmsMLUsetASCII(mlu, languageCode, countryCode, stringData);
+
+                // Free the temporary string data
+                free(stringData);
+            }
+
+            // Call the function-under-test
+            cmsMLUfree(mlu);
+        }
     }
 
-    // Extract cmsColorSpaceSignature from the input data
-    cmsColorSpaceSignature colorSpaceSignature = *(const cmsColorSpaceSignature *)data;
-
-    // Call the function under test
-    int result = _cmsLCMScolorSpace(colorSpaceSignature);
-
-    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_202(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

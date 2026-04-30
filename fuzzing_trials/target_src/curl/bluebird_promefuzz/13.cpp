@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,65 +9,101 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "curl/curl.h"
-#include "/src/curl/include/curl/options.h"
-#include <cstddef>
-#include <cstdint>
+#include "/src/curl/include/curl/multi.h"
 #include <cstring>
-#include <cstdio>
+#include <fstream>
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    // Ensure data is null-terminated for string operations
-    char *dataStr = nullptr;
-    if (Size > 0) {
-        dataStr = new char[Size + 1];
-        std::memcpy(dataStr, Data, Size);
-        dataStr[Size] = '\0';
+    if (Size < sizeof(curl_socket_t) + sizeof(int)) {
+        return 0;
     }
 
-    // Test curl_share_init and cleanup
-    CURLSH *share = curl_share_init();
-    if (share) {
-        curl_share_cleanup(share);
+    // Initialize CURLM handle
+    CURLM *multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        return 0;
     }
 
-    // Test curl_easy_option_by_name
-    if (dataStr) {
-        const struct curl_easyoption *optionByName = curl_easy_option_by_name(dataStr);
-        (void)optionByName; // Use the result to avoid unused variable warning
-    }
+    // Prepare data for curl_multi_poll
+    struct curl_waitfd extra_fds[1];
+    memset(extra_fds, 0, sizeof(extra_fds));
+    unsigned int extra_nfds = 1;
+    int timeout_ms = 1000;
+    int poll_ret = 0;
 
-    // Test curl_slist_append and free
-    struct curl_slist *list = nullptr;
-    if (dataStr) {
-        list = curl_slist_append(list, dataStr);
-    }
-    if (list) {
-        curl_slist_free_all(list);
-    }
+    // Call curl_multi_poll
+    curl_multi_poll(multi_handle, extra_fds, extra_nfds, timeout_ms, &poll_ret);
 
-    // Test curl_getenv and free
-    if (dataStr) {
-        char *envValue = curl_getenv(dataStr);
-        if (envValue) {
-            curl_free(envValue);
-        }
-    }
+    // Prepare data for curl_multi_perform
+    int running_handles = 0;
 
-    // Test curl_easy_option_by_id
-    if (Size >= sizeof(CURLoption)) {
-        CURLoption id;
-        std::memcpy(&id, Data, sizeof(CURLoption));
-        const struct curl_easyoption *optionById = curl_easy_option_by_id(id);
-        (void)optionById; // Use the result to avoid unused variable warning
-    }
+    // Call curl_multi_perform
+    curl_multi_perform(multi_handle, &running_handles);
 
-    // Test curl_easy_option_next
-    const struct curl_easyoption *nextOption = nullptr;
-    while ((nextOption = curl_easy_option_next(nextOption)) != nullptr) {
-        // Iterate over all options
-    }
+    // Prepare data for curl_multi_timeout
+    long timeout = 0;
 
-    delete[] dataStr;
+    // Call curl_multi_timeout
+    curl_multi_timeout(multi_handle, &timeout);
+
+    // Prepare data for curl_multi_socket
+    curl_socket_t socket = *reinterpret_cast<const curl_socket_t*>(Data);
+    int running_handles_socket = 0;
+
+    // Call curl_multi_socket
+    curl_multi_socket(multi_handle, socket, &running_handles_socket);
+
+    // Prepare data for curl_multi_setopt
+    CURLMoption option = CURLMOPT_PIPELINING;
+    curl_multi_setopt(multi_handle, option, 1L);
+
+    // Prepare data for curl_multi_socket_all
+    int running_handles_all = 0;
+
+    // Call curl_multi_socket_all
+    curl_multi_socket_all(multi_handle, &running_handles_all);
+
+    // Clean up
+    curl_multi_cleanup(multi_handle);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

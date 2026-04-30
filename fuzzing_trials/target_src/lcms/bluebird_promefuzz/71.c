@@ -1,74 +1,92 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
-static cmsHANDLE createIT8Handle() {
-    // Create a valid IT8 handle using the library's API
-    cmsHANDLE hIT8 = cmsIT8Alloc(NULL);
-    if (hIT8 != NULL) {
-        cmsIT8SetSheetType(hIT8, "IT8.7/2");
-    }
-    return hIT8;
-}
-
-static void destroyIT8Handle(cmsHANDLE hIT8) {
-    // Free the IT8 handle using the library's API
-    if (hIT8 != NULL) {
-        cmsIT8Free(hIT8);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *Data, size_t Size) {
-    if (Size < 5) return 0; // Ensure there is enough data for partitioning
+    if (Size < 1) {
+        return 0;
+    }
 
-    cmsHANDLE hIT8 = createIT8Handle();
-    if (hIT8 == NULL) return 0;
+    write_dummy_file(Data, Size);
 
-    // Use a portion of the data for each function call
-    size_t partSize = Size / 5;
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
+    }
 
-    // Ensure null-termination and avoid buffer overflow
-    char patchName[256] = {0};
-    char dblFormat[256] = {0};
-    char sheetType[256] = {0};
-    char propertyKey[256] = {0};
-    char propertyValue[256] = {0};
-    char sampleName[256] = {0};
-    char string1[256] = {0};
-    char string2[256] = {0};
 
-    snprintf(patchName, sizeof(patchName), "%.*s", (int)partSize, Data);
-    snprintf(dblFormat, sizeof(dblFormat), "%.*s", (int)partSize, Data + partSize);
-    snprintf(sheetType, sizeof(sheetType), "%.*s", (int)partSize, Data + 2 * partSize);
-    snprintf(propertyKey, sizeof(propertyKey), "%.*s", (int)partSize, Data + 3 * partSize);
-    snprintf(propertyValue, sizeof(propertyValue), "%.*s", (int)partSize, Data + 4 * partSize);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsSetHeaderModel
+    cmsBool ret_cmsPlugin_ipmyu = cmsPlugin(NULL);
+    if (ret_cmsPlugin_ipmyu < 0){
+    	return 0;
+    }
+    cmsSetHeaderModel(hProfile, (unsigned long )ret_cmsPlugin_ipmyu);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    }
 
-    // Test cmsIT8DefineDblFormat
-    cmsIT8DefineDblFormat(hIT8, dblFormat);
-
-    // Test cmsIT8SetSheetType
-    cmsIT8SetSheetType(hIT8, sheetType);
-
-    // Test cmsIT8SetPropertyStr
-    cmsIT8SetPropertyStr(hIT8, propertyKey, propertyValue);
-
-    // Test cmsIT8SetIndexColumn
-    cmsIT8SetIndexColumn(hIT8, sampleName);
-
-    // Test cmsstrcasecmp
-    snprintf(string1, sizeof(string1), "%.*s", (int)partSize, Data);
-    snprintf(string2, sizeof(string2), "%.*s", (int)partSize, Data + partSize);
-    cmsstrcasecmp(string1, string2);
-
-    // Test cmsIT8GetPatchByName
-    cmsIT8GetPatchByName(hIT8, patchName);
-
-    destroyIT8Handle(hIT8);
-
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_71(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

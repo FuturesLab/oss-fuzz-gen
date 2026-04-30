@@ -1,28 +1,74 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <libdwarf.h>
-
-extern int dwarf_dnames_offsets(Dwarf_Dnames_Head, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Error *);
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    Dwarf_Dnames_Head dnames_head = (Dwarf_Dnames_Head)data; // Assuming data can be cast to Dwarf_Dnames_Head
-    Dwarf_Unsigned offset1 = 0;
-    Dwarf_Unsigned offset2 = 0;
-    Dwarf_Unsigned offset3 = 0;
-    Dwarf_Unsigned offset4 = 0;
-    Dwarf_Unsigned offset5 = 0;
-    Dwarf_Unsigned offset6 = 0;
-    Dwarf_Unsigned offset7 = 0;
-    Dwarf_Unsigned offset8 = 0;
-    Dwarf_Unsigned offset9 = 0;
-    Dwarf_Unsigned offset10 = 0;
-    Dwarf_Error error = NULL;
+    // Check if the size is sufficient for a minimal valid input
+    if (size < sizeof(Dwarf_Fde)) {
+        return 0; // Not enough data to form a valid Dwarf_Fde
+    }
+
+    // Allocate memory for Dwarf_Fde and copy data into it
+    Dwarf_Fde fde = malloc(size);
+    if (!fde) {
+        return 0; // Allocation failed
+    }
+    memcpy(fde, data, size);
+
+    Dwarf_Cie cie;
+    Dwarf_Error error;
 
     // Call the function-under-test
-    int result = dwarf_dnames_offsets(dnames_head, &offset1, &offset2, &offset3, &offset4, &offset5, &offset6, &offset7, &offset8, &offset9, &offset10, &error);
+    int result = dwarf_get_cie_of_fde(fde, &cie, &error);
 
-    // Return 0 as the fuzzer entry point requires an int return type
+    // Use the result to prevent unused variable warnings
+    if (result == DW_DLV_OK) {
+        // Do something with cie if needed
+    }
+
+    // Free the allocated memory
+    free(fde);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

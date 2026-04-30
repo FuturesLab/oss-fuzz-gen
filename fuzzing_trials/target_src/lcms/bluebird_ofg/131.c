@@ -1,27 +1,95 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include "lcms2.h"
 
-int LLVMFuzzerTestOneInput_131(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
-    cmsUInt32Number code = 0;
-    char language[3] = "en"; // Language code, must be 2 characters + null terminator
-    char country[3] = "US";  // Country code, must be 2 characters + null terminator
+// Define a simple log error handler function
+void myLogErrorHandler_131(cmsContext contextID, cmsUInt32Number ErrorCode, const char *Text) {
+    // Do nothing, just a placeholder for the fuzzing
+}
 
-    // Ensure that the data is not empty
-    if (size > 0) {
-        // Use the first byte of data as a cmsUInt32Number
-        code = (cmsUInt32Number)data[0];
+int LLVMFuzzerTestOneInput_131(const uint8_t *data, size_t size) {
+    // Call the function-under-test with a non-NULL error handler
+    cmsSetLogErrorHandler(myLogErrorHandler_131);
+
+    // Check if the size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
+        return 0;
     }
 
-    // Call the function-under-test
-    cmsBool result = cmsMLUtranslationsCodes(mlu, code, language, country);
+    // Create a profile from the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0; // If profile creation fails, exit early
+    }
 
-    // Clean up
-    cmsMLUfree(mlu);
+    // Perform a simple operation using the profile
+    cmsHTRANSFORM hTransform = cmsCreateTransform(hProfile, TYPE_RGB_8, hProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
+    if (hTransform != NULL) {
+        uint8_t sample[3] = {0, 0, 0};
+        cmsDoTransform(hTransform, sample, sample, 1);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransform to cmsCreateContext
+        cmsIOHANDLER* ret_cmsOpenIOhandlerFromNULL_dksoo = cmsOpenIOhandlerFromNULL(0);
+        if (ret_cmsOpenIOhandlerFromNULL_dksoo == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_cmsOpenIOhandlerFromNULL_dksoo) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sample) {
+        	return 0;
+        }
+        cmsContext ret_cmsCreateContext_aahmg = cmsCreateContext((void *)ret_cmsOpenIOhandlerFromNULL_dksoo, sample);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        cmsDeleteTransform(hTransform);
+    }
+
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_131(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

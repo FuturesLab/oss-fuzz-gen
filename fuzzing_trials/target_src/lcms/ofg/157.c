@@ -1,33 +1,58 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include "lcms2.h"
+#include <stddef.h>
+#include <string.h> // Include string.h for memcpy
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    char filename[256];
-
-    // Initialize the handle with a non-NULL value
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
-        return 0;
+    if (size < sizeof(cmsFloat64Number)) {
+        return 0; // Not enough data to form a cmsFloat64Number
     }
 
-    // Ensure filename is a valid C-string and not NULL
-    if (size > 0 && size < sizeof(filename)) {
-        memcpy(filename, data, size);
-        filename[size] = '\0'; // Null-terminate to ensure it's a valid string
-    } else {
-        strncpy(filename, "default_filename.txt", sizeof(filename) - 1);
-        filename[sizeof(filename) - 1] = '\0';
-    }
+    // Interpret the input data as a cmsFloat64Number
+    cmsFloat64Number adaptationState;
+    memcpy(&adaptationState, data, sizeof(cmsFloat64Number));
 
     // Call the function-under-test
-    cmsBool result = cmsIT8SaveToFile(handle, filename);
-
-    // Clean up
-    cmsIT8Free(handle);
+    cmsSetAdaptationState(adaptationState);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_157(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

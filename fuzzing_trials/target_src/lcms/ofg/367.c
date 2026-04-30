@@ -1,35 +1,59 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_367(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
+    // Ensure there is enough data to create a non-NULL pointer
+    if (size < sizeof(void *)) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated for string usage
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        cmsDeleteContext(context);
-        return 0;
-    }
-    memcpy(filename, data, size);
-    filename[size] = '\0';
-
-    // Use a constant mode for simplicity
-    const char *mode = "r";
+    // Use the data as a pointer to pass to the function
+    void *pluginData = (void *)data;
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsOpenProfileFromFileTHR(context, filename, mode);
+    cmsBool result = cmsPlugin(pluginData);
 
-    // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-    free(filename);
-    cmsDeleteContext(context);
+    (void)result; // Suppress unused variable warning
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_367(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

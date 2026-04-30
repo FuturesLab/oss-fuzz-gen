@@ -1,31 +1,79 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <libdwarf.h>
-#include <dwarf.h> // Include this for Dwarf_Regtable3 and related types
+#include <dwarf.h> // Include dwarf.h for Dwarf_Unsigned, Dwarf_Half, and Dwarf_Error
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables needed for the function call
-    Dwarf_Fde fde = (Dwarf_Fde)data; // Casting data to Dwarf_Fde for fuzzing
-    Dwarf_Addr pc = 0; // Initialize program counter to a non-null value
-    Dwarf_Regtable3 regtable;
-    Dwarf_Addr row_pc = 0;
-    Dwarf_Bool row_pc_valid = 0;
-    Dwarf_Addr next_pc = 0;
+    // Ensure size is sufficient for the operation, otherwise return
+    if (size < sizeof(Dwarf_Gnu_Index_Head)) {
+        return 0;
+    }
+
+    // Initialize variables for the parameters
+    Dwarf_Gnu_Index_Head index_head = (Dwarf_Gnu_Index_Head)data; // Assuming data can represent a valid index head
+    Dwarf_Unsigned section_offset = 0;
+    Dwarf_Unsigned index_array_offset = 0;
+    Dwarf_Half version = 0;
+    Dwarf_Unsigned offset_in_section = 0;
+    Dwarf_Unsigned size_of_block = 0;
+    Dwarf_Unsigned index_entry_count = 0;
     Dwarf_Error error = NULL;
 
-    // Initialize the regtable with some non-null values
-    regtable.rt3_reg_table_size = 10; // Arbitrary non-zero size
-    regtable.rt3_cfa_rule.dw_offset_relevant = 1;
-    regtable.rt3_cfa_rule.dw_value_type = 0;
-    regtable.rt3_cfa_rule.dw_regnum = 0;
-    regtable.rt3_cfa_rule.dw_offset = 0; // Use dw_offset instead of dw_offset_or_block_len
-    regtable.rt3_cfa_rule.dw_block.bl_len = 0; // Initialize the block length
-    regtable.rt3_cfa_rule.dw_block.bl_data = NULL; // Initialize the block data pointer
-
     // Call the function-under-test
-    int result = dwarf_get_fde_info_for_all_regs3_b(
-        fde, pc, &regtable, &row_pc, &row_pc_valid, &next_pc, &error
+    int result = dwarf_get_gnu_index_block(
+        index_head,
+        section_offset,
+        &index_array_offset,
+        &version,
+        &offset_in_section,
+        &size_of_block,
+        &index_entry_count,
+        &error
     );
+
+    // Handle the result if necessary (e.g., check for errors)
+    if (result != DW_DLV_OK) {
+        // Handle error if needed
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_105(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

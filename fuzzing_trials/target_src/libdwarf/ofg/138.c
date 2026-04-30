@@ -1,56 +1,75 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <libdwarf.h>
-#include <unistd.h>  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
 
-// Dummy handler function for Dwarf_Handler
-void my_dwarf_handler_138(Dwarf_Error error, Dwarf_Ptr errarg) {
-    // Handle the error (for fuzzing, we can keep it simple)
-}
-
-// Remove the dummy structures for Dwarf_Debug and Dwarf_Error
-// as they are already defined in the included libdwarf.h
-
-extern int dwarf_init_path_a(const char *, char *, unsigned int, unsigned int, unsigned int, Dwarf_Handler, Dwarf_Ptr, Dwarf_Debug *, Dwarf_Error *);
+extern int dwarf_get_children_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_138(const uint8_t *data, size_t size) {
-    if (size < 2) {
+    unsigned int param1;
+    const char *param2;
+
+    if (size < sizeof(unsigned int) + 1) {
         return 0;
     }
 
-    // Create temporary file for the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Initialize param1 from the input data
+    param1 = *((unsigned int*)data);
+
+    // Initialize param2 to point to the rest of the data
+    param2 = (const char*)(data + sizeof(unsigned int));
+
+    // Ensure param2 is null-terminated by creating a copy
+    char *param2_copy = (char *)malloc(size - sizeof(unsigned int) + 1);
+    if (param2_copy == NULL) {
         return 0;
     }
-
-    // Write data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    close(fd);
-
-    // Prepare parameters for dwarf_init_path_a
-    char *true_path_out = (char *)malloc(256); // Allocate memory for the output path
-    unsigned int access = 0;
-    unsigned int groupnumber = 0;
-    unsigned int offsetsize = 4; // Commonly used offset size
-    Dwarf_Debug dbg = NULL; // Initialize as NULL as per libdwarf.h definition
-    Dwarf_Error err = NULL; // Initialize as NULL as per libdwarf.h definition
+    memcpy(param2_copy, param2, size - sizeof(unsigned int));
+    param2_copy[size - sizeof(unsigned int)] = '\0';
 
     // Call the function-under-test
-    dwarf_init_path_a(tmpl, true_path_out, access, groupnumber, offsetsize, my_dwarf_handler_138, NULL, &dbg, &err);
+    dwarf_get_children_name(param1, (const char **)&param2_copy);
 
-    // Clean up
-    free(true_path_out);
-    unlink(tmpl);
+    // Free the allocated memory
+    free(param2_copy);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_138(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

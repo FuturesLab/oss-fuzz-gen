@@ -1,38 +1,66 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_466(const uint8_t *data, size_t size) {
-    cmsHTRANSFORM transform;
-    cmsHPROFILE inputProfile, outputProfile;
-    cmsUInt32Number intent = INTENT_PERCEPTUAL;
-    cmsUInt32Number flags = 0;
+    cmsToneCurve *toneCurves[3];
 
-    if (size < sizeof(cmsUInt32Number) * 2) {
-        return 0;
+    // Use the fuzzing input to influence the gamma value
+    if (size < 3) {
+        return 0; // Not enough data to influence all three curves
     }
 
-    // Create dummy profiles for input and output
-    inputProfile = cmsCreate_sRGBProfile();
-    outputProfile = cmsCreate_sRGBProfile();
-
-    if (inputProfile == NULL || outputProfile == NULL) {
-        if (inputProfile != NULL) cmsCloseProfile(inputProfile);
-        if (outputProfile != NULL) cmsCloseProfile(outputProfile);
-        return 0;
+    for (int i = 0; i < 3; i++) {
+        // Convert a byte from the input data to a gamma value in a reasonable range
+        double gamma = 1.0 + (data[i] / 255.0) * 4.0; // Range from 1.0 to 5.0
+        toneCurves[i] = cmsBuildGamma(NULL, gamma);
+        if (toneCurves[i] == NULL) {
+            return 0; // If initialization fails, exit early
+        }
     }
 
-    // Create a transform
-    transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, intent, flags);
-
-    // Clean up profiles
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
-
-    if (transform != NULL) {
-        // Call the function-under-test
-        cmsDeleteTransform(transform);
-    }
+    // Call the function-under-test
+    cmsFreeToneCurveTriple(toneCurves);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_466(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,28 +1,60 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stddef.h>  // Include this for size_t
+#include <libdwarf.h>
 
-// Assuming the function is declared in an external library
-extern int dwarf_get_LLE_name(unsigned int, const char **);
-
-int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
-    if (size < sizeof(unsigned int)) {
+extern int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
+    // Ensure there is enough data to create a Dwarf_Error object
+    if (size < sizeof(Dwarf_Error)) {
         return 0;
     }
 
-    // Extract an unsigned int from the input data
-    unsigned int index = *(unsigned int *)data;
-
-    // Prepare a pointer to hold the name
-    const char *name = NULL;
+    // Create a Dwarf_Error object from the input data
+    Dwarf_Error error = *(Dwarf_Error *)data;
 
     // Call the function-under-test
-    int result = dwarf_get_LLE_name(index, &name);
+    Dwarf_Unsigned result = dwarf_errno(error);
 
-    // Optionally, you can perform additional checks or logging here
-    // For example, you might want to check if the name is non-null if the function succeeds
-    if (result == 0 && name != NULL) {
-        // Do something with the name if needed
-    }
+    // Use the result to prevent any compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_156(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

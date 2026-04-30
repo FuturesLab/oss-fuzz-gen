@@ -1,35 +1,68 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <dwarf.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// Function prototype for the function-under-test
-int dwarf_get_FORM_name(unsigned int form, const char **name);
+// Assuming the function is declared in a header file
+int dwarf_get_LNS_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_246(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for an unsigned int
+    // Ensure there's enough data to read an unsigned int
     if (size < sizeof(unsigned int)) {
         return 0;
     }
 
     // Extract an unsigned int from the input data
-    unsigned int form = *((unsigned int *)data);
+    unsigned int opcode = *(unsigned int *)data;
 
-    // Initialize a pointer for the name
+    // Move the data pointer forward by the size of unsigned int
+    data += sizeof(unsigned int);
+    size -= sizeof(unsigned int);
+
+    // Prepare a pointer for the name output
     const char *name = NULL;
 
     // Call the function-under-test
-    int result = dwarf_get_FORM_name(form, &name);
+    int result = dwarf_get_LNS_name(opcode, &name);
 
-    // Optionally, you can add checks or additional logic here
-    // For example, you could print the result or the name if needed
+    // Optionally, you can add checks or print statements here to verify the result or the name
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_246(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,65 +9,134 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include "/src/curl/include/curl/urlapi.h"
-#include "/src/curl/include/curl/options.h"
+#include "/src/curl/include/curl/multi.h"
+#include <iostream>
+#include <fstream>
 
+size_t vvmxdccj_21(void *arg, const char *buf,
+                                        size_t len){
+	return NULL;
+}
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    // Ensure the data is null-terminated for string operations
-    char *input = new char[Size + 1];
-    memcpy(input, Data, Size);
-    input[Size] = '\0';
-
-    // Initialize CURLU handle
-    CURLU *url_handle = curl_url();
-    if (!url_handle) {
-        delete[] input;
+    CURLM *multi_handle = curl_multi_init();
+    if (!multi_handle) {
         return 0;
     }
 
-    // Fuzz curl_url_set
-    CURLUcode result_set = curl_url_set(url_handle, CURLUPART_URL, input, 0);
-    if (result_set == CURLUE_OK) {
-        // Fuzz curl_url_get
-        char *url_part = nullptr;
-        CURLUcode result_get = curl_url_get(url_handle, CURLUPART_URL, &url_part, 0);
-        if (result_get == CURLUE_OK && url_part) {
-
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_free
-            curl_free(NULL);
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        }
+    CURL *easy_handle = curl_easy_init();
+    if (!easy_handle) {
+        curl_multi_cleanup(multi_handle);
+        return 0;
     }
 
-    // Fuzz curl_url_dup
-    CURLU *url_handle_dup = curl_url_dup(url_handle);
-    if (url_handle_dup) {
-        curl_url_cleanup(url_handle_dup);
+    // Use a dummy file if needed by any of the functions
+    std::ofstream dummy_file("./dummy_file");
+    if (dummy_file.is_open()) {
+        dummy_file.write(reinterpret_cast<const char*>(Data), Size);
+        dummy_file.close();
     }
+
+    // Fuzz curl_multi_notify_enable
+    unsigned int notification = Size > 0 ? Data[0] : 0;
+    curl_multi_notify_enable(multi_handle, notification);
+
+    // Fuzz curl_multi_add_handle
+    curl_multi_add_handle(multi_handle, easy_handle);
+
+    // Fuzz curl_multi_perform
+    int running_handles;
+    curl_multi_perform(multi_handle, &running_handles);
+
+    // Fuzz curl_multi_timeout
+    long timeout_ms;
+    curl_multi_timeout(multi_handle, &timeout_ms);
+
+    // Fuzz curl_multi_setopt
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_multi_timeout to curl_easy_nextheader
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!multi_handle) {
+    	return 0;
+    }
+    CURL** ret_curl_multi_get_handles_xtqbv = curl_multi_get_handles(multi_handle);
+    if (ret_curl_multi_get_handles_xtqbv == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_curl_multi_get_handles_xtqbv) {
+    	return 0;
+    }
+    struct curl_header* ret_curl_easy_nextheader_fqdya = curl_easy_nextheader(*ret_curl_multi_get_handles_xtqbv, (unsigned int )timeout_ms, CURL_HTTPPOST_PTRNAME, NULL);
+    if (ret_curl_easy_nextheader_fqdya == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    CURLMoption option = static_cast<CURLMoption>(Size > 1 ? Data[1] : 0);
+    curl_multi_setopt(multi_handle, option, nullptr);
+
+    // Fuzz curl_multi_get_offt
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_multi_setopt to curl_formget
+    struct curl_httppost wipzvrqb;
+    memset(&wipzvrqb, 0, sizeof(wipzvrqb));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!multi_handle) {
+    	return 0;
+    }
+    int ret_curl_formget_nqvnt = curl_formget(&wipzvrqb, (void *)multi_handle, vvmxdccj_21);
+    if (ret_curl_formget_nqvnt < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    CURLMinfo_offt info = static_cast<CURLMinfo_offt>(Size > 2 ? Data[2] : 0);
+    curl_off_t value;
+    curl_multi_get_offt(multi_handle, info, &value);
 
     // Cleanup
+    curl_multi_remove_handle(multi_handle, easy_handle);
+    curl_easy_cleanup(easy_handle);
+    curl_multi_cleanup(multi_handle);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from curl_url_dup to curl_easy_ssls_export
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of curl_easy_ssls_export
-    CURLcode ret_curl_easy_ssls_export_lqmgr = curl_easy_ssls_export((CURL *)"r", NULL, (void *)url_handle_dup);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    curl_url_cleanup(url_handle);
-
-    // Fuzz curl_easy_option_by_name
-    const struct curl_easyoption *option = curl_easy_option_by_name(input);
-
-    delete[] input;
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

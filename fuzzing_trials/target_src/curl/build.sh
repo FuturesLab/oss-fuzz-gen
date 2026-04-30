@@ -40,10 +40,11 @@ $CXX $CXXFLAGS -std=c++17 /src/synthesized_driver/*.c* -I$SRC/curl/include -I$SR
   $SRC/curl_fuzzer/build/libidn2-install/lib/libidn2.a \
   $SRC/curl_fuzzer/build/zlib-install/lib/libz.a \
   $SRC/curl_fuzzer/build/zstd-install/lib/libzstd.a \
+  -Wl,--start-group \
   $SRC/curl_fuzzer/build/lpm-install/lib/libprotobuf-mutator.a \
   $SRC/curl_fuzzer/build/lpm/src/libprotobuf_mutator_external-build/external.protobuf/lib/libprotobuf.a \
-  $SRC/curl_fuzzer/build/lpm/src/libprotobuf_mutator_external-build/external.protobuf/lib/libprotobuf-lite.a \
-  $(pkg-config --libs absl_log_internal_message absl_strings absl_base)
+  $SRC/curl_fuzzer/build/lpm/src/libprotobuf_mutator_external-build/external.protobuf/lib/libabsl_*.a \
+  -Wl,--end-group
 
 
 cp $OUT/curl_fuzzer $OUT/fuzz_driver_$SANITIZER

@@ -1,49 +1,67 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h> // Include for memcpy
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_197(const uint8_t *data, size_t size) {
-    // Ensure there is enough data for two cmsCIELab structs and three cmsFloat64Number values
-    if (size < 2 * sizeof(cmsCIELab) + 3 * sizeof(cmsFloat64Number)) {
-        return 0;
+    if (size < sizeof(cmsFloat32Number)) {
+        return 0; // Not enough data to extract a cmsFloat32Number
     }
 
-    // Initialize two cmsCIELab structures
-    cmsCIELab lab1, lab2;
-    cmsFloat64Number kL, kC, kH;
+    // Initialize a cmsToneCurve object
+    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Example gamma value
+    if (toneCurve == NULL) {
+        return 0; // Failed to create tone curve
+    }
 
-    // Copy data into the first cmsCIELab structure
-    const cmsCIELab *inputLab1 = (const cmsCIELab *)data;
-    lab1.L = inputLab1->L;
-    lab1.a = inputLab1->a;
-    lab1.b = inputLab1->b;
-
-    // Move data pointer forward
-    data += sizeof(cmsCIELab);
-
-    // Copy data into the second cmsCIELab structure
-    const cmsCIELab *inputLab2 = (const cmsCIELab *)data;
-    lab2.L = inputLab2->L;
-    lab2.a = inputLab2->a;
-    lab2.b = inputLab2->b;
-
-    // Move data pointer forward
-    data += sizeof(cmsCIELab);
-
-    // Copy data into the three cmsFloat64Number values
-    kL = *((const cmsFloat64Number *)data);
-    data += sizeof(cmsFloat64Number);
-
-    kC = *((const cmsFloat64Number *)data);
-    data += sizeof(cmsFloat64Number);
-
-    kH = *((const cmsFloat64Number *)data);
+    // Extract a cmsFloat32Number from the input data
+    cmsFloat32Number inputNumber;
+    memcpy(&inputNumber, data, sizeof(cmsFloat32Number));
 
     // Call the function-under-test
-    cmsFloat64Number deltaE = cmsCIE2000DeltaE(&lab1, &lab2, kL, kC, kH);
+    cmsFloat32Number result = cmsEvalToneCurveFloat(toneCurve, inputNumber);
 
-    // Use deltaE to avoid unused variable warning
-    (void)deltaE;
+    // Clean up
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_197(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

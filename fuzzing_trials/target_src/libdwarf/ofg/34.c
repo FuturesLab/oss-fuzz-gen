@@ -1,60 +1,66 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <string.h>
-#include <dwarf.h>
-#include <libdwarf.h>
+
+// Assume that the function is declared in an external library
+extern int dwarf_get_CC_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    if (size < 10) {
-        return 0;
+    if (size < sizeof(unsigned int)) {
+        return 0; // Ensure there's enough data to form an unsigned int
     }
 
-    // Initialize parameters for dwarf_init_path_dl
-    const char *path = "/tmp/fuzzed_path";
-    char *true_path_out = (char *)malloc(256);
-    unsigned int true_path_bufferlen = 256;
-    unsigned int access = (unsigned int)data[0];
-    Dwarf_Handler errhand = NULL;
-    Dwarf_Ptr errarg = NULL;
-    Dwarf_Debug *dbg = (Dwarf_Debug *)malloc(sizeof(Dwarf_Debug));
-    char **error_message = (char **)malloc(sizeof(char *));
-    unsigned int groupnumber = (unsigned int)data[1];
-    unsigned char *section = (unsigned char *)malloc(256);
-    Dwarf_Error *error = (Dwarf_Error *)malloc(sizeof(Dwarf_Error));
-
-    // Ensure allocated memory is not NULL
-    if (!true_path_out || !dbg || !error_message || !section || !error) {
-        free(true_path_out);
-        free(dbg);
-        free(error_message);
-        free(section);
-        free(error);
-        return 0;
-    }
+    unsigned int input_value = *(unsigned int *)data;
+    const char *name = NULL;
 
     // Call the function-under-test
-    int result = dwarf_init_path_dl(
-        path,
-        true_path_out,
-        true_path_bufferlen,
-        access,
-        errhand,
-        errarg,
-        dbg,
-        error_message,
-        groupnumber,
-        section,
-        error
-    );
+    int result = dwarf_get_CC_name(input_value, &name);
 
-    // Clean up
-    free(true_path_out);
-    free(dbg);
-    free(error_message);
-    free(section);
-    free(error);
+    // Optionally, print the result and name for debugging
+    if (name != NULL) {
+        printf("Result: %d, Name: %s\n", result, name);
+    } else {
+        printf("Result: %d, Name is NULL\n", result);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

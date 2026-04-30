@@ -1,33 +1,65 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
-// Assuming cmsHANDLE is a pointer type, typically used in Little CMS
-typedef void* cmsHANDLE;
-
-// Mock function for cmsIT8GetSheetType_253 since we don't have the actual implementation
-const char* cmsIT8GetSheetType_253(cmsHANDLE handle) {
-    // Mock behavior: return a string based on the handle value
-    if (handle == NULL) {
-        return "Unknown";
-    }
-    return "MockSheetType";
-}
-
 int LLVMFuzzerTestOneInput_253(const uint8_t *data, size_t size) {
-    // Ensure the data is not null and has a minimum size to be used as a handle
-    if (data == NULL || size < sizeof(cmsHANDLE)) {
-        return 0;
+    cmsHANDLE handle = NULL;
+
+    // Initialize a cmsHANDLE with cmsIT8LoadFromMem if data size is sufficient
+    if (size > 0) {
+        handle = cmsIT8LoadFromMem(NULL, data, size); // Added NULL for ContextID
     }
 
-    cmsHANDLE handle = (cmsHANDLE)data;  // Use data as a mock handle
+    // Call the function-under-test
+    if (handle != NULL) {
+        const char *sheetType = cmsIT8GetSheetType(handle);
+        // Use sheetType if necessary, here we just ensure it is called
+    }
 
-    const char* sheetType = cmsIT8GetSheetType_253(handle);
-
-    // Print the result for debugging purposes
-    printf("Sheet Type: %s\n", sheetType);
+    // Cleanup
+    if (handle != NULL) {
+        cmsIT8Free(handle);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_253(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

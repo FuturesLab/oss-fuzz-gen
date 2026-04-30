@@ -1,46 +1,65 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <dwarf.h>
 #include <libdwarf.h>
 
-extern int dwarf_encode_signed_leb128(Dwarf_Signed value, int *nbytes, char *space, int space_length);
+extern int dwarf_dnames_bucket(Dwarf_Dnames_Head, Dwarf_Unsigned, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Error *);
 
 int LLVMFuzzerTestOneInput_242(const uint8_t *data, size_t size) {
-    if (size < sizeof(Dwarf_Signed) + sizeof(int)) {
-        return 0;
+    // Check if the size is sufficient to create a valid Dwarf_Dnames_Head
+    if (size < sizeof(Dwarf_Dnames_Head)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Extract a Dwarf_Signed value from the input data
-    Dwarf_Signed value = 0;
-    for (size_t i = 0; i < sizeof(Dwarf_Signed); ++i) {
-        value |= ((Dwarf_Signed)data[i]) << (i * 8);
-    }
-
-    // Extract an integer for space length
-    int space_length = 0;
-    for (size_t i = 0; i < sizeof(int); ++i) {
-        space_length |= ((int)data[sizeof(Dwarf_Signed) + i]) << (i * 8);
-    }
-
-    // Ensure space_length is positive
-    if (space_length <= 0) {
-        space_length = 1;
-    }
-
-    // Allocate space for the encoded LEB128 data
-    char *space = (char *)malloc(space_length);
-    if (!space) {
-        return 0;
-    }
-
-    // Prepare a variable to store the number of bytes written
-    int nbytes = 0;
+    // Declare and initialize variables
+    Dwarf_Dnames_Head dnames_head = (Dwarf_Dnames_Head)data; // Cast data to Dwarf_Dnames_Head
+    Dwarf_Unsigned index = 0; // Initialize index to 0
+    Dwarf_Unsigned result1 = 0; // Initialize result1 to 0
+    Dwarf_Unsigned result2 = 0; // Initialize result2 to 0
+    Dwarf_Error error = NULL; // Initialize error to NULL
 
     // Call the function-under-test
-    dwarf_encode_signed_leb128(value, &nbytes, space, space_length);
+    int ret = dwarf_dnames_bucket(dnames_head, index, &result1, &result2, &error);
 
-    // Free allocated memory
-    free(space);
-
+    // Return 0 to indicate successful execution
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_242(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

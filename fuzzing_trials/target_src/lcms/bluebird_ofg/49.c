@@ -1,110 +1,80 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "lcms2.h"  // Assuming the Little CMS library is used
+#include <string.h>
+#include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsGDBCheckPoint
-    cmsHPROFILE handle = cmsOpenProfileFromMem(data, size);  // Create a handle from the input data
-    cmsCIELab cielab;
+    // Declare and initialize variables
+    cmsHANDLE handle;
+    int index;
+    char format[256]; // Ensure the format string is not NULL
 
-    // Ensure the handle is not NULL
+    // Check if the input size is large enough to extract necessary data
+    if (size < sizeof(int) + 1) {
+        return 0;
+    }
+
+    // Initialize the handle with a dummy IT8 handle
+    handle = cmsIT8Alloc(NULL);
     if (handle == NULL) {
         return 0;
     }
 
-    // Initialize cmsCIELab with non-NULL values
-    cielab.L = 50.0;  // Example value
-    cielab.a = 0.0;   // Example value
-    cielab.b = 0.0;   // Example value
+    // Extract an integer index from the input data
+    memcpy(&index, data, sizeof(int));
+    data += sizeof(int);
+    size -= sizeof(int);
 
-    // Call the function under test
+    // Extract the format string from the remaining input data
+    size_t format_length = size < sizeof(format) ? size : sizeof(format) - 1;
+    memcpy(format, data, format_length);
+    format[format_length] = '\0'; // Null-terminate the string
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetPCS
+    // Call the function-under-test
+    cmsBool result = cmsIT8SetDataFormat(handle, index, format);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetHeaderFlags
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsGetHeaderFlags with cmsGetHeaderModel
-    cmsUInt32Number ret_cmsGetHeaderFlags_vxdxj = cmsGetHeaderModel(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_cmsGetHeaderFlags_vxdxj < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of _cmsICCcolorSpace
-    cmsColorSpaceSignature ret__cmsICCcolorSpace_fwbyg = _cmsICCcolorSpace(cmsSPOT_SQUARE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateLinearizationDeviceLink
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsSetColorSpace
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateInkLimitingDeviceLinkTHR
-    cmsContext ret_cmsGetTransformContextID_sguty = cmsGetTransformContextID(0);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTransformContextID to cmsCreateBCHSWabstractProfileTHR
-
-    cmsHPROFILE ret_cmsCreateBCHSWabstractProfileTHR_trpqa = cmsCreateBCHSWabstractProfileTHR(ret_cmsGetTransformContextID_sguty, cmsERROR_UNKNOWN_EXTENSION, PT_MCH10, cmsERROR_READ, PT_YCbCr, INTENT_ABSOLUTE_COLORIMETRIC, INTENT_SATURATION, TRUE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE ret_cmsCreateInkLimitingDeviceLinkTHR_vcukf = cmsCreateInkLimitingDeviceLinkTHR(ret_cmsGetTransformContextID_sguty, ret__cmsICCcolorSpace_fwbyg, PT_HSV);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateInkLimitingDeviceLinkTHR to cmsCreateProofingTransformTHR
-    cmsContext ret_cmsGetProfileContextID_uuifs = cmsGetProfileContextID(0);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetProfileContextID to cmsOpenProfileFromIOhandler2THR
-
-    cmsHPROFILE ret_cmsOpenProfileFromIOhandler2THR_qihjx = cmsOpenProfileFromIOhandler2THR(ret_cmsGetProfileContextID_uuifs, NULL, DARK_SURROUND);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE ret_cmsCreateLab4Profile_xwpeb = cmsCreateLab4Profile(NULL);
-
-    cmsHTRANSFORM ret_cmsCreateProofingTransformTHR_vawzr = cmsCreateProofingTransformTHR(ret_cmsGetProfileContextID_uuifs, handle, cmsPERCEPTUAL_BLACK_X, ret_cmsCreateLab4Profile_xwpeb, 0, ret_cmsCreateInkLimitingDeviceLinkTHR_vcukf, 1, cmsNoLanguage, cmsD50X);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE ret_cmsCreate_OkLabProfile_yzdfw = cmsCreate_OkLabProfile(0);
-
-    cmsSetColorSpace(ret_cmsCreate_OkLabProfile_yzdfw, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsToneCurve* ret_cmsDupToneCurve_ceffw = cmsDupToneCurve(NULL);
-    if (ret_cmsDupToneCurve_ceffw == NULL){
-    	return 0;
-    }
-
-    cmsHPROFILE ret_cmsCreateLinearizationDeviceLink_stxus = cmsCreateLinearizationDeviceLink(ret__cmsICCcolorSpace_fwbyg, &ret_cmsDupToneCurve_ceffw);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsSetPCS(handle, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
-
-    // Close the profile handle
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-    cmsMD5computeID(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Free the allocated handle
+    cmsIT8Free(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

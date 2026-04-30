@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -7,70 +8,90 @@
 #include <stdlib.h>
 #include "lcms2.h"
 
-static cmsHPROFILE createDummyProfile() {
-    // Create a dummy ICC profile for testing
-    cmsHPROFILE hProfile = cmsCreate_sRGBProfile();
-    return hProfile;
-}
-
-static void cleanupProfile(cmsHPROFILE hProfile) {
-    if (hProfile != NULL) {
-        cmsCloseProfile(hProfile);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number)) {
+    if (Size < 1) {
         return 0;
     }
 
-    cmsHPROFILE hProfile = createDummyProfile();
-    if (hProfile == NULL) {
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
         return 0;
     }
 
-    cmsTagSignature tagSig = *(cmsTagSignature *)Data;
-    cmsUInt32Number bufferSize = Size - sizeof(cmsUInt32Number);
-    const void* rawData = Data + sizeof(cmsUInt32Number);
-
-    // Fuzz cmsReadTag
-    void* tagData = cmsReadTag(hProfile, tagSig);
-    if (tagData != NULL) {
-        // Process tagData if needed
-    }
-
-    // Fuzz cmsReadRawTag
-    void* buffer = malloc(bufferSize);
-    if (buffer != NULL) {
-        cmsUInt32Number bytesRead = cmsReadRawTag(hProfile, tagSig, buffer, bufferSize);
-        // Process bytesRead if needed
-        free(buffer);
-    }
-
-    // Fuzz cmsWriteRawTag
-    cmsBool writeSuccess = cmsWriteRawTag(hProfile, tagSig, rawData, bufferSize);
-    if (writeSuccess) {
-        // Handle successful write if needed
-    }
-
-    // Fuzz cmsGetTagCount
     cmsInt32Number tagCount = cmsGetTagCount(hProfile);
-    if (tagCount >= 0) {
-        // Process tagCount if needed
-    }
-
-    // Fuzz cmsGetTagSignature
     if (tagCount > 0) {
-        cmsTagSignature retrievedSig = cmsGetTagSignature(hProfile, 0);
-        // Process retrievedSig if needed
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsReadTag to cmsIT8EnumPropertyMulti
+            cmsHANDLE ret_cmsIT8Alloc_rhrgs = cmsIT8Alloc(0);
+            const char **djcorigf[1024] = {"ioddb", NULL};
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tagData) {
+            	return 0;
+            }
+            cmsUInt32Number ret_cmsIT8EnumPropertyMulti_uxqsx = cmsIT8EnumPropertyMulti(ret_cmsIT8Alloc_rhrgs, (const char *)tagData, djcorigf);
+            if (ret_cmsIT8EnumPropertyMulti_uxqsx < 0){
+            	return 0;
+            }
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            (void)tagData;
+        }
     }
 
-    // Fuzz cmsTagLinkedTo
-    cmsTagSignature linkedSig = cmsTagLinkedTo(hProfile, tagSig);
-    if (linkedSig != 0) {
-        // Process linkedSig if needed
-    }
-
-    cleanupProfile(hProfile);
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

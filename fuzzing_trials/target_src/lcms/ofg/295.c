@@ -1,40 +1,66 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_295(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    char key[256];
-    char subkey[256];
+    cmsHPROFILE hProfile;
+    cmsInt32Number tagCount;
 
-    // Initialize handle to a non-NULL value
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Check if the size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
         return 0;
     }
 
-    // Ensure data is large enough to fill key and subkey
-    if (size < 2) {
-        cmsIT8Free(handle);
+    // Create a profile from the input data
+    hProfile = cmsOpenProfileFromMem((void*)data, size);
+    if (hProfile == NULL) {
         return 0;
     }
-
-    // Copy data into key and subkey, ensuring null-termination
-    size_t key_len = size / 2 < 255 ? size / 2 : 255;
-    size_t subkey_len = size - key_len < 255 ? size - key_len : 255;
-
-    memcpy(key, data, key_len);
-    key[key_len] = '\0';
-
-    memcpy(subkey, data + key_len, subkey_len);
-    subkey[subkey_len] = '\0';
 
     // Call the function-under-test
-    cmsFloat64Number result = cmsIT8GetDataDbl(handle, key, subkey);
+    tagCount = cmsGetTagCount(hProfile);
 
-    // Clean up
-    cmsIT8Free(handle);
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_295(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -3,42 +3,28 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_83(const uint8_t *data, size_t size) {
-    // Initialize the parameters for cmsCreateRGBProfileTHR
-    cmsContext context = cmsCreateContext(NULL, NULL);
+    // Declare and initialize variables
+    cmsContext context = (cmsContext)0x1; // Dummy non-null context
+    cmsCIExyY whitePoint = {0.3127, 0.3290, 1.0}; // D65 standard illuminant
+    cmsCIExyYTRIPLE primaries = {
+        {0.64, 0.33, 1.0}, // Red primary
+        {0.30, 0.60, 1.0}, // Green primary
+        {0.15, 0.06, 1.0}  // Blue primary
+    };
 
-    // Ensure data is large enough for our needs
-    if (size < sizeof(cmsCIExyY) + sizeof(cmsCIExyYTRIPLE) + 3 * sizeof(cmsToneCurve *)) {
-        cmsDeleteContext(context);
-        return 0;
-    }
-
-    // Initialize cmsCIExyY
-    cmsCIExyY whitePoint;
-    whitePoint.x = (double)data[0] / UINT8_MAX;
-    whitePoint.y = (double)data[1] / UINT8_MAX;
-    whitePoint.Y = (double)data[2] / UINT8_MAX;
-
-    // Initialize cmsCIExyYTRIPLE
-    cmsCIExyYTRIPLE primaries;
-    primaries.Red.x = (double)data[3] / UINT8_MAX;
-    primaries.Red.y = (double)data[4] / UINT8_MAX;
-    primaries.Red.Y = (double)data[5] / UINT8_MAX;
-
-    primaries.Green.x = (double)data[6] / UINT8_MAX;
-    primaries.Green.y = (double)data[7] / UINT8_MAX;
-    primaries.Green.Y = (double)data[8] / UINT8_MAX;
-
-    primaries.Blue.x = (double)data[9] / UINT8_MAX;
-    primaries.Blue.y = (double)data[10] / UINT8_MAX;
-    primaries.Blue.Y = (double)data[11] / UINT8_MAX;
-
-    // Initialize cmsToneCurve pointers
+    // Allocate memory for tone curves
     cmsToneCurve *toneCurves[3];
     for (int i = 0; i < 3; i++) {
-        toneCurves[i] = cmsBuildGamma(context, 2.2); // Using a default gamma value
+        toneCurves[i] = cmsBuildGamma(context, 2.2); // Simple gamma curve
+        if (toneCurves[i] == NULL) {
+            for (int j = 0; j < i; j++) {
+                cmsFreeToneCurve(toneCurves[j]);
+            }
+            return 0;
+        }
     }
 
-    // Call the function under test
+    // Call the function-under-test
     cmsHPROFILE profile = cmsCreateRGBProfileTHR(context, &whitePoint, &primaries, (const cmsToneCurve **)toneCurves);
 
     // Clean up
@@ -46,11 +32,47 @@ int LLVMFuzzerTestOneInput_83(const uint8_t *data, size_t size) {
         cmsCloseProfile(profile);
     }
     for (int i = 0; i < 3; i++) {
-        if (toneCurves[i] != NULL) {
-            cmsFreeToneCurve(toneCurves[i]);
-        }
+        cmsFreeToneCurve(toneCurves[i]);
     }
-    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_83(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

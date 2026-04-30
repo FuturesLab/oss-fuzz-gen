@@ -1,20 +1,18 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
-static cmsHANDLE createDummyIT8Handle() {
-    // Normally, you would create a valid IT8 handle here.
-    // For fuzzing, we simulate with a more realistic dummy handle.
-    // Allocate enough memory to simulate a valid IT8 structure.
-    return cmsIT8Alloc(NULL);
-}
-
-static void destroyDummyIT8Handle(cmsHANDLE hIT8) {
-    if (hIT8) {
-        cmsIT8Free(hIT8);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
@@ -23,58 +21,86 @@ int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    cmsHANDLE hIT8 = createDummyIT8Handle();
-    if (!hIT8) {
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
         return 0;
     }
 
-    // Creating strings from input data
-    char cProp[256], cPatch[256], cSample[256];
-    cmsFloat64Number Val = 0.0;
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTagSignature to cmsReadRawTag
+        cmsCIExyY iokrckov;
+        memset(&iokrckov, 0, sizeof(iokrckov));
+        cmsHPROFILE ret_cmsCreateLab4Profile_bmqsm = cmsCreateLab4Profile(&iokrckov);
+        cmsIOHANDLER* ret_cmsGetProfileIOhandler_mrhap = cmsGetProfileIOhandler(hProfile);
+        if (ret_cmsGetProfileIOhandler_mrhap == NULL){
+        	return 0;
+        }
+        cmsFloat64Number ret_cmsSetAdaptationState_qirmy = cmsSetAdaptationState(INTENT_ABSOLUTE_COLORIMETRIC);
+        if (ret_cmsSetAdaptationState_qirmy < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_cmsGetProfileIOhandler_mrhap) {
+        	return 0;
+        }
+        cmsUInt32Number ret_cmsReadRawTag_exgtb = cmsReadRawTag(ret_cmsCreateLab4Profile_bmqsm, tagSig, (void *)ret_cmsGetProfileIOhandler_mrhap, (unsigned long )ret_cmsSetAdaptationState_qirmy);
+        if (ret_cmsReadRawTag_exgtb < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
-    // Limit the size for strings
-    size_t propSize = Size > 255 ? 255 : Size;
-    size_t patchSize = Size > 255 ? 255 : Size;
-    size_t sampleSize = Size > 255 ? 255 : Size;
-
-    strncpy(cProp, (const char*)Data, propSize);
-    cProp[propSize] = '\0';
-
-    strncpy(cPatch, (const char*)Data, patchSize);
-    cPatch[patchSize] = '\0';
-
-    strncpy(cSample, (const char*)Data, sampleSize);
-    cSample[sampleSize] = '\0';
-
-    // Convert some bytes to a double value
-    if (Size >= sizeof(cmsFloat64Number)) {
-        memcpy(&Val, Data, sizeof(cmsFloat64Number));
-    }
-
-    // Invoke target functions with fuzzed input
-    const char* propVal = cmsIT8GetProperty(hIT8, cProp);
-    cmsBool setDataResult = cmsIT8SetDataDbl(hIT8, cPatch, cSample, Val);
-    cmsBool setPropResult = cmsIT8SetPropertyDbl(hIT8, cProp, Val);
-    cmsFloat64Number getPropDblVal = cmsIT8GetPropertyDbl(hIT8, cProp);
-    cmsFloat64Number getDataDblVal = cmsIT8GetDataDbl(hIT8, cPatch, cSample);
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsIT8GetData with cmsIT8GetPropertyMulti
-    const char* dataVal = cmsIT8GetPropertyMulti(hIT8, cPatch, cSample);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Handle the results if needed (e.g., check for NULL or errors)
-    if (propVal) {
-        // Do something with propVal
-    }
-
-    if (dataVal) {
-        // Do something with dataVal
-    }
-
-    // Cleanup
-    destroyDummyIT8Handle(hIT8);
-
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

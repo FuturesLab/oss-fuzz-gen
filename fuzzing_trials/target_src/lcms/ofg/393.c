@@ -1,53 +1,61 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_393(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for testing
-    if (size < 1) {
+    // Ensure that the size is sufficient to create a cmsStage object
+    // Since we don't know the actual size of cmsStage, let's assume a minimum size
+    if (size < sizeof(void *)) { // Using pointer size as a minimum threshold
         return 0;
     }
 
-    // Create a named color list with multiple colors for testing
-    cmsNAMEDCOLORLIST *namedColorList = cmsAllocNamedColorList(NULL, 10, 32, "Prefix", "Suffix");
-    if (namedColorList == NULL) {
-        return 0;
-    }
+    // Create a fake cmsStage object from the input data
+    cmsStage *stage = (cmsStage *)data;
 
-    // Add multiple named colors to the list
-    for (int i = 0; i < 10; ++i) {
-        char colorName[256];
-        snprintf(colorName, sizeof(colorName), "Color%d", i);
-        cmsCIEXYZ pcs = {0.0, 0.0, 0.0};
-        cmsCIEXYZ deviceColorant = {0.0, 0.0, 0.0};
-        cmsAppendNamedColor(namedColorList, colorName, &pcs, &deviceColorant);
-    }
+    // Call the function-under-test
+    cmsStage *nextStage = cmsStageNext(stage);
 
-    // Use the provided data as a color name, ensuring it is null-terminated
-    char fuzzColorName[256];
-    size_t copySize = (size < sizeof(fuzzColorName) - 1) ? size : sizeof(fuzzColorName) - 1;
-    memcpy(fuzzColorName, data, copySize);
-    fuzzColorName[copySize] = '\0';
-
-    // Modify the fuzzColorName to match one of the known names more reliably
-    if (size >= 6 && strncmp(fuzzColorName, "Color", 5) == 0 && fuzzColorName[5] >= '0' && fuzzColorName[5] <= '9') {
-        // If the fuzz input starts with "Color" and is followed by a digit, ensure it matches one of the added colors
-        fuzzColorName[6] = '\0'; // Ensure null-termination
-    } else if (size >= 6) {
-        // If not matching, force it to match one of the added colors
-        snprintf(fuzzColorName, sizeof(fuzzColorName), "Color%d", data[5] % 10);
-    }
-
-    // Call the function under test
-    cmsInt32Number index = cmsNamedColorIndex(namedColorList, fuzzColorName);
-
-    // Print the index for debugging purposes
-    printf("Index of color '%s': %d\n", fuzzColorName, index);
-
-    // Clean up
-    cmsFreeNamedColorList(namedColorList);
+    // Since we do not have control over the actual cmsStage structure,
+    // we do not perform any further operations on nextStage
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_393(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,45 +1,79 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    // Initialize variables for cmsAppendNamedColor
+    // Initialize variables
     cmsNAMEDCOLORLIST *namedColorList;
-    const char *colorName;
-    cmsUInt16Number pcs[3];
-    cmsUInt16Number device[3];
+    char colorName[32];
+    cmsUInt16Number PCS[3];
+    cmsUInt16Number colorant[3];
 
-    // Ensure data is large enough to extract necessary information
-    // We need at least 6 bytes for pcs and device values, plus some bytes for a color name
-    if (size < 6 + 1) { // 1 byte for at least a single character color name
+    // Ensure size is sufficient for the operations
+    if (size < 32 + 3 * sizeof(cmsUInt16Number) * 2) {
         return 0;
     }
 
-    // Initialize namedColorList
-    namedColorList = cmsAllocNamedColorList(NULL, 1, 3, "Prefix", "Suffix");
-    if (namedColorList == NULL) {
+    // Create a named color list with arbitrary parameters
+    namedColorList = cmsAllocNamedColorList(NULL, 1, 3, "prefix", "suffix");
+    if (!namedColorList) {
         return 0;
     }
 
-    // Extract colorName from data
-    colorName = (const char *)(data);
+    // Copy data into colorName, ensuring null-termination
+    memcpy(colorName, data, 31);
+    colorName[31] = '\0';
 
-    // Extract pcs values from data
-    pcs[0] = (cmsUInt16Number)data[size - 6];
-    pcs[1] = (cmsUInt16Number)data[size - 5];
-    pcs[2] = (cmsUInt16Number)data[size - 4];
-
-    // Extract device values from data
-    device[0] = (cmsUInt16Number)data[size - 3];
-    device[1] = (cmsUInt16Number)data[size - 2];
-    device[2] = (cmsUInt16Number)data[size - 1];
+    // Copy data into PCS and colorant arrays
+    memcpy(PCS, data + 32, 3 * sizeof(cmsUInt16Number));
+    memcpy(colorant, data + 32 + 3 * sizeof(cmsUInt16Number), 3 * sizeof(cmsUInt16Number));
 
     // Call the function-under-test
-    cmsBool result = cmsAppendNamedColor(namedColorList, colorName, pcs, device);
+    cmsBool result = cmsAppendNamedColor(namedColorList, colorName, PCS, colorant);
 
     // Clean up
     cmsFreeNamedColorList(namedColorList);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_164(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

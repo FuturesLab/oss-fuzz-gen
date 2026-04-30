@@ -1,40 +1,74 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <libdwarf.h>
+#include <string.h>    // Include this for memcpy
+#include <libdwarf.h>  // Ensure this header is available in your environment
 
-extern int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    Dwarf_Fde fde = (Dwarf_Fde)data; // Assuming data can be cast to Dwarf_Fde
-    Dwarf_Addr pc = 0; // Initialize with a non-zero value
-    Dwarf_Regtable3 regtable;
-    Dwarf_Addr row_pc = 0; // Initialize with a non-zero value
-    Dwarf_Bool has_more_rows = 1; // Initialize with a non-zero value
-    Dwarf_Addr next_pc = 0; // Initialize with a non-zero value
-    Dwarf_Error error = NULL;
-
-    // Initialize regtable fields to non-zero values
-    regtable.rt3_reg_table_size = 10; // Example size
-    regtable.rt3_rules = (Dwarf_Regtable_Entry3 *)malloc(sizeof(Dwarf_Regtable_Entry3) * regtable.rt3_reg_table_size);
-
-    if (regtable.rt3_rules == NULL) {
-        return 0; // Exit if memory allocation fails
+int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
+    // Allocate memory for the input buffer and ensure it is null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0;
     }
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    for (unsigned int i = 0; i < regtable.rt3_reg_table_size; ++i) {
-        regtable.rt3_rules[i].dw_offset_relevant = 1;
-        regtable.rt3_rules[i].dw_value_type = 1;
-        regtable.rt3_rules[i].dw_regnum = i;
-        regtable.rt3_rules[i].dw_offset = i; // Use dw_offset instead of dw_offset_or_block_len
-        regtable.rt3_rules[i].dw_block.bl_len = 0; // Initialize block length to 0
-        regtable.rt3_rules[i].dw_block.bl_data = NULL; // Initialize block data to NULL
+    // Initialize output parameters
+    Dwarf_Unsigned leb128_length = 0;
+    Dwarf_Unsigned leb128_value = 0;
+
+    // Allocate memory for the end pointer
+    char *endptr = (char *)malloc(1);
+    if (endptr == NULL) {
+        free(input);
+        return 0;
     }
 
     // Call the function-under-test
-    dwarf_get_fde_info_for_all_regs3_b(fde, pc, &regtable, &row_pc, &has_more_rows, &next_pc, &error);
+    dwarf_decode_leb128(input, &leb128_length, &leb128_value, endptr);
 
-    // Clean up
-    free(regtable.rt3_rules);
+    // Free allocated memory
+    free(input);
+    free(endptr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_106(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

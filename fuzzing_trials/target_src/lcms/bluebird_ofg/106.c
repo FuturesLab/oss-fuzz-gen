@@ -1,64 +1,71 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "lcms2.h"  // Assuming the Little CMS library is used
+#include <string.h>  // Include this for memcpy
+#include "lcms2.h"   // Ensure this is included for Little CMS functions
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsGDBCheckPoint
-    cmsHPROFILE handle = cmsOpenProfileFromMem(data, size);  // Create a handle from the input data
-    cmsCIELab cielab;
+    cmsHANDLE handle;
+    cmsUInt32Number tableCount;
 
-    // Ensure the handle is not NULL
+    // Ensure the size is sufficient for creating a valid handle
+    if (size < sizeof(cmsHANDLE)) {
+        return 0;
+    }
+
+    // Create a temporary memory block to simulate a handle
+    handle = (cmsHANDLE)malloc(sizeof(cmsHANDLE));
     if (handle == NULL) {
         return 0;
     }
 
-    // Initialize cmsCIELab with non-NULL values
-    cielab.L = 50.0;  // Example value
-    cielab.a = 0.0;   // Example value
-    cielab.b = 0.0;   // Example value
+    // Simulate copying data into the handle
+    memcpy(handle, data, sizeof(cmsHANDLE));
 
-    // Call the function under test
+    // Call the function-under-test
+    tableCount = cmsIT8TableCount(handle);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetPCS
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetHeaderFlags
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsGetHeaderFlags with cmsGetHeaderModel
-    cmsUInt32Number ret_cmsGetHeaderFlags_vxdxj = cmsGetHeaderModel(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_cmsGetHeaderFlags_vxdxj < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsColorSpaceSignature ret__cmsICCcolorSpace_fwbyg = _cmsICCcolorSpace(PT_Lab);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateLinearizationDeviceLink
-    const cmsToneCurve *khbyuwkg;
-    memset(&khbyuwkg, 0, sizeof(khbyuwkg));
-
-    cmsHPROFILE ret_cmsCreateLinearizationDeviceLink_rftib = cmsCreateLinearizationDeviceLink(ret__cmsICCcolorSpace_fwbyg, &khbyuwkg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsSetPCS(handle, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
-
-    // Close the profile handle
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-    cmsMD5computeID(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Clean up
+    free(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_106(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,65 +1,70 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-#include <math.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "lcms2.h"
 
-// Define a non-NULL cmsHANDLE for testing purposes
-cmsHANDLE createTestHandle() {
-    // Create a dummy context for testing
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
-        return NULL;
-    }
-    return context;
-}
-
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for the cmsCIEXYZ structure
-    if (size < sizeof(cmsCIEXYZ)) {
+    // Ensure we have enough data to extract parameters
+    if (size < sizeof(cmsUInt32Number) * 2 + sizeof(cmsFloat64Number) * 4) {
         return 0;
     }
 
-    // Initialize cmsCIEXYZ from the input data
-    cmsCIEXYZ inputXYZ;
-    memcpy(&inputXYZ, data, sizeof(cmsCIEXYZ));
+    // Initialize variables for each parameter
+    cmsUInt32Number colorSpace = *(const cmsUInt32Number *)data;
+    cmsFloat64Number L = *(const cmsFloat64Number *)(data + sizeof(cmsUInt32Number));
+    cmsFloat64Number a = *(const cmsFloat64Number *)(data + sizeof(cmsUInt32Number) + sizeof(cmsFloat64Number));
+    cmsFloat64Number b = *(const cmsFloat64Number *)(data + sizeof(cmsUInt32Number) + 2 * sizeof(cmsFloat64Number));
+    cmsFloat64Number c = *(const cmsFloat64Number *)(data + sizeof(cmsUInt32Number) + 3 * sizeof(cmsFloat64Number));
+    cmsUInt32Number intent = *(const cmsUInt32Number *)(data + sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number));
+    cmsUInt32Number flags = *(const cmsUInt32Number *)(data + sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number) + sizeof(cmsUInt32Number));
 
-    // Initialize cmsJCh structure
-    cmsJCh outputJCh;
-    outputJCh.J = 0.0;
-    outputJCh.C = 0.0;
-    outputJCh.h = 0.0;
+    // Call the function-under-test
+    cmsHPROFILE profile = cmsCreateBCHSWabstractProfile(colorSpace, L, a, b, c, intent, flags);
 
-    // Create a test handle
-    cmsHANDLE testHandle = createTestHandle();
-    if (testHandle == NULL) {
-        return 0; // If handle creation failed, exit early
+    // Clean up if necessary
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
-
-    // Ensure the inputXYZ values are in a valid range to avoid overflow
-    inputXYZ.X = fmin(fmax(inputXYZ.X, 0.0), 1.0);
-    inputXYZ.Y = fmin(fmax(inputXYZ.Y, 0.0), 1.0);
-    inputXYZ.Z = fmin(fmax(inputXYZ.Z, 0.0), 1.0);
-
-    // Prepare a cmsViewingConditions structure
-    cmsViewingConditions viewingConditions;
-    viewingConditions.whitePoint = inputXYZ; // Correct assignment without &
-    viewingConditions.Yb = 20.0; // Example value for background luminance
-    viewingConditions.La = 40.0; // Example value for adapting luminance
-    viewingConditions.surround = 1; // Example surround value
-    viewingConditions.D_value = 1.0; // Example D_value
-
-    // Initialize the CIECAM02 model
-    cmsHANDLE camHandle = cmsCIECAM02Init(testHandle, &viewingConditions);
-    if (camHandle != NULL) {
-        // Call the function under test with valid viewing conditions
-        cmsCIECAM02Forward(camHandle, &inputXYZ, &outputJCh);
-        // Free the CIECAM02 handle
-        cmsCIECAM02Done(camHandle);
-    }
-
-    // Free the test handle
-    cmsDeleteContext(testHandle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

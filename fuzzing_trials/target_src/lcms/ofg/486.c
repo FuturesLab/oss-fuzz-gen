@@ -3,38 +3,60 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_486(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHPROFILE inputProfile = NULL;
-    cmsHPROFILE outputProfile = NULL;
-    cmsUInt32Number inputFormat = TYPE_RGB_8; // Example format, can vary
-    cmsUInt32Number outputFormat = TYPE_RGB_8; // Example format, can vary
-    cmsUInt32Number intent = INTENT_PERCEPTUAL; // Example intent, can vary
-    cmsUInt32Number flags = 0; // Example flags, can vary
+    cmsHPROFILE hProfile = NULL;
 
-    // Create profiles from the data if size is sufficient
-    if (size > 128) { // Ensure enough data for profile creation
-        inputProfile = cmsOpenProfileFromMem(data, size / 2);
-        outputProfile = cmsOpenProfileFromMem(data + size / 2, size / 2);
-    }
+    // Ensure that the size is large enough to be a valid profile
+    if (size > sizeof(cmsHPROFILE)) {
+        // Create a profile from the input data
+        hProfile = cmsOpenProfileFromMem((void*)data, size);
 
-    // Ensure profiles are not NULL
-    if (inputProfile != NULL && outputProfile != NULL) {
-        // Call the function-under-test
-        cmsHTRANSFORM transform = cmsCreateTransform(
-            inputProfile, inputFormat, outputProfile, outputFormat, intent, flags
-        );
+        if (hProfile != NULL) {
+            // Call the function-under-test
+            cmsColorSpaceSignature pcs = cmsGetPCS(hProfile);
 
-        // Clean up
-        cmsDeleteTransform(transform);
-    }
-
-    // Close profiles if they were opened
-    if (inputProfile != NULL) {
-        cmsCloseProfile(inputProfile);
-    }
-    if (outputProfile != NULL) {
-        cmsCloseProfile(outputProfile);
+            // Clean up
+            cmsCloseProfile(hProfile);
+        }
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_486(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

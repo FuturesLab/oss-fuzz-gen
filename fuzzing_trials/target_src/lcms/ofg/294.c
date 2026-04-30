@@ -1,51 +1,66 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_294(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    char *buffer1;
-    char *buffer2;
-    cmsFloat64Number result;
+    cmsHPROFILE hProfile = NULL;
 
-    // Ensure size is sufficient to split into two non-null strings
-    if (size < 2) {
-        return 0;
+    // Ensure the input size is sufficient to create a profile
+    if (size > 0) {
+        // Create a memory-based profile using the input data
+        hProfile = cmsOpenProfileFromMem(data, size);
+
+        // Check if the profile was created successfully
+        if (hProfile != NULL) {
+            // Call the function-under-test
+            cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+
+            // Use the tagCount in some way to avoid unused variable warning
+            (void)tagCount;
+
+            // Close the profile after use
+            cmsCloseProfile(hProfile);
+        }
     }
-
-    // Allocate memory for strings
-    buffer1 = (char *)malloc(size / 2 + 1);
-    buffer2 = (char *)malloc(size / 2 + 1);
-
-    if (!buffer1 || !buffer2) {
-        free(buffer1);
-        free(buffer2);
-        return 0;
-    }
-
-    // Copy data into strings and null-terminate them
-    memcpy(buffer1, data, size / 2);
-    buffer1[size / 2] = '\0';
-    memcpy(buffer2, data + size / 2, size / 2);
-    buffer2[size / 2] = '\0';
-
-    // Initialize a cmsHANDLE for testing
-    handle = cmsIT8Alloc(NULL);
-    if (!handle) {
-        free(buffer1);
-        free(buffer2);
-        return 0;
-    }
-
-    // Call the function-under-test
-    result = cmsIT8GetDataDbl(handle, buffer1, buffer2);
-
-    // Clean up
-    cmsIT8Free(handle);
-    free(buffer1);
-    free(buffer2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_294(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

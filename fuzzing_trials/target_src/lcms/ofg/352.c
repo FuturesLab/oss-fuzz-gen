@@ -1,31 +1,70 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_352(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    cmsUInt32Number tableIndex;
+    // Initialize variables
+    cmsHPROFILE hProfile = NULL;
+    cmsUInt64Number attributes = 0;
 
-    // Ensure the data size is sufficient for our needs
-    if (size < sizeof(cmsUInt32Number)) {
+    // Ensure size is sufficient to extract cmsUInt64Number
+    if (size < sizeof(cmsUInt64Number)) {
         return 0;
     }
 
-    // Initialize handle using cmsIT8Alloc, assuming a valid context
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Create a profile for testing
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
         return 0;
     }
 
-    // Extract tableIndex from the input data
-    tableIndex = *(cmsUInt32Number *)data;
+    // Extract cmsUInt64Number from input data
+    attributes = *((const cmsUInt64Number *)data);
 
-    // Call the function under test
-    cmsInt32Number result = cmsIT8SetTable(handle, tableIndex);
+    // Call the function-under-test
+    cmsSetHeaderAttributes(hProfile, attributes);
 
-    // Clean up
-    cmsIT8Free(handle);
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_352(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

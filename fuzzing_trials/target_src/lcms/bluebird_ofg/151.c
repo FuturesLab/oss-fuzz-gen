@@ -1,57 +1,74 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_151(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsTagSignature) + sizeof(void*)) {
-        return 0; // Not enough data to proceed
-    }
-
     // Initialize variables
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3); // Allocate a pipeline with 3 inputs and 3 outputs
+    cmsStageLoc loc = cmsAT_BEGIN; // Choose a location for the stage
+    cmsToneCurve* toneCurves[3] = {NULL, NULL, NULL}; // Create an array for tone curves
+    cmsStage *stage = cmsStageAllocToneCurves(NULL, 3, toneCurves); // Allocate a stage
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of cmsOpenProfileFromMem
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem((const void *)data, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    cmsTagSignature tagSig = *(cmsTagSignature*)data;
-    const void *tagData = (const void*)(data + sizeof(cmsTagSignature));
-
-    // Ensure hProfile is valid
-    if (hProfile == NULL) {
+    // Ensure the pipeline and stage are not NULL
+    if (pipeline == NULL || stage == NULL) {
         return 0;
     }
 
+    // Add the stage to the pipeline
+    cmsPipelineInsertStage(pipeline, loc, stage);
+
+    // Prepare a pointer to hold the unlinked stage
+    cmsStage *unlinkedStage = NULL;
+
     // Call the function-under-test
+    cmsPipelineUnlinkStage(pipeline, loc, &unlinkedStage);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of cmsWriteTag
-    cmsBool result = cmsWriteTag(hProfile, tagSig, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Close the profile
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMD5computeID with cmsIsMatrixShaper
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsIsMatrixShaper with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMD5computeID with cmsCloseProfile
-    cmsCloseProfile(hProfile);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Clean up
+    if (unlinkedStage != NULL) {
+        cmsStageFree(unlinkedStage);
+    }
+    cmsPipelineFree(pipeline);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_151(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,36 +1,68 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <libdwarf.h>
+#include <dwarf.h>  // Assuming this is the correct header for the function
 
-extern int dwarf_dnames_name(Dwarf_Dnames_Head, Dwarf_Unsigned, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, char **, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Half *, Dwarf_Unsigned, Dwarf_Half *, Dwarf_Half *, Dwarf_Unsigned *, Dwarf_Error *);
+extern int dwarf_get_DS_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    if (size < sizeof(Dwarf_Unsigned)) {
-        return 0;
+    if (size < sizeof(unsigned int)) {
+        return 0; // Not enough data to create a valid unsigned int
     }
 
-    Dwarf_Dnames_Head head = (Dwarf_Dnames_Head)(uintptr_t)data;
-    Dwarf_Unsigned index = *(Dwarf_Unsigned *)data;
-    Dwarf_Unsigned name_index = 0;
-    Dwarf_Unsigned offset = 0;
-    Dwarf_Unsigned cu_index = 0;
-    char *name = NULL;
-    Dwarf_Unsigned name_len = 0;
-    Dwarf_Unsigned form = 0;
-    Dwarf_Half attr = 0;
-    Dwarf_Unsigned die_offset = 0;
-    Dwarf_Half tag = 0;
-    Dwarf_Half form_class = 0;
-    Dwarf_Unsigned cu_offset = 0;
-    Dwarf_Error error = NULL;
+    // Extract an unsigned int from the data
+    unsigned int index = *((unsigned int *)data);
 
-    int result = dwarf_dnames_name(head, index, &name_index, &offset, &cu_index, &name, &name_len, &form, &attr, die_offset, &tag, &form_class, &cu_offset, &error);
+    // Prepare a pointer for the name output
+    const char *name = NULL;
 
-    if (name) {
-        free(name);
+    // Call the function-under-test
+    int result = dwarf_get_DS_name(index, &name);
+
+    // Optionally, you can do something with the result or name here
+    // For example, you could check if the name is not NULL and print it
+    if (name != NULL) {
+        // Do something with name, like logging or further validation
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_164(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

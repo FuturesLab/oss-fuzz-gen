@@ -1,30 +1,75 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <dwarf.h> // Include the necessary library for Dwarf_Debug
-#include <libdwarf.h> // Include the necessary library for Dwarf_Debug and related functions
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <libdwarf.h>
 
 int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
-    // Declare and initialize the parameters for the function-under-test
-    Dwarf_Debug dbg = 0; // Initialize to zero or a valid default value
-    int some_int_value;
+    if (size < 1) return 0;
 
-    // Ensure the size is sufficient to extract meaningful data
-    if (size < sizeof(Dwarf_Debug) + sizeof(int)) {
-        return 0;
-    }
+    const char *path = "/tmp/fuzzed_file";
+    FILE *file = fopen(path, "wb");
+    if (!file) return 0;
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Initialize Dwarf_Debug from the input data
-    // This is a placeholder for actual initialization logic
-    // In a real scenario, you need to properly initialize Dwarf_Debug
-    // Here we assume the first byte is enough to create a valid Dwarf_Debug handle
-    dbg = (Dwarf_Debug)(uintptr_t)data[0]; // Simplified example, replace with correct logic
+    char *true_path = strdup(path);
+    unsigned int access = 0;
+    unsigned int group = 0;
+    unsigned int offset_size = 0;
+    Dwarf_Handler err_handler = NULL;
+    Dwarf_Ptr err_arg = NULL;
+    Dwarf_Debug *dbg = NULL;
+    char **error_msg = NULL;
+    unsigned int flags = 0;
+    unsigned char *section_data = (unsigned char *)malloc(size);
+    memcpy(section_data, data, size);
+    Dwarf_Error *error = NULL;
 
-    // Initialize the integer parameter from the input data
-    some_int_value = (int)data[1]; // Simplified example, replace with correct logic
+    dwarf_init_path_dl_a(path, true_path, access, group, offset_size, err_handler, err_arg, dbg, error_msg, flags, section_data, error);
 
-    // Call the function-under-test
-    int result = dwarf_return_empty_pubnames(dbg, some_int_value);
+    free(true_path);
+    free(section_data);
 
-    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_96(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

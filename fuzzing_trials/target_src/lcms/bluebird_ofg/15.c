@@ -1,44 +1,87 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "lcms2.h"
 
+// Define a simple log error handler function
+void myLogErrorHandler_15(cmsContext contextID, cmsUInt32Number ErrorCode, const char *Text) {
+    // Do nothing, just a placeholder for the fuzzing
+}
+
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    cmsInt32Number index = 0; // Initialize index to 0
-    cmsToneCurve *toneCurve = NULL;
+    // Call the function-under-test with a non-NULL error handler
+    cmsSetLogErrorHandler(myLogErrorHandler_15);
 
-    // Check if size is sufficient to create a tone curve with at least one entry
-    if (size < sizeof(uint16_t)) {
+    // Check if the size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
         return 0;
     }
 
-    // Create a tone curve using the data
-    toneCurve = cmsBuildTabulatedToneCurve16(NULL, size / sizeof(uint16_t), (const uint16_t *)data);
-
-    // Ensure toneCurve is not NULL
-    if (toneCurve == NULL) {
-        return 0;
+    // Create a profile from the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0; // If profile creation fails, exit early
     }
 
-    // Call the function-under-test
+    // Perform a simple operation using the profile
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsBuildTabulatedToneCurve16 to cmsSmoothToneCurve
-    cmsFloat64Number ret_cmsSetAdaptationState_apfue = cmsSetAdaptationState(cmsSPOT_ROUND);
-    if (ret_cmsSetAdaptationState_apfue < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetHeaderModel
+    cmsFloat64Number ret_cmsDetectTAC_scuxn = cmsDetectTAC(hProfile);
+    if (ret_cmsDetectTAC_scuxn < 0){
     	return 0;
     }
-
-    cmsBool ret_cmsSmoothToneCurve_uiitt = cmsSmoothToneCurve(toneCurve, ret_cmsSetAdaptationState_apfue);
-    if (ret_cmsSmoothToneCurve_uiitt < 0){
-    	return 0;
-    }
-
+    cmsSetHeaderModel(hProfile, (unsigned long )ret_cmsDetectTAC_scuxn);
     // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsHTRANSFORM hTransform = cmsCreateTransform(hProfile, TYPE_RGB_8, hProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
+    if (hTransform != NULL) {
+        uint8_t sample[3] = {0, 0, 0};
+        cmsDoTransform(hTransform, sample, sample, 1);
+        cmsDeleteTransform(hTransform);
+    }
 
-    const cmsCurveSegment *segment = cmsGetToneCurveSegment(index, toneCurve);
-
-    // Clean up
-    cmsFreeToneCurve(toneCurve);
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

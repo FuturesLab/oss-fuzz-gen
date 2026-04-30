@@ -1,40 +1,67 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h> // Include string.h for memcpy
-#include <lcms2.h> // Include the Little CMS library header
-
-// Define a function to convert bytes to a double in a safe way
-static double bytes_to_double(const uint8_t *data, size_t size) {
-    if (size < sizeof(double)) return 0.0;
-    double value;
-    memcpy(&value, data, sizeof(double));
-    return value;
-}
+#include <stdio.h>
+#include <string.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    if (size < 6 * sizeof(double)) {
-        return 0; // Ensure there is enough data for two cmsCIELab structures
+    // Ensure the input size is sufficient to fill two cmsCIELab structures
+    if (size < 2 * sizeof(cmsCIELab)) {
+        return 0;
     }
 
-    // Initialize two cmsCIELab structures
-    cmsCIELab Lab1, Lab2;
+    // Initialize two cmsCIELab structures using data from the input
+    cmsCIELab Lab1;
+    cmsCIELab Lab2;
 
-    // Populate Lab1 with data
-    Lab1.L = bytes_to_double(data, size);
-    Lab1.a = bytes_to_double(data + sizeof(double), size - sizeof(double));
-    Lab1.b = bytes_to_double(data + 2 * sizeof(double), size - 2 * sizeof(double));
+    // Copy data into the cmsCIELab structures
+    memcpy(&Lab1, data, sizeof(cmsCIELab));
+    memcpy(&Lab2, data + sizeof(cmsCIELab), sizeof(cmsCIELab));
 
-    // Populate Lab2 with data
-    Lab2.L = bytes_to_double(data + 3 * sizeof(double), size - 3 * sizeof(double));
-    Lab2.a = bytes_to_double(data + 4 * sizeof(double), size - 4 * sizeof(double));
-    Lab2.b = bytes_to_double(data + 5 * sizeof(double), size - 5 * sizeof(double));
-
-    // Call the function under test
+    // Call the function-under-test
     cmsFloat64Number deltaE = cmsCIE94DeltaE(&Lab1, &Lab2);
 
-    // Use the result to prevent the compiler from optimizing the function call away
-    volatile cmsFloat64Number result = deltaE;
-    (void)result;
+    // Print the result (optional, for debugging purposes)
+    printf("Delta E: %f\n", deltaE);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

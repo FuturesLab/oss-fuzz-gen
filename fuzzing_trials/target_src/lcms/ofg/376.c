@@ -1,55 +1,83 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>  // Include this for mkstemp() and unlink()
+#include <fcntl.h>   // Include this for open() and O_* constants
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_376(const uint8_t *data, size_t size) {
-    // Ensure that the input size is large enough to extract meaningful strings
-    if (size < 4) {
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
         return 0;
     }
 
-    // Initialize cmsHANDLE
-    cmsHANDLE handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Extract strings from the input data
-    size_t str1_len = data[0] % (size - 1) + 1; // Length of the first string
-    size_t str2_len = data[1] % (size - str1_len - 1) + 1; // Length of the second string
-    size_t str3_len = data[2] % (size - str1_len - str2_len - 1) + 1; // Length of the third string
-
-    char *str1 = (char *)malloc(str1_len + 1);
-    char *str2 = (char *)malloc(str2_len + 1);
-    char *str3 = (char *)malloc(str3_len + 1);
-
-    if (str1 == NULL || str2 == NULL || str3 == NULL) {
-        cmsIT8Free(handle);
-        free(str1);
-        free(str2);
-        free(str3);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        cmsDeleteContext(context);
         return 0;
     }
+    close(fd);
 
-    memcpy(str1, data + 3, str1_len);
-    str1[str1_len] = '\0';
+    // Define a mode for opening the profile
+    const char *mode = "r"; // Read mode
 
-    memcpy(str2, data + 3 + str1_len, str2_len);
-    str2[str2_len] = '\0';
-
-    memcpy(str3, data + 3 + str1_len + str2_len, str3_len);
-    str3[str3_len] = '\0';
-
-    // Call the function under test
-    cmsBool result = cmsIT8SetPropertyMulti(handle, str1, str2, str3);
+    // Call the function-under-test
+    cmsHPROFILE profile = cmsOpenProfileFromFileTHR(context, tmpl, mode);
 
     // Clean up
-    cmsIT8Free(handle);
-    free(str1);
-    free(str2);
-    free(str3);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
+    cmsDeleteContext(context);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_376(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,35 +1,68 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <libdwarf.h>
 
-// Declare a dummy Dwarf_Debug for deallocation
-Dwarf_Debug dummy_debug = NULL;
-
-extern int dwarf_get_gnu_index_block(Dwarf_Gnu_Index_Head, Dwarf_Unsigned, Dwarf_Unsigned *, Dwarf_Half *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Error *);
+// Assuming the function is declared in a header file we have access to
+int dwarf_get_FRAME_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    if (size < sizeof(Dwarf_Gnu_Index_Head) + sizeof(Dwarf_Unsigned)) {
-        return 0; // Not enough data
+    unsigned int index;
+    const char *name = NULL;
+
+    // Ensure we have enough data to read an unsigned int
+    if (size < sizeof(unsigned int)) {
+        return 0;
     }
 
-    // Initialize variables
-    Dwarf_Gnu_Index_Head index_head = (Dwarf_Gnu_Index_Head)(data);
-    Dwarf_Unsigned index = *(Dwarf_Unsigned *)(data + sizeof(Dwarf_Gnu_Index_Head));
-    Dwarf_Unsigned result1 = 0;
-    Dwarf_Half result2 = 0;
-    Dwarf_Unsigned result3 = 0;
-    Dwarf_Unsigned result4 = 0;
-    Dwarf_Unsigned result5 = 0;
-    Dwarf_Error error = NULL;
+    // Copy data into the unsigned int variable
+    index = *(unsigned int *)data;
 
     // Call the function under test
-    int ret = dwarf_get_gnu_index_block(index_head, index, &result1, &result2, &result3, &result4, &result5, &error);
+    int result = dwarf_get_FRAME_name(index, &name);
 
-    // Handle the error if needed
-    if (error) {
-        dwarf_dealloc_error(dummy_debug, error);
+    // Optionally, you can add checks or further processing here
+    if (result == 0 && name != NULL) {
+        // Do something with the name if needed
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_116(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

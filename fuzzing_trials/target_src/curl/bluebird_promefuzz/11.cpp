@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,55 +10,92 @@
 #include <cstdint>
 #include <cstddef>
 #include "curl/curl.h"
-#include <cstddef>
+#include "/src/curl/include/curl/easy.h"
+#include "/src/curl/include/curl/options.h"
+#include "/src/curl/include/curl/typecheck-gcc.h"
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    CURLM *multi_handle = curl_multi_init();
-    if (!multi_handle) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Initialize CURL
+    CURL *curl = curl_easy_init();
+    if (!curl) return 0;
+
+    // Prepare dummy file if needed
+    FILE *dummyFile = fopen("./dummy_file", "wb");
+    if (dummyFile) {
+        fwrite(Data, 1, Size, dummyFile);
+        fclose(dummyFile);
     }
 
-    CURL *easy_handle = curl_easy_init();
-    if (!easy_handle) {
-        curl_multi_cleanup(multi_handle);
-        return 0;
+    // 1. Test curl_easy_pause
+    int action = Data[0] % 3; // Random action from first byte
+    curl_easy_pause(curl, action);
+
+    // 2. Test curl_easy_ssls_export
+    curl_easy_ssls_export(curl, nullptr, nullptr); // Using nullptrs for simplicity
+
+    // 3. Test curl_easy_option_by_id
+    if (Size >= sizeof(CURLoption)) {
+        CURLoption optionId;
+        memcpy(&optionId, Data, sizeof(CURLoption));
+        curl_easy_option_by_id(optionId);
     }
 
-    // Prepare a dummy file if needed
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
+    // 4. Test curl_easy_upkeep
+    curl_easy_upkeep(curl);
+
+    // 5. Test curl_share_init
+    CURLSH *share = curl_share_init();
+    if (share) {
+        curl_share_cleanup(share);
     }
-
-    // Fuzzing curl_multi_add_handle
-    CURLMcode mcode = curl_multi_add_handle(multi_handle, easy_handle);
-    if (mcode != CURLM_OK) {
-        curl_easy_cleanup(easy_handle);
-        curl_multi_cleanup(multi_handle);
-        return 0;
-    }
-
-    // Fuzzing curl_multi_get_offt
-    curl_off_t value;
-    mcode = curl_multi_get_offt(multi_handle, static_cast<CURLMinfo_offt>(Data[0] % 256), &value);
-
-    // Fuzzing curl_multi_timeout
-    long timeout;
-    mcode = curl_multi_timeout(multi_handle, &timeout);
-
-    // Fuzzing curl_multi_wakeup
-    mcode = curl_multi_wakeup(multi_handle);
-
-    // Fuzzing curl_multi_remove_handle
-    mcode = curl_multi_remove_handle(multi_handle, easy_handle);
 
     // Cleanup
-    curl_easy_cleanup(easy_handle);
-    curl_multi_cleanup(multi_handle);
+    curl_easy_cleanup(curl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

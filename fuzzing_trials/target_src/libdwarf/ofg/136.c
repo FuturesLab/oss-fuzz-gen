@@ -1,50 +1,59 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <libdwarf.h>
+#include <stddef.h>
 
-extern int dwarf_get_frame_instruction_a(Dwarf_Frame_Instr_Head, Dwarf_Unsigned, Dwarf_Unsigned *, Dwarf_Small *, const char **, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Signed *, Dwarf_Signed *, Dwarf_Unsigned *, Dwarf_Signed *, Dwarf_Block *, Dwarf_Error *);
+// Assume the function is declared in an external library
+extern int dwarf_set_stringcheck(int);
 
 int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
-    // Initialize all parameters for the function call
-    Dwarf_Frame_Instr_Head instr_head = (Dwarf_Frame_Instr_Head)(uintptr_t)data;
-    Dwarf_Unsigned index = (size > 0) ? (Dwarf_Unsigned)data[0] : 0;
-    Dwarf_Unsigned instr_offset = 0;
-    Dwarf_Small instr_op = 0;
-    const char *instr_name = NULL;
-    Dwarf_Unsigned instr_operand1 = 0;
-    Dwarf_Unsigned instr_operand2 = 0;
-    Dwarf_Unsigned instr_operand3 = 0;
-    Dwarf_Signed instr_operand1_s = 0;
-    Dwarf_Signed instr_operand2_s = 0;
-    Dwarf_Unsigned instr_operand4 = 0;
-    Dwarf_Signed instr_operand3_s = 0;
-    Dwarf_Block instr_block;
-    Dwarf_Error error = NULL;
+    // Ensure that we have at least 1 byte to read an integer value
+    if (size < sizeof(int)) {
+        return 0;
+    }
 
-    // Initialize the Dwarf_Block structure
-    instr_block.bl_data = (Dwarf_Ptr)data;
-    instr_block.bl_len = size;
-    instr_block.bl_from_loclist = 0;
+    // Extract an integer from the input data
+    int stringcheck_value = *(const int *)data;
 
-    // Call the function-under-test
-    int result = dwarf_get_frame_instruction_a(
-        instr_head,
-        index,
-        &instr_offset,
-        &instr_op,
-        &instr_name,
-        &instr_operand1,
-        &instr_operand2,
-        &instr_operand3,
-        &instr_operand1_s,
-        &instr_operand2_s,
-        &instr_operand4,
-        &instr_operand3_s,
-        &instr_block,
-        &error
-    );
-
-    // Handle the result if necessary (e.g., logging, assertions)
+    // Call the function-under-test with the extracted integer value
+    dwarf_set_stringcheck(stringcheck_value);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_136(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

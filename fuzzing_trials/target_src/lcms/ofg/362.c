@@ -1,30 +1,73 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <lcms2.h>
+#include <lcms2.h> // Assuming the Little CMS library provides this header
 
+// Remove the extern "C" linkage specification for C++ as this is C code
 int LLVMFuzzerTestOneInput_362(const uint8_t *data, size_t size) {
-    // Define and initialize variables
-    cmsContext context = (cmsContext)0x1; // Non-null context
-    cmsUInt32Number nGridPoints = 2; // Minimum grid points
-    cmsUInt32Number inputChannels = 3; // Example input channels
-    cmsUInt32Number outputChannels = 3; // Example output channels
+    cmsHANDLE handle;
+    int row, col;
+    cmsFloat64Number result;
 
-    // Ensure the data size is sufficient for the float array
-    if (size < inputChannels * outputChannels * nGridPoints * sizeof(cmsFloat32Number)) {
+    // Initialize the handle with a non-null value
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
+        return 0; // Exit if handle allocation fails
+    }
+
+    // Ensure the size is sufficient to extract row and col
+    if (size < sizeof(int) * 2) {
+        cmsIT8Free(handle);
         return 0;
     }
 
-    // Cast the input data to a float array
-    const cmsFloat32Number* floatArray = (const cmsFloat32Number*)data;
+    // Extract row and col values from the input data
+    row = *((int *)data);
+    col = *((int *)(data + sizeof(int)));
 
-    // Call the function-under-test
-    cmsStage* stage = cmsStageAllocCLutFloat(context, nGridPoints, inputChannels, outputChannels, floatArray);
+    // Call the function under test
+    result = cmsIT8GetDataRowColDbl(handle, row, col);
 
-    // Clean up
-    if (stage != NULL) {
-        cmsStageFree(stage);
-    }
+    // Free the handle after use
+    cmsIT8Free(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_362(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

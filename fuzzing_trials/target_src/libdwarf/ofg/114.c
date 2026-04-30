@@ -1,37 +1,66 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <libdwarf.h>
+
+// Assuming the function is defined in an external library
+extern int dwarf_get_ADDR_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    Dwarf_Debug dbg = NULL;
-    Dwarf_Cie *cie_list = NULL;
-    Dwarf_Signed cie_count = 0;
-    Dwarf_Fde *fde_list = NULL;
-    Dwarf_Signed fde_count = 0;
-    Dwarf_Error error = NULL;
-    int res;
-
-    // Initialize the Dwarf_Debug object with some dummy data
-    // In a real scenario, you would initialize it with actual data
-    // For fuzzing, we just need to make sure it's not NULL
-    if (size > 0) {
-        dbg = (Dwarf_Debug)data; // This is just to ensure dbg is non-NULL
+    if (size < sizeof(unsigned int)) {
+        return 0;
     }
+
+    unsigned int input_value;
+    const char *name = NULL;
+
+    // Copy bytes from the data to input_value
+    input_value = *(unsigned int *)data;
 
     // Call the function-under-test
-    res = dwarf_get_fde_list(dbg, &cie_list, &cie_count, &fde_list, &fde_count, &error);
+    int result = dwarf_get_ADDR_name(input_value, &name);
 
-    // Free any allocated resources if necessary
-    if (cie_list) {
-        dwarf_dealloc(dbg, cie_list, DW_DLA_LIST);
-    }
-    if (fde_list) {
-        dwarf_dealloc(dbg, fde_list, DW_DLA_LIST);
-    }
-    if (error) {
-        dwarf_dealloc(dbg, error, DW_DLA_ERROR);
+    // Optionally, you can perform some checks or operations with the result and name
+    if (result == 0 && name != NULL) {
+        // Do something with the name if needed
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_114(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,43 +1,93 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <lcms2.h>
+#include "/src/lcms/include/lcms2.h"
 
 int LLVMFuzzerTestOneInput_356(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    const char *propertyName;
-    const char **propertyValues;
-    cmsUInt32Number result;
+    cmsStage *stage = NULL;
+    cmsPipeline *pipeline = NULL;
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsTagTypeSignature stageType;
+    size_t dataSize;
+    const uint8_t *stageData;
+    cmsUInt32Number outputChannels;
 
-    // Initialize the handle to a non-NULL value
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    if (size < sizeof(cmsTagTypeSignature)) {
         return 0;
     }
 
-    // Ensure data is not empty and use it for propertyName
-    if (size > 0) {
-        propertyName = (const char *)data;
-    } else {
-        propertyName = "defaultPropertyName";
-    }
+    // Create a dummy stage using the provided data
+    stageType = *(cmsTagTypeSignature *)data;
+    dataSize = size - sizeof(cmsTagTypeSignature);
+    stageData = data + sizeof(cmsTagTypeSignature);
 
-    // Initialize propertyValues to a non-NULL value
-    propertyValues = (const char **)malloc(sizeof(char *) * 2);
-    if (propertyValues == NULL) {
-        cmsIT8Free(handle);
+    // Create a pipeline and add a stage to it
+    pipeline = cmsPipelineAlloc(context, 1, 1);
+    if (pipeline == NULL) {
+        cmsDeleteContext(context);
         return 0;
     }
-    propertyValues[0] = "Value1";
-    propertyValues[1] = NULL;
 
-    // Call the function under test
-    result = cmsIT8EnumPropertyMulti(handle, propertyName, &propertyValues);
+    // Allocate a stage using a valid cmsStage allocation function
+    cmsToneCurve* curve = cmsBuildGamma(context, 2.2); // Example gamma curve
+    stage = cmsStageAllocToneCurves(context, 1, &curve);
+    cmsFreeToneCurve(curve);
 
-    // Clean up
-    free(propertyValues);
-    cmsIT8Free(handle);
+    if (stage == NULL) {
+        cmsPipelineFree(pipeline);
+        cmsDeleteContext(context);
+        return 0;
+    }
+
+    cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
+
+    // Call the function-under-test
+    outputChannels = cmsStageOutputChannels(stage);
+
+    // Use the outputChannels variable to avoid unused variable warning
+    (void)outputChannels;
+
+    // Cleanup
+    cmsPipelineFree(pipeline);
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_356(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

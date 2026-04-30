@@ -1,31 +1,70 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <libdwarf.h>
-#include <stdlib.h>
+#include <stdint.h>
+#include <stdio.h>
+
+// Assume the function is declared in a header file
+int dwarf_get_ATCF_name(unsigned int attr, const char **name);
 
 int LLVMFuzzerTestOneInput_173(const uint8_t *data, size_t size) {
-    // Initialize Dwarf_Debug object
-    Dwarf_Debug dbg = 0;
-    Dwarf_Error err;
-    int res = dwarf_init_path("/dev/null", NULL, 0, DW_GROUPNUMBER_ANY, NULL, NULL, &dbg, &err);
-    if (res != DW_DLV_OK) {
+    // Ensure the input size is sufficient for an unsigned int
+    if (size < sizeof(unsigned int)) {
         return 0;
     }
 
-    // Ensure size is non-zero to avoid zero-length input
-    if (size < sizeof(Dwarf_Half)) {
-        dwarf_finish(dbg);
-        return 0;
-    }
+    // Extract an unsigned int value from the input data
+    unsigned int attr = *(unsigned int *)data;
 
-    // Extract a Dwarf_Half value from the input data
-    Dwarf_Half table_size = *(Dwarf_Half *)data;
+    // Declare a pointer for the name
+    const char *name = NULL;
 
     // Call the function-under-test
-    Dwarf_Half result = dwarf_set_frame_rule_table_size(dbg, table_size);
+    int result = dwarf_get_ATCF_name(attr, &name);
 
-    // Clean up
-    dwarf_finish(dbg);
+    // Optionally, print the result and name for debugging
+    if (name != NULL) {
+        printf("Result: %d, Name: %s\n", result, name);
+    } else {
+        printf("Result: %d, Name is NULL\n", result);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_173(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

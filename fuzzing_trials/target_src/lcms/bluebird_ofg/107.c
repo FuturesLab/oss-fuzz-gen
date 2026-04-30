@@ -1,72 +1,84 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include "lcms2.h"  // Assuming the Little CMS library is used
+#include <string.h>
+#include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsGDBCheckPoint
-    cmsHPROFILE handle = cmsOpenProfileFromMem(data, size);  // Create a handle from the input data
-    cmsCIELab cielab;
+    // Ensure the size is sufficient to extract parameters
+    if (size < sizeof(int) * 2 + 1) {
+        return 0;
+    }
 
-    // Ensure the handle is not NULL
+    // Initialize a cmsHANDLE
+    cmsHANDLE handle = cmsIT8Alloc(NULL);
     if (handle == NULL) {
         return 0;
     }
 
-    // Initialize cmsCIELab with non-NULL values
-    cielab.L = 50.0;  // Example value
-    cielab.a = 0.0;   // Example value
-    cielab.b = 0.0;   // Example value
+    // Extract integers for row and column
+    int row = *((int *)data);
+    int col = *((int *)(data + sizeof(int)));
 
-    // Call the function under test
+    // Extract a string for the data
+    const char *strData = (const char *)(data + sizeof(int) * 2);
+    size_t strSize = size - sizeof(int) * 2;
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetPCS
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetHeaderFlags
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsGetHeaderFlags with cmsGetHeaderModel
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsIsCLUT
-
-    cmsBool ret_cmsIsCLUT_gbcax = cmsIsCLUT(handle, PT_MCH1, AVG_SURROUND);
-    if (ret_cmsIsCLUT_gbcax < 0){
-    	return 0;
+    // Ensure the string is null-terminated
+    char *strCopy = (char *)malloc(strSize + 1);
+    if (strCopy == NULL) {
+        cmsIT8Free(handle);
+        return 0;
     }
+    memcpy(strCopy, strData, strSize);
+    strCopy[strSize] = '\0';
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Call the function-under-test
+    cmsIT8SetDataRowCol(handle, row, col, strCopy);
 
-    cmsUInt32Number ret_cmsGetHeaderFlags_vxdxj = cmsGetHeaderModel(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_cmsGetHeaderFlags_vxdxj < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsColorSpaceSignature ret__cmsICCcolorSpace_fwbyg = _cmsICCcolorSpace(PT_Lab);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateLinearizationDeviceLink
-
-    cmsHPROFILE ret_cmsCreateLinearizationDeviceLink_uzdpr = cmsCreateLinearizationDeviceLink(ret__cmsICCcolorSpace_fwbyg, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsSetPCS(handle, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
-
-    // Close the profile handle
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-    cmsMD5computeID(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Clean up
+    free(strCopy);
+    cmsIT8Free(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

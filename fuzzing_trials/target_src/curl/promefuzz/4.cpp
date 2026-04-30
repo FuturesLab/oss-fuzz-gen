@@ -1,14 +1,19 @@
 // This fuzz driver is generated for library curl, aiming to fuzz the following functions:
-// curl_multi_strerror at strerror.c:326:13 in multi.h
-// curl_easy_setopt at setopt.c:2956:10 in easy.h
-// curl_easy_setopt at setopt.c:2956:10 in easy.h
-// curl_easy_strerror at strerror.c:34:13 in curl.h
-// curl_version at version.c:145:7 in curl.h
-// curl_easy_strerror at strerror.c:34:13 in curl.h
-// curl_url_strerror at strerror.c:420:13 in urlapi.h
 // curl_global_init at easy.c:197:10 in curl.h
-// curl_easy_init at easy.c:330:7 in easy.h
-// curl_easy_cleanup at easy.c:837:6 in easy.h
+// curl_mime_init at mime.c:1202:12 in curl.h
+// curl_global_cleanup at easy.c:255:6 in curl.h
+// curl_mime_addpart at mime.c:1236:16 in curl.h
+// curl_mime_free at mime.c:1104:6 in curl.h
+// curl_global_cleanup at easy.c:255:6 in curl.h
+// curl_mime_init at mime.c:1202:12 in curl.h
+// curl_mime_addpart at mime.c:1236:16 in curl.h
+// curl_mime_subparts at mime.c:1511:10 in curl.h
+// curl_mime_filename at mime.c:1278:10 in curl.h
+// curl_global_trace at easy.c:292:10 in curl.h
+// curl_mime_name at mime.c:1261:10 in curl.h
+// curl_mime_data_cb at mime.c:1437:10 in curl.h
+// curl_mime_encoder at mime.c:1396:10 in curl.h
+// curl_mime_free at mime.c:1104:6 in curl.h
 // curl_global_cleanup at easy.c:255:6 in curl.h
 #include <iostream>
 #include <sstream>
@@ -20,88 +25,123 @@
 #include <cstdint>
 #include <cstddef>
 #include <curl/curl.h>
-#include <curl/urlapi.h>
-#include <curl/easy.h>
-#include <curl/multi.h>
 #include <cstdint>
-#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
 
-static void test_curl_multi_strerror() {
-    CURLMcode codes[] = {CURLM_OK, CURLM_BAD_HANDLE, CURLM_BAD_EASY_HANDLE, CURLM_OUT_OF_MEMORY};
-    for (CURLMcode code : codes) {
-        const char *error_msg = curl_multi_strerror(code);
-        if (error_msg) {
-            printf("curl_multi_strerror: %s\n", error_msg);
-        }
-    }
+static size_t dummy_read_callback(char *buffer, size_t size, size_t nitems, void *userdata) {
+    // Dummy read callback for demonstration purposes
+    return size * nitems;
 }
 
-static void test_curl_easy_setopt(CURL *curl) {
-    if (!curl) return;
-    
-    CURLoption options[] = {CURLOPT_URL, CURLOPT_FOLLOWLOCATION, CURLOPT_TIMEOUT};
-    for (CURLoption option : options) {
-        CURLcode res;
-        if (option == CURLOPT_URL) {
-            // Provide a valid URL for CURLOPT_URL
-            res = curl_easy_setopt(curl, option, "http://example.com");
-        } else {
-            res = curl_easy_setopt(curl, option, 1L);
-        }
-        if (res != CURLE_OK) {
-            printf("curl_easy_setopt error: %s\n", curl_easy_strerror(res));
-        }
-    }
+static int dummy_seek_callback(void *instream, curl_off_t offset, int origin) {
+    // Dummy seek callback for demonstration purposes
+    return CURL_SEEKFUNC_OK;
 }
 
-static void test_curl_version() {
-    const char *version = curl_version();
-    if (version) {
-        printf("curl_version: %s\n", version);
-    }
-}
-
-static void test_curl_easy_strerror() {
-    CURLcode codes[] = {CURLE_OK, CURLE_UNSUPPORTED_PROTOCOL, CURLE_FAILED_INIT, CURLE_URL_MALFORMAT};
-    for (CURLcode code : codes) {
-        const char *error_msg = curl_easy_strerror(code);
-        if (error_msg) {
-            printf("curl_easy_strerror: %s\n", error_msg);
-        }
-    }
-}
-
-static void test_curl_url_strerror() {
-    CURLUcode codes[] = {CURLUE_OK, CURLUE_BAD_HANDLE, CURLUE_BAD_PARTPOINTER, CURLUE_MALFORMED_INPUT};
-    for (CURLUcode code : codes) {
-        const char *error_msg = curl_url_strerror(code);
-        if (error_msg) {
-            printf("curl_url_strerror: %s\n", error_msg);
-        }
-    }
+static void dummy_free_callback(void *ptr) {
+    // Dummy free callback for demonstration purposes
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
+    if (Size == 0) return 0;
+
     // Initialize curl globally
-    if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+    if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
         return 0;
     }
 
-    // Create easy handle
-    CURL *curl = curl_easy_init();
-    test_curl_easy_setopt(curl);
-    if (curl) {
-        curl_easy_cleanup(curl);
+    // Create a MIME structure
+    curl_mime *mime = curl_mime_init(NULL);
+    if (!mime) {
+        curl_global_cleanup();
+        return 0;
     }
 
-    // Test other functions
-    test_curl_multi_strerror();
-    test_curl_version();
-    test_curl_easy_strerror();
-    test_curl_url_strerror();
+    // Create a MIME part
+    curl_mimepart *part = curl_mime_addpart(mime);
+    if (!part) {
+        curl_mime_free(mime);
+        curl_global_cleanup();
+        return 0;
+    }
 
-    // Cleanup curl globally
+    // Fuzz curl_mime_subparts
+    curl_mime *subparts = curl_mime_init(NULL);
+    if (subparts) {
+        curl_mimepart *subpart = curl_mime_addpart(subparts);
+        if (subpart) {
+            curl_mime_subparts(part, subparts);
+        }
+    }
+
+    // Fuzz curl_mime_filename
+    char filename[256];
+    snprintf(filename, sizeof(filename), "%.*s", (int)Size, Data);
+    curl_mime_filename(part, filename);
+
+    // Fuzz curl_global_trace
+    char config[256];
+    snprintf(config, sizeof(config), "%.*s", (int)Size, Data);
+    curl_global_trace(config);
+
+    // Fuzz curl_mime_name
+    char name[256];
+    snprintf(name, sizeof(name), "%.*s", (int)Size, Data);
+    curl_mime_name(part, name);
+
+    // Fuzz curl_mime_data_cb
+    curl_mime_data_cb(part, Size, dummy_read_callback, dummy_seek_callback, dummy_free_callback, NULL);
+
+    // Fuzz curl_mime_encoder
+    char encoding[256];
+    snprintf(encoding, sizeof(encoding), "%.*s", (int)Size, Data);
+    curl_mime_encoder(part, encoding);
+
+    // Clean up
+    curl_mime_free(mime);
     curl_global_cleanup();
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

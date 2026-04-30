@@ -1,43 +1,76 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_411(const uint8_t *data, size_t size) {
-    cmsPipeline *pipeline = NULL;
+    // Ensure there's enough data for at least three cmsUInt32Number values
+    if (size < 3 * sizeof(cmsUInt32Number)) {
+        return 0;
+    }
+
+    // Extract cmsUInt32Number values from the input data
+    cmsUInt32Number nInputChannels = *(const cmsUInt32Number *)(data);
+    cmsUInt32Number nOutputChannels = *(const cmsUInt32Number *)(data + sizeof(cmsUInt32Number));
+    cmsUInt32Number gridPoints = *(const cmsUInt32Number *)(data + 2 * sizeof(cmsUInt32Number));
+
+    // Ensure there's enough data for the LUT values
+    size_t lutSize = nInputChannels * nOutputChannels * gridPoints * sizeof(cmsUInt16Number);
+    if (size < 3 * sizeof(cmsUInt32Number) + lutSize) {
+        return 0;
+    }
+
+    const cmsUInt16Number *lutTable = (const cmsUInt16Number *)(data + 3 * sizeof(cmsUInt32Number));
+
+    // Create a dummy context
     cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Create a dummy pipeline with at least one stage for testing
-    if (context != NULL) {
-        pipeline = cmsPipelineAlloc(context, 3, 3);
-        if (pipeline != NULL) {
-            cmsStage *stage = cmsStageAllocIdentity(context, 3);
-            if (stage != NULL) {
-                cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
-            }
-        }
+    // Call the function-under-test
+    cmsStage *stage = cmsStageAllocCLut16bit(context, nInputChannels, nOutputChannels, gridPoints, lutTable);
+
+    // Clean up
+    if (stage != NULL) {
+        cmsStageFree(stage);
     }
-
-    if (pipeline != NULL && size >= 3 * sizeof(cmsFloat32Number)) {
-        // Prepare input data for the pipeline
-        cmsFloat32Number input[3];
-        for (int i = 0; i < 3; ++i) {
-            input[i] = ((cmsFloat32Number*)data)[i];
-        }
-
-        // Prepare output buffer
-        cmsFloat32Number output[3];
-
-        // Call the function under test with the input data
-        cmsPipelineEvalFloat(input, output, pipeline);
-        
-        // Use the output variable to prevent compiler optimization
-        (void)output;
-
-        // Clean up
-        cmsPipelineFree(pipeline);
-    }
-
     cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_411(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,38 +1,64 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_196(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract values for cmsCIELab structures and cmsFloat64Number
-    if (size < sizeof(cmsCIELab) * 2 + sizeof(cmsFloat64Number) * 3) {
+    if (size < sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Initialize cmsCIELab structures
-    cmsCIELab Lab1;
-    cmsCIELab Lab2;
+    // Initialize a cmsToneCurve object
+    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Using a default gamma value
 
-    // Extract values for Lab1
-    Lab1.L = *((cmsFloat64Number *)(data));
-    Lab1.a = *((cmsFloat64Number *)(data + sizeof(cmsFloat64Number)));
-    Lab1.b = *((cmsFloat64Number *)(data + 2 * sizeof(cmsFloat64Number)));
-
-    // Extract values for Lab2
-    Lab2.L = *((cmsFloat64Number *)(data + 3 * sizeof(cmsFloat64Number)));
-    Lab2.a = *((cmsFloat64Number *)(data + 4 * sizeof(cmsFloat64Number)));
-    Lab2.b = *((cmsFloat64Number *)(data + 5 * sizeof(cmsFloat64Number)));
-
-    // Extract cmsFloat64Number values
-    cmsFloat64Number K_L = *((cmsFloat64Number *)(data + 6 * sizeof(cmsFloat64Number)));
-    cmsFloat64Number K_C = *((cmsFloat64Number *)(data + 7 * sizeof(cmsFloat64Number)));
-    cmsFloat64Number K_H = *((cmsFloat64Number *)(data + 8 * sizeof(cmsFloat64Number)));
+    // Extract a cmsFloat32Number from the input data
+    cmsFloat32Number inputNumber;
+    memcpy(&inputNumber, data, sizeof(cmsFloat32Number));
 
     // Call the function-under-test
-    cmsFloat64Number deltaE = cmsCIE2000DeltaE(&Lab1, &Lab2, K_L, K_C, K_H);
+    cmsFloat32Number result = cmsEvalToneCurveFloat(toneCurve, inputNumber);
 
-    // Use deltaE in some way to avoid compiler optimizations
-    volatile cmsFloat64Number result = deltaE;
-    (void)result;
+    // Clean up
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_196(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

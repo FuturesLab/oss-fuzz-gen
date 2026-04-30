@@ -1,39 +1,64 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <libdwarf.h>
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    Dwarf_Dnames_Head head = (Dwarf_Dnames_Head)data; // Assuming data can be cast to this type
-    Dwarf_Unsigned offset1 = 0;
-    Dwarf_Unsigned offset2 = 0;
-    Dwarf_Unsigned offset3 = 0;
-    Dwarf_Unsigned offset4 = 0;
-    Dwarf_Unsigned offset5 = 0;
-    Dwarf_Unsigned offset6 = 0;
-    Dwarf_Unsigned offset7 = 0;
-    Dwarf_Unsigned offset8 = 0;
-    Dwarf_Unsigned offset9 = 0;
-    Dwarf_Unsigned offset10 = 0;
+    // Initialize Dwarf_Fde, Dwarf_Cie, and Dwarf_Error
+    Dwarf_Fde fde;
+    Dwarf_Cie cie = NULL;
     Dwarf_Error error = NULL;
 
-    // Call the function-under-test
-    int result = dwarf_dnames_offsets(
-        head,
-        &offset1,
-        &offset2,
-        &offset3,
-        &offset4,
-        &offset5,
-        &offset6,
-        &offset7,
-        &offset8,
-        &offset9,
-        &offset10,
-        &error
-    );
+    // Check if the size is sufficient to initialize a Dwarf_Fde
+    if (size < sizeof(Dwarf_Fde)) {
+        return 0; // Not enough data to proceed
+    }
 
-    // Return 0 as the fuzzer's return value
+    // Cast data to Dwarf_Fde for fuzzing
+    fde = (Dwarf_Fde)data;
+
+    // Call the function-under-test
+    int result = dwarf_get_cie_of_fde(fde, &cie, &error);
+
+    // Perform any additional checks or operations here if needed
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,44 +1,67 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <libdwarf.h>
-#include "/src/libdwarf/src/lib/libdwarf/libdwarf.h"
+#include <stddef.h>
+#include <dwarf.h>
 
-// Simple implementation of initialize_dwarf_attribute for fuzzing
-void initialize_dwarf_attribute(Dwarf_Attribute *attr, const uint8_t *data, size_t size) {
-    // For fuzzing purposes, we can initialize the attribute with dummy data
-    // as we do not have the actual implementation details.
-    // This is a placeholder to avoid the undefined reference error.
-    if (size >= sizeof(*attr)) {
-        // Copy data into the attribute structure if size permits
-        memcpy(attr, data, sizeof(*attr));
-    } else {
-        // Zero out the attribute if data is insufficient
-        memset(attr, 0, sizeof(*attr));
-    }
-}
+extern int dwarf_get_LANG_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_162(const uint8_t *data, size_t size) {
-    if (size < sizeof(Dwarf_Off)) {
+    unsigned int lang_code;
+    const char *lang_name = "";
+
+    // Ensure that the size is sufficient to read an unsigned int
+    if (size < sizeof(unsigned int)) {
         return 0;
     }
 
-    // Initialize Dwarf_Attribute
-    Dwarf_Attribute attr;
-    // Assuming a function to initialize Dwarf_Attribute for fuzzing
-    initialize_dwarf_attribute(&attr, data, size);
-
-    // Extract Dwarf_Off from data
-    Dwarf_Off offset = *(Dwarf_Off *)data;
-
-    // Initialize output and error variables
-    Dwarf_Off global_offset;
-    Dwarf_Error error;
+    // Extract an unsigned int from the data
+    lang_code = *(unsigned int *)data;
 
     // Call the function-under-test
-    int result = dwarf_convert_to_global_offset(attr, offset, &global_offset, &error);
+    int result = dwarf_get_LANG_name(lang_code, &lang_name);
 
-    // Handle the result if necessary
-    // For fuzzing, we typically do not need to handle the result
+    // Use the result and lang_name in some way to avoid compiler optimizations
+    if (result == 0 && lang_name != NULL) {
+        // Do something with lang_name if needed
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_162(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

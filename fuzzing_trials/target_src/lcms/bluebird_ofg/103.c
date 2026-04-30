@@ -1,76 +1,73 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    cmsHANDLE it8Handle = NULL;
-    cmsUInt32Number tableCount;
-
-    // Ensure the data is not empty
-    if (size == 0) {
+    // Ensure that the size is sufficient to extract parameters
+    if (size < sizeof(cmsInt32Number) + sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Initialize the IT8 handle with the data
-    it8Handle = cmsIT8LoadFromMem(NULL, data, size);  // Pass NULL for the cmsContext
-    if (it8Handle == NULL) {
-        return 0;
-    }
+    // Initialize cmsContext
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Extract a cmsInt32Number from the data
+    cmsInt32Number type = *((const cmsInt32Number *)data);
+    data += sizeof(cmsInt32Number);
+    size -= sizeof(cmsInt32Number);
+
+    // Extract cmsFloat64Number parameters from the data
+    const cmsFloat64Number *params = (const cmsFloat64Number *)data;
 
     // Call the function-under-test
+    cmsToneCurve *curve = cmsBuildParametricToneCurve(context, type, params);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsIT8LoadFromMem to cmsIT8SetPropertyMulti
-    char ulqbooyg[1024] = "snykl";
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsIT8LoadFromMem to cmsIT8SetPropertyUncooked
-    const char gklnxqti[1024] = "ncami";
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsIT8SetPropertyUncooked with cmsIT8SetPropertyStr
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsIT8LoadFromMem to cmsIT8GetData
-
-    const char* ret_cmsIT8GetData_iufgr = cmsIT8GetData(it8Handle, (const char *)"w", (const char *)"w");
-    if (ret_cmsIT8GetData_iufgr == NULL){
-    	return 0;
+    // Clean up
+    if (curve != NULL) {
+        cmsFreeToneCurve(curve);
     }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool ret_cmsIT8SetPropertyUncooked_bdbrz = cmsIT8SetPropertyStr(it8Handle, (const char *)"r", gklnxqti);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_cmsIT8SetPropertyUncooked_bdbrz < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool ret_cmsPlugin_dcshk = cmsPlugin(ulqbooyg);
-    if (ret_cmsPlugin_dcshk < 0){
-    	return 0;
-    }
-    void* ret_cmsGetContextUserData_wohrb = cmsGetContextUserData(0);
-    if (ret_cmsGetContextUserData_wohrb == NULL){
-    	return 0;
-    }
-    void* ret_cmsStageData_duupq = cmsStageData(NULL);
-    if (ret_cmsStageData_duupq == NULL){
-    	return 0;
-    }
-
-    cmsBool ret_cmsIT8SetPropertyMulti_kozzd = cmsIT8SetPropertyMulti(it8Handle, (const char *)ulqbooyg, (const char *)ret_cmsGetContextUserData_wohrb, (const char *)ret_cmsStageData_duupq);
-    if (ret_cmsIT8SetPropertyMulti_kozzd < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    tableCount = cmsIT8TableCount(it8Handle);
-
-    // Clean up the IT8 handle
-    cmsIT8Free(it8Handle);
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_103(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

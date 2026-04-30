@@ -1,46 +1,70 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_497(const uint8_t *data, size_t size) {
-    cmsContext context = NULL; // Assuming a NULL context for simplicity
-    cmsUInt32Number nColors = 10; // Arbitrary non-zero number of colors
-    cmsUInt32Number nChannels = 3; // Arbitrary non-zero number of channels
+    cmsContext context;
+    cmsUInt32Number n;
 
-    // Ensure the size is sufficient to extract strings
-    if (size < 3) { // Need at least 3 bytes to extract two non-empty strings
+    // Ensure that size is sufficient to extract a cmsUInt32Number
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Extract two strings from the input data
-    size_t str1_len = data[0] % (size - 2);
-    size_t str2_len = data[1] % (size - str1_len - 2);
+    // Initialize the context (in a real scenario, this would be set up properly)
+    context = cmsCreateContext(NULL, NULL);
 
-    char *prefix = (char *)malloc(str1_len + 1);
-    char *suffix = (char *)malloc(str2_len + 1);
-
-    if (prefix == NULL || suffix == NULL) {
-        free(prefix);
-        free(suffix);
-        return 0;
-    }
-
-    memcpy(prefix, data + 2, str1_len);
-    prefix[str1_len] = '\0';
-
-    memcpy(suffix, data + 2 + str1_len, str2_len);
-    suffix[str2_len] = '\0';
+    // Extract a cmsUInt32Number from the data
+    n = *(const cmsUInt32Number *)data;
 
     // Call the function-under-test
-    cmsNAMEDCOLORLIST *namedColorList = cmsAllocNamedColorList(context, nColors, nChannels, prefix, suffix);
+    cmsSEQ *seq = cmsAllocProfileSequenceDescription(context, n);
 
     // Clean up
-    if (namedColorList != NULL) {
-        cmsFreeNamedColorList(namedColorList);
+    if (seq != NULL) {
+        cmsFreeProfileSequenceDescription(seq);
     }
-    free(prefix);
-    free(suffix);
+
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_497(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

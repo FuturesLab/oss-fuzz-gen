@@ -3,31 +3,68 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_299(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    cmsHPROFILE hProfile = NULL;
-    cmsIOHANDLER *ioHandler = NULL;
-    cmsContext contextID = NULL;
-    cmsUInt32Number result;
+    // Declare and initialize variables
+    cmsContext context;
+    cmsFloat64Number adaptationState;
 
-    // Create a memory-based IO handler
-    ioHandler = cmsOpenIOhandlerFromMem(contextID, (void*)data, size, "r");
-    if (ioHandler == NULL) {
+    // Ensure size is sufficient to extract a cmsFloat64Number
+    if (size < sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Create a dummy profile for testing
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
-        cmsCloseIOhandler(ioHandler);
+    // Initialize the context
+    context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
         return 0;
     }
 
-    // Call the function under test
-    result = cmsSaveProfileToIOhandler(hProfile, ioHandler);
+    // Extract a cmsFloat64Number from the data
+    adaptationState = *(const cmsFloat64Number *)data;
 
-    // Clean up
-    cmsCloseProfile(hProfile);
-    cmsCloseIOhandler(ioHandler);
+    // Call the function-under-test
+    cmsSetAdaptationStateTHR(context, adaptationState);
+
+    // Cleanup
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_299(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

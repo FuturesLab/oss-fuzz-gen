@@ -1,95 +1,92 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "lcms2.h"
 
-static cmsHPROFILE createDummyProfile(const uint8_t *Data, size_t Size) {
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return NULL;
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
-    return hProfile;
 }
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number)) {
+    if (Size < 1) {
         return 0;
     }
 
-    cmsHPROFILE hProfile = createDummyProfile(Data, Size);
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
     if (!hProfile) {
         return 0;
     }
 
-    // Test cmsGetHeaderRenderingIntent
-    cmsUInt32Number renderingIntent = cmsGetHeaderRenderingIntent(hProfile);
 
-    // Test cmsGetHeaderManufacturer
-    cmsUInt32Number manufacturer = cmsGetHeaderManufacturer(hProfile);
-
-    // Test cmsSetEncodedICCversion
-    cmsUInt32Number version = *(cmsUInt32Number*)Data;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetHeaderManufacturer to cmsAllocNamedColorList
-    cmsContext ret_cmsGetProfileContextID_vikbh = cmsGetProfileContextID(0);
-
-    cmsNAMEDCOLORLIST* ret_cmsAllocNamedColorList_ablpt = cmsAllocNamedColorList(ret_cmsGetProfileContextID_vikbh, manufacturer, cmsD50Z, (const char *)"r", (const char *)"w");
-    if (ret_cmsAllocNamedColorList_ablpt == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsSetHeaderManufacturer
+    cmsFloat64Number ret_cmsSetAdaptationState_orodx = cmsSetAdaptationState(cmsERROR_NULL);
+    if (ret_cmsSetAdaptationState_orodx < 0){
     	return 0;
     }
-
+    cmsSetHeaderManufacturer(hProfile, (unsigned long )ret_cmsSetAdaptationState_orodx);
     // End mutation: Producer.APPEND_MUTATOR
-
-    cmsSetEncodedICCversion(hProfile, version);
-
-    // Test cmsSetHeaderRenderingIntent
-    cmsUInt32Number newRenderingIntent = *(cmsUInt32Number*)Data;
-    cmsSetHeaderRenderingIntent(hProfile, newRenderingIntent);
-
-    // Test cmsGetHeaderCreator
-    cmsUInt32Number creator = cmsGetHeaderCreator(hProfile);
-
-    // Test cmsGetHeaderModel
-    cmsUInt32Number model = cmsGetHeaderModel(hProfile);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectDestinationBlackPoint
-    int ret_cmsGetEncodedCMMversion_umzsz = cmsGetEncodedCMMversion();
-    if (ret_cmsGetEncodedCMMversion_umzsz < 0){
-    	return 0;
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
     }
-    cmsCIEXYZ kafewiyi;
-    memset(&kafewiyi, 0, sizeof(kafewiyi));
-
-    cmsBool ret_cmsDetectDestinationBlackPoint_pifxj = cmsDetectDestinationBlackPoint(&kafewiyi, hProfile, 1, (unsigned long )ret_cmsGetEncodedCMMversion_umzsz);
-    if (ret_cmsDetectDestinationBlackPoint_pifxj < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDetectDestinationBlackPoint to cmsDoTransform
-    const cmsSEQ wdbqffoi;
-    memset(&wdbqffoi, 0, sizeof(wdbqffoi));
-    cmsSEQ* ret_cmsDupProfileSequenceDescription_ewzjl = cmsDupProfileSequenceDescription(&wdbqffoi);
-    if (ret_cmsDupProfileSequenceDescription_ewzjl == NULL){
-    	return 0;
-    }
-
-    cmsDoTransform(0, (const void *)&kafewiyi, (void *)ret_cmsDupProfileSequenceDescription_ewzjl, INTENT_PRESERVE_K_PLANE_RELATIVE_COLORIMETRIC);
-
-    // End mutation: Producer.APPEND_MUTATOR
 
     cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_70(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

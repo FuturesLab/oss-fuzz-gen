@@ -1,24 +1,78 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <lcms2.h> // Include the Little CMS library header
-
-// Function signature to be fuzzed
-int _cmsLCMScolorSpace(cmsColorSpaceSignature signature);
+#include <stdlib.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_203(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract a cmsColorSpaceSignature
-    if (size < sizeof(cmsColorSpaceSignature)) {
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Extract a cmsColorSpaceSignature from the input data
-    cmsColorSpaceSignature signature = *(const cmsColorSpaceSignature *)data;
+    cmsContext context;
+    void *userData = (void *)data;
 
-    // Call the function-under-test with the extracted signature
-    int result = _cmsLCMScolorSpace(signature);
+    // Initialize a dummy context using cmsCreateContext
+    context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
+        return 0;
+    }
 
-    // Use the result to avoid compiler optimizations that might skip the function call
-    (void)result;
+    // Extract a cmsUInt32Number from the input data to use it meaningfully
+    cmsUInt32Number intent = *(cmsUInt32Number *)data;
+
+    // Call the function-under-test with a valid intent
+    cmsContext duplicatedContext = cmsDupContext(context, userData);
+    if (duplicatedContext != NULL) {
+        // Create an array of cmsUInt16Number to pass to cmsSetAlarmCodes
+        cmsUInt16Number alarmCodes[cmsMAXCHANNELS] = {0}; // Initialize with zeros or any valid values
+
+        // Use the duplicated context with a valid function call
+        cmsSetAlarmCodes(alarmCodes);
+    }
+
+    // Clean up
+    cmsDeleteContext(context);
+    if (duplicatedContext != NULL) {
+        cmsDeleteContext(duplicatedContext);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_203(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

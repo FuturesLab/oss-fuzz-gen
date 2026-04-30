@@ -1,3 +1,5 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,88 +10,91 @@
 #include <cstdint>
 #include <cstddef>
 #include "curl/curl.h"
-#include "/src/curl/include/curl/urlapi.h"
-#include "/src/curl/include/curl/easy.h"
-#include "/src/curl/include/curl/multi.h"
-#include <cstdint>
-#include <cstdio>
-
-static void test_curl_multi_strerror() {
-    CURLMcode codes[] = {CURLM_OK, CURLM_BAD_HANDLE, CURLM_BAD_EASY_HANDLE, CURLM_OUT_OF_MEMORY};
-    for (CURLMcode code : codes) {
-        const char *error_msg = curl_multi_strerror(code);
-        if (error_msg) {
-            printf("curl_multi_strerror: %s\n", error_msg);
-        }
-    }
-}
-
-static void test_curl_easy_setopt(CURL *curl) {
-    if (!curl) return;
-    
-    CURLoption options[] = {CURLOPT_URL, CURLOPT_FOLLOWLOCATION, CURLOPT_TIMEOUT};
-    for (CURLoption option : options) {
-        CURLcode res;
-        if (option == CURLOPT_URL) {
-            // Provide a valid URL for CURLOPT_URL
-            res = curl_easy_setopt(curl, option, "http://example.com");
-        } else {
-            res = curl_easy_setopt(curl, option, 1L);
-        }
-        if (res != CURLE_OK) {
-            printf("curl_easy_setopt error: %s\n", curl_easy_strerror(res));
-        }
-    }
-}
-
-static void test_curl_version() {
-    const char *version = curl_version();
-    if (version) {
-        printf("curl_version: %s\n", version);
-    }
-}
-
-static void test_curl_easy_strerror() {
-    CURLcode codes[] = {CURLE_OK, CURLE_UNSUPPORTED_PROTOCOL, CURLE_FAILED_INIT, CURLE_URL_MALFORMAT};
-    for (CURLcode code : codes) {
-        const char *error_msg = curl_easy_strerror(code);
-        if (error_msg) {
-            printf("curl_easy_strerror: %s\n", error_msg);
-        }
-    }
-}
-
-static void test_curl_url_strerror() {
-    CURLUcode codes[] = {CURLUE_OK, CURLUE_BAD_HANDLE, CURLUE_BAD_PARTPOINTER, CURLUE_MALFORMED_INPUT};
-    for (CURLUcode code : codes) {
-        const char *error_msg = curl_url_strerror(code);
-        if (error_msg) {
-            printf("curl_url_strerror: %s\n", error_msg);
-        }
-    }
-}
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    // Initialize curl globally
-    if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Create easy handle
+    // Fuzzing Wcurl_easy_getinfo_err_long
+    long info_value = 0;
+    CURLcode res = curl_easy_getinfo(NULL, static_cast<CURLINFO>(Data[0]), &info_value);
+
+    // Fuzzing curl_escape
+    char *escaped = curl_escape(reinterpret_cast<const char *>(Data), Size);
+    if (escaped) {
+        curl_free(escaped);
+    }
+
+    // Fuzzing Wcurl_easy_setopt_err_sockopt_cb
     CURL *curl = curl_easy_init();
-    test_curl_easy_setopt(curl);
     if (curl) {
+        res = curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, reinterpret_cast<curl_sockopt_callback>(const_cast<uint8_t *>(Data)));
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function curl_easy_cleanup with curl_easy_reset
+        curl_easy_reset(curl);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
+
+    // Fuzzing Wcurl_easy_setopt_err_curlu
+    curl = curl_easy_init();
+    if (curl) {
+        CURLU *url = curl_url();
+        if (url) {
+            res = curl_easy_setopt(curl, CURLOPT_CURLU, url);
+            curl_url_cleanup(url);
+        }
         curl_easy_cleanup(curl);
     }
 
-    // Test other functions
-    test_curl_multi_strerror();
-    test_curl_version();
-    test_curl_easy_strerror();
-    test_curl_url_strerror();
+    // Fuzzing Wcurl_easy_setopt_err_trailer_cb
+    curl = curl_easy_init();
+    if (curl) {
+        res = curl_easy_setopt(curl, CURLOPT_TRAILERFUNCTION, reinterpret_cast<curl_trailer_callback>(const_cast<uint8_t *>(Data)));
+        curl_easy_cleanup(curl);
+    }
 
-    // Cleanup curl globally
-    curl_global_cleanup();
+    // Fuzzing Wcurl_easy_getinfo_err_curl_off_t
+    curl_off_t off_value = 0;
+    res = curl_easy_getinfo(NULL, static_cast<CURLINFO>(Data[0]), &off_value);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

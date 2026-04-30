@@ -1,44 +1,68 @@
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <cstdlib> // Include for malloc and free
 #include <curl/curl.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    CURL *curl;
-    CURLcode res;
-    void *buffer;
-    size_t buffer_size;
-    size_t n;
-
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (!curl) {
-        return 0;
+    // Ensure the data is null-terminated to safely pass as a C string
+    char *input = static_cast<char*>(malloc(size + 1));
+    if (input == nullptr) {
+        return 0; // If memory allocation fails, exit early
     }
 
-    // Set a dummy URL to initialize the CURL handle
-    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the string
 
-    // Allocate a buffer to receive data
-    buffer_size = size > 0 ? size : 1; // Ensure buffer size is at least 1
-    buffer = malloc(buffer_size);
-    if (!buffer) {
-        curl_easy_cleanup(curl);
-        curl_global_cleanup();
-        return 0;
+    // Call the function-under-test
+    char *result = curl_unescape(input, static_cast<int>(size));
+
+    // Free the result if it is not NULL
+    if (result != nullptr) {
+        curl_free(result);
     }
 
-    // Copy the input data to the buffer
-    memcpy(buffer, data, buffer_size);
-
-    // Perform the curl_easy_recv operation
-    res = curl_easy_recv(curl, buffer, buffer_size, &n);
-
-    // Cleanup
-    free(buffer);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
+    // Free the allocated input
+    free(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

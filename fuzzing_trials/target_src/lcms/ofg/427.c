@@ -3,28 +3,62 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_427(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract the required parameters
-    if (size < sizeof(double) * 4 + sizeof(cmsCIELab)) {
-        return 0;
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    if (context != NULL) {
+        cmsHANDLE handle = cmsIT8Alloc(context);
+
+        // Use the handle in some way if necessary
+        // For example, you could check if the handle is not NULL
+        if (handle != NULL) {
+            // Do something with the handle if required
+
+            // Free the handle after usage
+            cmsIT8Free(handle);
+        }
+
+        // Free the context after usage
+        cmsDeleteContext(context);
     }
-
-    // Initialize the cmsCIELab structure
-    cmsCIELab lab;
-    lab.L = (double)data[0]; // Using the first byte for L
-    lab.a = (double)data[1]; // Using the second byte for a
-    lab.b = (double)data[2]; // Using the third byte for b
-
-    // Extract double values from the data
-    double d1 = *(double*)(data + 3);
-    double d2 = *(double*)(data + 3 + sizeof(double));
-    double d3 = *(double*)(data + 3 + 2 * sizeof(double));
-    double d4 = *(double*)(data + 3 + 3 * sizeof(double));
-
-    // Call the function under test
-    cmsBool result = cmsDesaturateLab(&lab, d1, d2, d3, d4);
-
-    // Use the result to prevent it from being optimized out
-    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_427(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

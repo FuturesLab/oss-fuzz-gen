@@ -1,46 +1,66 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    cmsNAMEDCOLORLIST *originalList = NULL;
-    cmsNAMEDCOLORLIST *duplicatedList = NULL;
-    cmsContext contextID = cmsCreateContext(NULL, NULL);
+    cmsHPROFILE hProfile;
+    cmsUInt32Number model;
 
-    // Ensure the size is sufficient for creating a named color list
-    if (size < 6) {
-        cmsDeleteContext(contextID);
+    // Ensure the data is not empty and has a reasonable size
+    if (size == 0) {
         return 0;
     }
 
-    // Create a named color list with a single color entry
-    originalList = cmsAllocNamedColorList(contextID, 1, 32, "Prefix", "Suffix");
-    if (originalList == NULL) {
-        cmsDeleteContext(contextID);
+    // Create a memory-based profile using the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
         return 0;
     }
 
-    // Add a color to the named color list
-    cmsUInt16Number PCS[3] = { data[2], data[3], 0 };  // Assuming data[2] and data[3] are sufficient
-    cmsUInt16Number Colorant[3] = { data[4], data[5], 0 }; // Assuming data[4] and data[5] are sufficient
+    // Call the function-under-test
+    model = cmsGetHeaderModel(hProfile);
 
-    // Fix the call to cmsNamedColorInfo by providing correct arguments
-    char name[32];
-    snprintf(name, sizeof(name), "%c", data[0]); // Use data[0] as a single character name
-
-    cmsNamedColorInfo(originalList, 0, name, "Prefix", "Suffix", PCS, Colorant);
-
-    // Call the function under test
-    duplicatedList = cmsDupNamedColorList(originalList);
-
-    // Clean up
-    cmsFreeNamedColorList(originalList);
-    if (duplicatedList != NULL) {
-        cmsFreeNamedColorList(duplicatedList);
-    }
-    cmsDeleteContext(contextID);
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

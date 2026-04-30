@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -7,62 +8,117 @@
 #include <stdlib.h>
 #include "lcms2.h"
 
-static cmsToneCurve* create_random_tone_curve(cmsContext ContextID, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number)) return NULL;
-
-    cmsUInt32Number nEntries = *(cmsUInt32Number*)Data;
-    Data += sizeof(cmsUInt32Number);
-    Size -= sizeof(cmsUInt32Number);
-
-    if (Size < nEntries * sizeof(cmsUInt16Number)) return NULL;
-
-    cmsUInt16Number* values = (cmsUInt16Number*)malloc(nEntries * sizeof(cmsUInt16Number));
-    if (!values) return NULL;
-
-    for (cmsUInt32Number i = 0; i < nEntries; i++) {
-        values[i] = *(cmsUInt16Number*)Data;
-        Data += sizeof(cmsUInt16Number);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-
-    cmsToneCurve* curve = cmsBuildTabulatedToneCurve16(ContextID, nEntries, values);
-    free(values);
-    return curve;
 }
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *Data, size_t Size) {
-    cmsContext ContextID = NULL; // Using default context
-
-    // Create a random tone curve
-    cmsToneCurve* curve = create_random_tone_curve(ContextID, Data, Size);
-    if (!curve) return 0;
-
-    // Duplicate the tone curve
-    cmsToneCurve* dupCurve = cmsDupToneCurve(curve);
-    if (dupCurve) {
-        cmsFreeToneCurveTriple((cmsToneCurve*[]){dupCurve, NULL, NULL});
+    if (Size < 1) {
+        return 0;
     }
 
-    // Evaluate tone curve
-    if (Size >= sizeof(cmsUInt16Number)) {
-        cmsUInt16Number inputValue = *(cmsUInt16Number*)Data;
-        cmsEvalToneCurve16(curve, inputValue);
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
     }
 
-    // Get estimated table
-    const cmsUInt16Number* table = cmsGetToneCurveEstimatedTable(curve);
-    if (table) {
-        // Just accessing it to ensure it's not NULL
-        (void)table;
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
     }
 
-    // Reverse tone curve
-    cmsToneCurve* reverseCurve = cmsReverseToneCurve(curve);
-    if (reverseCurve) {
-        cmsFreeToneCurveTriple((cmsToneCurve*[]){reverseCurve, NULL, NULL});
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTagCount to cmsIT8SetDataRowCol
+    cmsHANDLE ret_cmsIT8Alloc_qskse = cmsIT8Alloc(0);
+    cmsFloat64Number ret_cmsDetectTAC_tzzrr = cmsDetectTAC(hProfile);
+    if (ret_cmsDetectTAC_tzzrr < 0){
+    	return 0;
     }
 
-    // Free original tone curve
-    cmsFreeToneCurveTriple((cmsToneCurve*[]){curve, NULL, NULL});
-
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDetectTAC to cmsCreateTransform
+    cmsHPROFILE ret_cmsCreateProfilePlaceholder_gygmz = cmsCreateProfilePlaceholder(0);
+    cmsUInt32Number ret_cmsGetTransformInputFormat_naxif = cmsGetTransformInputFormat(0);
+    if (ret_cmsGetTransformInputFormat_naxif < 0){
+    	return 0;
+    }
+    cmsHPROFILE ret_cmsCreateNULLProfile_gfqxh = cmsCreateNULLProfile();
+    cmsFloat64Number ret_cmsSetAdaptationState_egxua = cmsSetAdaptationState(cmsERROR_READ);
+    if (ret_cmsSetAdaptationState_egxua < 0){
+    	return 0;
+    }
+    cmsFloat64Number ret_cmsSetAdaptationState_vxpla = cmsSetAdaptationState(INTENT_PRESERVE_K_ONLY_PERCEPTUAL);
+    if (ret_cmsSetAdaptationState_vxpla < 0){
+    	return 0;
+    }
+    cmsHTRANSFORM ret_cmsCreateTransform_hbvwe = cmsCreateTransform(ret_cmsCreateProfilePlaceholder_gygmz, ret_cmsGetTransformInputFormat_naxif, ret_cmsCreateNULLProfile_gfqxh, (unsigned long )ret_cmsDetectTAC_tzzrr, (unsigned long )ret_cmsSetAdaptationState_egxua, (unsigned long )ret_cmsSetAdaptationState_vxpla);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char yrkzfanc[1024] = "eughr";
+    cmsBool ret_cmsPlugin_zhwva = cmsPlugin(yrkzfanc);
+    if (ret_cmsPlugin_zhwva < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!yrkzfanc) {
+    	return 0;
+    }
+    cmsBool ret_cmsIT8SetDataRowCol_linjo = cmsIT8SetDataRowCol(ret_cmsIT8Alloc_qskse, (int )ret_cmsDetectTAC_tzzrr, tagCount, (const char *)yrkzfanc);
+    if (ret_cmsIT8SetDataRowCol_linjo < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_91(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

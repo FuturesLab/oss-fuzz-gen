@@ -1,50 +1,85 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include for mkstemp, write, close, and unlink
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    cmsHANDLE it8Handle = NULL;
-    cmsUInt32Number tableCount;
+    cmsHANDLE handle;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
 
     // Ensure the data is not empty
     if (size == 0) {
         return 0;
     }
 
-    // Initialize the IT8 handle with the data
-    it8Handle = cmsIT8LoadFromMem(NULL, data, size);  // Pass NULL for the cmsContext
-    if (it8Handle == NULL) {
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    // Initialize a cmsHANDLE for testing
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
     // Call the function-under-test
+    cmsIT8SaveToFile(handle, tmpl);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsIT8LoadFromMem to cmsIT8SetPropertyMulti
-    char ulqbooyg[1024] = "snykl";
-    cmsBool ret_cmsPlugin_dcshk = cmsPlugin(ulqbooyg);
-    if (ret_cmsPlugin_dcshk < 0){
-    	return 0;
-    }
-    void* ret_cmsGetContextUserData_wohrb = cmsGetContextUserData(0);
-    if (ret_cmsGetContextUserData_wohrb == NULL){
-    	return 0;
-    }
-    void* ret_cmsStageData_duupq = cmsStageData(NULL);
-    if (ret_cmsStageData_duupq == NULL){
-    	return 0;
-    }
-
-    cmsBool ret_cmsIT8SetPropertyMulti_kozzd = cmsIT8SetPropertyMulti(it8Handle, (const char *)ulqbooyg, (const char *)ret_cmsGetContextUserData_wohrb, (const char *)ret_cmsStageData_duupq);
-    if (ret_cmsIT8SetPropertyMulti_kozzd < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    tableCount = cmsIT8TableCount(it8Handle);
-
-    // Clean up the IT8 handle
-    cmsIT8Free(it8Handle);
+    // Clean up
+    cmsIT8Free(handle);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_59(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -5,108 +6,125 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include "lcms2.h"
 
-static void fuzz_cmsCreateBCHSWabstractProfile(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number) + 2 * sizeof(cmsUInt32Number)) {
-        return;
-    }
-
-    cmsUInt32Number nLUTPoints = *(cmsUInt32Number*)(Data);
-    cmsFloat64Number Bright = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number));
-    cmsFloat64Number Contrast = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number) + sizeof(cmsFloat64Number));
-    cmsFloat64Number Hue = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number) + 2 * sizeof(cmsFloat64Number));
-    cmsFloat64Number Saturation = *(cmsFloat64Number*)(Data + sizeof(cmsUInt32Number) + 3 * sizeof(cmsFloat64Number));
-    cmsUInt32Number TempSrc = *(cmsUInt32Number*)(Data + sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number));
-    cmsUInt32Number TempDest = *(cmsUInt32Number*)(Data + sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number) + sizeof(cmsUInt32Number));
-
-    cmsHPROFILE hProfile = cmsCreateBCHSWabstractProfile(nLUTPoints, Bright, Contrast, Hue, Saturation, TempSrc, TempDest);
-    if (hProfile) {
-        cmsCloseProfile(hProfile);
-    }
-}
-
-static void fuzz_cmsCreateLinearizationDeviceLink(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsColorSpaceSignature) + sizeof(cmsToneCurve*)) {
-        return;
-    }
-
-    cmsColorSpaceSignature ColorSpace = *(cmsColorSpaceSignature*)(Data);
-    cmsToneCurve* TransferFunctions[1] = { NULL }; // For simplicity, using a single NULL tone curve
-
-    cmsHPROFILE hProfile = cmsCreateLinearizationDeviceLink(ColorSpace, TransferFunctions);
-    if (hProfile) {
-        cmsCloseProfile(hProfile);
-    }
-}
-
-static void fuzz_cmsCreateInkLimitingDeviceLink(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsColorSpaceSignature) + sizeof(cmsFloat64Number)) {
-        return;
-    }
-
-    cmsColorSpaceSignature ColorSpace = *(cmsColorSpaceSignature*)(Data);
-    cmsFloat64Number Limit = *(cmsFloat64Number*)(Data + sizeof(cmsColorSpaceSignature));
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of cmsCreateInkLimitingDeviceLink
-    cmsHPROFILE hProfile = cmsCreateInkLimitingDeviceLink(ColorSpace, cmsPERCEPTUAL_BLACK_Y);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (hProfile) {
-        cmsCloseProfile(hProfile);
-    }
-}
-
-static void fuzz_cmsChannelsOfColorSpace(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsColorSpaceSignature)) {
-        return;
-    }
-
-    cmsColorSpaceSignature ColorSpace = *(cmsColorSpaceSignature*)(Data);
-
-    cmsInt32Number channels = cmsChannelsOfColorSpace(ColorSpace);
-}
-
-static void fuzz_cmsCreateLinearizationDeviceLinkTHR(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsContext) + sizeof(cmsColorSpaceSignature) + sizeof(cmsToneCurve*)) {
-        return;
-    }
-
-    cmsContext ContextID = *(cmsContext*)(Data);
-    cmsColorSpaceSignature ColorSpace = *(cmsColorSpaceSignature*)(Data + sizeof(cmsContext));
-    cmsToneCurve* TransferFunctions[1] = { NULL }; // For simplicity, using a single NULL tone curve
-
-    cmsHPROFILE hProfile = cmsCreateLinearizationDeviceLinkTHR(ContextID, ColorSpace, TransferFunctions);
-    if (hProfile) {
-        cmsCloseProfile(hProfile);
-    }
-}
-
-static void fuzz_cmsCreateInkLimitingDeviceLinkTHR(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsContext) + sizeof(cmsColorSpaceSignature) + sizeof(cmsFloat64Number)) {
-        return;
-    }
-
-    cmsContext ContextID = *(cmsContext*)(Data);
-    cmsColorSpaceSignature ColorSpace = *(cmsColorSpaceSignature*)(Data + sizeof(cmsContext));
-    cmsFloat64Number Limit = *(cmsFloat64Number*)(Data + sizeof(cmsContext) + sizeof(cmsColorSpaceSignature));
-
-    cmsHPROFILE hProfile = cmsCreateInkLimitingDeviceLinkTHR(ContextID, ColorSpace, Limit);
-    if (hProfile) {
-        cmsCloseProfile(hProfile);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
-    fuzz_cmsCreateBCHSWabstractProfile(Data, Size);
-    fuzz_cmsCreateLinearizationDeviceLink(Data, Size);
-    fuzz_cmsCreateInkLimitingDeviceLink(Data, Size);
-    fuzz_cmsChannelsOfColorSpace(Data, Size);
-    fuzz_cmsCreateLinearizationDeviceLinkTHR(Data, Size);
-    fuzz_cmsCreateInkLimitingDeviceLinkTHR(Data, Size);
+    if (Size < 1) {
+        return 0;
+    }
 
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectRGBProfileGamma
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsGetPostScriptColorResource
+    cmsContext ret_cmsGetProfileContextID_jdpzv = cmsGetProfileContextID(hProfile);
+    cmsFloat64Number ret_cmsSetAdaptationState_vjhas = cmsSetAdaptationState(LCMS_USED_AS_INPUT);
+    if (ret_cmsSetAdaptationState_vjhas < 0){
+    	return 0;
+    }
+    cmsUInt32Number ret_cmsGetTransformOutputFormat_nobfd = cmsGetTransformOutputFormat(0);
+    if (ret_cmsGetTransformOutputFormat_nobfd < 0){
+    	return 0;
+    }
+    cmsIOHANDLER* ret_cmsGetProfileIOhandler_juqsa = cmsGetProfileIOhandler(hProfile);
+    if (ret_cmsGetProfileIOhandler_juqsa == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_cmsGetProfileIOhandler_juqsa) {
+    	return 0;
+    }
+    cmsUInt32Number ret_cmsGetPostScriptColorResource_eqlra = cmsGetPostScriptColorResource(ret_cmsGetProfileContextID_jdpzv, 0, hProfile, (unsigned long )ret_cmsSetAdaptationState_vjhas, ret_cmsGetTransformOutputFormat_nobfd, ret_cmsGetProfileIOhandler_juqsa);
+    if (ret_cmsGetPostScriptColorResource_eqlra < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsBool ret_cmsPlugin_aizyx = cmsPlugin(NULL);
+    if (ret_cmsPlugin_aizyx < 0){
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsPlugin to cmsIT8GetPatchName
+    cmsHANDLE ret_cmsIT8Alloc_jgffr = cmsIT8Alloc(0);
+    char asrmytoq[1024] = "bsstv";
+    const char* ret_cmsIT8GetPatchName_qbbnq = cmsIT8GetPatchName(ret_cmsIT8Alloc_jgffr, ret_cmsPlugin_aizyx, asrmytoq);
+    if (ret_cmsIT8GetPatchName_qbbnq == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsFloat64Number ret_cmsDetectRGBProfileGamma_mbsbe = cmsDetectRGBProfileGamma(hProfile, (double )ret_cmsPlugin_aizyx);
+    if (ret_cmsDetectRGBProfileGamma_mbsbe < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    }
+
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_47(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

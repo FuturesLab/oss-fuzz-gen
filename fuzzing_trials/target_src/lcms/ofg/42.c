@@ -1,38 +1,65 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <lcms2.h>
 
-// Fuzzing function
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty and has enough bytes for at least one cmsUInt16Number
-    if (size < sizeof(cmsUInt16Number)) {
-        return 0; // Not enough data to proceed
+    // Ensure we have enough data to work with
+    if (size < sizeof(cmsFloat64Number)) {
+        return 0;
     }
 
-    // Calculate the number of cmsUInt16Number elements we can safely extract from the input data
-    size_t numCodes = size / sizeof(cmsUInt16Number);
+    // Initialize a cmsToneCurve object
+    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Example gamma value
 
-    // Limit the number of codes to cmsMAXCHANNELS as per the function's requirement
-    if (numCodes > cmsMAXCHANNELS) {
-        numCodes = cmsMAXCHANNELS;
-    }
+    // Extract a cmsFloat64Number from the input data
+    cmsFloat64Number smoothnessValue;
+    memcpy(&smoothnessValue, data, sizeof(cmsFloat64Number));
 
-    // Allocate memory for the alarm codes
-    cmsUInt16Number *alarmCodes = (cmsUInt16Number *)malloc(numCodes * sizeof(cmsUInt16Number));
-    if (alarmCodes == NULL) {
-        return 0; // Memory allocation failed
-    }
+    // Call the function-under-test
+    cmsBool result = cmsSmoothToneCurve(toneCurve, smoothnessValue);
 
-    // Safely copy the data into alarmCodes, ensuring no buffer overflow occurs
-    memcpy(alarmCodes, data, numCodes * sizeof(cmsUInt16Number));
-
-    // Call the function under test with the correct number of codes
-    cmsGetAlarmCodes(alarmCodes);
-
-    // Free the allocated memory
-    free(alarmCodes);
+    // Clean up
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

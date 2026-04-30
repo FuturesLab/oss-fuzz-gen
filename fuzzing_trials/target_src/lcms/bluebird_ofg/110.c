@@ -1,68 +1,86 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h> // Include for memcpy
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the parameters
-    cmsContext context = (cmsContext)1; // Example non-NULL context
+    cmsHPROFILE handle;
+    cmsCIELab cielab;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of cmsOpenProfileFromMem
-    cmsHPROFILE inputProfile = cmsOpenProfileFromMem(data, cmsPERCEPTUAL_BLACK_Y);
+    // Ensure the data size is sufficient to fill a cmsCIELab structure
+    if (size < sizeof(cmsCIELab)) {
+        return 0;
+    }
+
+    // Initialize cmsCIELab with data from the input
+    memcpy(&cielab, data, sizeof(cmsCIELab));
+
+    // Ensure there is enough data left for a valid profile after cmsCIELab
+    if (size < sizeof(cmsCIELab) + sizeof(cmsHPROFILE)) {
+        return 0;
+    }
+
+    // Initialize cmsHPROFILE (assuming a profile handle for the sake of example)
+    handle = cmsOpenProfileFromMem(data + sizeof(cmsCIELab), size - sizeof(cmsCIELab));
+    if (handle == NULL) {
+        return 0; // If the profile cannot be opened, exit early
+    }
+
+    // Validate the profile to ensure it's not corrupted
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of cmsIsIntentSupported
+    if (!cmsIsIntentSupported(handle, INTENT_PERCEPTUAL, PT_Yxy)) {
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    cmsHPROFILE outputProfile = cmsOpenProfileFromMem(data, size);
-    cmsUInt32Number inputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number outputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number intent = INTENT_PERCEPTUAL; // Example intent
-    cmsUInt32Number flags = 0; // No flags
-
-    // Ensure that inputProfile and outputProfile are not NULL
-    if (inputProfile != NULL && outputProfile != NULL) {
-        // Call the function to fuzz
-        cmsHTRANSFORM transform = cmsCreateTransformTHR(context, inputProfile, inputFormat, outputProfile, outputFormat, intent, flags);
-
-        // Clean up
-        if (transform != NULL) {
-            cmsDeleteTransform(transform);
-        }
-    }
-
-    if (inputProfile != NULL) {
-        cmsCloseProfile(inputProfile);
-    }
-    if (outputProfile != NULL) {
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetProfileInfoASCII
-    const char uzdstxgy[1024] = "bxngg";
-
-    cmsUInt32Number ret_cmsGetProfileInfoASCII_uswxm = cmsGetProfileInfoASCII(outputProfile, 0, uzdstxgy, (const char *)"r", (char *)data, cmsD50Y);
-    if (ret_cmsGetProfileInfoASCII_uswxm < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
         // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetPostScriptCSA
-    cmsFloat64Number ret_cmsSetAdaptationState_zafzx = cmsSetAdaptationState(INTENT_PRESERVE_K_PLANE_SATURATION);
-    if (ret_cmsSetAdaptationState_zafzx < 0){
-    	return 0;
-    }
-    char nbdqtpnm[1024] = "exvau";
-
-    cmsUInt32Number ret_cmsGetPostScriptCSA_aiyne = cmsGetPostScriptCSA(0, outputProfile, 64, PT_XYZ, nbdqtpnm, (unsigned long )ret_cmsSetAdaptationState_zafzx);
-    if (ret_cmsGetPostScriptCSA_aiyne < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-        cmsMD5computeID(outputProfile);
+        cmsMD5computeID(handle);
         // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        return 0;
+    }
 
+    // Call the function-under-test
+    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
 
-    }  return 0;
+    // Clean up
+    cmsCloseProfile(handle);
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_110(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

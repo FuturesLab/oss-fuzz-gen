@@ -1,47 +1,62 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <lcms2.h>
+#include <lcms2_plugin.h>
+#include <lcms2.h>  // Include the main Little CMS header for cmsDICTentry and related functions
 
 int LLVMFuzzerTestOneInput_187(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    cmsHPROFILE hInputProfile = cmsCreate_sRGBProfile();
-    cmsUInt32Number InputFormat = TYPE_RGB_8;
-    cmsHPROFILE hOutputProfile = cmsCreate_sRGBProfile();
-    cmsUInt32Number OutputFormat = TYPE_RGB_8;
-    cmsHPROFILE hProofingProfile = cmsCreate_sRGBProfile();
-    cmsUInt32Number ProofingIntent = INTENT_PERCEPTUAL;
-    cmsUInt32Number TransformIntent = INTENT_RELATIVE_COLORIMETRIC;
-    cmsUInt32Number dwFlags = cmsFLAGS_SOFTPROOFING;
+    // Initialize a cmsDICTentry object
+    cmsDICTentry entry;
+    entry.Next = NULL;  // Initialize the Next pointer to NULL
+    entry.Name = (const char *)data;  // Use the fuzzing data as the name
+    entry.Value = (const char *)data; // Use the fuzzing data as the value
+    entry.DisplayName = (const char *)data; // Use the fuzzing data as the display name
+    entry.DisplayValue = (const char *)data; // Use the fuzzing data as the display value
 
-    // Call the function under test
-    cmsHTRANSFORM hTransform = cmsCreateProofingTransform(
-        hInputProfile,
-        InputFormat,
-        hOutputProfile,
-        OutputFormat,
-        hProofingProfile,
-        ProofingIntent,
-        TransformIntent,
-        dwFlags
-    );
+    // Call the function-under-test
+    const cmsDICTentry *nextEntry = cmsDictNextEntry(&entry);
 
-    // Use the data input to perform some operations
-    if (hTransform != NULL && data != NULL && size > 0) {
-        // Assuming data is in the correct format, process it
-        uint8_t *outputData = (uint8_t *)malloc(size);
-        if (outputData != NULL) {
-            cmsDoTransform(hTransform, data, outputData, size / 3);
-            free(outputData);
-        }
-    }
-
-    // Clean up resources
-    if (hTransform != NULL) {
-        cmsDeleteTransform(hTransform);
-    }
-    cmsCloseProfile(hInputProfile);
-    cmsCloseProfile(hOutputProfile);
-    cmsCloseProfile(hProofingProfile);
+    // To avoid unused variable warning
+    (void)nextEntry;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_187(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

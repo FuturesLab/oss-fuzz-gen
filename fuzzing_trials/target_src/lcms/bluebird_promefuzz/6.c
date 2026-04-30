@@ -1,90 +1,104 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include "lcms2.h"
 
-static void fuzz_cmsCIECAM02Reverse(cmsHANDLE hModel, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsJCh)) {
-        return;
-    }
-
-    cmsJCh* pIn = (cmsJCh*)Data;
-    cmsCIEXYZ pOut;
-    cmsCIECAM02Reverse(hModel, pIn, &pOut);
-}
-
-static void fuzz_cmsCIECAM02Done(cmsHANDLE hModel) {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCIECAM02Done with cmsGBDFree
-    cmsGBDFree(hModel);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-}
-
-static void fuzz_cmsCIE2000DeltaE(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(cmsCIELab) + 3 * sizeof(cmsFloat64Number)) {
-        return;
-    }
-
-    const cmsCIELab* Lab1 = (const cmsCIELab*)Data;
-    const cmsCIELab* Lab2 = (const cmsCIELab*)(Data + sizeof(cmsCIELab));
-    cmsFloat64Number Kl = *((cmsFloat64Number*)(Data + 2 * sizeof(cmsCIELab)));
-    cmsFloat64Number Kc = *((cmsFloat64Number*)(Data + 2 * sizeof(cmsCIELab) + sizeof(cmsFloat64Number)));
-    cmsFloat64Number Kh = *((cmsFloat64Number*)(Data + 2 * sizeof(cmsCIELab) + 2 * sizeof(cmsFloat64Number)));
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of cmsCIE2000DeltaE
-    cmsCIE2000DeltaE(Lab1, Lab2, Kl, Kc, PT_HLS);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-}
-
-static void fuzz_cmsLab2LCh(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIELab)) {
-        return;
-    }
-
-    cmsCIELCh LCh;
-    const cmsCIELab* Lab = (const cmsCIELab*)Data;
-    cmsLab2LCh(&LCh, Lab);
-}
-
-static void fuzz_cmsCIECAM02Forward(cmsHANDLE hModel, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsCIEXYZ)) {
-        return;
-    }
-
-    const cmsCIEXYZ* pIn = (const cmsCIEXYZ*)Data;
-    cmsJCh pOut;
-    cmsCIECAM02Forward(hModel, pIn, &pOut);
-}
-
-static void fuzz_cmsCIECAM02Init(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsViewingConditions)) {
-        return;
-    }
-
-    cmsContext ContextID = NULL; // Assuming default context
-    const cmsViewingConditions* pVC = (const cmsViewingConditions*)Data;
-    cmsHANDLE hModel = cmsCIECAM02Init(ContextID, pVC);
-
-    if (hModel) {
-        fuzz_cmsCIECAM02Reverse(hModel, Data, Size);
-        fuzz_cmsCIECAM02Forward(hModel, Data, Size);
-        fuzz_cmsCIECAM02Done(hModel);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    fuzz_cmsCIE2000DeltaE(Data, Size);
-    fuzz_cmsLab2LCh(Data, Size);
-    fuzz_cmsCIECAM02Init(Data, Size);
+    if (Size < 1) {
+        return 0;
+    }
+
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectRGBProfileGamma
+    cmsBool ret_cmsPlugin_aizyx = cmsPlugin(NULL);
+    if (ret_cmsPlugin_aizyx < 0){
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsPlugin to cmsGDBCompute
+    cmsHANDLE ret_cmsGBDAlloc_eqpnp = cmsGBDAlloc(0);
+    cmsBool ret_cmsGDBCompute_vphdk = cmsGDBCompute(ret_cmsGBDAlloc_eqpnp, (unsigned long )ret_cmsPlugin_aizyx);
+    if (ret_cmsGDBCompute_vphdk < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsFloat64Number ret_cmsDetectRGBProfileGamma_mbsbe = cmsDetectRGBProfileGamma(hProfile, (double )ret_cmsPlugin_aizyx);
+    if (ret_cmsDetectRGBProfileGamma_mbsbe < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    }
+
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
