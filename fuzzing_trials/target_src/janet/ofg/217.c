@@ -2,48 +2,58 @@
 #include <stddef.h>
 #include <janet.h>
 
-extern void janet_var(JanetTable *table, const char *name, Janet value, const char *doc);
-
 int LLVMFuzzerTestOneInput_217(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < 2) return 0;
+    Janet janet_value;
+    
+    if (size >= sizeof(uint64_t)) {
+        // Ensure the data size is sufficient to create a uint64_t value
+        uint64_t value = *((uint64_t *)data);
 
-    // Initialize Janet environment
-    janet_init();
+        // Initialize the Janet value with the uint64_t value
+        janet_value = janet_wrap_number((double)value);
 
-    // Create a new JanetTable
-    JanetTable *table = janet_table(10);
-
-    // Use the first byte of data to determine the length of the name
-    size_t name_len = data[0] % (size - 1); // Ensure name_len is within bounds
-    if (name_len == 0) name_len = 1; // Ensure name_len is not zero
-
-    // Use the next bytes for the name
-    char name[256];
-    if (name_len >= sizeof(name)) name_len = sizeof(name) - 1; // Ensure name fits in buffer
-    for (size_t i = 0; i < name_len; i++) {
-        name[i] = (char)data[i + 1];
+        // Call the function-under-test
+        janet_checkuint64(janet_value);
     }
-    name[name_len] = '\0'; // Null-terminate the string
-
-    // Use the next byte as a simple Janet integer value
-    Janet value = janet_wrap_integer(data[1 + name_len]);
-
-    // Use the remaining bytes for the doc string
-    const char *doc = (const char *)(data + 2 + name_len);
-    size_t doc_len = size - 2 - name_len;
-    if (doc_len >= sizeof(name)) doc_len = sizeof(name) - 1; // Ensure doc fits in buffer
-    char doc_buffer[256];
-    for (size_t i = 0; i < doc_len; i++) {
-        doc_buffer[i] = doc[i];
-    }
-    doc_buffer[doc_len] = '\0'; // Null-terminate the string
-
-    // Call the function-under-test
-    janet_var(table, name, value, doc_buffer);
-
-    // Clean up Janet environment
-    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_217(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

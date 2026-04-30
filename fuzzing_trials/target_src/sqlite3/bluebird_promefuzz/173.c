@@ -1,77 +1,96 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "sqlite3.h"
+#include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include "sqlite3.h"
 
-static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt = NULL;
-    const char *pzTail = NULL;
+static void test_sqlite3_error_offset(sqlite3 *db) {
+    int offset = sqlite3_error_offset(db);
+    (void)offset; // Suppress unused variable warning
+}
 
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &pzTail);
-    if (rc != SQLITE_OK) {
-        const char *errmsg = sqlite3_errmsg(db);
-        (void)errmsg;  // Suppress unused variable warning
-        return;
+static void test_sqlite3_column_type(sqlite3_stmt *stmt) {
+    int columnCount = sqlite3_column_count(stmt);
+    for (int i = 0; i < columnCount; i++) {
+        int type = sqlite3_column_type(stmt, i);
+        (void)type; // Suppress unused variable warning
     }
+}
 
-    rc = sqlite3_step(stmt);
-    rc = sqlite3_step(stmt);  // Call sqlite3_step twice as required
+static void test_sqlite3_keyword_count(void) {
+    int keywordCount = sqlite3_keyword_count();
+    (void)keywordCount; // Suppress unused variable warning
+}
 
-    int column_count = sqlite3_column_count(stmt);
-    for (int i = 0; i < column_count; i++) {
-        int col_type = sqlite3_column_type(stmt, i);
-        const char *col_name = sqlite3_column_name(stmt, i);
-        const unsigned char *col_text = sqlite3_column_text(stmt, i);
-        int col_bytes = sqlite3_column_bytes(stmt, i);
-
-        (void)col_type;  // Suppress unused variable warning
-        (void)col_name;
-        (void)col_text;
-        (void)col_bytes;
+static void test_sqlite3_keyword_name(void) {
+    int keywordCount = sqlite3_keyword_count();
+    for (int i = 0; i < keywordCount; i++) {
+        const char *keyword;
+        int length;
+        if (sqlite3_keyword_name(i, &keyword, &length) == SQLITE_OK) {
+            (void)keyword; // Suppress unused variable warning
+            (void)length;  // Suppress unused variable warning
+        }
     }
+}
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_finalize with sqlite3_data_count
-    sqlite3_data_count(stmt);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+static void test_sqlite3_column_blob(sqlite3_stmt *stmt) {
+    int columnCount = sqlite3_column_count(stmt);
+    for (int i = 0; i < columnCount; i++) {
+        const void *blob = sqlite3_column_blob(stmt, i);
+        (void)blob; // Suppress unused variable warning
+    }
+}
+
+static void test_sqlite3_keyword_check(void) {
+    const char *keywords[] = {"SELECT", "INSERT", "UPDATE", "DELETE", "BEGIN", "END"};
+    for (int i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
+        int isKeyword = sqlite3_keyword_check(keywords[i], (int)strlen(keywords[i]));
+        (void)isKeyword; // Suppress unused variable warning
+    }
 }
 
 int LLVMFuzzerTestOneInput_173(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
-    // Initialize SQLite
     sqlite3 *db;
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    sqlite3_stmt *stmt;
+    int rc;
+
+    // Initialize SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Copy input data to a null-terminated string
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
+    // Create a dummy table
+    rc = sqlite3_exec(db, "CREATE TABLE dummy (id INTEGER PRIMARY KEY, data BLOB);", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0';
 
-    // Execute fuzzing with the given SQL
-    execute_sqlite_fuzzing(db, sql);
+    // Prepare a dummy statement
+    rc = sqlite3_prepare_v2(db, "SELECT * FROM dummy;", -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Cleanup
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Fuzz the target functions
+    test_sqlite3_error_offset(db);
+    test_sqlite3_column_type(stmt);
+    test_sqlite3_keyword_count();
+    test_sqlite3_keyword_name();
+    test_sqlite3_column_blob(stmt);
+    test_sqlite3_keyword_check();
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

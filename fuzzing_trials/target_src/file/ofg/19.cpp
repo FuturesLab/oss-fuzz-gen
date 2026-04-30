@@ -1,42 +1,77 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <magic.h>
 
+extern "C" {
+    // Function-under-test
+    int magic_setflags(struct magic_set *, int);
+}
+
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    struct magic_set *magic;
-    int descriptor;
-    const char *result;
+    // Declare and initialize variables
+    struct magic_set *ms;
+    int flags;
 
     // Initialize magic_set
-    magic = magic_open(MAGIC_NONE);
-    if (magic == NULL) {
+    ms = magic_open(MAGIC_NONE);
+    if (ms == NULL) {
         return 0;
     }
 
-    // Load the default magic database
-    if (magic_load(magic, NULL) != 0) {
-        magic_close(magic);
-        return 0;
-    }
-
-    // Ensure the size is large enough to simulate a file descriptor
+    // Ensure the size is sufficient to extract an integer for flags
     if (size < sizeof(int)) {
-        magic_close(magic);
+        magic_close(ms);
         return 0;
     }
 
-    // Use the data as a fake file descriptor
-    memcpy(&descriptor, data, sizeof(int));
+    // Extract flags from data
+    flags = *(reinterpret_cast<const int*>(data));
 
     // Call the function-under-test
-    result = magic_descriptor(magic, descriptor);
-
-    // Optionally, you can print the result for debugging purposes
-    // printf("Magic descriptor result: %s\n", result);
+    magic_setflags(ms, flags);
 
     // Clean up
-    magic_close(magic);
+    magic_close(ms);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

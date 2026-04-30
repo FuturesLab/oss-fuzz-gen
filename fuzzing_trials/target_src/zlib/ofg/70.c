@@ -3,47 +3,61 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    // Initialize the z_stream structure
-    z_stream stream;
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    
-    // Initialize the input data for the stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = (uInt)size;
-
-    // Initialize the output buffer
-    unsigned char outbuffer[4096];
-    stream.next_out = outbuffer;
-    stream.avail_out = sizeof(outbuffer);
-
-    // Initialize the inflate state
-    if (inflateInit(&stream) != Z_OK) {
+    // Ensure the size is sufficient to extract an off_t value
+    if (size < sizeof(off_t)) {
         return 0;
     }
 
-    // Initialize the gz_header structure
-    gz_header header;
-    header.text = 0;
-    header.time = 0;
-    header.xflags = 0;
-    header.os = 0;
-    header.extra = Z_NULL;
-    header.extra_len = 0;
-    header.extra_max = 0;
-    header.name = Z_NULL;
-    header.name_max = 0;
-    header.comment = Z_NULL;
-    header.comm_max = 0;
-    header.hcrc = 0;
-    header.done = 0;
+    // Interpret the first few bytes of data as an off_t value
+    off_t length = 0;
+    for (size_t i = 0; i < sizeof(off_t); ++i) {
+        length |= ((off_t)data[i]) << (i * 8);
+    }
 
     // Call the function-under-test
-    inflateGetHeader(&stream, &header);
+    uLong result = crc32_combine_gen(length);
 
-    // Clean up
-    inflateEnd(&stream);
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_70(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

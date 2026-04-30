@@ -1,59 +1,81 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
-#include <string.h>
-#include <stdlib.h>
-#include <lcms2_plugin.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    char *sampleData1;
-    char *sampleData2;
-    char *sampleData3;
-    cmsBool result;
-
-    // Initialize the handle
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Check if the input size is sufficient for our operations
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Ensure size is sufficient to split into three parts
-    if (size < 3) {
-        cmsIT8Free(handle);
+    // Use the input data to create a profile
+    cmsUInt32Number intent = *(cmsUInt32Number *)data;
+    cmsHPROFILE profile = cmsOpenProfileFromMem(data, size);
+
+    // Ensure the profile is not NULL
+    if (profile == NULL) {
         return 0;
     }
 
-    // Allocate memory and copy data for the three strings
-    sampleData1 = (char *)malloc(size / 3 + 1);
-    sampleData2 = (char *)malloc(size / 3 + 1);
-    sampleData3 = (char *)malloc(size / 3 + 1);
+    // Initialize a cmsContext with the profile
+    cmsContext context = cmsCreateContext(NULL, profile);
 
-    if (sampleData1 == NULL || sampleData2 == NULL || sampleData3 == NULL) {
-        free(sampleData1);
-        free(sampleData2);
-        free(sampleData3);
-        cmsIT8Free(handle);
+    // Ensure the context is not NULL
+    if (context == NULL) {
+        cmsCloseProfile(profile);
         return 0;
     }
-
-    memcpy(sampleData1, data, size / 3);
-    sampleData1[size / 3] = '\0';
-
-    memcpy(sampleData2, data + size / 3, size / 3);
-    sampleData2[size / 3] = '\0';
-
-    memcpy(sampleData3, data + 2 * (size / 3), size / 3);
-    sampleData3[size / 3] = '\0';
 
     // Call the function-under-test
-    result = cmsIT8SetData(handle, sampleData1, sampleData2, sampleData3);
+    void *userData = cmsGetContextUserData(context);
 
-    // Clean up
-    free(sampleData1);
-    free(sampleData2);
-    free(sampleData3);
-    cmsIT8Free(handle);
+    // Optionally do something with userData, for now, we just ensure it's not NULL
+    if (userData != NULL) {
+        // Process userData if necessary
+    }
+
+    // Clean up the context and profile
+    cmsDeleteContext(context);
+    cmsCloseProfile(profile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

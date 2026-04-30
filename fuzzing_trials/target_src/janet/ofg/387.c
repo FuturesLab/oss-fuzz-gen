@@ -1,30 +1,57 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-
-// Assuming JanetOSRWLock is a structure defined somewhere in the codebase
-typedef struct {
-    // Dummy fields for the sake of example
-    int lock_state;
-    int writer_count;
-} JanetOSRWLock;
-
-// Function prototype for the function-under-test
-void janet_os_rwlock_wunlock(JanetOSRWLock *lock);
+#include <janet.h> // Assuming the Janet library provides this header
 
 int LLVMFuzzerTestOneInput_387(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to initialize the lock structure
-    if (size < sizeof(JanetOSRWLock)) {
+    // Ensure there is enough data to initialize JanetTryState
+    if (size < sizeof(JanetTryState)) {
         return 0;
     }
 
-    // Initialize a JanetOSRWLock structure from the input data
-    JanetOSRWLock lock;
-    lock.lock_state = (int)data[0];
-    lock.writer_count = (int)data[1];
-
+    // Initialize a JanetTryState structure
+    JanetTryState state;
+    
     // Call the function-under-test
-    janet_os_rwlock_wunlock(&lock);
+    janet_try_init(&state);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_387(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

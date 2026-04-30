@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -5,61 +6,88 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include "lcms2.h"
-#include "/src/lcms/include/lcms2_plugin.h"
 
-static cmsHPROFILE create_dummy_profile() {
-    // Create a dummy profile for testing purposes
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_sRGBProfile with cmsCreateXYZProfile
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreateXYZProfile with cmsCreateNULLProfile
-    cmsHPROFILE hProfile = cmsCreateNULLProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    return hProfile;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number) * 3) {
-        return 0; // Not enough data to proceed
+    if (Size < 1) {
+        return 0;
     }
 
-    cmsContext ContextID = NULL;
-    cmsHPROFILE hProfile = create_dummy_profile();
-    cmsUInt32Number Intent = *(cmsUInt32Number*)Data;
-    cmsUInt32Number dwFlags = *(cmsUInt32Number*)(Data + sizeof(cmsUInt32Number));
-    cmsUInt32Number dwBufferLen = *(cmsUInt32Number*)(Data + 2 * sizeof(cmsUInt32Number));
+    write_dummy_file(Data, Size);
 
-    // First call to cmsGetPostScriptCRD with a NULL buffer
-    cmsUInt32Number bytesWritten1 = cmsGetPostScriptCRD(ContextID, hProfile, Intent, dwFlags, NULL, 0);
-
-    // Allocate memory using _cmsMalloc
-    void* Buffer = _cmsMalloc(ContextID, dwBufferLen);
-
-    // Second call to cmsGetPostScriptCRD with an allocated buffer
-    if (Buffer != NULL) {
-        cmsUInt32Number bytesWritten2 = cmsGetPostScriptCRD(ContextID, hProfile, Intent, dwFlags, Buffer, dwBufferLen);
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
     }
 
-    // Free the allocated memory
-    _cmsFree(ContextID, Buffer);
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
 
-    // Cleanup
-    if (hProfile != NULL) {
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsReadTag to cmsGetHeaderProfileID
+            cmsHPROFILE ret_cmsCreateXYZProfile_cncjr = cmsCreateXYZProfile();
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tagData) {
+            	return 0;
+            }
+            cmsGetHeaderProfileID(ret_cmsCreateXYZProfile_cncjr, (unsigned char *)tagData);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            (void)tagData;
+        }
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateXYZProfile to cmsSetPCS
-    cmsColorSpaceSignature ret__cmsICCcolorSpace_ixnsd = _cmsICCcolorSpace(PT_MCH4);
-
-    cmsSetPCS(hProfile, ret__cmsICCcolorSpace_ixnsd);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-        cmsCloseProfile(hProfile);
-    }   return 0;
+    cmsCloseProfile(hProfile);
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_75(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

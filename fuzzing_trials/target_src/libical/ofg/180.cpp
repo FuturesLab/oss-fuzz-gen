@@ -1,42 +1,83 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h> // Include for malloc and free
+#include <stdlib.h>
+#include <string.h> // Include this header for memcpy
 
 extern "C" {
-    #include <libical/ical.h> // Correct path for the ical header
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_180(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a null-terminated string
-    if (size == 0) {
-        return 0;
+    icalcomponent *component = nullptr;
+
+    // Ensure the data is not empty
+    if (size > 0) {
+        // Create a temporary string to hold the input data
+        char *input = (char *)malloc(size + 1);
+        if (input == nullptr) {
+            return 0; // Handle memory allocation failure
+        }
+
+        // Copy the data into the input string and null-terminate it
+        memcpy(input, data, size);
+        input[size] = '\0';
+
+        // Parse the input string into an icalcomponent
+        component = icalparser_parse_string(input);
+
+        // Free the input string
+        free(input);
     }
 
-    // Create an icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
+    // If the component was successfully created, call the function-under-test
+    if (component != nullptr) {
+        icalproperty_method method = icalcomponent_get_method(component);
 
-    // Create a null-terminated string from the input data
-    char *comment = (char *)malloc(size + 1);
-    if (comment == NULL) {
+        // Optionally, you can use the 'method' variable here for further testing or logging
+
+        // Free the icalcomponent
         icalcomponent_free(component);
-        return 0;
     }
-    memcpy(comment, data, size);
-    comment[size] = '\0';
-
-    // Call the function under test
-    // Ensure the comment is not empty to increase the chance of meaningful execution
-    if (strlen(comment) > 0) {
-        icalcomponent_set_comment(component, comment);
-    }
-
-    // Clean up
-    free(comment);
-    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_180(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

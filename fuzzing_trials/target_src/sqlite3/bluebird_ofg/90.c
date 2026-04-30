@@ -1,65 +1,56 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
-#include <string.h>
+#include <stdlib.h>
+#include <string.h> // Include for memcpy and malloc
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    sqlite3 *srcDb = NULL;
-    sqlite3 *destDb = NULL;
-    sqlite3_backup *backup = NULL;
+    sqlite3 *db = NULL;
     int rc;
-
-    // Open source and destination databases in memory
-    rc = sqlite3_open(":memory:", &srcDb);
+    
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    rc = sqlite3_open(":memory:", &destDb);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(srcDb);
+    // Allocate a new buffer for the SQL statement with an extra byte for the null terminator
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
         return 0;
     }
 
-    // Prepare a statement to execute on the source database
-    if (size > 0) {
-        // Ensure the data is null-terminated to prevent buffer overflow
-        char *query = (char *)malloc(size + 1);
-        if (query == NULL) {
-            sqlite3_close(srcDb);
-            sqlite3_close(destDb);
-            return 0;
-        }
-        memcpy(query, data, size);
-        query[size] = '\0';
+    // Copy the input data to the new buffer and null-terminate it
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-        sqlite3_exec(srcDb, query, 0, 0, 0);
-        free(query);
+    // Execute the fuzz data as an SQL statement
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
 
-    // Create a backup from source to destination
-    backup = sqlite3_backup_init(destDb, "main", srcDb, "main");
-    if (backup == NULL) {
-        sqlite3_close(srcDb);
-        sqlite3_close(destDb);
-        return 0;
-    }
+    // Call the function-under-test
 
-    // Call the function under test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_backup_init to sqlite3_complete16
-    int ret_sqlite3_complete16_bjxmr = sqlite3_complete16((const void *)backup);
-    if (ret_sqlite3_complete16_bjxmr < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_log
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
     	return 0;
     }
+    sqlite3_log(0, errMsg);
     // End mutation: Producer.APPEND_MUTATOR
     
-    int remaining = sqlite3_backup_remaining(backup);
+    sqlite3_int64 changes = sqlite3_total_changes64(db);
 
-    // Clean up
-    sqlite3_backup_finish(backup);
-    sqlite3_close(srcDb);
-    sqlite3_close(destDb);
+    // Free the allocated buffer
+    free(sql);
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

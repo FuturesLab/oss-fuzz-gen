@@ -1,34 +1,67 @@
 #include <stdint.h>
-#include <wchar.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsInfoType infoType;
-    const char *languageCode = "en";
-    const char *countryCode = "US";
-    wchar_t buffer[256];
-    cmsUInt32Number bufferSize = sizeof(buffer) / sizeof(wchar_t);
-
-    // Ensure the data is large enough to contain the necessary information
-    if (size < sizeof(cmsUInt32Number)) {
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
         return 0;
     }
 
-    // Initialize the profile handle with a dummy profile
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
+    // Provide a valid AccessMode, e.g., "r" for read mode
+    cmsIOHANDLER *ioHandler = cmsOpenIOhandlerFromMem(context, (void *)data, size, "r");
+    if (ioHandler == NULL) {
+        cmsDeleteContext(context);
         return 0;
     }
 
-    // Use the data to determine the infoType
-    infoType = (cmsInfoType)(data[0] % 4); // Assuming there are 4 types of cmsInfoType
+    cmsBool readOnly = TRUE; // or FALSE, try both variations
+    cmsHPROFILE profile = cmsOpenProfileFromIOhandler2THR(context, ioHandler, readOnly);
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
+    }
 
-    // Call the function-under-test
-    cmsUInt32Number result = cmsGetProfileInfo(hProfile, infoType, languageCode, countryCode, buffer, bufferSize);
-
-    // Clean up
-    cmsCloseProfile(hProfile);
+    cmsCloseIOhandler(ioHandler);
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

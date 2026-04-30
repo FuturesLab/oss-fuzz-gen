@@ -1,28 +1,51 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>  // Include for malloc and free
-#include <string.h>  // Include for memcpy
-#include "janet.h"   // Assuming this is the correct header file for JanetFiber and Janet
+
+// Assume that the janet.h header file is available and includes the declaration for janet_deinit.
+#include <janet.h>
 
 int LLVMFuzzerTestOneInput_251(const uint8_t *data, size_t size) {
-    // Declare and initialize necessary variables
-    JanetFiber *fiber = (JanetFiber *)malloc(sizeof(JanetFiber));
-    Janet janet_value;
-
-    if (fiber == NULL || size < sizeof(Janet)) {
-        free(fiber);
-        return 0;
-    }
-
-    // Initialize the Janet value using the input data
-    memcpy(&janet_value, data, sizeof(Janet));
-
-    // Call the function-under-test
-    janet_cancel(fiber, janet_value);
-
-    // Clean up
-    free(fiber);
+    // The function janet_deinit does not take any parameters and does not return a value.
+    // Therefore, we simply call it directly in the fuzzing harness.
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_251(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

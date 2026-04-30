@@ -1,60 +1,63 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+// Function to prepare a dummy SQLite statement
+static sqlite3_stmt* prepare_dummy_statement(sqlite3 *db) {
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);"
+                      "INSERT INTO test (data) VALUES (x'00010203');"
+                      "SELECT data FROM test WHERE id = 1;";
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+        return NULL;
     }
+    return stmt;
 }
 
 int LLVMFuzzerTestOneInput_256(const uint8_t *data, size_t size) {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
     int rc;
 
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(lwzpauru, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
+    // Prepare a dummy statement
+    stmt = prepare_dummy_statement(db);
+    if (stmt == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_db_release_memory
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_db_release_memory with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_db_release_memory to sqlite3_overload_function
-        sqlite3_uint64 ret_sqlite3_msize_rmpev = sqlite3_msize((void *)db);
-        int ret_sqlite3_overload_function_yqaum = sqlite3_overload_function(db, db, 1);
-        if (ret_sqlite3_overload_function_yqaum < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
+    // Execute the statement to reach the result row
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Ensure index is within bounds
+    int index = size > 0 ? data[0] % sqlite3_column_count(stmt) : 0;
+
+    // Call the function-under-test
+    const void *blob = sqlite3_column_blob(stmt, index);
+
+    // Use the blob data if needed (for demonstration purposes, we'll just check if it's NULL)
+    if (blob != NULL) {
+        // Do something with the blob data
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

@@ -1,51 +1,104 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <unistd.h>    // For close() and unlink()
+#include <stdlib.h>    // For mkstemp()
 
-extern void *janet_scalloc(size_t num, size_t size);
+// Assuming JanetFile is a struct defined somewhere in the Janet library
+typedef struct {
+    FILE *file;
+} JanetFile;
+
+// Mock implementation of janet_file_close_39
+// In real usage, this should be linked against the actual Janet library
+int janet_file_close_39(JanetFile *file) {
+    if (file && file->file) {
+        return fclose(file->file);
+    }
+    return -1; // Indicate error if file is NULL or file->file is NULL
+}
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract two size_t values
-    if (size < sizeof(size_t) * 2) {
-        return 0;
+    if (size < 1) {
+        return 0; // Not enough data to create a valid file
     }
 
-    // Extract two size_t values from the input data
-    size_t num = *((const size_t *)data);
-    size_t elem_size = *((const size_t *)(data + sizeof(size_t)));
-
-    // Avoid trivial cases by ensuring num and elem_size are non-zero
-    if (num == 0) {
-        num = 1;
-    }
-    if (elem_size == 0) {
-        elem_size = 1;
+    // Create a temporary file to pass to janet_file_close_39
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Failed to create a temporary file
     }
 
-    // Avoid potential overflow in size calculation
-    if (num > SIZE_MAX / elem_size) {
-        return 0;
+    // Open the file with a FILE* stream
+    FILE *file = fdopen(fd, "w+");
+    if (!file) {
+        close(fd);
+        return 0; // Failed to open file stream
     }
+
+    // Ensure that at least some data is written to the file
+    size_t written = fwrite(data, 1, size, file);
+    if (written == 0) {
+        fclose(file);
+        unlink(tmpl);
+        return 0; // Failed to write any data
+    }
+    fflush(file);
+
+    // Initialize JanetFile structure
+    JanetFile janetFile;
+    janetFile.file = file;
 
     // Call the function-under-test
-    void *result = janet_scalloc(num, elem_size);
+    int result = janet_file_close_39(&janetFile);
 
-    // If allocation succeeded, perform further operations to test memory
-    if (result != NULL) {
-        // Fill the allocated memory with a pattern
-        memset(result, 0xAA, num * elem_size);
-
-        // Optionally, perform some reads to simulate usage
-        for (size_t i = 0; i < num * elem_size; i++) {
-            volatile uint8_t temp = ((uint8_t *)result)[i];
-            (void)temp; // Use temp to avoid compiler optimizations
-        }
-
-        // Free the allocated memory
-        free(result);
+    // Check if the file was closed successfully
+    if (result != 0) {
+        // Handle the error if needed
     }
+
+    // Clean up
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

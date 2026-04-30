@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_logPrint at logging.c:213:1 in liblouis.h
-// lou_registerLogCallback at logging.c:86:1 in liblouis.h
-// lou_registerLogCallback at logging.c:86:1 in liblouis.h
-// lou_indexTables at metadata.c:945:1 in liblouis.h
-// lou_logEnd at logging.c:229:1 in liblouis.h
-// lou_setLogLevel at logging.c:143:1 in liblouis.h
-// lou_logFile at logging.c:196:1 in liblouis.h
-// lou_logFile at logging.c:196:1 in liblouis.h
+// lou_checkTable at compileTranslationTable.c:5254:1 in liblouis.h
+// lou_backTranslate at lou_backTranslateString.c:176:1 in liblouis.h
+// lou_hyphenate at lou_translateString.c:4068:1 in liblouis.h
+// lou_translate at lou_translateString.c:1135:1 in liblouis.h
+// lou_translatePrehyphenated at lou_translateString.c:1410:1 in liblouis.h
+// lou_dotsToChar at lou_translateString.c:4152:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,53 +14,112 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdarg>
+#include <liblouis.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
-#include "liblouis.h"
-
-static void customLogCallback(logLevels level, const char *message) {
-    // Custom log callback that does nothing for now
-}
+#include <fstream>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
     if (Size == 0) return 0;
 
-    // Prepare a dummy file for lou_logFile
-    FILE *dummyFile = fopen("./dummy_file", "w");
-    if (dummyFile) fclose(dummyFile);
+    // Prepare a dummy file for table-related functions
+    std::ofstream dummyFile("./dummy_file");
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
 
-    // 1. Fuzz lou_logPrint
-    lou_logPrint("Fuzzing lou_logPrint with input size: %zu\n", Size);
+    // Convert input data to a null-terminated string for table names
+    char *tableList = new char[Size + 1];
+    memcpy(tableList, Data, Size);
+    tableList[Size] = '\0';
 
-    // 2. Fuzz lou_registerLogCallback
-    lou_registerLogCallback(customLogCallback);
-    lou_registerLogCallback(NULL);
+    // Test lou_checkTable
+    lou_checkTable(tableList);
 
-    // 3. Fuzz lou_indexTables
-    // Ensure that the input is null-terminated to avoid buffer overflow
-    std::vector<char> nullTerminatedData(Data, Data + Size);
-    nullTerminatedData.push_back('\0');  // Ensure null-termination
-    const char *tables[] = { nullTerminatedData.data(), NULL };
-    lou_indexTables(tables);
-
-    // 4. Fuzz lou_logEnd
-    lou_logEnd();
-
-    // 5. Fuzz lou_setLogLevel
-    if (Size >= sizeof(logLevels)) {
-        logLevels level = *reinterpret_cast<const logLevels*>(Data);
-        lou_setLogLevel(level);
+    // Setup buffers for widechar type
+    widechar *inbuf = new widechar[Size];
+    widechar *outbuf = new widechar[Size];
+    for (size_t i = 0; i < Size; ++i) {
+        inbuf[i] = static_cast<widechar>(Data[i]);
     }
 
-    // 6. Fuzz lou_logFile
-    // Ensure the input is null-terminated to avoid reading out of bounds
-    std::vector<char> fileName(Data, Data + Size);
-    fileName.push_back('\0');  // Ensure null-termination
-    lou_logFile("./dummy_file");
-    lou_logFile(fileName.data());
+    // Setup additional parameters
+    int inlen = static_cast<int>(Size);
+    int outlen = static_cast<int>(Size);
+    formtype *typeform = nullptr; // Can be set to null
+    char *spacing = nullptr; // Can be set to null
+    int *outputPos = new int[Size];
+    int *inputPos = new int[Size];
+    int cursorPos = 0;
+    int mode = 0; // Mode can be varied
+
+    // Test lou_backTranslate
+    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
+
+    // Test lou_hyphenate
+    char *hyphens = new char[Size];
+    lou_hyphenate(tableList, inbuf, inlen, hyphens, mode);
+
+    // Test lou_translate
+    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
+
+    // Test lou_translatePrehyphenated
+    char *inputHyphens = new char[Size];
+    char *outputHyphens = new char[Size];
+    lou_translatePrehyphenated(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, inputHyphens, outputHyphens, mode);
+
+    // Test lou_dotsToChar
+    lou_dotsToChar(tableList, inbuf, outbuf, static_cast<int>(Size), mode);
+
+    // Cleanup
+    delete[] tableList;
+    delete[] inbuf;
+    delete[] outbuf;
+    delete[] outputPos;
+    delete[] inputPos;
+    delete[] hyphens;
+    delete[] inputHyphens;
+    delete[] outputHyphens;
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

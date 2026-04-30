@@ -1,38 +1,62 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_496(const uint8_t *data, size_t size) {
-    cmsContext context = NULL;
-    cmsUInt32Number nColors = 10; // Arbitrary non-zero number of colors
-    cmsUInt32Number flags = 0; // Using 0 as a default flag value
+    // Initialize variables
+    cmsContext context = cmsCreateContext(NULL, NULL); // Create a new context
+    cmsUInt32Number num = (cmsUInt32Number)size; // Use size as cmsUInt32Number
 
-    // Ensure the size is sufficient for at least two strings
-    if (size < 2) {
-        return 0;
+    // Call the function-under-test
+    cmsMLU *mlu = cmsMLUalloc(context, num);
+
+    // Check if the allocation was successful
+    if (mlu != NULL) {
+        // Free the allocated memory to avoid memory leaks
+        cmsMLUfree(mlu);
     }
 
-    // Split the input data into two strings
-    size_t str1_len = data[0] % (size - 1);
-    size_t str2_len = size - 1 - str1_len;
-
-    char str1[str1_len + 1];
-    char str2[str2_len + 1];
-
-    memcpy(str1, data + 1, str1_len);
-    str1[str1_len] = '\0';
-
-    memcpy(str2, data + 1 + str1_len, str2_len);
-    str2[str2_len] = '\0';
-
-    // Call the function under test
-    cmsNAMEDCOLORLIST *namedColorList = cmsAllocNamedColorList(context, nColors, flags, str1, str2);
-
-    // Clean up if necessary
-    if (namedColorList != NULL) {
-        cmsFreeNamedColorList(namedColorList);
-    }
+    // Free the context to avoid memory leaks
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_496(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

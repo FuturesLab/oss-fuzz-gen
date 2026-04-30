@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,83 +9,90 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstring>
+#include <cstdint>
 #include <cstdlib>
+#include <cstdio>
+#include <cstring>
 #include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalparser.h"
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) return 0;
+
+    // Initialize the parser
+    icalparser *parser = icalparser_new();
+    if (!parser) return 0;
+
+    // Set control characters handling
+    icalparser_ctrl ctrl = static_cast<icalparser_ctrl>(Data[0] % 3);
+    icalparser_set_ctrl(ctrl);
+
+    // Check the current control setting
+    icalparser_get_ctrl();
+
+    // Feed data to the parser line by line
+    char *line = static_cast<char *>(malloc(Size + 1));
+    if (!line) {
+        icalparser_free(parser);
         return 0;
     }
+    memcpy(line, Data, Size);
+    line[Size] = '\0';
 
-    // Convert input data to a null-terminated string
-    char *inputData = (char *)malloc(Size + 1);
-    if (!inputData) {
-        return 0;
-    }
-    memcpy(inputData, Data, Size);
-    inputData[Size] = '\0';
+    icalcomponent *component = icalparser_add_line(parser, line);
 
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(inputData);
-    if (comp) {
-        // Set description
-        icalcomponent_set_description(comp, "Sample Description");
-
-        // Set comment
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_comment with icalcomponent_set_x_name
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of icalcomponent_set_x_name
-        icalcomponent_set_x_name(comp, (const char *)"w");
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Set UID
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_comment to icalcomponent_set_dtstamp
-        struct icaltimetype ret_icalcomponent_get_dtstamp_ordtj = icalcomponent_get_dtstamp(comp);
-
-        icalcomponent_set_dtstamp(comp, ret_icalcomponent_get_dtstamp_ordtj);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_dtstamp to icalcomponent_check_restrictions
-
-        bool ret_icalcomponent_check_restrictions_hoxfi = icalcomponent_check_restrictions(comp);
-        if (ret_icalcomponent_check_restrictions_hoxfi == 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        icalcomponent_set_uid(comp, "Sample UID");
-
-        // Set summary
-        icalcomponent_set_summary(comp, "Sample Summary");
-
-        // Convert back to string
-        char *icalString = icalcomponent_as_ical_string_r(comp);
-        if (icalString) {
-            // Normally, we would do something with the string, but for fuzzing, just free it
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_strip_errors
-        icalcomponent_strip_errors(comp);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Free the component if it was created
+    if (component) {
+        icalcomponent_free(component);
     }
 
-    free(inputData);
+    // Check the parser state
+    icalparser_get_state(parser);
+
+    // Clean up
+    free(line);
+    icalparser_free(parser);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_52(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

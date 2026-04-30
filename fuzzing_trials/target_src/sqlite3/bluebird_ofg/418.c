@@ -1,48 +1,53 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <string.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    (void)NotUsed;
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_418(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    const void *tail = NULL;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
 
-    // Open a temporary in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Initialize database in memory
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Ensure the input data is not NULL and size is non-zero
-    if (data == NULL || size == 0) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Allocate a buffer for the SQL statement and ensure it's null-terminated
+    // Convert fuzz data to a null-terminated string
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the SQL statement
+    sql[size] = '\0';
 
-    // Use the input data as a SQL statement
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &tail);
-
-    // Finalize the statement if it was successfully prepared
-    if (rc == SQLITE_OK && stmt != NULL) {
-        sqlite3_finalize(stmt);
+    // Execute SQL statement
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sqlite3_exec
+    rc = sqlite3_exec(db, NULL, callback, 0, &errMsg);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
     }
 
-    // Free the allocated SQL buffer
+    // Clean up
     free(sql);
-
-    // Close the database connection
     sqlite3_close(db);
 
     return 0;

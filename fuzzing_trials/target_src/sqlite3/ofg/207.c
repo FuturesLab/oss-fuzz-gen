@@ -1,28 +1,74 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <sqlite3.h>
 
-// Dummy callback function to simulate DW_TAG_subroutine_typeInfinite loop *
-static void memory_alarm_callback(void *pArg, sqlite3_int64 used, int N) {
-    // Do nothing; this is just a placeholder
-}
-
 int LLVMFuzzerTestOneInput_207(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to extract a sqlite3_int64 value
-    if (size < sizeof(sqlite3_int64)) {
+    // Create a new SQLite memory database
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Extract a sqlite3_int64 value from the data
-    sqlite3_int64 alarm_threshold;
-    memcpy(&alarm_threshold, data, sizeof(sqlite3_int64));
+    // Create a statement object
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT ?"; // Simple SQL query to test
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Use the remaining data as the void* parameter
-    void *pArg = (void *)(data + sizeof(sqlite3_int64));
+    // Bind the input data as a blob to the statement
+    if (sqlite3_bind_blob(stmt, 1, data, size, SQLITE_TRANSIENT) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Call the function-under-test
-    sqlite3_memory_alarm(memory_alarm_callback, pArg, alarm_threshold);
+    // Execute the statement
+    sqlite3_step(stmt);
+
+    // Cleanup
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_207(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

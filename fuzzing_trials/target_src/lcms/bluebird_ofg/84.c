@@ -1,53 +1,105 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "lcms2.h"
 
-int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the parameters
-    cmsContext context = (cmsContext)1; // Example non-NULL context
-    cmsHPROFILE inputProfile = cmsOpenProfileFromMem(data, size);
-    cmsHPROFILE outputProfile = cmsOpenProfileFromMem(data, size);
-    cmsUInt32Number inputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number outputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number intent = INTENT_PERCEPTUAL; // Example intent
-    cmsUInt32Number flags = 0; // No flags
-
-    // Ensure that inputProfile and outputProfile are not NULL
-    if (inputProfile != NULL && outputProfile != NULL) {
-        // Call the function to fuzz
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of cmsCreateTransformTHR
-        cmsHTRANSFORM transform = cmsCreateTransformTHR(context, inputProfile, PT_MCH13, outputProfile, outputFormat, intent, flags);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-        // Clean up
-        if (transform != NULL) {
-            cmsDeleteTransform(transform);
-        }
-    }
-
-    if (inputProfile != NULL) {
-        cmsCloseProfile(inputProfile);
-    }
-    if (outputProfile != NULL) {
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetProfileInfoASCII
-    const char uzdstxgy[1024] = "bxngg";
-
-    cmsUInt32Number ret_cmsGetProfileInfoASCII_uswxm = cmsGetProfileInfoASCII(outputProfile, 0, uzdstxgy, (const char *)"r", (char *)data, cmsD50Y);
-    if (ret_cmsGetProfileInfoASCII_uswxm < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-        cmsMD5computeID(outputProfile);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }   return 0;
+// Define a simple log error handler function
+void myLogErrorHandler_84(cmsContext contextID, cmsUInt32Number ErrorCode, const char *Text) {
+    // Do nothing, just a placeholder for the fuzzing
 }
+
+int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
+    // Call the function-under-test with a non-NULL error handler
+    cmsSetLogErrorHandler(myLogErrorHandler_84);
+
+    // Check if the size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
+        return 0;
+    }
+
+    // Create a profile from the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0; // If profile creation fails, exit early
+    }
+
+    // Perform a simple operation using the profile
+    cmsHTRANSFORM hTransform = cmsCreateTransform(hProfile, TYPE_RGB_8, hProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
+    if (hTransform != NULL) {
+        uint8_t sample[3] = {0, 0, 0};
+        cmsDoTransform(hTransform, sample, sample, 1);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransform to cmsOpenProfileFromMemTHR
+        cmsContext ret_cmsGetTransformContextID_vlqdn = cmsGetTransformContextID(0);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTransformContextID to cmsOpenProfileFromFileTHR
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sample) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sample) {
+        	return 0;
+        }
+        cmsHPROFILE ret_cmsOpenProfileFromFileTHR_kcjwt = cmsOpenProfileFromFileTHR(ret_cmsGetTransformContextID_vlqdn, (const char *)sample, (const char *)sample);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        cmsBool ret_cmsMD5computeID_ztwwg = cmsMD5computeID(hProfile);
+        if (ret_cmsMD5computeID_ztwwg < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sample) {
+        	return 0;
+        }
+        cmsHPROFILE ret_cmsOpenProfileFromMemTHR_mwbhc = cmsOpenProfileFromMemTHR(ret_cmsGetTransformContextID_vlqdn, sample, (unsigned long )ret_cmsMD5computeID_ztwwg);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        cmsDeleteTransform(hTransform);
+    }
+
+    // Close the profile
+    cmsCloseProfile(hProfile);
+
+    return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_84(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

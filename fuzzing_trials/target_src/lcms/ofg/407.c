@@ -1,55 +1,66 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_407(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    cmsContext context;
-    cmsHPROFILE inputProfile;
-    cmsHPROFILE outputProfile;
-    cmsHPROFILE proofingProfile;
-    cmsUInt32Number inputFormat;
-    cmsUInt32Number outputFormat;
-    cmsUInt32Number proofingIntent;
-    cmsUInt32Number transformIntent;
-    cmsUInt32Number flags;
+    cmsHTRANSFORM transform;
+    cmsContext contextID;
 
-    // Initialize the context
-    context = cmsCreateContext(NULL, NULL);
+    // Initialize a transform with some default values for fuzzing
+    cmsHPROFILE inputProfile = cmsCreate_sRGBProfile();
+    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
+    cmsUInt32Number intent = INTENT_PERCEPTUAL;
+    cmsUInt32Number flags = 0;
 
-    // Create dummy profiles for input, output, and proofing
-    inputProfile = cmsCreate_sRGBProfile();
-    outputProfile = cmsCreate_sRGBProfile();
-    proofingProfile = cmsCreate_sRGBProfile();
-
-    // Set some non-zero values for formats and intents
-    inputFormat = TYPE_RGB_8;
-    outputFormat = TYPE_RGB_8;
-    proofingIntent = INTENT_RELATIVE_COLORIMETRIC;
-    transformIntent = INTENT_PERCEPTUAL;
-    flags = cmsFLAGS_SOFTPROOFING;
+    // Create a transform using the profiles
+    transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, intent, flags);
 
     // Call the function-under-test
-    cmsHTRANSFORM transform = cmsCreateProofingTransformTHR(
-        context,
-        inputProfile,
-        inputFormat,
-        outputProfile,
-        outputFormat,
-        proofingProfile,
-        proofingIntent,
-        transformIntent,
-        flags
-    );
+    contextID = cmsGetTransformContextID(transform);
 
     // Clean up
-    if (transform != NULL) {
-        cmsDeleteTransform(transform);
-    }
+    cmsDeleteTransform(transform);
     cmsCloseProfile(inputProfile);
     cmsCloseProfile(outputProfile);
-    cmsCloseProfile(proofingProfile);
-    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_407(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

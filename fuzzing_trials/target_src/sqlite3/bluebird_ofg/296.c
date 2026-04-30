@@ -1,43 +1,61 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_296(const uint8_t *data, size_t size) {
-    // Check if the input data is non-null and has a non-zero size
-    if (data == NULL || size == 0) {
+    // Initialize SQLite database and statement
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+    
+    // Create an in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    sqlite3 *db;
-    char *errMsg = 0;
-
-    // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db)) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Create a simple table
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value INTEGER);", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Prepare a SQL statement for execution
+    rc = sqlite3_prepare_v2(db, "INSERT INTO test (value) VALUES (?);", -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL command(s) from the input data
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Bind the fuzzing input to the SQL statement
+    if (size > 0) {
+        int value = data[0];  // Use the first byte of data as the integer value to insert
+        sqlite3_bind_int(stmt, 1, value);
+    }
 
-    // Free allocated resources
-    sqlite3_free(errMsg);
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_system_errno
-    sqlite3_system_errno(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Execute the SQL statement
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    // Prepare a statement to select the inserted value
+    rc = sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = 1;", -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the statement and retrieve the result
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Call the function-under-test
+        int result = sqlite3_column_int(stmt, 0);
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

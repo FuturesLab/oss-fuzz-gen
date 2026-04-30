@@ -1,44 +1,71 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
 
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h"
+    // Include the header for the function-under-test
+    const void * lou_getTable(const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to create two non-null strings
-    if (size < 2) {
+    // Ensure the input size is non-zero to create a valid C-string
+    if (size == 0) {
         return 0;
     }
 
-    // Split the input data into two parts for the two strings
-    size_t mid = size / 2;
-    const char *firstString = reinterpret_cast<const char*>(data);
-    const char *secondString = reinterpret_cast<const char*>(data + mid);
-
-    // Ensure both strings are null-terminated
-    char *firstStrCopy = static_cast<char*>(malloc(mid + 1));
-    char *secondStrCopy = static_cast<char*>(malloc(size - mid + 1));
-
-    if (firstStrCopy == nullptr || secondStrCopy == nullptr) {
-        free(firstStrCopy);
-        free(secondStrCopy);
+    // Allocate memory for the C-string and ensure it's null-terminated
+    char *tableName = (char *)malloc(size + 1);
+    if (tableName == NULL) {
         return 0;
     }
+    memcpy(tableName, data, size);
+    tableName[size] = '\0';  // Null-terminate the string
 
-    memcpy(firstStrCopy, firstString, mid);
-    firstStrCopy[mid] = '\0';
+    // Call the function-under-test
+    const void *result = lou_getTable(tableName);
 
-    memcpy(secondStrCopy, secondString, size - mid);
-    secondStrCopy[size - mid] = '\0';
-
-    // Call the function under test
-    lou_compileString(firstStrCopy, secondStrCopy);
-
-    // Free allocated memory
-    free(firstStrCopy);
-    free(secondStrCopy);
+    // Clean up
+    free(tableName);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,37 +1,63 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include "lcms2.h"
+
+// Assuming the function is declared in a library header
+int cmsGetEncodedCMMversion();
 
 int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size) {
-    cmsHANDLE dictHandle;
-    cmsDICTentry *entryList;
-    cmsMLU *displayName, *displayValue;
+    // The function cmsGetEncodedCMMversion does not take any parameters
+    // and returns an integer. We can directly call it in the fuzzing harness.
+    
+    // Call the function under test
+    int version = cmsGetEncodedCMMversion();
 
-    // Initialize the dictionary handle
-    dictHandle = cmsDictAlloc(NULL);
-    if (dictHandle == NULL) {
-        return 0;
-    }
-
-    // Create display names and values
-    displayName = cmsMLUalloc(NULL, 1);
-    displayValue = cmsMLUalloc(NULL, 1);
-    cmsMLUsetWide(displayName, "en", "US", L"Display Name 1");
-    cmsMLUsetWide(displayValue, "en", "US", L"Display Value 1");
-
-    // Add some entries to the dictionary to ensure it's not empty
-    cmsDictAddEntry(dictHandle, L"Key1", L"Value1", displayName, displayValue);
-    cmsDictAddEntry(dictHandle, L"Key2", L"Value2", displayName, displayValue);
-    cmsDictAddEntry(dictHandle, L"Key3", L"Value3", displayName, displayValue);
-
-    // Call the function-under-test
-    entryList = (cmsDICTentry *)cmsDictGetEntryList(dictHandle);
-
-    // Cleanup
-    cmsMLUfree(displayName);
-    cmsMLUfree(displayValue);
-    cmsDictFree(dictHandle);
+    // Optionally, you can do something with the returned version,
+    // like logging it, but since this is a fuzzing harness, the main
+    // goal is to ensure the function is executed with various inputs.
+    
+    (void)data;  // Suppress unused variable warning
+    (void)size;  // Suppress unused variable warning
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_129(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

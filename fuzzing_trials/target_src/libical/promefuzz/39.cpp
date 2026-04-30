@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_xavailable at icalcomponent.c:2090:16 in icalcomponent.h
-// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
-// icalcomponent_new_xstandard at icalcomponent.c:2060:16 in icalcomponent.h
-// icalcomponent_new_vavailability at icalcomponent.c:2085:16 in icalcomponent.h
-// icalcomponent_add_property at icalcomponent.c:385:6 in icalcomponent.h
-// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
+// icalcomponent_new_vjournal at icalcomponent.c:2040:16 in icalcomponent.h
+// icalcomponent_new_vpoll at icalcomponent.c:2095:16 in icalcomponent.h
+// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
+// icalcomponent_new_vquery at icalcomponent.c:2075:16 in icalcomponent.h
+// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
+// icalcomponent_new_vevent at icalcomponent.c:2030:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,83 +14,87 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+extern "C" {
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
+#include "icalcomponent.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
-    // Prepare a dummy file if needed
-    std::ofstream dummyFile("./dummy_file");
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
-    }
+    // Create various iCalendar components
+    icalcomponent *vpoll = icalcomponent_new_vpoll();
+    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
+    icalcomponent *vjournal = icalcomponent_new_vjournal();
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    icalcomponent *xvote = icalcomponent_new_xvote();
+    icalcomponent *vquery = icalcomponent_new_vquery();
 
-    // Create components using the target API functions
-    icalcomponent *vavailability = icalcomponent_new_vavailability();
-    icalcomponent *xstandard = icalcomponent_new_xstandard();
-    icalcomponent *vagenda = icalcomponent_new_vagenda();
-    icalcomponent *xavailable = icalcomponent_new_xavailable();
-
-    // Create a dummy icalproperty
-    icalproperty *dummyProperty1 = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    icalproperty_set_summary(dummyProperty1, "Dummy Summary 1");
-
-    icalproperty *dummyProperty2 = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    icalproperty_set_summary(dummyProperty2, "Dummy Summary 2");
-
-    icalproperty *dummyProperty3 = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    icalproperty_set_summary(dummyProperty3, "Dummy Summary 3");
-
-    icalproperty *dummyProperty4 = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    icalproperty_set_summary(dummyProperty4, "Dummy Summary 4");
-
-    // Add the dummy property to the components
-    if (vavailability) {
-        icalcomponent_add_property(vavailability, dummyProperty1);
+    // Perform some simple checks and cleanup
+    if (vpoll) {
+        // Do something with vpoll
+        icalcomponent_free(vpoll);
     }
-    if (xstandard) {
-        icalcomponent_add_property(xstandard, dummyProperty2);
+    if (vtimezone) {
+        // Do something with vtimezone
+        icalcomponent_free(vtimezone);
     }
-    if (vagenda) {
-        icalcomponent_add_property(vagenda, dummyProperty3);
+    if (vjournal) {
+        // Do something with vjournal
+        icalcomponent_free(vjournal);
     }
-    if (xavailable) {
-        icalcomponent_add_property(xavailable, dummyProperty4);
+    if (vevent) {
+        // Do something with vevent
+        icalcomponent_free(vevent);
     }
-
-    // Set a dummy DTSTAMP for each component
-    struct icaltimetype dtstamp = icaltime_current_time_with_zone(icaltimezone_get_utc_timezone());
-    if (vavailability) {
-        icalcomponent_set_dtstamp(vavailability, dtstamp);
+    if (xvote) {
+        // Do something with xvote
+        icalcomponent_free(xvote);
     }
-    if (xstandard) {
-        icalcomponent_set_dtstamp(xstandard, dtstamp);
+    if (vquery) {
+        // Do something with vquery
+        icalcomponent_free(vquery);
     }
-    if (vagenda) {
-        icalcomponent_set_dtstamp(vagenda, dtstamp);
-    }
-    if (xavailable) {
-        icalcomponent_set_dtstamp(xavailable, dtstamp);
-    }
-
-    // Clean up components
-    if (vavailability) {
-        icalcomponent_free(vavailability);
-    }
-    if (xstandard) {
-        icalcomponent_free(xstandard);
-    }
-    if (vagenda) {
-        icalcomponent_free(vagenda);
-    }
-    if (xavailable) {
-        icalcomponent_free(xavailable);
-    }
-
-    // Properties are freed by icalcomponent_free, no need to call icalproperty_free
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

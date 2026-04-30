@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_free at icalcomponent.c:172:6 in icalcomponent.h
-// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
-// icalcomponent_add_property at icalcomponent.c:385:6 in icalcomponent.h
-// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
-// icalcomponent_merge_component at icalcomponent.c:2139:6 in icalcomponent.h
+// icaltimezone_get_display_name at icaltimezone.c:1309:13 in icaltimezone.h
+// icaltimezone_get_builtin_timezone at icaltimezone.c:1383:15 in icaltimezone.h
+// icaltimezone_get_location at icaltimezone.c:1222:13 in icaltimezone.h
+// icaltimezone_get_tznames at icaltimezone.c:1234:13 in icaltimezone.h
+// icaltimezone_get_builtin_timezone_from_tzid at icaltimezone.c:1499:15 in icaltimezone.h
+// icaltimezone_get_tzid at icaltimezone.c:1210:13 in icaltimezone.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,54 +14,116 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
+#include <cstddef>
 #include <cstdint>
-
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
-    }
-}
+#include <fstream>
+#include <iostream>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icaltimezone.h"
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    // Write the input data to a dummy file
-    write_dummy_file(Data, Size);
+    // Convert input data to a null-terminated string
+    std::string input(reinterpret_cast<const char*>(Data), Size);
 
-    // Create two VCALENDAR components to test merging
-    icalcomponent *vcalendar1 = icalcomponent_vanew(ICAL_VCALENDAR_COMPONENT, nullptr);
-    icalcomponent *vcalendar2 = icalcomponent_vanew(ICAL_VCALENDAR_COMPONENT, nullptr);
+    // Test icaltimezone_get_builtin_timezone
+    icaltimezone *zone = icaltimezone_get_builtin_timezone(input.c_str());
+    if (zone) {
+        // Test icaltimezone_get_display_name
+        const char *display_name = icaltimezone_get_display_name(zone);
+        if (display_name) {
+            std::cout << "Display Name: " << display_name << std::endl;
+        }
 
-    // Create a VAGENDA component
-    icalcomponent *vagenda = icalcomponent_new_vagenda();
-    if (vagenda) {
-        icalcomponent_add_component(vcalendar1, vagenda);
+        // Test icaltimezone_get_tznames
+        const char *tz_names = icaltimezone_get_tznames(zone);
+        if (tz_names) {
+            std::cout << "TZ Names: " << tz_names << std::endl;
+        }
+
+        // Test icaltimezone_get_location
+        const char *location = icaltimezone_get_location(zone);
+        if (location) {
+            std::cout << "Location: " << location << std::endl;
+        }
+
+        // Test icaltimezone_get_tzid
+        const char *tzid = icaltimezone_get_tzid(zone);
+        if (tzid) {
+            std::cout << "TZID: " << tzid << std::endl;
+        }
     }
 
-    // Add a property to vcalendar1
-    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    if (property) {
-        icalcomponent_add_property(vcalendar1, property);
+    // Test icaltimezone_get_builtin_timezone_from_tzid
+    zone = icaltimezone_get_builtin_timezone_from_tzid(input.c_str());
+    if (zone) {
+        // Test icaltimezone_get_display_name
+        const char *display_name = icaltimezone_get_display_name(zone);
+        if (display_name) {
+            std::cout << "Display Name from TZID: " << display_name << std::endl;
+        }
+
+        // Test icaltimezone_get_tznames
+        const char *tz_names = icaltimezone_get_tznames(zone);
+        if (tz_names) {
+            std::cout << "TZ Names from TZID: " << tz_names << std::endl;
+        }
+
+        // Test icaltimezone_get_location
+        const char *location = icaltimezone_get_location(zone);
+        if (location) {
+            std::cout << "Location from TZID: " << location << std::endl;
+        }
+
+        // Test icaltimezone_get_tzid
+        const char *tzid = icaltimezone_get_tzid(zone);
+        if (tzid) {
+            std::cout << "TZID from TZID: " << tzid << std::endl;
+        }
     }
-
-    // Set a DTSTAMP on vcalendar1
-    struct icaltimetype dtstamp = icaltime_from_timet_with_zone(time(nullptr), 0, nullptr);
-    icalcomponent_set_dtstamp(vcalendar1, dtstamp);
-
-    // Merge vcalendar2 into vcalendar1
-    icalcomponent_merge_component(vcalendar1, vcalendar2);
-
-    // Free the components
-    icalcomponent_free(vcalendar1);
-    // vcalendar2 should not be freed as it is merged into vcalendar1
-    // vagenda and property are freed with vcalendar1
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

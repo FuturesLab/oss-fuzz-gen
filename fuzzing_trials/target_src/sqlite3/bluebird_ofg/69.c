@@ -1,43 +1,44 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
+
+// Dummy busy handler function
+int busy_handler_69(void *data, int count) {
+    return 0; // Always return 0 to indicate that the operation should not be retried
+}
 
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    int rc;
     char *errMsg = 0;
 
-    // Initialize variables
-    int rc = sqlite3_open(":memory:", &db);
+    // Open an in-memory SQLite database
+    const char zrbymvno[1024] = "fnrwy";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(zrbymvno, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure data is not empty
-    if (size == 0) {
-        sqlite3_close(db);
-        return 0;
-    }
+    // Set the busy handler for the database
+    sqlite3_busy_handler(db, busy_handler_69, NULL);
 
-    // Allocate memory for a null-terminated SQL command
+    // Ensure the input data is null-terminated for use as a SQL statement
     char *sql = (char *)malloc(size + 1);
-    if (!sql) {
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
-
-    // Copy data to sql and ensure it is null-terminated
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Clean up
+    // Free allocated resources
     free(sql);
     sqlite3_close(db);
 

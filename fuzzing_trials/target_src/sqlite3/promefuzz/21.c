@@ -1,20 +1,44 @@
 // This fuzz driver is generated for library sqlite3, aiming to fuzz the following functions:
-// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
-// sqlite3_exec at sqlite3.c:126811:16 in sqlite3.h
-// sqlite3_blob_open at sqlite3.c:90692:16 in sqlite3.h
-// sqlite3_blob_close at sqlite3.c:90931:16 in sqlite3.h
-// sqlite3_errmsg at sqlite3.c:173721:24 in sqlite3.h
-// sqlite3_blob_reopen at sqlite3.c:91074:16 in sqlite3.h
-// sqlite3_blob_bytes at sqlite3.c:91059:16 in sqlite3.h
-// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
-// sqlite3_realloc64 at sqlite3.c:17630:18 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_malloc at sqlite3.c:17377:18 in sqlite3.h
-// sqlite3_randomness at sqlite3.c:20926:17 in sqlite3.h
-// sqlite3_free at sqlite3.c:17452:17 in sqlite3.h
-// sqlite3_blob_close at sqlite3.c:90931:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_finalize at sqlite3.c:78432:16 in sqlite3.h
 // sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_open at sqlite3.c:174695:16 in sqlite3.h
+// sqlite3_prepare_v2 at sqlite3.c:132572:16 in sqlite3.h
+// sqlite3_close at sqlite3.c:172361:16 in sqlite3.h
+// sqlite3_bind_int64 at sqlite3.c:80118:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int64 at sqlite3.c:80118:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int64 at sqlite3.c:80118:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_bind_text at sqlite3.c:80158:16 in sqlite3.h
+// sqlite3_bind_int at sqlite3.c:80115:16 in sqlite3.h
+// sqlite3_libversion_number at sqlite3.c:171129:16 in sqlite3.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -22,81 +46,150 @@
 #include <stdio.h>
 #include <sqlite3.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <string.h>
-#include <stdlib.h>
 
-static void prepare_database(sqlite3 **db) {
-    int rc = sqlite3_open(":memory:", db);
-    if (rc != SQLITE_OK) {
-        *db = NULL;
-    }
-}
-
-static sqlite3_blob* prepare_blob(sqlite3 *db) {
-    sqlite3_blob *blob = NULL;
-    char *errMsg = 0;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data BLOB);"
-                      "INSERT INTO test (data) VALUES (zeroblob(10));";
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc == SQLITE_OK) {
-        rc = sqlite3_blob_open(db, "main", "test", "data", 1, 1, &blob);
-    }
-    if (rc != SQLITE_OK && blob) {
-        sqlite3_blob_close(blob);
-        blob = NULL;
-    }
-    return blob;
+static void dummy_destructor(void *ptr) {
+    // Dummy destructor for sqlite3_bind_text
 }
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    sqlite3 *db = NULL;
-    prepare_database(&db);
-    if (!db) return 0;
+    if (Size < 100) return 0; // Ensure there's enough data for the test
 
-    // sqlite3_errmsg
-    const char *errmsg = sqlite3_errmsg(db);
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
 
-    // sqlite3_blob_reopen
-    sqlite3_blob *blob = prepare_blob(db);
-    if (blob) {
-        sqlite3_int64 rowid = 1;
-        if (Size >= sizeof(sqlite3_int64)) {
-            memcpy(&rowid, Data, sizeof(sqlite3_int64));
-        }
-        sqlite3_blob_reopen(blob, rowid);
+    // Open a database connection
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
     }
 
-    // sqlite3_blob_bytes
-    if (blob) {
-        int blob_size = sqlite3_blob_bytes(blob);
+    // Prepare a dummy SQL statement
+    const char *sql = "SELECT * FROM dummy WHERE a = ? AND b = ? AND c = ? AND d = ? AND e = ? AND f = ? AND g = ? AND h = ? AND i = ? AND j = ? AND k = ? AND l = ? AND m = ? AND n = ? AND o = ? AND p = ? AND q = ? AND r = ? AND s = ? AND t = ? AND u = ? AND v = ? AND w = ? AND x = ? AND y = ? AND z = ? AND aa = ? AND ab = ? AND ac = ? AND ad = ? AND ae = ? AND af = ? AND ag = ?";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // sqlite3_realloc64
-    void *pOld = sqlite3_malloc(100);
-    if (pOld) {
-        sqlite3_uint64 newSize = 100;
-        if (Size >= sizeof(sqlite3_uint64)) {
-            memcpy(&newSize, Data, sizeof(sqlite3_uint64));
-        }
-        void *pNew = sqlite3_realloc64(pOld, newSize);
-        if (pNew) {
-            sqlite3_free(pNew);
-        } else {
-            sqlite3_free(pOld);
-        }
-    }
+    // Bind values to the statement
+    int offset = 0;
+    rc = sqlite3_bind_int64(stmt, 1, *(sqlite_int64 *)(Data + offset));
+    offset += sizeof(sqlite_int64);
+    rc = sqlite3_bind_int(stmt, 2, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_text(stmt, 3, (const char *)(Data + offset), 10, dummy_destructor);
+    offset += 10;
+    rc = sqlite3_bind_int(stmt, 4, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int64(stmt, 5, *(sqlite_int64 *)(Data + offset));
+    offset += sizeof(sqlite_int64);
+    rc = sqlite3_bind_text(stmt, 6, (const char *)(Data + offset), 10, dummy_destructor);
+    offset += 10;
+    rc = sqlite3_bind_int(stmt, 7, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int64(stmt, 8, *(sqlite_int64 *)(Data + offset));
+    offset += sizeof(sqlite_int64);
+    rc = sqlite3_bind_text(stmt, 9, (const char *)(Data + offset), 10, dummy_destructor);
+    offset += 10;
+    rc = sqlite3_bind_int(stmt, 10, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 11, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_text(stmt, 12, (const char *)(Data + offset), 10, dummy_destructor);
+    offset += 10;
+    rc = sqlite3_bind_text(stmt, 13, (const char *)(Data + offset), 10, dummy_destructor);
+    offset += 10;
+    rc = sqlite3_bind_text(stmt, 14, (const char *)(Data + offset), 10, dummy_destructor);
+    offset += 10;
+    rc = sqlite3_bind_int(stmt, 15, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 16, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 17, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 18, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_text(stmt, 19, (const char *)(Data + offset), 10, dummy_destructor);
+    offset += 10;
+    rc = sqlite3_bind_int(stmt, 20, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 21, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 22, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 23, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 24, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 25, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 26, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 27, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 28, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_int(stmt, 29, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_text(stmt, 30, (const char *)(Data + offset), 10, dummy_destructor);
+    offset += 10;
+    rc = sqlite3_bind_int(stmt, 31, *(int *)(Data + offset));
+    offset += sizeof(int);
+    int version = sqlite3_libversion_number();
+    (void)version; // Suppress unused variable warning
+    rc = sqlite3_bind_int(stmt, 32, *(int *)(Data + offset));
+    offset += sizeof(int);
+    rc = sqlite3_bind_text(stmt, 33, (const char *)(Data + offset), 10, dummy_destructor);
+    offset += 10;
+    rc = sqlite3_bind_text(stmt, 34, (const char *)(Data + offset), 10, dummy_destructor);
 
-    // sqlite3_randomness
-    if (Size > 0) {
-        void *randomBuffer = sqlite3_malloc(Size);
-        if (randomBuffer) {
-            sqlite3_randomness((int)Size, randomBuffer);
-            sqlite3_free(randomBuffer);
-        }
-    }
+    // Finalize the statement
+    sqlite3_finalize(stmt);
 
-    if (blob) sqlite3_blob_close(blob);
+    // Close the database connection
     sqlite3_close(db);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

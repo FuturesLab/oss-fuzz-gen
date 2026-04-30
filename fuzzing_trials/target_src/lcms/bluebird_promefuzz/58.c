@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -5,101 +6,104 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include "lcms2.h"
 
-static void fuzz_cmsSmoothToneCurve(cmsToneCurve* curve, const uint8_t* Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number)) {
-        return;
-    }
-    cmsFloat64Number lambda;
-    memcpy(&lambda, Data, sizeof(cmsFloat64Number));
-    cmsSmoothToneCurve(curve, lambda);
-}
-
-static void fuzz_cmsEstimateGamma(const cmsToneCurve* curve, const uint8_t* Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number)) {
-        return;
-    }
-    cmsFloat64Number precision;
-    memcpy(&precision, Data, sizeof(cmsFloat64Number));
-    cmsEstimateGamma(curve, precision);
-}
-
-static cmsToneCurve* fuzz_cmsBuildGamma(cmsContext context, const uint8_t* Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number)) {
-        return NULL;
-    }
-    cmsFloat64Number gamma;
-    memcpy(&gamma, Data, sizeof(cmsFloat64Number));
-    return cmsBuildGamma(context, gamma);
-}
-
-static cmsToneCurve* fuzz_cmsBuildParametricToneCurve(cmsContext context, const uint8_t* Data, size_t Size) {
-    if (Size < sizeof(cmsInt32Number) + sizeof(cmsFloat64Number)) {
-        return NULL;
-    }
-    cmsInt32Number type;
-    memcpy(&type, Data, sizeof(cmsInt32Number));
-    cmsFloat64Number params[10];
-    size_t numParams = (Size - sizeof(cmsInt32Number)) / sizeof(cmsFloat64Number);
-    if (numParams > 10) {
-        numParams = 10;
-    }
-    memcpy(params, Data + sizeof(cmsInt32Number), numParams * sizeof(cmsFloat64Number));
-    return cmsBuildParametricToneCurve(context, type, params);
-}
-
-static void fuzz_cmsIsToneCurveLinear(const cmsToneCurve* curve) {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsIsToneCurveLinear with cmsIsToneCurveDescending
-    cmsIsToneCurveDescending(curve);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-}
-
-static void fuzz_cmsDetectRGBProfileGamma(const uint8_t* Data, size_t Size) {
-    if (Size < sizeof(cmsFloat64Number)) {
-        return;
-    }
-    cmsHPROFILE profile = NULL;
-    cmsFloat64Number threshold;
-    memcpy(&threshold, Data, sizeof(cmsFloat64Number));
-
-    // Use a dummy profile handle if necessary
-    profile = cmsOpenProfileFromFile("./dummy_file", "r");
-    if (profile) {
-        cmsDetectRGBProfileGamma(profile, threshold);
-        cmsCloseProfile(profile);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_58(const uint8_t *Data, size_t Size) {
-    cmsContext context = NULL;
-
-    // Fuzz cmsBuildGamma
-    cmsToneCurve* gammaCurve = fuzz_cmsBuildGamma(context, Data, Size);
-    if (gammaCurve) {
-        // Fuzz cmsSmoothToneCurve and cmsEstimateGamma
-        fuzz_cmsSmoothToneCurve(gammaCurve, Data, Size);
-        fuzz_cmsEstimateGamma(gammaCurve, Data, Size);
-        fuzz_cmsIsToneCurveLinear(gammaCurve);
-        cmsFreeToneCurve(gammaCurve);
+    if (Size < 1) {
+        return 0;
     }
 
-    // Fuzz cmsBuildParametricToneCurve
-    cmsToneCurve* parametricCurve = fuzz_cmsBuildParametricToneCurve(context, Data, Size);
-    if (parametricCurve) {
-        // Fuzz cmsSmoothToneCurve and cmsEstimateGamma
-        fuzz_cmsSmoothToneCurve(parametricCurve, Data, Size);
-        fuzz_cmsEstimateGamma(parametricCurve, Data, Size);
-        fuzz_cmsIsToneCurveLinear(parametricCurve);
-        cmsFreeToneCurve(parametricCurve);
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
     }
 
-    // Fuzz cmsDetectRGBProfileGamma
-    fuzz_cmsDetectRGBProfileGamma(Data, Size);
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectRGBProfileGamma
+    cmsBool ret_cmsPlugin_aizyx = cmsPlugin(NULL);
+    if (ret_cmsPlugin_aizyx < 0){
+    	return 0;
+    }
+    cmsFloat64Number ret_cmsDetectRGBProfileGamma_mbsbe = cmsDetectRGBProfileGamma(hProfile, (double )ret_cmsPlugin_aizyx);
+    if (ret_cmsDetectRGBProfileGamma_mbsbe < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsReadTag to cmsIT8LoadFromMem
+            cmsContext ret_cmsGetTransformContextID_ctufb = cmsGetTransformContextID(0);
+            cmsInt32Number ret_cmsGetTagCount_hhusf = cmsGetTagCount(hProfile);
+            if (ret_cmsGetTagCount_hhusf < 0){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tagData) {
+            	return 0;
+            }
+            cmsHANDLE ret_cmsIT8LoadFromMem_cfhlr = cmsIT8LoadFromMem(ret_cmsGetTransformContextID_ctufb, tagData, (unsigned long )ret_cmsGetTagCount_hhusf);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            (void)tagData;
+        }
+    }
+
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_58(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

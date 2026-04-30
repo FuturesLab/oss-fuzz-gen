@@ -1,32 +1,65 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    if (context == NULL) {
+    cmsHPROFILE hProfile = NULL;
+
+    // Check if the data size is sufficient to create a profile
+    if (size < 4) {
         return 0;
     }
 
-    // Ensure the data is null-terminated to be used as a string
-    char *cubeFilePath = (char *)malloc(size + 1);
-    if (cubeFilePath == NULL) {
-        cmsDeleteContext(context);
+    // Create a memory profile from the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
         return 0;
     }
-    memcpy(cubeFilePath, data, size);
-    cubeFilePath[size] = '\0';
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateDeviceLinkFromCubeFileTHR(context, cubeFilePath);
+    cmsIOHANDLER *ioHandler = cmsGetProfileIOhandler(hProfile);
 
     // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-    free(cubeFilePath);
-    cmsDeleteContext(context);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_119(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

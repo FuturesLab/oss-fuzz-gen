@@ -1,96 +1,184 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
-#include "html.h"
+#include <stdlib.h>
+#include <stdio.h>
 #include "document.h"
 
-static void *dummy_realloc_callback(void *ptr, size_t size) {
+// Dummy callback implementations for the renderer
+static void dummy_blockcode(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_buffer *lang, const hoedown_buffer *attr, const hoedown_renderer_data *data) {}
+static void dummy_blockquote(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) {}
+static void dummy_header(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_buffer *attr, int level, const hoedown_renderer_data *data) {}
+static void dummy_hrule(hoedown_buffer *ob, const hoedown_renderer_data *data) {}
+static void dummy_list(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_buffer *attr, hoedown_list_flags flags, const hoedown_renderer_data *data) {}
+static void dummy_listitem(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_buffer *attr, hoedown_list_flags *flags, const hoedown_renderer_data *data) {}
+static void dummy_paragraph(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_buffer *attr, const hoedown_renderer_data *data) {}
+static void dummy_table(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_buffer *attr, const hoedown_renderer_data *data) {}
+static void dummy_table_header(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) {}
+static void dummy_table_body(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) {}
+static void dummy_table_row(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) {}
+static void dummy_table_cell(hoedown_buffer *ob, const hoedown_buffer *content, hoedown_table_flags flags, const hoedown_renderer_data *data) {}
+static void dummy_footnotes(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) {}
+static void dummy_footnote_def(hoedown_buffer *ob, const hoedown_buffer *content, unsigned int num, const hoedown_renderer_data *data) {}
+static void dummy_blockhtml(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_renderer_data *data) {}
+
+static int dummy_autolink(hoedown_buffer *ob, const hoedown_buffer *link, hoedown_autolink_type type, const hoedown_renderer_data *data) { return 1; }
+static int dummy_codespan(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_buffer *attr, const hoedown_renderer_data *data) { return 1; }
+static int dummy_double_emphasis(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) { return 1; }
+static int dummy_emphasis(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) { return 1; }
+static int dummy_underline(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) { return 1; }
+static int dummy_highlight(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) { return 1; }
+static int dummy_quote(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) { return 1; }
+static int dummy_image(hoedown_buffer *ob, const hoedown_buffer *link, const hoedown_buffer *title, const hoedown_buffer *alt, const hoedown_buffer *attr, const hoedown_renderer_data *data) { return 1; }
+static int dummy_linebreak(hoedown_buffer *ob, const hoedown_renderer_data *data) { return 1; }
+static int dummy_link(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_buffer *link, const hoedown_buffer *title, const hoedown_buffer *attr, const hoedown_renderer_data *data) { return 1; }
+static int dummy_triple_emphasis(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) { return 1; }
+static int dummy_strikethrough(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) { return 1; }
+static int dummy_superscript(hoedown_buffer *ob, const hoedown_buffer *content, const hoedown_renderer_data *data) { return 1; }
+static int dummy_footnote_ref(hoedown_buffer *ob, unsigned int num, const hoedown_renderer_data *data) { return 1; }
+static int dummy_math(hoedown_buffer *ob, const hoedown_buffer *text, int displaymode, const hoedown_renderer_data *data) { return 1; }
+static int dummy_raw_html(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_renderer_data *data) { return 1; }
+
+static void dummy_entity(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_renderer_data *data) {}
+static void dummy_normal_text(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_renderer_data *data) {}
+
+static void dummy_doc_header(hoedown_buffer *ob, int inline_render, const hoedown_renderer_data *data) {}
+static void dummy_doc_footer(hoedown_buffer *ob, int inline_render, const hoedown_renderer_data *data) {}
+
+static void dummy_user_block(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_renderer_data *data) {}
+
+static void dummy_ref(hoedown_buffer *orig, const hoedown_renderer_data *data) {}
+static void dummy_footnote_ref_def(hoedown_buffer *orig, const hoedown_renderer_data *data) {}
+
+static void *dummy_realloc(void *ptr, size_t size) {
     return realloc(ptr, size);
 }
 
-static void dummy_free_callback(void *ptr) {
+static void dummy_free(void *ptr) {
     free(ptr);
 }
 
-static void dummy_buffer_free_callback(void *buffer) {
-    if (buffer) {
-        hoedown_buffer *buf = (hoedown_buffer *)buffer;
-        if (buf->data_free) {
-                buf->data_free(buf->data);
-        }
-        free(buf);
-    }
-}
-
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size == 0) return 0;
 
-    int nesting_level = Data[0] % 5; // arbitrary nesting level choice
-    hoedown_renderer *renderer = hoedown_html_toc_renderer_new(nesting_level);
+    hoedown_renderer renderer = {
+        .opaque = NULL,
+        .blockcode = dummy_blockcode,
+        .blockquote = dummy_blockquote,
+        .header = dummy_header,
+        .hrule = dummy_hrule,
+        .list = dummy_list,
+        .listitem = dummy_listitem,
+        .paragraph = dummy_paragraph,
+        .table = dummy_table,
+        .table_header = dummy_table_header,
+        .table_body = dummy_table_body,
+        .table_row = dummy_table_row,
+        .table_cell = dummy_table_cell,
+        .footnotes = dummy_footnotes,
+        .footnote_def = dummy_footnote_def,
+        .blockhtml = dummy_blockhtml,
+        .autolink = dummy_autolink,
+        .codespan = dummy_codespan,
+        .double_emphasis = dummy_double_emphasis,
+        .emphasis = dummy_emphasis,
+        .underline = dummy_underline,
+        .highlight = dummy_highlight,
+        .quote = dummy_quote,
+        .image = dummy_image,
+        .linebreak = dummy_linebreak,
+        .link = dummy_link,
+        .triple_emphasis = dummy_triple_emphasis,
+        .strikethrough = dummy_strikethrough,
+        .superscript = dummy_superscript,
+        .footnote_ref = dummy_footnote_ref,
+        .math = dummy_math,
+        .raw_html = dummy_raw_html,
+        .entity = dummy_entity,
+        .normal_text = dummy_normal_text,
+        .doc_header = dummy_doc_header,
+        .doc_footer = dummy_doc_footer,
+        .user_block = dummy_user_block,
+        .ref = dummy_ref,
+        .footnote_ref_def = dummy_footnote_ref_def
+    };
 
-    if (!renderer) {
-        return 0;
-    }
-
-    hoedown_extensions extensions = HOEDOWN_EXT_TABLES | HOEDOWN_EXT_FENCED_CODE;
-    size_t max_nesting = (Size > 1) ? Data[1] : 1;
-    if (max_nesting == 0) {
-        max_nesting = 1;
-    }
-
+    // Create a dummy user block and meta buffer
     hoedown_user_block user_block = NULL;
-    
-    hoedown_buffer *meta = (hoedown_buffer *)malloc(sizeof(hoedown_buffer));
-    if (!meta) {
-        free(renderer);
+    hoedown_buffer meta = {0};
+
+    // Allocate memory for hoedown_document using a known size or a factory function
+    hoedown_document *doc = hoedown_document_new(&renderer, HOEDOWN_EXT_TABLES | HOEDOWN_EXT_FOOTNOTES, 16, 0, user_block, &meta);
+    if (!doc) return 0;
+
+    hoedown_buffer ob = {
+        .data = (uint8_t *)malloc(Size),
+        .size = 0,
+        .asize = Size,
+        .unit = 64,
+        .data_realloc = dummy_realloc,
+        .data_free = dummy_free,
+        .buffer_free = dummy_free
+    };
+
+    if (!ob.data) {
+        hoedown_document_free(doc);
         return 0;
     }
-    meta->data = NULL;
-    meta->size = 0;
-    meta->asize = 0;
-    meta->unit = 0;
-    meta->data_realloc = dummy_realloc_callback;
-    meta->data_free = dummy_free_callback;
-    meta->buffer_free = dummy_buffer_free_callback;
 
-    hoedown_document *document = hoedown_document_new(renderer, extensions, max_nesting, 0, user_block, meta);
+    hoedown_document_render(doc, &ob, Data, Size);
+    hoedown_document_render_inline(doc, &ob, Data, Size);
+    int list_depth = hoedown_document_list_depth(doc);
+    hoedown_header_type header_type = hoedown_document_header_type(doc);
+    const hoedown_buffer *footnote_id = hoedown_document_footnote_id(doc);
+    const hoedown_buffer *ol_numeral = hoedown_document_ol_numeral(doc);
 
-    if (document) {
-        hoedown_buffer *output_buffer = (hoedown_buffer *)malloc(sizeof(hoedown_buffer));
-        if (output_buffer) {
-            output_buffer->data = (uint8_t *)malloc(Size);
-            if (output_buffer->data) {
-                output_buffer->size = Size;
-                output_buffer->asize = Size;
-                output_buffer->unit = 1;
-                output_buffer->data_realloc = dummy_realloc_callback;
-                output_buffer->data_free = dummy_free_callback;
-                output_buffer->buffer_free = dummy_buffer_free_callback;
+    (void)list_depth;
+    (void)header_type;
+    (void)footnote_id;
+    (void)ol_numeral;
 
-                hoedown_document_render(document, output_buffer, Data, Size);
-
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hoedown_document_render to hoedown_document_link_type
-
-                hoedown_link_type ret_hoedown_document_link_type_jpmvh = hoedown_document_link_type(document);
-
-                // End mutation: Producer.APPEND_MUTATOR
-
-                hoedown_document_render_inline(document, output_buffer, Data, Size);
-
-                output_buffer->buffer_free(output_buffer);
-            } else {
-                free(output_buffer);
-            }
-        }
-        hoedown_document_free(document);
-    }
-
-    meta->buffer_free(meta);
-    free(renderer);
-
+    free(ob.data);
+    hoedown_document_free(doc);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

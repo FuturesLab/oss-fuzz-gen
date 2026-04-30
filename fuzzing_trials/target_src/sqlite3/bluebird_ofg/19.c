@@ -1,57 +1,45 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
 #include "sqlite3.h"
+#include <string.h>
+
+// Dummy busy handler function
+int busy_handler_19(void *data, int count) {
+    return 0; // Always return 0 to indicate that the operation should not be retried
+}
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Check if the input data is not null and has a reasonable size
-    if (data == NULL || size == 0) {
+    sqlite3 *db;
+    int rc;
+    char *errMsg = 0;
+
+    // Open an in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"w", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Allocate a new buffer with an extra byte for the null terminator
+    // Set the busy handler for the database
+    sqlite3_busy_handler(db, busy_handler_19, NULL);
+
+    // Ensure the input data is null-terminated for use as a SQL statement
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
+        sqlite3_close(db);
         return 0;
     }
-
-    // Copy the input data into the new buffer and add a null terminator
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Initialize SQLite in single-threaded mode for simplicity
-    sqlite3_initialize();
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Use the input data in some way to interact with SQLite
-    sqlite3 *db;
-    char *errMsg = NULL;
-    int rc;
-
-    // Attempt to open an in-memory database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
-
-    // Attempt to execute the input data as an SQL statement
-    rc = sqlite3_exec(db, sql, NULL, NULL, &errMsg);
-    if (errMsg) {
-        sqlite3_free(errMsg);
-    }
-
-    // Close the database connection
-    sqlite3_close(db);
-
-    // Clean up any thread-specific resources
-    sqlite3_thread_cleanup();
-
-    // Free the allocated buffer
+    // Free allocated resources
     free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

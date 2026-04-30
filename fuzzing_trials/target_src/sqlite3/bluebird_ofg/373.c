@@ -1,44 +1,43 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_373(const uint8_t *data, size_t size) {
-    // Check if the input data is non-null and has a non-zero size
-    if (data == NULL || size == 0) {
-        return 0;
-    }
-
     sqlite3 *db;
     char *errMsg = 0;
+    int rc;
 
     // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db)) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    rc = sqlite3_open(":memory:", &db);
+    if(rc) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_set_last_insert_rowid
-    sqlite3_int64 ret_sqlite3_last_insert_rowid_lxkcl = sqlite3_last_insert_rowid(db);
-    sqlite3_set_last_insert_rowid(db, ret_sqlite3_last_insert_rowid_lxkcl);
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Convert the fuzz input into a null-terminated string
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    if (!sql) {
         sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL command(s) from the input data
+    // Execute the SQL command
     sqlite3_exec(db, sql, 0, 0, &errMsg);
 
     // Free allocated resources
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_exec to sqlite3_total_changes64 using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    sqlite3_int64 ret_sqlite3_total_changes64_getxl = sqlite3_total_changes64(db);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
     sqlite3_free(errMsg);
     free(sql);
     sqlite3_close(db);

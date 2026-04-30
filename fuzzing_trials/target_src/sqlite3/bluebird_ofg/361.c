@@ -1,48 +1,37 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stddef.h>
+#include <stdint.h>
+#include "sqlite3.h"
+
+// Dummy function to simulate DW_TAG_subroutine_typeInfinite_loop
+int dummy_extension_function(void) {
+    // Simulate some operation
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_361(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
-
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
-        return 0;
+    if (size < sizeof(int)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open((const char *)"w", &db);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                sqlite3_close(db);
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
-
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_get_autocommit
-            sqlite3_get_autocommit(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
+    // Initialize SQLite
+    if (sqlite3_initialize() != SQLITE_OK) {
+        return 0; // Initialization failed
     }
 
+    // Register the dummy extension function
+    int result = sqlite3_auto_extension((void(*)(void))dummy_extension_function);
+
+    // Cancel the auto extension
+    if (result == SQLITE_OK) {
+        result = sqlite3_cancel_auto_extension((void(*)(void))dummy_extension_function);
+    }
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
+
+    // Return 0 to indicate successful execution
     return 0;
 }
 #ifdef INC_MAIN

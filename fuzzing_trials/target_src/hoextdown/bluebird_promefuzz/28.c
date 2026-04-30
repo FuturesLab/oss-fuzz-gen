@@ -1,45 +1,149 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <assert.h>
-#include "/src/hoextdown/src/stack.h"
-
-#define MAX_INITIAL_SIZE 1024  // Define a reasonable maximum size for initial_size
-
-static void initialize_stack(hoedown_stack *st, size_t initial_size) {
-    hoedown_stack_init(st, initial_size);
-}
-
-static void cleanup_stack(hoedown_stack *st) {
-    hoedown_stack_uninit(st);
-}
+#include "/src/hoextdown/src/buffer.h"
+#include "html.h"
+#include "document.h"
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(size_t)) return 0;
-
-    size_t initial_size = *((size_t *)Data);
-    if (initial_size > MAX_INITIAL_SIZE) return 0;  // Check and limit initial_size
-
-    Data += sizeof(size_t);
-    Size -= sizeof(size_t);
-
-    hoedown_stack stack;
-    initialize_stack(&stack, initial_size);
-
-    for (size_t i = 0; i < Size; ++i) {
-        hoedown_stack_push(&stack, (void *)(uintptr_t)Data[i]);
+    if (Size == 0) {
+        return 0;
     }
 
-    if (stack.size > 0) {
-        void *top_item = hoedown_stack_top(&stack);
-        void *popped_item = hoedown_stack_pop(&stack);
-        assert(top_item == popped_item);
+    // 1. Create a new buffer
+    size_t buffer_unit = 64; // Arbitrary non-zero unit size
+    hoedown_buffer *buf = hoedown_buffer_new(buffer_unit);
+    if (!buf) {
+        return 0;
     }
 
-    cleanup_stack(&stack);
+    // 2. Put data into the buffer
+    hoedown_buffer_put(buf, Data, Size);
+
+    // 3. Create a new HTML renderer
+    hoedown_html_flags render_flags = HOEDOWN_HTML_USE_XHTML;
+    int nesting_level = 16; // Arbitrary nesting level
+    hoedown_renderer *renderer = hoedown_html_renderer_new(render_flags, nesting_level);
+    if (!renderer) {
+        hoedown_buffer_free(buf);
+        return 0;
+    }
+
+    // 4. Create a new output buffer
+    hoedown_buffer *output_buf = hoedown_buffer_new(buffer_unit);
+    if (!output_buf) {
+        hoedown_buffer_free(buf);
+        free(renderer);
+        return 0;
+    }
+
+    // 5. Create a new meta buffer
+    hoedown_buffer *meta_buf = hoedown_buffer_new(buffer_unit);
+    if (!meta_buf) {
+        hoedown_buffer_free(buf);
+        hoedown_buffer_free(output_buf);
+        free(renderer);
+        return 0;
+    }
+
+    // 6. Create a new document
+    hoedown_extensions extensions = HOEDOWN_EXT_TABLES | HOEDOWN_EXT_FENCED_CODE;
+    size_t max_nesting = 16; // Arbitrary non-zero max nesting
+    uint8_t attr_activation = 1; // Enable attributes
+    hoedown_user_block user_block = NULL; // No user block
+    hoedown_document *doc = hoedown_document_new(renderer, extensions, max_nesting, attr_activation, user_block, meta_buf);
+    if (!doc) {
+        hoedown_buffer_free(buf);
+        hoedown_buffer_free(output_buf);
+        hoedown_buffer_free(meta_buf);
+        free(renderer);
+        return 0;
+    }
+
+    // 7. Render the document
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hoedown_document_new to hoedown_document_render
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!doc) {
+    	return 0;
+    }
+    const hoedown_buffer* ret_hoedown_document_link_inline_attr_cxogk = hoedown_document_link_inline_attr(doc);
+    if (ret_hoedown_document_link_inline_attr_cxogk == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!doc) {
+    	return 0;
+    }
+    uint8_t ret_hoedown_document_ul_item_char_crxwe = hoedown_document_ul_item_char(doc);
+    if (ret_hoedown_document_ul_item_char_crxwe < 0){
+    	return 0;
+    }
+    uint8_t ret_hoedown_document_ul_item_char_gddpe = hoedown_document_ul_item_char(NULL);
+    if (ret_hoedown_document_ul_item_char_gddpe < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!doc) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!meta_buf) {
+    	return 0;
+    }
+    hoedown_document_render(doc, meta_buf, &ret_hoedown_document_ul_item_char_crxwe, (size_t )ret_hoedown_document_ul_item_char_gddpe);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hoedown_document_render(doc, output_buf, Data, Size);
+
+    // 8. Cleanup
+    hoedown_document_free(doc);
+    hoedown_buffer_free(meta_buf);
+    hoedown_buffer_free(output_buf);
+    hoedown_buffer_free(buf);
+    hoedown_html_renderer_free(renderer); // Properly free the renderer
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

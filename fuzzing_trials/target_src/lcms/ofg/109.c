@@ -1,58 +1,61 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <lcms2.h>
+#include "lcms2.h" // Assuming lcms2.h is the correct header file for cmsNAMEDCOLORLIST
 
 int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to proceed
-    if (size < 3) {
+    cmsNAMEDCOLORLIST *namedColorList;
+
+    // Initialize the named color list with some dummy values
+    namedColorList = cmsAllocNamedColorList(NULL, 1, 32, "Prefix", "Suffix");
+    if (namedColorList == NULL) {
         return 0;
     }
 
-    // Create input and output profiles
-    cmsHPROFILE inputProfile = cmsCreate_sRGBProfile();
-    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
+    // Add a named color to the list to ensure it's not empty
+    cmsAppendNamedColor(namedColorList, "ColorName", (const cmsUInt16Number *)data, (const cmsUInt16Number *)data);
 
-    // Ensure profiles are created successfully
-    if (!inputProfile || !outputProfile) {
-        if (inputProfile) cmsCloseProfile(inputProfile);
-        if (outputProfile) cmsCloseProfile(outputProfile);
-        return 0;
-    }
-
-    // Create a transform
-    cmsHTRANSFORM transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
-
-    // Close profiles as they are no longer needed after creating the transform
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
-
-    // Ensure transform is created successfully
-    if (!transform) {
-        return 0;
-    }
-
-    // Allocate memory for the output buffer
-    void *outputBuffer = malloc(size);
-
-    // Ensure outputBuffer is non-NULL
-    if (!outputBuffer) {
-        cmsDeleteTransform(transform);
-        return 0;
-    }
-
-    cmsUInt32Number sizeOfElement = 3; // Assuming 3 bytes per element (RGB)
-    cmsUInt32Number strideIn = 3; // Assuming stride of 3 for RGB
-    cmsUInt32Number strideOut = 3; // Assuming stride of 3 for RGB
-    cmsUInt32Number numberOfElements = size / sizeOfElement; // Calculate number of elements
-    cmsUInt32Number bytesPerLineIn = size; // Assuming full line size
-    cmsUInt32Number bytesPerLineOut = size; // Assuming full line size
-
-    // Call the function under test
-    cmsDoTransformLineStride(transform, data, outputBuffer, sizeOfElement, strideIn, strideOut, numberOfElements, bytesPerLineIn, bytesPerLineOut);
-
-    // Free allocated memory and delete the transform
-    free(outputBuffer);
-    cmsDeleteTransform(transform);
+    // Call the function-under-test
+    cmsFreeNamedColorList(namedColorList);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_109(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

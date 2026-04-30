@@ -1,30 +1,67 @@
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
+#include <cstddef>
+#include <cstdio> // Include the cstdio library for printf
 
-// Assume the function is defined in an external C library
 extern "C" {
-    int lou_readCharFromFile(const char *, int *);
+    // Define a simple log callback function
+    void logcallback(const char *message) {
+        // For fuzzing purposes, we can just print the message
+        // In a real scenario, this might log to a file or handle the message differently
+        if (message) {
+            printf("Log: %s\n", message);
+        }
+    }
+
+    // Declare the function-under-test
+    void lou_registerLogCallback(void (*callback)(const char *));
 }
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated to be used as a C-string
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        return 0;
-    }
-    memcpy(filename, data, size);
-    filename[size] = '\0';
+    // Register the log callback
+    lou_registerLogCallback(logcallback);
 
-    // Initialize an integer to store the result
-    int resultValue = 0;
-
-    // Call the function with the filename and result pointer
-    lou_readCharFromFile(filename, &resultValue);
-
-    // Free allocated memory
-    free(filename);
+    // For this specific function, we don't need to use the `data` and `size` parameters
+    // because the function-under-test does not directly interact with them.
+    // The purpose here is to ensure that the callback registration doesn't cause issues.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

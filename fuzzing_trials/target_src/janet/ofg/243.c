@@ -1,34 +1,51 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <janet.h>
+
+// Assuming janet_collect is declared in an included header or elsewhere in the project
+void janet_collect();
 
 int LLVMFuzzerTestOneInput_243(const uint8_t *data, size_t size) {
-    // Ensure that there is enough data to extract an index
-    if (size < sizeof(int32_t)) {
-        return 0;
-    }
-
-    // Initialize Janet VM
-    janet_init();
-
-    // Create a Janet array to use as a test input
-    JanetArray *array = janet_array(10);
-    for (int i = 0; i < 10; i++) {
-        array->data[i] = janet_wrap_integer(i);
-    }
-    array->count = 10;
-
-    // Extract an index from the input data
-    int32_t index = *(int32_t *)data;
-
-    // Wrap the array in a Janet type
-    Janet wrapped_array = janet_wrap_array(array);
-
-    // Call the function-under-test
-    Janet result = janet_getindex(wrapped_array, index);
-
-    // Clean up Janet VM
-    janet_deinit();
+    // The function janet_collect() does not take any parameters, so we can directly call it
+    janet_collect();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_243(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

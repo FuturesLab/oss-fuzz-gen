@@ -1,38 +1,90 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <linux/bpf.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-
-// Assuming these types are defined somewhere in the library
-typedef int DW_TAG_enumeration_typebpf_prog_type;
-typedef int DW_TAG_enumeration_typebpf_attach_type;
-
-// Function prototype
-int libbpf_prog_type_by_name(const char *, DW_TAG_enumeration_typebpf_prog_type *, DW_TAG_enumeration_typebpf_attach_type *);
+#include "/src/libbpf/src/libbpf.h"
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Ensure that the input size is large enough to extract a meaningful string
-    if (size < 1) {
+    struct bpf_object *obj = NULL;
+    struct bpf_object_open_opts opts = {};
+    const char *name;
+
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the string and ensure it is null-terminated
-    char *name = (char *)malloc(size + 1);
-    if (name == NULL) {
+    // Create a temporary file to hold the data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-    memcpy(name, data, size);
-    name[size] = '\0';
 
-    // Initialize the enumeration type variables
-    DW_TAG_enumeration_typebpf_prog_type prog_type = 0;
-    DW_TAG_enumeration_typebpf_attach_type attach_type = 0;
+    // Write the data to the file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Open the BPF object from the temporary file
+    obj = bpf_object__open_file(tmpl, &opts);
+    if (!obj) {
+        unlink(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    libbpf_prog_type_by_name(name, &prog_type, &attach_type);
+    name = bpf_object__name(obj);
 
-    // Free allocated memory
-    free(name);
+    // Clean up
+    bpf_object__close(obj);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_47(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

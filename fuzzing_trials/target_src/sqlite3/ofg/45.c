@@ -1,57 +1,84 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h> // Include for malloc and free
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    int rc;
-
-    // Initialize SQLite in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
+    if (size < sizeof(int) + 1) {
+        return 0; // Not enough data to proceed
     }
 
-    // Prepare a dummy SQL statement
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Initialize SQLite
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // Failed to open in-memory database
+    }
+
+    // Extract an integer from the data for the 'op' parameter
+    int op = *(const int *)data;
+
+    // Extract a string for the 'zDbName' parameter
+    const char *zDbName = (const char *)(data + sizeof(int));
+
+    // Ensure null-termination of the string
+    size_t zDbNameLen = strnlen(zDbName, size - sizeof(int));
+    char *zDbNameCopy = (char *)malloc(zDbNameLen + 1);
+    if (!zDbNameCopy) {
         sqlite3_close(db);
-        return 0;
+        return 0; // Memory allocation failed
     }
+    memcpy(zDbNameCopy, zDbName, zDbNameLen);
+    zDbNameCopy[zDbNameLen] = '\0';
 
-    // Prepare an INSERT statement
-    sql = "INSERT INTO test (value) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Bind the fuzzing data to the statement
-    if (size > 0) {
-        sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
-    }
-
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Reset the statement to use it again
-    sqlite3_reset(stmt);
+    // Use the remaining data as the 'pArg' parameter
+    void *pArg = (void *)(data + sizeof(int) + zDbNameLen + 1);
 
     // Call the function-under-test
-    int data_count = sqlite3_data_count(stmt);
+    sqlite3_file_control(db, zDbNameCopy, op, pArg);
 
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Clean up
+    free(zDbNameCopy);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_45(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

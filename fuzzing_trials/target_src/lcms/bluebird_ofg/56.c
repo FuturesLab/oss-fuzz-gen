@@ -1,51 +1,75 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
+#include <stdio.h>
 #include "lcms2.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Initialize variables for function parameters
-    cmsMLU *mlu = cmsMLUalloc(NULL, 1); // Allocate a cmsMLU object
-    const char *language = "en"; // Example language code
-    const char *country = "US"; // Example country code
-    wchar_t translation[256] = {0}; // Buffer to store the wide character translation
-    char fallback[256] = {0}; // Buffer to store the fallback
-
-    // Ensure the data is not empty and mlu is allocated
-    if (size > 0 && mlu != NULL) {
-        // Copy some data into a temporary buffer
-        size_t copy_size = size < 255 ? size : 255;
-        char temp_translation[256] = {0};
-        memcpy(temp_translation, data, copy_size);
-        temp_translation[copy_size] = '\0'; // Null-terminate the string
-
-        // Convert the temporary buffer to a wide character string
-        mbstowcs(translation, temp_translation, sizeof(translation) / sizeof(wchar_t) - 1);
-
-        // Set a default fallback message
-        strncpy(fallback, "default fallback", sizeof(fallback) - 1);
-        fallback[sizeof(fallback) - 1] = '\0'; // Ensure null-termination
-
-        // Call the function-under-test and check its return value
-        if (!cmsMLUsetWide(mlu, language, country, translation)) {
-            // Handle error if setting translation fails
-            cmsMLUfree(mlu);
-            return 0;
-        }
-
-        // Retrieve the translation and check if the function succeeds
-        if (!cmsMLUgetTranslation(mlu, language, country, temp_translation, fallback)) {
-            // Handle error if getting translation fails
-            cmsMLUfree(mlu);
-            return 0;
-        }
+    // Ensure there is enough data for the first parameter
+    if (size < sizeof(cmsUInt32Number)) {
+        return 0;
     }
 
-    // Free the cmsMLU object
-    if (mlu != NULL) {
-        cmsMLUfree(mlu);
+    // Extract the first parameter from the input data
+    cmsUInt32Number intent = *(const cmsUInt32Number *)data;
+
+    // Allocate memory for the third parameter
+    char description[256];
+    memset(description, 0, sizeof(description));  // Initialize the buffer to prevent overflow issues
+
+    // Initialize supportedIntents to a known value
+    cmsUInt32Number supportedIntents = 0;
+
+    // Check if the intent is within a reasonable range
+    if (intent > 3) {  // Assuming 0 to 3 are valid intents
+        return 0;
     }
+
+    // Call the function-under-test
+    cmsUInt32Number result = cmsGetSupportedIntents(intent, &supportedIntents, description);
+
+    // Print the result and the description for debugging purposes
+    printf("Result: %u, Supported Intents: %u, Description: %s\n", result, supportedIntents, description);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_56(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

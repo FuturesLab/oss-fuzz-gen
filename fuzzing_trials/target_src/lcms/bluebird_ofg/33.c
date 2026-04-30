@@ -1,49 +1,67 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
+#include <string.h>  // Include for memcpy
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
-    const char *language = "en";
-    const char *country = "US";
-    char *buffer = (char *)malloc(256);
-    cmsUInt32Number bufferSize = 256;
-
-    // Ensure the buffer is not NULL
-    if (buffer == NULL || mlu == NULL || size == 0) {
-        cmsMLUfree(mlu);
-        free(buffer);
+    // Ensure there is enough data to fill two cmsCIELab structures
+    if (size < 2 * sizeof(cmsCIELab)) {
         return 0;
     }
 
-    // Create a null-terminated copy of the input data
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        cmsMLUfree(mlu);
-        free(buffer);
-        return 0;
-    }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
+    // Initialize two cmsCIELab structures from the input data
+    cmsCIELab lab1;
+    cmsCIELab lab2;
 
-    // Populate the cmsMLU structure with fuzzed data
+    // Copy data into the cmsCIELab structures
+    memcpy(&lab1, data, sizeof(cmsCIELab));
+    memcpy(&lab2, data + sizeof(cmsCIELab), sizeof(cmsCIELab));
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMLUsetASCII with cmsMLUsetUTF8
-    cmsMLUsetUTF8(mlu, language, country, null_terminated_data);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Call the function-under-test
+    cmsFloat64Number deltaE = cmsBFDdeltaE(&lab1, &lab2);
 
-
-
-    // Fuzz the function
-    cmsUInt32Number result = cmsMLUgetUTF8(mlu, language, country, buffer, bufferSize);
-
-    // Clean up
-    cmsMLUfree(mlu);
-    free(buffer);
-    free(null_terminated_data);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)deltaE;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

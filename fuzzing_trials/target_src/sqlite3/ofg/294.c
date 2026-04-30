@@ -1,41 +1,76 @@
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>  // Include for NULL
+#include <stddef.h>
 #include <sqlite3.h>
+#include <string.h>  // Include this for memcpy
 
 int LLVMFuzzerTestOneInput_294(const uint8_t *data, size_t size) {
-    // Declare and initialize a sqlite3_mutex object
-    sqlite3_mutex *mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_FAST);
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
 
-    // Ensure the mutex is not NULL before proceeding
-    if (mutex == NULL) {
-        return 0;
+    // Open a new database connection in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        return 0;  // If unable to open the database, exit
     }
 
-    // Lock the mutex
-    sqlite3_mutex_enter(mutex);
-
-    // Perform operations while the mutex is locked
-    // Use the input data to simulate some operation
-    // For example, we can iterate over the data
-    for (size_t i = 0; i < size; i++) {
-        // Perform some dummy operation with the data
-        volatile uint8_t temp = data[i];
-        (void)temp; // Prevent unused variable warning
+    // Ensure the input data is null-terminated for use as a SQL statement
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;  // Exit if memory allocation fails
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';  // Null-terminate the input data
 
-    // Check if the mutex is held
-    int isHeld = sqlite3_mutex_held(mutex);
+    // Execute the SQL statement
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Unlock the mutex
-    sqlite3_mutex_leave(mutex);
+    // Free allocated resources
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
+    free(sql);
+    sqlite3_close(db);
 
-    // Check if the mutex is not held
-    int notHeld = sqlite3_mutex_notheld(mutex);
-
-    // Free the allocated mutex
-    sqlite3_mutex_free(mutex);
-
-    // Return a value based on the operations to ensure the function is used
-    return isHeld && notHeld;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_294(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

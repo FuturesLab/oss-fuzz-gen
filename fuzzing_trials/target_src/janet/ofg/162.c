@@ -1,38 +1,63 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <janet.h>
 
-// Function-under-test
-Janet janet_cfun_stream_close(int32_t argc, Janet *argv);
-
 int LLVMFuzzerTestOneInput_162(const uint8_t *data, size_t size) {
-    // Ensure that size is at least the size of an int32_t
-    if (size < sizeof(int32_t)) {
+    // Ensure the size is sufficient for creating a Janet object
+    if (size < sizeof(Janet)) {
         return 0;
     }
 
-    // Use the first 4 bytes of data to determine argc
-    int32_t argc = *(int32_t *)data;
-    if (argc < 0) {
-        argc = -argc; // Ensure argc is non-negative
-    }
+    // Create a Janet object from the input data
+    const Janet *janet_obj = (const Janet *)data;
 
-    // Allocate memory for Janet array
-    Janet *argv = (Janet *)malloc(argc * sizeof(Janet));
-    if (argv == NULL) {
-        return 0;
-    }
-
-    // Initialize Janet elements in argv
-    for (int32_t i = 0; i < argc; i++) {
-        argv[i] = janet_wrap_integer((int32_t)(data[i % size]));
-    }
+    // Use a fixed index for fuzzing purposes
+    int32_t index = 0;
 
     // Call the function-under-test
-    janet_cfun_stream_close(argc, argv);
+    JanetTable *result = janet_gettable(janet_obj, index);
 
-    // Free allocated memory
-    free(argv);
+    // The result is not used further, as we're just testing for crashes
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_162(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

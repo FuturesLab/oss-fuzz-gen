@@ -1,76 +1,178 @@
 // This fuzz driver is generated for library libbpf, aiming to fuzz the following functions:
-// bpf_object__open at libbpf.c:8407:20 in libbpf.h
-// bpf_object__btf_fd at libbpf.c:9516:5 in libbpf.h
-// bpf_object__name at libbpf.c:9496:13 in libbpf.h
-// bpf_object__token_fd at libbpf.c:9506:5 in libbpf.h
-// bpf_object__find_map_fd_by_name at libbpf.c:10928:1 in libbpf.h
-// bpf_object__find_program_by_name at libbpf.c:4475:1 in libbpf.h
-// bpf_object__close at libbpf.c:9432:6 in libbpf.h
+// ring__avail_data_size at ringbuf.c:387:8 in libbpf.h
+// ring__consumer_pos at ringbuf.c:373:15 in libbpf.h
+// ring__producer_pos at ringbuf.c:379:15 in libbpf.h
+// ring__consume_n at ringbuf.c:406:5 in libbpf.h
+// ring__size at ringbuf.c:396:8 in libbpf.h
+// ring_buffer__consume_n at ringbuf.c:287:5 in libbpf.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <errno.h>
+#include <limits.h>
 #include <libbpf.h>
 
-static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+// Define the ring structure since the header only provides a forward declaration
+struct ring {
+    ring_buffer_sample_fn sample_cb;
+    void *ctx;
+    void *data;
+    unsigned long *consumer_pos;
+    unsigned long *producer_pos;
+    unsigned long mask;
+    int map_fd;
+};
+
+// Define the ring_buffer structure since the header only provides a forward declaration
+struct ring_buffer {
+    struct epoll_event *events;
+    struct ring **rings;
+    size_t page_size;
+    int epoll_fd;
+    int ring_cnt;
+};
+
+static struct ring *initialize_ring() {
+    struct ring *r = (struct ring *)malloc(sizeof(struct ring));
+    if (!r) return NULL;
+
+    r->sample_cb = NULL;
+    r->ctx = NULL;
+    r->data = NULL;
+    r->consumer_pos = (unsigned long *)malloc(sizeof(unsigned long));
+    r->producer_pos = (unsigned long *)malloc(sizeof(unsigned long));
+    if (!r->consumer_pos || !r->producer_pos) {
+        free(r->consumer_pos);
+        free(r->producer_pos);
+        free(r);
+        return NULL;
+    }
+    *r->consumer_pos = 0;
+    *r->producer_pos = 0;
+    r->mask = 0xFFFF; // Example mask
+    r->map_fd = -1;
+
+    return r;
+}
+
+static void cleanup_ring(struct ring *r) {
+    if (r) {
+        free(r->consumer_pos);
+        free(r->producer_pos);
+        free(r);
+    }
+}
+
+static struct ring_buffer *initialize_ring_buffer() {
+    struct ring_buffer *rb = (struct ring_buffer *)malloc(sizeof(struct ring_buffer));
+    if (!rb) return NULL;
+
+    rb->events = NULL;
+    rb->rings = (struct ring **)malloc(sizeof(struct ring *));
+    if (!rb->rings) {
+        free(rb);
+        return NULL;
+    }
+    rb->rings[0] = initialize_ring();
+    if (!rb->rings[0]) {
+        free(rb->rings);
+        free(rb);
+        return NULL;
+    }
+    rb->page_size = 4096; // Example page size
+    rb->epoll_fd = -1;
+    rb->ring_cnt = 1;
+
+    return rb;
+}
+
+static void cleanup_ring_buffer(struct ring_buffer *rb) {
+    if (rb) {
+        if (rb->rings) {
+            for (int i = 0; i < rb->ring_cnt; i++) {
+                cleanup_ring(rb->rings[i]);
+            }
+            free(rb->rings);
+        }
+        free(rb);
     }
 }
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Prepare a dummy file with the input data
-    prepare_dummy_file(Data, Size);
-
-    // Attempt to open the BPF object
-    struct bpf_object *obj = bpf_object__open("./dummy_file");
-    if (!obj) {
-        // Failed to open, cleanup and return
+    struct ring *r = initialize_ring();
+    struct ring_buffer *rb = initialize_ring_buffer();
+    if (!r || !rb) {
+        cleanup_ring(r);
+        cleanup_ring_buffer(rb);
         return 0;
     }
 
-    // Test bpf_object__btf_fd
-    int btf_fd = bpf_object__btf_fd(obj);
-    if (btf_fd < 0) {
-        // Handle error case if needed
-    }
+    // Fuzzing ring__avail_data_size
+    size_t avail_data_size = ring__avail_data_size(r);
 
-    // Test bpf_object__name
-    const char *name = bpf_object__name(obj);
-    if (name) {
-        // Use the name if needed
-    }
+    // Fuzzing ring__consumer_pos
+    unsigned long consumer_pos = ring__consumer_pos(r);
 
-    // Test bpf_object__token_fd
-    int token_fd = bpf_object__token_fd(obj);
-    if (token_fd < 0) {
-        // Handle error case if needed
-    }
+    // Fuzzing ring__producer_pos
+    unsigned long producer_pos = ring__producer_pos(r);
 
-    // Test bpf_object__find_map_fd_by_name
-    int map_fd = bpf_object__find_map_fd_by_name(obj, "dummy_map_name");
-    if (map_fd < 0) {
-        // Handle error case if needed
-    }
+    // Fuzzing ring__consume_n
+    size_t n = Size > 0 ? Data[0] : 0;
+    int consumed_n = ring__consume_n(r, n);
 
-    // Test bpf_object__find_program_by_name
-    struct bpf_program *prog = bpf_object__find_program_by_name(obj, "dummy_program_name");
-    if (!prog) {
-        // Handle error case if needed
-    }
+    // Fuzzing ring__size
+    size_t ring_size = ring__size(r);
 
-    // Cleanup
-    bpf_object__close(obj);
+    // Fuzzing ring_buffer__consume_n
+    int rb_consumed_n = ring_buffer__consume_n(rb, n);
 
+    (void)avail_data_size;
+    (void)consumer_pos;
+    (void)producer_pos;
+    (void)consumed_n;
+    (void)ring_size;
+    (void)rb_consumed_n;
+
+    cleanup_ring(r);
+    cleanup_ring_buffer(rb);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

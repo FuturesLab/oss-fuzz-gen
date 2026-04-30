@@ -1,64 +1,64 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include "janet.h" // Assuming this is the header where JanetBuffer is defined
+#include <janet.h>
 
-void janet_buffer_ensure(JanetBuffer *buffer, int32_t capacity, int32_t growth);
+// The janet_unwrap_number is a macro, not a function, so no need to declare it
+// The Janet type is already defined in janet.h
 
 int LLVMFuzzerTestOneInput_309(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // No data to process
+    // Ensure the size is sufficient to create a Janet value
+    if (size < sizeof(double)) {
+        return 0;
     }
 
-    // Initialize a JanetBuffer with random data
-    JanetBuffer buffer;
-    buffer.data = (uint8_t *)malloc(size);
-    if (buffer.data == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(buffer.data, data, size);
-    buffer.capacity = (int32_t)size;
-    buffer.count = (int32_t)size / 2; // Arbitrary count less than or equal to size
+    // Create a Janet value from the input data
+    double num = *((double *)data);
+    Janet janet_value = janet_wrap_number(num);
 
-    // Define some test values for capacity and growth, including randomization
-    int32_t test_capacity[] = {0, 10, 20, 30, 40, 50, (int32_t)size * 2, (int32_t)rand() % (size * 3)};
-    int32_t test_growth[] = {0, 1, 2, 3, 4, 5, (int32_t)size / 2, (int32_t)rand() % (size / 2 + 1)};
+    // Call the function-under-test, which is actually a macro
+    double result = janet_unwrap_number(janet_value);
 
-    // Fuzz janet_buffer_ensure with different capacity and growth values
-    for (size_t i = 0; i < sizeof(test_capacity) / sizeof(test_capacity[0]); i++) {
-        for (size_t j = 0; j < sizeof(test_growth) / sizeof(test_growth[0]); j++) {
-            janet_buffer_ensure(&buffer, test_capacity[i], test_growth[j]);
-
-            // Add additional checks and manipulations to ensure more comprehensive fuzzing
-            if (buffer.capacity > 0 && buffer.data != NULL) {
-                // Access and manipulate memory within the buffer's capacity
-                for (size_t k = 0; k < buffer.capacity; k++) {
-                    buffer.data[k] = (uint8_t)(buffer.data[k] ^ 0xFF); // Simple transformation
-                }
-            }
-
-            // Check for potential memory corruption by accessing beyond the current count
-            if (buffer.count < buffer.capacity) {
-                for (size_t k = buffer.count; k < buffer.capacity; k++) {
-                    // Attempt to read and write beyond the current count to test buffer handling
-                    buffer.data[k] = (uint8_t)(buffer.data[k] ^ 0xAA); // Another transformation
-                }
-            }
-
-            // Verify buffer's integrity after operations
-            if (buffer.data != NULL) {
-                for (size_t k = 0; k < buffer.count; k++) {
-                    if (buffer.data[k] == 0) {
-                        // Log or handle unexpected zero values
-                    }
-                }
-            }
-        }
-    }
-
-    // Free allocated memory
-    free(buffer.data);
+    // Use the result to avoid any compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_309(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

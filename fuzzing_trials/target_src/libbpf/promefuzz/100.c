@@ -1,95 +1,159 @@
 // This fuzz driver is generated for library libbpf, aiming to fuzz the following functions:
-// perf_buffer__new at libbpf.c:13767:21 in libbpf.h
-// perf_buffer__buffer_cnt at libbpf.c:14058:8 in libbpf.h
-// perf_buffer__buffer_fd at libbpf.c:14068:5 in libbpf.h
-// perf_buffer__consume_buffer at libbpf.c:14106:5 in libbpf.h
-// perf_buffer__free at libbpf.c:13691:6 in libbpf.h
-// perf_buffer__new_raw at libbpf.c:13800:21 in libbpf.h
-// perf_buffer__buffer_cnt at libbpf.c:14058:8 in libbpf.h
-// perf_buffer__buffer at libbpf.c:14082:5 in libbpf.h
-// perf_buffer__free at libbpf.c:13691:6 in libbpf.h
+// libbpf_probe_bpf_map_type at libbpf_probes.c:419:5 in libbpf.h
+// libbpf_bpf_map_type_str at libbpf.c:10305:13 in libbpf.h
+// bpf_map__name at libbpf.c:10713:13 in libbpf.h
+// bpf_map__is_internal at libbpf.c:10949:6 in libbpf.h
+// bpf_map__unpin at libbpf.c:9205:5 in libbpf.h
+// bpf_map__type at libbpf.c:10724:19 in libbpf.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <linux/perf_event.h>
+#include <stdbool.h>
 #include <libbpf.h>
 
-static void sample_cb(void *ctx, int cpu, void *data, __u32 size) {
-    // Sample callback function for received data
+struct bpf_map {
+    struct bpf_object *obj;
+    char *name;
+    char *real_name;
+    int fd;
+    int sec_idx;
+    size_t sec_offset;
+    int map_ifindex;
+    int inner_map_fd;
+    struct bpf_map_def {
+        unsigned int type;
+        unsigned int key_size;
+        unsigned int value_size;
+        unsigned int max_entries;
+        unsigned int map_flags;
+    } def;
+    __u32 numa_node;
+    __u32 btf_var_idx;
+    int mod_btf_fd;
+    __u32 btf_key_type_id;
+    __u32 btf_value_type_id;
+    __u32 btf_vmlinux_value_type_id;
+    enum libbpf_map_type {
+        LIBBPF_MAP_UNSPEC,
+        LIBBPF_MAP_DATA,
+        LIBBPF_MAP_BSS,
+        LIBBPF_MAP_RODATA,
+        LIBBPF_MAP_KCONFIG,
+    } libbpf_type;
+    void *mmaped;
+    struct bpf_struct_ops *st_ops;
+    struct bpf_map *inner_map;
+    void **init_slots;
+    int init_slots_sz;
+    char *pin_path;
+    bool pinned;
+    bool reused;
+    bool autocreate;
+    bool autoattach;
+    __u64 map_extra;
+    struct bpf_program *excl_prog;
+};
+
+static struct bpf_map *create_dummy_bpf_map() {
+    struct bpf_map *map = (struct bpf_map *)calloc(1, sizeof(*map));
+    if (!map)
+        return NULL;
+    map->name = strdup("dummy_map");
+    map->real_name = strdup("dummy_real_map");
+    return map;
 }
 
-static void lost_cb(void *ctx, int cpu, __u64 count) {
-    // Lost callback function for lost records
-}
-
-static enum bpf_perf_event_ret event_cb(void *ctx, int cpu, struct perf_event_header *event) {
-    // Event callback function for raw events
-    return LIBBPF_PERF_EVENT_CONT;
+static void destroy_dummy_bpf_map(struct bpf_map *map) {
+    if (map) {
+        free(map->name);
+        free(map->real_name);
+        free(map);
+    }
 }
 
 int LLVMFuzzerTestOneInput_100(const uint8_t *Data, size_t Size) {
-    int map_fd = open("./dummy_file", O_CREAT | O_RDWR, 0644);
-    if (map_fd < 0) {
+    if (Size < sizeof(enum bpf_map_type))
         return 0;
-    }
 
-    // Initialize perf_buffer_opts and perf_buffer_raw_opts
-    struct perf_buffer_opts pb_opts = {
-        .sz = sizeof(struct perf_buffer_opts),
-        .sample_period = 0
-    };
+    enum bpf_map_type map_type = *(enum bpf_map_type *)Data;
+    Data += sizeof(enum bpf_map_type);
+    Size -= sizeof(enum bpf_map_type);
 
-    struct perf_buffer_raw_opts pb_raw_opts = {
-        .sz = sizeof(struct perf_buffer_raw_opts),
-        .cpu_cnt = 0,
-        .cpus = NULL,
-        .map_keys = NULL
-    };
+    // Fuzz libbpf_probe_bpf_map_type
+    int probe_result = libbpf_probe_bpf_map_type(map_type, NULL);
 
-    struct perf_event_attr attr = {
-        .type = PERF_TYPE_SOFTWARE,
-        .size = sizeof(struct perf_event_attr),
-        .config = PERF_COUNT_SW_CPU_CLOCK,
-        .sample_period = 0,
-        .sample_type = 0,
-        .read_format = 0
-    };
+    // Fuzz libbpf_bpf_map_type_str
+    const char *map_type_str = libbpf_bpf_map_type_str(map_type);
 
-    // Create perf_buffer using perf_buffer__new
-    struct perf_buffer *pb = perf_buffer__new(map_fd, 1, sample_cb, lost_cb, NULL, &pb_opts);
-    if (pb) {
-        size_t buf_cnt = perf_buffer__buffer_cnt(pb);
-        for (size_t i = 0; i < buf_cnt; i++) {
-            int fd = perf_buffer__buffer_fd(pb, i);
-            if (fd >= 0) {
-                perf_buffer__consume_buffer(pb, i);
-            }
-        }
-        perf_buffer__free(pb);
-    }
+    // Create a dummy bpf_map for testing
+    struct bpf_map *dummy_map = create_dummy_bpf_map();
+    if (!dummy_map)
+        return 0;
 
-    // Create raw perf_buffer using perf_buffer__new_raw
-    struct perf_buffer *pb_raw = perf_buffer__new_raw(map_fd, 1, &attr, event_cb, NULL, &pb_raw_opts);
-    if (pb_raw) {
-        size_t buf_cnt = perf_buffer__buffer_cnt(pb_raw);
-        for (size_t i = 0; i < buf_cnt; i++) {
-            void *buf;
-            size_t buf_size;
-            if (perf_buffer__buffer(pb_raw, i, &buf, &buf_size) == 0) {
-                // Successfully retrieved buffer
-            }
-        }
-        perf_buffer__free(pb_raw);
-    }
+    // Fuzz bpf_map__name
+    const char *map_name = bpf_map__name(dummy_map);
 
-    close(map_fd);
-    unlink("./dummy_file");
+    // Fuzz bpf_map__is_internal
+    bool is_internal = bpf_map__is_internal(dummy_map);
+
+    // Fuzz bpf_map__unpin
+    int unpin_result = bpf_map__unpin(dummy_map, "./dummy_file");
+
+    // Fuzz bpf_map__type
+    enum bpf_map_type retrieved_type = bpf_map__type(dummy_map);
+
+    // Cleanup
+    destroy_dummy_bpf_map(dummy_map);
+
+    // Use the results to prevent compiler optimizations
+    (void)probe_result;
+    (void)map_type_str;
+    (void)map_name;
+    (void)is_internal;
+    (void)unpin_result;
+    (void)retrieved_type;
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_100(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

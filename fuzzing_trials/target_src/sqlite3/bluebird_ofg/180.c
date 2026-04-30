@@ -1,48 +1,45 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 
-// Fuzzing harness for sqlite3_total_changes
 int LLVMFuzzerTestOneInput_180(const uint8_t *data, size_t size) {
     sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
     int rc;
-    
-    // Open an in-memory database
+
+    // Open a new in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Ensure the data is null-terminated before using it as a string
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        fprintf(stderr, "Memory allocation failed\n");
+    // Prepare a simple SQL statement
+    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute some SQL commands if data is available
-    if (size > 0) {
-        char *errMsg = 0;
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
+    // Execute the statement to create the table
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    // Prepare another statement using the input data
+    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Call the function under test
-    int changes = sqlite3_total_changes(db);
-    printf("Total changes: %d\n", changes);
+    // Call the function-under-test
+    int expired = sqlite3_expired(stmt);
 
-    // Clean up
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

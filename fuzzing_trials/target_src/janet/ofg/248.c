@@ -1,45 +1,72 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <limits.h>
-#include <signal.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <janet.h>
 
-// Function-under-test declaration
-void janet_fixarity(int32_t expected, int32_t actual);
-
-// Signal handler to catch abort signals and prevent crashes during fuzzing
-void handle_abort_248(int sig) {
-    (void)sig; // Suppress unused parameter warning
-    exit(0);
-}
+// Ensure that you have the Janet library available and properly linked
 
 int LLVMFuzzerTestOneInput_248(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract two int32_t values
-    if (size < sizeof(int32_t) * 2) {
+    // Initialize Janet if not already initialized
+    janet_init();
+
+    // Allocate memory for Janet values
+    Janet *janet_values = (Janet *)malloc(size * sizeof(Janet));
+    if (janet_values == NULL) {
+        janet_deinit();
         return 0;
     }
 
-    // Extract two int32_t values from the input data
-    int32_t expected;
-    int32_t actual;
-
-    // Use memcpy to safely extract int32_t values, avoiding alignment issues
-    memcpy(&expected, data, sizeof(int32_t));
-    memcpy(&actual, data + sizeof(int32_t), sizeof(int32_t));
-
-    // Register signal handler for abort signals
-    signal(SIGABRT, handle_abort_248);
-
-    // Ensure that the function-under-test is called with diverse inputs
-    // by avoiding trivial cases such as both values being zero
-    if (expected == 0 && actual == 0) {
-        expected = 1; // Change one value to avoid trivial case
+    // Initialize the Janet values with some data from the fuzzer input
+    for (size_t i = 0; i < size; i++) {
+        janet_values[i] = janet_wrap_integer(data[i]);
     }
 
-    // Call the function-under-test with the extracted values
-    janet_fixarity(expected, actual);
+    // Call the function-under-test
+    JanetTuple result = janet_tuple_end(janet_values);
+
+    // Clean up
+    free(janet_values);
+
+    // Deinitialize Janet if needed
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_248(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

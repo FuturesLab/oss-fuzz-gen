@@ -1,43 +1,50 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Check if the input data is non-null and has a non-zero size
-    if (data == NULL || size == 0) {
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
         return 0;
     }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
+    // Open an in-memory SQLite database
     sqlite3 *db;
-    char *errMsg = 0;
-
-    // Open a new in-memory SQLite database
+    const char sicnesjp[1024] = "wnqtz";
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db)) {
+    if (sqlite3_open(sicnesjp, &db) != SQLITE_OK) {
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-        sqlite3_close(db);
+        free(query);
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
+
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL command(s) from the input data
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free allocated resources
-    sqlite3_free(errMsg);
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open_baogu = sqlite3_open((const char *)"r", &db);
+    if (ret_sqlite3_open_baogu < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_close(db);
+    free(query);
 
     return 0;
 }

@@ -1,81 +1,90 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <sys/stat.h>
+#include <string.h>
+#include <cstddef>  // Include for size_t
+#include <cstdint>  // Include for uint8_t
+#include <cstdlib>  // Include for malloc and free
+#include <cstring>  // Include for memcpy
 
-// Assuming the function is from a C library
 extern "C" {
-    #include "../../liblouis/liblouis.h" // Correct path to the header file
+    #include "../../liblouis/liblouis.h" // Include the necessary header for lou_free and other liblouis functions
 }
 
-// Fuzzing harness for lou_getTypeformForEmphClass
+// Fuzzing harness for the lou_translateString function
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to split into two non-empty strings
-    if (size < 2) {
+    if (size == 0) {
         return 0;
     }
 
-    // Split the input data into two parts
-    size_t mid = size / 2;
+    // Convert the input data to a widechar null-terminated string
+    widechar *input = (widechar *)malloc((size + 1) * sizeof(widechar));
+    if (!input) {
+        return 0;
+    }
+    for (size_t i = 0; i < size; ++i) {
+        input[i] = data[i];
+    }
+    input[size] = 0; // Null-terminate the widechar string
 
-    // Create null-terminated strings from the input data
-    char *str1 = static_cast<char *>(malloc(mid + 1));
-    char *str2 = static_cast<char *>(malloc(size - mid + 1));
-
-    if (str1 == nullptr || str2 == nullptr) {
-        free(str1);
-        free(str2);
+    // Prepare other necessary parameters for lou_translateString
+    const char *tableList = "en-us-g2.ctb"; // Example table, adjust as needed
+    widechar *output = (widechar *)malloc((size + 1) * sizeof(widechar)); // Allocate enough space for output
+    if (!output) {
+        free(input);
         return 0;
     }
 
-    memcpy(str1, data, mid);
-    str1[mid] = '\0';
+    int outputLength = size;
+    int inputLength = size;
+    int *cursorPos = nullptr;
+    int *cursorStatus = nullptr;
+    formtype *typeform = nullptr;
+    char *spacing = nullptr;
 
-    memcpy(str2, data + mid, size - mid);
-    str2[size - mid] = '\0';
+    // Call the function-under-test
+    lou_translateString(tableList, input, &inputLength, output, &outputLength, typeform, spacing, 0);
 
-    // Call the function under test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lou_getTypeformForEmphClass
-    formtype result = lou_getTypeformForEmphClass(str1, (const char *)data);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_getTypeformForEmphClass to lou_hyphenate
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lou_getTypeformForEmphClass to lou_translateString
-    int qbodeffi = -1;
-    widechar hueydnfg;
-    memset(&hueydnfg, 0, sizeof(hueydnfg));
-    int bmyveoix = 1;
-
-    int ret_lou_translateString_dwlnt = lou_translateString((const char *)"r", NULL, &qbodeffi, &hueydnfg, &bmyveoix, &result, (char *)data, 64);
-    if (ret_lou_translateString_dwlnt < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char** ret_lou_findTables_jgivt = lou_findTables((const char *)"r");
-    if (ret_lou_findTables_jgivt == NULL){
-    	return 0;
-    }
-    char* ret_lou_setDataPath_dmkqc = lou_setDataPath((const char *)data);
-    if (ret_lou_setDataPath_dmkqc == NULL){
-    	return 0;
-    }
-
-    int ret_lou_hyphenate_ljmaq = lou_hyphenate(*ret_lou_findTables_jgivt, NULL, (int )result, ret_lou_setDataPath_dmkqc, (int )result);
-    if (ret_lou_hyphenate_ljmaq < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(str1);
-    free(str2);
+    // Free allocated memory
+    free(output);
+    free(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

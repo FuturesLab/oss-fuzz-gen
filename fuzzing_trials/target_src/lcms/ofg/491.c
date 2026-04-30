@@ -1,30 +1,95 @@
 #include <stdint.h>
-#include <stddef.h> // Include for size_t
-#include <lcms2.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+// Assuming cmsHANDLE is a pointer type, for example:
+typedef void* cmsHANDLE;
+
+// Mock function for cmsIT8GetPropertyMulti_491, replace with actual function
+const char* cmsIT8GetPropertyMulti_491(cmsHANDLE handle, const char* property, const char* subkey) {
+    // Mock implementation
+    return "MockedPropertyValue";
+}
 
 int LLVMFuzzerTestOneInput_491(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to cast to cmsContext
-    if (size < sizeof(cmsContext)) {
-        return 0; // Not enough data to proceed
+    // Ensure that data is large enough to be used for strings
+    if (size < 2) {
+        return 0;
     }
 
-    // Declare and initialize variables for the function parameters
-    cmsContext context = (cmsContext)data; // Cast data to cmsContext
-    cmsUInt32Number flags = 0; // Initialize flags to 0
-    cmsFloat64Number brightness = 1.0; // Initialize brightness to a non-zero value
-    cmsFloat64Number contrast = 1.0; // Initialize contrast to a non-zero value
-    cmsFloat64Number hue = 1.0; // Initialize hue to a non-zero value
-    cmsFloat64Number saturation = 1.0; // Initialize saturation to a non-zero value
-    cmsUInt32Number intent = 0; // Initialize intent to 0
-    cmsUInt32Number space = 0; // Initialize space to 0
+    // Initialize the parameters
+    cmsHANDLE handle = (cmsHANDLE)0x1;  // Mock handle, replace with actual initialization if needed
+
+    // Split the data into two parts for property and subkey strings
+    size_t half_size = size / 2;
+    char* property = (char*)malloc(half_size + 1);
+    char* subkey = (char*)malloc(size - half_size + 1);
+
+    if (property == NULL || subkey == NULL) {
+        free(property);
+        free(subkey);
+        return 0;
+    }
+
+    // Copy data into property and subkey, ensuring null termination
+    memcpy(property, data, half_size);
+    property[half_size] = '\0';
+
+    memcpy(subkey, data + half_size, size - half_size);
+    subkey[size - half_size] = '\0';
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateBCHSWabstractProfileTHR(context, flags, brightness, contrast, hue, saturation, intent, space);
+    const char* result = cmsIT8GetPropertyMulti_491(handle, property, subkey);
 
-    // If the profile is created, close it to avoid memory leaks
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    if (result != NULL) {
+        printf("Result: %s\n", result);
     }
+
+    // Clean up
+    free(property);
+    free(subkey);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_491(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

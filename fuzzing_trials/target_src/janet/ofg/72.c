@@ -1,39 +1,69 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <janet.h>
 
+extern int32_t janet_gethalfrange(const Janet *, int32_t, int32_t, const char *);
+
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Ensure that the size is at least the size of a Janet object
-    if (size < sizeof(Janet)) {
-        return 0;
+    if (size < sizeof(Janet) + sizeof(int32_t) * 2 + sizeof(char)) {
+        return 0; // Not enough data to form valid inputs
     }
 
-    // Initialize the Janet environment
-    janet_init();
+    // Initialize the Janet array
+    Janet janetArray[1];
+    janetArray[0] = janet_wrap_integer((int32_t)data[0]);
 
-    // Create a Janet object from the input data
-    Janet janet_obj = janet_wrap_nil(); // Initialize as a valid Janet object
-    memcpy(&janet_obj, data, sizeof(Janet));
+    // Extract int32_t parameters
+    int32_t start = (int32_t)data[1];
+    int32_t end = (int32_t)data[2];
 
-    // Ensure that the index is within a reasonable range
-    int32_t index = 0;
-    if (size > sizeof(Janet)) {
-        index = (int32_t)data[sizeof(Janet)] % 10; // Limit index to a small range
-    }
+    // Extract a character for the string
+    char str[2] = {(char)data[3], '\0'};
 
-    // Check if the Janet object is a valid dictionary
-    if (janet_checktype(janet_obj, JANET_TABLE)) {
-        // Call the function-under-test
-        JanetDictView result = janet_getdictionary(&janet_obj, index); // Take the address of janet_obj
+    // Call the function-under-test
+    int32_t result = janet_gethalfrange(janetArray, start, end, str);
 
-        // Use the result in a way that avoids compiler optimizations
-        // (e.g., by printing or otherwise processing it)
-        // In this case, we'll simply return 0 as there's no further processing needed
-    }
-
-    // Deinitialize the Janet environment
-    janet_deinit();
+    // Use the result in some way to avoid compiler optimizing it out
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_72(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

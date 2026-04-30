@@ -1,26 +1,67 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <sqlite3.h>
-#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_299(const uint8_t *data, size_t size) {
-    void *ptr = malloc(1); // Initialize a non-NULL pointer
-    sqlite3_uint64 newSize;
-
-    // Ensure there's enough data to read an sqlite3_uint64 value
-    if (size < sizeof(sqlite3_uint64)) {
-        free(ptr);
+    // Ensure that the size is greater than 0 to avoid passing NULL to sqlite3_msize
+    if (size == 0) {
         return 0;
     }
 
-    // Extract a sqlite3_uint64 value from the input data
-    newSize = *((sqlite3_uint64 *)data);
+    // Allocate memory and copy the fuzz data into it
+    void *memory = sqlite3_malloc(size);
+    if (memory == NULL) {
+        return 0;
+    }
+
+    // Copy the input data into the allocated memory
+    memcpy(memory, data, size);
 
     // Call the function-under-test
-    void *newPtr = sqlite3_realloc64(ptr, newSize);
+    sqlite3_uint64 msize = sqlite3_msize(memory);
 
     // Free the allocated memory
-    free(newPtr);
+    sqlite3_free(memory);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_299(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,41 +1,85 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include "zlib.h"
+#include <stdio.h>
+#include <unistd.h>  // Include this for the `write`, `close`, and `lseek` functions
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    z_stream stream;
-    int windowBits;
-
-    // Initialize the z_stream structure
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    stream.avail_in = 0;
-    stream.next_in = Z_NULL;
-
-    // Ensure the size is sufficient for windowBits extraction
-    if (size < sizeof(int)) {
+    // Create a temporary file to be used by gzFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract windowBits from the input data
-    windowBits = *(int *)data;
-
-    // Initialize the stream for inflation
-    if (inflateInit2(&stream, windowBits) != Z_OK) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
 
-    // Call the function-under-test
+    // Rewind the file descriptor to the beginning
+    lseek(fd, 0, SEEK_SET);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function inflateReset2 with inflateValidate
-    inflateValidate(&stream, windowBits);
+    // Open the file with gzopen
+    gzFile file = gzdopen(fd, "rb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+
+    // Read from the gzFile to ensure data is being processed
+    char buffer[1024];
+    while (gzread(file, buffer, sizeof(buffer)) > 0) {
+        // Process the data (in this case, we're just reading it)
+    }
+
+    // Clean up
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzclose with gzrewind
+    gzrewind(file);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Clean up and free resources
-    inflateEnd(&stream);
+    // The file descriptor is closed by gzclose
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

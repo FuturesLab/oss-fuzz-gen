@@ -1,83 +1,72 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 
 extern "C" {
-    #include <libical/ical.h>
+    #include "libical/ical.h" // Adjust the include path as necessary
+    // The header for icalpvl_elem and icalpvl_new_element might be different or the functions might be declared elsewhere
+    // Since libical/icalpvl.h is not found, we need to find the correct header or assume the declarations here if not found
+    typedef struct icalpvl_elem_t* icalpvl_elem; // Assuming a typedef based on typical C conventions
+    icalpvl_elem icalpvl_new_element(void* ptr, icalpvl_elem elem1, icalpvl_elem elem2); // Assuming function prototype
 }
 
 extern "C" int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty to avoid unnecessary processing
-    if (size == 0) {
+    // Ensure there is enough data to extract elements
+    if (size < 2 * sizeof(icalpvl_elem)) {
         return 0;
     }
 
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
+    // Extract two icalpvl_elem values from the data
+    icalpvl_elem elem1 = *(icalpvl_elem*)(data);
+    icalpvl_elem elem2 = *(icalpvl_elem*)(data + sizeof(icalpvl_elem));
 
-    // Copy the data to a null-terminated string
-    char *description = (char *)malloc(size + 1);
-    if (description == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(description, data, size);
-    description[size] = '\0';
+    // Use a non-null pointer for the first parameter
+    void* non_null_ptr = (void*)data;
 
     // Call the function-under-test
-    icalcomponent_set_description(component, description);
+    icalpvl_elem new_elem = icalpvl_new_element(non_null_ptr, elem1, elem2);
 
-    // Additional operation to ensure code coverage
-    const char *retrieved_description = icalcomponent_get_description(component);
-    if (retrieved_description != NULL) {
-        // Process retrieved description to ensure it's being used
-        size_t retrieved_length = strlen(retrieved_description);
-        if (retrieved_length > 0) {
-            // Perform some operation, e.g., logging or further manipulation
-            // For fuzzing purposes, we can attempt to parse it back or perform other operations
-            char *parsed_description = strdup(retrieved_description);
-            if (parsed_description) {
-                // Simulate further processing
-                free(parsed_description);
-            }
-        }
-    }
-
-    // Perform additional operations on the component to increase coverage
-    icalcomponent_kind kind = icalcomponent_isa(component);
-    if (kind == ICAL_VEVENT_COMPONENT) {
-        // Further manipulate the component
-        icalcomponent_set_summary(component, "Sample Summary");
-
-        // Try adding an attendee to increase code coverage
-        icalproperty *attendee = icalproperty_new_attendee("mailto:example@example.com");
-        if (attendee) {
-            icalcomponent_add_property(component, attendee);
-        }
-    }
-
-    // Additional operations to further increase coverage
-    // Attempt to serialize the component to a string
-    char *component_str = icalcomponent_as_ical_string(component);
-    if (component_str) {
-        // Simulate processing of the serialized string
-        size_t component_str_length = strlen(component_str);
-        if (component_str_length > 0) {
-            char *processed_str = strdup(component_str);
-            if (processed_str) {
-                // Simulate further processing
-                free(processed_str);
-            }
-        }
-    }
-
-    // Clean up
-    free(description);
-    icalcomponent_free(component);
+    // Optionally, perform some operations with new_elem if needed
+    // For now, just suppress unused variable warning
+    (void)new_elem;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_104(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

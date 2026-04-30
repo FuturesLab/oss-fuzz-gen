@@ -1,88 +1,96 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
 #include "lcms2.h"
 
-#define DUMMY_FILE "./dummy_file"
-
-// Helper function to create a dummy profile
-static cmsHPROFILE createDummyProfile() {
-    FILE *file = fopen(DUMMY_FILE, "wb");
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
     if (file) {
-        // Write some dummy data to the file
-        fwrite("DUMMY_PROFILE_DATA", 1, 18, file);
+        fwrite(Data, 1, Size, file);
         fclose(file);
     }
-    return cmsOpenProfileFromFile(DUMMY_FILE, "r");
-}
-
-// Helper function to create a dummy cmsMLU object
-static cmsMLU* createDummyMLU() {
-    cmsMLU* mlu = cmsMLUalloc(NULL, 1);
-    if (mlu) {
-        cmsMLUsetASCII(mlu, "en", "US", "Dummy String");
-    }
-    return mlu;
 }
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    // Variables for function parameters
-    cmsHPROFILE hProfile = NULL;
-    cmsMLU *mlu = NULL;
-    char LanguageCode[3] = "en";
-    char CountryCode[3] = "US";
-    char Buffer[256];
-    wchar_t WideBuffer[256];
-    cmsUInt32Number BufferSize = sizeof(Buffer);
-
-    // Prepare environment
-    hProfile = createDummyProfile();
-    mlu = createDummyMLU();
-
-    // Fuzz cmsGetProfileInfoUTF8
-    if (hProfile) {
-        cmsGetProfileInfoUTF8(hProfile, 0, LanguageCode, CountryCode, Buffer, BufferSize);
+    if (Size < 1) {
+        return 0;
     }
 
-    // Fuzz cmsMLUgetASCII
-    if (mlu) {
-        cmsMLUgetASCII(mlu, LanguageCode, CountryCode, Buffer, BufferSize);
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
     }
 
-    // Fuzz cmsMLUtranslationsCodes
-    if (mlu) {
-        cmsMLUtranslationsCodes(mlu, 0, LanguageCode, CountryCode);
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
     }
 
-    // Fuzz cmsMLUgetWide
-    if (mlu) {
-        cmsMLUgetWide(mlu, LanguageCode, CountryCode, WideBuffer, BufferSize);
-    }
 
-    // Fuzz cmsMLUgetUTF8
-    if (mlu) {
-        cmsMLUgetUTF8(mlu, LanguageCode, CountryCode, Buffer, BufferSize);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTagCount to cmsIT8GetDataRowColDbl
+    cmsHANDLE ret_cmsIT8Alloc_egkte = cmsIT8Alloc(0);
+    cmsUInt32Number ret_cmsGetHeaderFlags_emxbk = cmsGetHeaderFlags(hProfile);
+    if (ret_cmsGetHeaderFlags_emxbk < 0){
+    	return 0;
     }
-
-    // Fuzz cmsGetProfileInfoASCII
-    if (hProfile) {
-        cmsGetProfileInfoASCII(hProfile, 0, LanguageCode, CountryCode, Buffer, BufferSize);
+    cmsFloat64Number ret_cmsIT8GetDataRowColDbl_xjduw = cmsIT8GetDataRowColDbl(ret_cmsIT8Alloc_egkte, (int )ret_cmsGetHeaderFlags_emxbk, tagCount);
+    if (ret_cmsIT8GetDataRowColDbl_xjduw < 0){
+    	return 0;
     }
-
-    // Cleanup
-    if (hProfile) {
-        cmsCloseProfile(hProfile);
-    }
-    if (mlu) {
-        cmsMLUfree(mlu);
-    }
-
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

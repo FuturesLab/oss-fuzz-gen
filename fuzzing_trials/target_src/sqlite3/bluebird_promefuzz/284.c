@@ -1,90 +1,62 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
+#include <stdarg.h>
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
-}
-
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static sqlite3* initialize_db() {
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return NULL;
+    }
+    return db;
 }
 
 int LLVMFuzzerTestOneInput_284(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
+    sqlite3 *db = initialize_db();
+    if (!db) return 0;
 
-    int rc;
-
-    // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
-        return 0;
-    }
-
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
-
-    // Set authorizer
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_create_filename
-    void* ret_sqlite3_malloc_xgdqn = sqlite3_malloc(-1);
-    if (ret_sqlite3_malloc_xgdqn == NULL){
-    	return 0;
-    }
-    sqlite3_filename ret_sqlite3_create_filename_qasjn = sqlite3_create_filename((const char *)ret_sqlite3_malloc_xgdqn, errMsg, (const char *)"w", 0, (const char **)"w");
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
+    // Step 1: Create a new dynamic string object
+    sqlite3_str *strObj = sqlite3_str_new(db);
+    if (!strObj) {
         sqlite3_close(db);
-        free(sql);
         return 0;
     }
 
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
+    // Step 2: Append all data to the string object using a null-terminated buffer
+    // Ensure null-termination for safe usage with string functions
+    char *safeData = (char *)malloc(Size + 1);
+    if (safeData) {
+        memcpy(safeData, Data, Size);
+        safeData[Size] = '\0';
 
-    // Test control
-//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
+        // Append formatted text to the string object using the safeData
+        const char *format = "%s";
+        sqlite3_str_appendf(strObj, format, safeData);
 
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
+        sqlite3_str_appendall(strObj, safeData);
+        free(safeData);
     }
 
-    // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    free(sql);
+    // Step 3: Reset the string object
+    sqlite3_str_reset(strObj);
+
+    // Step 4: Finalize the string object
+    char *finalizedStr = sqlite3_str_finish(strObj);
+    if (finalizedStr) {
+        sqlite3_free(finalizedStr);
+    }
+
+    // Note: Do not call sqlite3_str_free after sqlite3_str_finish as it invalidates the object
+
+    // Cleanup: Close the database connection
+    sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

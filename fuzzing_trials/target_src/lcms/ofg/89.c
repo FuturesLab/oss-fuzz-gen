@@ -1,40 +1,86 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
+#include <stdlib.h> // Include the standard library for malloc and free
 
 int LLVMFuzzerTestOneInput_89(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsMLU *mlu = NULL;
-    cmsMLU *duplicatedMlu = NULL;
-    cmsContext contextID = NULL;
-    const char *languageCode = "en";
-    const char *countryCode = "US";
-    const char *text = "Sample text";
-
-    // Create a cmsMLU object
-    mlu = cmsMLUalloc(contextID, 1);
-
-    // Check if mlu was successfully allocated
-    if (mlu == NULL) {
+    // Check if the size is sufficient to extract necessary parameters
+    if (size < sizeof(cmsUInt32Number) * 3 + sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Set a simple text entry to the cmsMLU object
-    if (!cmsMLUsetASCII(mlu, languageCode, countryCode, text)) {
-        cmsMLUfree(mlu);
+    // Initialize parameters for cmsStageAllocCLutFloatGranular
+    cmsContext context = (cmsContext)0x1; // Dummy non-NULL context
+    cmsUInt32Number gridPoints[3] = {2, 2, 2}; // Example grid points for a 3D CLUT
+    cmsUInt32Number inputChannels = 3; // Example input channels
+    cmsUInt32Number outputChannels = 3; // Example output channels
+
+    // Allocate memory for float data
+    size_t numElements = gridPoints[0] * gridPoints[1] * gridPoints[2] * outputChannels;
+    cmsFloat32Number *floatData = (cmsFloat32Number *)malloc(numElements * sizeof(cmsFloat32Number));
+
+    if (floatData == NULL) {
         return 0;
+    }
+
+    // Fill floatData with values from the input data
+    for (size_t i = 0; i < numElements; i++) {
+        if (i < size / sizeof(cmsFloat32Number)) {
+            floatData[i] = ((const cmsFloat32Number *)data)[i];
+        } else {
+            floatData[i] = 0.0f; // Default value if data is insufficient
+        }
     }
 
     // Call the function-under-test
-    duplicatedMlu = cmsMLUdup(mlu);
+    cmsStage *stage = cmsStageAllocCLutFloatGranular(context, gridPoints, inputChannels, outputChannels, floatData);
 
-    // Free the original cmsMLU object
-    cmsMLUfree(mlu);
+    // Free allocated memory
+    free(floatData);
 
-    // Free the duplicated cmsMLU object if it was successfully created
-    if (duplicatedMlu != NULL) {
-        cmsMLUfree(duplicatedMlu);
+    // Check if stage is not NULL and free it if necessary
+    if (stage != NULL) {
+        cmsStageFree(stage);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_89(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

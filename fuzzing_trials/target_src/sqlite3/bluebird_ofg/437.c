@@ -1,42 +1,59 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_437(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    sqlite3_stmt *stmt = NULL;
-    const void *tail = NULL;
-    int rc;
+    sqlite3 *db;
+    char *errMsg = 0;
 
-    // Open a temporary in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK || db == NULL) {
-        return 0; // Failed to open the database
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
     }
 
-    // Ensure the input data is null-terminated to prevent buffer overflow
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
         sqlite3_close(db);
-        return 0; // Failed to allocate memory
+        return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Prepare a SQL statement using the input data
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &tail);
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strnicmp
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        sqlite3_uint64 ret_sqlite3_msize_dcotq = sqlite3_msize((void *)errMsg);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        int ret_sqlite3_strnicmp_bmuxz = sqlite3_strnicmp(errMsg, errMsg, 0);
+        if (ret_sqlite3_strnicmp_bmuxz < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
-    // Finalize the statement if it was prepared
-    if (stmt != NULL) {
-        sqlite3_finalize(stmt);
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
-
-    // Free the allocated memory
-    free(sql);
-
-    // Close the database
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

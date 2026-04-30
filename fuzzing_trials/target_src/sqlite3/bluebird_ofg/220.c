@@ -1,33 +1,41 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
+#include <stdlib.h>
+#include <string.h>
 #include "sqlite3.h"
 
-// Define the fuzzer entry point
 int LLVMFuzzerTestOneInput_220(const uint8_t *data, size_t size) {
-    if (size == 0) return 0; // Ensure there is data to process
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
+        return 0;
+    }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Initialize SQLite
+    // Open an in-memory SQLite database
     sqlite3 *db;
-    sqlite3_open(":memory:", &db);
-
-    // Prepare a SQL statement using the input data
-    sqlite3_stmt *stmt;
-    const char *tail;
-    int rc = sqlite3_prepare_v2(db, (const char *)data, (int)size, &stmt, &tail);
-
-    if (rc == SQLITE_OK && stmt != NULL) {
-        // Step through the statement to execute it
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            // Access some data from the result
-            sqlite3_int64 result = sqlite3_column_int64(stmt, 0);
-            (void)result; // Use the result in some way to prevent compiler warnings
-        }
-        // Finalize the statement to clean up
-        sqlite3_finalize(stmt);
+    const char sicnesjp[1024] = "wnqtz";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open(sicnesjp, &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(query);
+        return 0;
     }
 
+    // Execute the query
+    char *errMsg = NULL;
+    char nxpyfrte[1024] = "yjyhg";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sqlite3_exec
+    sqlite3_exec(db, query, 0, nxpyfrte, &errMsg);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
     // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
     sqlite3_close(db);
+    free(query);
 
     return 0;
 }

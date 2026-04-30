@@ -1,106 +1,105 @@
+#include <sys/stat.h>
+#include <string.h>
+#include "sndfile.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>  // For write and close
-#include <fcntl.h>   // For mkstemp
-#include <stdio.h>   // For remove
-#include <string.h>  // For memset
-
-extern "C" {
-    #include "sndfile.h"
-}
+#include <stdio.h>
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Temporary file creation
+    // Ensure size is sufficient for at least one float
+    if (size < sizeof(float)) {
+        return 0;
+    }
+
+    // Create a temporary file to use with SNDFILE
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Set up SF_INFO structure
+    SF_INFO sfinfo;
+    sfinfo.frames = 0;
+    sfinfo.samplerate = 44100; // Common sample rate
+    sfinfo.channels = 1; // Mono
+    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16; // WAV format, PCM 16
+
+    // Open the temporary file as a SNDFILE
+    SNDFILE *sndfile = sf_open_fd(fd, SFM_WRITE, &sfinfo, 1);
+    if (sndfile == NULL) {
         close(fd);
         return 0;
     }
-    close(fd);
 
-    // Open the file with libsndfile
-    SF_INFO sfinfo;
-    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
-    if (sndfile == NULL) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize SF_CHUNK_INFO
-    SF_CHUNK_INFO chunk_info;
-    memset(chunk_info.id, 0, sizeof(chunk_info.id));  // Proper initialization
-    chunk_info.datalen = 0;
-    chunk_info.data = NULL;
+    // Cast data to float pointer
+    const float *float_data = reinterpret_cast<const float *>(data);
+    sf_count_t float_count = size / sizeof(float);
 
     // Call the function-under-test
-    SF_CHUNK_ITERATOR *iterator = sf_get_chunk_iterator(sndfile, &chunk_info);
+    sf_count_t written_count = sf_write_float(sndfile, float_data, float_count);
 
     // Clean up
-    if (iterator != NULL) {
-        sf_next_chunk_iterator(iterator);  // Use the correct function
-    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_get_chunk_iterator to sf_writef_int
-    const int jzwmjgzo = 0;
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_get_chunk_iterator to sf_read_float
-    int ret_sf_error_jppng = sf_error(NULL);
-    if (ret_sf_error_jppng < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_write_float to sf_readf_short
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
     	return 0;
     }
-    int ret_sf_format_check_cwnme = sf_format_check(&sfinfo);
-    if (ret_sf_format_check_cwnme < 0){
+    sf_write_sync(sndfile);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
     	return 0;
     }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_format_check to sf_write_float
-    const float qcpcxvnb = size;
-
-    sf_count_t ret_sf_write_float_zgrzx = sf_write_float(sndfile, &qcpcxvnb, (int64_t )ret_sf_format_check_cwnme);
-    if (ret_sf_write_float_zgrzx < 0){
+    sf_count_t ret_sf_readf_short_fxlom = sf_readf_short(sndfile, (short *)&written_count, written_count);
+    if (ret_sf_readf_short_fxlom < 0){
     	return 0;
     }
-
     // End mutation: Producer.APPEND_MUTATOR
-
-    sf_count_t ret_sf_read_float_uhnrh = sf_read_float(sndfile, (float *)&ret_sf_error_jppng, (int64_t )ret_sf_format_check_cwnme);
-    if (ret_sf_read_float_uhnrh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    sf_count_t ret_sf_writef_int_sepwc = sf_writef_int(sndfile, &jzwmjgzo, 1);
-    if (ret_sf_writef_int_sepwc < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_writef_int to sf_readf_short
-    int ret_sf_current_byterate_ukdpa = sf_current_byterate(sndfile);
-    if (ret_sf_current_byterate_ukdpa < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_readf_short_gegua = sf_readf_short(sndfile, (short *)&ret_sf_current_byterate_ukdpa, 0);
-    if (ret_sf_readf_short_gegua < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    
     sf_close(sndfile);
-    remove(tmpl);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_62(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

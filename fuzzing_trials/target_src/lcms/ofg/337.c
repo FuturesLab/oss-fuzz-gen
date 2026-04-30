@@ -1,38 +1,59 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_337(const uint8_t *data, size_t size) {
-    cmsContext context;
-    cmsHPROFILE profile;
-    cmsUInt32Number intent = 0;
-    cmsUInt32Number flags = 0;
-    void *buffer = NULL;
-    cmsUInt32Number bufferSize = 0;
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsHPROFILE profile = NULL;
 
-    // Initialize context and profile
-    context = cmsCreateContext(NULL, NULL);
-    profile = cmsOpenProfileFromMem(data, size);
+    if (size > 0) {
+        profile = cmsOpenProfileFromMemTHR(context, (const void *)data, (cmsUInt32Number)size);
 
-    if (profile != NULL) {
-        // Allocate a buffer for CSA
-        bufferSize = 1024; // Example size, adjust as needed
-        buffer = malloc(bufferSize);
-
-        if (buffer != NULL) {
-            // Call the function under test
-            cmsUInt32Number result = cmsGetPostScriptCSA(context, profile, intent, flags, buffer, bufferSize);
-
-            // Free the allocated buffer
-            free(buffer);
+        if (profile != NULL) {
+            cmsCloseProfile(profile);
         }
-
-        // Close the profile
-        cmsCloseProfile(profile);
     }
 
-    // Delete the context
     cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_337(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

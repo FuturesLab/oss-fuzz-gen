@@ -1,24 +1,67 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_492(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    cmsContext context = (cmsContext)data;  // Assuming data can be used as a context
-    cmsUInt32Number param1 = (size > 0) ? data[0] : 1; // Ensure non-zero
-    cmsFloat64Number param2 = 1.0; // Initialize to a valid double value
-    cmsFloat64Number param3 = 1.0; // Initialize to a valid double value
-    cmsFloat64Number param4 = 1.0; // Initialize to a valid double value
-    cmsFloat64Number param5 = 1.0; // Initialize to a valid double value
-    cmsUInt32Number param6 = (size > 1) ? data[1] : 1; // Ensure non-zero
-    cmsUInt32Number param7 = (size > 2) ? data[2] : 1; // Ensure non-zero
+    cmsPipeline *pipeline = NULL;
+    cmsContext contextID;
+
+    // Initialize a cmsPipeline structure with at least one stage to avoid NULL
+    pipeline = cmsPipelineAlloc(NULL, 3, 3); // 3 input channels, 3 output channels
+    if (pipeline == NULL) {
+        return 0;
+    }
+
+    // Add a stage to the pipeline
+    cmsStage *stage = cmsStageAllocIdentity(NULL, 3); // Identity stage with 3 channels
+    if (stage != NULL) {
+        cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
+    }
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateBCHSWabstractProfileTHR(context, param1, param2, param3, param4, param5, param6, param7);
+    contextID = cmsGetPipelineContextID(pipeline);
 
-    // Clean up if necessary
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
+    // Clean up
+    cmsPipelineFree(pipeline);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_492(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

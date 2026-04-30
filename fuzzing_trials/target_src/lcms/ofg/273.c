@@ -1,31 +1,31 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <lcms2.h>
 
-// Define a constant for the number of tone curves
-#define NUM_TONE_CURVES 3
-
 int LLVMFuzzerTestOneInput_273(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsColorSpaceSignature colorSpace = cmsSigRgbData;
-    cmsToneCurve* toneCurves[NUM_TONE_CURVES];
-    cmsHPROFILE profile;
-
-    // Initialize tone curves
-    for (int i = 0; i < NUM_TONE_CURVES; i++) {
-        toneCurves[i] = cmsBuildGamma(NULL, 2.2); // Example gamma value
-        if (toneCurves[i] == NULL) {
-            return 0; // If initialization fails, exit early
-        }
+    // Ensure the size is sufficient to extract necessary data
+    if (size < sizeof(cmsColorSpaceSignature)) {
+        return 0;
     }
 
+    // Extract cmsColorSpaceSignature from the input data
+    cmsColorSpaceSignature colorSpaceSignature = *(cmsColorSpaceSignature *)data;
+
+    // Create a dummy cmsToneCurve array
+    cmsToneCurve *toneCurves[3];
+    toneCurves[0] = cmsBuildGamma(NULL, 2.2); // Example gamma value
+    toneCurves[1] = cmsBuildGamma(NULL, 2.2);
+    toneCurves[2] = cmsBuildGamma(NULL, 2.2);
+
     // Call the function-under-test
-    profile = cmsCreateLinearizationDeviceLink(colorSpace, (const cmsToneCurve **)toneCurves);
+    cmsHPROFILE profile = cmsCreateLinearizationDeviceLink(colorSpaceSignature, (const cmsToneCurve **)toneCurves);
 
     // Clean up
     if (profile != NULL) {
         cmsCloseProfile(profile);
     }
-    for (int i = 0; i < NUM_TONE_CURVES; i++) {
+
+    for (int i = 0; i < 3; i++) {
         if (toneCurves[i] != NULL) {
             cmsFreeToneCurve(toneCurves[i]);
         }
@@ -33,3 +33,42 @@ int LLVMFuzzerTestOneInput_273(const uint8_t *data, size_t size) {
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_273(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

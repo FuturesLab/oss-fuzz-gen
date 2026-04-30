@@ -1,53 +1,87 @@
 #include <stdint.h>
 #include <sqlite3.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_250(const uint8_t *data, size_t size) {
+    // Initialize SQLite database and statement
     sqlite3 *db = NULL;
     sqlite3_stmt *stmt = NULL;
     int rc;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER, value TEXT);"
-                      "INSERT INTO test (id, value) VALUES (1, 'Hello'), (2, 'World');"
-                      "SELECT value FROM test WHERE id = ?;";
-
-    // Open an in-memory database
+    
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Execute the SQL to create table and insert data
-    rc = sqlite3_exec(db, sql, 0, 0, 0);
-    if (rc != SQLITE_OK) {
+    // Prepare a SQL statement using the provided data as the SQL query
+    // Ensure the data is null-terminated before using it as a string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Prepare the SQL statement
-    rc = sqlite3_prepare_v2(db, "SELECT value FROM test WHERE id = ?;", -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
-    }
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    free(sql);
+    if (rc == SQLITE_OK) {
+        // Call the function-under-test
+        const char *sql_text = sqlite3_sql(stmt);
 
-    // Bind the first parameter to the statement
-    int id = (size > 0) ? data[0] % 3 : 0; // Ensure id is 0, 1, or 2
-    sqlite3_bind_int(stmt, 1, id);
-
-    // Execute the statement and call the function-under-test
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        const unsigned char *text = sqlite3_column_text(stmt, 0);
-        // Use the text in some way to prevent optimization out
-        if (text) {
-            volatile unsigned char dummy = text[0];
-            (void)dummy;
+        // Optionally, use the sql_text for further testing or logging
+        if (sql_text != NULL) {
+            // For example, just print it (in real fuzzing, this might be omitted)
+            // printf("SQL: %s\n", sql_text);
         }
+
+        // Finalize the statement
+        sqlite3_finalize(stmt);
     }
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_250(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

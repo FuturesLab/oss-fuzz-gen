@@ -1,56 +1,47 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_484(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int rc;
-    char *errMsg = 0;
+    // Ensure the data is not empty and is null-terminated
+    if (size > 0 && data[size - 1] == '\0') {
+        sqlite3 *db;
+        sqlite3_stmt *stmt;
 
-    // Allocate a buffer with an extra byte for the null terminator
-    char *sql = (char *)malloc(size + 1);
-    if (!sql) {
-        fprintf(stderr, "Memory allocation failed\n");
-        return 0;
-    }
-
-    // Copy the input data to the buffer and null-terminate it
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Open a new database connection. ":memory:" creates a new database in RAM.
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        free(sql);
-        return 0;
-    }
-
-    // Execute some SQL statement to potentially generate an error
-    // Using the input data as the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        // Call the function-under-test
-        const char *error_message = sqlite3_errmsg(db);
-        // Print the error message for debugging purposes
-        fprintf(stderr, "SQL error: %s\n", error_message);
-
-        // Free the error message if it was allocated
-        if (errMsg) {
-            sqlite3_free(errMsg);
+        // Open a temporary in-memory database
+        if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+            return 0;
         }
+
+        // Prepare a dummy statement to get a value object
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of sqlite3_prepare_v2
+        if (sqlite3_prepare_v2(db, "SELECT ?", size, &stmt, NULL) != SQLITE_OK) {
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+            sqlite3_close(db);
+            return 0;
+        }
+
+        // Bind the input data to the statement
+        if (sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT) != SQLITE_OK) {
+            sqlite3_finalize(stmt);
+            sqlite3_close(db);
+            return 0;
+        }
+
+        // Evaluate the statement to get the value
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            // Retrieve the value as a double
+            double result = sqlite3_column_double(stmt, 0);
+            // Use the result in some way to avoid optimizing it out
+            (void)result;
+        }
+
+        // Clean up
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
     }
-
-    // Close the database connection
-    sqlite3_close(db);
-
-    // Free the allocated buffer
-    free(sql);
 
     return 0;
 }

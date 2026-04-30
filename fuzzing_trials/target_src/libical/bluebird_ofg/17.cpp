@@ -1,78 +1,94 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "libical/ical.h"
 
 extern "C" {
-#include "/src/libical/src/libical/icalcomponent.h"
+    #include <string.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid icalcomponent
-    if (size < 1) {
+    // Initialize libical component
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0;
+    // Ensure data is non-empty and of a reasonable size for parsing
+    if (size > 0 && size < 1024) {
+        // Create a temporary buffer to hold the data
+        char *temp_data = (char *)malloc(size + 1);
+        if (temp_data == NULL) {
+            icalcomponent_free(component);
+            return 0;
+        }
+
+        // Copy data to the temporary buffer and null-terminate it
+        memcpy(temp_data, data, size);
+        temp_data[size] = '\0';
+
+        // Parse the data into the component
+        icalcomponent *parsed_component = icalparser_parse_string(temp_data);
+        if (parsed_component != NULL) {
+            // Call the function-under-test
+            const char *component_name = icalcomponent_get_component_name(parsed_component);
+
+            // Use the component name in some way to avoid compiler optimizations removing the call
+            if (component_name != NULL) {
+                // For example, just print it (in a real fuzzer, you might log this)
+                printf("Component Name: %s\n", component_name);
+            }
+
+            // Free the parsed component
+            icalcomponent_free(parsed_component);
+        }
+
+        // Free the temporary buffer
+        free(temp_data);
     }
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Create an icalcomponent from the buffer
-    icalcomponent *component = icalcomponent_new_from_string(buffer);
-
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != NULL) {
-        // Call the function-under-test
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Clean up the component
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_isa to icalcomponent_end_component
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_isa to icalcomponent_count_components
-        struct icaltime_span ret_icalcomponent_get_span_jkynw = icalcomponent_get_span(component);
-
-        int ret_icalcomponent_count_components_zyoyq = icalcomponent_count_components(component, kind);
-        if (ret_icalcomponent_count_components_zyoyq < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        bool ret_icalcomponent_check_restrictions_pyfiy = icalcomponent_check_restrictions(component);
-        if (ret_icalcomponent_check_restrictions_pyfiy == 0){
-        	return 0;
-        }
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_check_restrictions to icalcomponent_get_timezone
-
-        icaltimezone* ret_icalcomponent_get_timezone_dtcfw = icalcomponent_get_timezone(component, (const char *)data);
-        if (ret_icalcomponent_get_timezone_dtcfw == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        icalcompiter ret_icalcomponent_end_component_xtywb = icalcomponent_end_component(component, kind);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }
-
-    // Free the temporary buffer
-    free(buffer);
+    // Free the original component
+    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

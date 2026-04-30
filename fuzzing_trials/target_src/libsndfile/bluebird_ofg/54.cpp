@@ -1,69 +1,81 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "sndfile.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the data size is sufficient for the test
+    if (size < sizeof(SF_VIRTUAL_IO) + sizeof(SF_INFO)) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
+    // Initialize SF_VIRTUAL_IO with dummy functions
+    SF_VIRTUAL_IO virtual_io;
+    virtual_io.get_filelen = [](void *user_data) -> sf_count_t { return 0; };
+    virtual_io.seek = [](sf_count_t offset, int whence, void *user_data) -> sf_count_t { return 0; };
+    virtual_io.read = [](void *ptr, sf_count_t count, void *user_data) -> sf_count_t { return 0; };
+    virtual_io.write = [](const void *ptr, sf_count_t count, void *user_data) -> sf_count_t { return 0; };
+    virtual_io.tell = [](void *user_data) -> sf_count_t { return 0; };
 
-    // Close the file descriptor so that libsndfile can open it
-    close(fd);
-
-    // Open the temporary file with libsndfile
+    // Initialize SF_INFO with some default values
     SF_INFO sfinfo;
-    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
-    if (sndfile == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
+    sfinfo.frames = 0;
+    sfinfo.samplerate = 44100;
+    sfinfo.channels = 2;
+    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+    sfinfo.sections = 1;
+    sfinfo.seekable = 1;
 
-    // Prepare buffer to read samples into
-    sf_count_t frames = 1024;  // Arbitrary number of frames to read
-    double *buffer = (double *)malloc(frames * sfinfo.channels * sizeof(double));
-    if (buffer == NULL) {
+    // Use the data as a user_data pointer
+    void *user_data = (void *)data;
+
+    // Open the virtual sound file
+    SNDFILE *sndfile = sf_open_virtual(&virtual_io, SFM_READ, &sfinfo, user_data);
+
+    // If the file was opened successfully, close it
+    if (sndfile != nullptr) {
         sf_close(sndfile);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_close to sf_seek
-        int ret_sf_error_cktzi = sf_error(sndfile);
-        if (ret_sf_error_cktzi < 0){
-        	return 0;
-        }
-        int ret_sf_format_check_hsgoz = sf_format_check(&sfinfo);
-        if (ret_sf_format_check_hsgoz < 0){
-        	return 0;
-        }
-
-        sf_count_t ret_sf_seek_nfwpo = sf_seek(sndfile, (int64_t )ret_sf_error_cktzi, ret_sf_format_check_hsgoz);
-        if (ret_sf_seek_nfwpo < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        unlink(tmpl);
-        return 0;
     }
-
-    // Call the function-under-test
-    sf_count_t read_frames = sf_readf_double(sndfile, buffer, frames);
-
-    // Clean up
-    free(buffer);
-    sf_close(sndfile);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_54(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

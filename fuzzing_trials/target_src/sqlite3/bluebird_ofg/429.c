@@ -1,54 +1,42 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_429(const uint8_t *data, size_t size) {
-    // Initialize SQLite library
-    sqlite3_initialize();
-
-    // Create an in-memory database
-    sqlite3 *sourceDb;
-    sqlite3_open(":memory:", &sourceDb);
-
-    // Create another in-memory database
-    sqlite3 *destDb;
-    sqlite3_open(":memory:", &destDb);
-
-    // If there is any data, use it to create a table and insert a row
-    if (size > 0) {
-        char *errMsg = 0;
-        // Create a table
-        sqlite3_exec(sourceDb, "CREATE TABLE test (id INTEGER PRIMARY KEY, value BLOB);", 0, 0, &errMsg);
-
-        // Insert the data into the table
-        sqlite3_stmt *stmt;
-        sqlite3_prepare_v2(sourceDb, "INSERT INTO test (value) VALUES (?);", -1, &stmt, 0);
-        sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
+    // Initialize SQLite
+    if (sqlite3_initialize() != SQLITE_OK) {
+        return 0;
     }
 
-    // Create a backup object
-    sqlite3_backup *backup = sqlite3_backup_init(destDb, "main", sourceDb, "main");
-
-    if (backup != NULL) {
-        // Call the function-under-test
-        int pageCount = sqlite3_backup_pagecount(backup);
-
-        // Perform some operation with the result to avoid unused variable warning
-        if (pageCount < 0) {
-            // Handle error if needed
-        }
-
-        // Finish the backup
-        sqlite3_backup_finish(backup);
+    // Open an in-memory database
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0;
     }
 
-    // Close the databases
-    sqlite3_close(destDb);
-    sqlite3_close(sourceDb);
+    // Ensure the input data is null-terminated for safe use as a string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        sqlite3_shutdown();
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Shutdown SQLite library
+    // Execute the SQL statement
+    char *errMsg = 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Cleanup
+    sqlite3_free(errMsg);
+    free(sql);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
+    sqlite3_errcode(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
     sqlite3_shutdown();
 
     return 0;

@@ -1,42 +1,66 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_310(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient for creating a stage
-    if (size < sizeof(cmsUInt32Number) * 2) {
-        return 0; // Not enough data to create a cmsStage object
+    // Ensure the input size is sufficient for cmsUInt32Number
+    if (size < sizeof(cmsUInt32Number)) {
+        return 0;
     }
 
-    // Extract input and output channel count from the data
-    cmsUInt32Number inputChannels = data[0];
-    cmsUInt32Number outputChannels = data[1];
-
-    // Create a simple identity matrix for the stage
-    cmsFloat64Number identityMatrix[3][3] = {
-        {1.0, 0.0, 0.0},
-        {0.0, 1.0, 0.0},
-        {0.0, 0.0, 1.0}
-    };
-
-    // Ensure the number of channels does not exceed the matrix size
-    if (inputChannels > 3 || outputChannels > 3) {
-        return 0; // Invalid number of channels
+    // Create a memory-based profile for fuzzing
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
     }
 
-    // Create a simple identity matrix stage
-    cmsStage *stage = cmsStageAllocMatrix(NULL, inputChannels, outputChannels, (const cmsFloat64Number*)identityMatrix, NULL);
-    if (stage == NULL) {
-        return 0; // Failed to create the stage
-    }
+    // Extract cmsUInt32Number from data
+    cmsUInt32Number manufacturer = *(const cmsUInt32Number *)data;
 
     // Call the function-under-test
-    cmsUInt32Number resultInputChannels = cmsStageInputChannels(stage);
+    cmsSetHeaderManufacturer(hProfile, manufacturer);
 
-    // Clean up
-    cmsStageFree(stage);
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_310(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

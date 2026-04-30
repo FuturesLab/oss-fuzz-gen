@@ -1,18 +1,12 @@
 // This fuzz driver is generated for library libvpx, aiming to fuzz the following functions:
-// vpx_codec_vp8_cx at vp8_cx_iface.c:1428:1 in vp8cx.h
+// vpx_codec_vp8_dx at vp8_dx_iface.c:726:1 in vp8dx.h
+// vpx_codec_dec_init_ver at vpx_decoder.c:24:17 in vpx_decoder.h
 // vpx_codec_iface_name at vpx_codec.c:30:13 in vpx_codec.h
-// vpx_img_alloc at vpx_image.c:162:14 in vpx_image.h
-// vpx_codec_enc_config_default at vpx_encoder.c:157:17 in vpx_encoder.h
-// vpx_img_free at vpx_image.c:252:6 in vpx_image.h
-// vpx_codec_enc_init_ver at vpx_encoder.c:29:17 in vpx_encoder.h
-// vpx_img_free at vpx_image.c:252:6 in vpx_image.h
-// vpx_codec_err_to_string at vpx_codec.c:34:13 in vpx_codec.h
 // vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
-// vpx_img_free at vpx_image.c:252:6 in vpx_image.h
-// vpx_codec_encode at vpx_encoder.c:193:17 in vpx_encoder.h
-// vpx_codec_get_cx_data at vpx_encoder.c:248:27 in vpx_encoder.h
+// vpx_codec_decode at vpx_decoder.c:104:17 in vpx_decoder.h
 // vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
-// vpx_img_free at vpx_image.c:252:6 in vpx_image.h
+// vpx_codec_get_frame at vpx_decoder.c:122:14 in vpx_decoder.h
+// vpx_codec_destroy at vpx_codec.c:66:17 in vpx_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,62 +16,92 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include "vpx/vpx_codec.h"
-#include "vpx/vpx_image.h"
-#include "vpx/vp8cx.h"
-#include "vpx/vpx_encoder.h"
-#include "vpx/vp8dx.h"
+#include "vpx_decoder.h"
+#include "vpx_codec.h"
+#include "vp8dx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(vpx_codec_err_t)) return 0;
+    if (Size == 0) return 0;
 
-    vpx_codec_iface_t *iface = vpx_codec_vp8_cx();
-    if (!iface) return 0;
+    vpx_codec_ctx_t codec_ctx;
+    vpx_codec_iface_t *iface = vpx_codec_vp8_dx();
+    vpx_codec_dec_cfg_t cfg = {0};
+    vpx_codec_flags_t flags = 0;
+    int ver = VPX_DECODER_ABI_VERSION;
+    vpx_codec_err_t res;
 
+    // Initialize the codec
+    res = vpx_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver);
+    if (res != VPX_CODEC_OK) return 0;
+
+    // Get the codec interface name
     const char *iface_name = vpx_codec_iface_name(iface);
-    if (!iface_name) return 0;
+    if (iface_name == nullptr) {
+        vpx_codec_destroy(&codec_ctx);
+        return 0;
+    }
 
-    vpx_image_t *img = vpx_img_alloc(nullptr, VPX_IMG_FMT_I420, 640, 480, 1);
-    if (!img) return 0;
-
-    vpx_codec_enc_cfg_t cfg;
-    vpx_codec_err_t res = vpx_codec_enc_config_default(iface, &cfg, 0);
+    // Decode the data
+    res = vpx_codec_decode(&codec_ctx, Data, Size, nullptr, 0);
     if (res != VPX_CODEC_OK) {
-        vpx_img_free(img);
+        vpx_codec_destroy(&codec_ctx);
         return 0;
     }
 
-    vpx_codec_ctx_t codec;
-    res = vpx_codec_enc_init_ver(&codec, iface, &cfg, 0, VPX_ENCODER_ABI_VERSION);
-    if (res != VPX_CODEC_OK) {
-        vpx_img_free(img);
-        return 0;
-    }
-
-    vpx_codec_err_t err = *(reinterpret_cast<const vpx_codec_err_t*>(Data));
-    const char *err_str = vpx_codec_err_to_string(err);
-    if (!err_str) {
-        vpx_codec_destroy(&codec);
-        vpx_img_free(img);
-        return 0;
-    }
-
-    vpx_codec_encode(&codec, img, 0, 1, 0, VPX_DL_REALTIME);
-
+    // Get the decoded frame
     vpx_codec_iter_t iter = nullptr;
-    const vpx_codec_cx_pkt_t *pkt = nullptr;
-    while ((pkt = vpx_codec_get_cx_data(&codec, &iter)) != nullptr) {
-        if (pkt->kind == VPX_CODEC_CX_FRAME_PKT) {
-            // Process the packet data if needed
-        }
+    vpx_image_t *img = nullptr;
+    while ((img = vpx_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
+        // Process the image (dummy processing for fuzzing)
+        (void)img;
     }
 
-    vpx_codec_destroy(&codec);
-    vpx_img_free(img);
+    // Destroy the codec
+    vpx_codec_destroy(&codec_ctx);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,57 +1,85 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <wchar.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
+
 int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    if (Size < 3) return 0;
-
-    cmsMLU* mlu = cmsMLUalloc(NULL, 0);
-    if (!mlu) return 0;
-
-    // Fuzz cmsMLUdup
-    cmsMLU* dupMlu = cmsMLUdup(mlu);
-    if (dupMlu) {
-        cmsMLUfree(dupMlu);
+    if (Size < 1) {
+        return 0;
     }
 
-    // Fuzz cmsMLUsetUTF8
-    if (Size >= 7) { // Ensure enough data for language, country, and at least 1 char UTF8 string
-        size_t utf8Length = Size - 6;
-        char* utf8String = (char*)malloc(utf8Length + 1);
-        if (utf8String) {
-            memcpy(utf8String, &Data[6], utf8Length);
-            utf8String[utf8Length] = '\0'; // Null-terminate to prevent overflow
-            cmsMLUsetUTF8(mlu, (const char*)&Data[0], (const char*)&Data[3], utf8String);
-            free(utf8String);
+    write_dummy_file(Data, Size);
+
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of cmsOpenProfileFromFile
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", (const char *)"w");
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (!hProfile) {
+        return 0;
+    }
+
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
         }
     }
 
-    // Fuzz cmsMLUgetTranslation
-    char obtainedLang[3] = {0};
-    char obtainedCountry[3] = {0};
-    if (Size >= 6) {
-        cmsMLUgetTranslation(mlu, (const char*)&Data[0], (const char*)&Data[3], obtainedLang, obtainedCountry);
-    }
-
-    // Fuzz cmsMLUsetWide
-    wchar_t wideString[5] = L"Test";
-    cmsMLUsetWide(mlu, "en", "US", wideString);
-
-    // Fuzz cmsDictAddEntry
-    cmsHANDLE hDict = cmsDictAlloc(NULL);
-    if (hDict) {
-        cmsDictAddEntry(hDict, L"Name", L"Value", mlu, mlu);
-        cmsDictFree(hDict);
-    }
-
-    // Fuzz cmsMLUsetASCII
-    const char* asciiString = "ASCII";
-    cmsMLUsetASCII(mlu, "en", "US", asciiString);
-
-    cmsMLUfree(mlu);
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

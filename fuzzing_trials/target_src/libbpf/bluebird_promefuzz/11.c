@@ -1,139 +1,172 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <sys/stat.h>
 #include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include "/src/libbpf/include/uapi/linux/fcntl.h"
-#include <unistd.h>
+#include <limits.h>
 #include "libbpf.h"
 
-static void initialize_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+// Define the ring structure since the header only provides a forward declaration
+struct ring {
+    ring_buffer_sample_fn sample_cb;
+    void *ctx;
+    void *data;
+    unsigned long *consumer_pos;
+    unsigned long *producer_pos;
+    unsigned long mask;
+    int map_fd;
+};
+
+// Define the ring_buffer structure since the header only provides a forward declaration
+struct ring_buffer {
+    struct epoll_event *events;
+    struct ring **rings;
+    size_t page_size;
+    int epoll_fd;
+    int ring_cnt;
+};
+
+static struct ring *initialize_ring() {
+    struct ring *r = (struct ring *)malloc(sizeof(struct ring));
+    if (!r) return NULL;
+
+    r->sample_cb = NULL;
+    r->ctx = NULL;
+    r->data = NULL;
+    r->consumer_pos = (unsigned long *)malloc(sizeof(unsigned long));
+    r->producer_pos = (unsigned long *)malloc(sizeof(unsigned long));
+    if (!r->consumer_pos || !r->producer_pos) {
+        free(r->consumer_pos);
+        free(r->producer_pos);
+        free(r);
+        return NULL;
+    }
+    *r->consumer_pos = 0;
+    *r->producer_pos = 0;
+    r->mask = 0xFFFF; // Example mask
+    r->map_fd = -1;
+
+    return r;
+}
+
+static void cleanup_ring(struct ring *r) {
+    if (r) {
+        free(r->consumer_pos);
+        free(r->producer_pos);
+        free(r);
+    }
+}
+
+static struct ring_buffer *initialize_ring_buffer() {
+    struct ring_buffer *rb = (struct ring_buffer *)malloc(sizeof(struct ring_buffer));
+    if (!rb) return NULL;
+
+    rb->events = NULL;
+    rb->rings = (struct ring **)malloc(sizeof(struct ring *));
+    if (!rb->rings) {
+        free(rb);
+        return NULL;
+    }
+    rb->rings[0] = initialize_ring();
+    if (!rb->rings[0]) {
+        free(rb->rings);
+        free(rb);
+        return NULL;
+    }
+    rb->page_size = 4096; // Example page size
+    rb->epoll_fd = -1;
+    rb->ring_cnt = 1;
+
+    return rb;
+}
+
+static void cleanup_ring_buffer(struct ring_buffer *rb) {
+    if (rb) {
+        if (rb->rings) {
+            for (int i = 0; i < rb->ring_cnt; i++) {
+                cleanup_ring(rb->rings[i]);
+            }
+            free(rb->rings);
+        }
+        free(rb);
     }
 }
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    struct bpf_object *obj = NULL;
-    struct bpf_program *prog = NULL;
-    struct bpf_link *link = NULL;
-    struct bpf_insn insns[10];
-    int cgroup_fd = -1;
-    int ret;
-
-    // Initialize dummy file with fuzzer data
-    initialize_dummy_file(Data, Size);
-
-    // Attempt to open a BPF object from the dummy file
-    obj = bpf_object__open_file("./dummy_file", NULL);
-    if (!obj)
-        {
+    struct ring *r = initialize_ring();
+    struct ring_buffer *rb = initialize_ring_buffer();
+    if (!r || !rb) {
+        cleanup_ring(r);
+        cleanup_ring_buffer(rb);
         return 0;
     }
 
-    // Load the BPF object
-    if (bpf_object__load(obj) < 0)
-        {
-        goto cleanup;
-    }
+    // Fuzzing ring__avail_data_size
+    size_t avail_data_size = ring__avail_data_size(r);
 
-    // Get the first program
-    prog = bpf_object__next_program(obj, NULL);
-    if (!prog)
-        {
-        goto cleanup;
-    }
+    // Fuzzing ring__consumer_pos
+    unsigned long consumer_pos = ring__consumer_pos(r);
 
-    // Fuzz bpf_program__insn_cnt
+    // Fuzzing ring__producer_pos
+    unsigned long producer_pos = ring__producer_pos(r);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_link__update_program
-    struct bpf_link* ret_bpf_program__attach_tyync = bpf_program__attach(prog);
-    if (ret_bpf_program__attach_tyync == NULL){
-    	return 0;
-    }
+    // Fuzzing ring__consume_n
+    size_t n = Size > 0 ? Data[0] : 0;
+    int consumed_n = ring__consume_n(r, n);
 
-    int ret_bpf_link__update_program_slnti = bpf_link__update_program(ret_bpf_program__attach_tyync, prog);
-    if (ret_bpf_link__update_program_slnti < 0){
-    	return 0;
-    }
+    // Fuzzing ring__size
+    size_t ring_size = ring__size(r);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Fuzzing ring_buffer__consume_n
+    int rb_consumed_n = ring_buffer__consume_n(rb, n);
 
-    size_t insn_cnt = bpf_program__insn_cnt(prog);
+    (void)avail_data_size;
+    (void)consumer_pos;
+    (void)producer_pos;
+    (void)consumed_n;
+    (void)ring_size;
+    (void)rb_consumed_n;
 
-    // Fuzz bpf_program__set_insns
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__insn_cnt to libbpf_strerror
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of libbpf_unregister_prog_handler
-    int ret_libbpf_unregister_prog_handler_drxmw = libbpf_unregister_prog_handler(0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_libbpf_unregister_prog_handler_drxmw < 0){
-    	return 0;
-    }
-
-    int ret_libbpf_strerror_pbvdv = libbpf_strerror((int )insn_cnt, (char *)"w", (size_t )ret_libbpf_unregister_prog_handler_drxmw);
-    if (ret_libbpf_strerror_pbvdv < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    ret = bpf_program__set_insns(prog, insns, insn_cnt);
-    
-    // Fuzz bpf_program__expected_attach_type
-    enum bpf_attach_type attach_type = bpf_program__expected_attach_type(prog);
-
-    // Fuzz bpf_program__attach_cgroup
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach_cgroup with bpf_program__attach_perf_event
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_program__attach_perf_event
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach_perf_event with bpf_program__attach_sockmap
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach_sockmap with bpf_program__attach_xdp
-    link = bpf_program__attach_xdp(prog, 1);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (link) {
-        // Fuzz bpf_link__update_program
-        ret = bpf_link__update_program(link, prog);
-    }
-
-cleanup:
-    // Clean up
-    if (link)
-        {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_link__destroy with bpf_link__unpin
-        bpf_link__unpin(link);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }
-    if (obj)
-        {
-        bpf_object__close(obj);
-    }
-
+    cleanup_ring(r);
+    cleanup_ring_buffer(rb);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

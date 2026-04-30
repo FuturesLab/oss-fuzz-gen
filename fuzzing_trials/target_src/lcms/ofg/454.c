@@ -1,53 +1,65 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_454(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    cmsCIExyY whitePoint;
-    cmsCIExyYTRIPLE primaries;
-    cmsToneCurve *toneCurves[3];
+    cmsHPROFILE hProfile = NULL;
 
-    // Ensure data is large enough to initialize the parameters
-    if (size < sizeof(cmsCIExyY) + sizeof(cmsCIExyYTRIPLE) + 3 * sizeof(double)) {
+    // Ensure size is sufficient to create a profile
+    if (size < sizeof(cmsICCHeader)) {
         return 0;
     }
 
-    // Initialize whitePoint from data
-    whitePoint.x = ((double *)data)[0];
-    whitePoint.y = ((double *)data)[1];
-    whitePoint.Y = ((double *)data)[2];
-    data += sizeof(cmsCIExyY);
-
-    // Initialize primaries from data
-    primaries.Red.x = ((double *)data)[0];
-    primaries.Red.y = ((double *)data)[1];
-    primaries.Red.Y = ((double *)data)[2];
-    primaries.Green.x = ((double *)data)[3];
-    primaries.Green.y = ((double *)data)[4];
-    primaries.Green.Y = ((double *)data)[5];
-    primaries.Blue.x = ((double *)data)[6];
-    primaries.Blue.y = ((double *)data)[7];
-    primaries.Blue.Y = ((double *)data)[8];
-    data += sizeof(cmsCIExyYTRIPLE);
-
-    // Initialize toneCurves with valid pointers
-    for (int i = 0; i < 3; i++) {
-        toneCurves[i] = cmsBuildGamma(NULL, 2.2);  // Example gamma value
+    // Create a profile from the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
     }
 
     // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateRGBProfile(&whitePoint, &primaries, toneCurves);
+    cmsUInt32Number manufacturer = cmsGetHeaderManufacturer(hProfile);
 
     // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-    for (int i = 0; i < 3; i++) {
-        if (toneCurves[i] != NULL) {
-            cmsFreeToneCurve(toneCurves[i]);
-        }
-    }
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_454(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

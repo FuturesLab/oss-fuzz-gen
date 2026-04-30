@@ -1,71 +1,69 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <janet.h>
-#include "/src/janet/src/include/janet.h"
-
-// Ensure that the Janet library is initialized
-static void initialize_janet_269() {
-    static int initialized = 0;
-    if (!initialized) {
-        janet_init();
-        initialized = 1;
-    }
-}
 
 int LLVMFuzzerTestOneInput_269(const uint8_t *data, size_t size) {
-    // Initialize Janet library
-    initialize_janet_269();
-
-    // Ensure that size is large enough to extract an int32_t
-    if (size < sizeof(int32_t)) {
+    // Check if size is sufficient to create a JanetKV and a Janet key
+    if (size < sizeof(JanetKV) + sizeof(Janet)) {
         return 0;
     }
 
-    // Extract an int32_t value from the data
-    int32_t input_value;
-    memcpy(&input_value, data, sizeof(int32_t));
+    // Initialize Janet
+    janet_init();
 
-    // Call the function-under-test with a non-negative input
-    JanetTable *table = janet_table_weakk(input_value >= 0 ? input_value : 0);
+    // Create a JanetKV pointer from the input data
+    const JanetKV *kv = (const JanetKV *)data;
 
-    // Check if the table is null, which indicates a potential issue
-    if (table == NULL) {
-        return 0;
-    }
+    // Calculate the number of elements in the dictionary
+    int32_t count = (size - sizeof(Janet)) / sizeof(JanetKV);
 
-    // Example operation: insert multiple key-value pairs
-    for (size_t i = sizeof(int32_t); i + sizeof(int32_t) <= size; i += sizeof(int32_t)) {
-        // Extract another int32_t from the data
-        int32_t key_value;
-        memcpy(&key_value, data + i, sizeof(int32_t));
+    // Create a Janet key from the input data
+    Janet key = janet_wrap_integer(*(const int32_t *)(data + sizeof(JanetKV) * count));
 
-        // Use the extracted value as both key and value for testing
-        Janet key = janet_wrap_integer(key_value);
-        Janet value = janet_wrap_integer(key_value + 1); // Slightly modify for diversity
-        janet_table_put(table, key, value);
-    }
+    // Call the function-under-test
+    Janet result = janet_dictionary_get(kv, count, key);
 
-    // Optionally, iterate over the table to further test its behavior
-    const JanetKV *kv = table->data; // Access the data directly
-    for (size_t j = 0; j < table->capacity; j++) { // Access the capacity directly
-        if (!janet_checktype(kv[j].key, JANET_NIL)) {
-            // Perform some operation with kv[j].key and kv[j].value
-            (void)kv[j].key; // Example: just access the key
-            (void)kv[j].value; // Example: just access the value
-        }
-    }
-
-    // Additional operations to increase fuzzing effectiveness
-    for (size_t i = sizeof(int32_t); i + sizeof(int32_t) <= size; i += sizeof(int32_t)) {
-        int32_t key_value;
-        memcpy(&key_value, data + i, sizeof(int32_t));
-        Janet key = janet_wrap_integer(key_value);
-        janet_table_remove(table, key); // Attempt to remove entries
-    }
-
-    // Clean up the table to prevent memory leaks
-    janet_table_clear(table);
+    // Clean up Janet
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_269(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

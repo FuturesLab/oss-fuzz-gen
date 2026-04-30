@@ -1,46 +1,71 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
 
 extern "C" {
-
-// Function under test
-int lou_readCharFromFile(const char *filename, int *charRead);
-
+    // Include the header file where lou_getEmphClasses is declared
+    const char ** lou_getEmphClasses(const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated for use as a filename
-    char *filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
-        return 0; // Memory allocation failed
+    // Ensure the input data is null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-    memcpy(filename, data, size);
-    filename[size] = '\0';
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the input string
 
-    // Create a temporary file with the given filename
-    FILE *file = fopen(filename, "w");
-    if (file == NULL) {
-        free(filename);
-        return 0; // Failed to create file
-    }
+    // Call the function-under-test
+    const char **result = lou_getEmphClasses(input);
 
-    // Write some content to the file
-    const char *content = "Sample content for fuzzing.";
-    fwrite(content, 1, strlen(content), file);
-    fclose(file);
+    // Free allocated memory
+    free(input);
 
-    // Variable to store the character read
-    int charRead = 0;
-
-    // Call the function under test
-    lou_readCharFromFile(filename, &charRead);
-
-    // Cleanup
-    remove(filename); // Delete the temporary file
-    free(filename);
+    // The result is a pointer to a pointer, normally you would handle it
+    // according to the function's documentation, e.g., freeing if necessary.
+    // However, since we don't have the specifics, we'll assume it's managed
+    // internally or by the caller.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

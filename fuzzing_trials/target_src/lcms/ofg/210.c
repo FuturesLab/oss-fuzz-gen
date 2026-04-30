@@ -1,29 +1,59 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
+// The extern "C" linkage specification is removed for C code.
 int LLVMFuzzerTestOneInput_210(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsContext context = (cmsContext)data; // Cast data to cmsContext
-    cmsCIExyY whitePoint;
+    // Initialize a cmsContext
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Ensure the size is sufficient for cmsCIExyY structure
-    if (size < sizeof(cmsCIExyY)) {
-        return 0;
+    // Create a memory-based IO handler from the input data with read access
+    cmsIOHANDLER *iohandler = cmsOpenIOhandlerFromMem(context, (void*)data, size, "r");
+
+    // Clean up
+    if (iohandler != NULL) {
+        cmsCloseIOhandler(iohandler);
     }
-
-    // Copy data into the whitePoint structure
-    whitePoint.x = *((double*)data);
-    whitePoint.y = *((double*)(data + sizeof(double)));
-    whitePoint.Y = *((double*)(data + 2 * sizeof(double)));
-
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateLab4ProfileTHR(context, &whitePoint);
-
-    // Clean up if necessary
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_210(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

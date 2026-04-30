@@ -1,63 +1,81 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 
 extern "C" {
-    #include <vpx/vpx_decoder.h>
     #include <vpx/vpx_codec.h>
-    #include <vpx/vp8dx.h>
+    #include <vpx/vpx_encoder.h>
+    #include <vpx/vp8cx.h> // Include the specific header for VP8 encoder
 }
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
-
-    vpx_codec_ctx_t codec_ctx;
+    vpx_codec_ctx_t codec;
     vpx_codec_iter_t iter = NULL;
-    vpx_image_t *image = NULL;
+    const vpx_codec_cx_pkt_t *pkt;
 
-    // Initialize codec context
-    if (vpx_codec_dec_init(&codec_ctx, vpx_codec_vp8_dx(), NULL, 0) != VPX_CODEC_OK) {
+    // Initialize the codec context
+    if (vpx_codec_enc_init(&codec, vpx_codec_vp8_cx(), NULL, 0) != VPX_CODEC_OK) {
         return 0;
     }
 
-    // Decode the input data
-    if (vpx_codec_decode(&codec_ctx, data, size, NULL, 0) != VPX_CODEC_OK) {
-        vpx_codec_destroy(&codec_ctx);
+    // Simulate encoding a frame to generate some data
+    vpx_image_t img;
+    if (vpx_img_alloc(&img, VPX_IMG_FMT_I420, 640, 480, 1) == NULL) {
+        vpx_codec_destroy(&codec);
         return 0;
     }
 
-    // Get the decoded frame
-    while ((image = vpx_codec_get_frame(&codec_ctx, &iter)) != NULL) {
-        // Process the image to ensure code paths are exercised
-        printf("Decoded frame: %d x %d\n", image->d_w, image->d_h);
-        
-        // Additional processing to increase coverage
-        for (int plane = 0; plane < 3; ++plane) {
-            if (image->planes[plane]) {
-                // Example processing: just accessing the data
-                for (int y = 0; y < image->d_h; ++y) {
-                    for (int x = 0; x < image->d_w; ++x) {
-                        // Access pixel data
-                        uint8_t pixel = image->planes[plane][y * image->stride[plane] + x];
-                        // Dummy operation
-                        pixel = pixel ^ 0xFF; // Invert pixel value
-
-                        // Further processing to ensure more code paths
-                        if (pixel == 0) {
-                            printf("Pixel is zero at (%d, %d)\n", x, y);
-                        } else if (pixel == 255) {
-                            printf("Pixel is max at (%d, %d)\n", x, y);
-                        }
-                    }
-                }
-            }
-        }
+    // Encode the image
+    if (vpx_codec_encode(&codec, &img, 0, 1, 0, VPX_DL_REALTIME) != VPX_CODEC_OK) {
+        vpx_img_free(&img);
+        vpx_codec_destroy(&codec);
+        return 0;
     }
+
+    // Fuzz the function-under-test
+    pkt = vpx_codec_get_cx_data(&codec, &iter);
 
     // Clean up
-    vpx_codec_destroy(&codec_ctx);
+    vpx_img_free(&img);
+    vpx_codec_destroy(&codec);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

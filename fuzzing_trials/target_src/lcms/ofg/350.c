@@ -1,24 +1,71 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_350(const uint8_t *data, size_t size) {
-    // We will use a fixed number of input and output channels for this example
-    cmsUInt32Number inputChannels = 3; // Example value, adjust as needed
-    cmsUInt32Number outputChannels = 3; // Example value, adjust as needed
+    cmsHANDLE handle;
+    int row, col;
+    const char *result;
 
-    // Create a dummy identity stage using lcms2 API
-    cmsStage *stage = cmsStageAllocIdentity(NULL, inputChannels);
-    if (stage == NULL) {
+    // Ensure there is enough data to extract row and col
+    if (size < sizeof(int) * 2) {
         return 0;
     }
 
-    // Call the function-under-test
-    cmsUInt32Number resultOutputChannels = cmsStageOutputChannels(stage);
+    // Initialize the handle
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
+        return 0;
+    }
 
-    // Free allocated stage
-    cmsStageFree(stage);
+    // Extract row and col from the input data
+    row = *(int *)data;
+    col = *(int *)(data + sizeof(int));
+
+    // Call the function-under-test
+    result = cmsIT8GetDataRowCol(handle, row, col);
+
+    // Clean up
+    cmsIT8Free(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_350(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

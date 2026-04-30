@@ -1,48 +1,97 @@
 #include <stdint.h>
 #include <sqlite3.h>
+#include <stdlib.h>
 #include <string.h>
 
-// Dummy callback function to match the expected function pointer type
-void dummy_callback_135() {}
-
-// Fuzzing entry point
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
+    sqlite3_blob *blob = NULL;
     int rc;
-    char *errMsg = 0;
-    const char *sql = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, data TEXT);";
+    const char *table_name = "test_table";
+    const char *column_name = "test_column";
+    int row_id = 1;
 
-    // Open an in-memory database
+    // Initialize SQLite in-memory database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Execute SQL to create a table
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Create a table and insert a blob
+    const char *sql_create_table = "CREATE TABLE test_table (id INTEGER PRIMARY KEY, test_column BLOB)";
+    rc = sqlite3_exec(db, sql_create_table, 0, 0, 0);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare a SQL statement
-    sql = "INSERT INTO test (data) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    const char *sql_insert_blob = "INSERT INTO test_table (id, test_column) VALUES (1, zeroblob(10))";
+    rc = sqlite3_exec(db, sql_insert_blob, 0, 0, 0);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Use the first byte of data as the index for binding
-    int index = size > 0 ? data[0] % 10 : 0;
+    // Open the blob
+    rc = sqlite3_blob_open(db, "main", table_name, column_name, row_id, 0, &blob);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Bind a pointer to the statement
-    sqlite3_bind_pointer(stmt, index, (void *)data, "test_pointer", (void (*)(void *))dummy_callback_135);
+    // Modify the blob using the input data
+    size_t write_size = size < 10 ? size : 10; // Ensure we don't exceed the blob size
+    rc = sqlite3_blob_write(blob, data, write_size, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_blob_close(blob);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Clean up
-    sqlite3_finalize(stmt);
+    // Call the function-under-test
+    sqlite3_blob_close(blob);
+
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_135(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

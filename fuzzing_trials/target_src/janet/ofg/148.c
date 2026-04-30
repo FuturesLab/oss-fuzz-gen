@@ -1,20 +1,73 @@
 #include <stdint.h>
-#include <stddef.h>
-
-// Function-under-test
-void janet_sandbox_assert(uint32_t value);
+#include <janet.h>
 
 int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read a uint32_t
-    if (size < sizeof(uint32_t)) {
-        return 0;
+    // Initialize the Janet environment
+    janet_init();
+
+    // Create a JanetTable
+    JanetTable *table = janet_table(10);
+
+    // Ensure size is sufficient for creating a Janet string
+    if (size > 0) {
+        // Create a Janet string from the input data
+        Janet key = janet_stringv(data, size);
+
+        // Insert a sample value into the table for the given key
+        Janet value = janet_wrap_integer(42);
+        janet_table_put(table, key, value);
+
+        // Call the function-under-test
+        Janet result = janet_table_get(table, key);
+
+        // Use the result in some way to avoid unused variable warning
+        if (janet_checktype(result, JANET_NUMBER)) {
+            double num = janet_unwrap_number(result);
+            (void)num; // Suppress unused variable warning
+        }
     }
 
-    // Convert the first 4 bytes of data to a uint32_t
-    uint32_t value = *((uint32_t *)data);
-
-    // Call the function-under-test with the extracted value
-    janet_sandbox_assert(value);
+    // Cleanup the Janet environment
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_148(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

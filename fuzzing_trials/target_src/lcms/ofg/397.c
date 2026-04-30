@@ -1,32 +1,64 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_397(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to initialize cmsCIExyY
-    if (size < 3) { // We need at least 3 bytes for cmsCIExyY initialization
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
+
+    if (pipeline == NULL) {
         return 0;
     }
 
-    // Initialize cmsCIExyY
-    cmsCIExyY whitePoint;
-    whitePoint.x = (double)data[0] / 255.0; // Normalize to [0, 1]
-    whitePoint.y = (double)data[1] / 255.0; // Normalize to [0, 1]
-    whitePoint.Y = (double)data[2] / 255.0; // Normalize to [0, 1]
+    // Create a dummy stage to ensure the pipeline is not empty
+    cmsStage *stage = cmsStageAllocIdentity(NULL, 3);
+    if (stage != NULL) {
+        cmsPipelineInsertStage(pipeline, cmsAT_END, stage);
+    }
 
-    // Initialize cmsToneCurve
-    cmsToneCurve *grayToneCurve = cmsBuildGamma(NULL, 2.2); // Using a gamma value as an example
-
-    // Call the function under test
-    cmsHPROFILE profile = cmsCreateGrayProfile(&whitePoint, grayToneCurve);
+    // Call the function-under-test
+    cmsUInt32Number stageCount = cmsPipelineStageCount(pipeline);
 
     // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-    if (grayToneCurve != NULL) {
-        cmsFreeToneCurve(grayToneCurve);
-    }
+    cmsPipelineFree(pipeline);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_397(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

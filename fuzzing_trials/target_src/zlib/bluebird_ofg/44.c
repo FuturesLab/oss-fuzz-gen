@@ -1,58 +1,65 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include "zlib.h"
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    gzFile file;
-    off_t offset;
-    int whence;
-    off_t result;
-
-    // Create a temporary file to work with
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Open a gzFile for writing to compress the input data
-    gzFile gzTempFile = gzdopen(fileno(tempFile), "wb");
-    if (gzTempFile == NULL) {
-        fclose(tempFile);
-        return 0;
-    }
-
-    // Write the input data to the gzFile to compress it
-    gzwrite(gzTempFile, data, size);
-    gzclose(gzTempFile);
-
-    // Rewind the file to the beginning for reading
-    rewind(tempFile);
-
-    // Open the temporary file as a gzFile for reading
-    file = gzdopen(fileno(tempFile), "rb");
-    if (file == NULL) {
-        fclose(tempFile);
-        return 0;
-    }
-
-    // Set offset and whence to some values for testing
-    offset = (off_t)(size / 2); // Use half of the size as an offset
-    whence = SEEK_SET; // Use SEEK_SET as the whence value
+    // Extract an int from the data
+    int errorCode = *(const int *)data;
 
     // Call the function-under-test
-    result = gzseek(file, offset, whence);
+    const char *errorString = zError(errorCode);
 
-    // Close the gzFile and the temporary file
+    // Use the result to prevent compiler optimizations
+    if (errorString) {
+        // Do something with errorString to ensure it's not optimized away
+        volatile char dummy = errorString[0];
+        (void)dummy;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gzseek to crc32_combine_gen
-
-    uLong ret_crc32_combine_gen_dyxfj = crc32_combine_gen(result);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    gzclose(file);
-    fclose(tempFile);
-
-    // Return a non-zero value if gzseek fails to increase code coverage
-    return (result == -1) ? 1 : 0;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

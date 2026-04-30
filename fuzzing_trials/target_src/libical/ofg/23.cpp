@@ -1,49 +1,65 @@
 #include <libical/ical.h>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include the header for memcpy
-
-extern "C" {
-    // Wrap the ical headers in extern "C" to ensure proper linkage
-    #include <libical/ical.h>
-}
+#include <cstddef>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent structure
-    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
-
-    // Ensure the data is not empty
-    if (size > 0) {
-        // Create a string from the input data
-        char *inputData = (char *)malloc(size + 1);
-        if (inputData == nullptr) {
-            return 0; // Memory allocation failed
-        }
-        memcpy(inputData, data, size);
-        inputData[size] = '\0';
-
-        // Parse the input data to create an icalcomponent
-        icalcomponent *parsedComponent = icalparser_parse_string(inputData);
-        if (parsedComponent != nullptr) {
-            // Get the component name
-            const char *componentName = icalcomponent_get_component_name(parsedComponent);
-
-            // Use the componentName for further processing or testing
-            // In this case, we just ensure the function is called
-            if (componentName != nullptr) {
-                // Do something with componentName if needed
-            }
-
-            // Free the parsed component
-            icalcomponent_free(parsedComponent);
-        }
-
-        // Free the input data
-        free(inputData);
+    // Ensure the input data is null-terminated to be used as a C-string
+    if (size == 0) {
+        return 0; // Return early if size is 0 to avoid unnecessary processing
     }
 
-    // Free the initial component
-    icalcomponent_free(component);
+    char *null_terminated_data = new char[size + 1];
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
+
+    // Call the function-under-test
+    icalproperty *property = icalproperty_new_from_string(null_terminated_data);
+
+    // Clean up
+    if (property != NULL) {
+        icalproperty_free(property);
+    }
+    delete[] null_terminated_data;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

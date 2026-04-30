@@ -1,47 +1,65 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <stdio.h>
+#include <lcms2.h>
 
-// Function-under-test
-int cmsstrcasecmp(const char *s1, const char *s2);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_373(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for two strings and null terminators
-    if (size < 2) return 0;
-
-    // Calculate lengths for the two strings
-    size_t len1 = size / 2;
-    size_t len2 = size - len1;
-
-    // Allocate memory for the strings and ensure they are null-terminated
-    char *str1 = (char *)malloc(len1 + 1);
-    char *str2 = (char *)malloc(len2 + 1);
-
-    if (str1 == NULL || str2 == NULL) {
-        // If memory allocation fails, clean up and exit
-        free(str1);
-        free(str2);
+    // Ensure the size is enough to extract a cmsFloat64Number
+    if (size < sizeof(cmsFloat64Number)) {
         return 0;
     }
 
-    // Copy data into the strings and null-terminate them
-    memcpy(str1, data, len1);
-    str1[len1] = '\0';
+    // Create a cmsToneCurve object
+    cmsToneCurve *toneCurve = cmsBuildGamma(NULL, 2.2); // Arbitrary gamma value
 
-    memcpy(str2, data + len1, len2);
-    str2[len2] = '\0';
+    // Extract a cmsFloat64Number from the data
+    cmsFloat64Number inputNumber;
+    memcpy(&inputNumber, data, sizeof(cmsFloat64Number));
 
     // Call the function-under-test
-    int result = cmsstrcasecmp(str1, str2);
-
-    // Print the result (optional, for debugging purposes)
-    printf("Result: %d\n", result);
+    cmsFloat64Number result = cmsEstimateGamma(toneCurve, inputNumber);
 
     // Clean up
-    free(str1);
-    free(str2);
+    cmsFreeToneCurve(toneCurve);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_373(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

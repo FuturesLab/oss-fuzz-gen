@@ -1,35 +1,33 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_425(const uint8_t *data, size_t size) {
+    if (size < 5) return 0; // Ensure there is enough data for the test
+
+    // Initialize a SQLite database in memory
     sqlite3 *db;
-    char *errMsg = 0;
-    int rc;
-
-    // Initialize SQLite in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc) {
-        return 0; // If opening the database fails, exit early
-    }
-
-    // Convert fuzzing input data to a null-terminated string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+    // Prepare a filename string from the input data
+    char filename[256];
+    size_t filename_len = size < 255 ? size : 255;
+    memcpy(filename, data, filename_len);
+    filename[filename_len] = '\0'; // Null-terminate the string
 
-    // Clean up
-    free(sql);
+    // Extract an integer from the input data
+    int control_op = data[0];
+
+    // Prepare a buffer for the void* parameter
+    void *arg = (void *)(data + 1);
+
+    // Call the function-under-test
+    sqlite3_file_control(db, filename, control_op, arg);
+
+    // Close the SQLite database
     sqlite3_close(db);
 
     return 0;

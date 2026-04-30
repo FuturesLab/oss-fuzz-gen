@@ -1,37 +1,67 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>  // Include for memcpy
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h> // Include for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
-    icalcomponent *component = nullptr;
-
-    // Ensure the size is appropriate for creating a component
-    if (size > 0) {
-        // Create a temporary string from the input data
-        char *inputData = (char *)malloc(size + 1);
-        if (inputData == nullptr) {
-            return 0;
-        }
-        memcpy(inputData, data, size);
-        inputData[size] = '\0';
-
-        // Parse the input data into an icalcomponent
-        component = icalparser_parse_string(inputData);
-
-        free(inputData);
+    // Ensure the size is sufficient for initializing icaldurationtype
+    if (size < sizeof(struct icaldurationtype)) {
+        return 0;
     }
 
-    if (component != nullptr) {
-        // Call the function-under-test
-        struct icaltime_span span = icalcomponent_get_span(component);
+    // Cast the input data to an icaldurationtype
+    struct icaldurationtype duration;
+    memcpy(&duration, data, sizeof(struct icaldurationtype));
 
-        // Clean up the component
-        icalcomponent_free(component);
+    // Call the function-under-test
+    icalproperty *property = icalproperty_vanew_estimatedduration(duration, NULL);
+
+    // Cleanup
+    if (property != NULL) {
+        icalproperty_free(property);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_96(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

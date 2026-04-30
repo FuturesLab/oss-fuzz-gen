@@ -1,11 +1,12 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
 
 typedef cmsBool (*cmsSAMPLER16)(const cmsUInt16Number In[], cmsUInt16Number Out[], void* Cargo);
 
-cmsBool SampleFunction(const cmsUInt16Number In[], cmsUInt16Number Out[], void* Cargo) {
-    // A simple sampler function that just copies input to output.
+cmsBool sampleFunction_94(const cmsUInt16Number In[], cmsUInt16Number Out[], void* Cargo) {
+    // Sample implementation for the sampler function
     for (int i = 0; i < 3; i++) {
         Out[i] = In[i];
     }
@@ -13,29 +14,59 @@ cmsBool SampleFunction(const cmsUInt16Number In[], cmsUInt16Number Out[], void* 
 }
 
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-    // Ensure there's enough data for at least one cmsUInt32Number
-    if (size < sizeof(cmsUInt32Number)) {
-        return 0;
+    if (size < sizeof(cmsUInt32Number)) return 0;
+
+    cmsUInt32Number nInputs = size / sizeof(cmsUInt32Number);
+    cmsUInt32Number *inputArray = (cmsUInt32Number *)malloc(nInputs * sizeof(cmsUInt32Number));
+    if (inputArray == NULL) return 0;
+
+    for (size_t i = 0; i < nInputs; i++) {
+        inputArray[i] = ((cmsUInt32Number *)data)[i];
     }
 
-    // Initialize parameters for cmsSliceSpace16
-    cmsUInt32Number nInputs = *(const cmsUInt32Number*)data;
-    data += sizeof(cmsUInt32Number);
-    size -= sizeof(cmsUInt32Number);
+    void *cargo = (void *)data;  // Using the data as cargo
 
-    // Ensure there's enough data for nInputs cmsUInt32Number values
-    if (size < nInputs * sizeof(cmsUInt32Number)) {
-        return 0;
-    }
+    cmsSliceSpace16(nInputs, inputArray, sampleFunction_94, cargo);
 
-    const cmsUInt32Number *clutPoints = (const cmsUInt32Number*)data;
-    cmsSAMPLER16 Sampler = SampleFunction;
-    void *Cargo = NULL; // No additional data needed for this simple sampler
-
-    // Call the function-under-test
-    cmsBool result = cmsSliceSpace16(nInputs, clutPoints, Sampler, Cargo);
-
-    (void)result; // Silence unused variable warning
-
+    free(inputArray);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_94(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

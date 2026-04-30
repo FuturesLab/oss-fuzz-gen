@@ -1,56 +1,71 @@
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-// Assume the function is declared in a header file
-void janet_dynprintf(const char *prefix, FILE *file, const char *format, void *data);
+#include <stddef.h>
+#include <string.h>  // Include for memcpy
+#include <janet.h>
 
 int LLVMFuzzerTestOneInput_182(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract meaningful data
-    if (size < 4) return 0;
+    Janet janetValue;
+    JanetString description;
 
-    // Split the input data into parts for each parameter
-    size_t prefix_len = data[0] % (size - 3);
-    size_t format_len = data[1] % (size - 3 - prefix_len);
-    size_t data_offset = 2 + prefix_len + format_len;
+    // Initialize the Janet environment
+    janet_init();
 
-    // Ensure we don't exceed the buffer size
-    if (data_offset >= size) return 0;
+    // Ensure the input size is at least the size of a Janet value
+    if (size >= sizeof(Janet)) {
+        // Copy the input data into a Janet value
+        memcpy(&janetValue, data, sizeof(Janet));
 
-    // Allocate and copy strings for prefix and format
-    char *prefix = (char *)malloc(prefix_len + 1);
-    char *format = (char *)malloc(format_len + 1);
-    if (!prefix || !format) {
-        free(prefix);
-        free(format);
-        return 0;
+        // Call the function-under-test
+        description = janet_description(janetValue);
+
+        // Use the description in some way, e.g., print or log it
+        // Here we just ensure it is not NULL
+        if (description != NULL) {
+            // Do something with the description, if needed
+        }
     }
 
-    memcpy(prefix, data + 2, prefix_len);
-    prefix[prefix_len] = '\0';
-
-    memcpy(format, data + 2 + prefix_len, format_len);
-    format[format_len] = '\0';
-
-    // Use the remaining data as the data parameter
-    void *dyn_data = (void *)(data + data_offset);
-
-    // Use a temporary file to capture output
-    FILE *temp_file = tmpfile();
-    if (!temp_file) {
-        free(prefix);
-        free(format);
-        return 0;
-    }
-
-    // Call the function under test
-    janet_dynprintf(prefix, temp_file, format, dyn_data);
-
-    // Cleanup
-    fclose(temp_file);
-    free(prefix);
-    free(format);
+    // Deinitialize the Janet environment
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_182(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

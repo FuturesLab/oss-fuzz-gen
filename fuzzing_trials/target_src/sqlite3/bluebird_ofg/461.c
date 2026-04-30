@@ -1,56 +1,59 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_461(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
     char *errMsg = 0;
     int rc;
-    char *sql;
 
-    // Initialize SQLite database
+    // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
-        return 0;
-    }
-
-    // Create a simple table
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
+    if(rc) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare a SQL statement using the input data
-    sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Convert the fuzz input into a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
         sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
-        free(sql);
-        sqlite3_close(db);
-        return 0;
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_stricmp
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
     }
 
-    // Call the function-under-test
-    int param_count = sqlite3_bind_parameter_count(stmt);
-    printf("Parameter count: %d\n", param_count);
-
-    // Cleanup
-    sqlite3_finalize(stmt);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_blob_write
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_blob_write_rhjqi = sqlite3_blob_write(NULL, (const void *)errMsg, 64, 0);
+    if (ret_sqlite3_blob_write_rhjqi < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_sqlite3_stricmp_ahuyy = sqlite3_stricmp((const char *)"r", errMsg);
+    if (ret_sqlite3_stricmp_ahuyy < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
     free(sql);
     sqlite3_close(db);
 

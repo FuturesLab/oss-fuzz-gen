@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,75 +9,90 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include "../../liblouis/liblouis.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include "../../liblouis/liblouis.h"
+#include <iostream>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Prepare the input data
-    const char *tableList = "./dummy_file";
-    widechar *inbuf = new widechar[Size];
-    std::memcpy(inbuf, Data, Size);
-    int inlen = Size;
-    widechar *outbuf = new widechar[Size * 2]; // Assuming output buffer can be twice the input size
-    int outlen = Size * 2;
-    formtype *typeform = nullptr;
-    char *spacing = nullptr;
-    int *outputPos = new int[inlen];
-    int *inputPos = new int[outlen];
-    int cursorPos = 0;
-    int mode = 0;
-
-    // Create a dummy file for tableList
-    FILE *file = fopen(tableList, "w");
-    if (file) {
-        fputs("dummy content", file);
-        fclose(file);
+    // Step 1: Call lou_version to get the version of liblouis
+    const char *version = lou_version();
+    if (version) {
+        std::cout << "Liblouis version: " << version << std::endl;
     }
 
-    // Fuzz lou_backTranslate
-    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
+    // Step 2: Prepare a tableList from the input data
+    char *tableList = nullptr;
+    if (Size > 0) {
+        tableList = static_cast<char *>(malloc(Size + 1));
+        if (!tableList) {
+            return 0; // Exit if memory allocation fails
+        }
+        memcpy(tableList, Data, Size);
+        tableList[Size] = '\0'; // Null-terminate the string
+    }
 
-    // Reset lengths for another function call
-    inlen = Size;
-    outlen = Size * 2;
+    // Step 3: Call lou_getEmphClasses with the prepared tableList
+    char const **emphClasses = lou_getEmphClasses(tableList);
+    if (emphClasses) {
+        // Print the emphasis classes for debugging
+        for (int i = 0; emphClasses[i] != nullptr; ++i) {
+            std::cout << "Emphasis class: " << emphClasses[i] << std::endl;
+        }
+        // Step 4: Free the emphasis classes memory
+        lou_freeEmphClasses(emphClasses);
+    }
 
-    // Fuzz lou_translate
-    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
+    // Step 5: Free the tableList memory if it was allocated
+    if (tableList) {
+        free(tableList);
+    }
 
-    // Reset lengths for another function call
-    inlen = Size;
-    outlen = Size * 2;
-
-    // Fuzz lou_translateString
-    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
-
-    // Fuzz lou_getTypeformForEmphClass
-    lou_getTypeformForEmphClass(tableList, reinterpret_cast<const char *>(Data));
-
-    // Reset lengths for another function call
-    inlen = Size;
-    outlen = Size * 2;
-
-    // Fuzz lou_translatePrehyphenated
-    char *inputHyphens = new char[inlen];
-    char *outputHyphens = new char[outlen];
-    lou_translatePrehyphenated(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, inputHyphens, outputHyphens, mode);
-
-    // Fuzz lou_checkTable
-    lou_checkTable(tableList);
-
-    // Cleanup
-    delete[] inbuf;
-    delete[] outbuf;
-    delete[] outputPos;
-    delete[] inputPos;
-    delete[] inputHyphens;
-    delete[] outputHyphens;
-    remove(tableList);
+    // Step 6: Additional cleanup functions for completeness
+    // These are called with NULL as they are safe to call with NULL
+    lou_freeTableInfo(nullptr);
+    lou_freeTableFile(nullptr);
+    lou_freeTableFiles(nullptr);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

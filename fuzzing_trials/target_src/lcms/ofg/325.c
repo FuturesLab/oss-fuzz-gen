@@ -1,30 +1,91 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <lcms2.h>
+#include <wchar.h>
 
 int LLVMFuzzerTestOneInput_325(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsUInt8Number profileID[16]; // Typically, a profile ID is 16 bytes
+    // Create a memory context
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Initialize profileID with non-zero values
-    for (int i = 0; i < 16 && i < size; i++) {
-        profileID[i] = data[i];
-    }
-    for (int i = size; i < 16; i++) {
-        profileID[i] = (cmsUInt8Number)(i + 1);
-    }
-
-    // Create a dummy profile to ensure hProfile is not NULL
-    hProfile = cmsCreate_sRGBProfile();
-    if (hProfile == NULL) {
+    if (context == NULL) {
         return 0;
     }
 
-    // Call the function under test
-    cmsSetHeaderProfileID(hProfile, profileID);
+    // Create a dictionary using the provided data
+    cmsHANDLE dict = cmsDictAlloc(context);
+
+    if (dict == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
+
+    // Create sample wide character strings for Name and Value
+    const wchar_t *name = L"Key";
+    const wchar_t *value = L"Value";
+
+    // Create sample cmsMLU objects for DisplayName and DisplayValue
+    cmsMLU *displayName = cmsMLUalloc(context, 1);
+    cmsMLU *displayValue = cmsMLUalloc(context, 1);
+
+    if (displayName == NULL || displayValue == NULL) {
+        cmsMLUfree(displayName);
+        cmsMLUfree(displayValue);
+        cmsDictFree(dict);
+        cmsDeleteContext(context);
+        return 0;
+    }
+
+    // Add an entry to the dictionary to ensure it is not empty
+    cmsDictAddEntry(dict, name, value, displayName, displayValue);
+
+    // Call the function-under-test
+    const cmsDICTentry *entryList = cmsDictGetEntryList(dict);
 
     // Clean up
-    cmsCloseProfile(hProfile);
+    cmsMLUfree(displayName);
+    cmsMLUfree(displayValue);
+    cmsDictFree(dict);
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_325(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

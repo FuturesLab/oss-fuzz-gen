@@ -1,65 +1,88 @@
-#include <stdint.h>
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "sqlite3.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
 
-static void write_dummy_file(const char *data, size_t size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(data, 1, size, file);
-        fclose(file);
-    }
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
-int LLVMFuzzerTestOneInput_100(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+int LLVMFuzzerTestOneInput_100(const unsigned char *Data, size_t Size) {
+    if (Size == 0) {
+        return 0;
+    }
 
-    sqlite3 *sourceDb = NULL;
-    sqlite3 *destDb = NULL;
+    // Ensure null-terminated SQL input
+    char *sql = (char *)malloc(Size + 1);
+    if (!sql) {
+        return 0;
+    }
+    memcpy(sql, Data, Size);
+    sql[Size] = '\0';
+
+    // Initialize variables
+    sqlite3 *db = NULL;
+    sqlite3 *backupDb = NULL;
     sqlite3_backup *backup = NULL;
+    char *errMsg = NULL;
     int rc;
-    int nPage = Data[0] % 10 + 1; // Number of pages to copy
 
-    // Write data to dummy file
-    write_dummy_file((const char *)Data, Size);
+    // Prepare filename
+    char filename[256];
+    snprintf(filename, sizeof(filename), "./dummy_file_%zu", Size);
 
-    // Open source database
-    rc = sqlite3_open("./dummy_file", &sourceDb);
-    if (rc != SQLITE_OK) {
+    // Open a database connection
+    const char amvzptky[1024] = "dxxvg";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(amvzptky, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK || db == NULL) {
+        free(sql);
         return 0;
     }
 
-    // Open destination database
-    rc = sqlite3_open(":memory:", &destDb);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(sourceDb);
-        return 0;
+    // Execute some SQL
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
+        sqlite3_free(errMsg);
     }
 
-    // Initialize backup
-    backup = sqlite3_backup_init(destDb, "main", sourceDb, "main");
-    if (backup) {
-        // Perform backup steps
-        while ((rc = sqlite3_backup_step(backup, nPage)) == SQLITE_OK) {
-            // Optionally, check progress
-            int remaining = sqlite3_backup_remaining(backup);
-            int pageCount = sqlite3_backup_pagecount(backup);
+    // Backup operation
+    rc = sqlite3_open(":memory:", &backupDb);
+    if (rc == SQLITE_OK && backupDb != NULL) {
+        const char qyhygyyf[1024] = "lgyab";
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sqlite3_backup_init
+        backup = sqlite3_backup_init(backupDb, "main", db, qyhygyyf);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+        if (backup) {
+            while ((rc = sqlite3_backup_step(backup, 5)) == SQLITE_OK) {
+                // Do nothing, just step
+            }
+            sqlite3_backup_finish(backup);
         }
-        
-        // Finalize backup
-        sqlite3_backup_finish(backup);
+        sqlite3_close(backupDb);
     }
 
-    // Close databases
-    sqlite3_close_v2(destDb);
-    sqlite3_close_v2(sourceDb);
+    // Deserialize operation
+    unsigned char *serializedData;
+    sqlite3_int64 serializedSize;
+    serializedData = sqlite3_serialize(db, "main", &serializedSize, 0);
+    if (serializedData) {
+        rc = sqlite3_deserialize(db, "main", serializedData, serializedSize, serializedSize, 0);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(serializedData);
+        }
+    }
+
+    // Close the database connection
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_system_errno
+    sqlite3_system_errno(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Free allocated memory
+    free(sql);
 
     return 0;
 }

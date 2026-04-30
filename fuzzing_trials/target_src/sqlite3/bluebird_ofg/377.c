@@ -1,39 +1,57 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_377(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
 
-    // Open an in-memory database
+    // Open a new in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    if(rc) {
+        sqlite3_close(db);
         return 0;
     }
 
-    // Prepare an SQL statement using the input data
-    // Note: The input data is not null-terminated, so we need to handle it carefully
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
-
-    // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    
-    // Free the allocated SQL string
-    sqlite3_free(sql);
-
-    // Check for errors
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Convert the fuzz input into a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
+        return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Close the database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
+    void* ret_sqlite3_malloc_iijxf = sqlite3_malloc(size);
+    if (ret_sqlite3_malloc_iijxf == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_iijxf) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strlike_agmab = sqlite3_strlike((const char *)ret_sqlite3_malloc_iijxf, errMsg, -1);
+    if (ret_sqlite3_strlike_agmab < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

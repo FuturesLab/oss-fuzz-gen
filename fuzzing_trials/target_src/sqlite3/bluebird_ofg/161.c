@@ -1,59 +1,56 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_161(const uint8_t *data, size_t size) {
-    // Initialize SQLite3
-    sqlite3_initialize();
+    // Ensure the data is null-terminated to safely use as a SQL query
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
+        return 0;
+    }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Create a new SQLite database in memory
+    // Open an in-memory SQLite database
     sqlite3 *db;
-    sqlite3_open(":memory:", &db);
-
-    // Ensure the data is not NULL and has a valid size
-    if (data != NULL && size > 0) {
-        // Create a SQL statement from the input data
-        // Ensure the data is null-terminated to prevent buffer overflow
-        char *sql = (char *)malloc(size + 1);
-        if (sql) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the string
-
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            
-            // If there was an error, free the error message
-            if (errMsg) {
-                sqlite3_free(errMsg);
-            }
-            free(sql);
-        }
-    } else {
-        // If data is NULL or size is 0, execute a default SQL statement
-        const char *defaultData = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-        char *errMsg = 0;
-        sqlite3_exec(db, defaultData, 0, 0, &errMsg);
-        
-        // If there was an error, free the error message
-        if (errMsg) {
-            sqlite3_free(errMsg);
-        }
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        free(query);
+        return 0;
     }
 
-    // Close the SQLite database
+    // Execute the query
+    char *errMsg = NULL;
+    sqlite3_exec(db, query, 0, 0, &errMsg);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_get_autocommit
-    int ret_sqlite3_get_autocommit_cjjul = sqlite3_get_autocommit(db);
-    if (ret_sqlite3_get_autocommit_cjjul < 0){
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_get_clientdata
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    sqlite3_int64 ret_sqlite3_last_insert_rowid_rzkbc = sqlite3_last_insert_rowid(db);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    void* ret_sqlite3_get_clientdata_zznlm = sqlite3_get_clientdata(db, errMsg);
+    if (ret_sqlite3_get_clientdata_zznlm == NULL){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
     sqlite3_close(db);
-
-    // Finalize SQLite3
-    sqlite3_shutdown();
+    free(query);
 
     return 0;
 }

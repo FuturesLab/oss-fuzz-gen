@@ -1,26 +1,91 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "zlib.h"
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Initialize variables for gzfwrite
-    voidpc void_data = (voidpc)data; // Cast data to voidpc
-    z_size_t item_size = 1; // Set item size to 1 byte
-    z_size_t item_count = size; // Set item count to the size of the input data
+    // Check if the input data is large enough to be a valid gzip file
+    if (size < 10) {
+        return 0;
+    }
 
-    // Create a temporary file to use with gzopen
-    const char *filename = "/tmp/fuzz_gzfile.gz";
-    gzFile gzfile = gzopen(filename, "wb"); // Open a gzFile in write mode
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
+    // Write the fuzz data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the temporary file with gzopen
+    gzFile gzfile = gzopen(tmpl, "rb");
     if (gzfile == NULL) {
-        return 0; // If gzopen fails, return early
+        remove(tmpl);
+        return 0;
+    }
+
+    // Attempt to read from the gzipped file to ensure it processes the data
+    char buffer[1024];
+    while (gzread(gzfile, buffer, sizeof(buffer)) > 0) {
+        // Process the data
     }
 
     // Call the function-under-test
-    z_size_t result = gzfwrite(void_data, item_size, item_count, gzfile);
+    int result = gzeof(gzfile);
 
     // Clean up
     gzclose(gzfile);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

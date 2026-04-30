@@ -1,102 +1,160 @@
-#include <stdint.h>
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "sqlite3.h"
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    return 0;
 }
 
-int LLVMFuzzerTestOneInput_125(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+int LLVMFuzzerTestOneInput_125(const unsigned char *Data, size_t Size) {
+    if (Size == 0) {
+        return 0;
+    }
 
-    sqlite3 *db;
-    sqlite3_stmt *stmt = NULL;
-    char *errMsg = 0;
+    // Ensure null-terminated SQL input
+    char *sql = (char *)malloc(Size + 1);
+    if (!sql) {
+        return 0;
+    }
+    memcpy(sql, Data, Size);
+    sql[Size] = '\0';
+
+    // Initialize variables
+    sqlite3 *db = NULL;
+    sqlite3 *backupDb = NULL;
+    sqlite3_backup *backup = NULL;
+    char *errMsg = NULL;
     int rc;
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
+    // Prepare filename
+    char filename[256];
+    snprintf(filename, sizeof(filename), "./dummy_file_%zu", Size);
+
+    // Open a database connection
+    const char amvzptky[1024] = "dxxvg";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(amvzptky, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc != SQLITE_OK || db == NULL) {
+        free(sql);
         return 0;
     }
 
-    // Create a dummy table
-    const char *sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
+    // Execute some SQL
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_open to sqlite3_str_new using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    sqlite3_str* ret_sqlite3_str_new_zcjfv = sqlite3_str_new(db);
+    if (ret_sqlite3_str_new_zcjfv == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK && errMsg != NULL) {
         sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
     }
 
-    // Prepare an INSERT statement
-    sql = "INSERT INTO test (value) VALUES (?);";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Backup operation
+    rc = sqlite3_open(":memory:", &backupDb);
+    if (rc == SQLITE_OK && backupDb != NULL) {
+        const char qyhygyyf[1024] = "lgyab";
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sqlite3_backup_init
+        backup = sqlite3_backup_init(backupDb, "main", db, qyhygyyf);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+        if (backup) {
+            while ((rc = sqlite3_backup_step(backup, 5)) == SQLITE_OK) {
+                // Do nothing, just step
+            }
+            sqlite3_backup_finish(backup);
+        }
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_backup_init to sqlite3_errmsg using the plateau pool
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        const char* ret_sqlite3_errmsg_bsmzd = sqlite3_errmsg(db);
+        if (ret_sqlite3_errmsg_bsmzd == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
+        sqlite3_errcode(backupDb);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
-    // Bind text data to the prepared statement
-    sqlite3_bind_text(stmt, 1, (const char *)Data, Size, SQLITE_TRANSIENT);
+    // Deserialize operation
 
-    // Execute the statement
-    rc = sqlite3_step(stmt);
-
-    // Reset the statement
-    sqlite3_reset(stmt);
-
-    // Use sqlite3_sql to get the SQL string
-    const char *sql_text = sqlite3_sql(stmt);
-
-    // Finalize the statement
-    sqlite3_finalize(stmt);
-
-    // Prepare a SELECT statement
-    sql = "SELECT value FROM test;";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sqlite3_open to sqlite3_table_column_metadata using the plateau pool
+    const char *dbName = "main";
+    const char *tableName = "test";
+    const char *columnName = "id";
+    int pNotNull = 0, pPrimaryKey = 0, pAutoinc = 0;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
-
-    // Step through the results
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        // Get text from the first column
-        const unsigned char *text = sqlite3_column_text(stmt, 0);
-
-        // Use sqlite3_snprintf to format a string
-        char buffer[100];
-        sqlite3_snprintf(sizeof(buffer), buffer, "Value: %s", text);
-
-        // Another snprintf with different format
-        sqlite3_snprintf(sizeof(buffer), buffer, "Length: %d", (int)strlen((const char *)text));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
     }
-
-    // Reset the statement
-    sqlite3_reset(stmt);
-
-    // Finalize the statement
-    if (stmt) {
-        sqlite3_finalize(stmt);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
     }
+    int ret_sqlite3_table_column_metadata_snxdd = sqlite3_table_column_metadata(db, dbName, tableName, columnName, &errMsg, &errMsg, &pNotNull, &pPrimaryKey, &pAutoinc);
+    if (ret_sqlite3_table_column_metadata_snxdd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    unsigned char *serializedData;
+    sqlite3_int64 serializedSize;
+    serializedData = sqlite3_serialize(db, "main", &serializedSize, 0);
+    if (serializedData) {
+        rc = sqlite3_deserialize(db, "main", serializedData, serializedSize, serializedSize, 0);
+        if (rc != SQLITE_OK) {
+            sqlite3_free(serializedData);
+        }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_deserialize to sqlite3_strlike
+        void* ret_sqlite3_malloc64_cmzlv = sqlite3_malloc64(0);
+        if (ret_sqlite3_malloc64_cmzlv == NULL){
+        	return 0;
+        }
+        double ret_sqlite3_value_double_uxlfl = sqlite3_value_double(NULL);
+        if (ret_sqlite3_value_double_uxlfl < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_malloc64_cmzlv) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!serializedData) {
+        	return 0;
+        }
+        int ret_sqlite3_strlike_nivrg = sqlite3_strlike((const char *)ret_sqlite3_malloc64_cmzlv, (const char *)serializedData, (unsigned int )ret_sqlite3_value_double_uxlfl);
+        if (ret_sqlite3_strlike_nivrg < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
     // Close the database connection
     sqlite3_close(db);
+
+    // Free allocated memory
+    free(sql);
 
     return 0;
 }

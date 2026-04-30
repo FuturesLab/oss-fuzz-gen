@@ -1,46 +1,57 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_286(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    int rc;
-
-    // Open a new in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, return immediately
-    }
-
-    // Create a SQL statement from the input data
-    char *sql = sqlite3_mprintf("%.*s", (int)size, data);
-
-    // Execute the SQL statement
     char *errMsg = 0;
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Free the SQL statement
+    // Open an in-memory database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_db_readonly
-    void* ret_sqlite3_malloc_rcsqm = sqlite3_malloc(64);
-    if (ret_sqlite3_malloc_rcsqm == NULL){
-    	return 0;
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        sqlite3_close(db);
+        return 0;
     }
-    int ret_sqlite3_db_readonly_ulism = sqlite3_db_readonly(db, (const char *)ret_sqlite3_malloc_rcsqm);
-    if (ret_sqlite3_db_readonly_ulism < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
+
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
     
-    sqlite3_free(sql);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_str_append
+        sqlite3_str* ret_sqlite3_str_new_tgofg = sqlite3_str_new(NULL);
+        if (ret_sqlite3_str_new_tgofg == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_sqlite3_str_new_tgofg) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        sqlite3_str_append(ret_sqlite3_str_new_tgofg, errMsg, 1);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
-    // If there was an error, free the error message
+    // Clean up
     if (errMsg) {
         sqlite3_free(errMsg);
     }
-
-    // Close the SQLite database
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

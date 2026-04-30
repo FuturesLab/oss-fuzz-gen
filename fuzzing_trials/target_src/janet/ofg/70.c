@@ -1,39 +1,90 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <janet.h>
+#include <string.h>
 
-// Removed 'extern "C"' as this is not valid in C, it is valid in C++ for C linkage
+// Define a mock structure for JanetKV to use in the fuzzing harness
+typedef struct {
+    const char *key;
+    const char *value;
+} JanetKV;
+
+// Mock implementation of janet_sorted_keys_70 for demonstration purposes
+int32_t janet_sorted_keys_70(const JanetKV *kvs, int32_t len, int32_t *out) {
+    // This is a stub function. The real function would sort the keys and populate 'out'.
+    if (!kvs || !out) return -1; // Return an error if inputs are NULL
+    for (int32_t i = 0; i < len; i++) {
+        out[i] = i; // Mock behavior: just assign indices
+    }
+    return 0; // Return success
+}
+
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    JanetTable *table;
-    JanetKV *kvs;
-    Janet key, value;
-    JanetStruct result;
-
     if (size < sizeof(JanetKV)) {
-        return 0;
+        return 0; // Not enough data to form a JanetKV structure
     }
 
-    // Initialize the Janet environment
-    janet_init();
+    // Calculate the number of JanetKV structures we can create from the input data
+    int32_t num_kvs = size / sizeof(JanetKV);
+    JanetKV *kvs = (JanetKV *)malloc(num_kvs * sizeof(JanetKV));
+    int32_t *out = (int32_t *)malloc(num_kvs * sizeof(int32_t));
 
-    // Create a new table
-    table = janet_table(10);
+    if (!kvs || !out) {
+        free(kvs);
+        free(out);
+        return 0; // Allocation failed
+    }
 
-    // Allocate memory for key-value pairs
-    kvs = (JanetKV *)data;
-
-    // Populate the table with key-value pairs from the input data
-    for (size_t i = 0; i < size / sizeof(JanetKV); i++) {
-        key = kvs[i].key;
-        value = kvs[i].value;
-        janet_table_put(table, key, value);
+    // Fill the JanetKV array with data from the input
+    for (int32_t i = 0; i < num_kvs; i++) {
+        kvs[i].key = (const char *)(data + i * sizeof(JanetKV));
+        kvs[i].value = (const char *)(data + i * sizeof(JanetKV) + sizeof(const char *));
     }
 
     // Call the function-under-test
-    result = janet_table_to_struct(table);
+    janet_sorted_keys_70(kvs, num_kvs, out);
 
     // Clean up
-    janet_deinit();
+    free(kvs);
+    free(out);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_70(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

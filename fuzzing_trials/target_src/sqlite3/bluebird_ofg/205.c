@@ -1,45 +1,50 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_205(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    char *errMsg = 0;
+    const char *sql = "CREATE TABLE IF NOT EXISTS test (data BLOB); INSERT INTO test (data) VALUES (?);";
 
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
+    // Open a new in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        int rc = sqlite3_open(":memory:", &db);
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                sqlite3_close(db);
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
-
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-            sqlite3_changes(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
+    // Prepare the SQL statement
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
+
+    // Prepare the insert statement
+    rc = sqlite3_prepare_v2(db, "INSERT INTO test (data) VALUES (?);", -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Bind the blob data
+    if (size > 0) {
+        rc = sqlite3_bind_blob(stmt, 1, data, (int)size, SQLITE_STATIC);
+    }
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+
+    // Finalize the statement
+    sqlite3_finalize(stmt);
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

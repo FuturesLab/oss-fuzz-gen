@@ -1,40 +1,61 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h>
-
-// Dummy collation function for testing
-int dummy_collation(void *pArg, int len1, const void *str1, int len2, const void *str2) {
-    return strncmp((const char *)str1, (const char *)str2, len1 < len2 ? len1 : len2);
-}
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    const char *collationName = "test_collation";
-    int textRep = SQLITE_UTF8;
-    void *pArg = NULL; // No specific argument needed for dummy function
+    // Declare and initialize the variable for sqlite3_int64
+    sqlite3_int64 heap_limit = 0;
 
-    // Initialize SQLite database in memory
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0;
+    // Ensure we have enough data to populate sqlite3_int64
+    if (size >= sizeof(sqlite3_int64)) {
+        // Copy data into heap_limit, ensuring correct casting
+        heap_limit = *((const sqlite3_int64 *)data);
     }
-
-    // Ensure the data is null-terminated for use as a collation name
-    char *collationNameInput = (char *)malloc(size + 1);
-    if (collationNameInput == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(collationNameInput, data, size);
-    collationNameInput[size] = '\0';
 
     // Call the function-under-test
-    sqlite3_create_collation(db, collationNameInput, textRep, pArg, dummy_collation);
+    sqlite3_int64 result = sqlite3_soft_heap_limit64(heap_limit);
 
-    // Clean up
-    free(collationNameInput);
-    sqlite3_close(db);
+    // Use the result to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_113(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,175 +1,109 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "libbpf.h"
 #include "/src/libbpf/include/uapi/linux/fcntl.h"
 #include <unistd.h>
-#include "libbpf.h"
 
-static void initialize_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+#define DUMMY_INSN_COUNT 10
+#define FUZZ_INSN_COUNT 5
+
+static struct bpf_program *initialize_bpf_program(struct bpf_object *obj) {
+    struct bpf_program *prog = bpf_object__find_program_by_name(obj, "dummy_prog");
+    if (!prog) return NULL;
+
+    struct bpf_insn *insns = (struct bpf_insn *)malloc(sizeof(struct bpf_insn) * DUMMY_INSN_COUNT);
+    if (!insns) {
+        return NULL;
+    }
+
+    return prog;
+}
+
+static void cleanup_bpf_program(struct bpf_program *prog) {
+    if (prog) {
+        bpf_program__unload(prog);
     }
 }
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    struct bpf_object *obj = NULL;
-    struct bpf_program *prog = NULL;
-    struct bpf_link *link = NULL;
-    struct bpf_insn insns[10];
-    int cgroup_fd = -1;
-    int ret;
+    if (Size < sizeof(struct bpf_insn) * FUZZ_INSN_COUNT) return 0;
 
-    // Initialize dummy file with fuzzer data
-    initialize_dummy_file(Data, Size);
+    // Create a dummy file and object
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Attempt to open a BPF object from the dummy file
-    obj = bpf_object__open_file("./dummy_file", NULL);
-    if (!obj)
-        {
+    struct bpf_object *obj = bpf_object__open("./dummy_file");
+    if (!obj) return 0;
+
+    struct bpf_program *prog = initialize_bpf_program(obj);
+    if (!prog) {
+        bpf_object__close(obj);
         return 0;
-    }
-
-    // Load the BPF object
-    if (bpf_object__load(obj) < 0)
-        {
-        goto cleanup;
-    }
-
-    // Get the first program
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__next_program with bpf_object__prev_program
-    prog = bpf_object__prev_program(obj, NULL);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (!prog)
-        {
-        goto cleanup;
     }
 
     // Fuzz bpf_program__insn_cnt
     size_t insn_cnt = bpf_program__insn_cnt(prog);
 
     // Fuzz bpf_program__set_insns
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of bpf_program__set_insns
-    ret = bpf_program__set_insns(prog, insns, Size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    
-    // Fuzz bpf_program__expected_attach_type
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_insns to bpf_program__attach_kprobe_opts
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_insns to bpf_program__attach_uprobe
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_insns to bpf_program__attach_tcx
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_insns to bpf_program__attach_uprobe
-    bool ret_bpf_program__autoload_bdawu = bpf_program__autoload(prog);
-    if (ret_bpf_program__autoload_bdawu == 0){
-    	return 0;
+    struct bpf_insn *new_insns = (struct bpf_insn *)malloc(sizeof(struct bpf_insn) * FUZZ_INSN_COUNT);
+    if (new_insns) {
+        memcpy(new_insns, Data, sizeof(struct bpf_insn) * FUZZ_INSN_COUNT);
+        int set_insns_result = bpf_program__set_insns(prog, new_insns, FUZZ_INSN_COUNT);
+        free(new_insns);
     }
 
-    struct bpf_link* ret_bpf_program__attach_uprobe_nwajr = bpf_program__attach_uprobe(prog, ret_bpf_program__autoload_bdawu, 0, (const char *)"w", -1);
-    if (ret_bpf_program__attach_uprobe_nwajr == NULL){
-    	return 0;
-    }
+    // Fuzz bpf_program__insns
+    const struct bpf_insn *insns = bpf_program__insns(prog);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Fuzz bpf_program__fd
+    int fd = bpf_program__fd(prog);
 
-    unsigned int ret_bpf_object__kversion_jgwka = bpf_object__kversion(NULL);
-    if (ret_bpf_object__kversion_jgwka < 0){
-    	return 0;
-    }
-
-    struct bpf_link* ret_bpf_program__attach_tcx_codjd = bpf_program__attach_tcx(prog, (int )ret_bpf_object__kversion_jgwka, NULL);
-    if (ret_bpf_program__attach_tcx_codjd == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    struct bpf_link* ret_bpf_program__attach_uprobe_lknrc = bpf_program__attach_uprobe(prog, 1, 0, (const char *)Data, 64);
-    if (ret_bpf_program__attach_uprobe_lknrc == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    struct bpf_link* ret_bpf_program__attach_kprobe_opts_fyvdx = bpf_program__attach_kprobe_opts(prog, NULL, NULL);
-    if (ret_bpf_program__attach_kprobe_opts_fyvdx == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    enum bpf_attach_type attach_type = bpf_program__expected_attach_type(prog);
-
-    // Fuzz bpf_program__attach_cgroup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__expected_attach_type to libbpf_find_vmlinux_btf_id
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__expected_attach_type to libbpf_attach_type_by_name
-
-    int ret_libbpf_attach_type_by_name_gmlan = libbpf_attach_type_by_name(NULL, &attach_type);
-    if (ret_libbpf_attach_type_by_name_gmlan < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of libbpf_find_vmlinux_btf_id
-    const char geczoqfo[1024] = "awmdx";
-    int ret_libbpf_find_vmlinux_btf_id_kgzrs = libbpf_find_vmlinux_btf_id(geczoqfo, attach_type);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_libbpf_find_vmlinux_btf_id_kgzrs < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_program__attach_cgroup with bpf_program__attach_xdp
-    link = bpf_program__attach_xdp(prog, cgroup_fd);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (link) {
-        // Fuzz bpf_link__update_program
-        ret = bpf_link__update_program(link, prog);
-    }
-
-cleanup:
-    // Clean up
-    if (link)
-        {
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_link__destroy with bpf_link__detach
-        bpf_link__detach(link);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }
-    if (obj)
-        {
-        bpf_object__close(obj);
-    }
-
+    cleanup_bpf_program(prog);
+    bpf_object__close(obj);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

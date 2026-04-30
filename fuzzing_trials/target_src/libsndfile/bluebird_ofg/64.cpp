@@ -1,72 +1,101 @@
+#include <sys/stat.h>
 #include "sndfile.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include <unistd.h>
+#include <unistd.h> // Include for write() and close()
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Temporary file creation for SNDFILE
+    // Define a temporary file name
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Minimal WAV header for a simple mono PCM file
-    const uint8_t wav_header[44] = {
-        0x52, 0x49, 0x46, 0x46, // "RIFF"
-        0x24, 0x08, 0x00, 0x00, // ChunkSize (placeholder)
-        0x57, 0x41, 0x56, 0x45, // "WAVE"
-        0x66, 0x6D, 0x74, 0x20, // "fmt "
-        0x10, 0x00, 0x00, 0x00, // Subchunk1Size (16 for PCM)
-        0x01, 0x00,             // AudioFormat (1 for PCM)
-        0x01, 0x00,             // NumChannels (1 for mono)
-        0x44, 0xAC, 0x00, 0x00, // SampleRate (44100 Hz)
-        0x88, 0x58, 0x01, 0x00, // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
-        0x02, 0x00,             // BlockAlign (NumChannels * BitsPerSample/8)
-        0x10, 0x00,             // BitsPerSample (16 bits)
-        0x64, 0x61, 0x74, 0x61, // "data"
-        0x00, 0x08, 0x00, 0x00  // Subchunk2Size (placeholder)
-    };
-
-    // Write the WAV header to the temporary file
-    if (write(fd, wav_header, sizeof(wav_header)) != sizeof(wav_header)) {
-        close(fd);
-        return 0;
-    }
-
     // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    if (write(fd, data, size) != size) {
         close(fd);
         return 0;
     }
+
+    // Close the file descriptor as it will be reopened by sf_open
     close(fd);
 
     // Open the temporary file with libsndfile
     SF_INFO sfinfo;
-    memset(&sfinfo, 0, sizeof(sfinfo));
-    SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
+    memset(&sfinfo, 0, sizeof(SF_INFO));
+    SNDFILE *sndfile = sf_open(tmpl, SFM_RDWR, &sfinfo);
     if (sndfile == NULL) {
-        unlink(tmpl);
         return 0;
     }
 
-    // Prepare a short buffer to read
-    sf_count_t frames = size / sizeof(short);
-    short *buffer = (short *)malloc(frames * sizeof(short));
-    if (buffer == NULL) {
-        sf_close(sndfile);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Call the function under test
-    sf_count_t read_frames = sf_read_short(sndfile, buffer, frames);
+    // Call the function-under-test
+    sf_count_t frames_written = sf_write_raw(sndfile, data, (sf_count_t)size);
 
     // Clean up
-    free(buffer);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_write_raw to sf_readf_double
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
+    }
+    int ret_sf_current_byterate_ygnwz = sf_current_byterate(sndfile);
+    if (ret_sf_current_byterate_ygnwz < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
+    }
+    sf_count_t ret_sf_readf_double_drinx = sf_readf_double(sndfile, (double *)&frames_written, -1);
+    if (ret_sf_readf_double_drinx < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     sf_close(sndfile);
-    unlink(tmpl);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_64(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

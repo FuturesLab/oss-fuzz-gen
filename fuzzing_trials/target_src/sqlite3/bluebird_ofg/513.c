@@ -1,57 +1,61 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_513(const uint8_t *data, size_t size) {
-    // Initialize SQLite in-memory databases
-    sqlite3 *pDbSrc = NULL;
-    sqlite3 *pDbDest = NULL;
-    sqlite3_backup *pBackup = NULL;
+    sqlite3 *db;
+    char *errMsg = 0;
     int rc;
 
-    // Open source and destination databases
-    rc = sqlite3_open(":memory:", &pDbSrc);
-    if (rc != SQLITE_OK) {
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if(rc) {
+        sqlite3_close(db);
         return 0;
     }
 
-    rc = sqlite3_open(":memory:", &pDbDest);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(pDbSrc);
+    // Convert the fuzz input into a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        sqlite3_close(db);
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Use the input data to create a simple table and insert data
-    if (size > 0) {
-        char *errMsg = 0;
-        char sql[1024];
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-        // Create a table
-        snprintf(sql, sizeof(sql), "CREATE TABLE test(data BLOB);");
-        sqlite3_exec(pDbSrc, sql, 0, 0, &errMsg);
+    // Free allocated resources
 
-        // Insert the input data into the table
-        snprintf(sql, sizeof(sql), "INSERT INTO test(data) VALUES(?);");
-        sqlite3_stmt *stmt;
-        sqlite3_prepare_v2(pDbSrc, sql, -1, &stmt, 0);
-        sqlite3_bind_blob(stmt, 1, data, size, SQLITE_STATIC);
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
+    void* ret_sqlite3_malloc_daemb = sqlite3_malloc(-1);
+    if (ret_sqlite3_malloc_daemb == NULL){
+    	return 0;
     }
-
-    // Create a backup object
-    pBackup = sqlite3_backup_init(pDbDest, "main", pDbSrc, "main");
-    if (pBackup != NULL) {
-        // Perform some operations to simulate backup process
-        sqlite3_backup_step(pBackup, 5);
-
-        // Finish the backup
-        sqlite3_backup_finish(pBackup);
+    double ret_sqlite3_value_double_gbnki = sqlite3_value_double(NULL);
+    if (ret_sqlite3_value_double_gbnki < 0){
+    	return 0;
     }
-
-    // Close the databases
-    sqlite3_close(pDbSrc);
-    sqlite3_close(pDbDest);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_daemb) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strlike_obzjg = sqlite3_strlike((const char *)ret_sqlite3_malloc_daemb, errMsg, (unsigned int )ret_sqlite3_value_double_gbnki);
+    if (ret_sqlite3_strlike_obzjg < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

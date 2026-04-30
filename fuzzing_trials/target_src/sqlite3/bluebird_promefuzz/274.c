@@ -1,105 +1,53 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
 
-static int authorizerCallback(void *pUserData, int action, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
-    return SQLITE_OK; // Allow all actions
-}
-
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
-    return 0; // No-op callback
+static int progress_callback(void *unused) {
+    return 0; // Continue execution
 }
 
 int LLVMFuzzerTestOneInput_274(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) return 0; // Ensure there's at least some data
+
+    // Initialize SQLite
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
-
-    sqlite3 *db;
-    char *errMsg = 0;
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0'; // Ensure null-termination
-
-    int rc;
 
     // Open a database connection
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        free(sql);
+    sqlite3 *db = NULL;
+    int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+    if (sqlite3_open_v2("./dummy_file", &db, flags, NULL) != SQLITE_OK) {
+        sqlite3_shutdown();
         return 0;
     }
 
-    // Execute SQL
-    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+    // Set a progress handler
+    sqlite3_progress_handler(db, 1000, progress_callback, NULL);
 
-    // Set authorizer
+    // Set and query limits
+    sqlite3_limit(db, SQLITE_LIMIT_LENGTH, (int)Data[0]);
+    sqlite3_limit(db, SQLITE_LIMIT_SQL_LENGTH, -1); // Query current limit
+    sqlite3_hard_heap_limit64((sqlite3_int64)Size);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_open
-    int ret_sqlite3_open_gpblf = sqlite3_open(NULL, &db);
-    if (ret_sqlite3_open_gpblf < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Set another limit
+    sqlite3_limit(db, SQLITE_LIMIT_COLUMN, (int)Data[0]);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_prepare16_v2
-    int ret_sqlite3_error_offset_lpyvo = sqlite3_error_offset(db);
-    if (ret_sqlite3_error_offset_lpyvo < 0){
-    	return 0;
-    }
-    const void* ret_sqlite3_errmsg16_balab = sqlite3_errmsg16(db);
-    if (ret_sqlite3_errmsg16_balab == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_prepare16_v2_swqro = sqlite3_prepare16_v2(db, (const void *)db, Size, NULL, (const void **)&db);
-    if (ret_sqlite3_prepare16_v2_swqro < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_set_authorizer(db, authorizerCallback, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        free(sql);
-        return 0;
-    }
-
-    // Table column metadata
-    const char *dataType;
-    const char *collSeq;
-    int notNull;
-    int primaryKey;
-    int autoinc;
-    rc = sqlite3_table_column_metadata(db, "main", "dummy_table", "dummy_column", &dataType, &collSeq, &notNull, &primaryKey, &autoinc);
-
-    // Test control
-//    rc = sqlite3_test_control(SQLITE_TESTCTRL_FIRST, db);
-
-    // Malloc
-    void *ptr = sqlite3_malloc(Size);
-    if (ptr) {
-        memcpy(ptr, Data, Size);
-        sqlite3_free(ptr);
-    }
+    // Configure database connection
+    sqlite3_db_config(db, SQLITE_DBCONFIG_LOOKASIDE, NULL, 0, 0);
 
     // Close the database connection
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_db_release_memory
-    sqlite3_db_release_memory(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    free(sql);
+    sqlite3_close(db);
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
+
     return 0;
 }
 #ifdef INC_MAIN

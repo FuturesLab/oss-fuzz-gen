@@ -1,34 +1,59 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include "/src/hoextdown/src/document.h"
-#include "/src/hoextdown/src/html.h"  // Include the header for hoedown_html_renderer functions
+#include "/src/hoextdown/src/buffer.h" // Correct path for hoedown_buffer functions
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
+    hoedown_buffer *buffer;
+
+    // Allocate a hoedown buffer
+    buffer = hoedown_buffer_new(size > 0 ? size : 1); // Ensure size is at least 1 to avoid zero allocation
+
+    // Fill the buffer with data if size is greater than 0
+    if (size > 0) {
+        hoedown_buffer_put(buffer, data, size);
     }
 
-    // Initialize hoedown_document with a non-null renderer and buffer
-    hoedown_renderer *renderer = hoedown_html_renderer_new(0, 0);
-    hoedown_buffer *buffer = hoedown_buffer_new(size);
-
-    // Adjust the arguments to match the hoedown_document_new function signature
-    hoedown_document *doc = hoedown_document_new(renderer, 0, 16, 0, NULL, buffer);
-
-    // Ensure doc is not NULL
-    if (doc == NULL) {
-        hoedown_html_renderer_free(renderer);
-        hoedown_buffer_free(buffer);
-        return 0;
-    }
-
-    // Process the input data with the document
-    hoedown_document_render(doc, buffer, data, size);
-
-    // Clean up
-    hoedown_document_free(doc);
-    hoedown_html_renderer_free(renderer);
-    hoedown_buffer_free(buffer);
+    // Call the function-under-test
+    hoedown_buffer_uninit(buffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

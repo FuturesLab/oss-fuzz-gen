@@ -2,47 +2,77 @@
 #include <stddef.h>
 #include "/src/hoextdown/src/document.h"
 #include "/src/hoextdown/src/buffer.h"
-#include "/src/hoextdown/src/html.h" // Assuming this is needed for hoedown_html_renderer_new and hoedown_html_renderer_free
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "/src/hoextdown/src/html.h" // Include additional headers that might contain necessary declarations
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Initialize necessary components for hoedown_document_new
-    hoedown_renderer *renderer = hoedown_html_renderer_new(0, 0); // Assuming a function to create a renderer
-    hoedown_extensions extensions = 0; // Use appropriate extensions
-    size_t max_nesting = 16; // Example value
-    uint8_t attr_activation = 0; // Example value
-    hoedown_user_block user_block = NULL; // Assuming no custom user block needed
-    hoedown_buffer *meta = hoedown_buffer_new(64); // Example buffer size
+    // Initialize hoedown_renderer and hoedown_buffer
+    hoedown_renderer *renderer = hoedown_html_renderer_new(0, 0); // Assuming hoedown_html_renderer_new is the correct function to initialize renderer
+    hoedown_buffer *meta = hoedown_buffer_new(64);
 
-    // Initialize a hoedown_document object with all required arguments
-    hoedown_document *doc = hoedown_document_new(renderer, extensions, max_nesting, attr_activation, user_block, meta);
-
-    // Call the function-under-test
-    if (doc != NULL) {
-        // Call the function with the correct number of arguments
-        uint8_t result = hoedown_document_ul_item_char(doc);
-
-        // Use the result in some way if needed
-        (void)result; // Suppress unused variable warning
+    // Ensure renderer is not NULL
+    if (renderer == NULL) {
+        hoedown_buffer_free(meta);
+        return 0;
     }
+
+    // Initialize hoedown_document with proper arguments
+    hoedown_document *doc = hoedown_document_new(renderer, 0, 16, 0, NULL, meta);
+
+    // Ensure the document is not NULL
+    if (doc == NULL) {
+        hoedown_html_renderer_free(renderer); // Assuming hoedown_html_renderer_free is the correct function to free renderer
+        hoedown_buffer_free(meta);
+        return 0;
+    }
+
+    // Call the function-under-test with the provided input data
+    hoedown_buffer *ob = hoedown_buffer_new(64);
+    hoedown_document_render(doc, ob, data, size);
 
     // Clean up
-    if (doc != NULL) {
-        hoedown_document_free(doc);
-    }
-    if (renderer != NULL) {
-        hoedown_html_renderer_free(renderer);
-    }
-    if (meta != NULL) {
-        hoedown_buffer_free(meta);
-    }
+    hoedown_buffer_free(ob);
+    hoedown_document_free(doc);
+    hoedown_html_renderer_free(renderer);
+    hoedown_buffer_free(meta);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

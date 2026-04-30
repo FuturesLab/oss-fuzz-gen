@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library file, aiming to fuzz the following functions:
-// magic_descriptor at magic.c:403:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
-// magic_file at magic.c:414:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
-// magic_load at magic.c:317:1 in magic.h
-// magic_error at magic.c:569:1 in magic.h
 // magic_open at magic.c:267:1 in magic.h
+// magic_load at magic.c:317:1 in magic.h
+// magic_check at magic.c:348:1 in magic.h
+// magic_setflags at magic.c:594:1 in magic.h
+// magic_getflags at magic.c:585:1 in magic.h
+// magic_setparam at magic.c:613:1 in magic.h
+// magic_descriptor at magic.c:403:1 in magic.h
 // magic_close at magic.c:306:1 in magic.h
 #include <iostream>
 #include <sstream>
@@ -18,71 +18,96 @@
 #include <cstddef>
 #include <magic.h>
 #include <cstdint>
-#include <cstddef>
+#include <cstdlib>
+#include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
-#include <cstdio>
-#include <cstring>
+#include <iostream>
 
-static void fuzz_magic_descriptor(magic_t magic, const uint8_t *Data, size_t Size) {
-    int fd = open("./dummy_file", O_RDWR | O_CREAT, 0666);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    int fd = open("./dummy_file", O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd != -1) {
         write(fd, Data, Size);
-        lseek(fd, 0, SEEK_SET);
-        const char *result = magic_descriptor(magic, fd);
-        if (!result) {
-            const char *error = magic_error(magic);
-            if (error) {
-                // Handle error if needed
-            }
-        }
         close(fd);
     }
 }
 
-static void fuzz_magic_file(magic_t magic, const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-        const char *result = magic_file(magic, "./dummy_file");
-        if (!result) {
-            const char *error = magic_error(magic);
-            if (error) {
-                // Handle error if needed
-            }
-        }
-    }
-}
-
-static void fuzz_magic_load(magic_t magic, const uint8_t *Data, size_t Size) {
-    char filename[256];
-    snprintf(filename, sizeof(filename), "./dummy_file_%zu", Size);
-    FILE *file = fopen(filename, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-        int result = magic_load(magic, filename);
-        if (result == -1) {
-            const char *error = magic_error(magic);
-            if (error) {
-                // Handle error if needed
-            }
-        }
-    }
-}
-
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    int flags = MAGIC_NONE;
-    magic_t magic = magic_open(flags);
-    if (!magic) return 0;
+    // Prepare a dummy file for testing
+    write_dummy_file(Data, Size);
 
-    fuzz_magic_descriptor(magic, Data, Size);
-    fuzz_magic_file(magic, Data, Size);
-    fuzz_magic_load(magic, Data, Size);
+    // Create a new magic_set
+    magic_t ms = magic_open(MAGIC_NONE);
+    if (ms == nullptr) return 0;
 
-    magic_close(magic);
+    // Test magic_load with dummy file
+    magic_load(ms, "./dummy_file");
+
+    // Test magic_check with dummy file
+    magic_check(ms, "./dummy_file");
+
+    // Test magic_setflags with a random flag from input
+    int flags = Data[0];  // Use the first byte as a flag
+    magic_setflags(ms, flags);
+
+    // Test magic_getflags
+    magic_getflags(ms);
+
+    // Test magic_setparam with a random parameter and value from input
+    int param = Data[0] % 5;  // Just a simple way to get a parameter type
+    magic_setparam(ms, param, &Size);
+
+    // Test magic_descriptor with dummy file descriptor
+    int fd = open("./dummy_file", O_RDONLY);
+    if (fd != -1) {
+        magic_descriptor(ms, fd);
+        close(fd);
+    }
+
+    // Clean up
+    magic_close(ms);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

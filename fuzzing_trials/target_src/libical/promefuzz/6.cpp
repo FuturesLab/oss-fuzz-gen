@@ -1,10 +1,9 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_due at icalcomponent.c:2613:21 in icalcomponent.h
-// icalcomponent_set_due at icalcomponent.c:2634:6 in icalcomponent.h
-// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
-// icalcomponent_new_vtodo at icalcomponent.c:2035:16 in icalcomponent.h
-// icalcomponent_set_sequence at icalcomponent.c:1955:6 in icalcomponent.h
-// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
+// icaltimezone_get_builtin_timezones at icaltimezone.c:1366:12 in icaltimezone.h
+// icaltimezone_array_new at icaltimezone.c:1335:12 in icaltimezone.h
+// icalarray_free at icalarray.c:95:6 in icalarray.h
+// icalarray_new at icalarray.c:27:12 in icalarray.h
+// icalarray_append at icalarray.c:110:6 in icalarray.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,56 +13,92 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "ical.h"
-
-static icaltimetype create_random_icaltimetype() {
-    icaltimetype time;
-    time.year = 2023;
-    time.zone = nullptr; // Use nullptr for simplicity
-    return time;
-}
-
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    std::ofstream file("./dummy_file", std::ios::binary);
-    file.write(reinterpret_cast<const char*>(Data), Size);
-    file.close();
-}
+#include "ical.h"
+#include "ical.h"
+#include "icalarray.h"
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icaltimezone.h"
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Ensure we have enough data to work with
+    if (Size < sizeof(int)) {
+        return 0;
+    }
 
-    // Write the input data to a dummy file if needed
-    write_dummy_file(Data, Size);
+    // Create a new icalarray for integers
+    icalarray *intArray = icalarray_new(sizeof(int), 1);
+    if (!intArray) {
+        return 0;
+    }
 
-    // Create a new VTODO component
-    icalcomponent *vtodo = icalcomponent_new_vtodo();
-    if (!vtodo) return 0;
+    // Append an integer from the input data
+    int value;
+    memcpy(&value, Data, sizeof(int));
+    icalarray_append(intArray, &value);
 
-    // Create a random icaltimetype
-    icaltimetype due_time = create_random_icaltimetype();
-    icaltimetype dtstart_time = create_random_icaltimetype();
-    icaltimetype dtstamp_time = create_random_icaltimetype();
+    // Free the integer array
+    icalarray_free(intArray);
 
-    // Fuzz icalcomponent_set_due
-    icalcomponent_set_due(vtodo, due_time);
+    // Create an array for timezones
+    icalarray *timezoneArray = icaltimezone_array_new();
+    if (!timezoneArray) {
+        return 0;
+    }
 
-    // Fuzz icalcomponent_set_dtstart
-    icalcomponent_set_dtstart(vtodo, dtstart_time);
+    // Get built-in timezones
+    icalarray *builtinTimezones = icaltimezone_get_builtin_timezones();
+    if (builtinTimezones) {
+        // Do not free the built-in timezones array as it is managed internally
+    }
 
-    // Fuzz icalcomponent_get_due
-    icaltimetype retrieved_due = icalcomponent_get_due(vtodo);
-
-    // Fuzz icalcomponent_set_sequence
-    int sequence_number = static_cast<int>(Data[0]);
-    icalcomponent_set_sequence(vtodo, sequence_number);
-
-    // Fuzz icalcomponent_set_dtstamp
-    icalcomponent_set_dtstamp(vtodo, dtstamp_time);
-
-    // Cleanup
-    icalcomponent_free(vtodo);
+    // Free the timezone array
+    icalarray_free(timezoneArray);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

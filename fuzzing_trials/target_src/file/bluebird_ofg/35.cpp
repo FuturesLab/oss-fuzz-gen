@@ -1,83 +1,87 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "stdlib.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <string.h>
-#include "magic.h"
+#include <errno.h>
 
 extern "C" {
-    // Include the necessary headers for the project-under-test.
-    // Assume that the magic.h header is part of the project-under-test.
-    #include "magic.h"
+#include "magic.h"
 }
 
-// Function-under-test declaration
-extern "C" int magic_list(struct magic_set *, const char *);
-
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Declare and initialize the variables required for the function-under-test
-    struct magic_set *magic = NULL;
-    char *filename = NULL;
-
-    // Initialize the magic_set structure
-    magic = magic_open(MAGIC_NONE);
+    struct magic_set *magic = magic_open(MAGIC_NONE);
     if (magic == NULL) {
-        return 0; // Exit if magic_open fails
+        return 0;
     }
 
-    // Allocate memory for the filename and ensure it's null-terminated
-    filename = (char *)malloc(size + 1);
-    if (filename == NULL) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         magic_close(magic);
-        return 0; // Exit if memory allocation fails
+        return 0;
     }
-    memcpy(filename, data, size);
-    filename[size] = '\0'; // Null-terminate the string
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        magic_close(magic);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
 
     // Call the function-under-test
-    magic_list(magic, filename);
+    magic_check(magic, tmpl);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_list to magic_buffer
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_list to magic_buffer
-    int ret_magic_getflags_moqge = magic_getflags(NULL);
-    if (ret_magic_getflags_moqge < 0){
-    	return 0;
-    }
-
-    const char* ret_magic_buffer_ilzhc = magic_buffer(magic, NULL, (size_t )ret_magic_getflags_moqge);
-    if (ret_magic_buffer_ilzhc == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_magic_getflags_spsbz = magic_getflags(magic);
-    if (ret_magic_getflags_spsbz < 0){
-    	return 0;
-    }
-    char pziprfem[1024] = "uzwpr";
-
-    const char* ret_magic_buffer_pwmem = magic_buffer(magic, pziprfem, (size_t )ret_magic_getflags_spsbz);
-    if (ret_magic_buffer_pwmem == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(filename);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from magic_close to magic_compile
-
-        int ret_magic_compile_peicm = magic_compile(magic, (const char *)"w");
-        if (ret_magic_compile_peicm < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
+    unlink(tmpl);
     magic_close(magic);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

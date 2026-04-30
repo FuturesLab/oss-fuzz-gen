@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,54 +9,100 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdarg>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include "../../liblouis/liblouis.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <fstream>
 
-static void dummyLogCallback(logLevels level, const char *message) {
-    // Dummy log callback function
+// Dummy log callback function
+static void logCallback(logLevels level, const char *message) {
+    // Simply print the log message
+    (void)level; // Unused parameter
+    (void)message; // Unused parameter
 }
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    // Register a log callback
+    lou_registerLogCallback(logCallback);
 
-    // Prepare a buffer for string operations
-    char buffer[256];
-    size_t copySize = Size < sizeof(buffer) - 1 ? Size : sizeof(buffer) - 1;
-    memcpy(buffer, Data, copySize);
-    buffer[copySize] = '\0';
-
-    // 1. Test lou_logPrint
-    lou_logPrint(buffer);
-
-    // 2. Test lou_version
-    const char *version = lou_version();
-    (void)version; // Suppress unused variable warning
-
-    // 3. Test lou_registerLogCallback
-    lou_registerLogCallback(dummyLogCallback);
-    lou_registerLogCallback(NULL); // Reset to default
-
-    // 4. Test lou_logEnd
-    lou_logEnd();
-
-    // 5. Test lou_setLogLevel
-    if (Size > 0) {
-        logLevels level = static_cast<logLevels>(Data[0] % 5); // Assuming 5 levels
-        lou_setLogLevel(level);
+    // Prepare a dummy file for table checking
+    std::ofstream dummyFile("./dummy_file");
+    if (dummyFile.is_open()) {
+        dummyFile.write(reinterpret_cast<const char *>(Data), Size);
+        dummyFile.close();
     }
 
-    // 6. Test lou_logFile
-    const char *filename = "./dummy_file";
-    FILE *file = fopen(filename, "w");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    // Check the table
+    const char *tableList = "./dummy_file";
+    lou_checkTable(tableList);
+
+    // Free resources
+    lou_free();
+
+    // Try to translate a string
+    if (Size > 2) {
+        int inlen = static_cast<int>(Size / 2);
+        int outlen = static_cast<int>(Size);
+        widechar *inbuf = new widechar[inlen];
+        widechar *outbuf = new widechar[outlen];
+        formtype *typeform = nullptr; // No typeform checking
+        char *spacing = nullptr; // No spacing computation
+
+        // Copy data into inbuf
+        std::memcpy(inbuf, Data, inlen * sizeof(widechar));
+
+        // Translate string
+        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of lou_translateString
+        lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, -1);
+        // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+        // Clean up
+        delete[] inbuf;
+        delete[] outbuf;
     }
-    lou_logFile(filename);
-    lou_logFile(NULL); // Reset to stderr
+
+    // Free resources
+    lou_free();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

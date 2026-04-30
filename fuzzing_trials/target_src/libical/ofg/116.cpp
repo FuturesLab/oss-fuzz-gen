@@ -1,27 +1,67 @@
-#include <cstdint> // Include standard library for uint8_t
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    // Initialize a dummy icalcomponent and icalproperty for testing
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalproperty *property = icalproperty_new_summary("Test Summary");
-    icalcomponent_add_property(component, property);
-
-    // Initialize an icalproperty and assign it to the iterator
-    icalproperty *result_property = nullptr;
-    icalproperty *prop_iter = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
-
-    while (prop_iter != nullptr) {
-        // Call the function-under-test
-        result_property = prop_iter;
-        prop_iter = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY);
+    // Ensure the data is null-terminated to be used as a C-style string
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // If memory allocation fails, exit gracefully
     }
 
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the string
+
+    // Call the function-under-test
+    icalcomponent *comp = icalparser_parse_string(input);
+
     // Clean up
-    icalcomponent_free(component);
+    if (comp != NULL) {
+        icalcomponent_free(comp);
+    }
+    free(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_116(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

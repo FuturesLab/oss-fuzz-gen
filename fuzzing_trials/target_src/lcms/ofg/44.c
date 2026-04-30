@@ -1,47 +1,87 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <lcms2.h>
+#include <string.h>
+#include "lcms2.h"  // Assuming the header file for cmsNAMEDCOLORLIST is lcms2.h
+
+// Declare the cmsNAMEDCOLOR structure as it seems to be missing
+typedef struct {
+    char Name[32];               // Name of the color
+    uint16_t PCS[3];             // Profile Connection Space values
+    uint8_t DeviceColorant[4];   // Device colorant values
+} cmsNAMEDCOLOR;
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient for our operations
-    if (size < sizeof(cmsFloat32Number) * 9) {
-        return 0; // Exit if not enough data
+    // Initialize a cmsNAMEDCOLORLIST structure
+    cmsNAMEDCOLORLIST *originalList = cmsAllocNamedColorList(NULL, 1, 1, "Prefix", "Suffix");
+
+    if (originalList == NULL) {
+        return 0; // If allocation fails, exit early
     }
 
-    // Initialize the parameters for cmsPipelineInsertStage
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3); // Create a pipeline with 3 inputs and 3 outputs
-    if (pipeline == NULL) {
-        return 0; // Exit if the pipeline allocation fails
-    }
+    // Add a named color to the list
+    cmsNAMEDCOLOR namedColor;
+    strcpy(namedColor.Name, "Red");
+    namedColor.PCS[0] = 100;
+    namedColor.PCS[1] = 0;
+    namedColor.PCS[2] = 0;
+    namedColor.DeviceColorant[0] = 255;
+    namedColor.DeviceColorant[1] = 0;
+    namedColor.DeviceColorant[2] = 0;
+    namedColor.DeviceColorant[3] = 0;
 
-    cmsStage *stage = cmsStageAllocIdentity(NULL, 3); // Create an identity stage with 3 channels
-    if (stage == NULL) {
-        cmsPipelineFree(pipeline);
-        return 0; // Exit if the stage allocation fails
-    }
-
-    // Correctly initialize cmsStageLoc
-    cmsStageLoc loc = {0, cmsAT_BEGIN}; // Initialize with Position = 0 and Type = cmsAT_BEGIN
+    // Fix the function call to match the expected signature
+    cmsAppendNamedColor(originalList, namedColor.Name, namedColor.PCS, namedColor.DeviceColorant);
 
     // Call the function-under-test
-    cmsBool result = cmsPipelineInsertStage(pipeline, loc, stage);
-
-    // Use the input data to modify the pipeline or stage
-    // For demonstration, let's assume we interpret the first 9 bytes as 3x3 matrix
-    cmsFloat32Number matrix[3][3];
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            matrix[i][j] = ((cmsFloat32Number *)data)[i * 3 + j];
-        }
-    }
-
-    // Use the matrix to modify the pipeline or perform additional operations
-    // This is a placeholder for actual meaningful operations on the pipeline
-    // For example, you could apply the matrix as a transformation stage if supported
+    cmsNAMEDCOLORLIST *dupList = cmsDupNamedColorList(originalList);
 
     // Clean up
-    cmsPipelineFree(pipeline);
-    // Note: The stage is managed by the pipeline and will be freed with it
+    if (originalList != NULL) {
+        cmsFreeNamedColorList(originalList);
+    }
+    if (dupList != NULL) {
+        cmsFreeNamedColorList(dupList);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

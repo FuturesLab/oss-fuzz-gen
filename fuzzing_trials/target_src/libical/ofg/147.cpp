@@ -2,30 +2,59 @@
 #include <cstddef> // Include for size_t
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/icaltimezone.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
     // Call the function-under-test
-    icalcomponent *vtodo = icalcomponent_new_vtodo();
+    icaltimezone *timezone = icaltimezone_new();
 
-    // If the component is created successfully, perform some operations
-    if (vtodo != NULL) {
-        // Set a property to the vtodo component to test further
-        icalcomponent_set_summary(vtodo, "Sample VTODO Summary");
+    // Perform any necessary operations on the timezone object
+    // In this case, we don't have any specific operations to perform
 
-        // Retrieve the summary to ensure it was set correctly
-        const char *summary = icalcomponent_get_summary(vtodo);
-
-        // Print the summary for debugging purposes
-        if (summary != NULL) {
-            // This would be a placeholder for actual verification or further processing
-            // In fuzzing, this might be logged or used to check for consistency
-        }
-
-        // Free the component to avoid memory leaks
-        icalcomponent_free(vtodo);
+    // Free the allocated timezone object to prevent memory leaks
+    if (timezone != NULL) {
+        icaltimezone_free(timezone, 1);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_147(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

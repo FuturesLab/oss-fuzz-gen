@@ -1,23 +1,80 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "libbpf.h"
 
 int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    struct bpf_link *link = NULL;
+    struct bpf_object *obj;
+    char *path;
+    int result;
 
-    // Ensure that we have at least the size of a pointer to work with
-    if (size < sizeof(struct bpf_link *)) {
+    // Ensure size is sufficient for creating a non-empty path
+    if (size < 2) {
         return 0;
     }
 
-    // Cast the data to a bpf_link pointer
-    link = (struct bpf_link *)data;
+    // Initialize a bpf_object (dummy initialization for fuzzing)
+    obj = bpf_object__open_mem(data, size, NULL);
+    if (!obj) {
+        return 0;
+    }
+
+    // Allocate memory for the path and ensure it's null-terminated
+    path = (char *)malloc(size + 1);
+    if (!path) {
+        bpf_object__close(obj);
+        return 0;
+    }
+    memcpy(path, data, size);
+    path[size] = '\0';
 
     // Call the function-under-test
-    int result = bpf_link__unpin(link);
+    result = bpf_object__pin(obj, path);
 
-    // Optionally, you can do something with the result if needed
-    // For example, you could log it or use it in further logic
+    // Clean up
+    free(path);
+    bpf_object__close(obj);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_48(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

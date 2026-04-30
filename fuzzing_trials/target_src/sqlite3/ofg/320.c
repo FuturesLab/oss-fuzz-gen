@@ -1,40 +1,53 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sqlite3.h>
-#include <string.h>
-#include <stdlib.h>  // Include this header for malloc and free
 
 int LLVMFuzzerTestOneInput_320(const uint8_t *data, size_t size) {
-    // Ensure the size is at least 2 to split the input data into two non-null strings
-    if (size < 2) return 0;
+    // The function sqlite3_os_init does not take any parameters and returns an int.
+    // We will simply call it to test its functionality.
+    int result = sqlite3_os_init();
 
-    // Split the input data into two parts
-    size_t mid = size / 2;
-
-    // Allocate memory for the two strings and ensure they are null-terminated
-    char *pattern = (char *)malloc(mid + 1);
-    char *string = (char *)malloc(size - mid + 1);
-
-    if (pattern == NULL || string == NULL) {
-        // Handle memory allocation failure
-        free(pattern);
-        free(string);
-        return 0;
-    }
-
-    // Copy data into the allocated memory and null-terminate
-    memcpy(pattern, data, mid);
-    pattern[mid] = '\0';
-
-    memcpy(string, data + mid, size - mid);
-    string[size - mid] = '\0';
-
-    // Call the function-under-test
-    int result = sqlite3_strglob(pattern, string);
-
-    // Free allocated memory
-    free(pattern);
-    free(string);
+    // Since sqlite3_os_init doesn't take any input or affect any state that we can modify,
+    // the fuzzer input (data and size) is not used in this case.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_320(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,69 +1,78 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "lcms2.h"
+#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsTagSignature) + sizeof(void*)) {
-        return 0; // Not enough data to proceed
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If we can't create a temp file, exit early
     }
 
-    // Initialize variables
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of cmsOpenProfileFromMem
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem((const void *)data, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    cmsTagSignature tagSig = *(cmsTagSignature*)data;
-    const void *tagData = (const void*)(data + sizeof(cmsTagSignature));
-
-    // Ensure hProfile is valid
-    if (hProfile == NULL) {
-        return 0;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl); // Remove the file
+        return 0; // If write fails, exit early
     }
 
-    // Call the function-under-test
+    // Close the file descriptor
+    close(fd);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of cmsWriteTag
-    char wvrjmxjo[1024] = "yluop";
+    // Call the function-under-test with the temporary file path
+    cmsHPROFILE profile = cmsCreateDeviceLinkFromCubeFile(tmpl);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetProfileVersion
-    cmsFloat64Number ret_cmsGetProfileVersion_pmivw = cmsGetProfileVersion(hProfile);
-    if (ret_cmsGetProfileVersion_pmivw < 0){
-    	return 0;
+    // Clean up: unlink the temporary file
+    unlink(tmpl);
+
+    // If a profile was created, release it
+    if (profile != NULL) {
+        cmsCloseProfile(profile);
     }
-
-    cmsSetProfileVersion(hProfile, ret_cmsGetProfileVersion_pmivw);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsWriteTag(hProfile, tagSig, wvrjmxjo);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Close the profile
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMD5computeID with cmsIsMatrixShaper
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsIsMatrixShaper with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMD5computeID with cmsCloseProfile
-    cmsCloseProfile(hProfile);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_137(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

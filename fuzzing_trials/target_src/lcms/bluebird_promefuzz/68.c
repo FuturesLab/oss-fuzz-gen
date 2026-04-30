@@ -1,127 +1,100 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include "lcms2.h"
-#include "/src/lcms/include/lcms2_plugin.h"
 
-static cmsHPROFILE createDummyProfile() {
-    cmsHPROFILE profile = cmsCreate_sRGBProfile();
-    return profile;
-}
-
-static void fuzz_cmsDoTransformLineStride(cmsHTRANSFORM transform, const uint8_t *data, size_t size) {
-    if (size < 8) {
-        return;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-
-    const void *inputBuffer = data;
-    void *outputBuffer = malloc(size);
-    if (!outputBuffer) {
-        return;
-    }
-
-    cmsUInt32Number pixelsPerLine = size / 8;
-    cmsUInt32Number lineCount = 1;
-    cmsUInt32Number bytesPerLineIn = size;
-    cmsUInt32Number bytesPerLineOut = size;
-    cmsUInt32Number bytesPerPlaneIn = size;
-    cmsUInt32Number bytesPerPlaneOut = size;
-
-    cmsDoTransformLineStride(transform, inputBuffer, outputBuffer, pixelsPerLine, lineCount,
-                             bytesPerLineIn, bytesPerLineOut, bytesPerPlaneIn, bytesPerPlaneOut);
-
-    free(outputBuffer);
-}
-
-static void fuzz_cmsDoTransform(cmsHTRANSFORM transform, const uint8_t *data, size_t size) {
-    if (size < 4) {
-        return;
-    }
-
-    const void *inputBuffer = data;
-    void *outputBuffer = malloc(size);
-    if (!outputBuffer) {
-        return;
-    }
-
-    cmsDoTransform(transform, inputBuffer, outputBuffer, size / 4);
-
-    free(outputBuffer);
-}
-
-static void fuzz__cmsGetTransformFormattersFloat(struct _cmstransform_struct *transformStruct) {
-    cmsFormatterFloat fromInput = NULL;
-    cmsFormatterFloat toOutput = NULL;
-
-    _cmsGetTransformFormattersFloat(transformStruct, &fromInput, &toOutput);
-}
-
-static void fuzz__cmsGetTransformFormatters16(struct _cmstransform_struct *transformStruct) {
-    cmsFormatter16 fromInput = NULL;
-    cmsFormatter16 toOutput = NULL;
-
-    _cmsGetTransformFormatters16(transformStruct, &fromInput, &toOutput);
-}
-
-static void fuzz__cmsGetTransformWorker(struct _cmstransform_struct *transformStruct) {
-    _cmsGetTransformWorker(transformStruct);
-}
-
-static cmsHTRANSFORM fuzz_cmsCreateTransform(const uint8_t *data, size_t size) {
-    if (size < 8) {
-        return NULL;
-    }
-
-    cmsHPROFILE inputProfile = createDummyProfile();
-    cmsHPROFILE outputProfile = createDummyProfile();
-    if (!inputProfile || !outputProfile) {
-        return NULL;
-    }
-
-    cmsUInt32Number inputFormat = *(cmsUInt32Number *)data;
-    cmsUInt32Number outputFormat = *(cmsUInt32Number *)(data + 4);
-    cmsUInt32Number intent = 0;
-    cmsUInt32Number flags = 0;
-
-    cmsHTRANSFORM transform = cmsCreateTransform(inputProfile, inputFormat, outputProfile, outputFormat, intent, flags);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateTransform to cmsDoTransform
-    cmsNAMEDCOLORLIST* ret_cmsGetNamedColorList_jynei = cmsGetNamedColorList(transform);
-    if (ret_cmsGetNamedColorList_jynei == NULL){
-    	return 0;
-    }
-
-    cmsDoTransform(transform, (const void *)"r", (void *)ret_cmsGetNamedColorList_jynei, PT_XYZ);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
-
-    return transform;
 }
 
 int LLVMFuzzerTestOneInput_68(const uint8_t *Data, size_t Size) {
-    cmsHTRANSFORM transform = fuzz_cmsCreateTransform(Data, Size);
-    if (!transform) {
+    if (Size < 1) {
         return 0;
     }
 
-    fuzz_cmsDoTransformLineStride(transform, Data, Size);
-    fuzz_cmsDoTransform(transform, Data, Size);
+    write_dummy_file(Data, Size);
 
-    struct _cmstransform_struct *transformStruct = (struct _cmstransform_struct *)transform;
-    fuzz__cmsGetTransformFormattersFloat(transformStruct);
-    fuzz__cmsGetTransformFormatters16(transformStruct);
-    fuzz__cmsGetTransformWorker(transformStruct);
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
+    }
 
-    cmsDeleteTransform(transform);
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTagSignature to cmsWriteTag
+        cmsHPROFILE ret_cmsCreateDeviceLinkFromCubeFile_xmedx = cmsCreateDeviceLinkFromCubeFile((const char *)"w");
+        cmsNAMEDCOLORLIST* ret_cmsGetNamedColorList_mknnn = cmsGetNamedColorList(0);
+        if (ret_cmsGetNamedColorList_mknnn == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_cmsGetNamedColorList_mknnn) {
+        	return 0;
+        }
+        cmsBool ret_cmsWriteTag_vakhq = cmsWriteTag(ret_cmsCreateDeviceLinkFromCubeFile_xmedx, tagSig, (const void *)ret_cmsGetNamedColorList_mknnn);
+        if (ret_cmsWriteTag_vakhq < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_68(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

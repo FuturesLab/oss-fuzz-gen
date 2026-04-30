@@ -2,29 +2,71 @@
 #include <stdlib.h>
 #include <janet.h>
 
+// Remove 'extern "C"' as it is not needed in a C file
 int LLVMFuzzerTestOneInput_232(const uint8_t *data, size_t size) {
-    // Initialize the Janet environment
+    JanetBuffer *buffer;
+    Janet janet_value;
+
+    // Initialize the Janet runtime
     janet_init();
 
-    // Create a JanetArray with some initial capacity
-    JanetArray *array = janet_array(10);
+    // Allocate and initialize a JanetBuffer
+    buffer = janet_buffer(size);
+    if (buffer == NULL) {
+        return 0;
+    }
 
-    // Fill the array with some data from the input
-    for (size_t i = 0; i < size && i < 10; i++) {
-        // Convert each byte of data into a Janet integer
-        Janet value = janet_wrap_integer(data[i]);
-        // Push the value into the array
-        janet_array_push(array, value);
+    // Initialize a Janet value from the input data
+    if (size > 0) {
+        janet_value = janet_wrap_string(janet_string(data, size));
+    } else {
+        janet_value = janet_wrap_nil();
     }
 
     // Call the function-under-test
-    Janet result = janet_wrap_array(array);
+    janet_description_b(buffer, janet_value);
 
-    // Use the result in some way to avoid compiler optimizations removing it
-    (void)result;
-
-    // Clean up the Janet environment
+    // Clean up
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_232(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,50 +1,75 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <zlib.h>
 #include <stdlib.h>
+#include <zlib.h>
 
 int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    // Initialize a z_stream structure
-    z_stream stream;
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-
-    // Set up the input data for the stream
-    stream.next_in = (Bytef *)data;
-    stream.avail_in = (uInt)size;
-
-    // Initialize the stream for inflation
-    if (inflateInit(&stream) != Z_OK) {
+    // Ensure that the size is sufficient to initialize the z_stream structure
+    if (size < sizeof(z_stream)) {
         return 0;
     }
 
-    // Allocate a buffer for the output data
-    size_t buffer_size = size * 2; // Arbitrary choice to ensure some space
-    Bytef *out_buffer = (Bytef *)malloc(buffer_size);
-    if (out_buffer == NULL) {
-        inflateEnd(&stream);
-        return 0;
-    }
-
-    // Set up the output data for the stream
-    stream.next_out = out_buffer;
-    stream.avail_out = (uInt)buffer_size;
-
-    // Attempt to inflate the input data
-    while (stream.avail_in > 0) {
-        int ret = inflate(&stream, Z_NO_FLUSH);
-        if (ret == Z_STREAM_END || ret != Z_OK) {
-            break;
-        }
-    }
+    // Allocate and initialize a z_stream structure
+    z_stream strm;
+    strm.next_in = (Bytef *)data;
+    strm.avail_in = (uInt)size;
+    strm.total_in = 0;
+    strm.next_out = NULL;
+    strm.avail_out = 0;
+    strm.total_out = 0;
+    strm.msg = NULL;
+    strm.state = NULL;
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+    strm.data_type = 0;
+    strm.adler = 0;
+    strm.reserved = 0;
 
     // Call the function-under-test
-    long result = inflateMark(&stream);
+    long result = inflateMark(&strm);
 
-    // Clean up
-    inflateEnd(&stream);
-    free(out_buffer);
+    // Optionally, use the result to prevent compiler optimizations
+    volatile long prevent_optimization = result;
+    (void)prevent_optimization;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_67(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

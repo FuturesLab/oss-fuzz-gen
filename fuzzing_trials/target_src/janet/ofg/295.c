@@ -1,35 +1,74 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include string.h for memcpy
-#include <janet.h>
+#include <string.h>
+#include "/src/janet/src/include/janet.h"
+
+// Ensure that the Janet library is initialized before use
+void initialize_janet_295() {
+    static int initialized = 0;
+    if (!initialized) {
+        janet_init();
+        initialized = 1;
+    }
+}
 
 int LLVMFuzzerTestOneInput_295(const uint8_t *data, size_t size) {
-    // Initialize Janet runtime
-    janet_init();
-
-    // Ensure that the size is sufficient to create a Janet object
-    if (size < sizeof(Janet)) {
-        janet_deinit();
+    // Ensure the input data is not null and has a valid size
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Create a Janet object from the input data
-    // Janet is a tagged union, so we'll interpret the data as a Janet value
-    Janet janet_value;
-    memcpy(&janet_value, data, sizeof(Janet));
+    // Initialize Janet if it's not already initialized
+    initialize_janet_295();
 
-    // Call the function-under-test
-    JanetBuffer *buffer = janet_unwrap_buffer(janet_value);
+    // Create a Janet symbol from the input data
+    JanetSymbol symbol = janet_symbol((const char *)data, size);
 
-    // Perform any additional operations on the buffer if necessary
-    // For fuzzing purposes, we just check if the buffer is not NULL
-    if (buffer != NULL) {
-        // Optionally, perform operations on buffer to ensure it is valid
-        // For example, access buffer->data or buffer->count
+    // Use the symbol in some way to ensure it is not optimized away
+    const char *symbol_name = janet_csymbol(symbol);
+    if (symbol_name) {
+        // Print the symbol name length
+        size_t length = strlen(symbol_name);
+        (void)length; // Suppress unused variable warning
     }
-
-    // Clean up Janet runtime
-    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_295(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

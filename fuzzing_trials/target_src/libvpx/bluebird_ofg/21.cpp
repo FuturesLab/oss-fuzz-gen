@@ -1,57 +1,89 @@
-#include "stdint.h"
-#include "stddef.h"
-#include "/src/libvpx/vpx/vpx_encoder.h"
-#include "/src/libvpx/vpx/vp8cx.h"
+#include <sys/stat.h>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "vpx/vpx_decoder.h"
+#include "vpx/vp8dx.h"  // Include the header for VP8/VP9 decoder
+
+extern "C" vpx_codec_iface_t * vpx_codec_vp9_dx();
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function parameters
-    vpx_codec_ctx_t codec_ctx;
-    vpx_codec_iface_t *codec_iface = vpx_codec_vp8_cx();
-    vpx_codec_enc_cfg_t enc_cfg;
-    int num_encoders = 1;
-    vpx_codec_flags_t flags = 0;
-    vpx_rational_t dsf = {1, 1}; // Default scale factor
-    int ver = VPX_ENCODER_ABI_VERSION;
+    // Initialize the codec context
+    vpx_codec_ctx_t codec;
+    vpx_codec_err_t res;
 
-    // Initialize the encoder configuration
+    // Get the interface for VP9 decoder
+    vpx_codec_iface_t *iface = vpx_codec_vp9_dx();
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of vpx_codec_enc_config_default
-    if (vpx_codec_enc_config_default(codec_iface, &enc_cfg, 0) != VPX_CODEC_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        return 0; // Exit if configuration initialization fails
-    }
-
-    // Adjust the configuration based on input data
-    if (size >= sizeof(enc_cfg.g_w) + sizeof(enc_cfg.g_h)) {
-        enc_cfg.g_w = data[0] | (data[1] << 8);
-        enc_cfg.g_h = data[2] | (data[3] << 8);
-    }
-
-    // Call the function-under-test
-    vpx_codec_err_t res = vpx_codec_enc_init_multi_ver(&codec_ctx, codec_iface, &enc_cfg, num_encoders, flags, &dsf, ver);
-
-    // Encode a frame if initialization was successful
-    if (res == VPX_CODEC_OK) {
-        vpx_image_t raw;
-        if (vpx_img_alloc(&raw, VPX_IMG_FMT_I420, enc_cfg.g_w, enc_cfg.g_h, 1)) {
-            if (size > 0) {
-                // Feed some data to the encoder
-
-                // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 5 of vpx_codec_encode
-
-                // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of vpx_codec_encode
-                vpx_codec_encode(&codec_ctx, &raw, 0, 1, size, size);
-                // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-                // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    if (iface != NULL) {
+        // Initialize the codec with the interface
+        res = vpx_codec_dec_init(&codec, iface, NULL, 0);
+        if (res == VPX_CODEC_OK) {
+            // Decode the input data
+            res = vpx_codec_decode(&codec, data, size, NULL, 0);
+            if (res == VPX_CODEC_OK) {
+                // Retrieve the decoded frames
+                vpx_codec_iter_t iter = NULL;
+                vpx_image_t *img;
+                while ((img = vpx_codec_get_frame(&codec, &iter)) != NULL) {
+                    // Process the image if needed
+                }
             }
-            vpx_img_free(&raw);
+            // Destroy the codec context
+
+            // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from vpx_codec_decode to vpx_codec_dec_init_ver using the plateau pool
+            vpx_codec_dec_cfg_t dec_cfg;
+            vpx_codec_flags_t flags = 0;
+            int ver = VPX_DECODER_ABI_VERSION;
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!iface) {
+            	return 0;
+            }
+            vpx_codec_err_t ret_vpx_codec_dec_init_ver_hxxyb = vpx_codec_dec_init_ver(&codec, iface, &dec_cfg, flags, ver);
+            // End mutation: Producer.SPLICE_MUTATOR
+            
+            vpx_codec_destroy(&codec);
         }
-        vpx_codec_destroy(&codec_ctx);
-    }   return 0;
+    }
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

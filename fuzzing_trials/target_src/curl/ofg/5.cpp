@@ -1,36 +1,58 @@
-#include <curl/curl.h>
 #include <stdint.h>
-#include <stdlib.h>
-
-extern "C" {
-    struct curl_header *curl_easy_nextheader(CURL *, unsigned int, int, struct curl_header *);
-}
+#include <stddef.h>
+#include <curl/curl.h>
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    CURL *curl;
-    struct curl_header *header = NULL;
+    // Call the function-under-test
+    CURLU *url_handle = curl_url();
 
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (!curl) {
-        curl_global_cleanup();
-        return 0;
+    // Check if the URL handle was created successfully
+    if (url_handle != NULL) {
+        // Perform operations with the URL handle if needed
+        // For this fuzzing harness, we just call the function and ensure it doesn't crash
+
+        // Clean up the URL handle
+        curl_url_cleanup(url_handle);
     }
-
-    // Set some CURL options (this is optional and can be adjusted based on needs)
-    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
-
-    // Fuzzing parameters
-    unsigned int header_type = size > 0 ? data[0] : 0; // Get header type from fuzz data
-    int part = size > 1 ? data[1] : 0; // Get part from fuzz data
-
-    // Call the function under test
-    header = curl_easy_nextheader(curl, header_type, part, header);
-
-    // Clean up
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

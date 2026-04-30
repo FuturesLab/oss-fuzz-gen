@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,63 +9,106 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include <cstring>
-#include <cstdint>
+#include <iostream>
+#include <cstdio>
 #include <cstdlib>
-
-static icalcomponent* create_vtodo_component() {
-    icalcomponent* comp = icalcomponent_new(ICAL_VTODO_COMPONENT);
-    return comp;
-}
-
-static struct icaltimetype create_random_icaltime() {
-    struct icaltimetype time;
-    time.year = rand() % 3000; // Random year
-    time.zone = icaltimezone_get_utc_timezone(); // Use UTC for simplicity
-    return time;
-}
-
-static struct icaldurationtype create_random_icalduration() {
-    struct icaldurationtype duration;
-    duration.is_neg = rand() % 2;
-    duration.days = rand() % 100;
-    return duration;
-}
+#include <cstring>
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Not enough data to proceed
+    if (Size == 0) {
+        return 0;
+    }
 
-    icalcomponent* comp = create_vtodo_component();
-    if (!comp) return 0; // Failed to create component
+    // Create a new X component with a name derived from input data
+    char *x_name = static_cast<char *>(malloc(Size + 1));
+    if (!x_name) {
+        return 0;
+    }
+    memcpy(x_name, Data, Size);
+    x_name[Size] = '\0';
 
-    struct icaltimetype due_time = create_random_icaltime();
-    struct icaltimetype dtstart_time = create_random_icaltime();
-    struct icaldurationtype duration = create_random_icalduration();
+    icalcomponent *component = icalcomponent_new_x(x_name);
+    free(x_name);
 
-    int sequence = Data[0]; // Use first byte as sequence number
+    if (!component) {
+        return 0;
+    }
 
-    // Fuzz the set_due function
-    icalcomponent_set_due(comp, due_time);
+    // Set X name with another portion of input data
+    if (Size > 1) {
+        char *new_x_name = static_cast<char *>(malloc(Size));
+        if (new_x_name) {
+            memcpy(new_x_name, Data + 1, Size - 1);
+            new_x_name[Size - 1] = '\0';
+            icalcomponent_set_x_name(component, new_x_name);
+            free(new_x_name);
+        }
+    }
 
-    // Fuzz the set_dtstart function
-    icalcomponent_set_dtstart(comp, dtstart_time);
+    // Set sequence number using the first byte of input data
+    icalcomponent_set_sequence(component, Data[0]);
 
-    // Fuzz the get_due function
-    icalcomponent_get_due(comp);
+    // Strip errors, if any
+    icalcomponent_strip_errors(component);
 
-    // Fuzz the set_duration function
-    icalcomponent_set_duration(comp, duration);
+    // Retrieve component name
+    const char *component_name = icalcomponent_get_component_name(component);
+    if (component_name) {
+        std::cout << "Component Name: " << component_name << std::endl;
+    }
 
-    // Fuzz the set_sequence function
-    icalcomponent_set_sequence(comp, sequence);
+    // Retrieve component name with dynamic allocation
+    char *component_name_r = icalcomponent_get_component_name_r(component);
+    if (component_name_r) {
+        std::cout << "Component Name R: " << component_name_r << std::endl;
+        free(component_name_r);
+    }
 
-    // Fuzz the set_dtstamp function
-    icalcomponent_set_dtstamp(comp, dtstart_time);
-
-    // Clean up
-    icalcomponent_free(comp);
+    // Cleanup
+    icalcomponent_free(component);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

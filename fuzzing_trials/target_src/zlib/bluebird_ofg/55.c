@@ -1,56 +1,111 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdio.h>
 #include "zlib.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    gzFile file;
-    off_t offset;
-    int whence;
-    off_t result;
-
-    // Create a temporary file to work with
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    // Compress the input data
+    uLongf compressedSize = compressBound(size);
+    uint8_t *compressedData = (uint8_t *)malloc(compressedSize);
+    if (compressedData == NULL) {
         return 0;
     }
 
-    // Open a gzFile for writing to compress the input data
-    gzFile gzTempFile = gzdopen(fileno(tempFile), "wb");
-    if (gzTempFile == NULL) {
-        fclose(tempFile);
+    if (compress(compressedData, &compressedSize, data, size) != Z_OK) {
+        free(compressedData);
         return 0;
     }
 
-    // Write the input data to the gzFile to compress it
-    gzwrite(gzTempFile, data, size);
-    gzclose(gzTempFile);
 
-    // Rewind the file to the beginning for reading
-    rewind(tempFile);
-
-    // Open the temporary file as a gzFile for reading
-    file = gzdopen(fileno(tempFile), "rb");
-    if (file == NULL) {
-        fclose(tempFile);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from compress to compress2
+    uLong ret_compressBound_guaog = compressBound(0);
+    long ret_inflateMark_mvczu = inflateMark(0);
+    if (ret_inflateMark_mvczu < 0){
+    	return 0;
+    }
+    const Bytef ughactgp;
+    memset(&ughactgp, 0, sizeof(ughactgp));
+    int ret_compress2_amcaf = compress2(compressedData, &compressedSize, &ughactgp, ret_compressBound_guaog, (int )ret_inflateMark_mvczu);
+    if (ret_compress2_amcaf < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        free(compressedData);
         return 0;
     }
 
-    // Set offset and whence to some values for testing
-    offset = (off_t)(size / 2); // Use half of the size as an offset
-    whence = SEEK_SET; // Use SEEK_SET as the whence value
+    // Write the compressed data to the temporary file
+    if (write(fd, compressedData, compressedSize) != (ssize_t)compressedSize) {
+        close(fd);
+        free(compressedData);
+        return 0;
+    }
+
+    // Close the file descriptor so that gzopen can open it
+    close(fd);
+    free(compressedData);
+
+    // Open the file with gzopen
+    gzFile gzfile = gzopen(tmpl, "rb");
+    if (gzfile == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    result = gzseek(file, offset, whence);
+    off_t offset = gztell(gzfile);
 
-    // Close the gzFile and the temporary file
+    // Close the gzFile
+    gzclose(gzfile);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzclose with gzgetc
-    gzgetc(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Clean up the temporary file
+    unlink(tmpl);
 
-
-    fclose(tempFile);
-
-    // Return a non-zero value if gzseek fails to increase code coverage
-    return (result == -1) ? 1 : 0;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_55(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

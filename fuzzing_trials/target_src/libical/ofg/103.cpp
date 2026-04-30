@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -7,55 +8,71 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for a null-terminated string
+    // Ensure the data size is sufficient for a null-terminated string
     if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the description string and null-terminate it
-    char *description = (char *)malloc(size + 1);
-    if (description == NULL) {
+    // Allocate memory for the tzid string and ensure it is null-terminated
+    char *tzid = (char *)malloc(size + 1);
+    if (tzid == NULL) {
         return 0;
     }
-    memcpy(description, data, size);
-    description[size] = '\0';
+    memcpy(tzid, data, size);
+    tzid[size] = '\0';
 
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        free(description);
+    // Create a new icalproperty instance
+    icalproperty *prop = icalproperty_new(ICAL_TZID_PROPERTY);
+    if (prop == NULL) {
+        free(tzid);
         return 0;
     }
 
     // Call the function-under-test
-    icalcomponent_set_description(component, description);
+    icalproperty_set_tzid(prop, tzid);
 
-    // Additional operations to increase code coverage
-    // Attempt to retrieve the description to ensure the function was effective
-    const char *retrieved_description = icalcomponent_get_description(component);
-    if (retrieved_description != NULL) {
-        // Perform a simple operation to utilize the retrieved description
-        size_t retrieved_length = strlen(retrieved_description);
-        if (retrieved_length > 0) {
-            // Just a dummy operation to ensure the description was set
-            retrieved_length++;
-        }
-    }
-
-    // Additional operations to increase code coverage
-    // Try setting and getting other properties
-    icalcomponent_set_summary(component, "Sample Summary");
-    const char *summary = icalcomponent_get_summary(component);
-    if (summary != NULL) {
-        size_t summary_length = strlen(summary);
-        if (summary_length > 0) {
-            summary_length++;
-        }
-    }
-
-    // Cleanup
-    icalcomponent_free(component);
-    free(description);
+    // Clean up
+    icalproperty_free(prop);
+    free(tzid);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_103(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

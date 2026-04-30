@@ -1,30 +1,57 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <janet.h>
-
-extern uint32_t janet_optuinteger(const Janet *argv, int32_t n, int32_t def, uint32_t fallback);
+#include "janet.h" // Assuming this is the header file where JanetFiber is defined
 
 int LLVMFuzzerTestOneInput_281(const uint8_t *data, size_t size) {
-    if (size < sizeof(Janet) + sizeof(int32_t) * 2 + sizeof(uint32_t)) {
-        return 0; // Not enough data to proceed
+    // Check if size is sufficient to initialize a JanetFiber
+    if (size < sizeof(JanetFiber)) {
+        return 0;
     }
 
-    // Initialize Janet array
-    Janet argv[1];
-    argv[0] = janet_wrap_integer((int32_t)data[0]);
-
-    // Extract parameters from data
-    int32_t n = (int32_t)data[1];
-    int32_t def = (int32_t)data[2];
-    uint32_t fallback = (uint32_t)data[3];
+    // Initialize a JanetFiber from the input data
+    JanetFiber *fiber = (JanetFiber *)data;
 
     // Call the function-under-test
-    uint32_t result = janet_optuinteger(argv, n, def, fallback);
-
-    // Use the result in some way to avoid compiler optimizations
-    if (result == 0xFFFFFFFF) {
-        return 1;
-    }
+    janet_async_in_flight(fiber);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_281(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

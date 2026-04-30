@@ -1,23 +1,28 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stddef.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 
+// Ensure that the function is defined with C linkage
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
+    // Ensure the size is sufficient for creating a sqlite3 database
+    if (size == 0) {
+        return 0;
+    }
+
     sqlite3 *db;
-    char *errmsg = 0;
-    int rc;
+    char *errMsg = 0;
 
     // Open a new in-memory database
-    const char ekuruerg[1024] = "cvvau";
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(ekuruerg, &db);
+    int rc = sqlite3_open((const char *)"w", &db);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated to prevent buffer overflow
+    // Convert input data to a null-terminated string
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
@@ -26,18 +31,18 @@ int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the function-under-test
-    if (size > 0) {
-        rc = sqlite3_exec(db, sql, 0, 0, &errmsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errmsg);
-        }
+    // Execute the SQL statement
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free the error message if it was allocated
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
 
-    // Free the allocated memory
+    // Free the allocated SQL string
     free(sql);
 
-    // Close the database
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

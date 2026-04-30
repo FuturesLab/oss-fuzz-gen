@@ -1,113 +1,68 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include "lcms2.h"  // Assuming the Little CMS library is used
+#include <stddef.h>
+#include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsGDBCheckPoint
-    cmsHPROFILE handle = cmsOpenProfileFromMem(data, size);  // Create a handle from the input data
-    cmsCIELab cielab;
-
-    // Ensure the handle is not NULL
-    if (handle == NULL) {
+    // Ensure the input size is sufficient for cmsUInt32Number
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Initialize cmsCIELab with non-NULL values
-    cielab.L = 50.0;  // Example value
-    cielab.a = 0.0;   // Example value
-    cielab.b = 0.0;   // Example value
-
-    // Call the function under test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetPCS
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetHeaderFlags
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsGetHeaderFlags with cmsGetHeaderModel
-    cmsUInt32Number ret_cmsGetHeaderFlags_vxdxj = cmsGetHeaderModel(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_cmsGetHeaderFlags_vxdxj < 0){
-    	return 0;
+    // Create a memory-based profile for fuzzing
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Extract cmsUInt32Number from data
+    cmsUInt32Number manufacturer = *(const cmsUInt32Number *)data;
 
+    // Call the function-under-test
+    cmsSetHeaderManufacturer(hProfile, manufacturer);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of _cmsICCcolorSpace
-    cmsColorSpaceSignature ret__cmsICCcolorSpace_fwbyg = _cmsICCcolorSpace(cmsSPOT_SQUARE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateLinearizationDeviceLink
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsSetColorSpace
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateInkLimitingDeviceLinkTHR
-    cmsContext ret_cmsGetTransformContextID_sguty = cmsGetTransformContextID(0);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTransformContextID to cmsCreateBCHSWabstractProfileTHR
-
-    cmsHPROFILE ret_cmsCreateBCHSWabstractProfileTHR_trpqa = cmsCreateBCHSWabstractProfileTHR(ret_cmsGetTransformContextID_sguty, cmsERROR_UNKNOWN_EXTENSION, PT_MCH10, cmsERROR_READ, PT_YCbCr, INTENT_ABSOLUTE_COLORIMETRIC, INTENT_SATURATION, TRUE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE ret_cmsCreateInkLimitingDeviceLinkTHR_vcukf = cmsCreateInkLimitingDeviceLinkTHR(ret_cmsGetTransformContextID_sguty, ret__cmsICCcolorSpace_fwbyg, PT_HSV);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateInkLimitingDeviceLinkTHR to cmsCreateProofingTransformTHR
-    cmsContext ret_cmsGetProfileContextID_ygyzl = cmsGetProfileContextID(ret_cmsCreateInkLimitingDeviceLinkTHR_vcukf);
-    cmsHPROFILE ret_cmsCreateNULLProfileTHR_axhzm = cmsCreateNULLProfileTHR(ret_cmsGetTransformContextID_sguty);
-    cmsHPROFILE ret_cmsCreateDeviceLinkFromCubeFile_isqwq = cmsCreateDeviceLinkFromCubeFile((const char *)data);
-    cmsFloat64Number ret_cmsSetAdaptationState_kwbje = cmsSetAdaptationState(PT_HLS);
-    if (ret_cmsSetAdaptationState_kwbje < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 6 of cmsCreateProofingTransformTHR
-    cmsHTRANSFORM ret_cmsCreateProofingTransformTHR_efjse = cmsCreateProofingTransformTHR(ret_cmsGetProfileContextID_ygyzl, ret_cmsCreateNULLProfileTHR_axhzm, INTENT_PRESERVE_K_ONLY_SATURATION, ret_cmsCreateInkLimitingDeviceLinkTHR_vcukf, cmsPERCEPTUAL_BLACK_Y, ret_cmsCreateDeviceLinkFromCubeFile_isqwq, INTENT_PRESERVE_K_ONLY_RELATIVE_COLORIMETRIC, PT_XYZ, FALSE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE ret_cmsCreate_OkLabProfile_yzdfw = cmsCreate_OkLabProfile(0);
-
-    cmsSetColorSpace(ret_cmsCreate_OkLabProfile_yzdfw, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsToneCurve* ret_cmsDupToneCurve_ceffw = cmsDupToneCurve(NULL);
-    if (ret_cmsDupToneCurve_ceffw == NULL){
-    	return 0;
-    }
-
-    cmsHPROFILE ret_cmsCreateLinearizationDeviceLink_stxus = cmsCreateLinearizationDeviceLink(ret__cmsICCcolorSpace_fwbyg, &ret_cmsDupToneCurve_ceffw);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsSetPCS(handle, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
-
-    // Close the profile handle
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-    cmsMD5computeID(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_123(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

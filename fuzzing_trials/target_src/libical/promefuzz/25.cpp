@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_set_relcalid at icalcomponent.c:2573:6 in icalcomponent.h
-// icalcomponent_as_ical_string at icalcomponent.c:215:7 in icalcomponent.h
-// icalcomponent_new_x at icalcomponent.c:161:16 in icalcomponent.h
-// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
-// icalcomponent_set_sequence at icalcomponent.c:1955:6 in icalcomponent.h
-// icalcomponent_normalize at icalcomponent.c:2832:6 in icalcomponent.h
+// icalcomponent_get_due at icalcomponent.c:2613:21 in icalcomponent.h
+// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
+// icalcomponent_set_dtend at icalcomponent.c:1622:6 in icalcomponent.h
+// icalcomponent_set_due at icalcomponent.c:2634:6 in icalcomponent.h
+// icalcomponent_get_dtstamp at icalcomponent.c:1722:21 in icalcomponent.h
+// icalcomponent_set_recurrenceid at icalcomponent.c:1839:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,55 +18,87 @@
 #include <cstdlib>
 #include <cstring>
 #include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalcomponent.h"
 
-static icalcomponent* createRandomComponent(const uint8_t *Data, size_t Size) {
-    if (Size < 5) return nullptr;
-
-    // Create a new X component with a random name from the input data
-    char x_name[5];
-    std::memcpy(x_name, Data, 4);
-    x_name[4] = '\0';
-    return icalcomponent_new_x(x_name);
+static icaltimetype generate_random_icaltimetype(const uint8_t *Data, size_t Size) {
+    icaltimetype time;
+    if (Size < sizeof(time.year)) {
+        time.year = 0;
+    } else {
+        memcpy(&time.year, Data, sizeof(time.year));
+    }
+    time.zone = nullptr; // Set to nullptr for simplicity
+    return time;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    // Step 1: Prepare the environment
-    icalcomponent* comp = createRandomComponent(Data, Size);
-    if (!comp) return 0;
-
-    // Step 2: Invoke the target functions
-    // Normalize the component
-    icalcomponent_normalize(comp);
-
-    // Set a sequence number using part of the input data
-    if (Size > 4) {
-        int sequence = static_cast<int>(Data[4]);
-        icalcomponent_set_sequence(comp, sequence);
+    if (Size < 1) {
+        return 0;
+    }
+    
+    // Create a dummy icalcomponent
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!comp) {
+        return 0;
     }
 
-    // Set a relative calendar ID using the rest of the input data
-    if (Size > 5) {
-        size_t relcalid_len = Size - 5;
-        std::vector<char> relcalid(relcalid_len + 1, '\0');
-        std::memcpy(relcalid.data(), Data + 5, relcalid_len);
-        icalcomponent_set_relcalid(comp, relcalid.data());
-    }
+    // Generate a random icaltimetype from input data
+    icaltimetype time = generate_random_icaltimetype(Data, Size);
 
-    // Convert the component to an iCalendar string
-    char* ical_string = icalcomponent_as_ical_string(comp);
-    if (ical_string) {
-        // Normally, you would use the string here, but libical manages its memory
-    }
+    // Invoke target functions with the component and generated time
+    icalcomponent_set_dtend(comp, time);
+    icalcomponent_set_recurrenceid(comp, time);
+    icalcomponent_set_dtstamp(comp, time);
+    icalcomponent_set_due(comp, time);
 
-    // Create an XVOTE component
-    icalcomponent* xvote_comp = icalcomponent_new_xvote();
-    if (xvote_comp) {
-        // Do something with the xvote component if needed
-        icalcomponent_free(xvote_comp);
-    }
+    // Retrieve and use returned icaltimetype structures
+    icaltimetype due_time = icalcomponent_get_due(comp);
+    icaltimetype dtstamp_time = icalcomponent_get_dtstamp(comp);
 
-    // Step 3: Cleanup
+    // Clean up the component
     icalcomponent_free(comp);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalpropiter_deref at icalcomponent.c:1479:15 in icalcomponent.h
-// icalpropiter_next at icalcomponent.c:1460:15 in icalcomponent.h
-// icalcomponent_get_current_property at icalcomponent.c:463:15 in icalcomponent.h
-// icalcomponent_get_first_property at icalcomponent.c:474:15 in icalcomponent.h
-// icalcomponent_get_next_property at icalcomponent.c:489:15 in icalcomponent.h
-// icalcomponent_begin_property at icalcomponent.c:1436:14 in icalcomponent.h
+// icalparser_get_ctrl at icalparser.c:1337:22 in icalparser.h
+// icalparser_set_ctrl at icalparser.c:1342:6 in icalparser.h
+// icalparser_get_state at icalparser.c:1203:18 in icalparser.h
+// icalparser_free at icalparser.c:103:6 in icalparser.h
+// icalparser_new at icalparser.c:80:13 in icalparser.h
+// icalparser_add_line at icalparser.c:641:16 in icalparser.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,58 +14,91 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "ical.h"
+#include <cstdint>
 #include <cstdlib>
-#include <fstream>
+#include <cstdio>
+#include <cstring>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalparser.h"
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    // Prepare a dummy file for operations that require a file
-    std::ofstream dummyFile("./dummy_file");
-    if (!dummyFile.is_open()) {
+    if (Size == 0) return 0;
+
+    // Initialize the parser
+    icalparser *parser = icalparser_new();
+    if (!parser) return 0;
+
+    // Set control characters handling
+    icalparser_ctrl ctrl = static_cast<icalparser_ctrl>(Data[0] % 3);
+    icalparser_set_ctrl(ctrl);
+
+    // Check the current control setting
+    icalparser_get_ctrl();
+
+    // Feed data to the parser line by line
+    char *line = static_cast<char *>(malloc(Size + 1));
+    if (!line) {
+        icalparser_free(parser);
         return 0;
     }
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
+    memcpy(line, Data, Size);
+    line[Size] = '\0';
 
-    // Initialize a component and properties for testing
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalproperty *property = icalproperty_new_summary("Test Summary");
-    icalcomponent_add_property(component, property);
+    icalcomponent *component = icalparser_add_line(parser, line);
 
-    // Test icalcomponent_begin_property
-    icalpropiter iter = icalcomponent_begin_property(component, ICAL_SUMMARY_PROPERTY);
-
-    // Test icalpropiter_deref
-    icalproperty *currentProperty = icalpropiter_deref(&iter);
-    if (currentProperty) {
-        const char *summary = icalproperty_get_summary(currentProperty);
+    // Free the component if it was created
+    if (component) {
+        icalcomponent_free(component);
     }
 
-    // Test icalpropiter_next
-    while ((currentProperty = icalpropiter_next(&iter)) != nullptr) {
-        const char *summary = icalproperty_get_summary(currentProperty);
-    }
+    // Check the parser state
+    icalparser_get_state(parser);
 
-    // Test icalcomponent_get_next_property
-    currentProperty = icalcomponent_get_next_property(component, ICAL_SUMMARY_PROPERTY);
-    if (currentProperty) {
-        const char *summary = icalproperty_get_summary(currentProperty);
-    }
-
-    // Test icalcomponent_get_current_property
-    currentProperty = icalcomponent_get_current_property(component);
-    if (currentProperty) {
-        const char *summary = icalproperty_get_summary(currentProperty);
-    }
-
-    // Test icalcomponent_get_first_property
-    currentProperty = icalcomponent_get_first_property(component, ICAL_SUMMARY_PROPERTY);
-    if (currentProperty) {
-        const char *summary = icalproperty_get_summary(currentProperty);
-    }
-
-    // Cleanup
-    icalcomponent_free(component);
+    // Clean up
+    free(line);
+    icalparser_free(parser);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

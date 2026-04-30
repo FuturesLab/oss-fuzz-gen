@@ -1,49 +1,60 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
 #include <string.h>
 
-// Define a function pointer type for an infinite loop function
-typedef void (*infinite_loop_func)(void);
-
-// Dummy infinite loop function
-int dummy_infinite_loop_293(void) {
-    while (1) {
-        // Infinite loop
-    }
-    return 0;
-}
-
-// Fuzzer entry point
 int LLVMFuzzerTestOneInput_293(const uint8_t *data, size_t size) {
     sqlite3 *db;
     char *errMsg = 0;
+    int rc;
 
-    // Initialize SQLite3 database in memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if(rc) {
+        sqlite3_close(db);
         return 0;
     }
 
-    // Ensure the data is null-terminated to prevent buffer overflow
+    // Convert the fuzz input into a null-terminated string
     char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    if (!sql) {
         sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
+    sql[size] = '\0';
 
-    // Execute SQL command
-    if (sqlite3_exec(db, sql, 0, 0, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Execute the SQL command
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+    // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
+    void* ret_sqlite3_malloc_ameet = sqlite3_malloc(0);
+    if (ret_sqlite3_malloc_ameet == NULL){
+    	return 0;
     }
-
-    // Free the allocated memory for SQL command
+    double ret_sqlite3_value_double_gbnki = sqlite3_value_double(NULL);
+    if (ret_sqlite3_value_double_gbnki < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_ameet) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strlike_umsxj = sqlite3_strlike((const char *)ret_sqlite3_malloc_ameet, errMsg, (unsigned int )ret_sqlite3_value_double_gbnki);
+    if (ret_sqlite3_strlike_umsxj < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
     free(sql);
-
-    // Close the SQLite3 database
     sqlite3_close(db);
 
     return 0;

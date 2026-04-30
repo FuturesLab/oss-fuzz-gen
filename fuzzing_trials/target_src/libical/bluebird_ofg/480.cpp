@@ -1,0 +1,60 @@
+#include <string.h>
+#include <sys/stat.h>
+#include "libical/ical.h"
+#include <stdint.h>
+#include <stddef.h>
+
+extern "C" int LLVMFuzzerTestOneInput_480(const uint8_t *data, size_t size) {
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vpatch();
+
+    // Normally, you would use the data and size to manipulate or test the component,
+    // but since icalcomponent_new_vpatch() does not take any parameters, we simply
+    // create the component and then clean up.
+
+    // Clean up the created component
+    if (component != NULL) {
+        icalcomponent_free(component);
+    }
+
+    return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_480(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

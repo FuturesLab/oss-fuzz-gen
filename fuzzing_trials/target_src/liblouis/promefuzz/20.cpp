@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_hyphenate at lou_translateString.c:4066:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
-// lou_backTranslate at lou_backTranslateString.c:159:1 in liblouis.h
-// lou_translate at lou_translateString.c:1135:1 in liblouis.h
-// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
-// lou_translatePrehyphenated at lou_translateString.c:1410:1 in liblouis.h
+// lou_setDataPath at compileTranslationTable.c:59:1 in liblouis.h
+// lou_compileString at compileTranslationTable.c:5446:1 in liblouis.h
+// lou_charToDots at lou_translateString.c:4175:1 in liblouis.h
+// lou_readCharFromFile at compileTranslationTable.c:4328:1 in liblouis.h
+// lou_backTranslateString at lou_backTranslateString.c:169:1 in liblouis.h
+// lou_charSize at compileTranslationTable.c:5441:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,117 +14,122 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <liblouis.h>
-#include <cstdint>
-#include <cstring>
-#include <cstdlib>
+#include <iostream>
 #include <fstream>
-
-static void fuzz_lou_backTranslate(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(widechar) + 1) return; // Ensure there's at least one widechar and null terminator
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    if (tableList[Size - 1] != '\0') return; // Ensure null-terminated string
-    const widechar *inbuf = reinterpret_cast<const widechar *>(Data);
-    int inlen = Size / sizeof(widechar);
-    widechar *outbuf = new widechar[inlen];
-    int outlen = inlen;
-    int *outputPos = new int[inlen];
-    int *inputPos = new int[outlen];
-    int cursorPos = 0;
-    int mode = 0;
-
-    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, nullptr, nullptr, outputPos, inputPos, &cursorPos, mode);
-
-    delete[] outbuf;
-    delete[] outputPos;
-    delete[] inputPos;
-}
-
-static void fuzz_lou_translate(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(widechar) + 1) return; // Ensure there's at least one widechar and null terminator
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    if (tableList[Size - 1] != '\0') return; // Ensure null-terminated string
-    const widechar *inbuf = reinterpret_cast<const widechar *>(Data);
-    int inlen = Size / sizeof(widechar);
-    widechar *outbuf = new widechar[inlen];
-    int outlen = inlen;
-    int *outputPos = new int[inlen];
-    int *inputPos = new int[outlen];
-    int cursorPos = 0;
-    int mode = 0;
-
-    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, nullptr, nullptr, outputPos, inputPos, &cursorPos, mode);
-
-    delete[] outbuf;
-    delete[] outputPos;
-    delete[] inputPos;
-}
-
-static void fuzz_lou_translateString(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(widechar) + 1) return; // Ensure there's at least one widechar and null terminator
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    if (tableList[Size - 1] != '\0') return; // Ensure null-terminated string
-    const widechar *inbuf = reinterpret_cast<const widechar *>(Data);
-    int inlen = Size / sizeof(widechar);
-    widechar *outbuf = new widechar[inlen];
-    int outlen = inlen;
-    int mode = 0;
-
-    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, nullptr, nullptr, mode);
-
-    delete[] outbuf;
-}
-
-static void fuzz_lou_translatePrehyphenated(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(widechar) + 1) return; // Ensure there's at least one widechar and null terminator
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    if (tableList[Size - 1] != '\0') return; // Ensure null-terminated string
-    const widechar *inbuf = reinterpret_cast<const widechar *>(Data);
-    int inlen = Size / sizeof(widechar);
-    widechar *outbuf = new widechar[inlen];
-    int outlen = inlen;
-    int *outputPos = new int[inlen];
-    int *inputPos = new int[outlen];
-    int cursorPos = 0;
-    char *inputHyphens = new char[inlen];
-    char *outputHyphens = new char[outlen];
-    int mode = 0;
-
-    lou_translatePrehyphenated(tableList, inbuf, &inlen, outbuf, &outlen, nullptr, nullptr, outputPos, inputPos, &cursorPos, inputHyphens, outputHyphens, mode);
-
-    delete[] outbuf;
-    delete[] outputPos;
-    delete[] inputPos;
-    delete[] inputHyphens;
-    delete[] outputHyphens;
-}
-
-static void fuzz_lou_hyphenate(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(widechar) + 1) return; // Ensure there's at least one widechar and null terminator
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    if (tableList[Size - 1] != '\0') return; // Ensure null-terminated string
-    const widechar *inbuf = reinterpret_cast<const widechar *>(Data);
-    int inlen = Size / sizeof(widechar);
-    char *hyphens = new char[inlen];
-    int mode = 0;
-
-    lou_hyphenate(tableList, inbuf, inlen, hyphens, mode);
-
-    delete[] hyphens;
-}
-
-static void fuzz_lou_checkTable(const uint8_t *Data, size_t Size) {
-    if (Size == 0 || Data[Size - 1] != '\0') return; // Ensure null-terminated string
-    const char *tableList = reinterpret_cast<const char *>(Data);
-    lou_checkTable(tableList);
-}
+#include <liblouis.h>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    fuzz_lou_backTranslate(Data, Size);
-    fuzz_lou_translate(Data, Size);
-    fuzz_lou_translateString(Data, Size);
-    fuzz_lou_translatePrehyphenated(Data, Size);
-    fuzz_lou_hyphenate(Data, Size);
-    fuzz_lou_checkTable(Data, Size);
+    if (Size < 1) return 0;
+
+    // Ensure null-termination for dataPath
+    char *dataPath = new char[Size + 1];
+    memcpy(dataPath, Data, Size);
+    dataPath[Size] = '\0';
+    lou_setDataPath(dataPath);
+    delete[] dataPath;
+
+    // Prepare data for lou_compileString
+    if (Size > 2) {
+        size_t mid = Size / 2;
+        char *tableList = new char[mid + 1];
+        char *inString = new char[Size - mid + 1];
+        memcpy(tableList, Data, mid);
+        memcpy(inString, Data + mid, Size - mid);
+        tableList[mid] = '\0';
+        inString[Size - mid] = '\0';
+
+        // Ensure both tableList and inString are non-empty
+        if (tableList[0] != '\0' && inString[0] != '\0') {
+            lou_compileString(tableList, inString);
+        }
+
+        delete[] tableList;
+        delete[] inString;
+    }
+
+    // Prepare data for lou_charToDots
+    if (Size > 3) {
+        char *tableList = new char[Size];
+        widechar *inbuf = new widechar[Size / 2];
+        widechar outbuf[256] = {0};
+        memcpy(tableList, Data, Size - 2);
+        memcpy(inbuf, Data + 1, (Size - 2) / 2);
+        tableList[Size - 2] = '\0';
+        int length = static_cast<int>((Size - 2) / 2);
+        int mode = static_cast<int>(Data[Size - 1]);
+        lou_charToDots(tableList, inbuf, outbuf, length, mode);
+        delete[] tableList;
+        delete[] inbuf;
+    }
+
+    // Prepare data for lou_readCharFromFile
+    std::ofstream dummyFile("./dummy_file");
+    if (dummyFile.is_open()) {
+        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+        dummyFile.close();
+
+        int mode = 0;
+        lou_readCharFromFile("./dummy_file", &mode);
+    }
+
+    // Prepare data for lou_backTranslateString
+    if (Size > 4) {
+        char *tableList = new char[Size];
+        widechar *inbuf = new widechar[Size / 2];
+        widechar outbuf[256] = {0};
+        memcpy(tableList, Data, Size - 2);
+        memcpy(inbuf, Data + 1, (Size - 2) / 2);
+        tableList[Size - 2] = '\0';
+        int inlen = static_cast<int>((Size - 2) / 2);
+        int outlen = 256;
+        lou_backTranslateString(tableList, inbuf, &inlen, outbuf, &outlen, nullptr, nullptr, 0);
+        delete[] tableList;
+        delete[] inbuf;
+    }
+
+    // Call lou_charSize
+    lou_charSize();
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,37 +1,72 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsUInt32Number nPoints = 2; // Minimum number of points for a tone curve
-    cmsToneCurve *originalCurve = NULL;
-    cmsToneCurve *reversedCurve = NULL;
-    cmsContext contextID = cmsCreateContext(NULL, NULL);
+    cmsCIEXYZ blackPoint;
+    cmsHPROFILE hProfile;
+    cmsUInt32Number intent = 0;
+    cmsUInt32Number flags = 0;
 
-    // Ensure data is large enough to create a tone curve
-    if (size < sizeof(cmsFloat32Number) * nPoints) {
-        return 0;
-    }
+    // Initialize blackPoint with some non-NULL values
+    blackPoint.X = 0.0;
+    blackPoint.Y = 0.0;
+    blackPoint.Z = 0.0;
 
-    // Create a tone curve using the input data
-    originalCurve = cmsBuildTabulatedToneCurveFloat(contextID, nPoints, (const cmsFloat32Number *)data);
-
-    // Check if the tone curve was created successfully
-    if (originalCurve == NULL) {
-        cmsDeleteContext(contextID);
-        return 0;
+    // Create a profile from memory if possible
+    if (size > 0) {
+        hProfile = cmsOpenProfileFromMem(data, size);
+        if (hProfile == NULL) {
+            return 0; // Exit if profile creation fails
+        }
+    } else {
+        return 0; // Exit if size is zero
     }
 
     // Call the function-under-test
-    reversedCurve = cmsReverseToneCurveEx(nPoints, originalCurve);
+    cmsBool result = cmsDetectDestinationBlackPoint(&blackPoint, hProfile, intent, flags);
 
-    // Clean up
-    if (reversedCurve != NULL) {
-        cmsFreeToneCurve(reversedCurve);
-    }
-    cmsFreeToneCurve(originalCurve);
-    cmsDeleteContext(contextID);
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_75(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

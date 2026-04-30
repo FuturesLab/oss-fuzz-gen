@@ -1,35 +1,81 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include this for mkstemp() and unlink()
+#include <fcntl.h>   // Include this for open() and close()
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_421(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsCIEXYZ sourceIlluminant;
-    cmsCIEXYZ targetIlluminant;
-    cmsCIEXYZ inputColor;
-    cmsCIEXYZ adaptedColor;
-
-    // Ensure that the size is enough to extract values for cmsCIEXYZ structures
-    if (size < sizeof(cmsCIEXYZ) * 3) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize cmsCIEXYZ structures with data
-    sourceIlluminant.X = *((float*)(data));
-    sourceIlluminant.Y = *((float*)(data + sizeof(float)));
-    sourceIlluminant.Z = *((float*)(data + 2 * sizeof(float)));
+    // Write data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
-    targetIlluminant.X = *((float*)(data + 3 * sizeof(float)));
-    targetIlluminant.Y = *((float*)(data + 4 * sizeof(float)));
-    targetIlluminant.Z = *((float*)(data + 5 * sizeof(float)));
+    // Initialize a cmsContext, assuming a default context for simplicity
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    if (context == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
 
-    inputColor.X = *((float*)(data + 6 * sizeof(float)));
-    inputColor.Y = *((float*)(data + 7 * sizeof(float)));
-    inputColor.Z = *((float*)(data + 8 * sizeof(float)));
+    // Call the function-under-test
+    cmsHANDLE handle = cmsIT8LoadFromFile(context, tmpl);
 
-    // Call the function under test
-    cmsBool result = cmsAdaptToIlluminant(&adaptedColor, &sourceIlluminant, &targetIlluminant, &inputColor);
+    // Clean up
+    if (handle != NULL) {
+        cmsIT8Free(handle);
+    }
+    cmsDeleteContext(context);
+    unlink(tmpl);
 
-    // Return 0 to indicate the fuzzer can continue
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_421(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

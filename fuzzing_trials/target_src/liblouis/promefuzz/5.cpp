@@ -1,11 +1,9 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_listTables at metadata.c:1172:1 in liblouis.h
-// lou_getEmphClasses at compileTranslationTable.c:5070:1 in liblouis.h
-// lou_getTable at compileTranslationTable.c:5118:1 in liblouis.h
-// lou_compileString at compileTranslationTable.c:5430:1 in liblouis.h
-// lou_getTable at compileTranslationTable.c:5118:1 in liblouis.h
-// lou_setDataPath at compileTranslationTable.c:59:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
+// lou_getEmphClasses at compileTranslationTable.c:5086:1 in liblouis.h
+// lou_freeEmphClasses at compileTranslationTable.c:5111:1 in liblouis.h
+// lou_getTableInfo at metadata.c:1147:1 in liblouis.h
+// lou_freeTableInfo at metadata.c:1172:1 in liblouis.h
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -14,61 +12,81 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <liblouis.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <iostream>
-
-static void freeStringArray(char **array) {
-    if (array) {
-        for (int i = 0; array[i] != nullptr; ++i) {
-            free(array[i]);
-        }
-        free(array);
-    }
-}
+#include <liblouis.h>
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Prepare a null-terminated string from the input data
-    char *inputData = static_cast<char *>(malloc(Size + 1));
-    if (!inputData) return 0;
-    memcpy(inputData, Data, Size);
-    inputData[Size] = '\0';
-
-    // Test lou_listTables
-    char **tables = lou_listTables();
-    // Only free if tables is not null
-    if (tables) {
-        freeStringArray(tables);
+    if (Size == 0) {
+        return 0;
     }
 
-    // Test lou_getEmphClasses
-    char const **emphClasses = lou_getEmphClasses(inputData);
+    // Prepare a buffer for the tableList
+    char *tableList = new char[Size + 1];
+    memcpy(tableList, Data, Size);
+    tableList[Size] = '\0';
+
+    // Call lou_getEmphClasses and handle the result
+    const char **emphClasses = lou_getEmphClasses(tableList);
     if (emphClasses) {
+        // Iterate through the returned emphasis classes
         for (int i = 0; emphClasses[i] != nullptr; ++i) {
-            free(const_cast<char *>(emphClasses[i]));
+            // Process each emphasis class name (e.g., print or log)
         }
-        free(const_cast<char **>(emphClasses));
+        // Free the allocated emphasis classes
+        lou_freeEmphClasses(emphClasses);
     }
 
-    // Test lou_compileString
-    if (lou_getTable(inputData)) { // Ensure the table is valid before compiling
-        lou_compileString(inputData, inputData);
+    // Call lou_getTableInfo with a dummy key
+    char *tableInfo = lou_getTableInfo(tableList, "dummyKey");
+    if (tableInfo) {
+        // Process the table info string (e.g., print or log)
+        lou_freeTableInfo(tableInfo);
     }
 
-    // Test lou_getTable
-    const void *table = lou_getTable(inputData);
-    // No explicit free function for table as per documentation
+    // Clean up the allocated tableList
+    delete[] tableList;
 
-    // Test lou_setDataPath
-    lou_setDataPath(inputData);
-
-    // Test lou_checkTable
-    lou_checkTable(inputData);
-
-    free(inputData);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

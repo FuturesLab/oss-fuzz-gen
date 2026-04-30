@@ -1,55 +1,40 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
 #include "sqlite3.h"
-
-// Define a callback function to be used with sqlite3_trace
-static void traceCallback(void *unused, const char *sql) {
-    (void)unused; // Avoid unused parameter warning
-    // Just print the SQL statement being traced
-    printf("SQL Trace: %s\n", sql);
-}
+#include <stdint.h>
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_250(const uint8_t *data, size_t size) {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_stmt *next_stmt = NULL;
     int rc;
-    char *errMsg = 0;
 
-    // Initialize SQLite database in-memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
-    }
-
-    // Ensure data is null-terminated before using it as a SQL statement
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Set the trace callback
-    sqlite3_trace(db, traceCallback, NULL);
-
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Clean up
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    // Prepare a simple SQL statement if size is non-zero
+    if (size > 0) {
+        rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+            sqlite3_close(db);
+            return 0;
+        }
     }
-    free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_errcode
-    sqlite3_errcode(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Call the function-under-test
+    next_stmt = sqlite3_next_stmt(db, stmt);
+
+    // Finalize the statement if it was prepared
+    if (stmt != NULL) {
+        sqlite3_finalize(stmt);
+    }
+
+    // Close the database connection
+    sqlite3_close(db);
 
     return 0;
 }

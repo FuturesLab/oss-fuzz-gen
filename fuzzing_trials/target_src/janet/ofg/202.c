@@ -1,29 +1,64 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-
-// Assuming the JanetAtomicInt and DW_TAG_volatile_typeJanetAtomicInt are defined as follows:
-typedef int JanetAtomicInt;
-
-typedef volatile struct {
-    JanetAtomicInt value;
-} DW_TAG_volatile_typeJanetAtomicInt;
-
-// Function-under-test
-JanetAtomicInt janet_atomic_load(DW_TAG_volatile_typeJanetAtomicInt *atomicInt);
+#include <string.h>  // Include for memcpy
+#include <janet.h>
 
 int LLVMFuzzerTestOneInput_202(const uint8_t *data, size_t size) {
-    // Initialize a DW_TAG_volatile_typeJanetAtomicInt with a non-NULL value
-    DW_TAG_volatile_typeJanetAtomicInt atomicInt;
-    atomicInt.value = 42; // Set to a non-zero value
+    // Ensure that the input size is large enough to create a Janet object
+    if (size < sizeof(Janet)) {
+        return 0;
+    }
+
+    // Create a Janet object from the input data
+    Janet janetValue;
+    memcpy(&janetValue, data, sizeof(Janet));
 
     // Call the function-under-test
-    JanetAtomicInt result = janet_atomic_load(&atomicInt);
+    JanetTuple result = janet_unwrap_tuple(janetValue);
 
-    // Use the result in some way to avoid compiler optimizations
-    if (result == 42) {
-        printf("Value is 42\n");
+    // Use the result to avoid compiler optimizations that might skip the call
+    if (result != NULL) {
+        // Do something with result if needed
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_202(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

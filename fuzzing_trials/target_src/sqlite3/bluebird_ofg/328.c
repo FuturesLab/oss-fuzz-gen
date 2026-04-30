@@ -1,46 +1,62 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-        sqlite3_free(NULL);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-    }
+// Define a callback function that matches the expected signature for the busy handler
+int busy_handler_callback(void *ptr, int count) {
+    // Example logic for the busy handler
+    return 0; // Return 0 to indicate that the busy handler should not retry
 }
 
 int LLVMFuzzerTestOneInput_328(const uint8_t *data, size_t size) {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
+    char *errMsg = NULL;
     int rc;
 
-    // Open a new in-memory database
+    // Open an in-memory SQLite database
     rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
+    // Use the provided fuzz data as a pointer to pass to the busy handler
+    void *ptr = (void *)data;
 
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        sqlite3_changes(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Call the function-under-test with the database, callback, and pointer
+    sqlite3_busy_handler(db, busy_handler_callback, ptr);
+
+    // Create a table to perform operations on
+    rc = sqlite3_exec(db, "CREATE TABLE test(id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
+
+    // Ensure the fuzz data is null-terminated before using it in sqlite3_mprintf
+    char *safe_data = strndup((const char *)data, size);
+    if (!safe_data) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare an SQL statement using the fuzz data
+    char *sql = sqlite3_mprintf("INSERT INTO test(value) VALUES(%Q);", safe_data);
+    free(safe_data); // Free the duplicated string
+    if (sql) {
+        // Execute the SQL statement
+        rc = sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+        sqlite3_free(sql);
+    }
+
+    if (errMsg) {
+        sqlite3_free(errMsg);
+    }
+
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

@@ -1,47 +1,59 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_482(const uint8_t *data, size_t size) {
-    // Check if the input data is non-null and has a non-zero size
-    if (data == NULL || size == 0) {
-        return 0;
-    }
-
     sqlite3 *db;
     char *errMsg = 0;
 
-    // Open a new in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open((const char *)"w", &db)) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-        sqlite3_close(db);
+    // Open an in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Convert the input data to a null-terminated string
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_set_last_insert_rowid
-    sqlite3_int64 ret_sqlite3_memory_highwater_qwhli = sqlite3_memory_highwater(-1);
-    sqlite3_set_last_insert_rowid(db, ret_sqlite3_memory_highwater_qwhli);
-    // End mutation: Producer.APPEND_MUTATOR
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
     
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
-        return 0;
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        sqlite3_uint64 ret_sqlite3_msize_hvmnf = sqlite3_msize((void *)errMsg);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        int ret_sqlite3_strlike_rpgxx = sqlite3_strlike(errMsg, errMsg, size);
+        if (ret_sqlite3_strlike_rpgxx < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Clean up
+    if (errMsg) {
+        sqlite3_free(errMsg);
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
-
-    // Execute the SQL command(s) from the input data
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free allocated resources
-    sqlite3_free(errMsg);
-    free(sql);
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

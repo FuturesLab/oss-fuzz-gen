@@ -1,48 +1,72 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <cstring> // Include for memcpy
 
+// Assuming the lou_charSize function is defined in a C library
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h"
+    // Modify the function signature to accept input data
+    int lou_charSize(const uint8_t *data);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Initialize the parameters for lou_backTranslate
-    const char *tableList = "en-us-g2.ctb"; // Example table list
-    widechar inputText[] = {0x0061, 0x0062, 0x0063, 0}; // Example widechar input (abc)
-    int inputLength = sizeof(inputText) / sizeof(widechar) - 1;
-
-    // Allocate memory for output parameters
-    widechar outputText[256];
-    int outputLength = 256;
-    formtype typeforms[256];
-    char spacing[256];
-    int cursorPos = 0;
-    int cursorStatus = 0;
-    int mode = 0;
-
-    // Ensure data is not NULL and size is sufficient
-    if (data == NULL || size < sizeof(inputText)) {
+    // Check if the input size is valid for the function
+    if (size == 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    int result = lou_backTranslate(
-        tableList,
-        inputText,
-        &inputLength,
-        outputText,
-        &outputLength,
-        typeforms,
-        spacing,
-        &cursorPos,
-        &cursorStatus,
-        &mode,
-        static_cast<int>(size)
-    );
+    // Create a buffer to ensure the data passed to lou_charSize is null-terminated
+    uint8_t *buffer = new uint8_t[size + 1];
+    memcpy(buffer, data, size);
+    buffer[size] = '\0'; // Null-terminate the buffer
 
-    // You can add additional verification or processing here if needed
+    // Call the function-under-test with the input data
+    int result = lou_charSize(buffer);
+    
+    // Use the result in some way to avoid compiler optimizations removing the call
+    if (result < 0) {
+        delete[] buffer; // Clean up allocated memory
+        return 1;
+    }
 
+    delete[] buffer; // Clean up allocated memory
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

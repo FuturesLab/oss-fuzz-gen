@@ -1,47 +1,78 @@
-#include <stdint.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    cmsHPROFILE hProfile;
-    cmsInfoType infoType;
-    const char *languageCode = "en";
-    const char *countryCode = "US";
-    char buffer[256];
-    cmsUInt32Number bufferSize = sizeof(buffer);
-
-    // Ensure the data size is sufficient for creating a profile
-    if (size < sizeof(cmsHPROFILE)) {
+    // Ensure the data size is sufficient to create a tone curve
+    if (size < sizeof(cmsFloat32Number)) {
         return 0;
     }
 
-    // Initialize the profile handle from the input data
-    hProfile = cmsOpenProfileFromMem(data, size);
-    if (hProfile == NULL) {
+    // Allocate memory for tone curve parameters
+    cmsFloat32Number *curveParams = (cmsFloat32Number *)malloc(size);
+    if (curveParams == NULL) {
         return 0;
     }
 
-    // Iterate over possible infoType values
-    for (int i = 0; i < 6; i++) {
-        infoType = (cmsInfoType)i;
-
-        // Call the function-under-test
-        cmsGetProfileInfoUTF8(hProfile, infoType, languageCode, countryCode, buffer, bufferSize);
+    // Copy data into curve parameters
+    for (size_t i = 0; i < size / sizeof(cmsFloat32Number); i++) {
+        curveParams[i] = ((cmsFloat32Number *)data)[i];
     }
 
-    // Close the profile handle
+    // Create a tone curve using the parameters
+    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurveFloat(NULL, size / sizeof(cmsFloat32Number), curveParams);
+    if (toneCurve == NULL) {
+        free(curveParams);
+        return 0;
+    }
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetProfileInfoUTF8 to cmsIT8SetData
-        cmsHANDLE ret_cmsIT8Alloc_hyacm = cmsIT8Alloc(0);
+    // Call the function-under-test
+    cmsUInt32Number entries = cmsGetToneCurveEstimatedTableEntries(toneCurve);
 
-        cmsBool ret_cmsIT8SetData_qcams = cmsIT8SetData(ret_cmsIT8Alloc_hyacm, buffer, (const char *)"w", (const char *)data);
-        if (ret_cmsIT8SetData_qcams < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    cmsCloseProfile(hProfile);
+    // Clean up
+    cmsFreeToneCurve(toneCurve);
+    free(curveParams);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_119(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -3,25 +3,62 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to initialize cmsCIExyY
     if (size < sizeof(cmsCIExyY)) {
-        return 0;
+        return 0; // Not enough data to form a cmsCIExyY structure
     }
 
-    // Cast the input data to cmsCIExyY
-    cmsCIExyY *xyY = (cmsCIExyY *)data;
+    // Initialize a cmsCIExyY structure
+    cmsCIExyY ciexyY;
+    ciexyY.x = (double)data[0] / 255.0; // Normalize to [0, 1]
+    ciexyY.y = (double)data[1] / 255.0; // Normalize to [0, 1]
+    ciexyY.Y = (double)data[2] / 255.0; // Normalize to [0, 1]
 
-    // Create a Lab2 profile using the input data
-    cmsHPROFILE profile = cmsCreateLab2Profile(xyY);
+    // Call the function-under-test
+    cmsHPROFILE profile = cmsCreateLab2Profile(&ciexyY);
 
-    // Check if the profile was created successfully
+    // Clean up
     if (profile != NULL) {
-        // Do something with the profile, if needed
-        // ...
-
-        // Release the profile after use
         cmsCloseProfile(profile);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

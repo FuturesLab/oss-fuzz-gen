@@ -1,39 +1,103 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this for size_t
-#include <stdlib.h>  // Include this for NULL
 #include <sqlite3.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
-    // Initialize the SQLite database connection
     sqlite3 *db;
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
-    }
-
-    // Prepare a simple SQLite statement
     sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, "SELECT 1", -1, &stmt, NULL) != SQLITE_OK) {
+    int rc;
+    
+    // Initialize the SQLite database in memory
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+
+    // Create a simple table for testing
+    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value INTEGER);";
+    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
+    if (rc != SQLITE_OK) {
         sqlite3_close(db);
-        return 0; // If preparing the statement fails, exit early
+        return 0;
     }
 
-    // Ensure the integer index is within a reasonable range
-    int index = 0;
-    if (size > 0) {
-        index = data[0] % 10;  // Limit index to a small range for testing
+    // Prepare an SQL statement
+    const char *insert_sql = "INSERT INTO test (id, value) VALUES (?, ?);";
+    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Call the function-under-test
-    // Corrected the function call by using a valid sqlite3_context
-    // Since we don't have a valid context in this scenario, we will skip this part
-    // void *auxdata = sqlite3_get_auxdata((sqlite3_context*)stmt, index);
+    // Ensure that the size is sufficient to extract an integer
+    if (size < sizeof(int)) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
 
-    // Use the returned auxdata in some way, if needed
-    // For fuzzing, we don't need to do anything specific with auxdata
+    // Extract an integer from the data
+    int index = *(int *)data;
 
-    // Finalize the statement and close the database
+    // Ensure that the size is sufficient to extract a 64-bit integer
+    if (size < sizeof(int) + sizeof(sqlite_int64)) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Extract a 64-bit integer from the data
+    sqlite_int64 value = *(sqlite_int64 *)(data + sizeof(int));
+
+    // Bind the integer and 64-bit integer to the SQL statement
+    sqlite3_bind_int64(stmt, 1, index);
+    sqlite3_bind_int64(stmt, 2, value);
+
+    // Execute the SQL statement
+    sqlite3_step(stmt);
+
+    // Clean up
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_147(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

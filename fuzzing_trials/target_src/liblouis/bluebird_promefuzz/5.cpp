@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,62 +9,94 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include "../../liblouis/liblouis.h"
+#include <cstdint>
+#include <cstring>
+#include <fstream>
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    // Prepare a dummy file for table operations
+    std::ofstream dummyFile("./dummy_file");
+    if (!dummyFile.is_open()) {
+        return 0; // Cannot proceed without the dummy file
+    }
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
 
-    // Prepare a null-terminated string from the input data for path
-    char *path = (char *)malloc(Size + 1);
-    if (!path) return 0;
-    memcpy(path, Data, Size);
-    path[Size] = '\0';
+    // 1. Test lou_checkTable
+    char tableList[256];
+    snprintf(tableList, sizeof(tableList), "./dummy_file");
+    lou_checkTable(tableList);
 
-    // Test lou_setDataPath
-    lou_setDataPath(path);
+    // Prepare buffers and variables for other function tests
+    widechar inbuf[256], outbuf[256];
+    int inlen = Size < 256 ? Size : 256;
+    int outlen = 256;
+    formtype typeform[256] = {0};
+    char spacing[256] = {0};
+    int outputPos[256] = {0};
+    int inputPos[256] = {0};
+    int cursorPos = 0;
+    int mode = 0;
 
-    // Test lou_listTables
-    char **tables = lou_listTables();
-    if (tables) {
-        for (int i = 0; tables[i] != NULL; ++i) {
-            free(tables[i]);
-        }
-        free(tables);
+    // Copy data to widechar buffer
+    for (int i = 0; i < inlen; ++i) {
+        inbuf[i] = Data[i];
     }
 
-    // Allocate memory for table files to test lou_freeTableFiles
-    char **tableFiles = (char **)malloc(2 * sizeof(char *));
-    if (tableFiles) {
-        tableFiles[0] = (char *)malloc(10);
-        tableFiles[1] = NULL;
-        if (tableFiles[0]) {
-            strncpy(tableFiles[0], "dummy.txt", 10);
-        }
-        lou_freeTableFiles(tableFiles);
-    }
+    // 2. Test lou_backTranslate
+    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
-    // Allocate memory for a single table file to test lou_freeTableFile
-    char *tableFile = (char *)malloc(10);
-    if (tableFile) {
-        strncpy(tableFile, "dummy.txt", 10);
-        lou_freeTableFile(tableFile);
-    }
+    // 3. Test lou_translate
+    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
 
-    // Allocate memory for emphasis classes to test lou_freeEmphClasses
-    char **emphClasses = (char **)malloc(2 * sizeof(char *));
-    if (emphClasses) {
-        emphClasses[0] = (char *)malloc(10);
-        emphClasses[1] = NULL;
-        if (emphClasses[0]) {
-            strncpy(emphClasses[0], "class1", 10);
-        }
-        lou_freeEmphClasses((const char **)emphClasses);
-    }
+    // 4. Test lou_translateString
+    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
 
-    // Cleanup
-    free(path);
+    // 5. Test lou_dotsToChar
+    lou_dotsToChar(tableList, inbuf, outbuf, inlen, mode);
+
+    // 6. Test lou_backTranslateString
+    lou_backTranslateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

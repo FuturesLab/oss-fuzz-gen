@@ -1,17 +1,108 @@
-#include <stddef.h>
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "zlib.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    const z_crc_t *crc_table = get_crc_table();
-
-    // Use the crc_table in some way to ensure it is not optimized out
-    if (crc_table != NULL && size > 0) {
-        // Perform a simple operation using the crc_table
-        uint32_t crc_value = crc_table[data[0] % 256];
-        (void)crc_value; // Prevent unused variable warning
+    // Compress the input data
+    uLongf compressedSize = compressBound(size);
+    uint8_t *compressedData = (uint8_t *)malloc(compressedSize);
+    if (compressedData == NULL) {
+        return 0;
     }
+
+    if (compress(compressedData, &compressedSize, data, size) != Z_OK) {
+        free(compressedData);
+        return 0;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from compress to deflateGetDictionary
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!compressedData) {
+    	return 0;
+    }
+    int ret_deflateGetDictionary_nqrmt = deflateGetDictionary(0, compressedData, NULL);
+    if (ret_deflateGetDictionary_nqrmt < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        free(compressedData);
+        return 0;
+    }
+
+    // Write the compressed data to the temporary file
+    if (write(fd, compressedData, compressedSize) != (ssize_t)compressedSize) {
+        close(fd);
+        free(compressedData);
+        return 0;
+    }
+
+    // Close the file descriptor so that gzopen can open it
+    close(fd);
+    free(compressedData);
+
+    // Open the file with gzopen
+    gzFile gzfile = gzopen(tmpl, "rb");
+    if (gzfile == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Call the function-under-test
+    off_t offset = gztell(gzfile);
+
+    // Close the gzFile
+    gzclose(gzfile);
+
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

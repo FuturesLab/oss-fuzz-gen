@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library liblouis, aiming to fuzz the following functions:
-// lou_backTranslate at lou_backTranslateString.c:159:1 in liblouis.h
-// lou_translate at lou_translateString.c:1135:1 in liblouis.h
-// lou_translateString at lou_translateString.c:1128:1 in liblouis.h
-// lou_backTranslateString at lou_backTranslateString.c:152:1 in liblouis.h
-// lou_checkTable at compileTranslationTable.c:5238:1 in liblouis.h
-// lou_dotsToChar at lou_translateString.c:4150:1 in liblouis.h
+// lou_compileString at compileTranslationTable.c:5446:1 in liblouis.h
+// lou_getTable at compileTranslationTable.c:5134:1 in liblouis.h
+// lou_getEmphClasses at compileTranslationTable.c:5086:1 in liblouis.h
+// lou_getTypeformForEmphClass at compileTranslationTable.c:5260:1 in liblouis.h
+// lou_findTable at metadata.c:1068:1 in liblouis.h
+// lou_findTables at metadata.c:1115:1 in liblouis.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,82 +15,128 @@
 #include <cstdint>
 #include <cstddef>
 #include <liblouis.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
+
+static void fuzz_lou_compileString(const uint8_t *Data, size_t Size) {
+    if (Size < 2) return; // Ensure there's enough data for at least tableList and inString
+    const char *tableList = reinterpret_cast<const char*>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen >= Size) return; // Ensure null-terminated within bounds
+    const char *inString = reinterpret_cast<const char*>(Data + tableListLen + 1);
+    size_t inStringLen = strnlen(inString, Size - tableListLen - 1);
+    if (tableListLen + inStringLen + 2 > Size) return; // Ensure both strings are null-terminated within bounds
+    if (tableListLen == 0 || inStringLen == 0) return; // Ensure non-empty strings
+    lou_compileString(tableList, inString);
+}
+
+static void fuzz_lou_getTable(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return; // Ensure there's enough data for at least tableList
+    const char *tableList = reinterpret_cast<const char*>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen >= Size) return; // Ensure null-terminated within bounds
+    if (tableListLen == 0) return; // Ensure non-empty string
+    lou_getTable(tableList);
+}
+
+static void fuzz_lou_getEmphClasses(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return; // Ensure there's enough data for at least tableList
+    const char *tableList = reinterpret_cast<const char*>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen >= Size) return; // Ensure null-terminated within bounds
+    if (tableListLen == 0) return; // Ensure non-empty string
+    char const **emphClasses = lou_getEmphClasses(tableList);
+    if (emphClasses) {
+        for (int i = 0; emphClasses[i] != nullptr; ++i) {
+            free((void*)emphClasses[i]);
+        }
+        free(emphClasses);
+    }
+}
+
+static void fuzz_lou_getTypeformForEmphClass(const uint8_t *Data, size_t Size) {
+    if (Size < 2) return; // Ensure there's enough data for at least tableList and emphClass
+    const char *tableList = reinterpret_cast<const char*>(Data);
+    size_t tableListLen = strnlen(tableList, Size);
+    if (tableListLen >= Size) return; // Ensure null-terminated within bounds
+    const char *emphClass = reinterpret_cast<const char*>(Data + tableListLen + 1);
+    size_t emphClassLen = strnlen(emphClass, Size - tableListLen - 1);
+    if (tableListLen + emphClassLen + 2 > Size) return; // Ensure both strings are null-terminated within bounds
+    if (tableListLen == 0 || emphClassLen == 0) return; // Ensure non-empty strings
+    lou_getTypeformForEmphClass(tableList, emphClass);
+}
+
+static void fuzz_lou_findTable(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return; // Ensure there's enough data for at least query
+    const char *query = reinterpret_cast<const char*>(Data);
+    size_t queryLen = strnlen(query, Size);
+    if (queryLen >= Size) return; // Ensure null-terminated within bounds
+    if (queryLen == 0) return; // Ensure non-empty string
+    char *result = lou_findTable(query);
+    if (result) {
+        free(result);
+    }
+}
+
+static void fuzz_lou_findTables(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return; // Ensure there's enough data for at least query
+    const char *query = reinterpret_cast<const char*>(Data);
+    size_t queryLen = strnlen(query, Size);
+    if (queryLen >= Size) return; // Ensure null-terminated within bounds
+    if (queryLen == 0) return; // Ensure non-empty string
+    char **results = lou_findTables(query);
+    if (results) {
+        for (int i = 0; results[i] != nullptr; ++i) {
+            free(results[i]);
+        }
+        free(results);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size < 2) return 0;
-
-    // Prepare dummy file for tableList
-    std::ofstream dummyFile("./dummy_file");
-    if (!dummyFile.is_open()) return 0;
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
-
-    const char* tableList = "./dummy_file";
-    int mode = 0;
-
-    // Prepare buffers and lengths
-    widechar inbuf[256];
-    widechar outbuf[256];
-    formtype typeform[256];
-    char spacing[256];
-    int outputPos[256];
-    int inputPos[256];
-    int cursorPos = 0;
-    int inlen = Size < 256 ? Size : 256;
-    int outlen = 256;
-
-    std::memset(inbuf, 0, sizeof(inbuf));
-    std::memset(outbuf, 0, sizeof(outbuf));
-    std::memset(typeform, 0, sizeof(typeform));
-    std::memset(spacing, 0, sizeof(spacing));
-    std::memset(outputPos, 0, sizeof(outputPos));
-    std::memset(inputPos, 0, sizeof(inputPos));
-
-    // Copy input data to inbuf
-    for (int i = 0; i < inlen; ++i) {
-        inbuf[i] = Data[i];
-    }
-
-    // Fuzzing lou_backTranslate
-    lou_backTranslate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
-
-    // Reset lengths and buffers for next function
-    inlen = Size < 256 ? Size : 256;
-    outlen = 256;
-    std::memset(outbuf, 0, sizeof(outbuf));
-
-    // Fuzzing lou_translate
-    lou_translate(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, outputPos, inputPos, &cursorPos, mode);
-
-    // Reset lengths and buffers for next function
-    inlen = Size < 256 ? Size : 256;
-    outlen = 256;
-    std::memset(outbuf, 0, sizeof(outbuf));
-
-    // Fuzzing lou_translateString
-    lou_translateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
-
-    // Reset lengths and buffers for next function
-    inlen = Size < 256 ? Size : 256;
-    outlen = 256;
-    std::memset(outbuf, 0, sizeof(outbuf));
-
-    // Fuzzing lou_backTranslateString
-    lou_backTranslateString(tableList, inbuf, &inlen, outbuf, &outlen, typeform, spacing, mode);
-
-    // Fuzzing lou_checkTable
-    lou_checkTable(tableList);
-
-    // Reset buffers for next function
-    std::memset(inbuf, 0, sizeof(inbuf));
-    std::memset(outbuf, 0, sizeof(outbuf));
-
-    // Fuzzing lou_dotsToChar
-    lou_dotsToChar(tableList, inbuf, outbuf, inlen, mode);
-
+    fuzz_lou_compileString(Data, Size);
+    fuzz_lou_getTable(Data, Size);
+    fuzz_lou_getEmphClasses(Data, Size);
+    fuzz_lou_getTypeformForEmphClass(Data, Size);
+    fuzz_lou_findTable(Data, Size);
+    fuzz_lou_findTables(Data, Size);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

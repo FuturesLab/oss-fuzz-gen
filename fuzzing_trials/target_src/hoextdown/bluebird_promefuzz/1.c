@@ -1,112 +1,204 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include "/src/hoextdown/src/buffer.h"
 #include "html.h"
 #include "document.h"
-
-static void fuzz_hoedown_buffer_put(hoedown_buffer *buffer, const uint8_t *data, size_t size) {
-    if (buffer && data && size > 0) {
-        hoedown_buffer_put(buffer, data, size);
-    }
-}
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
     if (Size == 0) {
         return 0;
     }
 
-    // Create initial buffers
-    size_t unit_size = 64;
-    hoedown_buffer *buffer1 = hoedown_buffer_new(unit_size);
-    hoedown_buffer *buffer2 = hoedown_buffer_new(unit_size);
-    hoedown_buffer *buffer3 = hoedown_buffer_new(unit_size);
-
-    if (!buffer1 || !buffer2 || !buffer3) {
-        if (buffer1) {
-                hoedown_buffer_free(buffer1);
-        }
-        if (buffer2) {
-                hoedown_buffer_free(buffer2);
-        }
-        if (buffer3) {
-                hoedown_buffer_free(buffer3);
-        
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hoedown_buffer_free to hoedown_autolink__email
-                int ret_hoedown_document_is_escaped_expfg = hoedown_document_is_escaped(NULL);
-                if (ret_hoedown_document_is_escaped_expfg < 0){
-                	return 0;
-                }
-                uint8_t ret_hoedown_document_ul_item_char_sgdyg = hoedown_document_ul_item_char(NULL);
-                if (ret_hoedown_document_ul_item_char_sgdyg < 0){
-                	return 0;
-                }
-                uint8_t ret_hoedown_document_hrule_char_hlchu = hoedown_document_hrule_char(NULL);
-                if (ret_hoedown_document_hrule_char_hlchu < 0){
-                	return 0;
-                }
-                uint8_t ret_hoedown_document_ul_item_char_ofxiw = hoedown_document_ul_item_char(NULL);
-                if (ret_hoedown_document_ul_item_char_ofxiw < 0){
-                	return 0;
-                }
-
-                size_t ret_hoedown_autolink__email_kzxjj = hoedown_autolink__email((size_t *)&ret_hoedown_document_is_escaped_expfg, buffer3, &ret_hoedown_document_ul_item_char_sgdyg, 64, (size_t )ret_hoedown_document_hrule_char_hlchu, (unsigned int )ret_hoedown_document_ul_item_char_ofxiw);
-                if (ret_hoedown_autolink__email_kzxjj < 0){
-                	return 0;
-                }
-
-                // End mutation: Producer.APPEND_MUTATOR
-
-}
+    // 1. Create a new buffer
+    size_t buffer_unit = 64; // Arbitrary non-zero unit size
+    hoedown_buffer *buf = hoedown_buffer_new(buffer_unit);
+    if (!buf) {
         return 0;
     }
 
-    // Append data to buffer1
-    fuzz_hoedown_buffer_put(buffer1, Data, Size);
+    // 2. Put data into the buffer
+    hoedown_buffer_put(buf, Data, Size);
 
-    // Create HTML renderer
-    hoedown_renderer *renderer = hoedown_html_renderer_new(HOEDOWN_HTML_USE_XHTML, 1);
-    if (!renderer) {
-        hoedown_buffer_free(buffer1);
-        hoedown_buffer_free(buffer2);
-        hoedown_buffer_free(buffer3);
-        return 0;
-    }
-
-    // Create document
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of hoedown_document_new
-    hoedown_document *document = hoedown_document_new(renderer, HOEDOWN_EXT_AUTOLINK, 64, 0, NULL, buffer2);
+    // 3. Create a new HTML renderer
+    hoedown_html_flags render_flags = HOEDOWN_HTML_USE_XHTML;
+    int nesting_level = 16; // Arbitrary nesting level
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of hoedown_html_renderer_new
+    hoedown_renderer *renderer = hoedown_html_renderer_new(HOEDOWN_HTML_USE_RADIO_LIST, nesting_level);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (!document) {
-        hoedown_html_renderer_free(renderer);
-        hoedown_buffer_free(buffer1);
-        hoedown_buffer_free(buffer2);
-        hoedown_buffer_free(buffer3);
+    if (!renderer) {
+        hoedown_buffer_free(buf);
         return 0;
     }
 
-    // Render document
-    hoedown_document_render(document, buffer3, Data, Size);
+    // 4. Create a new output buffer
+    hoedown_buffer *output_buf = hoedown_buffer_new(buffer_unit);
+    if (!output_buf) {
+        hoedown_buffer_free(buf);
+        free(renderer);
+        return 0;
+    }
 
-    // Free resources
-    hoedown_document_free(document);
-    hoedown_html_renderer_free(renderer);
-    hoedown_buffer_free(buffer1);
-    hoedown_buffer_free(buffer2);
+    // 5. Create a new meta buffer
+    hoedown_buffer *meta_buf = hoedown_buffer_new(buffer_unit);
+    if (!meta_buf) {
+        hoedown_buffer_free(buf);
+        hoedown_buffer_free(output_buf);
+        free(renderer);
+        return 0;
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hoedown_buffer_free with hoedown_buffer_uninit
-    hoedown_buffer_uninit(buffer3);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // 6. Create a new document
+    hoedown_extensions extensions = HOEDOWN_EXT_TABLES | HOEDOWN_EXT_FENCED_CODE;
+    size_t max_nesting = 16; // Arbitrary non-zero max nesting
+    uint8_t attr_activation = 1; // Enable attributes
+    hoedown_user_block user_block = NULL; // No user block
+    hoedown_document *doc = hoedown_document_new(renderer, extensions, max_nesting, attr_activation, user_block, meta_buf);
+    if (!doc) {
+        hoedown_buffer_free(buf);
+        hoedown_buffer_free(output_buf);
+        hoedown_buffer_free(meta_buf);
+        free(renderer);
+        return 0;
+    }
 
+    // 7. Render the document
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hoedown_document_new to hoedown_document_render_inline
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!doc) {
+    	return 0;
+    }
+    hoedown_link_type ret_hoedown_document_link_type_dywsx = hoedown_document_link_type(doc);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!doc) {
+    	return 0;
+    }
+    uint8_t ret_hoedown_document_ul_item_char_akijt = hoedown_document_ul_item_char(doc);
+    if (ret_hoedown_document_ul_item_char_akijt < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!doc) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hoedown_document_ul_item_char to hoedown_calloc
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!doc) {
+    	return 0;
+    }
+    uint8_t ret_hoedown_document_hrule_char_vtwgj = hoedown_document_hrule_char(doc);
+    if (ret_hoedown_document_hrule_char_vtwgj < 0){
+    	return 0;
+    }
+    void* ret_hoedown_calloc_ohxlj = hoedown_calloc((size_t )ret_hoedown_document_hrule_char_vtwgj, (size_t )ret_hoedown_document_ul_item_char_akijt);
+    if (ret_hoedown_calloc_ohxlj == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hoedown_calloc to hoedown_hash_add
+    hoedown_hash* ret_hoedown_hash_new_woene = hoedown_hash_new(0);
+    if (ret_hoedown_hash_new_woene == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!doc) {
+    	return 0;
+    }
+    uint8_t ret_hoedown_document_fencedcode_char_ffcic = hoedown_document_fencedcode_char(doc);
+    if (ret_hoedown_document_fencedcode_char_ffcic < 0){
+    	return 0;
+    }
+    hoedown_renderer* ret_hoedown_html_toc_renderer_new_ktatk = hoedown_html_toc_renderer_new(0);
+    if (ret_hoedown_html_toc_renderer_new_ktatk == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_hoedown_hash_new_woene) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_hoedown_calloc_ohxlj) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_hoedown_html_toc_renderer_new_ktatk) {
+    	return 0;
+    }
+    int ret_hoedown_hash_add_qtoxc = hoedown_hash_add(ret_hoedown_hash_new_woene, (const char *)ret_hoedown_calloc_ohxlj, (size_t )ret_hoedown_document_fencedcode_char_ffcic, (void *)ret_hoedown_html_toc_renderer_new_ktatk, NULL);
+    if (ret_hoedown_hash_add_qtoxc < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    uint8_t ret_hoedown_document_fencedcode_char_becrz = hoedown_document_fencedcode_char(doc);
+    if (ret_hoedown_document_fencedcode_char_becrz < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!doc) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!meta_buf) {
+    	return 0;
+    }
+    hoedown_document_render_inline(doc, meta_buf, &ret_hoedown_document_ul_item_char_akijt, (size_t )ret_hoedown_document_fencedcode_char_becrz);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hoedown_document_render(doc, output_buf, Data, Size);
+
+    // 8. Cleanup
+    hoedown_document_free(doc);
+    hoedown_buffer_free(meta_buf);
+    hoedown_buffer_free(output_buf);
+    hoedown_buffer_free(buf);
+    hoedown_html_renderer_free(renderer); // Properly free the renderer
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

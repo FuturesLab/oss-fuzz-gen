@@ -1,38 +1,93 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include "lcms2.h"
+#include <wchar.h>
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract values for cmsCIELab structures and cmsFloat64Number
-    if (size < sizeof(cmsCIELab) * 2 + sizeof(cmsFloat64Number) * 3) {
+    // Create a memory context
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    if (context == NULL) {
         return 0;
     }
 
-    // Initialize cmsCIELab structures
-    cmsCIELab Lab1;
-    cmsCIELab Lab2;
+    // Create a dictionary using the provided data
+    cmsHANDLE dict = cmsDictAlloc(context);
 
-    // Extract values for Lab1
-    Lab1.L = *((cmsFloat64Number *)(data));
-    Lab1.a = *((cmsFloat64Number *)(data + sizeof(cmsFloat64Number)));
-    Lab1.b = *((cmsFloat64Number *)(data + 2 * sizeof(cmsFloat64Number)));
+    if (dict == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
 
-    // Extract values for Lab2
-    Lab2.L = *((cmsFloat64Number *)(data + 3 * sizeof(cmsFloat64Number)));
-    Lab2.a = *((cmsFloat64Number *)(data + 4 * sizeof(cmsFloat64Number)));
-    Lab2.b = *((cmsFloat64Number *)(data + 5 * sizeof(cmsFloat64Number)));
+    // Create sample wide character strings for Name and Value
+    const wchar_t *name = L"Key";
+    const wchar_t *value = L"Value";
 
-    // Extract cmsFloat64Number values
-    cmsFloat64Number K_L = *((cmsFloat64Number *)(data + 6 * sizeof(cmsFloat64Number)));
-    cmsFloat64Number K_C = *((cmsFloat64Number *)(data + 7 * sizeof(cmsFloat64Number)));
-    cmsFloat64Number K_H = *((cmsFloat64Number *)(data + 8 * sizeof(cmsFloat64Number)));
+    // Create sample cmsMLU objects for DisplayName and DisplayValue
+    cmsMLU *displayName = cmsMLUalloc(context, 1);
+    cmsMLU *displayValue = cmsMLUalloc(context, 1);
+
+    if (displayName == NULL || displayValue == NULL) {
+        cmsMLUfree(displayName);
+        cmsMLUfree(displayValue);
+        cmsDictFree(dict);
+        cmsDeleteContext(context);
+        return 0;
+    }
+
+    // Add an entry to the dictionary to ensure it is not empty
+    cmsDictAddEntry(dict, name, value, displayName, displayValue);
 
     // Call the function-under-test
-    cmsFloat64Number deltaE = cmsCIE2000DeltaE(&Lab1, &Lab2, K_L, K_C, K_H);
+    const cmsDICTentry *entryList = cmsDictGetEntryList(dict);
 
-    // Use deltaE in some way to avoid compiler optimizations
-    volatile cmsFloat64Number result = deltaE;
-    (void)result;
+    // Clean up
+    cmsMLUfree(displayName);
+    cmsMLUfree(displayValue);
+    cmsDictFree(dict);
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

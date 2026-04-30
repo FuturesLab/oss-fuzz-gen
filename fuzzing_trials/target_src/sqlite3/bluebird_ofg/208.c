@@ -1,45 +1,57 @@
-#include <stddef.h>  // For size_t and NULL
-#include <stdint.h>  // For uint8_t
-#include "sqlite3.h" // For SQLite3 functions
+#include <sys/stat.h>
+#include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
-// Remove the incorrect internal header inclusion
-// #include "/src/sqlite3/bld/sqlite3.h" // This line is not needed
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-// Function prototype for the fuzzer
 int LLVMFuzzerTestOneInput_208(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+
+    // Open a new in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Initialize SQLite
-    sqlite3_initialize();
-
-    // Create a new SQLite database in memory
-    sqlite3 *db;
-    char *errMsg = 0;
-    int rc = sqlite3_open(":memory:", &db);
-
+    // Create a simple table for testing
+    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, NULL);
     if (rc != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
 
-    // Prepare a SQL statement using the fuzz data
-    sqlite3_stmt *stmt;
-    rc = sqlite3_prepare_v2(db, (const char *)data, size, &stmt, NULL);
-
-    if (rc == SQLITE_OK) {
-        // Execute the SQL statement
-        sqlite3_step(stmt);
-        // Finalize the statement to release resources
-        sqlite3_finalize(stmt);
+    // Prepare an SQL statement using the input data
+    const char *sql = "INSERT INTO test (value) VALUES (?);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
     }
 
-    // Close the SQLite database
+    // Bind the input data to the SQL statement
+    if (size > 0) {
+        sqlite3_bind_text(stmt, 1, (const char *)data, size, SQLITE_TRANSIENT);
+    }
+
+    // Call the function-under-test
+    sqlite3_clear_bindings(stmt);
+
+    // Finalize the statement and close the database
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

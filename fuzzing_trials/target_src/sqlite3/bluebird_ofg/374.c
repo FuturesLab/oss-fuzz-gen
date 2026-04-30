@@ -1,49 +1,52 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_374(const uint8_t *data, size_t size) {
     sqlite3 *db;
     char *errMsg = 0;
-    int rc;
-    
-    // Initialize a database in memory
+
+    // Open an in-memory database
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
+    if (sqlite3_open((const char *)"r", &db) != SQLITE_OK) {
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+        return 0;
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errMsg) {
+        	return 0;
+        }
+        int ret_sqlite3_strlike_iuoxn = sqlite3_strlike((const char *)"w", errMsg, -1);
+        if (ret_sqlite3_strlike_iuoxn < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Clean up
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_txn_state
-    void* ret_sqlite3_malloc_hfwlo = sqlite3_malloc(0);
-    if (ret_sqlite3_malloc_hfwlo == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_txn_state_dnauw = sqlite3_txn_state(db, (const char *)ret_sqlite3_malloc_hfwlo);
-    if (ret_sqlite3_txn_state_dnauw < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

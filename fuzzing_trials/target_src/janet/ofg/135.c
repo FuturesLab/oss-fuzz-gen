@@ -1,43 +1,72 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <janet.h>
 
-// Ensure the JanetOSRWLock structure is defined only if not already defined
-#ifndef JANET_OS_RWLOCK_DEFINED
-#define JANET_OS_RWLOCK_DEFINED
-struct JanetOSRWLock {
-    pthread_rwlock_t lock;
-};
-#endif
+// Assuming JanetParser is defined in janet.h or related headers
+// If not, you need to include the appropriate header file where JanetParser is defined
 
-// Function to initialize the JanetOSRWLock
-void janet_os_rwlock_init_135(JanetOSRWLock *rwlock) {
-    pthread_rwlock_init(&rwlock->lock, NULL);
-}
-
-// Function to lock the JanetOSRWLock for reading
-void janet_os_rwlock_rlock_135(JanetOSRWLock *rwlock) {
-    pthread_rwlock_rdlock(&rwlock->lock);
-}
-
-// Function to unlock the JanetOSRWLock
-void janet_os_rwlock_unlock(JanetOSRWLock *rwlock) {
-    pthread_rwlock_unlock(&rwlock->lock);
-}
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    JanetOSRWLock rwlock;
+    // Check if size is sufficient for initializing JanetParser
+    if (size < sizeof(JanetParser)) {
+        return 0;
+    }
 
-    // Initialize the read-write lock
-    janet_os_rwlock_init_135(&rwlock);
+    // Allocate memory for JanetParser
+    JanetParser *parser = (JanetParser *)malloc(sizeof(JanetParser));
+    if (!parser) {
+        return 0;
+    }
+
+    // Initialize the JanetParser with some data
+    // Assuming JanetParser can be initialized with a memory block
+    // This is a placeholder for actual initialization logic
+    // You might need to replace this with the correct initialization function
+    janet_parser_init(parser);
 
     // Call the function-under-test
-    janet_os_rwlock_rlock_135(&rwlock);
+    int result = janet_parser_has_more(parser);
 
-    // Unlock the read-write lock
-    janet_os_rwlock_unlock(&rwlock);
+    // Clean up
+    free(parser);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_135(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

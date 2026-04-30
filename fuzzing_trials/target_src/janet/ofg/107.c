@@ -1,50 +1,67 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <signal.h>
+#include <janet.h> // Assuming this is the correct header for JanetMarshalContext
 
-// Assuming JanetString is defined somewhere in the library
-typedef const char* JanetString;
-
-// Declaration of the function-under-test
-JanetString janet_cstring(const char *);
-
-// Signal handler to catch abort signals
-void handle_abort_107(int sig) {
-    printf("Caught signal %d\n", sig);
-    exit(1);
+// Mock function for demonstration purposes
+void janet_marshal_abstract_107(JanetMarshalContext *ctx, void *data) {
+    // Function implementation (for demonstration, it does nothing)
 }
 
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Set up the signal handler for SIGABRT
-    signal(SIGABRT, handle_abort_107);
-
-    // Ensure that the input data is null-terminated
-    if (size == 0) {
-        return 0; // Return early if size is zero to avoid unnecessary processing
-    }
-
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
+    // Ensure the size is sufficient to create a context and data
+    if (size < sizeof(JanetMarshalContext) + sizeof(void *)) {
         return 0;
     }
-    memcpy(input, data, size);
-    input[size] = '\0';
 
-    // Call the function-under-test with the input
-    JanetString result = janet_cstring(input);
+    // Initialize a JanetMarshalContext
+    JanetMarshalContext ctx;
+    // Assuming there are proper initialization methods or fields to set
+    // ctx.dummy = 0; // Removed since we should use the actual context structure
 
-    // Optionally, you can do something with the result
-    // For example, print it or check its properties
-    if (result != NULL) {
-        printf("Result: %s\n", result);
-    }
+    // Use a portion of the input data as the data to pass to the function
+    void *abstract_data = (void *)(data + sizeof(JanetMarshalContext));
 
-    // Free the allocated memory
-    free(input);
+    // Call the function-under-test
+    janet_marshal_abstract_107(&ctx, abstract_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

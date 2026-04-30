@@ -1,136 +1,84 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "lcms2.h"  // Assuming the Little CMS library is used
+#include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsGDBCheckPoint
-    cmsHPROFILE handle = cmsOpenProfileFromMem(data, size);  // Create a handle from the input data
-    cmsCIELab cielab;
+    cmsToneCurve *toneCurve = NULL;
 
-    // Ensure the handle is not NULL
-    if (handle == NULL) {
+    // Ensure size is large enough to create a tone curve
+    if (size < sizeof(cmsCurveSegment)) {
         return 0;
     }
 
-    // Initialize cmsCIELab with non-NULL values
-    cielab.L = 50.0;  // Example value
-    cielab.a = 0.0;   // Example value
-    cielab.b = 0.0;   // Example value
+    // Create a tone curve with one segment using the data provided
+    cmsCurveSegment segment;
+    segment.nGridPoints = (cmsUInt32Number)(data[0] % 256) + 2; // Ensure at least 2 grid points
+    segment.SampledPoints = (cmsFloat32Number *)malloc(segment.nGridPoints * sizeof(cmsFloat32Number));
 
-    // Call the function under test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetPCS
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetHeaderFlags
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsGetHeaderFlags with cmsGetHeaderModel
-    cmsUInt32Number ret_cmsGetHeaderFlags_vxdxj = cmsGetHeaderModel(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_cmsGetHeaderFlags_vxdxj < 0){
-    	return 0;
+    if (segment.SampledPoints == NULL) {
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of _cmsICCcolorSpace
-    cmsColorSpaceSignature ret__cmsICCcolorSpace_fwbyg = _cmsICCcolorSpace(cmsSPOT_SQUARE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateLinearizationDeviceLink
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsSetColorSpace
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateInkLimitingDeviceLinkTHR
-    cmsContext ret_cmsGetTransformContextID_sguty = cmsGetTransformContextID(0);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTransformContextID to cmsCreateBCHSWabstractProfileTHR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTransformContextID to cmsStageAllocCLut16bit
-    cmsFloat64Number ret_cmsSetAdaptationState_yypiq = cmsSetAdaptationState(DARK_SURROUND);
-    if (ret_cmsSetAdaptationState_yypiq < 0){
-    	return 0;
-    }
-    cmsBool ret_cmsPlugin_uouxa = cmsPlugin((void *)data);
-    if (ret_cmsPlugin_uouxa < 0){
-    	return 0;
+    // Fill the SampledPoints with data
+    for (cmsUInt32Number i = 0; i < segment.nGridPoints; ++i) {
+        segment.SampledPoints[i] = (cmsFloat32Number)data[i % size] / 255.0f; // Normalize to [0, 1]
     }
 
-    cmsStage* ret_cmsStageAllocCLut16bit_snozb = cmsStageAllocCLut16bit(ret_cmsGetTransformContextID_sguty, (unsigned long )ret_cmsSetAdaptationState_yypiq, ret_cmsGetHeaderFlags_vxdxj, cmsSPOT_CROSS, (unsigned short )ret_cmsPlugin_uouxa);
-    if (ret_cmsStageAllocCLut16bit_snozb == NULL){
-    	return 0;
+    // Create a tone curve with the segment
+    toneCurve = cmsBuildTabulatedToneCurveFloat(NULL, segment.nGridPoints, segment.SampledPoints);
+
+    // Check if the tone curve is multisegment
+    if (toneCurve != NULL) {
+        cmsBool result = cmsIsToneCurveMultisegment(toneCurve);
+        (void)result; // Use the result to avoid unused variable warning
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE ret_cmsCreateBCHSWabstractProfileTHR_trpqa = cmsCreateBCHSWabstractProfileTHR(ret_cmsGetTransformContextID_sguty, cmsERROR_UNKNOWN_EXTENSION, PT_MCH10, cmsERROR_READ, PT_YCbCr, INTENT_ABSOLUTE_COLORIMETRIC, INTENT_SATURATION, TRUE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsHPROFILE ret_cmsCreateInkLimitingDeviceLinkTHR_vcukf = cmsCreateInkLimitingDeviceLinkTHR(ret_cmsGetTransformContextID_sguty, ret__cmsICCcolorSpace_fwbyg, PT_HSV);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateInkLimitingDeviceLinkTHR to cmsCreateProofingTransformTHR
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of cmsGetProfileContextID
-    cmsContext ret_cmsGetProfileContextID_uuifs = cmsGetProfileContextID(handle);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    cmsHPROFILE ret_cmsCreateLab4Profile_xwpeb = cmsCreateLab4Profile(NULL);
-
-    cmsHTRANSFORM ret_cmsCreateProofingTransformTHR_vawzr = cmsCreateProofingTransformTHR(ret_cmsGetProfileContextID_uuifs, handle, cmsPERCEPTUAL_BLACK_X, ret_cmsCreateLab4Profile_xwpeb, 0, ret_cmsCreateInkLimitingDeviceLinkTHR_vcukf, 1, cmsNoLanguage, cmsD50X);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_OkLabProfile with cmsCreateProfilePlaceholder
-    cmsHPROFILE ret_cmsCreate_OkLabProfile_yzdfw = cmsCreateProfilePlaceholder(0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    cmsSetColorSpace(ret_cmsCreate_OkLabProfile_yzdfw, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsToneCurve* ret_cmsDupToneCurve_ceffw = cmsDupToneCurve(NULL);
-    if (ret_cmsDupToneCurve_ceffw == NULL){
-    	return 0;
+    // Free resources
+    if (toneCurve != NULL) {
+        cmsFreeToneCurve(toneCurve);
     }
-
-    cmsHPROFILE ret_cmsCreateLinearizationDeviceLink_stxus = cmsCreateLinearizationDeviceLink(ret__cmsICCcolorSpace_fwbyg, &ret_cmsDupToneCurve_ceffw);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsSetPCS(handle, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
-
-    // Close the profile handle
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of cmsMD5computeID
-    cmsMD5computeID(ret_cmsCreateBCHSWabstractProfileTHR_trpqa);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    free(segment.SampledPoints);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_118(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

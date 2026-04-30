@@ -1,84 +1,77 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    if (size < 8) {
+    cmsHANDLE handle;
+    char **properties = NULL;
+    cmsUInt32Number result;
+
+    // Initialize the LCMS context
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
         return 0;
     }
 
-    cmsUInt32Number inputFormat = *(cmsUInt32Number*)(data);
-    cmsUInt32Number outputFormat = *(cmsUInt32Number*)(data + 4);
+    // Ensure that the data is not empty and can be used for further operations
+    if (size > 0) {
+        // Attempt to read the data into the IT8 handle
+        cmsIT8LoadFromMem(handle, data, size);
+    }
 
+    // Call the function under test
+    result = cmsIT8EnumProperties(handle, &properties);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_sRGBProfile with cmsCreateXYZProfile
-    cmsHPROFILE hInputProfile = cmsCreateXYZProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCreate_sRGBProfile with cmsCreateNULLProfile
-    cmsHPROFILE hOutputProfile = cmsCreateNULLProfile();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    if (hInputProfile == NULL || hOutputProfile == NULL) {
-        if (hInputProfile != NULL) {
-                cmsCloseProfile(hInputProfile);
+    // Free allocated resources
+    if (properties != NULL) {
+        for (cmsUInt32Number i = 0; i < result; i++) {
+            free(properties[i]);
         }
-        if (hOutputProfile != NULL) {
-                cmsCloseProfile(hOutputProfile);
-        }
-        return 0;
+        free(properties);
     }
-
-    cmsHTRANSFORM transform = cmsCreateTransform(hInputProfile, inputFormat, hOutputProfile, outputFormat, INTENT_PERCEPTUAL, 0);
-
-    if (transform == NULL) {
-        cmsCloseProfile(hInputProfile);
-        cmsCloseProfile(hOutputProfile);
-        return 0;
-    }
-
-    // Create a small buffer to transform
-    uint8_t inputBuffer[4] = {0, 0, 0, 0};
-    uint8_t outputBuffer[4] = {0};
-
-    // Perform the transformation
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of cmsDoTransform
-    cmsDoTransform(transform, (const void *)data, outputBuffer, 1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransform to cmsDoTransformLineStride
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransform to cmsWriteRawTag
-    cmsHPROFILE ret_cmsCreate_OkLabProfile_waejc = cmsCreate_OkLabProfile(0);
-
-    cmsBool ret_cmsWriteRawTag_lnqqg = cmsWriteRawTag(ret_cmsCreate_OkLabProfile_waejc, 0, outputBuffer, AVG_SURROUND);
-    if (ret_cmsWriteRawTag_lnqqg < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsIOHANDLER* ret_cmsGetProfileIOhandler_csoom = cmsGetProfileIOhandler(hOutputProfile);
-    if (ret_cmsGetProfileIOhandler_csoom == NULL){
-    	return 0;
-    }
-
-    cmsDoTransformLineStride(transform, (const void *)ret_cmsGetProfileIOhandler_csoom, outputBuffer, 0, cmsMAX_PATH, PT_MCH12, PT_YCbCr, PT_HLS, PT_MCH12);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(hInputProfile);
-    cmsCloseProfile(hOutputProfile);
+    cmsIT8Free(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

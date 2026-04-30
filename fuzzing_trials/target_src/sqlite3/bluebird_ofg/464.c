@@ -1,47 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdint.h>
+#include <stddef.h> // Include for size_t
+#include "sqlite3.h"
+
+// Dummy callback function to simulate DW_TAG_subroutine_typeInfinite loop
+void dummy_callback(void *pArg, sqlite3 *db, int eTextRep, const char *zName) {
+    // This is a placeholder function. In a real scenario, this would be replaced with a meaningful implementation.
+}
 
 int LLVMFuzzerTestOneInput_464(const uint8_t *data, size_t size) {
+    sqlite3 *db = NULL;
+    void *pArg = (void *)data; // Using data as a placeholder for the argument
+
+    // Open an in-memory SQLite database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0; // Exit if the database could not be opened
+    }
+
     // Call the function-under-test
-    int version = sqlite3_libversion_number();
+    sqlite3_collation_needed(db, pArg, dummy_callback);
 
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
-        return 0;
-    }
-
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open((const char *)"r", &db);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                sqlite3_close(db);
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
-
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_system_errno
-            sqlite3_system_errno(db);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
-    }
+    // Close the database
+    sqlite3_close(db);
 
     return 0;
 }

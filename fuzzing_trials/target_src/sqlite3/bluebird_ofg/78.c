@@ -1,80 +1,76 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
 #include "sqlite3.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Function to execute a SQL command
-static void execute_sql(sqlite3 *db, const char *sql) {
-    char *errMsg = 0;
-    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    (void)NotUsed;
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
     }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_uri_int64
-    sqlite3_int64 ret_sqlite3_hard_heap_limit64_rzkzo = sqlite3_hard_heap_limit64(0);
-    const char eqbdxlxv[1024] = "yltrn";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sqlite3_uri_int64
-    sqlite3_int64 ret_sqlite3_uri_int64_udrtj = sqlite3_uri_int64(NULL, eqbdxlxv, ret_sqlite3_hard_heap_limit64_rzkzo);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
     sqlite3 *db;
+    char *errMsg = 0;
     int rc;
 
-    // Open a new in-memory database
-    const char lwzpauru[1024] = "zducm";
+    // Initialize database in memory
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(lwzpauru, &db);
+    rc = sqlite3_open((const char *)"r", &db);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database failed, return immediately
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
 
-    // Ensure the database pointer is not NULL
-    if (db != NULL) {
-        // Attempt to execute the input data as SQL command
-        char *sql = (char *)malloc(size + 1);
-        if (sql != NULL) {
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the input data
-            execute_sql(db, sql);
-            free(sql);
-        }
+    // Convert fuzz data to a null-terminated string
 
-        // Close the database
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_db_release_memory
-        sqlite3_db_release_memory(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open16
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_changes_stxhl = sqlite3_changes(db);
+    if (ret_sqlite3_changes_stxhl < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    int ret_sqlite3_open16_cpjue = sqlite3_open16((const void *)db, &db);
+    if (ret_sqlite3_open16_cpjue < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
     
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_db_release_memory to sqlite3_overload_function
-        sqlite3_uint64 ret_sqlite3_msize_rmpev = sqlite3_msize((void *)db);
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_msize to sqlite3_load_extension
-        char* ret_sqlite3_expanded_sql_kcgax = sqlite3_expanded_sql(NULL);
-        if (ret_sqlite3_expanded_sql_kcgax == NULL){
-        	return 0;
-        }
-        char *ezztoefu[1024] = {"mpobo", NULL};
-        int ret_sqlite3_load_extension_eozvc = sqlite3_load_extension(db, ret_sqlite3_expanded_sql_kcgax, db, ezztoefu);
-        if (ret_sqlite3_load_extension_eozvc < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        int ret_sqlite3_overload_function_yqaum = sqlite3_overload_function(db, db, 1);
-        if (ret_sqlite3_overload_function_yqaum < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
+    // Execute SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+    }
+
+    // Clean up
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

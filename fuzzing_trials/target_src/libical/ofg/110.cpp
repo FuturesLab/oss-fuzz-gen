@@ -1,6 +1,4 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,37 +7,72 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to create a valid icalcomponent
-    if (size < 1) {
-        return 0;
+    // Initialize a dummy icalproperty object
+    icalproperty *prop = icalproperty_new(ICAL_TZOFFSETTO_PROPERTY);
+
+    // Ensure that the data is not empty
+    if (size > 0) {
+        // Convert the input data to a string
+        char *data_str = (char *)malloc(size + 1);
+        if (data_str == NULL) {
+            icalproperty_free(prop);
+            return 0;
+        }
+        memcpy(data_str, data, size);
+        data_str[size] = '\0';
+
+        // Set the value of the icalproperty using the input data
+        icalvalue *value = icalvalue_new_string(data_str);
+        icalproperty_set_value(prop, value);
+
+        // Clean up
+        free(data_str);
     }
 
-    // Create an icalcomponent from the input data
-    // Assuming the data is a string representation of an iCalendar component
-    char *ical_str = (char *)malloc(size + 1);
-    if (ical_str == NULL) {
-        return 0;
-    }
-    memcpy(ical_str, data, size);
-    ical_str[size] = '\0';
-
-    icalcomponent *component = icalparser_parse_string(ical_str);
-    free(ical_str);
-
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Call the function-under-test
-    const char *x_name = icalcomponent_get_x_name(component);
-
-    // Print the result for debugging purposes (optional)
-    if (x_name != NULL) {
-        printf("X-Name: %s\n", x_name);
-    }
+    // Call the function under test
+    int offset = icalproperty_get_tzoffsetto(prop);
 
     // Clean up
-    icalcomponent_free(component);
+    icalproperty_free(prop);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_110(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

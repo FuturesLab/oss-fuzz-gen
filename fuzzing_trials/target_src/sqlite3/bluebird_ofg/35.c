@@ -1,52 +1,51 @@
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    (void)NotUsed;
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
     sqlite3 *db;
     char *errMsg = 0;
+    int rc;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Initialize database in memory
+    const char ycmmgxib[1024] = "cohjl";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open(ycmmgxib, &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Ensure the input data is null-terminated
+    // Convert fuzz data to a null-terminated string
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_extended_errcode
-        sqlite3_extended_errcode(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        sqlite3_close(db);
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Free allocated resources
-    if (errMsg) {
+    // Execute SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK) {
         sqlite3_free(errMsg);
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_get_table
-    const void* ret_sqlite3_errmsg16_diimc = sqlite3_errmsg16(db);
-    if (ret_sqlite3_errmsg16_diimc == NULL){
-    	return 0;
-    }
-    sqlite3_uint64 ret_sqlite3_msize_bgcze = sqlite3_msize((void *)db);
-    char **rofgwkrj[1024] = {"kwggk", NULL};
-    int zigtqegn = 0;
-    int tvizcmep = 64;
-    int ret_sqlite3_get_table_wxrcx = sqlite3_get_table(db, db, rofgwkrj, &zigtqegn, &tvizcmep, &errMsg);
-    if (ret_sqlite3_get_table_wxrcx < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Clean up
     free(sql);
     sqlite3_close(db);
 

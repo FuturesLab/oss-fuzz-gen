@@ -1,49 +1,76 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
-#include "janet.h" // Assuming the header file for JanetTable is named janet.h
+#include <janet.h>
 
-// Function signature from the task
-JanetTable *janet_table_init(JanetTable *table, int32_t capacity);
+// Define a dummy Janet value for testing purposes
+static Janet dummy_janet_value() {
+    return janet_wrap_nil();
+}
+
+// Define a dummy JanetTable for testing purposes
+static JanetTable *dummy_janet_table() {
+    return janet_table(0);
+}
 
 int LLVMFuzzerTestOneInput_373(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract an int32_t value
-    if (size < sizeof(int32_t)) {
+    // Ensure the data size is non-zero to avoid passing NULL pointers
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize a JanetTable
-    JanetTable table;
+    // Initialize the Janet environment
+    janet_init();
 
-    // Extract an int32_t value from the input data
-    int32_t capacity;
-    memcpy(&capacity, data, sizeof(int32_t));
+    // Create a dummy Janet value
+    Janet janet_value = dummy_janet_value();
+
+    // Create a dummy JanetTable
+    JanetTable *janet_table = dummy_janet_table();
 
     // Call the function-under-test
-    JanetTable *result = janet_table_init(&table, capacity);
+    JanetCompileResult result = janet_compile(janet_value, janet_table, data);
 
-    // Use the result to prevent compiler optimizations from removing the call
-    if (result != NULL) {
-        // Perform some basic operations to ensure the table is used
-        // This is just to ensure that the function call is not optimized away
-        result->count = 0;
-
-        // Further utilize the table to ensure it is being used
-        // Attempt to insert some data into the table
-        if (size > sizeof(int32_t)) {
-            // Use the rest of the data as key-value pairs
-            size_t remaining_size = size - sizeof(int32_t);
-            const uint8_t *remaining_data = data + sizeof(int32_t);
-
-            // Insert key-value pairs into the table
-            for (size_t i = 0; i + 1 < remaining_size; i += 2) {
-                Janet key = janet_wrap_integer(remaining_data[i]);
-                Janet value = janet_wrap_integer(remaining_data[i + 1]);
-                janet_table_put(result, key, value);
-            }
-        }
-    }
+    // Clean up the Janet environment
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_373(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

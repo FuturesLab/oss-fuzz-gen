@@ -1,43 +1,27 @@
-#include <stdint.h>
-#include <stddef.h> // Include for size_t
+#include <sys/stat.h>
 #include "sqlite3.h"
-#include <string.h> // Include for strlen
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
-extern int LLVMFuzzerTestOneInput_348(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
+int LLVMFuzzerTestOneInput_348(const uint8_t *data, size_t size) {
+    sqlite3 *db = NULL;
+    int result;
+    char db_name[256];
 
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
-    }
+    // Ensure the database name is not empty and fits within the buffer
+    if (size > 0 && size < sizeof(db_name)) {
+        memcpy(db_name, data, size);
+        db_name[size] = '\0'; // Null-terminate the string
 
-    // Ensure the input data is not null, has a reasonable size, and is null-terminated
-    if (data != NULL && size > 0) {
-        // Allocate a buffer for the SQL statement and ensure it's null-terminated
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
+        // Call the function-under-test
+        result = sqlite3_open(db_name, &db);
+
+        // Close the database if it was opened
+        if (result == SQLITE_OK && db != NULL) {
             sqlite3_close(db);
-            return 0; // Exit if memory allocation fails
         }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
-
-        // Use the data in some way, e.g., as a SQL statement
-        char *errMsg = 0;
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-
-        free(sql); // Free the allocated buffer
     }
-
-    // Close the database
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    sqlite3_changes(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
     return 0;
 }

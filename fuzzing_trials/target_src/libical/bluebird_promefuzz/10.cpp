@@ -1,88 +1,97 @@
+#include <sys/stat.h>
+#include <string.h>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdint>
+#include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <string>
-#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) + sizeof(int)) {
-        return 0;
-    }
+    if (Size == 0) return 0;
 
-    // Create a dummy file if needed
-    std::ofstream dummyFile("./dummy_file");
-    if (!dummyFile.is_open()) {
-        return 0;
-    }
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
+    // Convert input data to a string
+    std::string input(reinterpret_cast<const char*>(Data), Size);
 
-    // Extract data from input
-    int year = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
+    // Create icalcomponent from input string
+    icalcomponent *comp = icalcomponent_new_from_string(input.c_str());
 
-    int componentType = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
+    if (comp != NULL) {
+        // Fuzz icalcomponent_set_description
+        icalcomponent_set_description(comp, "Sample Description");
 
-    // Initialize timezone
-    icaltimezone *timezone = icaltimezone_get_utc_timezone();
-
-    // Initialize icaltimetype
-    icaltimetype timeType;
-    timeType.year = year;
-    timeType.zone = timezone;
-
-    // Initialize icalcomponent
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(componentType % ICAL_NUM_COMPONENT_TYPES);
-    icalcomponent *component = icalcomponent_new(kind);
-
-    if (!component) {
-        return 0;
-    }
-
-    // Fuzz the target functions
-    try {
-        // icalcomponent_set_due
-        if (kind == ICAL_VTODO_COMPONENT) {
-
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_due with icalcomponent_set_dtend
-            icalcomponent_set_dtend(component, timeType);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+        // Fuzz icalcomponent_get_description
+        const char *description = icalcomponent_get_description(comp);
+        if (description) {
+            std::cout << "Description: " << description << std::endl;
         }
 
-        // icalcomponent_set_dtstart
-        icalcomponent_set_dtstart(component, timeType);
+        // Fuzz icalcomponent_set_location
+        icalcomponent_set_location(comp, "Sample Location");
 
-        // icalcomponent_set_dtend
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_dtend with icalcomponent_set_recurrenceid
-        icalcomponent_set_recurrenceid(component, timeType);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // icalcomponent_set_recurrenceid
-        icalcomponent_set_recurrenceid(component, timeType);
-
-        // icalcomponent_set_dtstamp
-        icalcomponent_set_dtstamp(component, timeType);
-
-        // icalcomponent_new_valarm
-        icalcomponent *valarm = icalcomponent_new_valarm();
-        if (valarm) {
-            icalcomponent_free(valarm);
+        // Fuzz icalcomponent_get_location
+        const char *location = icalcomponent_get_location(comp);
+        if (location) {
+            std::cout << "Location: " << location << std::endl;
         }
-    } catch (...) {
-        // Handle any exceptions
-    }
 
-    // Cleanup
-    icalcomponent_free(component);
+        // Fuzz icalcomponent_get_x_name
+        const char *x_name = icalcomponent_get_x_name(comp);
+        if (x_name) {
+            std::cout << "X-Name: " << x_name << std::endl;
+        }
+
+        // Clean up
+        icalcomponent_free(comp);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

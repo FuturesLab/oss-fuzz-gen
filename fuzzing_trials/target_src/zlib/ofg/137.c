@@ -3,53 +3,68 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    z_stream stream;
-    int ret;
-    unsigned char outbuffer[1024]; // Buffer for decompressed data
-    int have;
-
-    // Initialize the z_stream structure
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    stream.avail_in = 0;
-    stream.next_in = Z_NULL;
-
-    // Initialize the stream for inflation
-    ret = inflateInit(&stream);
-    if (ret != Z_OK) {
+    // Ensure the size is sufficient for initializing z_stream
+    if (size < sizeof(z_stream)) {
         return 0;
     }
 
-    // Set the input data for the stream
-    stream.avail_in = size;
+    // Initialize a z_stream structure
+    z_stream stream;
     stream.next_in = (Bytef *)data;
+    stream.avail_in = (uInt)size;
+    stream.total_in = 0;
 
-    // Decompress the data until the output buffer is not full
-    do {
-        stream.avail_out = sizeof(outbuffer);
-        stream.next_out = outbuffer;
-        
-        ret = inflate(&stream, Z_NO_FLUSH);
-        if (ret == Z_STREAM_ERROR) {
-            // Stream state was inconsistent
-            break;
-        }
+    stream.next_out = Z_NULL;
+    stream.avail_out = 0;
+    stream.total_out = 0;
 
-        switch (ret) {
-        case Z_NEED_DICT:
-        case Z_DATA_ERROR:
-        case Z_MEM_ERROR:
-            inflateEnd(&stream);
-            return 0;
-        }
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
 
-        have = sizeof(outbuffer) - stream.avail_out;
-        // Optionally process the decompressed data in outbuffer
-    } while (stream.avail_out == 0);
+    // Call the function-under-test
+    int result = inflateReset(&stream);
 
-    // Clean up
-    inflateEnd(&stream);
-
+    // Normally, we would handle the result or further process the stream,
+    // but for fuzzing purposes, we just return 0.
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_137(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

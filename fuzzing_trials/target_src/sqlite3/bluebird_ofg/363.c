@@ -1,48 +1,61 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include "sqlite3.h"
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_363(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    int version = sqlite3_libversion_number();
-
-    // Use the returned version number in some way to avoid compiler optimizations
-    if (version == 0) {
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    char *errMsg = 0;
+    
+    // Initialize SQLite in-memory database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc) {
+        sqlite3_close(db);
         return 0;
     }
 
-    // Use the input data in some way to maximize fuzzing result
-    if (size > 0 && data != NULL) {
-        sqlite3 *db;
-        const char szrtjywl[1024] = "ehqzl";
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-        int rc = sqlite3_open(szrtjywl, &db);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        if (rc == SQLITE_OK) {
-            // Allocate memory for the SQL statement and ensure it's null-terminated
-            char *sql = (char *)malloc(size + 1);
-            if (sql == NULL) {
-                // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_errcode
-                sqlite3_errcode(db);
-                // End mutation: Producer.REPLACE_FUNC_MUTATOR
-                return 0;
-            }
-            memcpy(sql, data, size);
-            sql[size] = '\0'; // Null-terminate the SQL statement
-
-            // Attempt to create a table using the input data as SQL statement
-            char *errMsg = 0;
-            sqlite3_exec(db, sql, 0, 0, &errMsg);
-            sqlite3_free(errMsg);
-            sqlite3_close(db);
-
-            // Free the allocated memory for the SQL statement
-            free(sql);
-        }
+    // Create a simple table for testing
+    const char *createTableSQL = "CREATE TABLE test (id INTEGER, value REAL);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
     }
+
+    // Insert a sample row into the table
+    const char *insertSQL = "INSERT INTO test (id, value) VALUES (1, 3.14);";
+    rc = sqlite3_exec(db, insertSQL, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Prepare a statement to select the value
+    const char *selectSQL = "SELECT value FROM test WHERE id = 1;";
+    rc = sqlite3_prepare_v2(db, selectSQL, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return 0;
+    }
+
+    // Execute the statement
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        // Use the fuzz data to determine the column index
+        int columnIndex = (size > 0) ? data[0] % sqlite3_column_count(stmt) : 0;
+
+        // Call the function-under-test
+        double value = sqlite3_column_double(stmt, columnIndex);
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     return 0;
 }

@@ -1,58 +1,89 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include "document.h"  // Correct path for hoedown_document functions
-#include "/src/hoextdown/src/buffer.h"    // Include buffer.h for hoedown_buffer
-#include "html.h"      // Include html.h for hoedown_renderer functions
+#include "document.h" // Correct path for hoedown_document and related functions
+#include "/src/hoextdown/src/buffer.h" // Include necessary for hoedown_buffer
+#include "html.h" // Include necessary for hoedown_html_renderer
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    hoedown_document *doc = NULL;
-
+    // Initialize a hoedown_renderer object using a specific renderer like HTML
     // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of hoedown_html_renderer_new
-    hoedown_renderer *renderer = hoedown_html_renderer_new(HOEDOWN_HTML_USE_RADIO_LIST, 0); // Assuming a function to create a renderer
+    hoedown_renderer *renderer = hoedown_html_renderer_new(HOEDOWN_HTML_USE_RADIO_LIST, 0); // Initialize renderer with appropriate flags
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-
-    hoedown_buffer *meta = hoedown_buffer_new(64); // Assuming a function to create a buffer
-
-    // Initialize the hoedown_document structure with appropriate arguments
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hoedown_document_new
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of hoedown_document_new
-    doc = hoedown_document_new(renderer, HOEDOWN_EXT_SUPERSCRIPT, 16, 0, NULL, meta);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    if (doc == NULL) {
-        hoedown_html_renderer_free(renderer);
-        hoedown_buffer_free(meta);
-        return 0; // Exit if document creation failed
+    // Check if the renderer is successfully created
+    if (renderer == NULL) {
+        return 0;
     }
 
-    // Create an output buffer for the rendered document
+    // Create a hoedown_buffer for output
     hoedown_buffer *ob = hoedown_buffer_new(64);
 
-    // Call the function under test with the input data
-    if (size > 0) {
+    // Check if the buffer is successfully created
+    if (ob == NULL) {
+        hoedown_html_renderer_free(renderer);
+        return 0;
+    }
+
+    // Initialize hoedown_document with all required parameters
+    hoedown_document *doc = hoedown_document_new(renderer, 0, 16, 0, NULL, NULL);
+
+    // Check if the document is successfully created
+    if (doc == NULL) {
+        hoedown_buffer_free(ob);
+        hoedown_html_renderer_free(renderer);
+        return 0;
+    }
+
+    // Call the function-under-test using the input data
+    if (size > 0 && data != NULL) {
         hoedown_document_render(doc, ob, data, size);
     }
 
-    // Cleanup
+    // Clean up
     hoedown_document_free(doc);
-    hoedown_html_renderer_free(renderer);
     hoedown_buffer_free(ob);
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hoedown_buffer_free with hoedown_buffer_reset
-    hoedown_buffer_reset(meta);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    hoedown_html_renderer_free(renderer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

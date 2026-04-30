@@ -1,80 +1,80 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsTagSignature) + sizeof(void*)) {
-        return 0; // Not enough data to proceed
-    }
+    cmsCIEXYZ blackPoint;
+    cmsHPROFILE hProfile;
+    cmsUInt32Number intent = 0;
+    cmsUInt32Number flags = 0;
 
-    // Initialize variables
+    // Initialize blackPoint with some non-NULL values
+    blackPoint.X = 0.0;
+    blackPoint.Y = 0.0;
+    blackPoint.Z = 0.0;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of cmsOpenProfileFromMem
-    cmsHPROFILE hProfile = cmsOpenProfileFromMem((const void *)data, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    cmsTagSignature tagSig = *(cmsTagSignature*)data;
-    const void *tagData = (const void*)(data + sizeof(cmsTagSignature));
-
-    // Ensure hProfile is valid
-    if (hProfile == NULL) {
-        return 0;
+    // Create a profile from memory if possible
+    if (size > 0) {
+        hProfile = cmsOpenProfileFromMem(data, size);
+        if (hProfile == NULL) {
+            return 0; // Exit if profile creation fails
+        }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetColorSpace
+        cmsColorSpaceSignature ret__cmsICCcolorSpace_vysrs = _cmsICCcolorSpace(INTENT_RELATIVE_COLORIMETRIC);
+        cmsSetColorSpace(hProfile, ret__cmsICCcolorSpace_vysrs);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+} else {
+        return 0; // Exit if size is zero
     }
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of cmsWriteTag
-    char wvrjmxjo[1024] = "yluop";
-    cmsBool result = cmsWriteTag(hProfile, tagSig, wvrjmxjo);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    cmsBool result = cmsDetectDestinationBlackPoint(&blackPoint, hProfile, intent, flags);
 
     // Close the profile
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMD5computeID with cmsIsMatrixShaper
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsIsMatrixShaper with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMD5computeID with cmsCloseProfile
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsWriteTag to cmsIT8SetTable
-    cmsHANDLE ret_cmsIT8Alloc_ibcer = cmsIT8Alloc(0);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsIT8Alloc to cmsCIECAM02Reverse
-    const cmsJCh kskpcjoq;
-    memset(&kskpcjoq, 0, sizeof(kskpcjoq));
-    cmsCIEXYZ tvttlfyy;
-    memset(&tvttlfyy, 0, sizeof(tvttlfyy));
-
-    cmsCIECAM02Reverse(ret_cmsIT8Alloc_ibcer, &kskpcjoq, &tvttlfyy);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsInt32Number ret_cmsIT8SetTable_ewvqr = cmsIT8SetTable(ret_cmsIT8Alloc_ibcer, (unsigned long )result);
-    if (ret_cmsIT8SetTable_ewvqr < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     cmsCloseProfile(hProfile);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

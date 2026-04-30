@@ -1,39 +1,37 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <lcms2.h>
+#include <string.h> // Include for snprintf
 
-extern int LLVMFuzzerTestOneInput_286(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return 0;  // Not enough data to proceed
-    }
-
+int LLVMFuzzerTestOneInput_286(const uint8_t *data, size_t size) {
     cmsNAMEDCOLORLIST *namedColorList = NULL;
-    cmsContext contextID = cmsCreateContext(NULL, NULL);
+    cmsContext context = cmsCreateContext(NULL, NULL);
 
-    // Use the first byte of data to determine the number of colors (limit to 10 for safety)
-    int numColors = data[0] % 10 + 1;
-
-    // Create a named color list with the determined number of colors
-    namedColorList = cmsAllocNamedColorList(contextID, numColors, 32, "Prefix", "Suffix");
-    if (namedColorList == NULL) {
-        cmsDeleteContext(contextID);
+    if (context == NULL) {
         return 0;
     }
 
-    // Add colors to the named color list using input data
-    for (int i = 0; i < numColors; i++) {
-        char name[32];
-        snprintf(name, sizeof(name), "Color%d", i);
+    // Create a named color list with a reasonable number of colors
+    namedColorList = cmsAllocNamedColorList(context, 10, 32, "prefix", "suffix");
+    if (namedColorList == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
 
-        // Use subsequent bytes of data to determine PCS and colorant values
-        cmsUInt16Number PCS[3] = { (cmsUInt16Number)(data[(i * 3 + 1) % size] * 256), 
-                                   (cmsUInt16Number)(data[(i * 3 + 2) % size] * 256), 
-                                   (cmsUInt16Number)(data[(i * 3 + 3) % size] * 256) };
-        cmsUInt16Number colorant[3] = { (cmsUInt16Number)(data[(i * 3 + 1) % size] * 256), 
-                                        (cmsUInt16Number)(data[(i * 3 + 2) % size] * 256), 
-                                        (cmsUInt16Number)(data[(i * 3 + 3) % size] * 256) };
-        cmsAppendNamedColor(namedColorList, name, PCS, colorant);
+    // Add some named colors to the list
+    char colorName[32];
+    cmsUInt16Number deviceColorant[4];
+    cmsCIEXYZ PCS = {0, 0, 0}; // Initialize PCS to zero
+
+    for (int i = 0; i < 10; i++) {
+        snprintf(colorName, sizeof(colorName), "Color%d", i);
+        deviceColorant[0] = (cmsUInt16Number)(i * 1000);
+        deviceColorant[1] = (cmsUInt16Number)(i * 1000);
+        deviceColorant[2] = (cmsUInt16Number)(i * 1000);
+        deviceColorant[3] = (cmsUInt16Number)(i * 1000);
+        cmsAppendNamedColor(namedColorList, colorName, &PCS, deviceColorant);
     }
 
     // Call the function-under-test
@@ -41,7 +39,46 @@ extern int LLVMFuzzerTestOneInput_286(const uint8_t *data, size_t size) {
 
     // Clean up
     cmsFreeNamedColorList(namedColorList);
-    cmsDeleteContext(contextID);
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_286(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

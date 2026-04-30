@@ -1,49 +1,66 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
-int LLVMFuzzerTestOneInput_270(const uint8_t *data, size_t size) {
-    // Initialize variables
-    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3); // Allocate a pipeline with 3 input and 3 output channels
-    cmsUInt32Number stageIndex = 0; // Initialize stage index
+// Define a dummy callback function for the void* parameter
+void dummyCallback(void) {
+    // This function does nothing, it's just a placeholder
+}
 
-    // Ensure the pipeline is not NULL
+int LLVMFuzzerTestOneInput_270(const uint8_t *data, size_t size) {
+    // Initialize the cmsPipeline structure
+    cmsPipeline *pipeline = cmsPipelineAlloc(NULL, 3, 3);
     if (pipeline == NULL) {
         return 0;
     }
 
-    // Add a simple identity stage to the pipeline for testing
-    cmsStage *identityStage = cmsStageAllocIdentity(NULL, 3);
-    if (identityStage == NULL) {
-        cmsPipelineFree(pipeline);
-        return 0;
-    }
-    cmsPipelineInsertStage(pipeline, cmsAT_BEGIN, identityStage);
+    // Initialize a cmsUInt32Number variable
+    cmsUInt32Number stageIndex = 0;
 
-    // Check if the input data is large enough to be used meaningfully
-    if (size < 3 * sizeof(cmsFloat32Number)) {
-        cmsPipelineFree(pipeline);
-        return 0;
-    }
-
-    // Convert input data to float array for the pipeline
-    cmsFloat32Number input[3];
-    for (int i = 0; i < 3; i++) {
-        input[i] = ((cmsFloat32Number)data[i]) / 255.0f; // Normalize data to [0, 1]
-    }
-
-    // Prepare an output buffer
-    cmsFloat32Number output[3];
-
-    // Evaluate the pipeline with the input data
-    cmsPipelineEvalFloat(input, output, pipeline);
-
-    // Call the function-under-test with a valid stage index and a non-null pointer
-    cmsStage *retrievedStage;
-    cmsBool result = cmsPipelineCheckAndRetreiveStages(pipeline, stageIndex, &retrievedStage);
+    // Call the function-under-test
+    cmsBool result = cmsPipelineCheckAndRetreiveStages(pipeline, stageIndex, dummyCallback);
 
     // Clean up
     cmsPipelineFree(pipeline);
 
-    return result ? 0 : 1;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_270(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,36 +1,75 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include this for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Ensure the size is enough to create a valid icaldurationtype
-    if (size < sizeof(int) * 6) {
-        return 0;
+    // Create a temporary buffer to store the input data as a string
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0'; // Null-terminate the string
+
+    // Initialize an icalproperty object
+    icalproperty *property = icalproperty_new_from_string(inputData);
+    if (property != NULL) {
+        // Call the function under test
+        const char *description = icalproperty_get_styleddescription(property);
+
+        // Optionally, you can add code to do something with 'description'
+        // For example, checking its validity or printing it for debugging
+        // However, since this is a fuzzing harness, we generally don't need to do anything with it
+
+        // Free the icalproperty object
+        icalproperty_free(property);
     }
 
-    // Create an icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Initialize an icaldurationtype with data
-    struct icaldurationtype duration;
-    duration.is_neg = data[0] % 2; // Use the first byte for is_neg
-    duration.weeks = data[1];      // Use the second byte for weeks
-    duration.days = data[2];       // Use the third byte for days
-    duration.hours = data[3];      // Use the fourth byte for hours
-    duration.minutes = data[4];    // Use the fifth byte for minutes
-    duration.seconds = data[5];    // Use the sixth byte for seconds
-
-    // Call the function-under-test
-    icalcomponent_set_duration(component, duration);
-
-    // Clean up
-    icalcomponent_free(component);
+    // Free the allocated input data
+    free(inputData);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_64(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,42 +1,54 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
 #include <string.h>
 
 int LLVMFuzzerTestOneInput_310(const uint8_t *data, size_t size) {
     sqlite3 *db;
-    sqlite3_stmt *stmt;
+    char *errMsg = 0;
     int rc;
 
-    // Initialize SQLite in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Initialize SQLite (required before using any SQLite functions)
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
 
-    // Create a simple table for testing
-    const char *create_table_sql = "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);";
-    rc = sqlite3_exec(db, create_table_sql, 0, 0, 0);
+    // Open an in-memory SQLite database
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0;
+    }
+
+    // Ensure the input data is null-terminated
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
         sqlite3_close(db);
+        sqlite3_shutdown();
         return 0;
     }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Prepare a statement from the input data
-    const char *sql = (const char *)data;
-    rc = sqlite3_prepare_v2(db, sql, size, &stmt, NULL);
+    // Attempt to execute the input data as SQL
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of sqlite3_exec
+    rc = sqlite3_exec(db, (const char *)"r", 0, 0, &errMsg);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
     if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return 0;
+        sqlite3_free(errMsg);
     }
 
-    // Execute the statement
-    sqlite3_step(stmt);
+    // Free the allocated memory for SQL
+    free(sql);
 
-    // Finalize the statement and close the database
-    sqlite3_finalize(stmt);
+    // Close the database
     sqlite3_close(db);
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
 
     return 0;
 }

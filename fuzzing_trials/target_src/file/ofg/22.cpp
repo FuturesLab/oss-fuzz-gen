@@ -1,27 +1,86 @@
-#include <cstdint>
-#include <cstdlib>
-#include <climits>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <magic.h>
 
+extern "C" {
+    // Include necessary C headers, source files, functions, and code here.
+    #include <magic.h>
+}
+
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Ensure that we have enough data to extract an integer value.
+    struct magic_set *ms;
+    int param;
+    void *value;
+    int result;
+
+    // Initialize the magic_set structure
+    ms = magic_open(MAGIC_NONE);
+    if (ms == NULL) {
+        return 0; // If initialization fails, exit early
+    }
+
+    // Ensure the data size is sufficient for extracting an integer
     if (size < sizeof(int)) {
+        magic_close(ms);
         return 0;
     }
 
-    // Extract an integer value from the input data.
-    int flags = 0;
-    for (size_t i = 0; i < sizeof(int); ++i) {
-        flags |= static_cast<int>(data[i]) << (i * CHAR_BIT);
+    // Extract an integer from the data for the param
+    param = *(reinterpret_cast<const int*>(data));
+
+    // Allocate memory for the value
+    value = malloc(256); // Allocate 256 bytes for the value
+    if (value == NULL) {
+        magic_close(ms);
+        return 0;
     }
 
-    // Call the function-under-test.
-    magic_t magic_cookie = magic_open(flags);
+    // Call the function-under-test
+    result = magic_getparam(ms, param, value);
 
-    // Clean up if necessary.
-    if (magic_cookie != nullptr) {
-        magic_close(magic_cookie);
-    }
+    // Clean up
+    free(value);
+    magic_close(ms);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

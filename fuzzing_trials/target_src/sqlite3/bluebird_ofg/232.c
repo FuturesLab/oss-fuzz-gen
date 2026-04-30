@@ -1,46 +1,56 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "sqlite3.h"
-#include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 
+// Fuzzing function
 int LLVMFuzzerTestOneInput_232(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to split into meaningful parts
-    if (size < 2) {
+    // Convert input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        return 0; // Fail gracefully on allocation failure
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Initialize an SQLite database in memory
+    sqlite3 *db;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(sql);
         return 0;
     }
 
-    // Initialize SQLite variables
-    sqlite3 *db = NULL;
-    int rc;
-
-    // Open an in-memory SQLite database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        return 0;
-    }
-
-    // Prepare a null-terminated string from the fuzzing data
-    size_t str_size = size - 1;
-    char *client_data_key = (char *)malloc(str_size + 1);
-    if (client_data_key == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(client_data_key, data, str_size);
-    client_data_key[str_size] = '\0';
-
-    // Execute SQL command
+    // Execute the SQL statement
     char *errMsg = 0;
-    rc = sqlite3_exec(db, client_data_key, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-    }
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Clean up
-    free(client_data_key);
+    // Free resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strlike
+    void* ret_sqlite3_malloc_weztb = sqlite3_malloc(0);
+    if (ret_sqlite3_malloc_weztb == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_weztb) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strlike_wbpqu = sqlite3_strlike((const char *)ret_sqlite3_malloc_weztb, errMsg, 64);
+    if (ret_sqlite3_strlike_wbpqu < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sqlite3_free(errMsg);
     sqlite3_close(db);
+    free(sql);
 
     return 0;
 }

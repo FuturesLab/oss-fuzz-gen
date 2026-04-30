@@ -3,34 +3,65 @@
 #include <zlib.h>
 
 int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    z_stream stream;
-    int bits = 0;
-    int value = 0;
-
-    // Initialize the z_stream structure
-    stream.zalloc = Z_NULL;
-    stream.zfree = Z_NULL;
-    stream.opaque = Z_NULL;
-    stream.avail_in = 0;
-    stream.next_in = Z_NULL;
-
-    // Initialize the inflate state
-    if (inflateInit(&stream) != Z_OK) {
+    // Ensure there is enough data to work with
+    if (size < 1) {
         return 0;
     }
 
-    // Ensure size is sufficient to extract bits and value
-    if (size >= 2) {
-        bits = data[0] % 16; // Limit bits to a reasonable range
-        value = data[1];
+    // Allocate output buffer with a size larger than the input buffer
+    uLongf destLen = compressBound((uLong)size);
+    Bytef *dest = (Bytef *)malloc(destLen);
+    if (dest == NULL) {
+        return 0;
     }
 
-    // Call the function-under-test
-    inflatePrime(&stream, bits, value);
+    // Set the compression level to a valid value
+    int level = Z_DEFAULT_COMPRESSION;
 
-    // Clean up
-    inflateEnd(&stream);
+    // Call the function-under-test
+    int result = compress2(dest, &destLen, data, (uLong)size, level);
+
+    // Free the allocated memory
+    free(dest);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_56(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

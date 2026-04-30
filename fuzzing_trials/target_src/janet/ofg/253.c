@@ -1,43 +1,76 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include <janet.h>
 
+extern void * janet_getpointer(const Janet *array, int32_t index);
+
 int LLVMFuzzerTestOneInput_253(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract the required parameters
-    if (size < sizeof(int32_t) * 2 + sizeof(uint8_t)) {
+    if (size < sizeof(Janet) + sizeof(int32_t)) {
         return 0;
     }
 
-    // Initialize Janet VM
+    // Initialize the Janet environment
     janet_init();
 
-    // Create an empty Janet array
-    JanetArray *array = janet_array(0);
-    Janet janet_array = janet_wrap_array(array);
+    // Initialize a Janet value from the input data
+    Janet janet_value;
+    memcpy(&janet_value, data, sizeof(Janet));
 
-    int32_t n = *((int32_t *)(data));
-    int32_t def = *((int32_t *)(data + sizeof(int32_t)));
-    const uint8_t *opt = data + sizeof(int32_t) * 2;
-
-    // Ensure 'opt' is a valid null-terminated string for janet_optkeyword
-    uint8_t opt_str[256];
-    size_t opt_len = size - (sizeof(int32_t) * 2);
-    if (opt_len >= sizeof(opt_str)) {
-        opt_len = sizeof(opt_str) - 1;
-    }
-    memcpy(opt_str, opt, opt_len);
-    opt_str[opt_len] = '\0';
-
-    // Ensure 'n' is within bounds of the array to prevent out-of-bounds access
-    if (n < 0 || n >= array->count) {
-        n = 0; // Default to a safe index
+    // Use the remaining data as the index
+    int32_t index = 0;
+    if (size >= sizeof(Janet) + sizeof(int32_t)) {
+        memcpy(&index, data + sizeof(Janet), sizeof(int32_t));
     }
 
-    // Call the function-under-test
-    JanetKeyword result = janet_optkeyword(&janet_array, n, def, opt_str);
+    // Ensure the Janet value is valid before passing it to the function
+    if (janet_checktype(janet_value, JANET_ARRAY)) {
+        // Call the function-under-test
+        void *result = janet_getpointer(&janet_value, index);
+        (void)result; // Suppress unused variable warning
+    }
 
-    // Clean up Janet VM
+    // Deinitialize the Janet environment
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_253(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,32 +1,86 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <magic.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+extern "C" {
+    #include "magic.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    struct magic_set *magic = magic_open(MAGIC_NONE);
-    const char *error_message;
+    struct magic_set *magic;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    FILE *fp;
 
+    // Initialize magic_set
+    magic = magic_open(MAGIC_NONE);
     if (magic == NULL) {
         return 0;
     }
 
-    // Load a magic database, this is necessary before using magic functions
-    if (magic_load(magic, NULL) != 0) {
+    // Create a temporary file and write the input data to it
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
         magic_close(magic);
         return 0;
     }
+    fp = fdopen(fd, "wb");
+    if (fp == NULL) {
+        close(fd);
+        magic_close(magic);
+        return 0;
+    }
+    fwrite(data, 1, size, fp);
+    fclose(fp);
 
     // Call the function-under-test
-    error_message = magic_error(magic);
-
-    // Use error_message in some way to ensure it's not optimized away
-    if (error_message != NULL) {
-        // For fuzzing purposes, we don't need to do anything with the error_message
-        // Just ensure the call is made
-    }
+    magic_list(magic, tmpl);
 
     // Clean up
+    unlink(tmpl);
     magic_close(magic);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

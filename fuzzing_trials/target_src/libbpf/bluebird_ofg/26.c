@@ -1,35 +1,123 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include "libbpf.h" // Ensure this includes the full definition of bpf_program
-#include "/src/libbpf/src/bpf.h"   // Ensure this includes the full definition of bpf_program
-#include "/src/libbpf/src/libbpf_legacy.h" // Include legacy header for completeness
+#include "libbpf.h" // Corrected include path for libbpf
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for a bpf_program structure
-    // Since we can't directly use sizeof(struct bpf_program) due to it being incomplete,
-    // we assume a minimal size that can reasonably represent a valid input for fuzzing.
-    if (size < 128) { // Arbitrary minimal size for fuzzing
-        return 0; // Not enough data
+    // Create a bpf_object from the input data
+    struct bpf_object *obj = bpf_object__open_mem(data, size, NULL);
+    if (!obj) {
+        // Failed to create bpf_object
+        return 0;
     }
 
-    // Define and initialize the parameters for the function-under-test
-    struct bpf_program *prog = (struct bpf_program *)data; // Assuming data can be cast to bpf_program
-    pid_t pid = (pid_t) 1234; // Arbitrary non-zero PID
-    const char *binary_path = "/bin/ls"; // Example binary path
-    const char *function_name = "main"; // Example function name
-    struct bpf_uprobe_multi_opts opts;
-    memset(&opts, 0, sizeof(opts)); // Initialize options to zero
+    // Find a bpf_program within the object
+    struct bpf_program *prog = bpf_object__next_program(obj, NULL);
+    if (!prog) {
+        // No bpf_program found
+        bpf_object__close(obj);
+        return 0;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to perf_buffer__new
+    long ret_libbpf_get_error_eiupw = libbpf_get_error((const void *)data);
+    if (ret_libbpf_get_error_eiupw < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!prog) {
+    	return 0;
+    }
+    size_t ret_bpf_program__insn_cnt_aspav = bpf_program__insn_cnt(prog);
+    if (ret_bpf_program__insn_cnt_aspav < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!prog) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__insn_cnt to bpf_program__set_attach_target
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!prog) {
+    	return 0;
+    }
+    bpf_program__unload(prog);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!prog) {
+    	return 0;
+    }
+    int ret_bpf_program__set_attach_target_pvrde = bpf_program__set_attach_target(prog, (int )ret_bpf_program__insn_cnt_aspav, (const char *)data);
+    if (ret_bpf_program__set_attach_target_pvrde < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    struct perf_buffer* ret_perf_buffer__new_almrx = perf_buffer__new((int )ret_libbpf_get_error_eiupw, ret_bpf_program__insn_cnt_aspav, NULL, NULL, (void *)prog, NULL);
+    if (ret_perf_buffer__new_almrx == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int attach_type = BPF_CGROUP_INET_INGRESS; // Assign a valid attach type
+    struct bpf_tcx_opts opts;
+    memset(&opts, 0, sizeof(opts)); // Ensure opts is zero-initialized
+
+    // Ensure that the opts structure is set with default values
+    opts.sz = sizeof(struct bpf_tcx_opts);
+    opts.flags = 0;
 
     // Call the function-under-test
-    struct bpf_link *link = bpf_program__attach_uprobe_multi(prog, pid, binary_path, function_name, &opts);
+    struct bpf_link *link = bpf_program__attach_tcx(prog, attach_type, &opts);
 
-    // Clean up
+    // Clean up if necessary
     if (link) {
         bpf_link__destroy(link);
     }
 
+    bpf_object__close(obj); // Close the bpf_object
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

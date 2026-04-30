@@ -1,61 +1,75 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "lcms2.h"
+#include "lcms2.h" // Assuming the Little CMS library provides this header
 
+// Remove the extern "C" linkage specification for C++ as this is C code
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    if (size < 4) {
-        // Not enough data to create a valid profile
+    cmsHANDLE handle;
+    int row, col;
+    cmsFloat64Number result;
+
+    // Initialize the handle with a non-null value
+    handle = cmsIT8Alloc(NULL);
+    if (handle == NULL) {
+        return 0; // Exit if handle allocation fails
+    }
+
+    // Ensure the size is sufficient to extract row and col
+    if (size < sizeof(int) * 2) {
+        cmsIT8Free(handle);
         return 0;
     }
 
-    // Create a memory-based input profile from the data
-    cmsHPROFILE inputProfile = cmsOpenProfileFromMem(data, size);
-    if (inputProfile == NULL) {
-        return 0;
-    }
+    // Extract row and col values from the input data
+    row = *((int *)data);
+    col = *((int *)(data + sizeof(int)));
 
-    // Create a sRGB output profile
-    cmsHPROFILE outputProfile = cmsCreate_sRGBProfile();
-    if (outputProfile == NULL) {
-        cmsCloseProfile(inputProfile);
-        return 0;
-    }
+    // Call the function under test
+    result = cmsIT8GetDataRowColDbl(handle, row, col);
 
-    // Create a transform from the input profile to the sRGB profile
-    cmsHTRANSFORM transform = cmsCreateTransform(inputProfile, TYPE_RGB_8, outputProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
-    if (transform == NULL) {
-        cmsCloseProfile(inputProfile);
-        cmsCloseProfile(outputProfile);
-        return 0;
-    }
-
-    // Call the function-under-test
-    cmsNAMEDCOLORLIST *namedColorList = cmsGetNamedColorList(transform);
-
-    // Check the result (optional, depending on what you want to do with it)
-    if (namedColorList != NULL) {
-        // Process namedColorList if needed
-    }
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetNamedColorList to cmsIT8SaveToMem
-    cmsHANDLE ret_cmsDictAlloc_bcogs = cmsDictAlloc(0);
-    cmsUInt32Number ret_cmsGetHeaderFlags_lokkj = cmsGetHeaderFlags(outputProfile);
-    if (ret_cmsGetHeaderFlags_lokkj < 0){
-    	return 0;
-    }
-
-    cmsBool ret_cmsIT8SaveToMem_ysijh = cmsIT8SaveToMem(ret_cmsDictAlloc_bcogs, (void *)namedColorList, &ret_cmsGetHeaderFlags_lokkj);
-    if (ret_cmsIT8SaveToMem_ysijh < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsDeleteTransform(transform);
-    cmsCloseProfile(inputProfile);
-    cmsCloseProfile(outputProfile);
+    // Free the handle after use
+    cmsIT8Free(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_57(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

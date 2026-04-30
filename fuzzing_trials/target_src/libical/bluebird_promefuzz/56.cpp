@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,61 +9,91 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdlib>
-#include <cstdint>
 #include <iostream>
 #include <fstream>
+#include <cassert>
+#include <cstdint>
+#include <cstring>
 #include "libical/ical.h"
-
-static icalcomponent* create_component_from_data(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
-        return nullptr;
-    }
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    return icalcomponent_new(kind);
-}
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalduration.h"
 
 extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *Data, size_t Size) {
-    // Create a new VCALENDAR component
-    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
-    if (!vcalendar) {
+    if (Size < sizeof(struct icaldurationtype) + sizeof(struct icaltimetype) * 2) {
         return 0;
     }
 
-    // Create a new VALARM component
-    icalcomponent *valarm = icalcomponent_new_valarm();
-    if (!valarm) {
-        icalcomponent_free(vcalendar);
-        return 0;
+    struct icaldurationtype *dur = (struct icaldurationtype *)Data;
+    struct icaltimetype *t1 = (struct icaltimetype *)(Data + sizeof(struct icaldurationtype));
+    struct icaltimetype *t2 = (struct icaltimetype *)(Data + sizeof(struct icaldurationtype) + sizeof(struct icaltimetype));
+
+    // Normalize duration
+    struct icaldurationtype normalizedDur = icaldurationtype_normalize(*dur);
+
+    // Extend time by duration
+    struct icaltimetype extendedTime = icalduration_extend(*t1, *dur);
+
+    // Create null duration
+    struct icaldurationtype nullDur = icaldurationtype_null_duration();
+    assert(nullDur.days == 0 && nullDur.is_neg == 0);
+
+    // Calculate duration from two times
+    struct icaldurationtype durationFromTimes = icalduration_from_times(*t1, *t2);
+
+    // Create bad duration
+    struct icaldurationtype badDur = icaldurationtype_bad_duration();
+    assert(icaldurationtype_is_bad_duration(badDur));
+
+    // Write to a dummy file if necessary
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    if (dummyFile.is_open()) {
+        dummyFile.write(reinterpret_cast<const char *>(Data), Size);
+        dummyFile.close();
     }
-
-    // Add the VALARM to the VCALENDAR
-    icalcomponent_add_component(vcalendar, valarm);
-
-    // Create a component from data
-    icalcomponent *component = create_component_from_data(Data, Size);
-    if (component) {
-        // Get DTSTAMP
-        icaltimetype dtstamp = icalcomponent_get_dtstamp(component);
-
-        // Get DTEND
-        icaltimetype dtend = icalcomponent_get_dtend(component);
-
-        // Get RECURRENCE-ID
-        icaltimetype recurrence_id = icalcomponent_get_recurrenceid(component);
-
-        // Free the created component
-        icalcomponent_free(component);
-    }
-
-    // Initialize an iterator
-    icalcompiter iter = icalcomponent_begin_component(vcalendar, ICAL_ANY_COMPONENT);
-
-    // Dereference the iterator
-    icalcomponent *iter_component = icalcompiter_deref(&iter);
-
-    // Cleanup
-    icalcomponent_free(vcalendar);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_56(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -3,22 +3,62 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for each parameter of the function
-    cmsUInt32Number param1 = (cmsUInt32Number)(size > 0 ? data[0] : 1);
-    cmsFloat64Number param2 = (cmsFloat64Number)(size > 1 ? data[1] : 0.5);
-    cmsFloat64Number param3 = (cmsFloat64Number)(size > 2 ? data[2] : 0.5);
-    cmsFloat64Number param4 = (cmsFloat64Number)(size > 3 ? data[3] : 0.5);
-    cmsFloat64Number param5 = (cmsFloat64Number)(size > 4 ? data[4] : 0.5);
-    cmsUInt32Number param6 = (cmsUInt32Number)(size > 5 ? data[5] : 1);
-    cmsUInt32Number param7 = (cmsUInt32Number)(size > 6 ? data[6] : 1);
+    if (size < sizeof(cmsUInt32Number) * 3 + sizeof(cmsFloat64Number) * 4) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateBCHSWabstractProfile(param1, param2, param3, param4, param5, param6, param7);
+    cmsUInt32Number intent = *(cmsUInt32Number *)(data);
+    cmsFloat64Number bp = *(cmsFloat64Number *)(data + sizeof(cmsUInt32Number));
+    cmsFloat64Number wp = *(cmsFloat64Number *)(data + sizeof(cmsUInt32Number) + sizeof(cmsFloat64Number));
+    cmsFloat64Number lstar = *(cmsFloat64Number *)(data + sizeof(cmsUInt32Number) + 2 * sizeof(cmsFloat64Number));
+    cmsFloat64Number chroma = *(cmsFloat64Number *)(data + sizeof(cmsUInt32Number) + 3 * sizeof(cmsFloat64Number));
+    cmsUInt32Number flags = *(cmsUInt32Number *)(data + sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number));
+    cmsUInt32Number profileFlags = *(cmsUInt32Number *)(data + sizeof(cmsUInt32Number) + 4 * sizeof(cmsFloat64Number) + sizeof(cmsUInt32Number));
 
-    // Clean up if necessary
+    cmsHPROFILE profile = cmsCreateBCHSWabstractProfile(intent, bp, wp, lstar, chroma, flags, profileFlags);
+
     if (profile != NULL) {
         cmsCloseProfile(profile);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_61(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

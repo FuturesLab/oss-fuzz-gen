@@ -1,63 +1,67 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <sqlite3.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    int rc;
-    char *errMsg = 0;
-    const char *sqlCreateTable = "CREATE TABLE IF NOT EXISTS FuzzTest (id INT, data TEXT);";
-    const char *sqlInsert = "INSERT INTO FuzzTest (id, data) VALUES (1, 'SampleData');";
-    const char *sqlSelect = "SELECT * FROM FuzzTest;";
+    int index;
 
-    // Initialize SQLite database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+    // Ensure the size is sufficient to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Create table
-    rc = sqlite3_exec(db, sqlCreateTable, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
+    // Extract an integer from the input data
+    index = *(const int *)data;
 
-    // Insert data
-    rc = sqlite3_exec(db, sqlInsert, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
+    // Call the function-under-test
+    const char *option = sqlite3_compileoption_get(index);
 
-    // Prepare select statement
-    rc = sqlite3_prepare_v2(db, sqlSelect, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // Execute the statement and call sqlite3_column_type
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        int columnCount = sqlite3_column_count(stmt);
-        for (int i = 0; i < columnCount; i++) {
-            int columnType = sqlite3_column_type(stmt, i);
-            // Use columnType for further processing if needed
+    // Optionally, do something with the returned option
+    if (option != NULL) {
+        // For example, just access the string to ensure it's valid
+        while (*option) {
+            ++option;
         }
     }
 
-    // Clean up
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

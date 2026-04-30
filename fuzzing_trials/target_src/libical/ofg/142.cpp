@@ -1,54 +1,78 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
+#include <string.h> // Include necessary library for memcpy
 
 extern "C" {
-    // Include necessary C headers and function declarations
-    #include <libical/ical.h>
+    // Declare the function from the C library
+    typedef enum icalrecurrencetype_weekday {
+        ICAL_RECURRENCE_WEEKDAY_NO,
+        ICAL_RECURRENCE_WEEKDAY_SU,
+        ICAL_RECURRENCE_WEEKDAY_MO,
+        ICAL_RECURRENCE_WEEKDAY_TU,
+        ICAL_RECURRENCE_WEEKDAY_WE,
+        ICAL_RECURRENCE_WEEKDAY_TH,
+        ICAL_RECURRENCE_WEEKDAY_FR,
+        ICAL_RECURRENCE_WEEKDAY_SA
+    } icalrecurrencetype_weekday;
+
+    icalrecurrencetype_weekday icalrecur_string_to_weekday(const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Initialize variables
-    icalcomponent *component = nullptr;
-    char *timezone_name = nullptr;
-
-    // Ensure size is sufficient for a null-terminated string
-    if (size < 1) return 0;
-
-    // Allocate memory for the timezone name and copy data
-    timezone_name = (char *)malloc(size + 1);
-    if (timezone_name == nullptr) return 0;
-    memcpy(timezone_name, data, size);
-    timezone_name[size] = '\0'; // Null-terminate the string
-
-    // Create a dummy icalcomponent for testing
-    component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (component == nullptr) {
-        free(timezone_name);
-        return 0;
+    // Ensure the input data is null-terminated for safe string operations
+    char *null_terminated_data = new char[size + 1];
+    if (null_terminated_data == nullptr) {
+        return 0; // If allocation fails, exit gracefully
     }
 
-    // Add a dummy VEVENT to the VCALENDAR to ensure there's content to process
-    icalcomponent *event = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (event != nullptr) {
-        icalcomponent_add_component(component, event);
-    }
+    // Copy the data to the new buffer and null-terminate it
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
     // Call the function-under-test
-    icaltimezone *timezone = icalcomponent_get_timezone(component, timezone_name);
-
-    // Check if the timezone is not null to ensure the function is processing inputs
-    if (timezone != nullptr) {
-        // Optionally perform operations with the timezone to ensure code coverage
-        const char *tzid = icaltimezone_get_location(timezone);
-        if (tzid != nullptr) {
-            // Use the tzid to do something meaningful
-        }
-    }
+    icalrecurrencetype_weekday result = icalrecur_string_to_weekday(null_terminated_data);
 
     // Clean up
-    icalcomponent_free(component);
-    free(timezone_name);
+    delete[] null_terminated_data;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_142(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

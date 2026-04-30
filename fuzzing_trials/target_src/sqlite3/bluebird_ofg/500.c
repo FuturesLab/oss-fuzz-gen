@@ -1,48 +1,48 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
 
+// Define a custom destructor function to avoid infinite loops
+void custom_destructor_500(void *ptr) {
+    // Normally, you would free the memory here if it was dynamically allocated.
+    // However, since we're using static data, there's nothing to free.
+    // This function is just a placeholder to satisfy the API requirement.
+}
+
 int LLVMFuzzerTestOneInput_500(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errMsg = 0;
-    int rc;
-    
-    // Initialize a database in memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+    if (size == 0) {
+        return 0;
     }
 
-    // Ensure the input data is null-terminated to safely use it as a string
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
+    // Initialize a dummy sqlite3 context using a sqlite3_value
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+
+    // Open a temporary in-memory database
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
+    }
+
+    // Prepare a dummy statement
+    if (sqlite3_prepare_v2(db, "SELECT 1", -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
 
-    // Execute the SQL command
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Bind the input data as a blob to the first parameter of the statement
+    if (sqlite3_bind_blob(stmt, 1, data, (int)size, SQLITE_STATIC) != SQLITE_OK) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
     }
 
+    // Execute the statement to trigger any potential issues with the input data
+    sqlite3_step(stmt);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_txn_state
-    void* ret_sqlite3_malloc_dautt = sqlite3_malloc(-1);
-    if (ret_sqlite3_malloc_dautt == NULL){
-    	return 0;
-    }
-    int ret_sqlite3_txn_state_tcabr = sqlite3_txn_state(db, (const char *)ret_sqlite3_malloc_dautt);
-    if (ret_sqlite3_txn_state_tcabr < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
+    // Clean up
+    sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     return 0;

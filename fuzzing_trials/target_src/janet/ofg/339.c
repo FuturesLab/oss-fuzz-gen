@@ -1,44 +1,65 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <string.h> // Include this for memcpy
 #include <janet.h>
 
-// Mock function to simulate janet_struct_end behavior
-// Renamed to avoid conflict with existing function
-JanetStruct mock_janet_struct_end(JanetKV *kvs) {
-    // This is a placeholder implementation
-    JanetStruct result;
-    // Assume some operation on kvs to produce result
-    return result;
-}
-
 int LLVMFuzzerTestOneInput_339(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create at least one JanetKV
-    if (size < sizeof(JanetKV)) {
+    // Ensure that the size is at least the size of a Janet structure
+    if (size < sizeof(Janet)) {
         return 0;
     }
 
-    // Calculate the number of JanetKV elements we can create from the input data
-    size_t num_kvs = size / sizeof(JanetKV);
+    // Create a Janet object from the input data
+    Janet janet_value;
+    memcpy(&janet_value, data, sizeof(Janet));
 
-    // Allocate memory for JanetKV array
-    JanetKV *kvs = (JanetKV *)malloc(num_kvs * sizeof(JanetKV));
-    if (!kvs) {
-        return 0;
+    // Call the function-under-test
+    JanetString result = janet_unwrap_string(janet_value);
+
+    // Use the result to prevent optimization removal
+    if (result != NULL) {
+        // Do something with the result, e.g., check its length
+        janet_string_length(result);
     }
-
-    // Initialize JanetKV elements from the input data
-    for (size_t i = 0; i < num_kvs; i++) {
-        // Use janet_wrap_* functions to convert raw data to Janet types
-        kvs[i].key = janet_wrap_integer(data[i * sizeof(JanetKV)]);
-        kvs[i].value = janet_wrap_integer(data[i * sizeof(JanetKV) + 1]);
-    }
-
-    // Call the mock function
-    JanetStruct result = mock_janet_struct_end(kvs);
-
-    // Free allocated memory
-    free(kvs);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_339(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

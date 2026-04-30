@@ -1,38 +1,67 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include for memcpy
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_368(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsHPROFILE profile = NULL;
+    cmsHANDLE handle;
+    cmsViewingConditions viewingConditions;
 
-    if (size < 3) { // Ensure there is enough data for both filename and mode
-        cmsDeleteContext(context);
-        return 0;
+    // Initialize the viewing conditions with some default values
+    viewingConditions.D_value = 0.5;
+    viewingConditions.surround = 0; // Corrected conversion issue
+    viewingConditions.Yb = 20.0; // Added Yb value
+    viewingConditions.La = 318.31; // Added La value
+    viewingConditions.whitePoint.X = 0.95047;
+    viewingConditions.whitePoint.Y = 1.0;
+    viewingConditions.whitePoint.Z = 1.08883;
+
+    // Initialize the handle using a non-NULL value
+    handle = cmsCIECAM02Init(NULL, &viewingConditions);
+    if (handle == NULL) {
+        return 0; // Exit if initialization fails
     }
-
-    // Creating a null-terminated string for the file name and mode
-    char filename[256];
-    char mode[4];
-
-    size_t filename_len = size > 255 ? 255 : size - 3; // Ensure space for mode
-    size_t mode_len = 3; // We need exactly 3 characters for mode
-
-    memcpy(filename, data, filename_len);
-    filename[filename_len] = '\0';
-
-    memcpy(mode, data + filename_len, mode_len);
-    mode[mode_len] = '\0';
 
     // Call the function-under-test
-    profile = cmsOpenProfileFromFileTHR(context, filename, mode);
-
-    // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
-    }
-    cmsDeleteContext(context);
+    cmsCIECAM02Done(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_368(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

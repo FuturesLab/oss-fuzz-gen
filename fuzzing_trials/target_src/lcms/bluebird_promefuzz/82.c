@@ -1,75 +1,105 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "/src/lcms/include/lcms2_plugin.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
-static cmsHPROFILE createDummyProfile() {
-    return cmsCreate_sRGBProfile();
-}
-
-static void destroyDummyProfile(cmsHPROFILE hProfile) {
-    cmsCloseProfile(hProfile);
-}
-
-static cmsHANDLE createDummyGDB() {
-    return NULL; // Assuming a valid GDB handle is created here
-}
-
-static void destroyDummyGDB(cmsHANDLE hGDB) {
-    // Assuming cleanup for the GDB handle if needed
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_82(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(cmsUInt32Number)) {
+    if (Size < 1) {
         return 0;
     }
 
-    cmsHPROFILE hProfile = createDummyProfile();
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
     if (!hProfile) {
         return 0;
     }
 
-    cmsUInt32Number Intent = *(cmsUInt32Number*)Data;
-    cmsUInt32Number UsedDirection = *(cmsUInt32Number*)(Data + sizeof(cmsUInt32Number));
 
-    // Fuzz cmsIsIntentSupported
-    cmsBool isSupported = cmsIsIntentSupported(hProfile, Intent, UsedDirection);
-
-    // Fuzz cmsGetHeaderFlags
-    cmsUInt32Number headerFlags = cmsGetHeaderFlags(hProfile);
-
-    // Fuzz cmsGetHeaderManufacturer
-    cmsUInt32Number headerManufacturer = cmsGetHeaderManufacturer(hProfile);
-
-    cmsCIEXYZ blackPoint;
-    cmsUInt32Number dwFlags = 0;
-
-    // Fuzz cmsDetectBlackPoint
-    cmsBool blackPointDetected = cmsDetectBlackPoint(&blackPoint, hProfile, Intent, dwFlags);
-
-    cmsHANDLE hGDB = createDummyGDB();
-    if (hGDB) {
-        // Fuzz cmsGDBCompute
-        cmsBool gdbComputed = cmsGDBCompute(hGDB, dwFlags);
-        destroyDummyGDB(hGDB);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsSetProfileVersion
+    cmsBool ret_cmsMD5computeID_qetxp = cmsMD5computeID(hProfile);
+    if (ret_cmsMD5computeID_qetxp < 0){
+    	return 0;
+    }
+    cmsSetProfileVersion(hProfile, (double )ret_cmsMD5computeID_qetxp);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
     }
 
-    cmsContext context = NULL;
-    cmsUInt32Number nProfiles = 1;
-    cmsUInt32Number Intents[] = {Intent};
-    cmsHPROFILE hProfiles[] = {hProfile};
-    cmsBool BPC[] = {FALSE};
-    cmsFloat64Number AdaptationStates[] = {1.0};
 
-    // Fuzz _cmsDefaultICCintents
-    cmsPipeline* pipeline = _cmsDefaultICCintents(context, nProfiles, Intents, hProfiles, BPC, AdaptationStates, dwFlags);
-    if (pipeline) {
-        cmsPipelineFree(pipeline);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTagCount to cmsIsIntentSupported
+    cmsHPROFILE ret_cmsCreate_OkLabProfile_sjxag = cmsCreate_OkLabProfile(0);
+    cmsBool ret_cmsMD5computeID_kwxwh = cmsMD5computeID(hProfile);
+    if (ret_cmsMD5computeID_kwxwh < 0){
+    	return 0;
     }
-
-    destroyDummyProfile(hProfile);
+    cmsBool ret_cmsIsIntentSupported_lupdp = cmsIsIntentSupported(ret_cmsCreate_OkLabProfile_sjxag, (unsigned long )ret_cmsMD5computeID_kwxwh, (unsigned long )tagCount);
+    if (ret_cmsIsIntentSupported_lupdp < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_82(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

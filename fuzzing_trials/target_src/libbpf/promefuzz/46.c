@@ -1,96 +1,107 @@
 // This fuzz driver is generated for library libbpf, aiming to fuzz the following functions:
-// libbpf_prog_type_by_name at libbpf.c:10112:5 in libbpf.h
-// libbpf_bpf_attach_type_str at libbpf.c:10138:13 in libbpf.h
-// libbpf_probe_bpf_prog_type at libbpf_probes.c:205:5 in libbpf.h
-// libbpf_probe_bpf_helper at libbpf_probes.c:420:5 in libbpf.h
-// libbpf_find_vmlinux_btf_id at libbpf.c:10355:5 in libbpf.h
-// libbpf_register_prog_handler at libbpf.c:9935:5 in libbpf.h
+// ring_buffer__new at ringbuf.c:190:1 in libbpf.h
+// ring_buffer__poll at ringbuf.c:336:5 in libbpf.h
+// ring_buffer__consume_n at ringbuf.c:287:5 in libbpf.h
+// ring_buffer__epoll_fd at ringbuf.c:360:5 in libbpf.h
+// ring_buffer__consume at ringbuf.c:312:5 in libbpf.h
+// ring_buffer__add at ringbuf.c:75:5 in libbpf.h
+// ring_buffer__free at ringbuf.c:172:6 in libbpf.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
 #include <libbpf.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/epoll.h>
+#include <errno.h>
 
-static void fuzz_libbpf_prog_type_by_name(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    char name[Size + 1];
-    memcpy(name, Data, Size);
-    name[Size] = '\0';
-
-    enum bpf_prog_type prog_type;
-    enum bpf_attach_type expected_attach_type;
-    libbpf_prog_type_by_name(name, &prog_type, &expected_attach_type);
-}
-
-static void fuzz_libbpf_bpf_attach_type_str(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(enum bpf_attach_type)) return;
-
-    enum bpf_attach_type attach_type;
-    memcpy(&attach_type, Data, sizeof(enum bpf_attach_type));
-
-    libbpf_bpf_attach_type_str(attach_type);
-}
-
-static void fuzz_libbpf_probe_bpf_prog_type(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(enum bpf_prog_type)) return;
-
-    enum bpf_prog_type prog_type;
-    memcpy(&prog_type, Data, sizeof(enum bpf_prog_type));
-
-    libbpf_probe_bpf_prog_type(prog_type, NULL);
-}
-
-static void fuzz_libbpf_probe_bpf_helper(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(enum bpf_prog_type) + sizeof(enum bpf_func_id)) return;
-
-    enum bpf_prog_type prog_type;
-    enum bpf_func_id helper_id;
-    memcpy(&prog_type, Data, sizeof(enum bpf_prog_type));
-    memcpy(&helper_id, Data + sizeof(enum bpf_prog_type), sizeof(enum bpf_func_id));
-
-    libbpf_probe_bpf_helper(prog_type, helper_id, NULL);
-}
-
-static void fuzz_libbpf_find_vmlinux_btf_id(const uint8_t *Data, size_t Size) {
-    if (Size < 1 + sizeof(enum bpf_attach_type)) return;
-
-    char name[Size - sizeof(enum bpf_attach_type) + 1];
-    memcpy(name, Data, Size - sizeof(enum bpf_attach_type));
-    name[Size - sizeof(enum bpf_attach_type)] = '\0';
-
-    enum bpf_attach_type attach_type;
-    memcpy(&attach_type, Data + Size - sizeof(enum bpf_attach_type), sizeof(enum bpf_attach_type));
-
-    libbpf_find_vmlinux_btf_id(name, attach_type);
-}
-
-static void fuzz_libbpf_register_prog_handler(const uint8_t *Data, size_t Size) {
-    if (Size < 1 + sizeof(enum bpf_prog_type) + sizeof(enum bpf_attach_type)) return;
-
-    char sec[Size - sizeof(enum bpf_prog_type) - sizeof(enum bpf_attach_type) + 1];
-    memcpy(sec, Data, Size - sizeof(enum bpf_prog_type) - sizeof(enum bpf_attach_type));
-    sec[Size - sizeof(enum bpf_prog_type) - sizeof(enum bpf_attach_type)] = '\0';
-
-    enum bpf_prog_type prog_type;
-    enum bpf_attach_type exp_attach_type;
-    memcpy(&prog_type, Data + Size - sizeof(enum bpf_prog_type) - sizeof(enum bpf_attach_type), sizeof(enum bpf_prog_type));
-    memcpy(&exp_attach_type, Data + Size - sizeof(enum bpf_attach_type), sizeof(enum bpf_attach_type));
-
-    struct libbpf_prog_handler_opts opts = {0};
-    libbpf_register_prog_handler(sec, prog_type, exp_attach_type, &opts);
+static int dummy_sample_cb(void *ctx, void *data, size_t size) {
+    // Dummy callback function for sample processing
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
-    fuzz_libbpf_prog_type_by_name(Data, Size);
-    fuzz_libbpf_bpf_attach_type_str(Data, Size);
-    fuzz_libbpf_probe_bpf_prog_type(Data, Size);
-    fuzz_libbpf_probe_bpf_helper(Data, Size);
-    fuzz_libbpf_find_vmlinux_btf_id(Data, Size);
-    fuzz_libbpf_register_prog_handler(Data, Size);
+    // Initialize a dummy ring_buffer_opts
+    struct ring_buffer_opts opts = { .sz = sizeof(struct ring_buffer_opts) };
+
+    // Create a dummy file descriptor
+    int map_fd = open("./dummy_file", O_CREAT | O_RDWR, 0600);
+    if (map_fd < 0) return 0;
+
+    // Write some data to the dummy file
+    write(map_fd, Data, Size);
+
+    // Attempt to create a new ring buffer
+    struct ring_buffer *rb = ring_buffer__new(map_fd, dummy_sample_cb, NULL, &opts);
+    if (!rb) {
+        close(map_fd);
+        return 0;
+    }
+
+    // Test ring_buffer__poll with a dummy timeout
+    int poll_result = ring_buffer__poll(rb, 1000);
+
+    // Test ring_buffer__consume_n with a dummy number of entries
+    int consume_n_result = ring_buffer__consume_n(rb, 10);
+
+    // Test ring_buffer__epoll_fd
+    int epoll_fd = ring_buffer__epoll_fd(rb);
+
+    // Test ring_buffer__consume
+    int consume_result = ring_buffer__consume(rb);
+
+    // Test ring_buffer__add
+    int add_result = ring_buffer__add(rb, map_fd, dummy_sample_cb, NULL);
+
+    // Clean up
+    ring_buffer__free(rb);
+    close(map_fd);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

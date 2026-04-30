@@ -1,34 +1,93 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the parameters
-    cmsContext context = (cmsContext)1; // Example non-NULL context
-    cmsHPROFILE inputProfile = cmsOpenProfileFromMem(data, size);
-    cmsHPROFILE outputProfile = cmsOpenProfileFromMem(data, size);
-    cmsUInt32Number inputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number outputFormat = TYPE_RGB_8; // Example format
-    cmsUInt32Number intent = INTENT_PERCEPTUAL; // Example intent
-    cmsUInt32Number flags = 0; // No flags
+    // Declare and initialize variables for the function parameters
+    cmsContext context = (cmsContext)data; // Cast data to cmsContext for fuzzing
+    cmsHPROFILE inputProfile = NULL;
+    cmsHPROFILE outputProfile = NULL;
+    cmsUInt32Number inputFormat = 0;
+    cmsUInt32Number outputFormat = 0;
+    cmsUInt32Number intent = 0;
+    cmsUInt32Number flags = 0;
 
-    // Ensure that inputProfile and outputProfile are not NULL
-    if (inputProfile != NULL && outputProfile != NULL) {
-        // Call the function to fuzz
-        cmsHTRANSFORM transform = cmsCreateTransformTHR(context, inputProfile, inputFormat, outputProfile, outputFormat, intent, flags);
+    // Ensure there is enough data to create at least two profiles
+    if (size < 128) {
+        return 0; // Not enough data to proceed
+    }
 
-        // Clean up
-        if (transform != NULL) {
-            cmsDeleteTransform(transform);
+    // Create input and output profiles from data
+    inputProfile = cmsOpenProfileFromMem(data, size / 2);
+    outputProfile = cmsOpenProfileFromMem(data + size / 2, size / 2);
+
+    // Check if profiles were created successfully
+    if (inputProfile == NULL || outputProfile == NULL) {
+        if (inputProfile != NULL) {
+            cmsCloseProfile(inputProfile);
         }
+        if (outputProfile != NULL) {
+            cmsCloseProfile(outputProfile);
+        }
+        return 0;
     }
 
-    if (inputProfile != NULL) {
-        cmsCloseProfile(inputProfile);
+    // Call the function-under-test
+    cmsHTRANSFORM transform = cmsCreateTransformTHR(
+        context,
+        inputProfile,
+        inputFormat,
+        outputProfile,
+        outputFormat,
+        intent,
+        flags
+    );
+
+    // Clean up
+    if (transform != NULL) {
+        cmsDeleteTransform(transform);
     }
-    if (outputProfile != NULL) {
-        cmsCloseProfile(outputProfile);
-    }
+    cmsCloseProfile(inputProfile);
+    cmsCloseProfile(outputProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_59(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

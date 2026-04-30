@@ -1,64 +1,40 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // For size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // For malloc, free, and NULL
-#include <string.h>  // For memcpy
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_152(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-    char *errMsg = 0;
-
-    // Initialize a database in memory
-    const char fjyqfdia[1024] = "lldzc";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open(fjyqfdia, &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc != SQLITE_OK) {
+    // Ensure the size is sufficient for processing
+    if (size < 4) {
         return 0;
     }
 
-    // Execute a simple SQL statement to ensure the database is in a valid state
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open16
-    int ret_sqlite3_open16_hlehf = sqlite3_open16(NULL, &db);
-    if (ret_sqlite3_open16_hlehf < 0){
-    	return 0;
+    // Initialize a SQLite database in memory
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        return 0;
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
+
+    // Create a simple SQL statement
+    const char *sql = "CREATE TABLE IF NOT EXISTS fuzz_table (id INTEGER PRIMARY KEY, value TEXT);";
+    char *errMsg = 0;
+    if (sqlite3_exec(db, sql, 0, 0, &errMsg) != SQLITE_OK) {
         sqlite3_free(errMsg);
         sqlite3_close(db);
         return 0;
     }
 
-    // If size is greater than 0, use the data to execute a SQL statement
-    if (size > 0) {
-        // Interpret the data as a SQL statement
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0;
+    // Prepare a statement using the input data
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, (const char *)data, (int)size, &stmt, 0) == SQLITE_OK) {
+        // Step through the statement
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            // Optionally process each row
         }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
-
-        // Execute the SQL statement
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-
-        free(sql);
+        sqlite3_finalize(stmt);
     }
 
-    // Call the function-under-test
-    int autocommit = sqlite3_get_autocommit(db);
-
-    // Cleanup
+    // Close the database
     sqlite3_close(db);
 
     return 0;

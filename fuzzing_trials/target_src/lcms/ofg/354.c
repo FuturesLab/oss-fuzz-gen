@@ -1,37 +1,57 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <lcms2_plugin.h>
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_354(const uint8_t *data, size_t size) {
-    cmsHANDLE handle;
-    int row, col;
-    cmsFloat64Number result;
-
-    // Initialize handle to a valid non-NULL value
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Ensure size is sufficient for cmsUInt16Number array
+    if (size < sizeof(cmsUInt16Number) * 3) {
         return 0;
     }
 
-    // Ensure there is enough data to extract row and col
-    if (size < sizeof(int) * 2) {
-        cmsIT8Free(handle);
-        return 0;
-    }
-
-    // Extract row and col from data
-    row = *(int *)(data);
-    col = *(int *)(data + sizeof(int));
+    cmsCIELab lab;
+    const cmsUInt16Number *encodedLab = (const cmsUInt16Number *)data;
 
     // Call the function-under-test
-    result = cmsIT8GetDataRowColDbl(handle, row, col);
-
-    // Output the result for debugging purposes
-    printf("Result: %f\n", result);
-
-    // Clean up
-    cmsIT8Free(handle);
+    cmsLabEncoded2Float(&lab, encodedLab);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_354(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

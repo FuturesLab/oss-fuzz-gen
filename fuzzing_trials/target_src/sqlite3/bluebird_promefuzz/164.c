@@ -1,77 +1,60 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include "sqlite3.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 
-static void execute_sqlite_fuzzing(sqlite3 *db, const char *sql) {
-    sqlite3_stmt *stmt = NULL;
-    const char *pzTail = NULL;
+static void dummy_update_hook(void *pArg, int operation, const char *dbName, const char *tableName, sqlite3_int64 rowId) {
+    // Dummy update hook callback
+}
 
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &pzTail);
-    if (rc != SQLITE_OK) {
-        const char *errmsg = sqlite3_errmsg(db);
-        (void)errmsg;  // Suppress unused variable warning
-        return;
-    }
-
-    rc = sqlite3_step(stmt);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_step with sqlite3_column_count
-    rc = sqlite3_column_count(stmt);  // Call sqlite3_step twice as required
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-    int column_count = sqlite3_column_count(stmt);
-    for (int i = 0; i < column_count; i++) {
-        int col_type = sqlite3_column_type(stmt, i);
-        const char *col_name = sqlite3_column_name(stmt, i);
-        const unsigned char *col_text = sqlite3_column_text(stmt, i);
-        int col_bytes = sqlite3_column_bytes(stmt, i);
-
-        (void)col_type;  // Suppress unused variable warning
-        (void)col_name;
-        (void)col_text;
-        (void)col_bytes;
-    }
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_finalize with sqlite3_data_count
-    sqlite3_data_count(stmt);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+static int dummy_wal_hook(void *pArg, sqlite3 *db, const char *dbName, int nPages) {
+    // Dummy WAL hook callback
+    return SQLITE_OK;
 }
 
 int LLVMFuzzerTestOneInput_164(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
-    // Initialize SQLite
     sqlite3 *db;
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    int rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    char *errMsg = 0;
+    int rc;
+
+    // Open a connection to an in-memory database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
         return 0;
     }
 
-    // Copy input data to a null-terminated string
-    char *sql = (char *)malloc(Size + 1);
-    if (!sql) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(sql, Data, Size);
-    sql[Size] = '\0';
+    // Set up the necessary environment
+    sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, value TEXT);", NULL, NULL, &errMsg);
+    sqlite3_exec(db, "INSERT INTO test(value) VALUES('fuzzing');", NULL, NULL, &errMsg);
+    sqlite3_exec(db, "UPDATE test SET value = 'updated' WHERE id = 1;", NULL, NULL, &errMsg);
 
-    // Execute fuzzing with the given SQL
-    execute_sqlite_fuzzing(db, sql);
+    // Fuzz sqlite3_changes64
+    sqlite3_int64 changes = sqlite3_changes64(db);
+    (void)changes; // Suppress unused variable warning
 
-    // Cleanup
-    free(sql);
+    // Fuzz sqlite3_total_changes64
+    sqlite3_int64 totalChanges = sqlite3_total_changes64(db);
+    (void)totalChanges; // Suppress unused variable warning
+
+    // Fuzz sqlite3_last_insert_rowid
+    sqlite3_int64 lastRowId = sqlite3_last_insert_rowid(db);
+    (void)lastRowId; // Suppress unused variable warning
+
+    // Fuzz sqlite3_set_last_insert_rowid
+    sqlite3_set_last_insert_rowid(db, 12345);
+
+    // Fuzz sqlite3_update_hook
+    sqlite3_update_hook(db, dummy_update_hook, NULL);
+
+    // Fuzz sqlite3_wal_hook
+    sqlite3_wal_hook(db, dummy_wal_hook, NULL);
+
+    // Clean up and close the database connection
     sqlite3_close(db);
+
     return 0;
 }
 #ifdef INC_MAIN

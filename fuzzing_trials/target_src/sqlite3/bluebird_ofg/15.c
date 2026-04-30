@@ -1,65 +1,72 @@
+#include <sys/stat.h>
+#include "sqlite3.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
-#include "sqlite3.h"
+
+// Callback function for sqlite3_exec
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+    (void)NotUsed;
+    for (int i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Ensure size is at least 1 to avoid reallocating to size 0
-    if (size < 1) {
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
+
+    // Initialize database in memory
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    rc = sqlite3_open((const char *)"r", &db);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return 0;
     }
 
-    // Allocate initial memory block
-    void *initial_memory = malloc(size);
-    if (initial_memory == NULL) {
-        return 0; // Memory allocation failed
+    // Convert fuzz data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (sql == NULL) {
+        sqlite3_close(db);
+        return 0;
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
+
+    // Execute SQL statement
+    rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
     }
 
-    // Copy data to the initial memory block
-    memcpy(initial_memory, data, size);
+    // Clean up
 
-    // Call the function-under-test with the initial memory block and a new size
-    int new_size = (int)size * 2; // Example new size
-    if (new_size <= 0) {
-        free(initial_memory);
-        return 0; // Avoid reallocating with invalid size
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_strglob
+    void* ret_sqlite3_malloc_opapx = sqlite3_malloc(0);
+    if (ret_sqlite3_malloc_opapx == NULL){
+    	return 0;
     }
-
-    // Use sqlite3_malloc to allocate new memory block instead of reallocating
-    void *new_memory = sqlite3_malloc(new_size);
-    if (new_memory != NULL) {
-        // Copy the initial memory block to the new memory block
-        memcpy(new_memory, initial_memory, size);
-
-        // Initialize SQLite database in memory
-        sqlite3 *db;
-        if (sqlite3_open(":memory:", &db) == SQLITE_OK) {
-            // Create a SQL statement from the input data
-            char *sql = (char *)malloc(size + 1);
-            if (sql != NULL) {
-                memcpy(sql, data, size);
-                sql[size] = '\0'; // Null-terminate the string
-
-                // Execute the SQL statement
-                char *errMsg = NULL;
-                sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-                // Free the SQL string
-                free(sql);
-            }
-
-            // Close the SQLite database
-            sqlite3_close(db);
-        }
-
-        // Free the new memory block
-        sqlite3_free(new_memory);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sqlite3_malloc_opapx) {
+    	return 0;
     }
-
-    // Free the initial memory block
-    free(initial_memory);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    int ret_sqlite3_strglob_eqdxs = sqlite3_strglob((const char *)ret_sqlite3_malloc_opapx, errMsg);
+    if (ret_sqlite3_strglob_eqdxs < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(sql);
+    sqlite3_close(db);
 
     return 0;
 }

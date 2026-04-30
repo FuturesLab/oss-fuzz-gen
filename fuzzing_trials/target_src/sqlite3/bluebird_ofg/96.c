@@ -1,46 +1,52 @@
-#include <stdint.h>
-#include "sqlite3.h"
-#include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    int checkpoint_threshold = 1000; // Arbitrary non-zero value for testing
-    int result;
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
 
-    // Open an in-memory SQLite database
-    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+    // Initialize SQLite (required before using any SQLite functions)
+    if (sqlite3_initialize() != SQLITE_OK) {
         return 0;
     }
 
-    // Convert the input data to a string
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
+    if (rc != SQLITE_OK) {
+        sqlite3_shutdown();
+        return 0;
+    }
+
+    // Ensure the input data is null-terminated
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
+        sqlite3_shutdown();
         return 0;
     }
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Execute the SQL command
-    char *errMsg = NULL;
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
-
-    // Call the function-under-test
-    result = sqlite3_wal_autocheckpoint(db, checkpoint_threshold);
-
-    // Free resources
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_wal_autocheckpoint to sqlite3_open16
-    int ret_sqlite3_open16_ipudz = sqlite3_open16((const void *)db, &db);
-    if (ret_sqlite3_open16_ipudz < 0){
-    	return 0;
+    // Attempt to execute the input data as SQL
+    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(errMsg);
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    sqlite3_free(errMsg);
+
+    // Free the allocated memory for SQL
     free(sql);
-    sqlite3_close(db);
+
+    // Close the database
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_get_autocommit
+    sqlite3_get_autocommit(db);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
 
     return 0;
 }

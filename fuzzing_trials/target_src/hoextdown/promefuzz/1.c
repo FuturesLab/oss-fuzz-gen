@@ -1,50 +1,101 @@
 // This fuzz driver is generated for library hoextdown, aiming to fuzz the following functions:
-// hoedown_stack_init at stack.c:10:1 in stack.h
-// hoedown_stack_uninit at stack.c:24:1 in stack.h
-// hoedown_stack_push at stack.c:49:1 in stack.h
-// hoedown_stack_top at stack.c:71:1 in stack.h
-// hoedown_stack_pop at stack.c:60:1 in stack.h
+// hoedown_buffer_new at buffer.c:73:1 in buffer.h
+// hoedown_buffer_new at buffer.c:73:1 in buffer.h
+// hoedown_buffer_free at buffer.c:81:1 in buffer.h
+// hoedown_buffer_free at buffer.c:81:1 in buffer.h
+// hoedown_document_new at document.c:3979:1 in document.h
+// hoedown_document_render_inline at document.c:4186:1 in document.h
+// hoedown_document_free at document.c:4246:1 in document.h
+// hoedown_buffer_free at buffer.c:81:1 in buffer.h
+// hoedown_buffer_free at buffer.c:81:1 in buffer.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <assert.h>
-#include "stack.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include "buffer.h"
+#include "document.h"
 
-#define MAX_INITIAL_SIZE 1024  // Define a reasonable maximum size for initial_size
-
-static void initialize_stack(hoedown_stack *st, size_t initial_size) {
-    hoedown_stack_init(st, initial_size);
-}
-
-static void cleanup_stack(hoedown_stack *st) {
-    hoedown_stack_uninit(st);
-}
+static hoedown_renderer dummy_renderer = {0};
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(size_t)) return 0;
+    if (Size == 0) return 0;
 
-    size_t initial_size = *((size_t *)Data);
-    if (initial_size > MAX_INITIAL_SIZE) return 0;  // Check and limit initial_size
+    // Initialize two buffers
+    hoedown_buffer *buffer1 = hoedown_buffer_new(64);
+    hoedown_buffer *buffer2 = hoedown_buffer_new(64);
 
-    Data += sizeof(size_t);
-    Size -= sizeof(size_t);
-
-    hoedown_stack stack;
-    initialize_stack(&stack, initial_size);
-
-    for (size_t i = 0; i < Size; ++i) {
-        hoedown_stack_push(&stack, (void *)(uintptr_t)Data[i]);
+    if (!buffer1 || !buffer2) {
+        if (buffer1) hoedown_buffer_free(buffer1);
+        if (buffer2) hoedown_buffer_free(buffer2);
+        return 0;
     }
 
-    if (stack.size > 0) {
-        void *top_item = hoedown_stack_top(&stack);
-        void *popped_item = hoedown_stack_pop(&stack);
-        assert(top_item == popped_item);
+    // Create a document processor
+    hoedown_document *document = hoedown_document_new(
+        &dummy_renderer,
+        HOEDOWN_EXT_AUTOLINK | HOEDOWN_EXT_STRIKETHROUGH,
+        1, // Ensure max_nesting is non-zero
+        0,
+        NULL,
+        buffer1
+    );
+
+    if (document) {
+        // Render inline Markdown
+        hoedown_document_render_inline(document, buffer2, Data, Size);
+
+        // Free the document
+        hoedown_document_free(document);
     }
 
-    cleanup_stack(&stack);
+    // Free the buffers
+    hoedown_buffer_free(buffer1);
+    hoedown_buffer_free(buffer2);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

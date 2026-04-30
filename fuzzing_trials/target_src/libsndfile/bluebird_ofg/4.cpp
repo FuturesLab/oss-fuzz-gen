@@ -1,92 +1,41 @@
-#include "sndfile.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <sys/stat.h>
 #include <string.h>
-#include <unistd.h>  // Include for write, close, and other POSIX functions
-
-extern "C" {
-    // Wrap C headers and functions with extern "C"
-    #include <fcntl.h>  // Include for mkstemp
-}
+#include "sndfile.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h> // For close() and write()
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
+    // Create a temporary file to store the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
+    // Write the fuzz data to the temporary file
     if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
         return 0;
     }
+
+    // Close the file descriptor
     close(fd);
 
     // Open the temporary file with libsndfile
     SF_INFO sfinfo;
     SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
     if (sndfile == NULL) {
-        // Remove the temporary file if opening fails
+        // Remove the temporary file
         remove(tmpl);
         return 0;
     }
 
-    // Prepare buffer for reading samples
-    sf_count_t frames = 1024; // Number of frames to read
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_read_raw
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_open to sf_set_string
-    int ret_sf_error_ylaoo = sf_error(sndfile);
-    if (ret_sf_error_ylaoo < 0){
-    	return 0;
-    }
-
-    int ret_sf_set_string_acsor = sf_set_string(sndfile, ret_sf_error_ylaoo, (const char *)data);
-    if (ret_sf_set_string_acsor < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_sf_error_elzoj = sf_error(sndfile);
-    if (ret_sf_error_elzoj < 0){
-    	return 0;
-    }
-    int ret_sf_perror_hlora = sf_perror(sndfile);
-    if (ret_sf_perror_hlora < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_read_raw_geeou = sf_read_raw(sndfile, (void *)&sfinfo, (int64_t )ret_sf_perror_hlora);
-    if (ret_sf_read_raw_geeou < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_read_raw to sf_writef_float
-    int ret_sf_error_bsjnm = sf_error(sndfile);
-    if (ret_sf_error_bsjnm < 0){
-    	return 0;
-    }
-    int ret_sf_close_krbci = sf_close(NULL);
-    if (ret_sf_close_krbci < 0){
-    	return 0;
-    }
-
-    sf_count_t ret_sf_writef_float_bgoju = sf_writef_float(sndfile, (const float *)&ret_sf_close_krbci, ret_sf_read_raw_geeou);
-    if (ret_sf_writef_float_bgoju < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    short *buffer = (short *)malloc(frames * sfinfo.channels * sizeof(short));
+    // Prepare a buffer to read the data
+    sf_count_t frames = 1024; // Arbitrary number of frames to read
+    int *buffer = (int *)malloc(frames * sfinfo.channels * sizeof(int));
     if (buffer == NULL) {
         sf_close(sndfile);
         remove(tmpl);
@@ -94,12 +43,68 @@ extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
     }
 
     // Call the function-under-test
-    sf_count_t read_frames = sf_readf_short(sndfile, buffer, frames);
+    sf_count_t read_frames = sf_read_int(sndfile, buffer, frames);
 
     // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sf_read_int to sf_read_float
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
+    }
+    sf_write_sync(sndfile);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!sndfile) {
+    	return 0;
+    }
+    sf_count_t ret_sf_read_float_pkmva = sf_read_float(sndfile, (float *)&read_frames, 1);
+    if (ret_sf_read_float_pkmva < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     free(buffer);
     sf_close(sndfile);
     remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

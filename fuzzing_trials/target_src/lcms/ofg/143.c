@@ -1,45 +1,59 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <lcms2.h>
 
+// A simple error handler function for demonstration purposes
+void customLogErrorHandler_143(cmsContext contextId, cmsUInt32Number errorCode, const char *text) {
+    // Log or handle the error as needed
+    // For this example, we'll just print the error
+    printf("Error Code: %u, Message: %s\n", errorCode, text);
+}
+
 int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    cmsHTRANSFORM transform = NULL;
-    cmsUInt32Number inputFormat;
+    // Call the function-under-test with the custom error handler
+    cmsSetLogErrorHandler(customLogErrorHandler_143);
 
-    // Check if the data size is sufficient to create a transform
-    if (size < sizeof(cmsUInt32Number) * 2) {
-        return 0;
-    }
-
-    // Create a dummy color profile for the source and destination
-    cmsHPROFILE srcProfile = cmsCreate_sRGBProfile();
-    cmsHPROFILE dstProfile = cmsCreate_sRGBProfile();
-
-    if (srcProfile == NULL || dstProfile == NULL) {
-        if (srcProfile != NULL) cmsCloseProfile(srcProfile);
-        if (dstProfile != NULL) cmsCloseProfile(dstProfile);
-        return 0;
-    }
-
-    // Create a transform using the data as input for the format
-    cmsUInt32Number inputFormatData = *(cmsUInt32Number*)data;
-    cmsUInt32Number outputFormatData = *(cmsUInt32Number*)(data + sizeof(cmsUInt32Number));
-
-    transform = cmsCreateTransform(srcProfile, inputFormatData, dstProfile, outputFormatData, INTENT_PERCEPTUAL, 0);
-
-    // Clean up profiles
-    cmsCloseProfile(srcProfile);
-    cmsCloseProfile(dstProfile);
-
-    if (transform == NULL) {
-        return 0;
-    }
-
-    // Call the function under test
-    inputFormat = cmsGetTransformInputFormat(transform);
-
-    // Clean up transform
-    cmsDeleteTransform(transform);
+    // The function does not return any value and does not take data input,
+    // so there is no further processing required for fuzzing.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_143(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

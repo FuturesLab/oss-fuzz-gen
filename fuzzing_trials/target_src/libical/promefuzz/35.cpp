@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_dtend at icalcomponent.c:1566:21 in icalcomponent.h
-// icalcomponent_get_dtstamp at icalcomponent.c:1722:21 in icalcomponent.h
-// icalcomponent_get_recurrenceid at icalcomponent.c:1859:21 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
-// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
-// icalcompiter_deref at icalcomponent.c:1425:16 in icalcomponent.h
+// icalvalue_clone at icalvalue.c:58:12 in icalvalue.h
+// icalvalue_free at icalvalue.c:785:6 in icalvalue.h
+// icalvalue_new at icalvalue.c:53:12 in icalvalue.h
+// icalvalue_isa at icalvalue.c:1306:16 in icalvalue.h
+// icalvalue_new_from_string at icalvalue.c:780:12 in icalvalue.h
+// icalvalue_as_ical_string at icalvalue.c:1197:13 in icalvalue.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,59 +14,94 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
+#include <fstream>
+#include <cstring>
 #include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <icalvalue.h>
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Initialize a VCALENDAR component
-    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
-    if (!vcalendar) {
-        return 0;
-    }
+    // Prepare a string from the input data
+    std::string inputString(reinterpret_cast<const char*>(Data), Size);
 
-    // Create a VALARM component and add it to the VCALENDAR
-    icalcomponent *valarm = icalcomponent_new_valarm();
-    if (valarm) {
-        icalcomponent_add_component(vcalendar, valarm);
-    }
+    // Choose a kind based on the first byte of the input data
+    icalvalue_kind kind = static_cast<icalvalue_kind>(Data[0] % ICAL_NO_VALUE);
 
-    // Use a portion of the input data to determine the type of component to create
-    size_t index = Data[0] % ICAL_NUM_COMPONENT_TYPES;
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(index);
-    icalcomponent *component = icalcomponent_new(kind);
-    if (component) {
-        icalcomponent_add_component(vcalendar, component);
-    }
+    // Test icalvalue_new_from_string
+    icalvalue *valueFromString = icalvalue_new_from_string(kind, inputString.c_str());
+    if (valueFromString) {
+        // Test icalvalue_clone
+        icalvalue *clonedValue = icalvalue_clone(valueFromString);
+        
+        // Test icalvalue_isa
+        icalvalue_kind isaKind = icalvalue_isa(valueFromString);
 
-    // Initialize an iterator for the components
-    icalcompiter iter;
-    iter.kind = ICAL_ANY_COMPONENT;
-    iter.iter = nullptr;
+        // Test icalvalue_as_ical_string
+        const char *icalString = icalvalue_as_ical_string(valueFromString);
+        if (icalString) {
+            std::ofstream dummyFile("./dummy_file");
+            if (dummyFile.is_open()) {
+                dummyFile << icalString;
+                dummyFile.close();
+            }
+        }
 
-    // Dereference the current component using the iterator
-    icalcomponent *current_component = icalcompiter_deref(&iter);
-
-    // Retrieve DTSTAMP, DTEND, and RECURRENCE-ID from the current component
-    if (current_component) {
-        icaltimetype dtstamp = icalcomponent_get_dtstamp(current_component);
-        icaltimetype dtend = icalcomponent_get_dtend(current_component);
-        icaltimetype recurrence_id = icalcomponent_get_recurrenceid(current_component);
-
-        // Perform some basic checks on the returned icaltimetype structures
-        if (dtstamp.year < 0 || dtend.year < 0 || recurrence_id.year < 0) {
-            std::cerr << "Invalid year in icaltimetype structure" << std::endl;
+        // Clean up
+        icalvalue_free(valueFromString);
+        if (clonedValue) {
+            icalvalue_free(clonedValue);
         }
     }
 
-    // Clean up the components
-    icalcomponent_free(vcalendar);
+    // Test icalvalue_new
+    icalvalue *newValue = icalvalue_new(kind);
+    if (newValue) {
+        icalvalue_free(newValue);
+    }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

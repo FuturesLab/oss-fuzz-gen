@@ -1,15 +1,12 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
-// Define a callback function to be used with sqlite3_trace
-static void traceCallback(void *unused, const char *sql) {
-    (void)unused; // Avoid unused parameter warning
-    // Just print the SQL statement being traced
-    printf("SQL Trace: %s\n", sql);
+// Dummy busy handler function
+int busy_handler_317(void *data, int count) {
+    return 0; // Always return 0 to indicate that the operation should not be retried
 }
 
 int LLVMFuzzerTestOneInput_317(const uint8_t *data, size_t size) {
@@ -17,15 +14,16 @@ int LLVMFuzzerTestOneInput_317(const uint8_t *data, size_t size) {
     int rc;
     char *errMsg = 0;
 
-    // Initialize SQLite database in-memory
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"w", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open an in-memory SQLite database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        return 0; // If opening the database fails, exit early
+        return 0;
     }
 
-    // Ensure data is null-terminated before using it as a SQL statement
+    // Set the busy handler for the database
+    sqlite3_busy_handler(db, busy_handler_317, NULL);
+
+    // Ensure the input data is null-terminated for use as a SQL statement
     char *sql = (char *)malloc(size + 1);
     if (sql == NULL) {
         sqlite3_close(db);
@@ -34,22 +32,24 @@ int LLVMFuzzerTestOneInput_317(const uint8_t *data, size_t size) {
     memcpy(sql, data, size);
     sql[size] = '\0';
 
-    // Set the trace callback
-    sqlite3_trace(db, traceCallback, NULL);
-
     // Execute the SQL statement
     sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Clean up
-    if (errMsg) {
-        sqlite3_free(errMsg);
+    // Free allocated resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_blob_read
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
     }
+    int ret_sqlite3_blob_read_ikdhx = sqlite3_blob_read(NULL, (void *)db, -1, size);
+    if (ret_sqlite3_blob_read_ikdhx < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     free(sql);
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_changes
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_changes with sqlite3_get_autocommit
-    sqlite3_get_autocommit(db);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    sqlite3_close(db);
 
     return 0;
 }

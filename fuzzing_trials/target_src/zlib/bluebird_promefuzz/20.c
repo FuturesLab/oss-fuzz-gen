@@ -1,11 +1,12 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "zlib.h"
 
@@ -22,57 +23,86 @@ int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Write input data to a dummy file for gzFile operations
+    // Prepare the dummy file with the provided data
     write_dummy_file(Data, Size);
 
-    // Open a gzFile in write mode
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of gzopen
-    gzFile gzfile_write = gzopen(NULL, "wb");
+    // Open the file for writing in gzip format
+    const char wilfpfky[1024] = "kebot";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of gzopen
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzopen with gzopen64
+    gzFile gz_file = gzopen64("./dummy_file", wilfpfky);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
     // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (gzfile_write) {
-        // Prepare a null-terminated string for gzputs
-        char *str = (char *)malloc(Size + 1);
-        if (str) {
-            memcpy(str, Data, Size);
-            str[Size] = '\0';
-            gzputs(gzfile_write, str);
-            free(str);
-        }
-
-        // Write a character using gzputc
-        gzputc(gzfile_write, 'A');
-
-        // Use gzerror to retrieve the last error message
-        int errnum;
-        gzerror(gzfile_write, &errnum);
-
-        // Close the gzFile
-        gzclose(gzfile_write);
+    if (gz_file == NULL) {
+        return 0;
     }
 
-    // Re-open the gzFile in read mode
-    gzFile gzfile_read = gzopen("./dummy_file", "rb");
-    if (gzfile_read) {
-        // Read a character using gzgetc
-        gzgetc(gzfile_read);
+    // Use gzputc to write a character
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gzputc with gzflush
+    gzflush(gz_file, Data[0]);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-        // Prepare a buffer for gzgets
-        char buffer[256];
-        gzgets(gzfile_read, buffer, sizeof(buffer));
+    // Use gzputs to write a string (ensure null-termination)
+    char str[256];
+    size_t str_len = (Size < 255) ? Size : 255;
+    memcpy(str, Data, str_len);
+    str[str_len] = '\0';
+    gzputs(gz_file, str);
 
-        // Use gzerror to retrieve the last error message
-        int errnum;
-        gzerror(gzfile_read, &errnum);
+    // Check for errors
+    int errnum;
+    gzerror(gz_file, &errnum);
 
-        // Close the gzFile
-        gzclose(gzfile_read);
-    }
+    // Use gzprintf to write formatted data
+    gzprintf(gz_file, "Formatted data: %d\n", Data[0]);
 
-    // Use zError to get a human-readable error message
-    zError(Z_ERRNO);
+    // Check for errors again
+    gzerror(gz_file, &errnum);
+
+    // Seek to the beginning of the file
+    gzseek(gz_file, 0, SEEK_SET);
+
+    // Close the file
+    gzclose(gz_file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

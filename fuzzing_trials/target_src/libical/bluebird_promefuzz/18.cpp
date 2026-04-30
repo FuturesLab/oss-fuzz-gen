@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,61 +11,93 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cassert>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
-static icalcomponent* create_dummy_component() {
-    icalcomponent* comp = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent* vevent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcomponent_add_component(comp, vevent);
-    return comp;
+static void test_icalcomponent_set_get_method(icalcomponent *comp, icalproperty_method method) {
+    icalcomponent_set_method(comp, method);
+    icalproperty_method retrieved_method = icalcomponent_get_method(comp);
+    if (retrieved_method != method) {
+        std::cerr << "Method mismatch: set " << method << ", got " << retrieved_method << std::endl;
+    }
+}
+
+static void test_icalcomponent_add_get_inner(icalcomponent *parent, icalcomponent *child) {
+    icalcomponent_add_component(parent, child);
+    icalcomponent *inner = icalcomponent_get_inner(parent);
+    if (inner != child) {
+        std::cerr << "Inner component mismatch" << std::endl;
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create a dummy icalcomponent for testing
-    icalcomponent* comp = create_dummy_component();
+    // Create a new VCALENDAR component
+    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
+    if (!vcalendar) return 0;
 
-    // Test icalcomponent_get_first_real_component
-    icalcomponent* first_real_comp = icalcomponent_get_first_real_component(comp);
-    if (first_real_comp) {
-        // Do something with first_real_comp
+    // Create a new VPATCH component
+    icalcomponent *vpatch = icalcomponent_new_vpatch();
+    if (!vpatch) {
+        icalcomponent_free(vcalendar);
+        return 0;
     }
 
-    // Test icalcomponent_get_method
-    icalproperty_method method = icalcomponent_get_method(comp);
-    if (method != ICAL_METHOD_NONE) {
-        // Do something with method
-    }
+    // Use the first byte of Data to set a method
+    icalproperty_method method = static_cast<icalproperty_method>(Data[0] % (ICAL_METHOD_NONE + 1));
+    test_icalcomponent_set_get_method(vcalendar, method);
 
-    // Test icalcomponent_get_component_name_r
-    char* component_name = icalcomponent_get_component_name_r(comp);
-    if (component_name) {
-        // Do something with component_name
-        free(component_name);
-    }
+    // Add VPATCH to VCALENDAR and test inner component retrieval
+    test_icalcomponent_add_get_inner(vcalendar, vpatch);
 
-    // Test icalcomponent_get_sequence
-    int sequence = icalcomponent_get_sequence(comp);
-    if (sequence != 0) {
-        // Do something with sequence
-    }
-
-    // Test icalcomponent_get_relcalid
-    const char* relcalid = icalcomponent_get_relcalid(comp);
-    if (relcalid) {
-        // Do something with relcalid
-    }
-
-    // Test icalcomponent_get_summary
-    const char* summary = icalcomponent_get_summary(comp);
-    if (summary) {
-        // Do something with summary
-    }
-
-    // Cleanup
-    icalcomponent_free(comp);
+    // Clean up
+    // Free the parent component which will also free the child components
+    icalcomponent_free(vcalendar);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

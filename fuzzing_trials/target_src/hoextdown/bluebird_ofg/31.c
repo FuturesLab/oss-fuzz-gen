@@ -1,68 +1,137 @@
-#include <stdint.h>
+#include <sys/stat.h>
+#include <string.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include "document.h"
 #include "/src/hoextdown/src/buffer.h"
 
-// Define a simple renderer to pass to hoedown_document_new
-static void dummy_blockcode(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_buffer *lang, const hoedown_renderer_data *data) {}
-static void dummy_blockquote(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_renderer_data *data) {}
-static void dummy_header(hoedown_buffer *ob, const hoedown_buffer *text, int level, const hoedown_renderer_data *data) {}
-static void dummy_paragraph(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_renderer_data *data) {}
-static void dummy_linebreak(hoedown_buffer *ob, const hoedown_renderer_data *data) {}
+// Dummy renderer and user block for demonstration purposes
+void dummy_blockcode(hoedown_buffer *ob, const hoedown_buffer *text, const hoedown_buffer *lang, void *opaque) {
+    // Dummy implementation
+}
 
-static hoedown_renderer renderer = {
-    /* block level callbacks */
-    dummy_blockcode,
-    dummy_blockquote,
-    dummy_header,
-    dummy_paragraph,
-    dummy_linebreak,
-    /* span level callbacks */
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    /* low level callbacks */
-    NULL, NULL, NULL, NULL,
-    /* renderer data */
-    NULL
+void dummy_blockquote(hoedown_buffer *ob, const hoedown_buffer *content, void *opaque) {
+    // Dummy implementation
+}
+
+void dummy_header(hoedown_buffer *ob, const hoedown_buffer *content, int level, void *opaque) {
+    // Dummy implementation
+}
+
+hoedown_renderer dummy_renderer = {
+    /* Block level callbacks */
+    dummy_blockcode,   // blockcode
+    dummy_blockquote,  // blockquote
+    NULL,              // blockhtml
+    dummy_header,      // header
+    NULL,              // hrule
+    NULL,              // list
+    NULL,              // listitem
+    NULL,              // paragraph
+    NULL,              // table
+    NULL,              // table_row
+    NULL,              // table_cell
+
+    /* Span level callbacks */
+    NULL,              // autolink
+    NULL,              // codespan
+    NULL,              // double_emphasis
+    NULL,              // emphasis
+    NULL,              // image
+    NULL,              // linebreak
+    NULL,              // link
+    NULL,              // raw_html_tag
+    NULL,              // triple_emphasis
+    NULL,              // strikethrough
+    NULL,              // superscript
+
+    /* Low level callbacks */
+    NULL,              // entity
+    NULL,              // normal_text
+
+    /* Renderer data */
+    NULL               // opaque
+};
+
+hoedown_user_block dummy_user_block = {
+    NULL,  // opaque
+    NULL   // block
 };
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    // Initialize hoedown_renderer
-    hoedown_document *document = hoedown_document_new(&renderer, 0, 16, 0, NULL, NULL);
-
-    // Ensure document is not NULL
-    if (document == NULL) {
-        return 0;
-    }
-
-    // Ensure data is not NULL and size is greater than 0
+    // Ensure the data is not NULL and size is greater than 0
     if (data == NULL || size == 0) {
-        hoedown_document_free(document);
         return 0;
     }
 
-    // Create a buffer to hold the input data
-    hoedown_buffer *input_buffer = hoedown_buffer_new(size);
-    if (input_buffer == NULL) {
-        hoedown_document_free(document);
-        return 0;
+    // Initialize the hoedown document with appropriate arguments
+    hoedown_document *doc = hoedown_document_new(
+        &dummy_renderer,   // renderer
+        0,                 // extensions
+        16,                // max_nesting
+        0,                 // attr_activation
+        dummy_user_block,  // user_block
+        NULL               // meta
+    );
+
+    if (doc == NULL) {
+        return 0; // Return early if document creation fails
     }
 
-    // Copy the input data into the buffer
-    hoedown_buffer_put(input_buffer, data, size);
-
-    // Use the function-under-test: render the document
+    // Create a hoedown buffer for the output
     hoedown_buffer *output_buffer = hoedown_buffer_new(64);
+
     if (output_buffer == NULL) {
-        hoedown_buffer_free(input_buffer);
-        hoedown_document_free(document);
-        return 0;
+        hoedown_document_free(doc);
+        return 0; // Return early if buffer creation fails
     }
-    hoedown_document_render(document, output_buffer, input_buffer->data, input_buffer->size);
+
+    // Call the function-under-test
+    hoedown_document_render(doc, output_buffer, data, size);
 
     // Clean up
     hoedown_buffer_free(output_buffer);
-    hoedown_buffer_free(input_buffer);
-    hoedown_document_free(document);
+    hoedown_document_free(doc);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

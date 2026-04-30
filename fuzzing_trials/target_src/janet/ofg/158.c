@@ -1,29 +1,70 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <janet.h>
 
 int LLVMFuzzerTestOneInput_158(const uint8_t *data, size_t size) {
-    if (size < 2) { // Ensure there is enough data for operations
+    // Initialize the Janet environment
+    janet_init();
+
+    // Create a JanetTable with some initial size
+    JanetTable *table = janet_table(10);
+
+    // Ensure size is sufficient to extract a Janet key
+    if (size < sizeof(Janet)) {
+        janet_deinit();
         return 0;
     }
 
-    // Initialize Janet
-    janet_init();
+    // Create a Janet key from the fuzzing data
+    Janet key = janet_wrap_number((double)data[0]); // Example: using the first byte as a number
 
-    // Create a Janet object from the input data
-    Janet janet_data = janet_wrap_number((double)data[0]);
+    // Insert the key into the table with a dummy value
+    janet_table_put(table, key, janet_wrap_nil());
 
-    // Ensure the index is within a reasonable range
-    int32_t index = (int32_t)(data[1] % 10); // Limiting index to 0-9
+    // Call the function-under-test
+    JanetKV *result = janet_table_find(table, key);
 
-    // Create a buffer to work with
-    JanetBuffer *buffer = janet_buffer(10);
-
-    // Use the buffer with some operation
-    janet_buffer_push_u8(buffer, data[0]);
-
-    // Clean up Janet
+    // Clean up
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_158(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

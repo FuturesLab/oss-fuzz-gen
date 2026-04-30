@@ -3,30 +3,72 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_323(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsUInt32Number nEntries = 256; // Example size for the tone curve
-    cmsUInt16Number toneCurveEntries[256];
+    // Initialize variables
+    cmsHPROFILE hProfile;
+    cmsTagSignature tagSignature;
+    const void *tagData;
 
-    // Initialize toneCurveEntries with non-NULL values
-    for (cmsUInt32Number i = 0; i < nEntries; i++) {
-        toneCurveEntries[i] = (cmsUInt16Number)(i * 256); // Example initialization
+    // Ensure the size is sufficient to extract necessary data
+    if (size < sizeof(cmsTagSignature) + sizeof(void *)) {
+        return 0;
     }
 
-    if (size >= sizeof(cmsUInt16Number) * nEntries) {
-        // Use the provided data to fill the toneCurveEntries
-        for (cmsUInt32Number i = 0; i < nEntries; i++) {
-            toneCurveEntries[i] = ((const cmsUInt16Number *)data)[i];
-        }
+    // Create a profile for testing
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
     }
+
+    // Extract cmsTagSignature from the input data
+    tagSignature = *(cmsTagSignature *)data;
+
+    // Extract tag data from the input data
+    tagData = (const void *)(data + sizeof(cmsTagSignature));
 
     // Call the function-under-test
-    cmsToneCurve *toneCurve = cmsBuildTabulatedToneCurve16(context, nEntries, toneCurveEntries);
+    cmsBool result = cmsWriteTag(hProfile, tagSignature, tagData);
 
     // Clean up
-    if (toneCurve != NULL) {
-        cmsFreeToneCurve(toneCurve);
-    }
-    cmsDeleteContext(context);
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_323(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

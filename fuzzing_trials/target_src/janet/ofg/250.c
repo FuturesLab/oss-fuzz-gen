@@ -1,35 +1,62 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <janet.h>
 
-// Declare the function-under-test
-JanetFiber *janet_loop1(void);
+// Function prototype for the function-under-test
+void janet_mark(Janet);
 
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_250(const uint8_t *data, size_t size) {
-    // Initialize Janet runtime
-    janet_init();
-
-    // Convert the fuzz input data to a Janet string or buffer
-    Janet input;
-    if (size > 0) {
-        // Create a Janet buffer from the input data
-        JanetBuffer *buffer = janet_buffer(size);
-        janet_buffer_push_bytes(buffer, data, size);
-        input = janet_wrap_buffer(buffer);
-    } else {
-        // Handle the case where size is 0
-        input = janet_wrap_nil();
+    // Ensure there is enough data to create a Janet value
+    if (size < sizeof(Janet)) {
+        return 0;
     }
 
-    // Call the function-under-test without input as it takes no arguments
-    JanetFiber *fiber = janet_loop1();
+    // Create a Janet value from the input data
+    Janet janet_value;
+    memcpy(&janet_value, data, sizeof(Janet));
 
-    // Perform any additional checks or operations on the returned fiber if necessary
-    if (fiber != NULL) {
-        // Additional operations can be performed here
-    }
-
-    // Deinitialize Janet runtime
-    janet_deinit();
+    // Call the function-under-test with the Janet value
+    janet_mark(janet_value);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_250(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

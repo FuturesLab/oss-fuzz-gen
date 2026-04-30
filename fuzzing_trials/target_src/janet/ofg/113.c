@@ -1,26 +1,95 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include <janet.h>
+#include <janet.h>  // Assuming the Janet library provides these types and functions
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract a uint64_t value
-    if (size < sizeof(uint64_t)) {
+    // Initialize the Janet library
+    janet_init();
+
+    // Ensure there's enough data to proceed
+    if (size < sizeof(Janet)) {
+        janet_deinit(); // Deinitialize Janet before returning
         return 0;
     }
 
-    // Use the first part of the data as a pointer (void*)
-    const void *ptr = (const void *)(data);
+    // Initialize a JanetMethod object
+    JanetMethod method;
+    method.name = "example_method"; // Example method name
+    method.cfun = NULL; // Example function pointer, assuming it can be NULL
 
-    // Use the next part of the data as a uint64_t value
-    uint64_t u64_value;
-    memcpy(&u64_value, data, sizeof(uint64_t));
+    // Initialize a Janet object
+    Janet janet_value = janet_wrap_integer(42); // Example initialization
 
-    // Call the function-under-test
-    Janet result = janet_nanbox_from_cpointer(ptr, u64_value);
+    // Allocate a buffer for Janet data
+    Janet *janet_data = (Janet *)malloc(sizeof(Janet));
+    if (janet_data == NULL) {
+        janet_deinit(); // Deinitialize Janet before returning
+        return 0; // Handle allocation failure
+    }
 
-    // Use the result in some way to avoid compiler optimizations that might remove the call
-    (void)result;
+    // Ensure that the data size is not larger than the allocated buffer to prevent overflow
+    size_t copy_size = size < sizeof(Janet) ? size : sizeof(Janet);
+
+    // Copy the data into the allocated buffer safely
+    memcpy(janet_data, data, copy_size);
+
+    // Ensure the Janet data is valid before calling janet_getmethod
+    if (janet_checktype(*janet_data, JANET_KEYWORD)) { // Corrected type check to JANET_KEYWORD
+        // Call the function-under-test
+        int result = janet_getmethod(janet_unwrap_keyword(*janet_data), &method, &janet_value);
+
+        // Use the result in some way to avoid compiler optimizations removing the call
+        if (result == 0) {
+            // Do something if needed
+        }
+    }
+
+    // Free the allocated buffer
+    free(janet_data);
+
+    // Deinitialize the Janet library
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_113(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

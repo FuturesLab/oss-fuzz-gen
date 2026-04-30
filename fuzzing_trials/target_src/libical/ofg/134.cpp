@@ -1,50 +1,69 @@
-#include <stdint.h>
+#include <cstdint>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+
+// Assume that the following enum is defined somewhere in the project
+typedef enum {
+    ICALPARSER_CTRL_NONE,
+    ICALPARSER_CTRL_STOP,
+    ICALPARSER_CTRL_CONTINUE,
+    ICALPARSER_CTRL_MAX
+} DW_TAG_enumeration_typeicalparser_ctrl;
 
 extern "C" {
-    #include <libical/ical.h>
-    #include <libical/icalcomponent.h> // Include the header for icalcomponent functions
+    // Function-under-test
+    void icalparser_set_ctrl(DW_TAG_enumeration_typeicalparser_ctrl ctrl);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    // Initialize an icalcomponent object.
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-
-    // Ensure that the data is non-null and has a valid size.
-    if (data != nullptr && size > 0) {
-        // Create a string from the input data.
-        char *inputData = (char *)malloc(size + 1);
-        if (inputData != nullptr) {
-            memcpy(inputData, data, size);
-            inputData[size] = '\0'; // Null-terminate the string.
-
-            // Add a comment to the icalcomponent using the input data.
-            icalproperty *commentProperty = icalproperty_new_comment(inputData);
-            icalcomponent_add_property(component, commentProperty);
-
-            // Free the allocated memory for inputData.
-            free(inputData);
-        }
+    // Ensure we have enough data to select a valid enum value
+    if (size < 1) {
+        return 0;
     }
 
-    // Call the function-under-test.
-    // Instead of simply getting the comment, let's iterate over properties to ensure interaction.
-    for (icalproperty *prop = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
-         prop != nullptr;
-         prop = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY)) {
-        // Use the property in some way to avoid compiler optimizations removing it.
-        const char *propName = icalproperty_get_property_name(prop);
-        if (propName != nullptr) {
-            // For example, just print it (in a real fuzzing scenario, you might not print).
-            printf("Property: %s\n", propName);
-        }
-    }
+    // Map the first byte of data to a valid enum value
+    DW_TAG_enumeration_typeicalparser_ctrl ctrl = static_cast<DW_TAG_enumeration_typeicalparser_ctrl>(data[0] % ICALPARSER_CTRL_MAX);
 
-    // Clean up the icalcomponent.
-    icalcomponent_free(component);
+    // Call the function-under-test
+    icalparser_set_ctrl(ctrl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_134(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

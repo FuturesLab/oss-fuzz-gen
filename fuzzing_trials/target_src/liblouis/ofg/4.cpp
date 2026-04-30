@@ -1,108 +1,66 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 
 extern "C" {
-    #include "/src/liblouis/liblouis/liblouis.h" // Correct path for the header where `lou_backTranslate` is declared
+    #include "/src/liblouis/liblouis/internal.h" // Correct path to include the declaration for lou_backTranslate
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Not enough data to proceed
-    }
-
-    // Initialize parameters for lou_backTranslate
+    // Define and initialize variables for the function parameters
     const char *tableList = "en-us-g2.ctb"; // Example table list
-    const widechar *inbuf = reinterpret_cast<const widechar*>(data);
-    int inlen = size / sizeof(widechar);
-    
-    int *inpos = (int*)malloc(inlen * sizeof(int));
-    if (inpos == NULL) {
-        return 0; // Allocation failed
-    }
-    for (int i = 0; i < inlen; ++i) {
-        inpos[i] = i;
-    }
+    const widechar inputText[] = {0x0061, 0x0062, 0x0063, 0}; // Example widechar input (abc)
+    int inputLength = 3;
+    widechar outputBuffer[256];
+    int outputLength = 256;
+    formtype formBuffer[256];
+    char spaceCharacter = ' ';
+    int cursorPosition = 0;
+    int cursorStatus = 0;
+    int mode = 0;
+    int dotsIO = 0;
 
-    widechar *outbuf = (widechar*)malloc(inlen * sizeof(widechar));
-    if (outbuf == NULL) {
-        free(inpos);
-        return 0; // Allocation failed
-    }
-
-    int *outlen = (int*)malloc(sizeof(int));
-    if (outlen == NULL) {
-        free(inpos);
-        free(outbuf);
-        return 0; // Allocation failed
-    }
-    *outlen = inlen;
-
-    formtype *typeform = (formtype*)malloc(inlen * sizeof(formtype));
-    if (typeform == NULL) {
-        free(inpos);
-        free(outbuf);
-        free(outlen);
-        return 0; // Allocation failed
-    }
-
-    char *spacing = (char*)malloc(inlen * sizeof(char));
-    if (spacing == NULL) {
-        free(inpos);
-        free(outbuf);
-        free(outlen);
-        free(typeform);
-        return 0; // Allocation failed
-    }
-
-    int *cursorPos = (int*)malloc(sizeof(int));
-    if (cursorPos == NULL) {
-        free(inpos);
-        free(outbuf);
-        free(outlen);
-        free(typeform);
-        free(spacing);
-        return 0; // Allocation failed
-    }
-    *cursorPos = 0;
-
-    int *cursorStatus = (int*)malloc(sizeof(int));
-    if (cursorStatus == NULL) {
-        free(inpos);
-        free(outbuf);
-        free(outlen);
-        free(typeform);
-        free(spacing);
-        free(cursorPos);
-        return 0; // Allocation failed
-    }
-    *cursorStatus = 0;
-
-    int *mode = (int*)malloc(sizeof(int));
-    if (mode == NULL) {
-        free(inpos);
-        free(outbuf);
-        free(outlen);
-        free(typeform);
-        free(spacing);
-        free(cursorPos);
-        free(cursorStatus);
-        return 0; // Allocation failed
-    }
-    *mode = 0;
-
-    int result = lou_backTranslate(tableList, inbuf, inpos, outbuf, outlen, typeform, spacing, cursorPos, cursorStatus, mode, 0);
-
-    // Free allocated memory
-    free(inpos);
-    free(outbuf);
-    free(outlen);
-    free(typeform);
-    free(spacing);
-    free(cursorPos);
-    free(cursorStatus);
-    free(mode);
+    // Call the function-under-test
+    lou_backTranslate(tableList, inputText, &inputLength, outputBuffer, &outputLength, formBuffer, &spaceCharacter, &cursorPosition, &cursorStatus, &dotsIO, mode);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

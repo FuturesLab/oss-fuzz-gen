@@ -1,77 +1,110 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "zlib.h"
 
-static unsigned int dummy_in_func(void *desc, z_const unsigned char **buf) {
-    *buf = (z_const unsigned char *)desc;
-    // Return the size of the input data instead of using strlen
-    return desc ? (unsigned int)*(size_t *)desc : 0;
-}
-
-static int dummy_out_func(void *desc, unsigned char *buf, unsigned len) {
-    FILE *out = (FILE *)desc;
-    return (int)fwrite(buf, 1, len, out);
+static void initialize_stream(z_stream *strm) {
+    memset(strm, 0, sizeof(z_stream));
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
 }
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size) {
-    z_stream stream;
-    z_stream dest_stream;
-    int ret;
-
-    // Initialize dummy data
-    unsigned char window[32768];
-    FILE *dummy_file = fopen("./dummy_file", "wb+");
-    if (!dummy_file) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Initialize the stream
-    memset(&stream, 0, sizeof(stream));
-    stream.next_in = Data;
-    stream.avail_in = Size;
+    z_stream strm;
+    initialize_stream(&strm);
 
-    // Test inflateInit2_
-    ret = inflateInit2_(&stream, 15, ZLIB_VERSION, sizeof(z_stream));
+    Bytef out_buffer[1024];
+    strm.next_in = (z_const Bytef *)Data;
+    strm.avail_in = (uInt)Size;
+    strm.next_out = out_buffer;
+    strm.avail_out = sizeof(out_buffer);
+
+    int ret = inflateInit(&strm);
     if (ret != Z_OK) {
-        goto cleanup;
+        return 0;
     }
 
-    // Test inflate
-    stream.next_out = (unsigned char *)malloc(Size);
-    if (!stream.next_out) {
-        goto cleanup;
-    }
-    stream.avail_out = Size;
+    // inflatePrime
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of inflatePrime
+    inflatePrime(&strm, -1, Data[0] & 1);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function inflate with deflate
-    deflate(&stream, Z_NO_FLUSH);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // inflateSync
+    inflateSync(&strm);
 
+    // inflate
+    ret = inflate(&strm, Z_NO_FLUSH);
 
-    free(stream.next_out);
+    // inflateSync again
+    inflateSync(&strm);
 
-    // Test inflateCopy
-    memset(&dest_stream, 0, sizeof(dest_stream));
-    inflateCopy(&dest_stream, &stream);
+    // inflateSyncPoint
+    inflateSyncPoint(&strm);
 
-    // Test inflateBackInit_
-    inflateBackInit_(&stream, 15, window, ZLIB_VERSION, sizeof(z_stream));
+    // inflateCopy
+    z_stream strm_copy;
+    initialize_stream(&strm_copy);
+    inflateCopy(&strm_copy, &strm);
+    inflateEnd(&strm_copy);
 
-    // Test inflateBack
-    size_t input_size = Size;
-    stream.next_in = Data;
-    stream.avail_in = Size;
-    inflateBack(&stream, dummy_in_func, &input_size, dummy_out_func, dummy_file);
+    // inflateUndermine
+    inflateUndermine(&strm, 1);
 
-    // Test inflateSyncPoint
-    inflateSyncPoint(&stream);
+    // inflateMark
+    inflateMark(&strm);
 
-cleanup:
-    inflateEnd(&stream);
-    inflateEnd(&dest_stream);
-    fclose(dummy_file);
+    // inflateEnd
+    inflateEnd(&strm);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

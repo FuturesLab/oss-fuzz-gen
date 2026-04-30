@@ -1,34 +1,62 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-
-// Function signature for the function-under-test
-void *hoedown_realloc(void *ptr, size_t size);
+#include "/src/hoextdown/src/stack.h"  // Correct path for hoedown_stack and hoedown_stack_push
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Initialize a non-NULL pointer with some allocated memory
-    void *ptr = malloc(1); // Initially allocate 1 byte
-
-    // Ensure that size is non-zero for meaningful reallocation
-    if (size == 0) {
-        size = 1; // Set size to a non-zero value
+    if (size < sizeof(void *)) {
+        return 0;  // Not enough data to form a valid pointer
     }
 
-    // Use the input data to influence the behavior of hoedown_realloc
-    size_t new_size = size % 1024; // Limit the size to a reasonable value
+    hoedown_stack stack;
+    stack.item = (void **)malloc(sizeof(void *) * 10);  // Initialize with space for 10 items
+    stack.size = 0;
+    stack.asize = 10;
 
-    // Call the function-under-test with the pointer and new size
-    void *new_ptr = hoedown_realloc(ptr, new_size);
+    void *element = (void *)(uintptr_t)(*data);  // Use the first bytes of data as a pointer
 
-    // Check if realloc was successful
-    if (new_ptr != NULL) {
-        // Optionally use the new_ptr to do something meaningful
-        memset(new_ptr, 0, new_size); // Initialize the memory to zero
-    }
+    hoedown_stack_push(&stack, element);
 
-    // Free the newly allocated memory to prevent memory leaks
-    free(new_ptr);
+    free(stack.item);  // Clean up allocated memory
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

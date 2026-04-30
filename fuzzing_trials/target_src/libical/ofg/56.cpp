@@ -1,89 +1,80 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Ensure there is enough data to extract values for icaltimetype
+    if (size < sizeof(int) * 6 + sizeof(char)) {
         return 0;
     }
 
-    // Initialize a memory zone for the icalcomponent
-    icalcomponent *parent_component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *child_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Extract values from the data for icaltimetype
+    int year = (int)data[0];
+    int month = (int)data[1] % 12 + 1; // Ensure month is between 1 and 12
+    int day = (int)data[2] % 31 + 1;   // Ensure day is between 1 and 31
+    int hour = (int)data[3] % 24;      // Ensure hour is between 0 and 23
+    int minute = (int)data[4] % 60;    // Ensure minute is between 0 and 59
+    int second = (int)data[5] % 60;    // Ensure second is between 0 and 59
+    char is_date = (char)data[6] % 2;  // Boolean value for is_date
 
-    // Add the child component to the parent component
-    icalcomponent_add_component(parent_component, child_component);
+    // Create icaltimetype structure
+    struct icaltimetype tt;
+    tt.year = year;
+    tt.month = month;
+    tt.day = day;
+    tt.hour = hour;
+    tt.minute = minute;
+    tt.second = second;
+    tt.is_date = is_date;
+    tt.is_daylight = 0;
+    tt.zone = NULL;
 
-    // Fuzz different kinds of icalcomponent_kind
-    icalcomponent_kind kinds[] = {
-        ICAL_NO_COMPONENT,
-        ICAL_ANY_COMPONENT,
-        ICAL_VEVENT_COMPONENT,
-        ICAL_VTODO_COMPONENT,
-        ICAL_VJOURNAL_COMPONENT,
-        ICAL_VFREEBUSY_COMPONENT,
-        ICAL_VTIMEZONE_COMPONENT,
-        ICAL_XSTANDARD_COMPONENT,
-        ICAL_XDAYLIGHT_COMPONENT,
-        ICAL_VALARM_COMPONENT,
-        ICAL_X_COMPONENT,
-        ICAL_VCALENDAR_COMPONENT,
-        ICAL_VSCHEDULE_COMPONENT,
-        ICAL_VQUERY_COMPONENT,
-        ICAL_VCAR_COMPONENT,
-        ICAL_XLICINVALID_COMPONENT,
-        ICAL_XLICMIMEPART_COMPONENT,
-        ICAL_VAVAILABILITY_COMPONENT,
-        ICAL_XAVAILABLE_COMPONENT,
-        ICAL_VPOLL_COMPONENT,
-        ICAL_VVOTER_COMPONENT
-    };
-
-    // Iterate over each kind and call the function-under-test
-    for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); ++i) {
-        icalcomponent *next_component = icalcomponent_get_next_component(parent_component, kinds[i]);
-        // Use the next_component in some way to prevent compiler optimizations from removing the call
-        if (next_component != NULL) {
-            // Perform some operation with next_component
-            icalcomponent_get_uid(next_component);
-        }
-    }
-
-    // Create an icalparser and parse the input data
-    icalparser *parser = icalparser_new();
-    if (parser) {
-        char *input_data = (char *)malloc(size + 1);
-        if (input_data) {
-            memcpy(input_data, data, size);
-            input_data[size] = '\0'; // Ensure null-termination
-
-            // Define a line generator function
-            auto line_gen_func = [](char *s, size_t size, void *d) -> char* {
-                char *input = (char *)d;
-                if (*input == '\0') return NULL; // End of input
-                size_t len = strlen(input);
-                if (len > size - 1) len = size - 1;
-                memcpy(s, input, len);
-                s[len] = '\0';
-                return s;
-            };
-
-            // Parse using the line generator function
-            icalparser_set_gen_data(parser, input_data);
-            icalparser_parse(parser, line_gen_func);
-
-            free(input_data);
-        }
-        icalparser_free(parser);
-    }
+    // Call the function-under-test
+    icalproperty *prop = icalproperty_new_mindate(tt);
 
     // Clean up
-    icalcomponent_free(parent_component);
+    if (prop != NULL) {
+        icalproperty_free(prop);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_56(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

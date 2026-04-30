@@ -1,81 +1,130 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
 
-static void initializeToneCurveTriple(cmsToneCurve* Curve[3]) {
-    for (int i = 0; i < 3; i++) {
-        Curve[i] = cmsBuildGamma(NULL, 2.2); // Example gamma curve
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-}
-
-static cmsToneCurve* createToneCurveFromData(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number) + sizeof(cmsUInt16Number)) {
-        return NULL;
-    }
-    cmsUInt32Number nEntries = *((cmsUInt32Number*)Data);
-    nEntries = nEntries % 4096 + 1; // Limit entries to a reasonable size
-
-    size_t requiredSize = sizeof(cmsUInt32Number) + nEntries * sizeof(cmsUInt16Number);
-    if (Size < requiredSize) {
-        return NULL;
-    }
-
-    return cmsBuildTabulatedToneCurve16(NULL, nEntries, (const cmsUInt16Number*)(Data + sizeof(cmsUInt32Number)));
 }
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number) + sizeof(cmsUInt16Number)) {
+    if (Size < 1) {
         return 0;
     }
 
-    cmsToneCurve* triple[3];
-    initializeToneCurveTriple(triple);
+    write_dummy_file(Data, Size);
 
-    cmsFreeToneCurveTriple(triple);
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
+    }
 
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsFreeToneCurveTriple to cmsOpenProfileFromMemTHR
-    cmsContext ret_cmsGetProfileContextID_aaiyr = cmsGetProfileContextID(0);
-
-    cmsHPROFILE ret_cmsOpenProfileFromMemTHR_zcwwx = cmsOpenProfileFromMemTHR(ret_cmsGetProfileContextID_aaiyr, (const void *)*triple, D_CALCULATE);
-
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectRGBProfileGamma
+    cmsBool ret_cmsPlugin_aizyx = cmsPlugin(NULL);
+    if (ret_cmsPlugin_aizyx < 0){
+    	return 0;
+    }
+    cmsFloat64Number ret_cmsDetectRGBProfileGamma_mbsbe = cmsDetectRGBProfileGamma(hProfile, (double )ret_cmsPlugin_aizyx);
+    if (ret_cmsDetectRGBProfileGamma_mbsbe < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
 
-    cmsToneCurve* original = createToneCurveFromData(Data, Size);
-    if (original) {
-        cmsToneCurve* duplicate = cmsDupToneCurve(original);
-        if (duplicate) {
-            cmsFreeToneCurveTriple((cmsToneCurve*[]){duplicate, NULL, NULL});
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsReadTag to cmsCreateContext
+            char bdhupqre[1024] = "jilrk";
+            cmsBool ret_cmsPlugin_lbguq = cmsPlugin(bdhupqre);
+            if (ret_cmsPlugin_lbguq < 0){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!bdhupqre) {
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tagData) {
+            	return 0;
+            }
+            cmsContext ret_cmsCreateContext_ckzxa = cmsCreateContext(bdhupqre, tagData);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateContext to cmsOpenProfileFromIOhandler2THR
+            cmsIOHANDLER* ret_cmsOpenIOhandlerFromNULL_imhle = cmsOpenIOhandlerFromNULL(ret_cmsCreateContext_ckzxa);
+            if (ret_cmsOpenIOhandlerFromNULL_imhle == NULL){
+            	return 0;
+            }
+            cmsUInt32Number ret_cmsGetHeaderManufacturer_zcjhc = cmsGetHeaderManufacturer(hProfile);
+            if (ret_cmsGetHeaderManufacturer_zcjhc < 0){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!ret_cmsOpenIOhandlerFromNULL_imhle) {
+            	return 0;
+            }
+            cmsHPROFILE ret_cmsOpenProfileFromIOhandler2THR_yjlwv = cmsOpenProfileFromIOhandler2THR(ret_cmsCreateContext_ckzxa, ret_cmsOpenIOhandlerFromNULL_imhle, (int )ret_cmsGetHeaderManufacturer_zcjhc);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            (void)tagData;
         }
+    }
 
-        cmsToneCurve* reverseEx = cmsReverseToneCurveEx(256, original);
-        if (reverseEx) {
-            cmsFreeToneCurveTriple((cmsToneCurve*[]){reverseEx, NULL, NULL});
-        }
-
-        cmsToneCurve* reverse = cmsReverseToneCurve(original);
-        if (reverse) {
-            cmsFreeToneCurveTriple((cmsToneCurve*[]){reverse, NULL, NULL});
-        }
-
-        cmsUInt32Number entries = cmsGetToneCurveEstimatedTableEntries(original);
-
-        cmsToneCurve* joined = cmsJoinToneCurve(NULL, original, original, entries);
-        if (joined) {
-            cmsFreeToneCurveTriple((cmsToneCurve*[]){joined, NULL, NULL});
-        }
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsFreeToneCurveTriple to cmsCreateLinearizationDeviceLink
-        cmsColorSpaceSignature ret__cmsICCcolorSpace_hzcgw = _cmsICCcolorSpace(cmsD50Y);
-
-        cmsHPROFILE ret_cmsCreateLinearizationDeviceLink_vqsji = cmsCreateLinearizationDeviceLink(ret__cmsICCcolorSpace_hzcgw, triple);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        cmsFreeToneCurveTriple((cmsToneCurve*[]){original, NULL, NULL});
-    }    return 0;
+    cmsCloseProfile(hProfile);
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

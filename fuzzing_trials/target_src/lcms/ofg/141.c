@@ -1,47 +1,74 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>  // Include this for malloc and free
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size) {
-    cmsContext context = cmsCreateContext(NULL, NULL);
-    cmsIOHANDLER *iohandler = NULL;
+    // Declare and initialize variables
+    cmsHTRANSFORM transform = NULL;
+    cmsHPROFILE inputProfile = NULL;
+    cmsHPROFILE outputProfile = NULL;
+    cmsUInt32Number inputFormat = TYPE_RGB_8;
+    cmsUInt32Number outputFormat = TYPE_RGB_8;
+    cmsUInt32Number intent = INTENT_PERCEPTUAL;
+    cmsUInt32Number flags = 0;
 
-    // Ensure there is enough data to create two strings
-    if (size < 2) {
-        cmsDeleteContext(context);
-        return 0;
+    // Create a simple transform for testing
+    inputProfile = cmsCreate_sRGBProfile();
+    outputProfile = cmsCreate_sRGBProfile();
+
+    if (inputProfile != NULL && outputProfile != NULL) {
+        transform = cmsCreateTransform(inputProfile, inputFormat, outputProfile, outputFormat, intent, flags);
+
+        if (transform != NULL) {
+            // Call the function-under-test
+            cmsUInt32Number result = cmsGetTransformInputFormat(transform);
+
+            // Clean up
+            cmsDeleteTransform(transform);
+        }
+
+        cmsCloseProfile(inputProfile);
+        cmsCloseProfile(outputProfile);
     }
-
-    // Split the input data into two parts for the file name and the mode
-    size_t mid = size / 2;
-    char *filename = (char *)malloc(mid + 1);
-    char *mode = (char *)malloc(size - mid + 1);
-
-    if (filename == NULL || mode == NULL) {
-        free(filename);
-        free(mode);
-        cmsDeleteContext(context);
-        return 0;
-    }
-
-    memcpy(filename, data, mid);
-    filename[mid] = '\0';
-
-    memcpy(mode, data + mid, size - mid);
-    mode[size - mid] = '\0';
-
-    // Call the function under test
-    iohandler = cmsOpenIOhandlerFromFile(context, filename, mode);
-
-    // Clean up
-    if (iohandler != NULL) {
-        cmsCloseIOhandler(iohandler);
-    }
-    free(filename);
-    free(mode);
-    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_141(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,21 +1,66 @@
-#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h> // Include the necessary header for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_128(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *participant = icalcomponent_new_participant();
-
-    // Normally, you would interact with the `participant` object here.
-    // For fuzzing purposes, you might want to perform operations that
-    // could expose vulnerabilities, like modifying or querying the component.
-    // However, since the function does not take any input parameters,
-    // there's not much we can do with `data` and `size` directly.
-
-    // Clean up the created component to avoid memory leaks
-    if (participant != NULL) {
-        icalcomponent_free(participant);
+    // Ensure the data size is sufficient to fill the icaldurationtype structure
+    if (size < sizeof(struct icaldurationtype)) {
+        return 0;
     }
+
+    // Initialize an icaldurationtype structure with data from the fuzzer
+    struct icaldurationtype duration;
+    memcpy(&duration, data, sizeof(struct icaldurationtype));
+
+    // Call the function-under-test
+    int seconds = icaldurationtype_as_utc_seconds(duration);
+
+    // Optionally print the result for debugging purposes
+    printf("Duration in seconds: %d\n", seconds);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_128(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

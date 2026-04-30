@@ -1,68 +1,117 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "lcms2.h"
-#include "/src/lcms/include/lcms2_plugin.h"
 
-#define DUMMY_FILE "./dummy_file"
-#define MEMORY_CLIENT_MAX 16 // Assuming a reasonable default value for demonstration
-
-// Define a dummy struct for _cmsContext_struct to allocate memory
-struct _cmsContext_struct {
-    struct _cmsContext_struct* Next;
-    void* chunks[MEMORY_CLIENT_MAX];
-};
-
-static cmsContext createDummyContext() {
-    // Create a dummy context for testing purposes
-    return (cmsContext)malloc(sizeof(struct _cmsContext_struct));
-}
-
-static void destroyDummyContext(cmsContext context) {
-    // Clean up the dummy context
-    if (context) {
-        free(context);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt16Number) * cmsMAXCHANNELS) {
+    if (Size < 1) {
         return 0;
     }
 
-    cmsUInt16Number alarmCodes[cmsMAXCHANNELS];
-    cmsContext context = createDummyContext();
+    write_dummy_file(Data, Size);
+
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsSetProfileVersion
+    cmsBool ret_cmsMD5computeID_qetxp = cmsMD5computeID(hProfile);
+    if (ret_cmsMD5computeID_qetxp < 0){
+    	return 0;
+    }
+    cmsSetProfileVersion(hProfile, (double )ret_cmsMD5computeID_qetxp);
+    // End mutation: Producer.APPEND_MUTATOR
     
-    // Initialize alarm codes from input data
-    for (int i = 0; i < cmsMAXCHANNELS; i++) {
-        alarmCodes[i] = ((cmsUInt16Number *)Data)[i];
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsReadTag to cmsIT8GetDataDbl
+            cmsHANDLE ret_cmsIT8Alloc_xbjnl = cmsIT8Alloc(0);
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tagData) {
+            	return 0;
+            }
+            cmsBool ret_cmsPlugin_sljeg = cmsPlugin(tagData);
+            if (ret_cmsPlugin_sljeg < 0){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tagData) {
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tagData) {
+            	return 0;
+            }
+            cmsFloat64Number ret_cmsIT8GetDataDbl_jpntu = cmsIT8GetDataDbl(ret_cmsIT8Alloc_xbjnl, (const char *)tagData, (const char *)tagData);
+            if (ret_cmsIT8GetDataDbl_jpntu < 0){
+            	return 0;
+            }
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            (void)tagData;
+        }
     }
 
-    // Test cmsSetAlarmCodes
-    cmsSetAlarmCodes(alarmCodes);
-
-    // Test cmsGetAlarmCodes
-    cmsGetAlarmCodes(alarmCodes);
-
-    // Test cmsSetAlarmCodesTHR
-    cmsSetAlarmCodesTHR(context, alarmCodes);
-
-    // Test cmsGetAlarmCodesTHR
-    cmsGetAlarmCodesTHR(context, alarmCodes);
-
-    // Test cmsSignalError
-    if (Size > sizeof(cmsUInt16Number) * cmsMAXCHANNELS + sizeof(cmsUInt32Number)) {
-        cmsUInt32Number errorCode = *(cmsUInt32Number *)(Data + sizeof(cmsUInt16Number) * cmsMAXCHANNELS);
-        const char *errorText = "Test error message";
-        cmsSignalError(context, errorCode, errorText);
-    }
-
-    // Test cmsUnregisterPluginsTHR
-    cmsUnregisterPluginsTHR(context);
-
-    destroyDummyContext(context);
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

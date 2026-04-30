@@ -1,88 +1,132 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include "lcms2.h"  // Assuming the Little CMS library is used
+#include <stddef.h>
+#include "lcms2.h"
+
+// Define a simple log error handler function
+void myLogErrorHandler_6(cmsContext contextID, cmsUInt32Number ErrorCode, const char *Text) {
+    // Do nothing, just a placeholder for the fuzzing
+}
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Initialize parameters for cmsGDBCheckPoint
-    cmsHPROFILE handle = cmsOpenProfileFromMem(data, size);  // Create a handle from the input data
-    cmsCIELab cielab;
+    // Call the function-under-test with a non-NULL error handler
+    cmsSetLogErrorHandler(myLogErrorHandler_6);
 
-    // Ensure the handle is not NULL
-    if (handle == NULL) {
+    // Check if the size is sufficient to create a profile
+    if (size < sizeof(cmsHPROFILE)) {
         return 0;
     }
 
-    // Initialize cmsCIELab with non-NULL values
-    cielab.L = 50.0;  // Example value
-    cielab.a = 0.0;   // Example value
-    cielab.b = 0.0;   // Example value
-
-    // Call the function under test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsSetPCS
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromMem to cmsGetHeaderFlags
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsGetHeaderFlags with cmsGetHeaderModel
-    cmsUInt32Number ret_cmsGetHeaderFlags_vxdxj = cmsGetHeaderModel(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_cmsGetHeaderFlags_vxdxj < 0){
-    	return 0;
+    // Create a profile from the input data
+    cmsHPROFILE hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
+        return 0; // If profile creation fails, exit early
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Perform a simple operation using the profile
+    cmsHTRANSFORM hTransform = cmsCreateTransform(hProfile, TYPE_RGB_8, hProfile, TYPE_RGB_8, INTENT_PERCEPTUAL, 0);
+    if (hTransform != NULL) {
+        uint8_t sample[3] = {0, 0, 0};
+        cmsDoTransform(hTransform, sample, sample, 1);
 
-    cmsColorSpaceSignature ret__cmsICCcolorSpace_fwbyg = _cmsICCcolorSpace(PT_Lab);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsDoTransform to cmsGetPostScriptCSA
+        cmsContext ret_cmsGetProfileContextID_purlc = cmsGetProfileContextID(hProfile);
+        cmsCIExyY knqbkgpz;
+        memset(&knqbkgpz, 0, sizeof(knqbkgpz));
+        cmsHPROFILE ret_cmsCreateLab4Profile_igvxd = cmsCreateLab4Profile(&knqbkgpz);
+        cmsUInt32Number ret_cmsGetTransformInputFormat_nyvaw = cmsGetTransformInputFormat(0);
+        if (ret_cmsGetTransformInputFormat_nyvaw < 0){
+        	return 0;
+        }
 
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTransformInputFormat to cmsGDBCompute
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from _cmsICCcolorSpace to cmsCreateLinearizationDeviceLink
-
-    cmsHPROFILE ret_cmsCreateLinearizationDeviceLink_uzdpr = cmsCreateLinearizationDeviceLink(ret__cmsICCcolorSpace_fwbyg, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateLinearizationDeviceLink to cmsGetTagCount
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsCreateLinearizationDeviceLink to cmsGetPostScriptCRD
-    cmsContext ret_cmsGetProfileContextID_ykmwb = cmsGetProfileContextID(0);
-
-    cmsUInt32Number ret_cmsGetPostScriptCRD_xfiyd = cmsGetPostScriptCRD(ret_cmsGetProfileContextID_ykmwb, ret_cmsCreateLinearizationDeviceLink_uzdpr, INTENT_PRESERVE_K_ONLY_PERCEPTUAL, INTENT_PRESERVE_K_ONLY_SATURATION, (void *)data, cmsPERCEPTUAL_BLACK_Z);
-    if (ret_cmsGetPostScriptCRD_xfiyd < 0){
-    	return 0;
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsGetTransformInputFormat to cmsIT8SetDataDbl
+        cmsHANDLE ret_cmsIT8Alloc_wszjq = cmsIT8Alloc(ret_cmsGetProfileContextID_purlc);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sample) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sample) {
+        	return 0;
+        }
+        cmsBool ret_cmsIT8SetDataDbl_twodr = cmsIT8SetDataDbl(ret_cmsIT8Alloc_wszjq, (const char *)sample, (const char *)sample, (double )ret_cmsGetTransformInputFormat_nyvaw);
+        if (ret_cmsIT8SetDataDbl_twodr < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        cmsHANDLE ret_cmsIT8Alloc_bpdov = cmsIT8Alloc(ret_cmsGetProfileContextID_purlc);
+        cmsBool ret_cmsGDBCompute_muyuy = cmsGDBCompute(ret_cmsIT8Alloc_bpdov, ret_cmsGetTransformInputFormat_nyvaw);
+        if (ret_cmsGDBCompute_muyuy < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        cmsFloat64Number ret_cmsSetAdaptationState_iydff = cmsSetAdaptationState(PT_MCH15);
+        if (ret_cmsSetAdaptationState_iydff < 0){
+        	return 0;
+        }
+        cmsFloat64Number ret_cmsDetectTAC_zbufg = cmsDetectTAC(hProfile);
+        if (ret_cmsDetectTAC_zbufg < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!sample) {
+        	return 0;
+        }
+        cmsUInt32Number ret_cmsGetPostScriptCSA_zbpff = cmsGetPostScriptCSA(ret_cmsGetProfileContextID_purlc, ret_cmsCreateLab4Profile_igvxd, ret_cmsGetTransformInputFormat_nyvaw, (unsigned long )ret_cmsSetAdaptationState_iydff, sample, (unsigned long )ret_cmsDetectTAC_zbufg);
+        if (ret_cmsGetPostScriptCSA_zbpff < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        cmsDeleteTransform(hTransform);
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsInt32Number ret_cmsGetTagCount_ofvyc = cmsGetTagCount(ret_cmsCreateLinearizationDeviceLink_uzdpr);
-    if (ret_cmsGetTagCount_ofvyc < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsSetPCS(handle, ret__cmsICCcolorSpace_fwbyg);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cmsBool result = cmsGDBCheckPoint(handle, &cielab);
-
-    // Close the profile handle
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsCloseProfile with cmsMD5computeID
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function cmsMD5computeID with cmsCloseProfile
-    cmsCloseProfile(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

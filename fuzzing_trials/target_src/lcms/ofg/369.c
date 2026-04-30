@@ -1,45 +1,67 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "lcms2.h"
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_369(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient for our needs
-    if (size < sizeof(cmsUInt32Number) + 3 * 32 + 2 * sizeof(cmsUInt16Number)) {
+    // Ensure that the size is sufficient for creating a cmsHANDLE
+    if (size < sizeof(cmsHANDLE)) {
         return 0;
     }
 
-    // Initialize the parameters for cmsNamedColorInfo
-    cmsNAMEDCOLORLIST *namedColorList = cmsAllocNamedColorList(NULL, 1, 32, 32, 32);
-    if (namedColorList == NULL) {
+    // Create a cmsHANDLE from the input data
+    cmsHANDLE handle = (cmsHANDLE)malloc(sizeof(cmsHANDLE));
+    if (handle == NULL) {
         return 0;
     }
 
-    cmsUInt32Number index = *((cmsUInt32Number *)data);
-    data += sizeof(cmsUInt32Number);
+    // Copy data into the handle to simulate initialization
+    memcpy(handle, data, sizeof(cmsHANDLE));
 
-    char name[32];
-    char prefix[32];
-    char suffix[32];
-    memcpy(name, data, 32);
-    data += 32;
-    memcpy(prefix, data, 32);
-    data += 32;
-    memcpy(suffix, data, 32);
-    data += 32;
+    // Call the function-under-test
+    cmsCIECAM02Done(handle);
 
-    cmsUInt16Number pcs[3];
-    cmsUInt16Number device[3];
-    memcpy(pcs, data, sizeof(cmsUInt16Number) * 3);
-    data += sizeof(cmsUInt16Number) * 3;
-    memcpy(device, data, sizeof(cmsUInt16Number) * 3);
-
-    // Call the function under test
-    cmsBool result = cmsNamedColorInfo(namedColorList, index, name, prefix, suffix, pcs, device);
-
-    // Free the allocated named color list
-    cmsFreeNamedColorList(namedColorList);
+    // Free the allocated handle
+    free(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_369(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

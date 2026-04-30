@@ -1,7 +1,7 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <unistd.h>  // Include for close() and write()
 #include <fcntl.h>   // Include for mkstemp()
 
@@ -10,7 +10,7 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a sound file
+    // Create a temporary file to simulate an audio file
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
@@ -24,31 +24,69 @@ extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
     }
     close(fd);
 
-    // Open the temporary file with libsndfile
+    // Open the file with libsndfile
     SF_INFO sfinfo;
     SNDFILE *sndfile = sf_open(tmpl, SFM_READ, &sfinfo);
-    if (!sndfile) {
+    if (sndfile == NULL) {
         remove(tmpl);
         return 0;
     }
 
-    // Prepare a buffer for the sf_command function
-    int command = 0; // Example command, can be varied
-    int buffer_size = 256; // Example buffer size
-    void *buffer = malloc(buffer_size);
-    if (!buffer) {
+    // Allocate buffer for error string
+    size_t buffer_size = 256;
+    char *error_str = (char *)malloc(buffer_size);
+    if (error_str == NULL) {
         sf_close(sndfile);
         remove(tmpl);
         return 0;
     }
 
     // Call the function-under-test
-    sf_command(sndfile, command, buffer, buffer_size);
+    int result = sf_error_str(sndfile, error_str, buffer_size);
 
-    // Cleanup
-    free(buffer);
+    // Clean up
+    free(error_str);
     sf_close(sndfile);
     remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

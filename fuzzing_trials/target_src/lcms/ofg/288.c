@@ -1,25 +1,22 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
-// Fuzzing harness for cmsGetToneCurveParametricType
 int LLVMFuzzerTestOneInput_288(const uint8_t *data, size_t size) {
-    // Initialize a memory context
-    cmsContext context = cmsCreateContext(NULL, NULL);
-
-    // Check if the input size is sufficient to extract a gamma value
+    // Check if the input size is sufficient for a gamma value
     if (size < sizeof(double)) {
-        cmsDeleteContext(context);
         return 0;
     }
 
-    // Extract a gamma value from the input data
+    // Interpret the first bytes of data as a gamma value
     double gamma;
     memcpy(&gamma, data, sizeof(double));
 
-    // Create a tone curve with a gamma value based on the input data
-    cmsToneCurve *toneCurve = cmsBuildGamma(context, gamma);
+    // Create a cmsToneCurve using the gamma value
+    cmsToneCurve* toneCurve = cmsBuildGamma(NULL, gamma);
     if (toneCurve == NULL) {
-        cmsDeleteContext(context);
         return 0;
     }
 
@@ -28,7 +25,45 @@ int LLVMFuzzerTestOneInput_288(const uint8_t *data, size_t size) {
 
     // Clean up
     cmsFreeToneCurve(toneCurve);
-    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_288(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

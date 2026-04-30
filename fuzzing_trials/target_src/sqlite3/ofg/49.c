@@ -1,21 +1,81 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <sqlite3.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Ensure the size is not zero to avoid passing zero-length buffer
-    if (size == 0) return 0;
+    sqlite3 *db;
+    char *errMsg = 0;
+    int rc;
 
-    // Allocate a buffer to store random data
-    void *random_buffer = malloc(size);
-    if (random_buffer == NULL) return 0; // Check for allocation failure
+    // Create a temporary filename for the in-memory database
+    char dbName[] = ":memory:";
 
-    // Call the function-under-test with the provided data
-    sqlite3_randomness((int)size, random_buffer);
+    // Open a new in-memory SQLite database
+    rc = sqlite3_open(dbName, &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
 
-    // Free the allocated buffer
-    free(random_buffer);
+    // Execute a simple SQL statement to ensure the database is initialized
+    const char *sql = "CREATE TABLE test (id INT, value TEXT);";
+    rc = sqlite3_exec(db, sql, NULL, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", errMsg);
+        sqlite3_free(errMsg);
+    }
+
+    // Call the function-under-test
+    rc = sqlite3_db_cacheflush(db);
+
+    // Check the result of the cache flush operation
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cache flush failed: %d\n", rc);
+    }
+
+    // Close the database connection
+    sqlite3_close(db);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

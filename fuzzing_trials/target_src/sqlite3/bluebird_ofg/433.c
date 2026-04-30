@@ -1,56 +1,50 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
 int LLVMFuzzerTestOneInput_433(const uint8_t *data, size_t size) {
-    // Initialize SQLite database
     sqlite3 *db;
     char *errMsg = 0;
 
-    // Open an in-memory SQLite database
+    // Open an in-memory database
     if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sqlite3_close with sqlite3_extended_errcode
-        sqlite3_extended_errcode(db);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Ensure the data is null-terminated before passing it to sqlite3_exec
+    char *sqlStatement = (char *)malloc(size + 1);
+    if (sqlStatement == NULL) {
+        sqlite3_close(db);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0';
+    memcpy(sqlStatement, data, size);
+    sqlStatement[size] = '\0'; // Null-terminate the input
 
-    // Execute the SQL statement
-    sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Execute the data as an SQL statement
+    if (size > 0) {
+        sqlite3_exec(db, sqlStatement, 0, 0, &errMsg);
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_blob_read
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!db) {
+        	return 0;
+        }
+        int ret_sqlite3_blob_read_jwxsp = sqlite3_blob_read(NULL, (void *)db, 64, 64);
+        if (ret_sqlite3_blob_read_jwxsp < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
-    // Free allocated resources
+    // Clean up
     if (errMsg) {
         sqlite3_free(errMsg);
     }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_get_table
-    void* ret_sqlite3_malloc_nxyis = sqlite3_malloc(64);
-    if (ret_sqlite3_malloc_nxyis == NULL){
-    	return 0;
-    }
-    void* ret_sqlite3_malloc_itcqe = sqlite3_malloc(0);
-    if (ret_sqlite3_malloc_itcqe == NULL){
-    	return 0;
-    }
-    int zigtqegn = 1;
-    int tvizcmep = size;
-    int ret_sqlite3_get_table_zrjgz = sqlite3_get_table(db, (const char *)ret_sqlite3_malloc_nxyis, (char ***)"r", &zigtqegn, &tvizcmep, (char **)&ret_sqlite3_malloc_itcqe);
-    if (ret_sqlite3_get_table_zrjgz < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(sql);
     sqlite3_close(db);
+    free(sqlStatement);
 
     return 0;
 }

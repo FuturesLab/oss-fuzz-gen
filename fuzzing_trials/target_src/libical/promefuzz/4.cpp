@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_remove_component at icalcomponent.c:543:6 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
-// icalcomponent_free at icalcomponent.c:172:6 in icalcomponent.h
-// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
-// icalcomponent_get_first_component at icalcomponent.c:611:16 in icalcomponent.h
-// icalcomponent_vanew at icalcomponent.c:105:16 in icalcomponent.h
+// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
+// icalcomponent_get_relcalid at icalcomponent.c:2591:13 in icalcomponent.h
+// icalcomponent_get_component_name at icalcomponent.c:344:13 in icalcomponent.h
+// icalcomponent_get_uid at icalcomponent.c:1816:13 in icalcomponent.h
+// icalcomponent_as_ical_string_r at icalcomponent.c:226:7 in icalcomponent.h
+// icalcomponent_as_ical_string at icalcomponent.c:215:7 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,54 +14,122 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstdint>
-#include <cstdarg>
-#include <fstream>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a new VALARM component
-    icalcomponent *valarm = icalcomponent_new_valarm();
-    if (!valarm) return 0;
-
-    // Create a parent component of a random kind
-    icalcomponent_kind parentKind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalcomponent *parent = icalcomponent_vanew(parentKind, nullptr);
-
-    if (!parent) {
-        icalcomponent_free(valarm);
+    if (Size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Add the VALARM to the parent
-    icalcomponent_add_component(parent, valarm);
+    // Prepare an icalcomponent
+    icalcomponent_kind kind;
+    memcpy(&kind, Data, sizeof(icalcomponent_kind));
+    Data += sizeof(icalcomponent_kind);
+    Size -= sizeof(icalcomponent_kind);
 
-    // Try removing the VALARM from the parent
-    icalcomponent_remove_component(parent, valarm);
-
-    // Try getting the first component of kind ICAL_VALARM_COMPONENT
-    icalcomponent *first = icalcomponent_get_first_component(parent, ICAL_VALARM_COMPONENT);
-
-    // Free components in correct order
-    if (first) {
-        icalcomponent_remove_component(parent, first);
-        icalcomponent_free(first);
-    } else {
-        // Free the valarm if it wasn't removed and freed
-        icalcomponent_free(valarm);
+    icalcomponent *comp = icalcomponent_new(kind);
+    if (!comp) {
+        return 0;
     }
-    icalcomponent_free(parent);
 
-    // Create a new component using icalcomponent_vanew with random components
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalcomponent *newComponent = icalcomponent_vanew(kind, nullptr);
+    // Use the remaining data to create dummy properties or comments
+    if (Size > 0) {
+        char *dummyData = (char *)malloc(Size + 1);
+        if (dummyData) {
+            memcpy(dummyData, Data, Size);
+            dummyData[Size] = '\0';
 
-    if (newComponent) {
-        icalcomponent_free(newComponent);
+            // Set a dummy comment
+            icalcomponent_set_comment(comp, dummyData);
+
+            // Set a dummy UID
+            icalcomponent_set_uid(comp, dummyData);
+
+            // Clean up
+            free(dummyData);
+        }
     }
+
+    // Fuzz the API functions
+    char *icalStringR = icalcomponent_as_ical_string_r(comp);
+    if (icalStringR) {
+        free(icalStringR);
+    }
+
+    const char *comment = icalcomponent_get_comment(comp);
+    if (comment) {
+        // Do something with comment if needed
+    }
+
+    const char *componentName = icalcomponent_get_component_name(comp);
+    if (componentName) {
+        // Do something with componentName if needed
+    }
+
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        // Do something with relcalid if needed
+    }
+
+    char *icalString = icalcomponent_as_ical_string(comp);
+    if (icalString) {
+        free(icalString);
+    }
+
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        // Do something with uid if needed
+    }
+
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

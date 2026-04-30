@@ -1,116 +1,83 @@
+#include <sys/stat.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "libbpf.h"
+#include <unistd.h>
+#include "/src/libbpf/include/uapi/linux/fcntl.h"
+
+// Assuming DW_TAG_enumeration_typebpf_attach_type is an enum or typedef
+typedef int DW_TAG_enumeration_typebpf_attach_type;
+
+// Assuming the function is defined somewhere
+int libbpf_find_vmlinux_btf_id(const char *path, DW_TAG_enumeration_typebpf_attach_type attach_type);
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    struct bpf_program *prog;
-    int attach_type;
-    char *target;
-    struct bpf_object *obj;
-
-    // Ensure data size is sufficient for creating a string
-    if (size < 1) {
-        return 0;
+    // Create a temporary file to simulate a valid file path
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If file creation fails, exit the function
     }
 
-    // Load a dummy BPF object to initialize a bpf_program
-    obj = bpf_object__open_mem(data, size, NULL);
-    if (!obj) {
-        return 0;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // If writing fails, clean up and exit
     }
 
-    // Get the first program from the BPF object
+    // Close the file descriptor
+    close(fd);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__load
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__open_mem to bpf_object__unpin
-
-    int ret_bpf_object__unpin_hnugq = bpf_object__unpin(obj, (const char *)"r");
-    if (ret_bpf_object__unpin_hnugq < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_bpf_object__load_nnecp = bpf_object__load(obj);
-    if (ret_bpf_object__load_nnecp < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    prog = bpf_object__next_program(obj, NULL);
-    if (!prog) {
-        bpf_object__close(obj);
-        return 0;
-    }
-
-    // Use the first byte of data to determine the attach_type
-    attach_type = (int)data[0];
-
-    // Allocate memory for the target string and copy data into it
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__next_program to bpf_program__attach_kprobe
-
-    struct bpf_link* ret_bpf_program__attach_kprobe_kelcs = bpf_program__attach_kprobe(prog, 1, NULL);
-    if (ret_bpf_program__attach_kprobe_kelcs == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    target = (char *)malloc(size);
-    if (target == NULL) {
-        bpf_object__close(obj);
-        return 0;
-    }
-    memcpy(target, data + 1, size - 1);
-    target[size - 1] = '\0'; // Ensure null-termination
+    // Use a non-null DW_TAG_enumeration_typebpf_attach_type value
+    DW_TAG_enumeration_typebpf_attach_type attach_type = 1; // Example value
 
     // Call the function-under-test
-    bpf_program__set_attach_target(prog, attach_type, target);
+    libbpf_find_vmlinux_btf_id(tmpl, attach_type);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_program__set_attach_target to bpf_program__attach_iter
-
-    struct bpf_link* ret_bpf_program__attach_iter_ozpnh = bpf_program__attach_iter(prog, NULL);
-    if (ret_bpf_program__attach_iter_ozpnh == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(target);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__kversion
-
-        unsigned int ret_bpf_object__kversion_gmwuy = bpf_object__kversion(obj);
-        if (ret_bpf_object__kversion_gmwuy < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to perf_buffer__buffer
-        int ret_libbpf_num_possible_cpus_zlzaz = libbpf_num_possible_cpus();
-        if (ret_libbpf_num_possible_cpus_zlzaz < 0){
-        	return 0;
-        }
-        size_t jiclnhck = 64;
-
-        int ret_perf_buffer__buffer_jandg = perf_buffer__buffer(NULL, ret_libbpf_num_possible_cpus_zlzaz, (void **)&obj, &jiclnhck);
-        if (ret_perf_buffer__buffer_jandg < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    bpf_object__close(obj);
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

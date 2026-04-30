@@ -1,30 +1,63 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <janet.h>
+#include <string.h>
+
+// Function signature for the function-under-test
+void janet_free(void *ptr);
 
 int LLVMFuzzerTestOneInput_346(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract an int32_t value
-    if (size < sizeof(int32_t)) {
+    // Allocate memory based on the input size
+    void *ptr = malloc(size);
+    if (ptr == NULL) {
+        // If allocation fails, return immediately
         return 0;
     }
 
-    // Extract an int32_t value from the input data
-    int32_t buffer_size = *(const int32_t *)data;
-
-    // Validate the buffer_size to prevent excessive memory allocation or negative size
-    if (buffer_size < 0 || buffer_size > 1024 * 1024) { // Limit buffer size to 1MB for safety
-        return 0;
-    }
+    // Copy the input data into the allocated memory
+    memcpy(ptr, data, size);
 
     // Call the function-under-test
-    JanetBuffer *buffer = janet_buffer(buffer_size);
+    janet_free(ptr);
 
-    // Perform any additional operations on the buffer if needed
-    // For example, you could manipulate the buffer or inspect its contents
-
-    // Clean up if necessary
-    // Note: JanetBuffer cleanup depends on how the Janet library manages memory.
-    // If the library provides a specific function to free the buffer, use it here.
-
+    // Return 0 to indicate successful execution
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_346(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

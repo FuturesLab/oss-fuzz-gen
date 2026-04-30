@@ -1,32 +1,74 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-
-// Assuming cmsHANDLE is a pointer type and cmsUInt32Number is a 32-bit unsigned integer
-typedef void* cmsHANDLE;
-typedef uint32_t cmsUInt32Number;
-typedef int cmsBool;
-
-// Mock implementation of cmsGDBCompute_81 for demonstration purposes
-cmsBool cmsGDBCompute_81(cmsHANDLE handle, cmsUInt32Number number) {
-    // Simulate some computation
-    printf("Computing with handle: %p and number: %u\n", handle, number);
-    return 1; // Assume it returns a boolean value
-}
+#include <stdlib.h>
+#include <lcms2.h>  // Assuming the function is part of the Little CMS library
 
 int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsHANDLE) + sizeof(cmsUInt32Number)) {
-        return 0; // Not enough data to extract both parameters
+    cmsHANDLE handle;
+    cmsUInt32Number options;
+
+    // Ensure there is enough data to extract cmsUInt32Number and to create a profile
+    if (size < sizeof(cmsUInt32Number)) {
+        return 0; // Not enough data to extract cmsUInt32Number
     }
 
-    // Extract cmsHANDLE from the input data
-    cmsHANDLE handle = (cmsHANDLE)(uintptr_t)(data[0]);
+    // Use the first part of data as options
+    options = *((cmsUInt32Number*)data);
 
-    // Extract cmsUInt32Number from the input data
-    cmsUInt32Number number = *(const cmsUInt32Number*)(data + sizeof(cmsHANDLE));
+    // Create a profile handle from the remaining data
+    handle = cmsOpenProfileFromMem(data + sizeof(cmsUInt32Number), size - sizeof(cmsUInt32Number));
+    if (handle == NULL) {
+        return 0; // Failed to create a valid handle
+    }
 
     // Call the function-under-test
-    cmsGDBCompute_81(handle, number);
+    cmsBool result = cmsGDBCompute(handle, options);
+
+    // Use the result in some way to avoid compiler optimizations
+    if (result) {
+        // Do something if needed
+    }
+
+    // Clean up the handle
+    cmsCloseProfile(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_81(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

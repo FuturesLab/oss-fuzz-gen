@@ -1,75 +1,48 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include "sqlite3.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_200(const uint8_t *data, size_t size) {
     sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    const void *tail = NULL;
     int rc;
-    char *errMsg = 0;
-    char *sql;
-    
-    // Initialize an in-memory SQLite database
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    rc = sqlite3_open((const char *)"r", &db);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        return 0;
-    }
 
-    // Create a simple table
-    sql = "CREATE TABLE IF NOT EXISTS test(id INT, value TEXT);";
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    // Open an in-memory database
+    rc = sqlite3_open(":memory:", &db);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_free
-        sqlite3_free((void *)"w");
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        sqlite3_close(db);
-        return 0;
+        return 0;  // If opening the database fails, exit early
     }
 
-    // Prepare the input data as an SQL statement
+    // Ensure the data is not NULL and has a size greater than 0
+    if (data != NULL && size > 0) {
+        // Allocate memory for a UTF-16 buffer
+        size_t utf16_size = size * 2;
+        uint16_t *utf16_data = (uint16_t *)malloc(utf16_size + 2); // +2 for null terminator
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_extended_result_codes
+        if (utf16_data != NULL) {
+            // Convert the input data to UTF-16 (simple conversion for demonstration)
+            for (size_t i = 0; i < size; ++i) {
+                utf16_data[i] = (uint16_t)data[i];
+            }
+            utf16_data[size] = 0; // Null-terminate the UTF-16 string
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_blob_write
-    int ret_sqlite3_blob_write_uhoaz = sqlite3_blob_write(NULL, (const void *)errMsg, 64, -1);
-    if (ret_sqlite3_blob_write_uhoaz < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int ret_sqlite3_extended_result_codes_cphka = sqlite3_extended_result_codes(db, 0);
-    if (ret_sqlite3_extended_result_codes_cphka < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    char *inputSQL = (char *)malloc(size + 1);
-    if (inputSQL == NULL) {
-        sqlite3_close(db);
-        return 0;
-    }
-    memcpy(inputSQL, data, size);
-    inputSQL[size] = '\0';
+            // Prepare the SQL statement using the fuzzing data
+            rc = sqlite3_prepare16_v2(db, utf16_data, (int)utf16_size, &stmt, &tail);
 
-    // Execute the input SQL statement
-    rc = sqlite3_exec(db, inputSQL, 0, 0, &errMsg);
-    if (rc != SQLITE_OK && errMsg != NULL) {
-        fprintf(stderr, "SQL error: %s\n", errMsg);
-        sqlite3_free(errMsg);
+            // Finalize the statement if it was successfully prepared
+            if (stmt != NULL) {
+                sqlite3_finalize(stmt);
+            }
+
+            // Free the allocated UTF-16 buffer
+            free(utf16_data);
+        }
     }
 
-    // Call the function-under-test
-    int changes = sqlite3_changes(db);
-    printf("Number of changes: %d\n", changes);
-
-    // Clean up
-    free(inputSQL);
+    // Close the database connection
     sqlite3_close(db);
 
     return 0;

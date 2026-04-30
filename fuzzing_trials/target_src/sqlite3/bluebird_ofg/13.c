@@ -1,37 +1,36 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>  // Include for size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // Include for NULL
+#include <stddef.h>
 #include "sqlite3.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    sqlite3 *db = NULL;
-    char *errMsg = NULL;
-    int rc;
+    // Initialize SQLite
+    sqlite3_initialize();
 
-    // Open an in-memory database
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Open an in-memory SQLite database
+    sqlite3 *db;
+    if (sqlite3_open(":memory:", &db) != SQLITE_OK) {
+        sqlite3_shutdown();
         return 0;
     }
 
-    // Prepare an SQL statement using the input data
-    // Note: The input data is not null-terminated, so we need to handle it carefully
+    // Create a new SQL statement from the input data
     char *sql = sqlite3_mprintf("%.*s", (int)size, data);
 
     // Execute the SQL statement
-    rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-    
-    // Free the allocated SQL string
-    sqlite3_free(sql);
+    char *errMsg = NULL;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Check for errors
-    if (rc != SQLITE_OK) {
+    // Clean up
+    if (errMsg) {
         sqlite3_free(errMsg);
     }
-
-    // Close the database
+    sqlite3_free(sql);
     sqlite3_close(db);
+
+    // Shutdown SQLite
+    sqlite3_shutdown();
 
     return 0;
 }

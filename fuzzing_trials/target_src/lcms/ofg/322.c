@@ -1,39 +1,74 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <lcms2_plugin.h>
-#include <wchar.h> // Include for wchar_t
+#include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_322(const uint8_t *data, size_t size) {
-    if (size < 4) {
-        return 0; // Not enough data to create even one key-value pair
+    // Declare and initialize variables
+    cmsHPROFILE hProfile;
+    cmsTagSignature tagSignature;
+    const void *tagData;
+
+    // Ensure the size is sufficient to extract needed data
+    if (size < sizeof(cmsTagSignature) + sizeof(void *)) {
+        return 0;
     }
 
-    cmsHANDLE dictHandle = cmsDictAlloc(NULL);
-
-    if (dictHandle != NULL) {
-        // Use the input data to create keys and values
-        size_t numPairs = size / 4; // Each pair needs at least 4 bytes
-        for (size_t i = 0; i < numPairs; ++i) {
-            wchar_t key[2] = { (wchar_t)data[i * 4], 0 };
-            wchar_t value[2] = { (wchar_t)data[i * 4 + 1], 0 };
-
-            // Add entries to the dictionary
-            cmsDictAddEntry(dictHandle, key, value, NULL, NULL);
-        }
-
-        // Fuzz the function-under-test
-        const cmsDICTentry *entryList = cmsDictGetEntryList(dictHandle);
-
-        // Optionally, you can iterate over the entry list to perform further checks or operations
-        const cmsDICTentry *entry = entryList;
-        while (entry != NULL) {
-            // Access entry->Name and entry->Value if needed
-            entry = entry->Next;
-        }
-
-        // Clean up
-        cmsDictFree(dictHandle);
+    // Initialize hProfile with a default profile
+    hProfile = cmsCreate_sRGBProfile();
+    if (hProfile == NULL) {
+        return 0;
     }
+
+    // Extract tagSignature from input data
+    tagSignature = *(cmsTagSignature *)data;
+
+    // Extract tagData from input data
+    tagData = (const void *)(data + sizeof(cmsTagSignature));
+
+    // Call the function-under-test
+    cmsBool result = cmsWriteTag(hProfile, tagSignature, tagData);
+
+    // Clean up
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_322(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,114 +1,97 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include "/src/libbpf/src/libbpf_legacy.h"
 #include "libbpf.h"
 
-static void clean_up(struct bpf_object *obj) {
-    if (obj) {
-        bpf_object__close(obj);
-    }
+#define DUMMY_FILE_PATH "./dummy_file"
+
+static int custom_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
 }
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *Data, size_t Size) {
-    if (Size < 4) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Create a dummy BPF object file
-    const char *dummy_path = "./dummy_file";
-    FILE *file = fopen(dummy_path, "wb");
-    if (!file) {
+    // Step 1: Set a custom print function
+    libbpf_set_print(custom_print_fn);
+
+    // Step 2: Open a BPF object from memory
+    struct bpf_object_open_opts opts = {
+        .sz = sizeof(struct bpf_object_open_opts),
+        .object_name = "fuzzed_object",
+    };
+
+    struct bpf_object *obj = bpf_object__open_mem(Data, Size, &opts);
+
+    // Step 3: Check for errors using deprecated function
+    long err = libbpf_get_error(obj);
+    if (err) {
+        // Handle error (deprecated function, just for demonstration)
+        fprintf(stderr, "Error opening BPF object: %ld\n", err);
         return 0;
     }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
 
-    // Open the BPF object
-    struct bpf_object *obj = bpf_object__open(dummy_path);
-    if (!obj) {
-        return 0;
+    // Step 4: Close the BPF object if it was successfully opened
+    if (obj != NULL) {
+        bpf_object__close(obj);
     }
 
-    // Fuzz bpf_object__set_kversion
-    __u32 kern_version = *(const __u32 *)Data;
-    bpf_object__set_kversion(obj, kern_version);
 
-    // Fuzz bpf_object__btf
-    struct btf *btf = bpf_object__btf(obj);
-
-    // Fuzz bpf_object__prepare
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__btf to perf_buffer__new
-
-    struct perf_buffer* ret_perf_buffer__new_toxsy = perf_buffer__new(0, 64, NULL, NULL, (void *)btf, NULL);
-    if (ret_perf_buffer__new_toxsy == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from libbpf_get_error to bpf_program__set_attach_target
+    int ret_bpf_program__set_attach_target_ndnjg = bpf_program__set_attach_target(NULL, (int )err, (const char *)"w");
+    if (ret_bpf_program__set_attach_target_ndnjg < 0){
     	return 0;
     }
-
     // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bpf_object__prepare with bpf_object__load
-    bpf_object__load(obj);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz bpf_object__open_mem
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of bpf_object__open_mem
-    struct bpf_object *mem_obj = bpf_object__open_mem(Data, 64, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (mem_obj) {
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of bpf_object__close
-        bpf_object__close(obj);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    }
-
-    // Cleanup
-    clean_up(obj);
-
-    // Remove dummy file
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__close to bpf_object__open_mem
-        struct bpf_object_skeleton hzwojhdd;
-        memset(&hzwojhdd, 0, sizeof(hzwojhdd));
-        int ret_bpf_object__attach_skeleton_vabma = bpf_object__attach_skeleton(&hzwojhdd);
-        if (ret_bpf_object__attach_skeleton_vabma < 0){
-        	return 0;
-        }
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bpf_object__attach_skeleton to bpf_program__attach_freplace
-
-        struct bpf_link* ret_bpf_program__attach_freplace_gtvum = bpf_program__attach_freplace(NULL, ret_bpf_object__attach_skeleton_vabma, NULL);
-        if (ret_bpf_program__attach_freplace_gtvum == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        struct bpf_object* ret_bpf_object__open_mem_jbgbp = bpf_object__open_mem((const void *)mem_obj, (size_t )ret_bpf_object__attach_skeleton_vabma, NULL);
-        if (ret_bpf_object__open_mem_jbgbp == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    remove(dummy_path);
-
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

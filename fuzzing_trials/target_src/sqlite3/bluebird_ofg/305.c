@@ -1,51 +1,43 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "sqlite3.h"
+#include <stdlib.h>
 #include <string.h>
+#include "sqlite3.h"
 
-// Define a function pointer type for an infinite loop function
-typedef void (*infinite_loop_func)(void);
-
-// Dummy infinite loop function
-int dummy_infinite_loop_305(void) {
-    while (1) {
-        // Infinite loop
-    }
-    return 0;
-}
-
-// Fuzzer entry point
 int LLVMFuzzerTestOneInput_305(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    char *errMsg = 0;
+    // Create in-memory databases for source and destination
+    sqlite3 *srcDb = NULL;
+    sqlite3 *destDb = NULL;
+    sqlite3_backup *backup = NULL;
 
-    // Initialize SQLite3 database in memory
-    const char ppuatwzl[1024] = "dgkbu";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
-    if (sqlite3_open(ppuatwzl, &db) != SQLITE_OK) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Open an in-memory source database
+    if (sqlite3_open(":memory:", &srcDb) != SQLITE_OK) {
         return 0;
     }
 
-    // Ensure the data is null-terminated to prevent buffer overflow
-    char *sql = (char *)malloc(size + 1);
-    if (sql == NULL) {
-        sqlite3_close(db);
+    // Open an in-memory destination database
+    if (sqlite3_open(":memory:", &destDb) != SQLITE_OK) {
+        sqlite3_close(srcDb);
         return 0;
     }
-    memcpy(sql, data, size);
-    sql[size] = '\0'; // Null-terminate the string
 
-    // Execute SQL command
-    if (sqlite3_exec(db, sql, 0, 0, &errMsg) != SQLITE_OK) {
-        sqlite3_free(errMsg);
+    // Initialize a backup object
+    backup = sqlite3_backup_init(destDb, "main", srcDb, "main");
+    if (backup) {
+        // Perform the backup step
+        sqlite3_backup_step(backup, -1);
+
+        // Get the number of remaining pages to be backed up
+        int remaining = sqlite3_backup_remaining(backup);
+
+        // Finish the backup
+        sqlite3_backup_finish(backup);
     }
 
-    // Free the allocated memory for SQL command
-    free(sql);
-
-    // Close the SQLite3 database
-    sqlite3_close(db);
+    // Close the databases
+    sqlite3_close(srcDb);
+    sqlite3_close(destDb);
 
     return 0;
 }

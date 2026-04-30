@@ -1,28 +1,59 @@
 #include <stdint.h>
-#include <stddef.h>  // Include this header to define 'size_t'
+#include <stddef.h>
+#include <lcms2.h>
 
-// Function-under-test declaration
-int cmsGetEncodedCMMversion();
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_498(const uint8_t *data, size_t size) {
-    // Directly call the function-under-test
-    int version = cmsGetEncodedCMMversion();
+    // Initialize variables for the function-under-test
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    cmsUInt32Number n = (cmsUInt32Number)size;
 
-    // Use the returned version for some basic operation to avoid compiler optimizations
-    if (version == 0) {
-        return 0;
-    }
+    // Call the function-under-test
+    cmsSEQ *seq = cmsAllocProfileSequenceDescription(context, n);
 
-    // Additional logic to use the input data
-    if (size > 0) {
-        // Use the first byte of data for some operation
-        uint8_t first_byte = data[0];
-        // Perform some operation with first_byte and version
-        if (first_byte == (uint8_t)version) {
-            return 1;
-        }
+    // Clean up resources
+    if (seq != NULL) {
+        cmsFreeProfileSequenceDescription(seq);
     }
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_498(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

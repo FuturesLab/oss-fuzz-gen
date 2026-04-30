@@ -1,42 +1,71 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <limits.h>
-
-// Assuming JanetFuncDef is a defined struct in the relevant header
-typedef struct {
-    // Example fields, replace with actual fields from the Janet library
-    const char *name;
-    int32_t length;
-    // Add other fields as necessary
-} JanetFuncDef;
-
-// Function prototype for the function-under-test
-void janet_debug_unbreak(JanetFuncDef *funcDef, int32_t index);
+#include <janet.h>
 
 int LLVMFuzzerTestOneInput_161(const uint8_t *data, size_t size) {
-    // Ensure that the size is large enough to extract an int32_t for index
-    if (size < sizeof(int32_t)) {
+    // Ensure size is sufficient for creating a Janet object
+    if (size < sizeof(double)) {
         return 0;
     }
 
-    // Allocate and initialize a JanetFuncDef structure
-    JanetFuncDef funcDef;
-    funcDef.name = "example_function"; // Example name, replace as needed
-    funcDef.length = 10; // Example length, replace as needed
+    // Initialize the Janet environment
+    janet_init();
 
-    // Extract an int32_t value from the data for the index parameter
-    int32_t index;
-    memcpy(&index, data, sizeof(int32_t));
+    // Create a Janet object from the input data
+    Janet janet_obj;
+    janet_obj = janet_wrap_number(*(double *)data); // Use data to initialize the number
 
-    // Ensure index is within a valid range
-    if (index < 0 || index >= funcDef.length) {
-        return 0;
-    }
+    // Use an index within a reasonable range
+    int32_t index = 0; // Example index, adjust as needed
+
+    // Create a JanetTable to use with janet_gettable
+    JanetTable *table = janet_table(10);
+    janet_table_put(table, janet_ckeywordv("example"), janet_obj);
 
     // Call the function-under-test
-    janet_debug_unbreak(&funcDef, index);
+    Janet value = janet_table_get(table, janet_ckeywordv("example"));
+
+    // Clean up Janet environment
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_161(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

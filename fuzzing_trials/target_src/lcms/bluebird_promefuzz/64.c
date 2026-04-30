@@ -1,77 +1,146 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "lcms2.h"
 
-static void fuzz_cmsStageAllocIdentity(cmsContext context, cmsUInt32Number nChannels) {
-    cmsStage* stage = cmsStageAllocIdentity(context, nChannels);
-    if (stage) {
-        cmsStageFree(stage);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-}
-
-static void fuzz_cmsStageNext(cmsStage* stage) {
-    cmsStage* nextStage = cmsStageNext(stage);
-    // No need to free nextStage as it is part of a linked list managed elsewhere
-}
-
-static void fuzz_cmsStageDup(cmsStage* stage) {
-    cmsStage* dupStage = cmsStageDup(stage);
-    if (dupStage) {
-        cmsStageFree(dupStage);
-    }
-}
-
-static void fuzz_cmsStageAllocCLutFloat(cmsContext context, cmsUInt32Number nGridPoints, cmsUInt32Number inputChan, cmsUInt32Number outputChan, const cmsFloat32Number* table, size_t tableSize) {
-    // Calculate the required size for the table
-    size_t requiredSize = nGridPoints * inputChan * outputChan * sizeof(cmsFloat32Number);
-
-    // Ensure the table size is sufficient
-    if (tableSize < requiredSize || nGridPoints == 0 || inputChan == 0 || outputChan == 0) {
-        return;
-    }
-
-    cmsStage* clutStage = cmsStageAllocCLutFloat(context, nGridPoints, inputChan, outputChan, table);
-    if (clutStage) {
-        cmsStageFree(clutStage);
-    }
-}
-
-static void fuzz_cmsStageData(cmsStage* stage) {
-    void* data = cmsStageData(stage);
-    // No need to free data as it is managed by the stage itself
 }
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(cmsUInt32Number) * 4) {
+    if (Size < 1) {
         return 0;
     }
 
-    cmsContext context = NULL;
-    cmsUInt32Number nChannels = *(const cmsUInt32Number*)Data;
-    cmsUInt32Number nGridPoints = *(const cmsUInt32Number*)(Data + sizeof(cmsUInt32Number));
-    cmsUInt32Number inputChan = *(const cmsUInt32Number*)(Data + 2 * sizeof(cmsUInt32Number));
-    cmsUInt32Number outputChan = *(const cmsUInt32Number*)(Data + 3 * sizeof(cmsUInt32Number));
-    const cmsFloat32Number* table = (const cmsFloat32Number*)(Data + 4 * sizeof(cmsUInt32Number));
-    size_t tableSize = Size - 4 * sizeof(cmsUInt32Number);
+    write_dummy_file(Data, Size);
 
-    fuzz_cmsStageAllocIdentity(context, nChannels);
-
-    cmsStage* stage = cmsStageAllocIdentity(context, nChannels);
-    if (stage) {
-        fuzz_cmsStageNext(stage);
-        fuzz_cmsStageDup(stage);
-        fuzz_cmsStageData(stage);
-        cmsStageFree(stage);
+    cmsHPROFILE hProfile = cmsOpenProfileFromFile("./dummy_file", "r");
+    if (!hProfile) {
+        return 0;
     }
 
-    fuzz_cmsStageAllocCLutFloat(context, nGridPoints, inputChan, outputChan, table, tableSize);
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsDetectRGBProfileGamma
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsOpenProfileFromFile to cmsGetPostScriptColorResource
+    cmsContext ret_cmsGetProfileContextID_jdpzv = cmsGetProfileContextID(hProfile);
+    cmsFloat64Number ret_cmsSetAdaptationState_vjhas = cmsSetAdaptationState(LCMS_USED_AS_INPUT);
+    if (ret_cmsSetAdaptationState_vjhas < 0){
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from cmsSetAdaptationState to cmsGetPostScriptCRD
+    cmsContext ret_cmsGetProfileContextID_xipnl = cmsGetProfileContextID(hProfile);
+    cmsHPROFILE ret_cmsCreateXYZProfile_vhfmz = cmsCreateXYZProfile();
+    cmsUInt32Number ret_cmsGetTransformInputFormat_xjrbl = cmsGetTransformInputFormat(0);
+    if (ret_cmsGetTransformInputFormat_xjrbl < 0){
+    	return 0;
+    }
+    cmsIOHANDLER* ret_cmsOpenIOhandlerFromNULL_lhrkx = cmsOpenIOhandlerFromNULL(ret_cmsGetProfileContextID_jdpzv);
+    if (ret_cmsOpenIOhandlerFromNULL_lhrkx == NULL){
+    	return 0;
+    }
+    cmsUInt32Number ret_cmsMLUtranslationsCount_dpzlg = cmsMLUtranslationsCount(NULL);
+    if (ret_cmsMLUtranslationsCount_dpzlg < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_cmsOpenIOhandlerFromNULL_lhrkx) {
+    	return 0;
+    }
+    cmsUInt32Number ret_cmsGetPostScriptCRD_fegwd = cmsGetPostScriptCRD(ret_cmsGetProfileContextID_xipnl, ret_cmsCreateXYZProfile_vhfmz, (unsigned long )ret_cmsSetAdaptationState_vjhas, ret_cmsGetTransformInputFormat_xjrbl, (void *)ret_cmsOpenIOhandlerFromNULL_lhrkx, ret_cmsMLUtranslationsCount_dpzlg);
+    if (ret_cmsGetPostScriptCRD_fegwd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsUInt32Number ret_cmsGetTransformOutputFormat_nobfd = cmsGetTransformOutputFormat(0);
+    if (ret_cmsGetTransformOutputFormat_nobfd < 0){
+    	return 0;
+    }
+    cmsIOHANDLER* ret_cmsGetProfileIOhandler_juqsa = cmsGetProfileIOhandler(hProfile);
+    if (ret_cmsGetProfileIOhandler_juqsa == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_cmsGetProfileIOhandler_juqsa) {
+    	return 0;
+    }
+    cmsUInt32Number ret_cmsGetPostScriptColorResource_eqlra = cmsGetPostScriptColorResource(ret_cmsGetProfileContextID_jdpzv, 0, hProfile, (unsigned long )ret_cmsSetAdaptationState_vjhas, ret_cmsGetTransformOutputFormat_nobfd, ret_cmsGetProfileIOhandler_juqsa);
+    if (ret_cmsGetPostScriptColorResource_eqlra < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsBool ret_cmsPlugin_aizyx = cmsPlugin(NULL);
+    if (ret_cmsPlugin_aizyx < 0){
+    	return 0;
+    }
+    cmsFloat64Number ret_cmsDetectRGBProfileGamma_mbsbe = cmsDetectRGBProfileGamma(hProfile, (double )ret_cmsPlugin_aizyx);
+    if (ret_cmsDetectRGBProfileGamma_mbsbe < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    cmsInt32Number tagCount = cmsGetTagCount(hProfile);
+    if (tagCount > 0) {
+        cmsUInt32Number index = Data[0] % tagCount;
+        cmsTagSignature tagSig = cmsGetTagSignature(hProfile, index);
+        if (tagSig != 0) {
+            void *tagData = cmsReadTag(hProfile, tagSig);
+            // Use tagData if needed; here we just ensure it's accessed
+            (void)tagData;
+        }
+    }
+
+    cmsCloseProfile(hProfile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_64(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

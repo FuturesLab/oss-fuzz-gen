@@ -1,46 +1,70 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsHANDLE handle;
-    const char *propertyName;
-    cmsFloat64Number value;
+    // Initialize variables
+    cmsHPROFILE hProfile;
+    cmsUInt32Number tagIndex;
 
-    // Ensure size is large enough to extract a double value and a property name
-    if (size < sizeof(cmsFloat64Number) + 1) {
+    // Check if the size is sufficient to extract necessary data
+    if (size < sizeof(cmsUInt32Number)) {
         return 0;
     }
 
-    // Initialize handle
-    handle = cmsIT8Alloc(NULL);
-    if (handle == NULL) {
+    // Create a profile from the input data
+    hProfile = cmsOpenProfileFromMem(data, size);
+    if (hProfile == NULL) {
         return 0;
     }
 
-    // Extract a double value from the input data
-    memcpy(&value, data, sizeof(cmsFloat64Number));
-
-    // Extract a property name from the input data
-    propertyName = (const char *)(data + sizeof(cmsFloat64Number));
-
-    // Ensure the property name is null-terminated
-    char *propertyNameCopy = (char *)malloc(size - sizeof(cmsFloat64Number) + 1);
-    if (propertyNameCopy == NULL) {
-        cmsIT8Free(handle);
-        return 0;
-    }
-    memcpy(propertyNameCopy, propertyName, size - sizeof(cmsFloat64Number));
-    propertyNameCopy[size - sizeof(cmsFloat64Number)] = '\0';
+    // Extract a cmsUInt32Number from the data for tagIndex
+    tagIndex = *((cmsUInt32Number*)data);
 
     // Call the function-under-test
-    cmsBool result = cmsIT8SetPropertyDbl(handle, propertyNameCopy, value);
+    cmsTagSignature tagSignature = cmsGetTagSignature(hProfile, tagIndex);
 
-    // Clean up
-    free(propertyNameCopy);
-    cmsIT8Free(handle);
+    // Close the profile
+    cmsCloseProfile(hProfile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

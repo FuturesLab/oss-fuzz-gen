@@ -1,48 +1,63 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-
-// Assuming JanetString is a type defined elsewhere in the codebase
-typedef struct {
-    const uint8_t *data;
-    size_t length;
-} JanetString;
-
-// Mock implementation of janet_string_end for demonstration purposes
-JanetString janet_string_end_228(uint8_t *str) {
-    JanetString result;
-    result.data = str;
-    result.length = strlen((const char *)str);
-    return result;
-}
+#include <janet.h>
 
 int LLVMFuzzerTestOneInput_228(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated for string operations
-    if (size == 0) {
-        return 0; // No input data to process
-    }
+    // Initialize Janet runtime
+    janet_init();
 
-    uint8_t *null_terminated_data = (uint8_t *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Memory allocation failed
-    }
+    // Create a new JanetBuffer
+    JanetBuffer *buffer = janet_buffer(size);
 
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0'; // Null-terminate the string
+    // Copy the input data into the JanetBuffer
+    if (size > 0) {
+        janet_buffer_push_bytes(buffer, data, size);
+    }
 
     // Call the function-under-test
-    JanetString result = janet_string_end_228(null_terminated_data);
+    Janet result = janet_wrap_buffer(buffer);
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    // Additionally, perform some operations to ensure the function is effectively tested
-    if (result.length > 0) {
-        // Access the data to ensure it's being used
-        volatile uint8_t first_char = result.data[0];
-        (void)first_char; // Use the first_char to ensure it's not optimized away
-    }
-
-    // Clean up allocated memory
-    free(null_terminated_data);
+    // Clean up Janet runtime
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_228(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -2,9 +2,9 @@
 #include <stddef.h>
 #include <janet.h>
 
-// Fuzzing harness for janet_buffer_push_u16
+// Define the LLVMFuzzerTestOneInput function
 int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient to extract a uint16_t value
+    // Ensure the input size is sufficient to extract a uint16_t value
     if (size < sizeof(uint16_t)) {
         return 0;
     }
@@ -24,3 +24,42 @@ int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

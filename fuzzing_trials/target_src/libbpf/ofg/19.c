@@ -1,36 +1,61 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
+#include <stddef.h>
 
-// Define a mock structure for bpf_map as the real definition is not provided
-struct bpf_map {
-    char name[256];
-};
+// Forward declaration of the function-under-test
+long libbpf_get_error(const void *);
 
-// Mock function to simulate the behavior of bpf_map__name
-const char *bpf_map__name_19(const struct bpf_map *map) {
-    return map->name;
-}
-
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    struct bpf_map map;
-
-    // Ensure the size is not greater than the name buffer
-    if (size > sizeof(map.name) - 1) {
-        size = sizeof(map.name) - 1;
+    // Ensure that the data is not NULL and has a non-zero size
+    if (data == NULL || size == 0) {
+        return 0;
     }
 
-    // Copy the data into the map's name field and null-terminate it
-    memcpy(map.name, data, size);
-    map.name[size] = '\0';
+    // Call the function-under-test with the data
+    long result = libbpf_get_error((const void *)data);
 
-    // Call the function-under-test
-    const char *name = bpf_map__name_19(&map);
-
-    // Use the result to avoid compiler optimizations removing the call
-    if (name) {
-        // Do something with the name, e.g., print or log (omitted here)
-    }
+    // Use the result in some way to avoid compiler optimizations
+    // that might remove the function call if the result is not used
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

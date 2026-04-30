@@ -1,99 +1,93 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include <libbpf.h>
 #include "libbpf.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
+#include "/src/libbpf/include/uapi/linux/fcntl.h"
+#include <sys/stat.h>
+#include "/src/libbpf/include/linux/types.h"
 
-static int fuzz_libbpf_prog_type_by_name(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    char *name = strndup((const char *)Data, Size);
-    if (!name) return 0;
-
-    enum bpf_prog_type prog_type;
-    enum bpf_attach_type expected_attach_type;
-    libbpf_prog_type_by_name(name, &prog_type, &expected_attach_type);
-
-    free(name);
-    return 0;
-}
-
-static int fuzz_libbpf_probe_bpf_prog_type(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(enum bpf_prog_type)) return 0;
-
-    enum bpf_prog_type prog_type;
-    memcpy(&prog_type, Data, sizeof(enum bpf_prog_type));
-
-    libbpf_probe_bpf_prog_type(prog_type, NULL);
-    return 0;
-}
-
-static int fuzz_libbpf_probe_bpf_map_type(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(enum bpf_map_type)) return 0;
-
-    enum bpf_map_type map_type;
-    memcpy(&map_type, Data, sizeof(enum bpf_map_type));
-
-    libbpf_probe_bpf_map_type(map_type, NULL);
-    return 0;
-}
-
-static int fuzz_libbpf_probe_bpf_helper(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(enum bpf_prog_type) + sizeof(enum bpf_func_id)) return 0;
-
-    enum bpf_prog_type prog_type;
-    enum bpf_func_id helper_id;
-    memcpy(&prog_type, Data, sizeof(enum bpf_prog_type));
-    memcpy(&helper_id, Data + sizeof(enum bpf_prog_type), sizeof(enum bpf_func_id));
-
-    libbpf_probe_bpf_helper(prog_type, helper_id, NULL);
-    return 0;
-}
-
-static int fuzz_libbpf_find_vmlinux_btf_id(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(enum bpf_attach_type)) return 0;
-
-    char *name = strndup((const char *)Data, Size - sizeof(enum bpf_attach_type));
-    if (!name) return 0;
-
-    enum bpf_attach_type attach_type;
-    memcpy(&attach_type, Data + Size - sizeof(enum bpf_attach_type), sizeof(enum bpf_attach_type));
-
-    libbpf_find_vmlinux_btf_id(name, attach_type);
-
-    free(name);
-    return 0;
-}
-
-static int fuzz_libbpf_register_prog_handler(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(enum bpf_prog_type) + sizeof(enum bpf_attach_type)) return 0;
-
-    char *sec = strndup((const char *)Data, Size - sizeof(enum bpf_prog_type) - sizeof(enum bpf_attach_type));
-    if (!sec) return 0;
-
-    enum bpf_prog_type prog_type;
-    enum bpf_attach_type exp_attach_type;
-    memcpy(&prog_type, Data + Size - sizeof(enum bpf_prog_type) - sizeof(enum bpf_attach_type), sizeof(enum bpf_prog_type));
-    memcpy(&exp_attach_type, Data + Size - sizeof(enum bpf_attach_type), sizeof(enum bpf_attach_type));
-
-    libbpf_register_prog_handler(sec, prog_type, exp_attach_type, NULL);
-
-    free(sec);
-    return 0;
+static int create_dummy_file(const char *filename) {
+    int fd = open(filename, O_CREAT | O_RDWR, 0644);
+    if (fd < 0) {
+        return -1;
+    }
+    write(fd, "dummy data", 10); // Write some dummy data
+    return fd;
 }
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    fuzz_libbpf_prog_type_by_name(Data, Size);
-    fuzz_libbpf_probe_bpf_prog_type(Data, Size);
-    fuzz_libbpf_probe_bpf_map_type(Data, Size);
-    fuzz_libbpf_probe_bpf_helper(Data, Size);
-    fuzz_libbpf_find_vmlinux_btf_id(Data, Size);
-    fuzz_libbpf_register_prog_handler(Data, Size);
+    const char *dummy_file = "./dummy_file";
+    int map_fd = create_dummy_file(dummy_file);
+    if (map_fd < 0) {
+        return 0;
+    }
+
+    struct user_ring_buffer_opts opts;
+    opts.sz = sizeof(opts);
+
+    struct user_ring_buffer *rb = user_ring_buffer__new(map_fd, &opts);
+    if (rb) {
+        void *sample = user_ring_buffer__reserve(rb, Size);
+        if (sample) {
+            user_ring_buffer__submit(rb, sample);
+        } else {
+            sample = user_ring_buffer__reserve_blocking(rb, Size, 1000);
+            if (sample) {
+                user_ring_buffer__discard(rb, sample);
+            }
+        }
+        user_ring_buffer__free(rb);
+    }
+
+    close(map_fd);
+    unlink(dummy_file);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

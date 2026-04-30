@@ -1,45 +1,65 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include "lcms2.h"
 
 int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    // Ensure the input size is large enough to split into meaningful parts
-    if (size < 4) {
-        return 0;
+    cmsContext context;
+    cmsHANDLE handle;
+
+    // Initialize the context with some non-NULL value.
+    context = (cmsContext)1;
+
+    // Call the function-under-test with the initialized context.
+    handle = cmsGBDAlloc(context);
+
+    // Normally, you would perform some operations with the handle here.
+    // For fuzzing purposes, simply check if the handle is not NULL.
+    if (handle != NULL) {
+        // Clean up the allocated handle if necessary.
+        // This is a placeholder as the actual cleanup function may vary.
+        cmsGBDFree(handle);
     }
-
-    // Initialize variables
-    cmsMLU *mlu = cmsMLUalloc(NULL, 1);
-    const char *language = "en";
-    const char *country = "US";
-
-    // Split the input data into two parts for the ASCII string
-    size_t ascii_len = size / 2;
-    char *ascii_str1 = (char *)malloc(ascii_len + 1);
-    char *ascii_str2 = (char *)malloc(ascii_len + 1);
-
-    if (ascii_str1 == NULL || ascii_str2 == NULL) {
-        cmsMLUfree(mlu);
-        free(ascii_str1);
-        free(ascii_str2);
-        return 0;
-    }
-
-    memcpy(ascii_str1, data, ascii_len);
-    ascii_str1[ascii_len] = '\0';
-
-    memcpy(ascii_str2, data + ascii_len, ascii_len);
-    ascii_str2[ascii_len] = '\0';
-
-    // Call the function-under-test
-    cmsMLUsetASCII(mlu, language, country, ascii_str1);
-    cmsMLUsetASCII(mlu, language, country, ascii_str2);
-
-    // Clean up
-    cmsMLUfree(mlu);
-    free(ascii_str1);
-    free(ascii_str2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_67(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

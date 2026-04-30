@@ -1,39 +1,65 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>  // Include for malloc and free
-#include "/src/hoextdown/src/buffer.h"  // Correct path for hoedown_buffer
+#include "/src/hoextdown/src/html.h"
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to split into two parts
-    if (size < 2) {
+    // Ensure the size is enough for extracting parameters
+    if (size < sizeof(hoedown_html_flags) + sizeof(int)) {
         return 0;
     }
 
-    // Allocate and initialize a hoedown_buffer
-    hoedown_buffer buffer;
-    buffer.data = (uint8_t *)data;  // Point to the fuzz data
-    buffer.size = size / 2;         // Use half of the data for the buffer
-    buffer.asize = buffer.size;
-    buffer.unit = 1;
+    // Extract hoedown_html_flags from the input data
+    hoedown_html_flags flags = *(const hoedown_html_flags *)data;
 
-    // Use the second half of the data as a string
-    const char *prefix = (const char *)(data + buffer.size);
-    size_t prefix_length = size - buffer.size;
-
-    // Ensure the prefix is null-terminated
-    char *null_terminated_prefix = (char *)malloc(prefix_length + 1);
-    if (null_terminated_prefix == NULL) {
-        return 0;
-    }
-    memcpy(null_terminated_prefix, prefix, prefix_length);
-    null_terminated_prefix[prefix_length] = '\0';
+    // Extract an integer from the input data
+    int render_flags = *(const int *)(data + sizeof(hoedown_html_flags));
 
     // Call the function-under-test
-    int result = hoedown_buffer_prefix(&buffer, null_terminated_prefix);
+    hoedown_renderer *renderer = hoedown_html_renderer_new(flags, render_flags);
 
-    // Clean up
-    free(null_terminated_prefix);
+    // Clean up if necessary
+    if (renderer != NULL) {
+        hoedown_html_renderer_free(renderer);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_51(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

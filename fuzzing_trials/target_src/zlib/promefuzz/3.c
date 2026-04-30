@@ -1,15 +1,13 @@
 // This fuzz driver is generated for library zlib, aiming to fuzz the following functions:
+// deflateInit_ at deflate.c:379:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
 // inflateInit_ at inflate.c:214:13 in zlib.h
-// inflatePrime at inflate.c:219:13 in zlib.h
-// inflateSync at inflate.c:1264:13 in zlib.h
-// inflate at inflate.c:474:13 in zlib.h
-// inflateSync at inflate.c:1264:13 in zlib.h
-// inflateSyncPoint at inflate.c:1320:13 in zlib.h
-// inflateCopy at inflate.c:1328:13 in zlib.h
-// inflateUndermine at inflate.c:1370:13 in zlib.h
-// inflateMark at inflate.c:1397:14 in zlib.h
 // inflateEnd at inflate.c:1155:13 in zlib.h
+// deflateReset at deflate.c:704:13 in zlib.h
+// inflateReset at inflate.c:125:13 in zlib.h
+// deflateReset at deflate.c:704:13 in zlib.h
 // inflateEnd at inflate.c:1155:13 in zlib.h
+// deflateEnd at deflate.c:1293:13 in zlib.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -17,65 +15,92 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <zlib.h>
 
-static void initialize_stream(z_streamp strm) {
-    memset(strm, 0, sizeof(z_stream));
-    strm->zalloc = Z_NULL;
-    strm->zfree = Z_NULL;
-    strm->opaque = Z_NULL;
+static void handle_deflate(z_stream *strm, const uint8_t *Data, size_t Size) {
+    int ret = deflateInit_(strm, Z_DEFAULT_COMPRESSION, ZLIB_VERSION, sizeof(z_stream));
+    if (ret != Z_OK) return;
+
+    strm->next_in = (z_const Bytef *)Data;
+    strm->avail_in = (uInt)Size;
+    strm->next_out = (Bytef *)malloc(Size);
+    strm->avail_out = (uInt)Size;
+
+    deflateEnd(strm);
+    free(strm->next_out);
+}
+
+static void handle_inflate(z_stream *strm, const uint8_t *Data, size_t Size) {
+    int ret = inflateInit_(strm, ZLIB_VERSION, sizeof(z_stream));
+    if (ret != Z_OK) return;
+
+    strm->next_in = (z_const Bytef *)Data;
+    strm->avail_in = (uInt)Size;
+    strm->next_out = (Bytef *)malloc(Size);
+    strm->avail_out = (uInt)Size;
+
+    inflateEnd(strm);
+    free(strm->next_out);
+}
+
+static void reset_and_test(z_stream *strm) {
+    deflateReset(strm);
+    inflateReset(strm);
+    deflateReset(strm);
+    inflateEnd(strm);
+    deflateEnd(strm);
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
     z_stream strm;
-    initialize_stream(&strm);
-    int ret = inflateInit(&strm);
-    if (ret != Z_OK) return 0;
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
 
-    z_stream strm_copy;
-    initialize_stream(&strm_copy);
-
-    uint8_t dummy_out[256];
-    strm.next_in = (Bytef *)Data;
-    strm.avail_in = (uInt)Size;
-    strm.next_out = dummy_out;
-    strm.avail_out = sizeof(dummy_out);
-
-    int bits = Data[0] & 0x1F; // Use first byte for bits
-    int value = Data[0] >> 5;  // Use remaining bits for value
-
-    // Call inflatePrime
-    inflatePrime(&strm, bits, value);
-
-    // Call inflateSync
-    inflateSync(&strm);
-
-    // Call inflate
-    inflate(&strm, Z_NO_FLUSH);
-
-    // Call inflateSync again
-    inflateSync(&strm);
-
-    // Call inflateSyncPoint
-    inflateSyncPoint(&strm);
-
-    // Call inflateCopy
-    inflateCopy(&strm_copy, &strm);
-
-    // Call inflateUndermine
-    inflateUndermine(&strm, 1);
-
-    // Call inflateMark
-    inflateMark(&strm);
-
-    // Call inflateEnd
-    inflateEnd(&strm);
-    inflateEnd(&strm_copy);
+    handle_deflate(&strm, Data, Size);
+    handle_inflate(&strm, Data, Size);
+    reset_and_test(&strm);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

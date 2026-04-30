@@ -1,71 +1,65 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
 #include "/src/libbpf/src/libbpf.h"
-#include "/src/libbpf/src/bpf.h"
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    struct bpf_map *map = NULL;
     struct bpf_object *obj = NULL;
-    char *filename;
-    int result = 0;
+    struct btf *btf_result;
 
-    // Ensure size is sufficient for creating a filename
-    if (size < 1) {
-        return 0;
-    }
-
-    // Create a temporary file to use as the filename
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    close(fd);
-
-    // Allocate memory for the filename and copy tmpl into it
-    filename = (char *)malloc(strlen(tmpl) + 1);
-    if (filename == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
-    strcpy(filename, tmpl);
-
-    // Load a BPF object from a file or memory (dummy example)
-    obj = bpf_object__open_file("/path/to/bpf/program.o", NULL);
-    if (!obj) {
-        free(filename);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Load the BPF program
-    if (bpf_object__load(obj) < 0) {
-        bpf_object__close(obj);
-        free(filename);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Get the first map from the BPF object
-    map = bpf_object__next_map(obj, NULL);
-    if (!map) {
-        bpf_object__close(obj);
-        free(filename);
-        unlink(tmpl);
+    // Initialize a bpf_object from the input data
+    // For the purpose of fuzzing, we assume that the data represents an ELF file
+    // containing BPF bytecode. In practice, you would need to ensure that the input
+    // is a valid BPF object file.
+    obj = bpf_object__open_mem(data, size, NULL);
+    if (obj == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    result = bpf_map__pin(map, filename);
+    btf_result = bpf_object__btf(obj);
 
-    // Clean up
+    // Cleanup
     bpf_object__close(obj);
-    free(filename);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_64(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,66 +1,81 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>  // For size_t
-#include <stdlib.h>
-#include <sys/stat.h>  // For malloc, free, and NULL
-#include <string.h>  // For memcpy
+#include <stddef.h>
 #include "sqlite3.h"
 
+// Fuzzing function
 int LLVMFuzzerTestOneInput_443(const uint8_t *data, size_t size) {
-    sqlite3 *db;
-    int rc;
-    char *errMsg = 0;
+    // Convert input data to a null-terminated string
+    char *sql = (char *)malloc(size + 1);
+    if (!sql) {
+        return 0; // Fail gracefully on allocation failure
+    }
+    memcpy(sql, data, size);
+    sql[size] = '\0';
 
-    // Initialize a database in memory
-    rc = sqlite3_open(":memory:", &db);
-    if (rc != SQLITE_OK) {
+    // Initialize an SQLite database in memory
+    sqlite3 *db;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of sqlite3_open
+    if (sqlite3_open((const char *)"w", &db) != SQLITE_OK) {
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        free(sql);
         return 0;
     }
 
-    // Execute a simple SQL statement to ensure the database is in a valid state
+    // Execute the SQL statement
+    char *errMsg = 0;
+    sqlite3_exec(db, sql, 0, 0, &errMsg);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_open to sqlite3_open16
-    sqlite3_str* ret_sqlite3_str_new_aapyv = sqlite3_str_new(db);
-    if (ret_sqlite3_str_new_aapyv == NULL){
+    // Free resources
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sqlite3_exec to sqlite3_backup_init
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
     	return 0;
     }
-    int ret_sqlite3_open16_xhloz = sqlite3_open16((const void *)db, &db);
-    if (ret_sqlite3_open16_xhloz < 0){
+    int ret_sqlite3_total_changes_niauz = sqlite3_total_changes(db);
+    if (ret_sqlite3_total_changes_niauz < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    sqlite3_mutex* ret_sqlite3_db_mutex_lfafh = sqlite3_db_mutex(db);
+    if (ret_sqlite3_db_mutex_lfafh == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    sqlite3_uint64 ret_sqlite3_msize_yqlqv = sqlite3_msize((void *)errMsg);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!db) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errMsg) {
+    	return 0;
+    }
+    sqlite3_backup* ret_sqlite3_backup_init_qhstu = sqlite3_backup_init(db, errMsg, db, errMsg);
+    if (ret_sqlite3_backup_init_qhstu == NULL){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    rc = sqlite3_exec(db, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT);", 0, 0, &errMsg);
-    if (rc != SQLITE_OK) {
-        sqlite3_free(errMsg);
-        sqlite3_close(db);
-        return 0;
-    }
-
-    // If size is greater than 0, use the data to execute a SQL statement
-    if (size > 0) {
-        // Interpret the data as a SQL statement
-        char *sql = (char *)malloc(size + 1);
-        if (sql == NULL) {
-            sqlite3_close(db);
-            return 0;
-        }
-        memcpy(sql, data, size);
-        sql[size] = '\0'; // Null-terminate the string
-
-        // Execute the SQL statement
-        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
-        if (rc != SQLITE_OK) {
-            sqlite3_free(errMsg);
-        }
-
-        free(sql);
-    }
-
-    // Call the function-under-test
-    int autocommit = sqlite3_get_autocommit(db);
-
-    // Cleanup
+    sqlite3_free(errMsg);
     sqlite3_close(db);
+    free(sql);
 
     return 0;
 }

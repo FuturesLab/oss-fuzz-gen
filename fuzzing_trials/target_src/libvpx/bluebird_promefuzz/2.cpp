@@ -1,97 +1,93 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "vpx/vp8dx.h"
-#include "vpx/vpx_decoder.h"
+#include "/src/libvpx/vpx/vpx_codec.h"
 #include "/src/libvpx/vpx/vp8cx.h"
-}
-
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
-
-static void dummy_put_frame_cb(void *user_priv, const vpx_image_t *img) {
-  // Dummy callback function for put frame
-}
+#include "vpx/vp8dx.h"
+#include "/src/libvpx/vpx/vpx_encoder.h"
+#include "vpx/vpx_decoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-  if (Size < 1) {
+    if (Size < sizeof(vpx_codec_ctx_t) + sizeof(vpx_image_t) + sizeof(vpx_codec_enc_cfg_t) + sizeof(vpx_codec_dec_cfg_t)) {
+        return 0;
+    }
+
+    // Initialize codec contexts
+    vpx_codec_ctx_t enc_ctx;
+    vpx_codec_ctx_t dec_ctx;
+
+    // Initialize encoder and decoder configuration
+    vpx_codec_enc_cfg_t enc_cfg;
+    vpx_codec_dec_cfg_t dec_cfg;
+
+    // Initialize image
+    vpx_image_t img;
+    img.fmt = static_cast<vpx_img_fmt_t>(Data[0] % 10);
+    img.cs = static_cast<vpx_color_space_t>(Data[1] % 8);
+    img.range = static_cast<vpx_color_range_t>(Data[2] % 2);
+    img.w = Data[3] % 256;
+    img.planes[0] = const_cast<uint8_t*>(&Data[4]);
+    img.stride[0] = 256;
+    img.bps = 8;
+
+    // Initialize encoder
+    if (vpx_codec_enc_init_ver(&enc_ctx, vpx_codec_vp8_cx(), &enc_cfg, 0, VPX_ENCODER_ABI_VERSION) == VPX_CODEC_OK) {
+        // Encode a frame
+        vpx_codec_encode(&enc_ctx, &img, 0, 1, 0, 0);
+        vpx_codec_destroy(&enc_ctx);
+    }
+
+    // Initialize decoder
+    if (vpx_codec_dec_init_ver(&dec_ctx, vpx_codec_vp8_dx(), &dec_cfg, 0, VPX_DECODER_ABI_VERSION) == VPX_CODEC_OK) {
+        // Decode the data
+        vpx_codec_decode(&dec_ctx, Data, Size, nullptr, 0);
+        vpx_codec_destroy(&dec_ctx);
+    }
+
+    // Control function test
+    vpx_codec_control_(&enc_ctx, 0); // Random control ID for testing
+    vpx_codec_control_(&dec_ctx, 0); // Random control ID for testing
+
     return 0;
-  }
-
-  // Initialize codec interface
-  vpx_codec_iface_t *iface = vpx_codec_vp9_dx();
-  if (!iface) {
-    return 0;
-  }
-
-  // Initialize codec context
-  vpx_codec_ctx_t ctx;
-  vpx_codec_dec_cfg_t cfg = {0};  // Default configuration
-  vpx_codec_err_t res = vpx_codec_dec_init_ver(&ctx, iface, &cfg, 0, VPX_DECODER_ABI_VERSION);
-  if (res != VPX_CODEC_OK) {
-    return 0;
-  }
-
-  // Register dummy callback
-  vpx_codec_register_put_frame_cb(&ctx, dummy_put_frame_cb, nullptr);
-
-  // Decode data
-  vpx_codec_decode(&ctx, Data, static_cast<unsigned int>(Size), nullptr, 0);
-
-  // Peek stream info
-  vpx_codec_stream_info_t si;
-  si.sz = sizeof(si);
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_decode to vpx_codec_enc_init_ver
-  vpx_codec_iface_t* ret_vpx_codec_vp9_dx_zfkab = vpx_codec_vp9_dx();
-  if (ret_vpx_codec_vp9_dx_zfkab == NULL){
-  	return 0;
-  }
-
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of vpx_codec_enc_init_ver
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_vp9_dx to vpx_codec_enc_init_ver
-
-  vpx_codec_err_t ret_vpx_codec_enc_init_ver_njxla = vpx_codec_enc_init_ver(&ctx, ret_vpx_codec_vp9_dx_zfkab, NULL, 0, VPX_TS_MAX_LAYERS);
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_err_t ret_vpx_codec_enc_init_ver_grgfh = vpx_codec_enc_init_ver(&ctx, ret_vpx_codec_vp9_dx_zfkab, NULL, 0, VPX_SS_MAX_LAYERS);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_peek_stream_info(iface, Data, static_cast<unsigned int>(Size), &si);
-
-  // Get stream info
-  vpx_codec_get_stream_info(&ctx, &si);
-
-  // Cleanup
-
-  // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from vpx_codec_get_stream_info to vpx_codec_set_cx_data_buf
-
-
-  // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of vpx_codec_set_cx_data_buf
-  vpx_codec_err_t ret_vpx_codec_set_cx_data_buf_vqtqn = vpx_codec_set_cx_data_buf(&ctx, NULL, VPX_EFLAG_CALCULATE_PSNR, 1);
-  // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-  // End mutation: Producer.APPEND_MUTATOR
-
-  vpx_codec_destroy(&ctx);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

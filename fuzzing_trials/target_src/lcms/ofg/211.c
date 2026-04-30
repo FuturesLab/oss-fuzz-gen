@@ -3,28 +3,58 @@
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_211(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    cmsContext context = (cmsContext)1; // Dummy non-NULL context
-    cmsCIExyY whitePoint;
-
-    // Ensure data is large enough to populate cmsCIExyY structure
-    if (size < sizeof(cmsCIExyY)) {
-        return 0;
-    }
-
-    // Populate the cmsCIExyY structure from the input data
-    const double *doubleData = (const double *)data;
-    whitePoint.x = doubleData[0];
-    whitePoint.y = doubleData[1];
-    whitePoint.Y = doubleData[2];
-
-    // Call the function-under-test
-    cmsHPROFILE profile = cmsCreateLab4ProfileTHR(context, &whitePoint);
+    // Initialize a cmsContext with a non-NULL value
+    cmsContext context = cmsCreateContext(NULL, NULL);
+    
+    // Use the input data to open an IO handler from memory
+    // Provide the required 'AccessMode' argument as "r" for read mode
+    cmsIOHANDLER *handler = cmsOpenIOhandlerFromMem(context, (void *)data, size, "r");
 
     // Clean up
-    if (profile != NULL) {
-        cmsCloseProfile(profile);
+    if (handler != NULL) {
+        cmsCloseIOhandler(handler);
     }
+    
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_211(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

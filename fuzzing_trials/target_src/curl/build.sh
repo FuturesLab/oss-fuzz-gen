@@ -29,7 +29,7 @@ fi
 
 ./ossfuzz.sh
 
-$CXX $CXXFLAGS /src/synthesized_driver/*.c* -I$SRC/curl/include -I$SRC/curl/include/curl \
+$CXX $CXXFLAGS -std=c++17 /src/synthesized_driver/*.c* -I$SRC/curl/include -I$SRC/curl/include/curl \
   -o $OUT/curl_fuzzer \
   $SRC/curl_fuzzer/build/curl-install/lib/libcurl.a \
   $SRC/curl_fuzzer/build/nghttp2/src/nghttp2_external-build/lib/libnghttp2.a \
@@ -39,7 +39,12 @@ $CXX $CXXFLAGS /src/synthesized_driver/*.c* -I$SRC/curl/include -I$SRC/curl/incl
   $SRC/curl_fuzzer/build/openldap-install/lib/liblber.a \
   $SRC/curl_fuzzer/build/libidn2-install/lib/libidn2.a \
   $SRC/curl_fuzzer/build/zlib-install/lib/libz.a \
-  $SRC/curl_fuzzer/build/zstd-install/lib/libzstd.a
+  $SRC/curl_fuzzer/build/zstd-install/lib/libzstd.a \
+  -Wl,--start-group \
+  $SRC/curl_fuzzer/build/lpm-install/lib/libprotobuf-mutator.a \
+  $SRC/curl_fuzzer/build/lpm/src/libprotobuf_mutator_external-build/external.protobuf/lib/libprotobuf.a \
+  $SRC/curl_fuzzer/build/lpm/src/libprotobuf_mutator_external-build/external.protobuf/lib/libabsl_*.a \
+  -Wl,--end-group
 
 
 cp $OUT/curl_fuzzer $OUT/fuzz_driver_$SANITIZER

@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -5,16 +6,17 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "unistd.h"
-#include "fcntl.h"
+#include <string.h>
 #include "zlib.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void initialize_stream(z_streamp strm) {
+    strm->zalloc = Z_NULL;
+    strm->zfree = Z_NULL;
+    strm->opaque = Z_NULL;
+    strm->next_in = Z_NULL;
+    strm->avail_in = 0;
+    strm->next_out = Z_NULL;
+    strm->avail_out = 0;
 }
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
@@ -22,36 +24,89 @@ int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    write_dummy_file(Data, Size);
+    z_stream strm;
+    initialize_stream(&strm);
 
-    int fd = open("./dummy_file", O_RDONLY);
-    if (fd == -1) {
+    int ret = inflateInit2_(&strm, 15, ZLIB_VERSION, sizeof(z_stream));
+    if (ret != Z_OK) {
         return 0;
     }
 
-    const char *modes[] = {"r", "rb", "w", "wb", "a", "ab"};
-    const char *mode = modes[Data[0] % (sizeof(modes) / sizeof(modes[0]))];
+    uLong crc = crc32(0L, Z_NULL, 0);
+
+    strm.next_in = (Bytef *)Data;
+    strm.avail_in = Size;
+
+    unsigned char out_buffer[1024];
+    strm.next_out = out_buffer;
+    strm.avail_out = sizeof(out_buffer);
+
+    ret = inflate(&strm, Z_NO_FLUSH);
+    crc = crc32(crc, out_buffer, sizeof(out_buffer) - strm.avail_out);
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from crc32 to adler32_combine64
+    uLong ret_zlibCompileFlags_fasey = zlibCompileFlags();
+    uLong ret_adler32_combine64_xpixn = adler32_combine64(ret_zlibCompileFlags_fasey, crc, 0);
+    // End mutation: Producer.APPEND_MUTATOR
     
-    gzFile gz_file = gzdopen(fd, mode);
-    if (!gz_file) {
-        close(fd);
+    inflateEnd(&strm);
+
+    strm.next_in = (Bytef *)Data;
+    strm.avail_in = Size;
+    strm.next_out = out_buffer;
+    strm.avail_out = sizeof(out_buffer);
+
+    ret = deflateInit2_(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15, 8, Z_DEFAULT_STRATEGY, ZLIB_VERSION, sizeof(z_stream));
+    if (ret != Z_OK) {
         return 0;
     }
 
-    // Test gzdirect
-    int direct = gzdirect(gz_file);
+    const Bytef dictionary[] = "dummy_dictionary";
+    deflateSetDictionary(&strm, dictionary, sizeof(dictionary));
 
-    // Test gzrewind
-    int rewind_result = gzrewind(gz_file);
+    deflatePrime(&strm, 3, 5);
 
-    // Test gzflush
-    int flush_result = gzflush(gz_file, Z_FINISH);
-
-    // Test gzeof
-    int eof = gzeof(gz_file);
-
-    // Cleanup
-    int close_result = gzclose_r(gz_file);
+    deflateEnd(&strm);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

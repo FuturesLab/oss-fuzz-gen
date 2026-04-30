@@ -1,56 +1,75 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lcms2.h>
 
 int LLVMFuzzerTestOneInput_279(const uint8_t *data, size_t size) {
-    if (size < sizeof(cmsUInt32Number) * 2) {
-        return 0; // Not enough data to proceed
+    // Initialize cmsContext
+    cmsContext context = cmsCreateContext(NULL, NULL);
+
+    // Check if size is sufficient to fill cmsViewingConditions structure
+    if (size < sizeof(cmsViewingConditions)) {
+        cmsDeleteContext(context);
+        return 0;
     }
 
-    // Declare and initialize variables
-    cmsContext context = NULL; // Assuming a NULL context for simplicity
-    cmsUInt32Number nProfiles = 2; // Number of profiles
-    cmsHPROFILE profiles[2] = {cmsCreate_sRGBProfile(), cmsCreate_sRGBProfile()}; // Example profiles
-    cmsBool intents[2] = {TRUE, FALSE}; // Example intents
-    cmsUInt32Number dwFlags[2] = {0, 0}; // Example flags
-    cmsFloat64Number adaptationStates[2] = {1.0, 1.0}; // Example adaptation states
-    cmsHPROFILE proofingProfile = cmsCreate_sRGBProfile(); // Example proofing profile
-    cmsUInt32Number intent = INTENT_PERCEPTUAL; // Example rendering intent
-    cmsUInt32Number proofingIntent = INTENT_ABSOLUTE_COLORIMETRIC; // Example proofing intent
-    cmsUInt32Number dwFlagsTransform = 0; // Example flags for transform
-    cmsUInt32Number dwFlagsProofing = 0; // Example flags for proofing
-
-    // Use some of the input data to affect the function call
-    intent = *(cmsUInt32Number *)data;
-    proofingIntent = *(cmsUInt32Number *)(data + sizeof(cmsUInt32Number));
+    // Allocate memory for cmsViewingConditions and copy data into it
+    cmsViewingConditions *viewingConditions = (cmsViewingConditions *)malloc(sizeof(cmsViewingConditions));
+    if (viewingConditions == NULL) {
+        cmsDeleteContext(context);
+        return 0;
+    }
+    memcpy(viewingConditions, data, sizeof(cmsViewingConditions));
 
     // Call the function-under-test
-    cmsHTRANSFORM transform = cmsCreateExtendedTransform(
-        context,
-        nProfiles,
-        profiles,
-        intents,
-        dwFlags,
-        adaptationStates,
-        proofingProfile,
-        intent,
-        proofingIntent,
-        dwFlagsTransform,
-        dwFlagsProofing
-    );
+    cmsHANDLE handle = cmsCIECAM02Init(context, viewingConditions);
 
     // Clean up
-    if (transform != NULL) {
-        cmsDeleteTransform(transform);
+    if (handle != NULL) {
+        cmsCIECAM02Done(handle);
     }
-    for (int i = 0; i < nProfiles; i++) {
-        if (profiles[i] != NULL) {
-            cmsCloseProfile(profiles[i]);
-        }
-    }
-    if (proofingProfile != NULL) {
-        cmsCloseProfile(proofingProfile);
-    }
+    free(viewingConditions);
+    cmsDeleteContext(context);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_279(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

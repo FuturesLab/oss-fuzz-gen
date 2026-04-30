@@ -1,38 +1,84 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <string.h> // Include this for memcpy
+#include "/src/libbpf/src/libbpf.h"
 
-// Assuming the types are defined somewhere in the library
-typedef int DW_TAG_enumeration_typebpf_prog_type;
-typedef int DW_TAG_enumeration_typebpf_attach_type;
+// Define a mock struct for bpf_program for demonstration purposes.
+// In a real scenario, you would include the appropriate header file
+// that defines the bpf_program structure.
+struct bpf_program {
+    int dummy; // Placeholder member
+};
 
-// Function-under-test declaration
-int libbpf_prog_type_by_name(const char *name, DW_TAG_enumeration_typebpf_prog_type *prog_type, DW_TAG_enumeration_typebpf_attach_type *attach_type);
+// Mock function for bpf_program__attach_sockmap_46
+// In practice, you would link against the actual library providing this function.
+struct bpf_link * bpf_program__attach_sockmap_46(const struct bpf_program *prog, int sockmap_fd) {
+    // Normally, this function would attach a BPF program to a sockmap.
+    // Here, we just return a dummy pointer for demonstration.
+    return (struct bpf_link *)0x1;
+}
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
+    if (size < sizeof(struct bpf_program)) {
+        return 0; // Not enough data to initialize bpf_program
     }
 
-    // Allocate memory for the name string and ensure it is null-terminated
-    char *name = (char *)malloc(size + 1);
-    if (name == NULL) {
-        return 0;
-    }
-    memcpy(name, data, size);
-    name[size] = '\0';
+    // Initialize a bpf_program instance using the input data
+    struct bpf_program prog;
+    // Copy data into the prog structure, assuming sizeof(struct bpf_program) <= size
+    // This is a mock initialization for demonstration
+    memcpy(&prog, data, sizeof(struct bpf_program));
 
-    // Initialize the prog_type and attach_type
-    DW_TAG_enumeration_typebpf_prog_type prog_type = 0;
-    DW_TAG_enumeration_typebpf_attach_type attach_type = 0;
+    // Use the remaining data as an integer for sockmap_fd
+    int sockmap_fd = 0;
+    if (size > sizeof(struct bpf_program)) {
+        sockmap_fd = *(int *)(data + sizeof(struct bpf_program));
+    }
 
     // Call the function-under-test
-    libbpf_prog_type_by_name(name, &prog_type, &attach_type);
+    struct bpf_link *link = bpf_program__attach_sockmap_46(&prog, sockmap_fd);
 
-    // Free allocated memory
-    free(name);
+    // Normally, you would perform some checks or operations with the returned link
+    // For this fuzzing harness, we just ensure the function is called
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
