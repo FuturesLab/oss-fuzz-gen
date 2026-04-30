@@ -1,16 +1,17 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_date at plist.c:526:9 in plist.h
-// plist_get_date_val at plist.c:1428:6 in plist.h
-// plist_unix_date_val_compare at plist.c:1773:5 in plist.h
-// plist_date_val_compare at plist.c:1749:5 in plist.h
-// plist_set_date_val at plist.c:1623:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_new_unix_date at plist.c:535:9 in plist.h
-// plist_get_date_val at plist.c:1428:6 in plist.h
-// plist_unix_date_val_compare at plist.c:1773:5 in plist.h
-// plist_date_val_compare at plist.c:1749:5 in plist.h
-// plist_set_date_val at plist.c:1623:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_from_memory at plist.c:225:13 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_from_openstep at oplist.c:1013:13 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_from_bin at bplist.c:905:13 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_from_json at jplist.c:954:13 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_from_xml at xplist.c:1637:13 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_from_memory at plist.c:225:13 in plist.h
+// plist_write_to_file at plist.c:2473:13 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -21,58 +22,98 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t) * 2 + sizeof(int64_t)) {
-        return 0;
+    if (Size == 0) return 0;
+
+    // Prepare data for plist_from_memory
+    plist_t plist_mem = nullptr;
+    plist_format_t format_mem;
+    plist_err_t err_mem = plist_from_memory(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_mem, &format_mem);
+    if (err_mem == PLIST_ERR_SUCCESS) {
+        plist_free(plist_mem);
     }
 
-    int32_t sec = 0;
-    int32_t usec = 0;
-    int64_t unix_sec = 0;
-
-    memcpy(&sec, Data, sizeof(int32_t));
-    memcpy(&usec, Data + sizeof(int32_t), sizeof(int32_t));
-    memcpy(&unix_sec, Data + sizeof(int32_t) * 2, sizeof(int64_t));
-
-    // Fuzz plist_new_date
-    plist_t date_node = plist_new_date(sec, usec);
-
-    if (date_node) {
-        // Fuzz plist_get_date_val
-        int32_t retrieved_sec = 0;
-        int32_t retrieved_usec = 0;
-        plist_get_date_val(date_node, &retrieved_sec, &retrieved_usec);
-
-        // Fuzz plist_unix_date_val_compare
-        plist_unix_date_val_compare(date_node, unix_sec);
-
-        // Fuzz plist_date_val_compare
-        plist_date_val_compare(date_node, sec, usec);
-
-        // Fuzz plist_set_date_val
-        plist_set_date_val(date_node, sec, usec);
-
-        plist_free(date_node);
+    // Prepare data for plist_from_openstep
+    plist_t plist_openstep = nullptr;
+    plist_err_t err_openstep = plist_from_openstep(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_openstep);
+    if (err_openstep == PLIST_ERR_SUCCESS) {
+        plist_free(plist_openstep);
     }
 
-    // Fuzz plist_new_unix_date
-    plist_t unix_date_node = plist_new_unix_date(unix_sec);
+    // Prepare data for plist_from_bin
+    plist_t plist_bin = nullptr;
+    plist_err_t err_bin = plist_from_bin(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_bin);
+    if (err_bin == PLIST_ERR_SUCCESS) {
+        plist_free(plist_bin);
+    }
 
-    if (unix_date_node) {
-        // Reuse the same fuzzed functions for the new node
-        int32_t retrieved_sec = 0;
-        int32_t retrieved_usec = 0;
-        plist_get_date_val(unix_date_node, &retrieved_sec, &retrieved_usec);
+    // Prepare data for plist_from_json
+    plist_t plist_json = nullptr;
+    plist_err_t err_json = plist_from_json(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_json);
+    if (err_json == PLIST_ERR_SUCCESS) {
+        plist_free(plist_json);
+    }
 
-        plist_unix_date_val_compare(unix_date_node, unix_sec);
-        plist_date_val_compare(unix_date_node, sec, usec);
-        plist_set_date_val(unix_date_node, sec, usec);
+    // Prepare data for plist_from_xml
+    plist_t plist_xml = nullptr;
+    plist_err_t err_xml = plist_from_xml(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_xml);
+    if (err_xml == PLIST_ERR_SUCCESS) {
+        plist_free(plist_xml);
+    }
 
-        plist_free(unix_date_node);
+    // If data is large enough, attempt to write to a file
+    if (Size > 1) {
+        plist_t plist_file = nullptr;
+        plist_err_t err_file = plist_from_memory(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_file, nullptr);
+        if (err_file == PLIST_ERR_SUCCESS) {
+            plist_write_to_file(plist_file, "./dummy_file", PLIST_FORMAT_XML, PLIST_OPT_NONE);
+            plist_free(plist_file);
+        }
     }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

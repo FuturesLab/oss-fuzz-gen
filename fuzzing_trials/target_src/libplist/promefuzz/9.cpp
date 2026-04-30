@@ -1,21 +1,13 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_new_string at plist.c:460:9 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_dict_get_item at plist.c:900:9 in plist.h
-// plist_dict_get_item_key at plist.c:880:6 in plist.h
-// plist_dict_copy_item at plist.c:1161:13 in plist.h
-// plist_dict_get_item at plist.c:900:9 in plist.h
-// plist_dict_new_iter at plist.c:843:6 in plist.h
-// plist_dict_next_item at plist.c:852:6 in plist.h
-// plist_new_string at plist.c:460:9 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_dict_get_bool at plist.c:1032:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_from_bin at bplist.c:905:13 in plist.h
+// plist_dict_get_item_key at plist.c:1254:6 in plist.h
+// plist_dict_get_bool at plist.c:1453:9 in plist.h
+// plist_get_key_val at plist.c:1742:6 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_dict_remove_item at plist.c:1411:6 in plist.h
+// plist_dict_get_item at plist.c:1274:9 in plist.h
+// plist_dict_next_item at plist.c:1215:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -25,70 +17,92 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <plist/plist.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Create plist dictionaries
-    plist_t source_dict = plist_new_dict();
-    plist_t target_dict = plist_new_dict();
+    plist_t plist = nullptr;
+    plist_from_bin(reinterpret_cast<const char*>(Data), Size, &plist);
 
-    // Create a key string from the input data
-    char *key = static_cast<char*>(malloc(Size + 1));
-    if (!key) {
-        plist_free(source_dict);
-        plist_free(target_dict);
-        return 0;
-    }
-    memcpy(key, Data, Size);
-    key[Size] = '\0';
+    if (!plist) return 0;
 
-    // Create a dummy item and insert it into the source dictionary
-    plist_t item = plist_new_string("dummy_value");
-    plist_dict_set_item(source_dict, key, item);
-
-    // Test plist_dict_get_item_key
-    char *retrieved_key = nullptr;
-    plist_t retrieved_item = plist_dict_get_item(source_dict, key);
-    if (retrieved_item) {
-        plist_dict_get_item_key(retrieved_item, &retrieved_key);
-        if (retrieved_key) {
-            free(retrieved_key);
-        }
+    // Fuzz plist_dict_get_item_key
+    char *key = nullptr;
+    plist_dict_get_item_key(plist, &key);
+    if (key) {
+        free(key);
     }
 
-    // Test plist_dict_copy_item
-    plist_dict_copy_item(target_dict, source_dict, key, nullptr);
+    // Fuzz plist_dict_get_bool
+    char dummyKey[] = "dummyKey";
+    uint8_t boolValue = plist_dict_get_bool(plist, dummyKey);
 
-    // Test plist_dict_get_item
-    plist_t copied_item = plist_dict_get_item(target_dict, key);
+    // Fuzz plist_get_key_val
+    char *keyVal = nullptr;
+    plist_get_key_val(plist, &keyVal);
+    if (keyVal) {
+        plist_mem_free(keyVal);
+    }
 
-    // Test plist_dict_next_item
+    // Fuzz plist_dict_remove_item
+    plist_dict_remove_item(plist, dummyKey);
+
+    // Fuzz plist_dict_get_item
+    plist_t item = plist_dict_get_item(plist, dummyKey);
+
+    // Fuzz plist_dict_next_item
     plist_dict_iter iter = nullptr;
-    plist_dict_new_iter(source_dict, &iter);
-    if (iter) {
-        plist_dict_next_item(source_dict, iter, &retrieved_key, &retrieved_item);
-        if (retrieved_key) {
-            free(retrieved_key);
-        }
-        free(iter);
+    char *nextKey = nullptr;
+    plist_t nextVal = nullptr;
+    plist_dict_next_item(plist, iter, &nextKey, &nextVal);
+    if (nextKey) {
+        free(nextKey);
     }
 
-    // Test plist_dict_set_item
-    plist_t new_item = plist_new_string("new_value");
-    plist_dict_set_item(target_dict, key, new_item);
-
-    // Test plist_dict_get_bool
-    uint8_t bool_value = plist_dict_get_bool(target_dict, key);
-
-    // Cleanup
-    plist_free(source_dict);
-    plist_free(target_dict);
-    free(key);
-
+    plist_free(plist);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

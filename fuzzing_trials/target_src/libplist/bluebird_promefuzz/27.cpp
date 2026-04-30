@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,41 +10,126 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include "plist/plist.h"
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    // Create a PLIST_DATA node from the input data
-    plist_t node = plist_new_data(reinterpret_cast<const char*>(Data), Size);
-    if (!node) return 0;
+    plist_t plist = nullptr;
+    plist_from_bin(reinterpret_cast<const char*>(Data), Size, &plist);
 
-    // Test plist_get_data_val
-    char *val = nullptr;
-    uint64_t length = 0;
-    plist_get_data_val(node, &val, &length);
-    if (val) plist_mem_free(val);
+    if (plist) {
+        char *output = nullptr;
+        uint32_t length = 0;
+        plist_err_t result;
 
-    // Test plist_get_data_ptr
-    const char *data_ptr = plist_get_data_ptr(node, &length);
+        // Test plist_to_bin
+        result = plist_to_bin(plist, &output, &length);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-    // Prepare a comparison buffer
-    const uint8_t *cmpval = Data;
-    size_t cmpval_size = Size > 1 ? Size / 2 : Size;
+        // Test plist_to_openstep_with_options with different options
 
-    // Test plist_data_val_contains
-    int contains = plist_data_val_contains(node, cmpval, cmpval_size);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_bin to plist_set_date_val
+        plist_t ret_plist_copy_rgead = plist_copy(plist);
 
-    // Test plist_data_val_compare
-    int compare = plist_data_val_compare(node, cmpval, cmpval_size);
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from plist_copy to plist_array_set_item using the plateau pool
+        plist_array_set_item(ret_plist_copy_rgead, ret_plist_copy_rgead, 0);
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+        uint32_t ret_plist_array_get_size_uqczg = plist_array_get_size(plist);
+        if (ret_plist_array_get_size_uqczg < 0){
+        	return 0;
+        }
+        plist_set_date_val(ret_plist_copy_rgead, (int32_t )length, (int32_t )ret_plist_array_get_size_uqczg);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        result = plist_to_openstep_with_options(plist, &output, &length, PLIST_OPT_COMPACT);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-    // Test plist_data_val_compare_with_size
-    int compare_with_size = plist_data_val_compare_with_size(node, cmpval, cmpval_size);
+        result = plist_to_openstep_with_options(plist, &output, &length, PLIST_OPT_COERCE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-    // Free the plist node
-    plist_free(node);
+        // Test plist_to_json
+        result = plist_to_json(plist, &output, &length, 1);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        // Test plist_write_to_stream
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file) {
+            result = plist_write_to_stream(plist, file, PLIST_FORMAT_JSON, PLIST_OPT_NONE);
+            fclose(file);
+        }
+
+        // Test plist_write_to_string
+        result = plist_write_to_string(plist, &output, &length, PLIST_FORMAT_XML, PLIST_OPT_NONE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        // Test plist_to_json_with_options with different options
+        result = plist_to_json_with_options(plist, &output, &length, PLIST_OPT_COMPACT);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        result = plist_to_json_with_options(plist, &output, &length, PLIST_OPT_COERCE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        plist_free(plist);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

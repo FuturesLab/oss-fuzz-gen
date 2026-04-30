@@ -1,64 +1,78 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "plist/plist.h"
 
 extern "C" {
-    // Include necessary C headers and functions here
     #include "plist/plist.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Initialize plist_t variable
     plist_t plist = NULL;
-    
-    // Create a plist from the input data
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_bin with plist_from_xml
-    plist_from_xml((const char*)data, size, &plist);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Prepare variables for plist_to_bin
     char *bin_data = NULL;
     uint32_t bin_size = 0;
+    plist_format_t format = PLIST_FORMAT_BINARY; // Add a default format
+
+    // Create a plist from the input data
+    plist_from_memory((const char*)data, size, &plist, &format);
 
     // Call the function-under-test
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_to_bin with plist_to_xml
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_from_xml to plist_string_val_compare_with_size
-    int ret_plist_int_val_is_negative_spppr = plist_int_val_is_negative(plist);
-    if (ret_plist_int_val_is_negative_spppr < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_from_memory to plist_bool_val_is_true
+    int ret_plist_bool_val_is_true_pjwbp = plist_bool_val_is_true(plist);
+    if (ret_plist_bool_val_is_true_pjwbp < 0){
     	return 0;
     }
-    const char qzcwtrna[1024] = "nituh";
-
-    int ret_plist_string_val_compare_with_size_odmzc = plist_string_val_compare_with_size(plist, qzcwtrna, (size_t )ret_plist_int_val_is_negative_spppr);
-    if (ret_plist_string_val_compare_with_size_odmzc < 0){
-    	return 0;
-    }
-
     // End mutation: Producer.APPEND_MUTATOR
-
-    plist_err_t result = plist_to_xml(plist, &bin_data, &bin_size);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    
+    plist_err_t result = plist_to_bin(plist, &bin_data, &bin_size);
 
     // Clean up
     if (bin_data != NULL) {
         free(bin_data);
     }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_xml to plist_get_uint_val
-
-    plist_get_uint_val(plist, (uint64_t *)&bin_size);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    plist_free(plist);
+    if (plist != NULL) {
+        plist_free(plist);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

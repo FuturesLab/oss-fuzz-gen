@@ -1,39 +1,64 @@
-extern "C" {
-    #include <plist/plist.h>
-    #include <stdlib.h>  // For malloc and free
-    #include <string.h>  // For memcpy
-}
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_138(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to contain at least one character for the key
-    if (size < 1) {
-        return 0;
-    }
+    // Initialize plist_t variable
+    plist_t plist = NULL;
 
-    // Create a plist dictionary
-    plist_t dict = plist_new_dict();
-    if (!dict) {
-        return 0;
-    }
+    // Create a plist from the input data
+    plist_from_bin((const char*)data, size, &plist);
 
-    // Create a key string from the input data
-    char *key = (char *)malloc(size + 1);
-    if (!key) {
-        plist_free(dict);
-        return 0;
-    }
-    memcpy(key, data, size);
-    key[size] = '\0'; // Null-terminate the string
-
-    // Add a dummy item to the dictionary for testing
-    plist_dict_set_item(dict, "dummy_key", plist_new_string("dummy_value"));
+    // Initialize a uint64_t variable to hold the result
+    uint64_t value = 0;
 
     // Call the function-under-test
-    plist_t item = plist_dict_get_item(dict, key);
+    plist_get_uint_val(plist, &value);
 
-    // Clean up
-    plist_free(dict);
-    free(key);
+    // Free the plist
+    if (plist != NULL) {
+        plist_free(plist);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_138(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

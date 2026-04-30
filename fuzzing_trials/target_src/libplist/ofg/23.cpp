@@ -1,45 +1,75 @@
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
-#include <unistd.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <cstdio>  // Include this header for the remove function
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <plist/plist.h>
 
-// Include the necessary header for the function-under-test
 extern "C" {
-    int plist_is_binary(const char *filename, uint32_t options);
+    #include <stdlib.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a filename and provide meaningful content
-    if (size < 4) {  // Assuming a minimum size for a valid plist
+    // Initialize a plist dictionary
+    plist_t dict = plist_new_dict();
+
+    // Add some key-value pairs to the dictionary
+    plist_dict_set_item(dict, "key1", plist_new_string("value1"));
+    plist_dict_set_item(dict, "key2", plist_new_string("value2"));
+    plist_dict_set_item(dict, "key3", plist_new_string("value3"));
+
+    // Ensure the data is null-terminated for string usage
+    char *key = (char *)malloc(size + 1);
+    if (key == NULL) {
+        plist_free(dict);
         return 0;
     }
+    memcpy(key, data, size);
+    key[size] = '\0';
 
-    // Create a temporary filename using the data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Call the function-under-test
+    plist_t item = plist_dict_get_item(dict, key);
 
-    // Write the fuzz data to the temporary file
-    ssize_t written = write(fd, data, size);
-    close(fd);
-
-    // Ensure data was written successfully
-    if (written != size) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Call the function-under-test with the temporary filename and a non-zero options value
-    uint32_t options = 1;
-    plist_is_binary(tmpl, options);
-
-    // Clean up the temporary file
-    remove(tmpl);
+    // Clean up
+    plist_free(dict);
+    free(key);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

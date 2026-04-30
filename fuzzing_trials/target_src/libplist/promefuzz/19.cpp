@@ -1,20 +1,16 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_string at plist.c:460:9 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_new_array at plist.c:443:9 in plist.h
-// plist_new_uint at plist.c:478:9 in plist.h
-// plist_array_append_item at plist.c:742:6 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_from_openstep at oplist.c:926:13 in plist.h
-// plist_dict_get_size at plist.c:833:10 in plist.h
-// plist_access_path at plist.c:1245:9 in plist.h
-// plist_array_get_item at plist.c:667:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_from_bin at bplist.c:847:13 in plist.h
-// plist_access_path at plist.c:1245:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_new_uint at plist.c:601:9 in plist.h
+// plist_get_uint_val at plist.c:1795:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_new_uid at plist.c:627:9 in plist.h
+// plist_get_uid_val at plist.c:1812:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_new_uint at plist.c:601:9 in plist.h
+// plist_set_uint_val at plist.c:2031:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_new_uid at plist.c:627:9 in plist.h
+// plist_set_uid_val at plist.c:2041:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -24,54 +20,88 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdarg>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <plist/plist.h>
-
-static plist_t create_sample_plist() {
-    plist_t node = plist_new_dict();
-    plist_dict_set_item(node, "key", plist_new_string("value"));
-    plist_t array_node = plist_new_array();
-    plist_array_append_item(array_node, plist_new_uint(42));
-    plist_dict_set_item(node, "array", array_node);
-    return node;
-}
+#include "plist.h"
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < sizeof(uint64_t)) {
         return 0;
     }
 
-    // Test plist_from_openstep
-    plist_t plist = nullptr;
-    plist_err_t err = plist_from_openstep(reinterpret_cast<const char *>(Data), static_cast<uint32_t>(Size), &plist);
-    if (err == PLIST_ERR_SUCCESS && plist) {
-        // Test plist_dict_get_size
-        uint32_t size = plist_dict_get_size(plist);
+    uint64_t val;
+    memcpy(&val, Data, sizeof(uint64_t));
 
-        // Test plist_access_pathv using a sample plist
-        plist_t sample_plist = create_sample_plist();
-        const char *path[] = {"key"};
-        plist_t accessed_node = plist_access_path(sample_plist, 1, path[0]);
-
-        // Test plist_array_get_item
-        plist_t array_item = plist_array_get_item(plist, 0);
-
-        // Clean up plist
-        plist_free(plist);
-        plist_free(sample_plist);
+    // Test plist_new_uint and plist_get_uint_val
+    plist_t uint_node = plist_new_uint(val);
+    if (uint_node) {
+        uint64_t retrieved_val = 0;
+        plist_get_uint_val(uint_node, &retrieved_val);
+        plist_free(uint_node);
     }
 
-    // Test plist_from_bin
-    plist_t plist_bin = nullptr;
-    err = plist_from_bin(reinterpret_cast<const char *>(Data), static_cast<uint32_t>(Size), &plist_bin);
-    if (err == PLIST_ERR_SUCCESS && plist_bin) {
-        // Test plist_access_path
-        plist_t accessed_node = plist_access_path(plist_bin, 1, "key");
+    // Test plist_new_uid and plist_get_uid_val
+    plist_t uid_node = plist_new_uid(val);
+    if (uid_node) {
+        uint64_t retrieved_uid_val = 0;
+        plist_get_uid_val(uid_node, &retrieved_uid_val);
+        plist_free(uid_node);
+    }
 
-        // Clean up plist
-        plist_free(plist_bin);
+    // Test plist_set_uint_val
+    plist_t node1 = plist_new_uint(0);
+    if (node1) {
+        plist_set_uint_val(node1, val);
+        plist_free(node1);
+    }
+
+    // Test plist_set_uid_val
+    plist_t node2 = plist_new_uid(0);
+    if (node2) {
+        plist_set_uid_val(node2, val);
+        plist_free(node2);
     }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

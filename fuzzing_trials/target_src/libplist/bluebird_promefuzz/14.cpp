@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,59 +9,114 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include "plist/plist.h"
 
+static void fuzz_plist_from_memory(const uint8_t *Data, size_t Size) {
+    plist_t plist = nullptr;
+    plist_format_t format;
+    plist_err_t err = plist_from_memory(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist, &format);
+    if (err == PLIST_ERR_SUCCESS && plist) {
+        plist_free(plist);
+    }
+}
+
+static void fuzz_plist_from_bin(const uint8_t *Data, size_t Size) {
+    plist_t plist = nullptr;
+    plist_err_t err = plist_from_bin(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist);
+    if (err == PLIST_ERR_SUCCESS && plist) {
+        plist_free(plist);
+    }
+}
+
+static void fuzz_plist_from_json(const uint8_t *Data, size_t Size) {
+    plist_t plist = nullptr;
+    plist_err_t err = plist_from_json(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist);
+    if (err == PLIST_ERR_SUCCESS && plist) {
+        plist_free(plist);
+    }
+}
+
+static void fuzz_plist_from_xml(const uint8_t *Data, size_t Size) {
+    plist_t plist = nullptr;
+    plist_err_t err = plist_from_xml(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist);
+    if (err == PLIST_ERR_SUCCESS && plist) {
+        plist_free(plist);
+    }
+}
+
+static void fuzz_plist_read_from_file(const uint8_t *Data, size_t Size) {
+    std::ofstream file("./dummy_file", std::ios::binary);
+    if (file.is_open()) {
+        file.write(reinterpret_cast<const char*>(Data), Size);
+        file.close();
+
+        plist_t plist = nullptr;
+        plist_format_t format;
+        plist_err_t err = plist_read_from_file("./dummy_file", &plist, &format);
+        if (err == PLIST_ERR_SUCCESS && plist) {
+            plist_free(plist);
+        }
+    }
+}
+
+static void fuzz_plist_write_to_file(const uint8_t *Data, size_t Size) {
+    plist_t plist = nullptr;
+    plist_err_t err = plist_from_memory(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist, nullptr);
+    if (err == PLIST_ERR_SUCCESS && plist) {
+        err = plist_write_to_file(plist, "./dummy_file", PLIST_FORMAT_XML, PLIST_OPT_NONE);
+        plist_free(plist);
+    }
+}
+
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Ensure the data is null-terminated for string operations
-    std::vector<char> nullTerminatedData(Data, Data + Size);
-    nullTerminatedData.push_back('\0');
-
-    // Create a plist node
-    plist_t node = plist_new_dict();
-    if (!node) return 0;
-
-    // Create a key node and set a value
-    plist_t keynode = plist_new_string(nullTerminatedData.data());
-    if (!keynode) {
-        plist_free(node);
-        return 0;
-    }
-
-    // Add keynode to the dictionary
-    plist_dict_set_item(node, "key", keynode);
-
-    // 1. Test plist_get_node_type
-    plist_type type = plist_get_node_type(keynode);
-
-    // 2. Test plist_key_val_compare
-    int compare_result = plist_key_val_compare(keynode, nullTerminatedData.data());
-
-    // 3. Test plist_key_val_contains
-    int contains_result = plist_key_val_contains(keynode, nullTerminatedData.data());
-
-    // 4. Test plist_get_key_val
-    char *val = nullptr;
-    plist_get_key_val(keynode, &val);
-    if (val) {
-        plist_mem_free(val);
-    }
-
-    // 5. Test plist_set_key_val
-    plist_set_key_val(keynode, nullTerminatedData.data());
-
-    // 6. Test plist_key_val_compare_with_size
-    size_t cmp_size = Size > 1 ? Data[1] : 0; // Use another byte for size
-    int compare_with_size_result = plist_key_val_compare_with_size(keynode, nullTerminatedData.data(), cmp_size);
-
-    // Clean up
-    plist_free(node);
-
+    fuzz_plist_from_memory(Data, Size);
+    fuzz_plist_from_bin(Data, Size);
+    fuzz_plist_from_json(Data, Size);
+    fuzz_plist_from_xml(Data, Size);
+    fuzz_plist_read_from_file(Data, Size);
+    fuzz_plist_write_to_file(Data, Size);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,15 +1,15 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_dict_item_get_key at plist.c:889:9 in plist.h
-// plist_dict_copy_uint at plist.c:1191:13 in plist.h
-// plist_sort at plist.c:1899:6 in plist.h
-// plist_dict_copy_string at plist.c:1211:13 in plist.h
-// plist_dict_copy_item at plist.c:1161:13 in plist.h
-// plist_read_from_file at plist.c:306:13 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_string at plist.c:460:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_dict_get_item_key at plist.c:1254:6 in plist.h
+// plist_get_key_val at plist.c:1742:6 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_dict_remove_item at plist.c:1411:6 in plist.h
+// plist_dict_get_item at plist.c:1274:9 in plist.h
+// plist_dict_copy_int at plist.c:1602:13 in plist.h
+// plist_set_key_val at plist.c:2011:6 in plist.h
+// plist_new_dict at plist.c:527:9 in plist.h
+// plist_new_string at plist.c:569:9 in plist.h
+// plist_dict_set_item at plist.c:1314:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -19,77 +19,113 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
 #include <plist/plist.h>
+}
+
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
+#include <cassert>
 
-static void fuzz_plist_dict_item_get_key(plist_t node) {
-    plist_t key_node = plist_dict_item_get_key(node);
-    // No need to do anything with key_node, just testing for crashes
-}
-
-static void fuzz_plist_dict_copy_uint(plist_t target_dict, plist_t source_dict) {
-    const char* key = "primary_key";
-    const char* alt_key = "alt_key";
-    plist_err_t result = plist_dict_copy_uint(target_dict, source_dict, key, alt_key);
-    // Handle result if needed, just testing for crashes
-}
-
-static void fuzz_plist_sort(plist_t plist) {
-    plist_sort(plist);
-    // No need to do anything further, just testing for crashes
-}
-
-static void fuzz_plist_dict_copy_string(plist_t target_dict, plist_t source_dict) {
-    const char* key = "primary_key";
-    const char* alt_key = "alt_key";
-    plist_err_t result = plist_dict_copy_string(target_dict, source_dict, key, alt_key);
-    // Handle result if needed, just testing for crashes
-}
-
-static void fuzz_plist_dict_copy_item(plist_t target_dict, plist_t source_dict) {
-    const char* key = "primary_key";
-    const char* alt_key = "alt_key";
-    plist_err_t result = plist_dict_copy_item(target_dict, source_dict, key, alt_key);
-    // Handle result if needed, just testing for crashes
-}
-
-static void fuzz_plist_read_from_file() {
-    plist_t plist = nullptr;
-    plist_format_t format;
-    plist_err_t result = plist_read_from_file("./dummy_file", &plist, &format);
-    // Cleanup plist if successfully read
-    if (result == PLIST_ERR_SUCCESS && plist != nullptr) {
-        plist_free(plist);
+static void fuzz_plist_dict_get_item_key(plist_t node) {
+    char *key = nullptr;
+    plist_dict_get_item_key(node, &key);
+    if (key) {
+        free(key);
     }
+}
+
+static void fuzz_plist_get_key_val(plist_t node) {
+    char *val = nullptr;
+    plist_get_key_val(node, &val);
+    if (val) {
+        plist_mem_free(val);
+    }
+}
+
+static void fuzz_plist_dict_remove_item(plist_t node) {
+    const char *key = "dummy_key";
+    plist_dict_remove_item(node, key);
+}
+
+static void fuzz_plist_dict_get_item(plist_t node) {
+    const char *key = "dummy_key";
+    plist_t item = plist_dict_get_item(node, key);
+    // No need to free item as per documentation
+}
+
+static void fuzz_plist_dict_copy_int(plist_t target_dict, plist_t source_dict) {
+    const char *key = "dummy_key";
+    const char *alt_key = "alt_dummy_key";
+    plist_err_t err = plist_dict_copy_int(target_dict, source_dict, key, alt_key);
+    assert(err == PLIST_ERR_SUCCESS || err == PLIST_ERR_INVALID_ARG);
+}
+
+static void fuzz_plist_set_key_val(plist_t node) {
+    const char *val = "dummy_key_value";
+    plist_set_key_val(node, val);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Create a dummy plist node for testing
+    plist_t dict = plist_new_dict();
+    plist_t item = plist_new_string("dummy_value");
 
-    // Create a dummy file to use with plist_read_from_file
-    FILE* file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+    plist_dict_set_item(dict, "dummy_key", item);
 
-    // Create dummy plist nodes for testing
-    plist_t dummy_dict = plist_new_dict();
-    plist_t dummy_node = plist_new_string("dummy_value");
+    // Fuzz each function
+    fuzz_plist_dict_get_item_key(item);
+    fuzz_plist_get_key_val(item);
+    fuzz_plist_dict_get_item(dict);
+    fuzz_plist_dict_copy_int(dict, dict);
+    fuzz_plist_set_key_val(item);
 
-    // Fuzz each target function
-    fuzz_plist_dict_item_get_key(dummy_node);
-    fuzz_plist_dict_copy_uint(dummy_dict, dummy_dict);
-    fuzz_plist_sort(dummy_dict);
-    fuzz_plist_dict_copy_string(dummy_dict, dummy_dict);
-    fuzz_plist_dict_copy_item(dummy_dict, dummy_dict);
-    fuzz_plist_read_from_file();
+    // Remove item before freeing dict to avoid use-after-free
+    fuzz_plist_dict_remove_item(dict);
 
-    // Cleanup
-    plist_free(dummy_dict);
-    plist_free(dummy_node);
+    // Clean up
+    plist_free(dict);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,59 +10,92 @@
 #include <cstdint>
 #include <cstddef>
 #include "plist/plist.h"
+#include <cstdint>
+#include <cstring>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Prepare a dummy plist_t pointer
-    plist_t plist = nullptr;
+    // Initialize plist variables
+    plist_t dict = plist_new_dict();
+    plist_t item = plist_new_string("test_value");
 
-    // Fuzz plist_from_json
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_json with plist_from_bin
-    plist_from_bin(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Prepare a dummy file for plist_write_to_stream
-    FILE *file = fopen("./dummy_file", "w");
+    // Create a dummy file if needed
+    const char *dummy_file = "./dummy_file";
+    FILE *file = fopen(dummy_file, "wb");
     if (file) {
-        // Fuzz plist_write_to_stream with different formats
-        plist_format_t formats[] = { PLIST_FORMAT_XML, PLIST_FORMAT_BINARY, PLIST_FORMAT_JSON };
-        plist_write_options_t options = static_cast<plist_write_options_t>(0);
-
-        for (auto format : formats) {
-            plist_write_to_stream(plist, file, format, options);
-        }
-
+        fwrite(Data, 1, Size, file);
         fclose(file);
     }
 
-    // Fuzz plist_from_memory
-    plist_format_t detected_format;
-    plist_from_memory(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist, &detected_format);
+    // Use plist_dict_set_item
+    plist_dict_set_item(dict, "test_key", item);
 
-    // Fuzz plist_from_bin
+    // Retrieve the item using plist_dict_get_item
+    plist_t retrieved_item = plist_dict_get_item(dict, "test_key");
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_bin with plist_from_openstep
-    plist_from_openstep(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz plist_read_from_file
-    plist_read_from_file("./dummy_file", &plist, &detected_format);
-
-    // Clean up plist if it was created
-    if (plist) {
-        plist_free(plist);
+    // Use plist_dict_get_item_key
+    char *retrieved_key = nullptr;
+    plist_dict_get_item_key(retrieved_item, &retrieved_key);
+    if (retrieved_key) {
+        free(retrieved_key);
     }
 
-    // Use libplist_version for logging or compatibility checks
-    const char* version = libplist_version();
+    // Use plist_dict_get_bool
+    uint8_t bool_value = plist_dict_get_bool(dict, "test_key");
+
+    // Use plist_get_key_val
+    char *key_val = nullptr;
+    plist_get_key_val(item, &key_val);
+    if (key_val) {
+        plist_mem_free(key_val);
+    }
+
+    // Use plist_dict_remove_item
+    plist_dict_remove_item(dict, "test_key");
+
+    // Cleanup
+    plist_free(dict);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

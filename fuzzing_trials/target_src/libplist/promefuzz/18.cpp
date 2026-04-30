@@ -1,17 +1,11 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_bool at plist.c:469:9 in plist.h
-// plist_set_bool_val at plist.c:1593:6 in plist.h
-// plist_bool_val_is_true at plist.c:1635:5 in plist.h
-// plist_get_bool_val at plist.c:1353:6 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_bool at plist.c:469:9 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_dict_copy_bool at plist.c:1171:13 in plist.h
-// plist_dict_get_bool at plist.c:1032:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_new_date at plist.c:673:9 in plist.h
+// plist_set_date_val at plist.c:2056:6 in plist.h
+// plist_set_unix_date_val at plist.c:2062:6 in plist.h
+// plist_get_date_val at plist.c:1858:6 in plist.h
+// plist_date_val_compare at plist.c:2182:5 in plist.h
+// plist_unix_date_val_compare at plist.c:2206:5 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,57 +16,91 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <plist/plist.h>
+#include <cstdlib>
+#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a new boolean plist node
-    uint8_t bool_val = Data[0] % 2; // Ensures 0 or 1
-    plist_t bool_node = plist_new_bool(bool_val);
-
-    // Set the boolean value on the node
-    plist_set_bool_val(bool_node, bool_val);
-
-    // Check if the boolean value is true
-    int is_true = plist_bool_val_is_true(bool_node);
-
-    // Retrieve the boolean value from the node
-    uint8_t retrieved_val;
-    plist_get_bool_val(bool_node, &retrieved_val);
-
-    // Create source and target dictionaries
-    plist_t source_dict = plist_new_dict();
-    plist_t target_dict = plist_new_dict();
-
-    // Use a key from the input data, if possible
-    const char *key = "default_key";
-    if (Size > 1) {
-        size_t key_len = std::min(static_cast<size_t>(255), Size - 1); // Limit key length
-        char *dynamic_key = static_cast<char*>(malloc(key_len + 1));
-        if (dynamic_key) {
-            memcpy(dynamic_key, Data + 1, key_len);
-            dynamic_key[key_len] = '\0';
-            key = dynamic_key;
-        }
+    if (Size < sizeof(int32_t) * 2) {
+        return 0;
     }
-    plist_dict_set_item(source_dict, key, plist_new_bool(bool_val));
 
-    // Copy boolean value from source to target dictionary
-    plist_err_t copy_result = plist_dict_copy_bool(target_dict, source_dict, key, nullptr);
+    int32_t sec = 0;
+    int32_t usec = 0;
+    int64_t unix_sec = 0;
 
-    // Retrieve boolean value from target dictionary
-    uint8_t dict_bool_val = plist_dict_get_bool(target_dict, key);
+    memcpy(&sec, Data, sizeof(int32_t));
+    memcpy(&usec, Data + sizeof(int32_t), sizeof(int32_t));
 
-    // Cleanup
-    if (key != "default_key") {
-        free((void*)key);
+    if (Size >= sizeof(int32_t) * 2 + sizeof(int64_t)) {
+        memcpy(&unix_sec, Data + sizeof(int32_t) * 2, sizeof(int64_t));
     }
-    plist_free(bool_node);
-    plist_free(source_dict);
-    plist_free(target_dict);
+
+    // Create a new plist date node
+    plist_t node = plist_new_date(sec, usec);
+    if (!node) {
+        return 0;
+    }
+
+    // Set date value using deprecated function
+    plist_set_date_val(node, sec, usec);
+
+    // Set date value using recommended function
+    plist_set_unix_date_val(node, unix_sec);
+
+    // Retrieve date value
+    int32_t ret_sec = 0;
+    int32_t ret_usec = 0;
+    plist_get_date_val(node, &ret_sec, &ret_usec);
+
+    // Compare using deprecated function
+    plist_date_val_compare(node, sec, usec);
+
+    // Compare using recommended function
+    plist_unix_date_val_compare(node, unix_sec);
+
+    // Free the plist node
+    plist_free(node);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

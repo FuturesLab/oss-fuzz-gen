@@ -1,49 +1,60 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include this for memcpy
-#include <plist/plist.h>
-
 extern "C" {
     #include <plist/plist.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Ensure that the data is large enough to be used for fuzzing
-    if (size < 1) {
+    // Ensure the data is not NULL and size is greater than 0
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Initialize plist_t and uint64_t
-    plist_t plist = plist_new_dict();
-    uint64_t length = 0;
-
-    // Create a temporary buffer to hold a string from the input data
-    char *temp_string = (char*)malloc(size + 1);
-    if (temp_string == NULL) {
-        plist_free(plist);
-        return 0;
-    }
-
-    // Copy data into temp_string and null-terminate it
-    memcpy(temp_string, data, size);
-    temp_string[size] = '\0';
-
-    // Add the string to the plist dictionary
-    plist_dict_set_item(plist, "key", plist_new_string(temp_string));
+    // Initialize a plist object
+    plist_t plist = plist_new_data(reinterpret_cast<const char*>(data), static_cast<uint64_t>(size));
 
     // Call the function-under-test
-    char *result = NULL;
-    plist_get_string_val(plist_dict_get_item(plist, "key"), &result);
+    int result = plist_data_val_compare_with_size(plist, data, size);
 
-    // Ensure the function-under-test is invoked correctly
-    if (result) {
-        // Process the result if needed
-        free(result);
-    }
-
-    // Free allocated resources
-    free(temp_string);
+    // Free the plist object
     plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_59(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

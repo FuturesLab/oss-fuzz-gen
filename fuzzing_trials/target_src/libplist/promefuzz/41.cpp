@@ -1,11 +1,12 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_int at plist.c:487:9 in plist.h
-// plist_get_int_val at plist.c:1377:6 in plist.h
-// plist_int_val_compare at plist.c:1660:5 in plist.h
-// plist_get_uint_val at plist.c:1365:6 in plist.h
-// plist_uint_val_compare at plist.c:1678:5 in plist.h
-// plist_int_val_is_negative at plist.c:1645:5 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_new_data at plist.c:653:9 in plist.h
+// plist_set_data_val at plist.c:2051:6 in plist.h
+// plist_get_data_ptr at plist.c:1846:13 in plist.h
+// plist_get_data_val at plist.c:1836:6 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_data_val_compare_with_size at plist.c:2295:5 in plist.h
+// plist_data_val_compare at plist.c:2278:5 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -21,33 +22,78 @@
 #include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int64_t)) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Create a plist node of type PLIST_DATA
+    plist_t node = plist_new_data((const char*)Data, Size);
+
+    // Fuzz plist_set_data_val
+    plist_set_data_val(node, (const char*)Data, Size);
+
+    // Fuzz plist_get_data_ptr
+    uint64_t length = 0;
+    const char* data_ptr = plist_get_data_ptr(node, &length);
+
+    // Fuzz plist_get_data_val
+    char* val = nullptr;
+    uint64_t val_length = 0;
+    plist_get_data_val(node, &val, &val_length);
+    if (val) {
+        plist_mem_free(val);
     }
 
-    int64_t signed_val;
-    uint64_t unsigned_val;
-    memcpy(&signed_val, Data, sizeof(int64_t));
-    memcpy(&unsigned_val, Data, sizeof(uint64_t));
+    // Prepare a comparison value
+    size_t cmp_size = Size / 2;
+    const uint8_t* cmpval = Data + cmp_size;
 
-    // Create a new plist int node
-    plist_t node = plist_new_int(signed_val);
+    // Fuzz plist_data_val_compare_with_size
+    int cmp_result = plist_data_val_compare_with_size(node, cmpval, cmp_size);
 
-    // Retrieve and compare signed integer value
-    int64_t retrieved_signed_val = 0;
-    plist_get_int_val(node, &retrieved_signed_val);
-    plist_int_val_compare(node, signed_val);
+    // Fuzz plist_data_val_compare
+    cmp_result = plist_data_val_compare(node, cmpval, cmp_size);
 
-    // Retrieve and compare unsigned integer value
-    uint64_t retrieved_unsigned_val = 0;
-    plist_get_uint_val(node, &retrieved_unsigned_val);
-    plist_uint_val_compare(node, unsigned_val);
-
-    // Check if the value is negative
-    plist_int_val_is_negative(node);
-
-    // Clean up
+    // Cleanup
     plist_free(node);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_41(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,26 +1,54 @@
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
 #include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Initialize plist_t object
-    plist_t plist = nullptr;
+    // Call the function-under-test
+    plist_t dict = plist_new_dict();
 
-    // Create a plist from the input data
-    plist_from_bin((const char*)data, size, &plist);
-
-    // If plist is not null, call the function-under-test
-    if (plist != nullptr) {
-        // Call the function-under-test
-        uint32_t array_size = plist_array_get_size(plist);
-
-        // Optionally, you can use the result to perform further operations
-        // For this fuzzing harness, we're only interested in calling the function
-        (void)array_size; // Suppress unused variable warning
+    // Clean up
+    if (dict != NULL) {
+        plist_free(dict);
     }
-
-    // Free the plist object
-    plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

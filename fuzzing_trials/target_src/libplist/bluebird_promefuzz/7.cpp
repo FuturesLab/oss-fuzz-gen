@@ -1,57 +1,87 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
 #include <cstring>
-#include <cstdlib>
-#include <cstdio>
-#include <cstdint>
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
 #include "plist/plist.h"
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Prepare a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
+    // Ensure null-termination for string operations
+    char* dataCopy = new char[Size + 1];
+    memcpy(dataCopy, Data, Size);
+    dataCopy[Size] = '\0';
 
-    // Test plist_from_xml
-    plist_t plist_xml = nullptr;
-    plist_err_t xml_err = plist_from_xml(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_xml);
-    if (xml_err == PLIST_ERR_SUCCESS && plist_xml) {
-        // Test plist_to_bin
-        char *bin_data = nullptr;
-        uint32_t bin_length = 0;
-        plist_err_t bin_err = plist_to_bin(plist_xml, &bin_data, &bin_length);
-        if (bin_err == PLIST_ERR_SUCCESS) {
-            // Test plist_from_bin
-            plist_t plist_bin = nullptr;
-            plist_err_t bin_import_err = plist_from_bin(bin_data, bin_length, &plist_bin);
-            if (bin_import_err == PLIST_ERR_SUCCESS && plist_bin) {
-                // Test plist_dict_remove_item with a dummy key
-                plist_dict_remove_item(plist_bin, "dummy_key");
-                plist_free(plist_bin);
-            }
-            plist_mem_free(bin_data);
-        }
+    // Prepare a dummy PLIST_UID node
+    plist_t uidnode = plist_new_uid(0);
+    uint64_t cmpval = 0;
+    if (Size >= sizeof(uint64_t))
+        memcpy(&cmpval, Data, sizeof(uint64_t));
+    plist_uid_val_compare(uidnode, cmpval);
+    plist_free(uidnode);
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_free with plist_sort
-        plist_sort(plist_xml);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Prepare a dummy PLIST_STRING node
+    plist_t strnode = plist_new_string(dataCopy);
+    plist_string_val_compare(strnode, dataCopy);
+    plist_free(strnode);
 
+    // Prepare a dummy PLIST_KEY node using plist_new_string
+    plist_t keynode = plist_new_string(dataCopy);
+    plist_key_val_compare(keynode, dataCopy);
+    plist_key_val_compare_with_size(keynode, dataCopy, Size);
+    plist_free(keynode);
 
-    }
+    // Prepare a dummy PLIST_INT node
+    plist_t intnode = plist_new_int(0);
+    int64_t cmpint = 0;
+    uint64_t cmpuint = 0;
+    if (Size >= sizeof(int64_t))
+        memcpy(&cmpint, Data, sizeof(int64_t));
+    if (Size >= sizeof(uint64_t))
+        memcpy(&cmpuint, Data, sizeof(uint64_t));
+    plist_int_val_compare(intnode, cmpint);
+    plist_uint_val_compare(intnode, cmpuint);
+    plist_free(intnode);
 
-    // Test plist_is_binary
-    int is_binary = plist_is_binary(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size));
-
+    delete[] dataCopy;
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

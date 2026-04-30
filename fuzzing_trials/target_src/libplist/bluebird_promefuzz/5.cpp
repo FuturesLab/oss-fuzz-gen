@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,57 +9,91 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
 #include "plist/plist.h"
+#include <cstdlib>
+#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < sizeof(int32_t) * 2) {
         return 0;
     }
 
-    // Create a new plist array
-    plist_t array = plist_new_array();
+    int32_t sec = 0;
+    int32_t usec = 0;
+    int64_t unix_sec = 0;
 
-    // Append items to the array based on input data
-    for (size_t i = 0; i < Size; ++i) {
-        plist_t item = plist_new_array(); // Create a new item (empty array for simplicity)
+    memcpy(&sec, Data, sizeof(int32_t));
+    memcpy(&usec, Data + sizeof(int32_t), sizeof(int32_t));
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_new_array to plist_get_string_val
-
-        plist_get_string_val(array, (char **)"w");
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        plist_array_append_item(array, item);
+    if (Size >= sizeof(int32_t) * 2 + sizeof(int64_t)) {
+        memcpy(&unix_sec, Data + sizeof(int32_t) * 2, sizeof(int64_t));
     }
 
-    // Create an iterator for the array
-    plist_array_iter iter = nullptr;
-    plist_array_new_iter(array, &iter);
-
-    // Iterate over the array items
-    plist_t item = nullptr;
-    while (true) {
-        plist_array_next_item(array, iter, &item);
-        if (!item) {
-                break;
-        }
+    // Create a new plist date node
+    plist_t node = plist_new_date(sec, usec);
+    if (!node) {
+        return 0;
     }
 
-    // Get the nth item and remove it
-    if (Size > 0) {
-        uint32_t index = Data[0] % Size; // Ensure index is within bounds
-        plist_t nth_item = plist_array_get_item(array, index);
-        if (nth_item) {
-            plist_array_item_remove(nth_item);
-        }
-    }
+    // Set date value using deprecated function
+    plist_set_date_val(node, sec, usec);
 
-    // Cleanup
-    free(iter);
-    plist_free(array);
+    // Set date value using recommended function
+    plist_set_unix_date_val(node, unix_sec);
+
+    // Retrieve date value
+    int32_t ret_sec = 0;
+    int32_t ret_usec = 0;
+    plist_get_date_val(node, &ret_sec, &ret_usec);
+
+    // Compare using deprecated function
+    plist_date_val_compare(node, sec, usec);
+
+    // Compare using recommended function
+    plist_unix_date_val_compare(node, unix_sec);
+
+    // Free the plist node
+    plist_free(node);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

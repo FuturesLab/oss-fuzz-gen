@@ -1,25 +1,79 @@
-extern "C" {
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include <plist/plist.h>
+
+extern "C" {
+    // Include necessary C headers and functions
+    #include <plist/plist.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    plist_t plist = NULL;
-    plist_t item = NULL;
-
-    // Create a new plist array
-    plist = plist_new_array();
-
-    // Add an item to the plist array if size is greater than zero
-    if (size > 0) {
-        item = plist_new_data((const char*)data, size);
-        plist_array_append_item(plist, item);
+    if (size == 0) {
+        return 0;
     }
 
-    // Call the function-under-test
-    plist_array_item_remove(plist);
+    // Create a temporary buffer to hold the fuzz data as a string
+    char *input_data = (char *)malloc(size + 1);
+    if (input_data == NULL) {
+        return 0;
+    }
 
-    // Free the plist
-    plist_free(plist);
+    // Copy the fuzz data into the buffer and null-terminate it
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
+
+    // Initialize a plist_t variable
+    plist_t plist = NULL;
+
+    // Call the function-under-test
+    plist_err_t result = plist_from_openstep(input_data, (uint32_t)size, &plist);
+
+    // Clean up
+    if (plist != NULL) {
+        plist_free(plist);
+    }
+    free(input_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

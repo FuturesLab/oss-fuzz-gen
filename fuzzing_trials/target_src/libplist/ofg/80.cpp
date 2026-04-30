@@ -1,43 +1,58 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include the header for memcpy
-
-extern "C" {
-#include "/src/libplist/include/plist/plist.h"
-}
-
-// Assume plist_mem_free is defined in an external C library
-extern "C" {
-    void plist_mem_free(void *ptr);
-    // Define a stub for process_data to resolve the undefined reference error
-    void process_data(void *ptr, size_t size) {
-        // Hypothetical processing of data
-        // This is a placeholder implementation
-    }
-}
+#include <stdint.h>
+#include <stdlib.h>
+#include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Check if size is zero and return early to ensure we have meaningful input
-    if (size == 0) {
-        return 0;
+    // Initialize a plist_t variable
+    plist_t plist = NULL;
+
+    // Use the data to create a plist object
+    // Since we don't have specific data format, let's assume it's a binary plist
+    if (size > 0) {
+        plist_from_bin((const char *)data, size, &plist);
     }
-
-    // Allocate memory to be freed by plist_mem_free
-    void *memory = malloc(size);
-
-    // Ensure memory allocation was successful
-    if (memory == nullptr) {
-        return 0;
-    }
-
-    // Copy data into allocated memory
-    memcpy(memory, data, size);
-
-    // Call the hypothetical function to process the data
-    process_data(memory, size);
 
     // Call the function-under-test
-    plist_mem_free(memory);
+    plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_80(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,46 +1,70 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <stdlib.h>
 #include <plist/plist.h>
 
 extern "C" {
-    // Function-under-test
-    plist_err_t plist_dict_copy_data(plist_t dest, plist_t src, const char *key, const char *new_key);
+    #include <plist/plist.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_170(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for two null-terminated strings
-    if (size < 4) {
-        return 0;
+    // Initialize plist from data
+    plist_t plist = NULL;
+    if (size > 0) {
+        plist_format_t format;
+        plist_from_memory((const char*)data, size, &plist, &format);
     }
 
-    // Initialize plist objects
-    plist_t src = plist_new_dict();
-    plist_t dest = plist_new_dict();
+    // Ensure plist is not NULL before calling the function
+    if (plist != NULL) {
+        // Call the function-under-test
+        uint32_t array_size = plist_array_get_size(plist);
 
-    // Extract two null-terminated strings from the data
-    size_t key_len = strnlen((const char *)data, size);
-    size_t new_key_len = strnlen((const char *)(data + key_len + 1), size - key_len - 1);
+        // Optionally, you can use array_size for further testing or logging
+        // For example, printing it (not necessary for fuzzing)
+        // printf("Array size: %u\n", array_size);
 
-    // Ensure both strings are null-terminated within the data
-    if (key_len >= size || new_key_len >= size - key_len - 1) {
-        plist_free(src);
-        plist_free(dest);
-        return 0;
+        // Free the plist object after use
+        plist_free(plist);
     }
-
-    const char *key = (const char *)data;
-    const char *new_key = (const char *)(data + key_len + 1);
-
-    // Add a dummy entry to the source plist
-    plist_dict_set_item(src, key, plist_new_string("dummy_value"));
-
-    // Call the function-under-test
-    plist_err_t result = plist_dict_copy_data(dest, src, key, new_key);
-
-    // Clean up
-    plist_free(src);
-    plist_free(dest);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_170(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

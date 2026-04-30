@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,58 +9,115 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include "plist/plist.h"
+}
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include "plist/plist.h"
+
+static void fuzz_plist_dict_get_bool(plist_t dict, const char *key) {
+    uint8_t result = plist_dict_get_bool(dict, key);
+}
+
+static void fuzz_plist_dict_copy_bool(plist_t target_dict, plist_t source_dict, const char *key, const char *alt_source_key) {
+    plist_err_t result = plist_dict_copy_bool(target_dict, source_dict, key, alt_source_key);
+}
+
+static plist_t fuzz_plist_new_bool(uint8_t val) {
+    return plist_new_bool(val);
+}
+
+static void fuzz_plist_bool_val_is_true(plist_t boolnode) {
+    int result = plist_bool_val_is_true(boolnode);
+}
+
+static void fuzz_plist_get_bool_val(plist_t node, uint8_t *val) {
+    plist_get_bool_val(node, val);
+}
+
+static void fuzz_plist_set_bool_val(plist_t node, uint8_t val) {
+    plist_set_bool_val(node, val);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size < 1) return 0;
+
+    uint8_t choice = Data[0];
+    const char *key = "test_key";
+    const char *alt_key = "alt_key";
+    uint8_t val = Data[0] % 2;
+
+    plist_t dict = plist_new_dict();
+    plist_t boolnode = fuzz_plist_new_bool(val);
+
+    switch (choice % 6) {
+        case 0:
+            fuzz_plist_dict_get_bool(dict, key);
+            break;
+        case 1:
+            fuzz_plist_dict_copy_bool(dict, dict, key, alt_key);
+            break;
+        case 2:
+            fuzz_plist_bool_val_is_true(boolnode);
+            break;
+        case 3:
+            fuzz_plist_get_bool_val(boolnode, &val);
+            break;
+        case 4:
+            fuzz_plist_set_bool_val(boolnode, val);
+            break;
+        case 5: {
+            plist_t new_bool = fuzz_plist_new_bool(val);
+            plist_free(new_bool);
+            break;
+        }
+        default:
+            break;
     }
 
-    // Prepare a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
-
-    // Test plist_from_xml
-    plist_t plist_xml = nullptr;
-    plist_err_t xml_err = plist_from_xml(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_xml);
-    if (xml_err == PLIST_ERR_SUCCESS && plist_xml) {
-        // Test plist_to_bin
-        char *bin_data = nullptr;
-        uint32_t bin_length = 0;
-        plist_err_t bin_err = plist_to_bin(plist_xml, &bin_data, &bin_length);
-        if (bin_err == PLIST_ERR_SUCCESS) {
-            // Test plist_from_bin
-            plist_t plist_bin = nullptr;
-            plist_err_t bin_import_err = plist_from_bin(bin_data, bin_length, &plist_bin);
-            if (bin_import_err == PLIST_ERR_SUCCESS && plist_bin) {
-                // Test plist_dict_remove_item with a dummy key
-                plist_dict_remove_item(plist_bin, "dummy_key");
-                plist_free(plist_bin);
-            }
-            plist_mem_free(bin_data);
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_bin to plist_from_bin
-        int ret_plist_bool_val_is_true_ullyk = plist_bool_val_is_true(plist_xml);
-        if (ret_plist_bool_val_is_true_ullyk < 0){
-        	return 0;
-        }
-        plist_t ret_plist_dict_item_get_key_mxbem = plist_dict_item_get_key(0);
-
-        plist_err_t ret_plist_from_bin_iuudn = plist_from_bin(bin_data, (uint32_t )ret_plist_bool_val_is_true_ullyk, &ret_plist_dict_item_get_key_mxbem);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        plist_free(plist_xml);
-    }
-
-    // Test plist_is_binary
-    int is_binary = plist_is_binary(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size));
+    plist_free(boolnode);
+    plist_free(dict);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_36(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

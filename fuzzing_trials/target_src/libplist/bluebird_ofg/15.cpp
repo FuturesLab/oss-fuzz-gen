@@ -1,51 +1,77 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <sys/stat.h>
 #include <string.h>
-#include "plist/plist.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h> // Include for free function
 
 extern "C" {
-    // Include the necessary function signature from the library
-    plist_err_t plist_to_openstep(plist_t plist, char **plist_xml, uint32_t *length, int format);
-
-    // Correct function signature for plist_from_memory
-    plist_err_t plist_from_memory(const char *plist_data, uint32_t length, plist_t *plist, plist_format_t *format);
+    #include "plist/plist.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Initialize a plist object from the input data
     plist_t plist = NULL;
-    char *plist_xml = NULL;
-    uint32_t length = 0;
-    int format = 0; // Assuming 0 is a valid format for demonstration
-    plist_format_t plist_format = PLIST_FORMAT_XML; // Assuming XML format for demonstration
+    plist_from_memory((const char*)data, size, &plist, NULL); // Provide NULL for the format argument
 
-    // Create a plist from the input data
-    plist_from_memory((const char *)data, size, &plist, &plist_format);
+    // Create an iterator for the array
+    plist_array_iter iter = NULL;
+    plist_array_new_iter(plist, &iter);
 
-    // Check if plist creation was successful
+    // Prepare a variable to hold the next item
+    plist_t next_item = NULL;
+
+    // Call the function-under-test
+    plist_array_next_item(plist, iter, &next_item);
+
+    // Clean up
+    if (next_item != NULL) {
+        plist_free(next_item);
+    }
+    if (iter != NULL) {
+        free(iter);
+    }
     if (plist != NULL) {
-        // Call the function-under-test
-        plist_err_t result = plist_to_openstep(plist, &plist_xml, &length, format);
-
-        // Free the plist
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_openstep to plist_uid_val_compare
-
-        int ret_plist_uid_val_compare_bkvrp = plist_uid_val_compare(plist, (uint64_t )length);
-        if (ret_plist_uid_val_compare_bkvrp < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
         plist_free(plist);
-
-        // Free the plist_xml if it was allocated
-        if (plist_xml != NULL) {
-            free(plist_xml);
-        }
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

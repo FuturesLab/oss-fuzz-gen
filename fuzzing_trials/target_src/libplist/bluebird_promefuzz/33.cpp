@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,53 +10,121 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include "plist/plist.h"
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create dummy dictionaries
-    plist_t target_dict = plist_new_dict();
-    plist_t source_dict = plist_new_dict();
-
-    // Prepare keys
-    const char *key = "key";
-    const char *alt_key = "alt_key";
-
-    // Add data to source dictionary
-    plist_t data_node = plist_new_data(reinterpret_cast<const char*>(Data), static_cast<uint64_t>(Size));
-    plist_dict_set_item(source_dict, key, plist_copy(data_node));
-    plist_dict_set_item(source_dict, alt_key, plist_copy(data_node));
-
-    // Test plist_dict_copy_item
-    plist_dict_copy_item(target_dict, source_dict, key, alt_key);
-
-    // Test plist_dict_copy_data
-    plist_dict_copy_data(target_dict, source_dict, key, alt_key);
-
-    // Test plist_dict_get_item
-    plist_t item = plist_dict_get_item(source_dict, key);
-    if (item) {
-        // Test plist_get_data_ptr
-        uint64_t length = 0;
-        const char *data_ptr = plist_get_data_ptr(item, &length);
-
-        // Test plist_get_string_ptr
-        const char *string_ptr = plist_get_string_ptr(item, &length);
-
-        // Ensure data_ptr and string_ptr are not null
-        if (data_ptr && string_ptr) {
-            // Compare node values
-            plist_compare_node_value(item, item);
-        }
+    if (Size < 1) {
+        return 0;
     }
 
-    // Cleanup
-    plist_free(target_dict);
-    plist_free(source_dict);
-    plist_free(data_node);
+    plist_t plist = nullptr;
+    plist_from_bin(reinterpret_cast<const char*>(Data), Size, &plist);
+
+    if (plist) {
+        char *output = nullptr;
+        uint32_t length = 0;
+        plist_err_t result;
+
+        // Test plist_to_bin
+        result = plist_to_bin(plist, &output, &length);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        // Test plist_to_openstep_with_options with different options
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_bin to plist_set_date_val
+        plist_t ret_plist_get_parent_anljk = plist_get_parent(0);
+        uint32_t ret_plist_array_get_size_fhiew = plist_array_get_size(0);
+        if (ret_plist_array_get_size_fhiew < 0){
+        	return 0;
+        }
+        plist_set_date_val(ret_plist_get_parent_anljk, (int32_t )ret_plist_array_get_size_fhiew, (int32_t )length);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        result = plist_to_openstep_with_options(plist, &output, &length, PLIST_OPT_COMPACT);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        result = plist_to_openstep_with_options(plist, &output, &length, PLIST_OPT_COERCE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        // Test plist_to_json
+        result = plist_to_json(plist, &output, &length, 1);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        // Test plist_write_to_stream
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file) {
+            result = plist_write_to_stream(plist, file, PLIST_FORMAT_JSON, PLIST_OPT_NONE);
+            fclose(file);
+        }
+
+        // Test plist_write_to_string
+        result = plist_write_to_string(plist, &output, &length, PLIST_FORMAT_XML, PLIST_OPT_NONE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        // Test plist_to_json_with_options with different options
+        result = plist_to_json_with_options(plist, &output, &length, PLIST_OPT_COMPACT);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        result = plist_to_json_with_options(plist, &output, &length, PLIST_OPT_COERCE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        plist_free(plist);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

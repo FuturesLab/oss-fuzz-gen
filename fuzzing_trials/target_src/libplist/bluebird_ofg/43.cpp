@@ -1,54 +1,76 @@
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
 extern "C" {
     #include "plist/plist.h"
-    #include <stdlib.h>
-    #include <string.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for a meaningful test
-    if (size < 3) { // Increase minimum size to ensure both key and value can be created
-        return 0;
-    }
+    plist_t plist = NULL;
+    char *bin_data = NULL;
+    uint32_t bin_size = 0;
+    plist_format_t format = PLIST_FORMAT_BINARY; // Add a default format
 
-    // Create a plist node
-    plist_t plist = plist_new_dict();
+    // Create a plist from the input data
+    plist_from_memory((const char*)data, size, &plist, &format);
 
-    // Use the first byte of data as a key length
-    size_t key_length = data[0] % (size - 1); // Ensure key_length is within bounds
+    // Call the function-under-test
 
-    // Create a key from the data
-    char *key = (char *)malloc(key_length + 1);
-    if (key == NULL) {
-        plist_free(plist);
-        return 0;
-    }
-    memcpy(key, data + 1, key_length);
-    key[key_length] = '\0';
-
-    // Use the remaining data as the value
-    const char *value = (const char *)(data + 1 + key_length);
-    size_t value_size = size - 1 - key_length;
-
-    // Ensure value is null-terminated
-    char *value_str = (char *)malloc(value_size + 1);
-    if (value_str == NULL) {
-        free(key);
-        plist_free(plist);
-        return 0;
-    }
-    memcpy(value_str, value, value_size);
-    value_str[value_size] = '\0';
-
-    // Add the key-value pair to the plist
-    plist_dict_set_item(plist, key, plist_new_string(value_str));
-
-    // Call the function under test
-    plist_key_val_compare_with_size(plist, key, value_size);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_from_memory to plist_dict_copy_data
+    plist_t ret_plist_new_bool_mpoup = plist_new_bool(-1);
+    plist_err_t ret_plist_dict_copy_data_xlhcs = plist_dict_copy_data(ret_plist_new_bool_mpoup, plist, (const char *)data, (const char *)"r");
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    plist_err_t result = plist_to_bin(plist, &bin_data, &bin_size);
 
     // Clean up
-    free(key);
-    free(value_str);
-    plist_free(plist);
+    if (bin_data != NULL) {
+        free(bin_data);
+    }
+    if (plist != NULL) {
+        plist_free(plist);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

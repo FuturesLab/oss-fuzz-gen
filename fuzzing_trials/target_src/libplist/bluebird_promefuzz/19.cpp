@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,90 +9,90 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "plist/plist.h"
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
-
-static void fuzz_plist_dict_item_get_key(plist_t node) {
-    plist_t key_node = plist_dict_item_get_key(node);
-    // No need to do anything with key_node, just testing for crashes
-}
-
-static void fuzz_plist_dict_copy_uint(plist_t target_dict, plist_t source_dict) {
-    const char* key = "primary_key";
-    const char* alt_key = "alt_key";
-    plist_err_t result = plist_dict_copy_uint(target_dict, source_dict, key, alt_key);
-    // Handle result if needed, just testing for crashes
-}
-
-static void fuzz_plist_sort(plist_t plist) {
-    plist_sort(plist);
-    // No need to do anything further, just testing for crashes
-}
-
-static void fuzz_plist_dict_copy_string(plist_t target_dict, plist_t source_dict) {
-    const char* key = "primary_key";
-    const char* alt_key = "alt_key";
-    plist_err_t result = plist_dict_copy_string(target_dict, source_dict, key, alt_key);
-    // Handle result if needed, just testing for crashes
-}
-
-static void fuzz_plist_dict_copy_item(plist_t target_dict, plist_t source_dict) {
-    const char* key = "primary_key";
-    const char* alt_key = "alt_key";
-    plist_err_t result = plist_dict_copy_item(target_dict, source_dict, key, alt_key);
-    // Handle result if needed, just testing for crashes
-}
-
-static void fuzz_plist_read_from_file() {
-    plist_t plist = nullptr;
-    plist_format_t format;
-    plist_err_t result = plist_read_from_file("./dummy_file", &plist, &format);
-    // Cleanup plist if successfully read
-    if (result == PLIST_ERR_SUCCESS && plist != nullptr) {
-        plist_free(plist);
-    }
-}
+#include <climits>
+#include "plist/plist.h"
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    // Prepare a new plist array
+    plist_t array = plist_new_array();
+    if (!array) {
         return 0;
     }
 
-    // Create a dummy file to use with plist_read_from_file
-    FILE* file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    // Create a new item to insert
+    plist_t item = plist_new_array(); // Using plist_new_array() to create a dummy item
+    if (!item) {
+        plist_free(array);
+        return 0;
     }
 
-    // Create dummy plist nodes for testing
-    plist_t dummy_dict = plist_new_dict();
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_new_dict to plist_from_xml
-    uint32_t ret_plist_array_get_size_guxvh = plist_array_get_size(0);
-    if (ret_plist_array_get_size_guxvh < 0){
-    	return 0;
+    // Insert item at random position if possible
+    if (Size > 0) {
+        uint32_t position = Data[0] % (plist_array_get_size(array) + 1);
+        plist_array_insert_item(array, item, position);
     }
 
-    plist_err_t ret_plist_from_xml_srqol = plist_from_xml((const char *)Data, ret_plist_array_get_size_guxvh, &dummy_dict);
+    // Get size of the array
+    uint32_t size = plist_array_get_size(array);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Retrieve index of the item
+    uint32_t index = plist_array_get_item_index(item);
 
-    plist_t dummy_node = plist_new_string("dummy_value");
+    // Create an iterator for the array
+    plist_array_iter iter = nullptr;
+    plist_array_new_iter(array, &iter);
 
-    // Fuzz each target function
-    fuzz_plist_dict_item_get_key(dummy_node);
-    fuzz_plist_dict_copy_uint(dummy_dict, dummy_dict);
-    fuzz_plist_sort(dummy_dict);
-    fuzz_plist_dict_copy_string(dummy_dict, dummy_dict);
-    fuzz_plist_dict_copy_item(dummy_dict, dummy_dict);
-    fuzz_plist_read_from_file();
+    // Free the iterator if it was created
+    if (iter) {
+        plist_array_free_iter(iter);
+    }
 
-    // Cleanup
-    plist_free(dummy_dict);
-    plist_free(dummy_node);
+    // Clean up
+    plist_free(array);
+
+    // Note: Do not free the item separately after inserting into the array
+    // as it is managed by the array itself.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

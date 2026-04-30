@@ -1,16 +1,18 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_string at plist.c:460:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_get_node_type at plist.c:1301:12 in plist.h
-// plist_key_val_compare at plist.c:1818:5 in plist.h
-// plist_key_val_contains at plist.c:1836:5 in plist.h
-// plist_get_key_val at plist.c:1312:6 in plist.h
-// plist_mem_free at plist.c:561:6 in plist.h
-// plist_set_key_val at plist.c:1578:6 in plist.h
-// plist_key_val_compare_with_size at plist.c:1827:5 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_dict_copy_data at plist.c:1622:13 in plist.h
+// plist_data_val_compare_with_size at plist.c:2295:5 in plist.h
+// plist_set_data_val at plist.c:2051:6 in plist.h
+// plist_new_data at plist.c:653:9 in plist.h
+// plist_get_data_ptr at plist.c:1846:13 in plist.h
+// plist_get_data_val at plist.c:1836:6 in plist.h
+// plist_new_data at plist.c:653:9 in plist.h
+// plist_new_dict at plist.c:527:9 in plist.h
+// plist_new_dict at plist.c:527:9 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -20,59 +22,113 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <fstream>
-#include "plist.h"
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include "plist/plist.h"
+
+static void fuzz_plist_dict_copy_data(plist_t target_dict, plist_t source_dict, const char *key, const char *alt_source_key) {
+    plist_dict_copy_data(target_dict, source_dict, key, alt_source_key);
+}
+
+static void fuzz_plist_data_val_compare_with_size(plist_t datanode, const uint8_t* cmpval, size_t n) {
+    plist_data_val_compare_with_size(datanode, cmpval, n);
+}
+
+static void fuzz_plist_set_data_val(plist_t node, const char *val, uint64_t length) {
+    plist_set_data_val(node, val, length);
+}
+
+static plist_t fuzz_plist_new_data(const char *val, uint64_t length) {
+    return plist_new_data(val, length);
+}
+
+static const char* fuzz_plist_get_data_ptr(plist_t node, uint64_t* length) {
+    return plist_get_data_ptr(node, length);
+}
+
+static void fuzz_plist_get_data_val(plist_t node, char **val, uint64_t * length) {
+    plist_get_data_val(node, val, length);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Ensure the data is null-terminated for string operations
-    std::vector<char> nullTerminatedData(Data, Data + Size);
-    nullTerminatedData.push_back('\0');
+    // Create a dummy plist node
+    plist_t dummy_node = plist_new_data(reinterpret_cast<const char*>(Data), Size);
 
-    // Create a plist node
-    plist_t node = plist_new_dict();
-    if (!node) return 0;
+    // Fuzz plist_dict_copy_data
+    plist_t target_dict = plist_new_dict();
+    plist_t source_dict = plist_new_dict();
+    fuzz_plist_dict_copy_data(target_dict, source_dict, "key", nullptr);
 
-    // Create a key node and set a value
-    plist_t keynode = plist_new_string(nullTerminatedData.data());
-    if (!keynode) {
-        plist_free(node);
-        return 0;
+    // Fuzz plist_data_val_compare_with_size
+    fuzz_plist_data_val_compare_with_size(dummy_node, Data, Size);
+
+    // Fuzz plist_set_data_val
+    fuzz_plist_set_data_val(dummy_node, reinterpret_cast<const char*>(Data), Size);
+
+    // Fuzz plist_new_data
+    plist_t new_data_node = fuzz_plist_new_data(reinterpret_cast<const char*>(Data), Size);
+    if (new_data_node) {
+        plist_free(new_data_node);
     }
 
-    // Add keynode to the dictionary
-    plist_dict_set_item(node, "key", keynode);
+    // Fuzz plist_get_data_ptr
+    uint64_t length = 0;
+    const char* data_ptr = fuzz_plist_get_data_ptr(dummy_node, &length);
 
-    // 1. Test plist_get_node_type
-    plist_type type = plist_get_node_type(keynode);
-
-    // 2. Test plist_key_val_compare
-    int compare_result = plist_key_val_compare(keynode, nullTerminatedData.data());
-
-    // 3. Test plist_key_val_contains
-    int contains_result = plist_key_val_contains(keynode, nullTerminatedData.data());
-
-    // 4. Test plist_get_key_val
+    // Fuzz plist_get_data_val
     char *val = nullptr;
-    plist_get_key_val(keynode, &val);
+    fuzz_plist_get_data_val(dummy_node, &val, &length);
     if (val) {
         plist_mem_free(val);
     }
 
-    // 5. Test plist_set_key_val
-    plist_set_key_val(keynode, nullTerminatedData.data());
-
-    // 6. Test plist_key_val_compare_with_size
-    size_t cmp_size = Size > 1 ? Data[1] : 0; // Use another byte for size
-    int compare_with_size_result = plist_key_val_compare_with_size(keynode, nullTerminatedData.data(), cmp_size);
-
-    // Clean up
-    plist_free(node);
+    // Cleanup
+    plist_free(dummy_node);
+    plist_free(target_dict);
+    plist_free(source_dict);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

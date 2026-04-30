@@ -1,31 +1,65 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <plist/plist.h>
-#include <string.h>
+extern "C" {
+    #include <plist/plist.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Initialize plist_t object
+    plist_t plist = plist_new_dict();
+
+    // Ensure that size is large enough to extract two int32_t values
+    if (size < sizeof(int32_t) * 2) {
+        plist_free(plist);
         return 0;
     }
 
-    // Initialize plist_t object
-    plist_t plist = plist_new_data((const char*)data, (uint32_t)size);
-
-    // Initialize a uint64_t variable
-    uint64_t length = 0;
+    // Extract two int32_t values from the input data
+    int32_t sec = *(reinterpret_cast<const int32_t*>(data));
+    int32_t usec = *(reinterpret_cast<const int32_t*>(data + sizeof(int32_t)));
 
     // Call the function-under-test
-    const char *result = plist_get_data_ptr(plist, &length);
+    plist_set_date_val(plist, sec, usec);
 
-    // Check if result is not null and length is greater than 0
-    if (result && length > 0) {
-        // Do something with result to ensure code coverage
-        volatile char first_char = result[0];
-        (void)first_char; // Prevent unused variable warning
-    }
-
-    // Cleanup
+    // Clean up
     plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_70(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

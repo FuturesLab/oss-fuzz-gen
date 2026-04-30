@@ -1,34 +1,93 @@
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <plist/plist.h>
+
 extern "C" {
-    #include <stdint.h>
-    #include <plist/plist.h>
+    // Include necessary C headers, source files, functions, and code here.
 }
 
 extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Ensure there is at least one byte of data to use for the boolean value
-    if (size < 1) {
+    // Initialize plist_t variables
+    plist_t source_dict = plist_new_dict();
+    plist_t dest_dict = plist_new_dict();
+
+    // Ensure that data is not empty
+    if (size < 2) {
+        plist_free(source_dict);
+        plist_free(dest_dict);
         return 0;
     }
 
-    // Create a plist node of type boolean
-    plist_t node = plist_new_bool(0); // Initialize with a default value
+    // Use the first half of the data as key1 and the second half as key2
+    size_t half_size = size / 2;
+    char *key1 = (char *)malloc(half_size + 1);
+    char *key2 = (char *)malloc(size - half_size + 1);
 
-    // Use the first byte of the input data as the boolean value
-    uint8_t bool_value = data[0] % 2; // Ensure it's either 0 or 1
-
-    // Call the function-under-test
-    plist_set_bool_val(node, bool_value);
-
-    // Additional code to utilize the node and increase code coverage
-    uint8_t retrieved_value;
-    plist_get_bool_val(node, &retrieved_value);
-
-    // Check if the set value and retrieved value are the same
-    if (retrieved_value != bool_value) {
-        // Handle the discrepancy if needed
+    if (key1 == NULL || key2 == NULL) {
+        free(key1);
+        free(key2);
+        plist_free(source_dict);
+        plist_free(dest_dict);
+        return 0;
     }
 
-    // Free the plist node
-    plist_free(node);
+    memcpy(key1, data, half_size);
+    key1[half_size] = '\0';
+    memcpy(key2, data + half_size, size - half_size);
+    key2[size - half_size] = '\0';
+
+    // Add a boolean value to the source dictionary with key1
+    plist_dict_set_item(source_dict, key1, plist_new_bool(1));
+
+    // Call the function-under-test
+    plist_dict_copy_bool(source_dict, dest_dict, key1, key2);
+
+    // Free allocated resources
+    free(key1);
+    free(key2);
+    plist_free(source_dict);
+    plist_free(dest_dict);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_61(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

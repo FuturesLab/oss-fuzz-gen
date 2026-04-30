@@ -1,45 +1,93 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include <string.h> // Include the string.h library for strlen function
-#include "plist/plist.h"
+#include <stdio.h>
 
 extern "C" {
-    int plist_data_val_compare_with_size(plist_t, const uint8_t *, size_t);
+    #include "/src/libplist/libcnary/include/node.h"
+    #include "plist/plist.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a plist
-    if (size < 1) {
+    // Ensure size is sufficient for a null-terminated string
+    if (size < 1) return 0;
+
+    // Create a null-terminated string from the input data
+    char *key_val = (char *)malloc(size + 1);
+    if (key_val == NULL) return 0;
+    memcpy(key_val, data, size);
+    key_val[size] = '\0';
+
+    // Create a plist object
+    plist_t plist = plist_new_dict();
+    if (plist == NULL) {
+        free(key_val);
         return 0;
     }
 
-    // Create a plist node of type PLIST_DATA
-    plist_t node = plist_new_data((const char *)data, size);
-
-    // Check if the node was created successfully
-    if (!node) {
+    // Create a dummy value to associate with the key
+    plist_t value = plist_new_string("dummy_value");
+    if (value == NULL) {
+        plist_free(plist);
+        free(key_val);
         return 0;
     }
 
-    // Create a second plist node to compare with
-    // Instead of creating a node with the same data, create a node with different data
-    const char *other_data = "other_data";
-    size_t other_size = strlen(other_data);
-    plist_t node_to_compare = plist_new_data(other_data, other_size);
+    // Set the key-value pair in the plist
+    plist_dict_set_item(plist, key_val, value);
 
-    // Check if the second node was created successfully
-    if (!node_to_compare) {
-        plist_free(node);
-        return 0;
+    // Optionally, serialize the plist to ensure it is being utilized
+    char *plist_xml = NULL;
+    uint32_t plist_length = 0;
+    plist_to_xml(plist, &plist_xml, &plist_length);
+
+    // Clean up
+    if (plist_xml) {
+        free(plist_xml);
     }
+    plist_free(plist);
+    free(key_val);
 
-    // Call the function-under-test
-    int result = plist_data_val_compare_with_size(node, (const uint8_t *)other_data, other_size);
-
-    // Free the plist nodes
-    plist_free(node);
-    plist_free(node_to_compare);
-
-    // Return the result to ensure the function is utilized
-    return result;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

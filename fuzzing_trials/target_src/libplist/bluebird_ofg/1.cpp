@@ -1,55 +1,84 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include "plist/plist.h"
 
 extern "C" {
-    // Include the necessary function signature from the library
-    plist_err_t plist_to_openstep(plist_t plist, char **plist_xml, uint32_t *length, int format);
-
-    // Correct function signature for plist_from_memory
-    plist_err_t plist_from_memory(const char *plist_data, uint32_t length, plist_t *plist, plist_format_t *format);
+    #include "plist/plist.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Initialize variables
     plist_t plist = NULL;
-    char *plist_xml = NULL;
-    uint32_t length = 0;
-    int format = 0; // Assuming 0 is a valid format for demonstration
-    plist_format_t plist_format = PLIST_FORMAT_XML; // Assuming XML format for demonstration
+    char *bin_data = NULL;
+    uint32_t bin_size = 0;
+    plist_format_t format = PLIST_FORMAT_BINARY; // Add a default format
 
     // Create a plist from the input data
-    plist_from_memory((const char *)data, size, &plist, &plist_format);
+    plist_from_memory((const char*)data, size, &plist, &format);
 
-    // Check if plist creation was successful
-    if (plist != NULL) {
-        // Call the function-under-test
-        plist_err_t result = plist_to_openstep(plist, &plist_xml, &length, format);
+    // Call the function-under-test
 
-        // Free the plist
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_free with plist_sort
-        plist_sort(plist);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Free the plist_xml if it was allocated
-        if (plist_xml != NULL) {
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_from_memory to plist_read_from_file
-    plist_t ret_plist_get_parent_ivtli = plist_get_parent(0);
-    const char ldszjkru[1024] = "xndgt";
-
-    plist_err_t ret_plist_read_from_file_fiyos = plist_read_from_file(ldszjkru, &ret_plist_get_parent_ivtli, &plist_format);
-
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_from_memory to plist_to_json
+    uint32_t ret_plist_array_get_size_ykkiz = plist_array_get_size(plist);
+    if (ret_plist_array_get_size_ykkiz < 0){
+    	return 0;
+    }
+    uint32_t ret_plist_array_get_item_index_oeuqx = plist_array_get_item_index(0);
+    if (ret_plist_array_get_item_index_oeuqx < 0){
+    	return 0;
+    }
+    char *ridjtluq[1024] = {"xhfcq", NULL};
+    plist_err_t ret_plist_to_json_jwevt = plist_to_json(plist, ridjtluq, &ret_plist_array_get_size_ykkiz, (int )ret_plist_array_get_item_index_oeuqx);
     // End mutation: Producer.APPEND_MUTATOR
+    
+    plist_err_t result = plist_to_bin(plist, &bin_data, &bin_size);
 
-            free(plist_xml);
-        }
+    // Clean up
+    if (bin_data != NULL) {
+        free(bin_data);
+    }
+    if (plist != NULL) {
+        plist_free(plist);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

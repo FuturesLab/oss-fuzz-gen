@@ -1,31 +1,77 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include "plist/plist.h"
 
 extern "C" {
     #include "plist/plist.h"
 }
 
-extern "C" int plist_data_val_contains(plist_t plist, const uint8_t *data, size_t size);
-
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to create a plist node
-    if (size < 1) {
+    if (size == 0) {
         return 0;
     }
 
-    // Create a plist node of type PLIST_DATA
-    plist_t plist = plist_new_data(reinterpret_cast<const char*>(data), size);
+    // Create a plist object from the input data
+    plist_t plist = NULL;
+    plist_from_bin((const char*)data, size, &plist);
 
-    // Ensure the data pointer is not NULL
-    const uint8_t *data_ptr = data;
-    size_t data_size = size;
+    // Prepare the output parameters for plist_to_json
+    char *json_output = NULL;
+    uint32_t json_length = 0;
+    int format = 0; // 0 or 1, representing different JSON formats
 
     // Call the function-under-test
-    int result = plist_data_val_contains(plist, data_ptr, data_size);
+    plist_err_t result = plist_to_json(plist, &json_output, &json_length, format);
 
-    // Free the plist node
-    plist_free(plist);
+    // Clean up
+    if (json_output) {
+        free(json_output);
+    }
+    if (plist) {
+        plist_free(plist);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_65(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

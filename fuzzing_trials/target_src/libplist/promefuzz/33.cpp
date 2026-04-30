@@ -1,18 +1,21 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_dict_get_uint at plist.c:1120:10 in plist.h
-// plist_write_to_stream at plist.c:1996:13 in plist.h
-// plist_set_data_val at plist.c:1618:6 in plist.h
-// plist_from_bin at bplist.c:847:13 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_set_key_val at plist.c:1578:6 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_null at plist.c:544:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_new_data at plist.c:514:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_from_bin at bplist.c:905:13 in plist.h
+// plist_to_bin at bplist.c:1360:13 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_to_openstep_with_options at oplist.c:557:13 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_to_openstep_with_options at oplist.c:557:13 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_to_json at jplist.c:495:13 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_write_to_stream at plist.c:2429:13 in plist.h
+// plist_write_to_string at plist.c:2399:13 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_to_json_with_options at jplist.c:501:13 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_to_json_with_options at jplist.c:501:13 in plist.h
+// plist_mem_free at plist.c:720:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,84 +25,111 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include <plist/plist.h>
-}
-
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-
-static void fuzz_plist_dict_get_uint(plist_t dict, const char* key) {
-    if (key) {
-        uint64_t value = plist_dict_get_uint(dict, key);
-        (void)value;
-    }
-}
-
-static void fuzz_plist_write_to_stream(plist_t plist) {
-    FILE* stream = fopen("./dummy_file", "wb");
-    if (!stream) return;
-
-    plist_format_t format = PLIST_FORMAT_BINARY;
-    plist_write_options_t options = static_cast<plist_write_options_t>(0);
-    plist_err_t err = plist_write_to_stream(plist, stream, format, options);
-    fclose(stream);
-    (void)err;
-}
-
-static void fuzz_plist_set_data_val(plist_t node, const uint8_t* data, size_t length) {
-    plist_set_data_val(node, reinterpret_cast<const char*>(data), length);
-}
-
-static void fuzz_plist_from_bin(const uint8_t* data, size_t length) {
-    plist_t plist = nullptr;
-    plist_err_t err = plist_from_bin(reinterpret_cast<const char*>(data), length, &plist);
-    if (err == PLIST_ERR_SUCCESS && plist) {
-        plist_free(plist);
-    }
-}
-
-static void fuzz_plist_set_key_val(plist_t node, const char* key) {
-    if (key) {
-        plist_set_key_val(node, key);
-    }
-}
+#include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create a new plist dictionary
-    plist_t dict = plist_new_dict();
+    plist_t plist = nullptr;
+    plist_from_bin(reinterpret_cast<const char*>(Data), Size, &plist);
 
-    // Ensure null-terminated string for keys
-    std::string key(reinterpret_cast<const char*>(Data), Size);
-    key.push_back('\0');
+    if (plist) {
+        char *output = nullptr;
+        uint32_t length = 0;
+        plist_err_t result;
 
-    // Fuzz plist_dict_get_uint
-    fuzz_plist_dict_get_uint(dict, key.c_str());
+        // Test plist_to_bin
+        result = plist_to_bin(plist, &output, &length);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-    // Fuzz plist_write_to_stream
-    plist_t plist = plist_new_null();
-    fuzz_plist_write_to_stream(plist);
-    plist_free(plist);
+        // Test plist_to_openstep_with_options with different options
+        result = plist_to_openstep_with_options(plist, &output, &length, PLIST_OPT_COMPACT);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-    // Fuzz plist_set_data_val
-    plist_t data_node = plist_new_data(nullptr, 0);
-    fuzz_plist_set_data_val(data_node, Data, Size);
-    plist_free(data_node);
+        result = plist_to_openstep_with_options(plist, &output, &length, PLIST_OPT_COERCE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-    // Fuzz plist_from_bin
-    fuzz_plist_from_bin(Data, Size);
+        // Test plist_to_json
+        result = plist_to_json(plist, &output, &length, 1);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-    // Fuzz plist_set_key_val
-    plist_t key_node = plist_new_dict(); // Use plist_new_dict as a placeholder
-    fuzz_plist_set_key_val(key_node, key.c_str());
-    plist_free(key_node);
+        // Test plist_write_to_stream
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file) {
+            result = plist_write_to_stream(plist, file, PLIST_FORMAT_JSON, PLIST_OPT_NONE);
+            fclose(file);
+        }
 
-    // Clean up
-    plist_free(dict);
+        // Test plist_write_to_string
+        result = plist_write_to_string(plist, &output, &length, PLIST_FORMAT_XML, PLIST_OPT_NONE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        // Test plist_to_json_with_options with different options
+        result = plist_to_json_with_options(plist, &output, &length, PLIST_OPT_COMPACT);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        result = plist_to_json_with_options(plist, &output, &length, PLIST_OPT_COERCE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
+
+        plist_free(plist);
+    }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

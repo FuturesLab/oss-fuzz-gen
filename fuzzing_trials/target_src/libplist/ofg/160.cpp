@@ -1,49 +1,59 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <plist/plist.h>
+#include <stddef.h>
+#include <stdio.h>
 
+// Assuming the function is defined in an external C library
 extern "C" {
-    // Function-under-test
-    char plist_compare_node_value(plist_t node1, plist_t node2);
+    const char * libplist_version();
 }
 
 extern "C" int LLVMFuzzerTestOneInput_160(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return 0; // Not enough data to create valid plist nodes
-    }
-
-    // Ensure null-terminated strings for plist_new_string
-    size_t len1 = data[0] % (size - 1) + 1; // Ensure at least 1 byte for the first string
-    size_t len2 = data[1] % (size - len1 - 1) + 1; // Ensure at least 1 byte for the second string
-
-    char *str1 = (char *)malloc(len1 + 1);
-    char *str2 = (char *)malloc(len2 + 1);
-
-    if (!str1 || !str2) {
-        free(str1);
-        free(str2);
-        return 0; // Memory allocation failed
-    }
-
-    memcpy(str1, data + 2, len1);
-    memcpy(str2, data + 2 + len1, len2);
-
-    str1[len1] = '\0';
-    str2[len2] = '\0';
-
-    // Initialize plist nodes
-    plist_t node1 = plist_new_string(str1);
-    plist_t node2 = plist_new_string(str2);
-
     // Call the function-under-test
-    plist_compare_node_value(node1, node2);
+    const char *version = libplist_version();
 
-    // Clean up plist nodes and allocated strings
-    plist_free(node1);
-    plist_free(node2);
-    free(str1);
-    free(str2);
+    // Print the version to ensure the function is called
+    if (version != NULL) {
+        printf("libplist version: %s\n", version);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_160(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

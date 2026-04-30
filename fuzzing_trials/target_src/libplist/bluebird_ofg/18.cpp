@@ -1,28 +1,80 @@
-extern "C" {
-    #include <stdint.h>
-    #include <stdlib.h>
-    #include "plist/plist.h"
+#include <sys/stat.h>
+#include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include "plist/plist.h"
 
-    int plist_date_val_compare(plist_t plist, int32_t sec, int32_t usec);
+extern "C" {
+    #include "plist/plist.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    if (size < sizeof(int32_t) * 2) {
-        return 0; // Not enough data to extract two int32_t values
+    // Ensure there is enough data to work with
+    if (size < sizeof(uint32_t) + 1) {
+        return 0;
     }
 
-    // Extract two int32_t values from the input data
-    int32_t sec = *(reinterpret_cast<const int32_t*>(data));
-    int32_t usec = *(reinterpret_cast<const int32_t*>(data + sizeof(int32_t)));
+    // Initialize plist
+    plist_t plist = plist_new_dict();
 
-    // Create a plist object
-    plist_t plist = plist_new_date(sec, usec);
+    // Extract a uint32_t value from the data
+    uint32_t index;
+    memcpy(&index, data, sizeof(uint32_t));
+
+    // Prepare a dummy path (void*), using the remaining data
+    // Ensure the path is null-terminated to prevent overflow in string functions
+    size_t path_size = size - sizeof(uint32_t);
+    char *path = new char[path_size + 1];
+    memcpy(path, data + sizeof(uint32_t), path_size);
+    path[path_size] = '\0'; // Null-terminate
 
     // Call the function-under-test
-    int result = plist_date_val_compare(plist, sec, usec);
+    plist_t result = plist_access_path(plist, index, path);
 
-    // Free the plist object
+    // Clean up
     plist_free(plist);
+    plist_free(result);
+    delete[] path;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,32 +1,72 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include the necessary header for memcpy
+#include <stdlib.h>
+#include <plist/plist.h>
 
 extern "C" {
-    #include <plist/plist.h>
-
-    int plist_real_val_compare(plist_t plist, double value);
+    int plist_uint_val_compare(plist_t plist, uint64_t value);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // Initialize plist
-    plist_t plist = plist_new_real(0.0); // Create a new plist with a real value
+    plist_t plist = NULL;
+    uint64_t test_value = 0;
 
-    // Ensure we have at least 8 bytes to read a double value
-    if (size < sizeof(double)) {
-        plist_free(plist);
+    // Ensure size is sufficient to create a valid plist and extract a uint64_t value
+    if (size < sizeof(uint64_t)) {
         return 0;
     }
 
-    // Read a double value from the input data
-    double real_value;
-    memcpy(&real_value, data, sizeof(double));
+    // Create a plist from the input data
+    plist_from_bin((const char*)data, size, &plist);
+
+    // Extract a uint64_t value from the data
+    test_value = *((uint64_t*)data);
 
     // Call the function-under-test
-    int result = plist_real_val_compare(plist, real_value);
+    plist_uint_val_compare(plist, test_value);
 
     // Free the plist
-    plist_free(plist);
+    if (plist != NULL) {
+        plist_free(plist);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_95(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

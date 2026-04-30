@@ -1,61 +1,95 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
-#include "plist/plist.h"
+#include <stdlib.h>
 
 extern "C" {
-    // Include necessary C headers and functions here
     #include "plist/plist.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Initialize plist_t variable
-    plist_t plist = NULL;
-    
-    // Create a plist from the input data
+    // Declare and initialize variables
+    plist_t dict = NULL;
+    char *key = NULL;
+    char *value = NULL;
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_bin with plist_from_xml
-    plist_from_xml((const char*)data, size, &plist);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Ensure the size is sufficient to create a key and value
+    if (size < 2) {
+        return 0;
+    }
 
+    // Create a plist dictionary
+    dict = plist_new_dict();
 
+    // Allocate memory for the key and ensure it's null-terminated
+    key = (char *)malloc(size / 2 + 1);
+    if (!key) {
+        plist_free(dict);
+        return 0;
+    }
+    memcpy(key, data, size / 2);
+    key[size / 2] = '\0';
 
-    // Prepare variables for plist_to_bin
-    char *bin_data = NULL;
-    uint32_t bin_size = 0;
+    // Allocate memory for the value and ensure it's null-terminated
+    value = (char *)malloc(size / 2 + 1);
+    if (!value) {
+        free(key);
+        plist_free(dict);
+        return 0;
+    }
+    memcpy(value, data + size / 2, size / 2);
+    value[size / 2] = '\0';
+
+    // Add an item to the dictionary
+    plist_dict_set_item(dict, key, plist_new_string(value));
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_to_bin with plist_to_xml
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_from_xml to plist_dict_set_item
-    const char qxhkutif[1024] = "ivfpm";
-
-    plist_dict_set_item(plist, qxhkutif, plist);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    plist_err_t result = plist_to_xml(plist, &bin_data, &bin_size);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    plist_dict_remove_item(dict, key);
 
     // Clean up
-    if (bin_data != NULL) {
-        free(bin_data);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_xml to plist_key_val_compare
-    plist_t ret_plist_new_uint_ydsgq = plist_new_uint(size);
-
-    int ret_plist_key_val_compare_tkrkg = plist_key_val_compare(ret_plist_new_uint_ydsgq, bin_data);
-    if (ret_plist_key_val_compare_tkrkg < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    plist_free(plist);
+    free(key);
+    free(value);
+    plist_free(dict);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
