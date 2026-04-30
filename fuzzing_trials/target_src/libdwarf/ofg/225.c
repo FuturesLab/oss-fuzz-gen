@@ -1,26 +1,79 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <libdwarf.h>
 
-// Assume the function is defined in some external library
-extern int dwarf_get_ID_name(unsigned int id, const char **name);
+// Function to simulate a valid Dwarf_Debug object creation
+Dwarf_Debug create_valid_dwarf_debug(const uint8_t *data, size_t size) {
+    // In a real scenario, you would parse the input data to create a valid Dwarf_Debug object.
+    // Here, we just simulate this step by returning a non-null pointer.
+    // This is a placeholder and should be replaced with actual logic to create a valid Dwarf_Debug object.
+    return (Dwarf_Debug)data;
+}
 
 int LLVMFuzzerTestOneInput_225(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract an unsigned int
-    if (size < sizeof(unsigned int)) {
+    if (size < sizeof(Dwarf_Debug)) {
+        // Ensure there's enough data to create a valid Dwarf_Debug object
         return 0;
     }
 
-    // Extract an unsigned int from the input data
-    unsigned int id = *(unsigned int *)data;
+    Dwarf_Debug dbg = create_valid_dwarf_debug(data, size);
+    Dwarf_Off offset = 0; // Initialize offset to zero
+    Dwarf_Dnames_Head *dnames_head = (Dwarf_Dnames_Head *)malloc(sizeof(Dwarf_Dnames_Head));
+    Dwarf_Off *next_offset = (Dwarf_Off *)malloc(sizeof(Dwarf_Off));
+    Dwarf_Error error = NULL; // Use a direct Dwarf_Error object instead of a pointer
 
-    // Prepare a non-NULL pointer for the name
-    const char *name = "default_name";
+    if (dnames_head == NULL || next_offset == NULL) {
+        // Handle memory allocation failure
+        free(dnames_head);
+        free(next_offset);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = dwarf_get_ID_name(id, &name);
+    int result = dwarf_dnames_header(dbg, offset, dnames_head, next_offset, &error);
 
-    // Optionally, you can add checks or further processing on the result
-    // For example, you might want to log the result or check for specific return values
+    // Clean up
+    free(dnames_head);
+    free(next_offset);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_225(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

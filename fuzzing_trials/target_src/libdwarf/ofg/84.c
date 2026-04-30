@@ -1,30 +1,66 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <libdwarf.h>
-#include <dwarf.h> // Include this header for Dwarf_Block and other related types
+#include <stdint.h>
+#include <stdio.h>
 
-extern int dwarf_get_fde_info_for_cfa_reg3_c(Dwarf_Fde, Dwarf_Addr, Dwarf_Small *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Signed *, Dwarf_Block *, Dwarf_Addr *, Dwarf_Bool *, Dwarf_Addr *, Dwarf_Error *);
+// Assume the function is declared in some header file
+int dwarf_get_END_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    Dwarf_Fde fde = (Dwarf_Fde)data; // Cast data to Dwarf_Fde
-    Dwarf_Addr pc = 0x1000; // Example address
-    Dwarf_Small reg_num = 0;
-    Dwarf_Unsigned offset = 0;
-    Dwarf_Unsigned block_length = 0;
-    Dwarf_Signed offset_relevant = 0;
-    Dwarf_Block block;
-    block.bl_data = (Dwarf_Ptr)data;
-    block.bl_len = size;
-    block.bl_from_loclist = 0;
-    Dwarf_Addr row_pc = 0;
-    Dwarf_Bool has_more_rows = 0;
-    Dwarf_Addr next_pc = 0;
-    Dwarf_Error error = NULL;
+    // Ensure size is at least 4 bytes to read an unsigned int
+    if (size < sizeof(unsigned int)) {
+        return 0;
+    }
+
+    // Read the first 4 bytes as an unsigned int
+    unsigned int input_value = *(unsigned int *)data;
+
+    // Prepare a pointer for the output
+    const char *output_name = NULL;
 
     // Call the function-under-test
-    int result = dwarf_get_fde_info_for_cfa_reg3_c(fde, pc, &reg_num, &offset, &block_length, &offset_relevant, &block, &row_pc, &has_more_rows, &next_pc, &error);
+    int result = dwarf_get_END_name(input_value, &output_name);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Optional: Print the result and output_name for debugging purposes
+    // printf("Result: %d, Output Name: %s\n", result, output_name);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_84(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,36 +1,65 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <libdwarf.h>
 
-// Mock function to create a Dwarf_Attribute for testing purposes.
-Dwarf_Attribute create_test_attribute() {
-    // In a real scenario, this would be created by parsing a DWARF file.
-    // Here we just simulate it for fuzzing purposes.
-    // Since the structure is incomplete, we cannot allocate it directly.
-    // Instead, we will simulate the allocation of a Dwarf_Attribute.
-    // Allocate a dummy structure for the purpose of fuzzing.
-    struct Dwarf_Attribute_s {
-        int dummy; // Add a dummy field to allocate some space
-    };
-    Dwarf_Attribute attr = (Dwarf_Attribute)malloc(sizeof(struct Dwarf_Attribute_s));
-    return attr;
-}
+extern int dwarf_get_ADDR_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Create a test Dwarf_Attribute
-    Dwarf_Attribute test_attr = create_test_attribute();
-    
-    // Ensure the test attribute is not NULL
-    if (test_attr == NULL) {
+    unsigned int input_value;
+    const char *name_ptr;
+
+    // Ensure the size is sufficient to extract an unsigned int
+    if (size < sizeof(unsigned int)) {
         return 0;
     }
 
-    // Call the function-under-test
-    dwarf_dealloc_attribute(test_attr);
+    // Cast the data to an unsigned int
+    input_value = *(const unsigned int *)data;
 
-    // Free the allocated test attribute
-    free(test_attr);
+    // Call the function with the input_value and a pointer to name_ptr
+    int result = dwarf_get_ADDR_name(input_value, &name_ptr);
+
+    // Optionally, you can perform additional checks or use the result
+    (void)result; // Suppress unused variable warning if not used
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_113(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

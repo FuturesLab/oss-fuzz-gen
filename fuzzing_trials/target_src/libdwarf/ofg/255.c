@@ -2,39 +2,66 @@
 #include <stdint.h>
 #include <libdwarf.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int LLVMFuzzerTestOneInput_255(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < sizeof(int)) {
+    // Ensure there's enough data to extract an unsigned int
+    if (size < sizeof(unsigned int)) {
         return 0;
     }
 
-    // Initialize Dwarf_Debug
-    Dwarf_Debug dbg = (Dwarf_Debug)data; // Assuming data can be cast to Dwarf_Debug for fuzzing purposes
+    // Extract an unsigned int from the input data
+    unsigned int vis_code = *(unsigned int*)data;
 
-    // Extract an integer index from the input data
-    int index = *((int *)data);
+    // Move the data pointer forward
+    data += sizeof(unsigned int);
+    size -= sizeof(unsigned int);
 
-    // Initialize other parameters
-    const char *section_name = NULL;
-    Dwarf_Addr section_addr = 0;
-    Dwarf_Unsigned section_size = 0;
-    Dwarf_Error error = NULL;
+    // Prepare a pointer for the VIS name
+    const char *vis_name = NULL;
 
     // Call the function-under-test
-    int result = dwarf_get_section_info_by_index(dbg, index, &section_name, &section_addr, &section_size, &error);
+    int result = dwarf_get_VIS_name(vis_code, &vis_name);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (result == DW_DLV_OK) {
-        // Do something with section_name, section_addr, and section_size
-    }
+    // Optionally, you could use the result and vis_name for further checks
+    // For example, you could print them or perform some assertions
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_255(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

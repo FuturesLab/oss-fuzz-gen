@@ -1,25 +1,72 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <stddef.h>
 #include <libdwarf.h>
+#include <stdlib.h>
+#include <stdio.h>
 
+// Mock function to initialize a Dwarf_Debug object
+Dwarf_Debug initialize_dwarf_debug() {
+    // In a real scenario, you would initialize this with actual data
+    // For fuzzing purposes, we will just return a non-NULL pointer
+    // Allocate a fixed size for the mock object
+    return (Dwarf_Debug)malloc(1); // Allocate at least 1 byte
+}
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    if (size < sizeof(Dwarf_Macro_Context)) {
-        return 0; // Not enough data to form a valid Dwarf_Macro_Context
+    // Initialize Dwarf_Debug object
+    Dwarf_Debug dbg = initialize_dwarf_debug();
+    if (dbg == NULL) {
+        return 0; // Return if initialization fails
     }
 
-    // Initialize variables for the parameters of dwarf_get_macro_op
-    Dwarf_Macro_Context macro_context;
-    memcpy(&macro_context, data, sizeof(Dwarf_Macro_Context)); // Assuming data can be used to initialize Dwarf_Macro_Context
-    Dwarf_Unsigned offset = 0; // Initialize offset to 0
-    Dwarf_Unsigned line_number = 0;
-    Dwarf_Half op = 0;
-    Dwarf_Half forms_count = 0;
-    const Dwarf_Small *form_data = NULL;
-    Dwarf_Error error = 0; // Initialize error to 0
-
     // Call the function-under-test
-    dwarf_get_macro_op(macro_context, offset, &line_number, &op, &forms_count, &form_data, &error);
+    Dwarf_Unsigned section_count = dwarf_get_section_count(dbg);
+
+    // Output the section count for debugging purposes
+    printf("Section count: %llu\n", (unsigned long long)section_count);
+
+    // Clean up
+    free(dbg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_145(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

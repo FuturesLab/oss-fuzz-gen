@@ -1,38 +1,63 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <libdwarf.h>  // Include the main libdwarf header for type definitions
+#include <stdint.h>
+#include <dwarf.h> // Ensure this header is available and correctly included
 
-extern int dwarf_dnames_abbrevtable(Dwarf_Dnames_Head head, 
-                                    Dwarf_Unsigned offset, 
-                                    Dwarf_Unsigned *abbrev_count, 
-                                    Dwarf_Unsigned *abbrev_offset, 
-                                    Dwarf_Unsigned *abbrev_length, 
-                                    Dwarf_Unsigned max_abbrev, 
-                                    Dwarf_Half *abbrev_code, 
-                                    Dwarf_Half *abbrev_tag, 
-                                    Dwarf_Unsigned *abbrev_children);
+extern int dwarf_get_CC_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Ensure we have enough data for all parameters
-    if (size < 9 * sizeof(Dwarf_Unsigned)) {
-        return 0;
+    unsigned int cc;
+    const char *name = NULL;
+
+    if (size < sizeof(unsigned int)) {
+        return 0; // Ensure we have enough data to read an unsigned int
     }
 
-    // Initialize the parameters
-    Dwarf_Dnames_Head head = (Dwarf_Dnames_Head)(uintptr_t)data[0];
-    Dwarf_Unsigned offset = (Dwarf_Unsigned)data[1];
-    Dwarf_Unsigned abbrev_count = 0;
-    Dwarf_Unsigned abbrev_offset = 0;
-    Dwarf_Unsigned abbrev_length = 0;
-    Dwarf_Unsigned max_abbrev = (Dwarf_Unsigned)data[2];
-    Dwarf_Half abbrev_code = (Dwarf_Half)data[3];
-    Dwarf_Half abbrev_tag = (Dwarf_Half)data[4];
-    Dwarf_Unsigned abbrev_children = 0;
+    // Use the first part of the data as an unsigned int
+    cc = *(unsigned int *)data;
 
     // Call the function-under-test
-    int result = dwarf_dnames_abbrevtable(head, offset, &abbrev_count, &abbrev_offset, 
-                                          &abbrev_length, max_abbrev, &abbrev_code, 
-                                          &abbrev_tag, &abbrev_children);
+    int result = dwarf_get_CC_name(cc, &name);
+
+    // Optionally, you can add checks or further operations on `result` and `name`
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

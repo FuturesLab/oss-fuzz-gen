@@ -1,30 +1,59 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <libdwarf.h>
+#include <stddef.h>
 
-// Declare the external function
-extern int dwarf_get_fde_info_for_reg3_b(Dwarf_Fde, Dwarf_Half, Dwarf_Addr, Dwarf_Small *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Block *, Dwarf_Addr *, Dwarf_Bool *, Dwarf_Addr *, Dwarf_Error *);
+// Function-under-test declaration
+int dwarf_set_de_alloc_flag(int flag);
 
 int LLVMFuzzerTestOneInput_189(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    Dwarf_Fde fde = (Dwarf_Fde)data; // Assuming data can be cast to Dwarf_Fde
-    Dwarf_Half reg_num = 0; // Initialize to zero or any valid value
-    Dwarf_Addr pc = 0; // Initialize to zero or any valid value
-    Dwarf_Small value_type = 0; // Initialize to zero or any valid value
-    Dwarf_Unsigned offset_relevant = 0; // Initialize to zero or any valid value
-    Dwarf_Unsigned offset = 0; // Initialize to zero or any valid value
-    Dwarf_Unsigned block_len = 0; // Initialize to zero or any valid value
-    Dwarf_Block block;
-    block.bl_data = (uint8_t *)data; // Assuming data can be used for block data
-    block.bl_len = size; // Use size of the input data
-    block.bl_from_loclist = 0; // Initialize to zero or any valid value
-    Dwarf_Addr row_pc = 0; // Initialize to zero or any valid value
-    Dwarf_Bool has_more_rows = 0; // Initialize to zero or any valid value
-    Dwarf_Addr next_pc = 0; // Initialize to zero or any valid value
-    Dwarf_Error error = NULL; // Initialize to NULL
+    // Ensure there is enough data to extract an integer
+    if (size < sizeof(int)) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    dwarf_get_fde_info_for_reg3_b(fde, reg_num, pc, &value_type, &offset_relevant, &offset, &block_len, &block, &row_pc, &has_more_rows, &next_pc, &error);
+    // Extract an integer from the data
+    int flag = *(const int *)data;
+
+    // Call the function-under-test with the extracted integer
+    dwarf_set_de_alloc_flag(flag);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_189(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

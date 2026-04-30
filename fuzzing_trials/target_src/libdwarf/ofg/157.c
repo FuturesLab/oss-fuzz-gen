@@ -1,28 +1,63 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include <libdwarf.h>
 
 int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-    Dwarf_Debug dbg;
-    char *error_msg;
-
-    // Initialize Dwarf_Debug with some non-NULL value
-    dbg = (Dwarf_Debug)0x1; // Dummy non-NULL value for fuzzing
-
-    // Allocate memory for error_msg and ensure it's null-terminated
-    error_msg = (char *)malloc(size + 1);
-    if (error_msg == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Ensure size is sufficient to extract an integer
+    if (size < sizeof(int)) {
+        return 0;
     }
-    memcpy(error_msg, data, size);
-    error_msg[size] = '\0'; // Null-terminate the string
+
+    // Extract an integer from the data
+    int input_value = 0;
+    for (size_t i = 0; i < sizeof(int); ++i) {
+        input_value |= data[i] << (i * 8);
+    }
 
     // Call the function-under-test
-    dwarf_insert_harmless_error(dbg, error_msg);
+    Dwarf_Bool result = dwarf_addr_form_is_indexed(input_value);
 
-    // Free allocated memory
-    free(error_msg);
+    // Use the result to prevent any compiler optimizations that might skip the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_157(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,34 +1,62 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <libdwarf.h>
+#include <stdint.h>
+#include <stdio.h>
 
-extern int dwarf_dnames_name(Dwarf_Dnames_Head, Dwarf_Unsigned, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Unsigned *, char **, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Half *, Dwarf_Unsigned, Dwarf_Half *, Dwarf_Half *, Dwarf_Unsigned *, Dwarf_Error *);
+extern int dwarf_get_DEFAULTED_name(unsigned int, const char **);
 
 int LLVMFuzzerTestOneInput_165(const uint8_t *data, size_t size) {
-    // Declare and initialize all variables
-    Dwarf_Dnames_Head head = (Dwarf_Dnames_Head)data; // Cast data to Dwarf_Dnames_Head
-    Dwarf_Unsigned index = 0;
-    Dwarf_Unsigned offset = 0;
-    Dwarf_Unsigned cu_offset = 0;
-    Dwarf_Unsigned die_offset = 0;
-    char *name = NULL;
-    Dwarf_Unsigned name_len = 0;
-    Dwarf_Unsigned hash_value = 0;
-    Dwarf_Half name_kind = 0;
-    Dwarf_Unsigned name_index = 0;
-    Dwarf_Half offset_size = 0;
-    Dwarf_Half extension_size = 0;
-    Dwarf_Unsigned attr_count = 0;
-    Dwarf_Error error = NULL;
+    unsigned int index;
+    const char *name = NULL;
 
-    // Call the function-under-test
-    int result = dwarf_dnames_name(head, index, &offset, &cu_offset, &die_offset, &name, &name_len, &hash_value, &name_kind, name_index, &offset_size, &extension_size, &attr_count, &error);
-
-    // Clean up allocated memory if necessary
-    if (name != NULL) {
-        free(name);
+    if (size < sizeof(unsigned int)) {
+        return 0;
     }
+
+    index = *(unsigned int *)data;
+
+    int result = dwarf_get_DEFAULTED_name(index, &name);
+
+    // Optionally print the result and name for debugging purposes
+    printf("Result: %d, Name: %s\n", result, name ? name : "NULL");
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_165(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

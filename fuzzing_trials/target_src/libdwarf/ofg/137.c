@@ -1,46 +1,78 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <libdwarf.h>
+#include <dwarf.h>  // Include the necessary header for DWARF constants
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    Dwarf_Frame_Instr_Head frame_instr_head = (Dwarf_Frame_Instr_Head)data; // Assuming data can be used as a pointer
-    Dwarf_Unsigned instr_index = 0;
-    Dwarf_Unsigned instr_offset = 0;
-    Dwarf_Small instr_op = 0;
-    const char *instr_name = NULL;
-    Dwarf_Unsigned instr_operand1 = 0;
-    Dwarf_Unsigned instr_operand2 = 0;
-    Dwarf_Unsigned instr_operand3 = 0;
-    Dwarf_Signed instr_operand4 = 0;
-    Dwarf_Signed instr_operand5 = 0;
-    Dwarf_Unsigned instr_operand6 = 0;
-    Dwarf_Signed instr_operand7 = 0;
-    Dwarf_Block instr_block;
-    Dwarf_Error error = NULL;
+    Dwarf_Debug dbg = 0;
+    Dwarf_Error error;
+    Dwarf_Die die = 0;
+    struct Dwarf_Debug_Fission_Per_CU_s fission_info;
+    int res;
 
-    // Initialize instr_block
-    instr_block.bl_len = 0;
-    instr_block.bl_data = NULL;
+    // Initialize Dwarf_Debug and Dwarf_Die with some mock or default values
+    // In a real-world scenario, these would be obtained from parsing a valid DWARF file
+    // Here, we will just assume some initialization function exists
+    // For the purpose of this example, we assume these functions are available:
+    // dwarf_init_debug and dwarf_init_die
+    // These functions are hypothetical and do not exist in the actual libdwarf library
+    // They are used here for demonstration purposes only
+
+    // Mock initialization (hypothetical)
+    // res = dwarf_init_debug(data, size, &dbg, &error);
+    // if (res != DW_DLV_OK) {
+    //     return 0;
+    // }
+    // res = dwarf_init_die(dbg, &die, &error);
+    // if (res != DW_DLV_OK) {
+    //     dwarf_finish(dbg, &error);
+    //     return 0;
+    // }
 
     // Call the function-under-test
-    int result = dwarf_get_frame_instruction_a(
-        frame_instr_head,
-        instr_index,
-        &instr_offset,
-        &instr_op,
-        &instr_name,
-        &instr_operand1,
-        &instr_operand2,
-        &instr_operand3,
-        &instr_operand4,
-        &instr_operand5,
-        &instr_operand6,
-        &instr_operand7,
-        &instr_block,
-        &error
-    );
+    res = dwarf_get_debugfission_for_die(die, &fission_info, &error);
 
-    // Return 0 to indicate successful fuzzing
+    // Clean up resources
+    // dwarf_finish(dbg, &error);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_137(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

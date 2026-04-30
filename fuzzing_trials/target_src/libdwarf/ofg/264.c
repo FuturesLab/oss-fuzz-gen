@@ -1,31 +1,60 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 
-// Assume that the function is declared in some header file
-int dwarf_get_children_name(unsigned int, const char **);
+// Assume the function is defined in an external library
+extern int dwarf_set_reloc_application(int);
 
 int LLVMFuzzerTestOneInput_264(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract an unsigned int
-    if (size < sizeof(unsigned int)) {
-        return 0;
+    // Initialize the parameter for the function-under-test
+    int param = 0;
+
+    // Ensure we have at least 4 bytes to read an integer
+    if (size >= sizeof(int)) {
+        // Cast the input data to an integer
+        param = *((int *)data);
     }
-
-    // Extract an unsigned int from the input data
-    unsigned int index;
-    memcpy(&index, data, sizeof(unsigned int));
-
-    // Allocate space for the name pointer
-    const char *name = NULL;
 
     // Call the function-under-test
-    int result = dwarf_get_children_name(index, &name);
-
-    // If the function sets the name, ensure to free it if necessary
-    if (name != NULL) {
-        free((void *)name); // Assuming that the function allocates memory for the name
-    }
+    dwarf_set_reloc_application(param);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_264(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

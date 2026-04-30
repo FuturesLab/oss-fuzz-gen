@@ -1,46 +1,71 @@
 #include <stddef.h>
 #include <stdint.h>
-
-// Assuming the function is declared in a header file
-// #include "dwarf.h"
-
-// Mock implementation of the function for the purpose of this harness
-// int dwarf_get_SECT_name(unsigned int index, const char **name) {
-//     // Mock behavior: return 0 for success and set a dummy name
-//     if (name != NULL) {
-//         *name = "Dummy Section Name";
-//         return 0;
-//     }
-//     return -1;
-// }
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stdlib.h>
+#include <libdwarf.h> // Include the libdwarf header for Dwarf_Debug, Dwarf_Unsigned, and function declarations
 
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    unsigned int index;
-    const char *name = NULL;
-
-    if (size < sizeof(unsigned int)) {
-        return 0; // Not enough data to extract an unsigned int
+    // Ensure there is enough data to initialize Dwarf_Debug and 20 Dwarf_Unsigned pointers
+    if (size < sizeof(Dwarf_Debug) + 20 * sizeof(Dwarf_Unsigned)) {
+        return 0;
     }
 
-    // Extract an unsigned int from the data
-    index = *((unsigned int *)data);
+    // Initialize Dwarf_Debug
+    Dwarf_Debug dbg = (Dwarf_Debug)(uintptr_t)(data);
+
+    // Initialize 20 Dwarf_Unsigned pointers
+    Dwarf_Unsigned *offsets[20];
+    size_t offset = sizeof(Dwarf_Debug);
+    for (int i = 0; i < 20; ++i) {
+        offsets[i] = (Dwarf_Unsigned *)(data + offset);
+        offset += sizeof(Dwarf_Unsigned);
+    }
 
     // Call the function-under-test
-    int result = dwarf_get_SECT_name(index, &name);
-
-    // Optionally, you can add some checks or assertions here
-    // For example, check if the result is 0 and name is not NULL
-    if (result == 0 && name != NULL) {
-        // Do something with the name if needed
-    }
+    dwarf_get_section_max_offsets_d(dbg,
+                                    offsets[0], offsets[1], offsets[2], offsets[3],
+                                    offsets[4], offsets[5], offsets[6], offsets[7],
+                                    offsets[8], offsets[9], offsets[10], offsets[11],
+                                    offsets[12], offsets[13], offsets[14], offsets[15],
+                                    offsets[16], offsets[17], offsets[18], offsets[19]);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_79(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

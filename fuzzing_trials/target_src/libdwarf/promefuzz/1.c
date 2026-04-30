@@ -19,69 +19,106 @@
 #define DW_DLV_OK 0
 #define DW_DLV_NO_ENTRY -1
 
-static void fuzz_dwarf_get_DEFAULTED_name(const uint8_t *Data, size_t Size) {
-    const char *output;
-    for (size_t i = 0; i < 4 && i < Size; i++) {
-        unsigned int value = Data[i];
-        dwarf_get_DEFAULTED_name(value, &output);
-    }
-}
+static void invoke_dwarf_get_name_functions(unsigned int value) {
+    const char *name_out;
 
-static void fuzz_dwarf_get_GNUIKIND_name(const uint8_t *Data, size_t Size) {
-    const char *output;
-    for (size_t i = 0; i < 4 && i < Size; i++) {
-        unsigned int value = Data[i];
-        dwarf_get_GNUIKIND_name(value, &output);
+    // Call dwarf_get_DEFAULTED_name four times
+    for (int i = 0; i < 4; ++i) {
+        if (dwarf_get_DEFAULTED_name(value, &name_out) == DW_DLV_OK) {
+            // Process the name_out if needed
+        }
     }
-}
 
-static void fuzz_dwarf_get_GNUIVIS_name(const uint8_t *Data, size_t Size) {
-    const char *output;
-    for (size_t i = 0; i < 3 && i < Size; i++) {
-        unsigned int value = Data[i];
-        dwarf_get_GNUIVIS_name(value, &output);
+    // Call dwarf_get_GNUIKIND_name four times
+    for (int i = 0; i < 4; ++i) {
+        if (dwarf_get_GNUIKIND_name(value, &name_out) == DW_DLV_OK) {
+            // Process the name_out if needed
+        }
     }
-}
 
-static void fuzz_dwarf_get_IDX_name(const uint8_t *Data, size_t Size) {
-    const char *output;
-    for (size_t i = 0; i < 4 && i < Size; i++) {
-        unsigned int value = Data[i];
-        dwarf_get_IDX_name(value, &output);
+    // Call dwarf_get_GNUIVIS_name three times
+    for (int i = 0; i < 3; ++i) {
+        if (dwarf_get_GNUIVIS_name(value, &name_out) == DW_DLV_OK) {
+            // Process the name_out if needed
+        }
     }
-}
 
-static void fuzz_dwarf_get_ISA_name(const uint8_t *Data, size_t Size) {
-    const char *output;
-    for (size_t i = 0; i < 4 && i < Size; i++) {
-        unsigned int value = Data[i];
-        dwarf_get_ISA_name(value, &output);
+    // Call dwarf_get_IDX_name four times
+    for (int i = 0; i < 4; ++i) {
+        if (dwarf_get_IDX_name(value, &name_out) == DW_DLV_OK) {
+            // Process the name_out if needed
+        }
     }
-}
 
-static void fuzz_dwarf_get_LLEX_name(const uint8_t *Data, size_t Size) {
-    const char *output;
-    for (size_t i = 0; i < 4 && i < Size; i++) {
-        unsigned int value = Data[i];
-        dwarf_get_LLEX_name(value, &output);
+    // Call dwarf_get_ISA_name four times
+    for (int i = 0; i < 4; ++i) {
+        if (dwarf_get_ISA_name(value, &name_out) == DW_DLV_OK) {
+            // Process the name_out if needed
+        }
     }
-}
 
-static void fuzz_dwarf_get_LNCT_name(const uint8_t *Data, size_t Size) {
-    const char *output;
-    for (size_t i = 0; i < 6 && i < Size; i++) {
-        unsigned int value = Data[i];
-        dwarf_get_LNCT_name(value, &output);
+    // Call dwarf_get_LLEX_name four times
+    for (int i = 0; i < 4; ++i) {
+        if (dwarf_get_LLEX_name(value, &name_out) == DW_DLV_OK) {
+            // Process the name_out if needed
+        }
+    }
+
+    // Call dwarf_get_LNCT_name six times
+    for (int i = 0; i < 6; ++i) {
+        if (dwarf_get_LNCT_name(value, &name_out) == DW_DLV_OK) {
+            // Process the name_out if needed
+        }
     }
 }
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    fuzz_dwarf_get_DEFAULTED_name(Data, Size);
-    fuzz_dwarf_get_GNUIKIND_name(Data, Size);
-    fuzz_dwarf_get_GNUIVIS_name(Data, Size);
-    fuzz_dwarf_get_IDX_name(Data, Size);
-    fuzz_dwarf_get_ISA_name(Data, Size);
-    fuzz_dwarf_get_LLEX_name(Data, Size);
-    fuzz_dwarf_get_LNCT_name(Data, Size);
+    if (Size < sizeof(unsigned int)) {
+        return 0;
+    }
+
+    unsigned int value = *(unsigned int *)Data;
+    invoke_dwarf_get_name_functions(value);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

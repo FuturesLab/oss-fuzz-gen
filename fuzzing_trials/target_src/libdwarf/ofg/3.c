@@ -1,35 +1,63 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
+#include <stddef.h>
+#include <string.h>
 #include <libdwarf.h>
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    Dwarf_Debug dbg = 0; // Assuming a valid Dwarf_Debug object is initialized elsewhere
-    Dwarf_Small *small_data = NULL;
-    Dwarf_Unsigned small_size = 0;
-    Dwarf_Dsc_Head *dsc_head = NULL;
-    Dwarf_Unsigned *ret_count = (Dwarf_Unsigned *)malloc(sizeof(Dwarf_Unsigned));
-    Dwarf_Error *error = NULL;
-
-    if (size > 0) {
-        small_data = (Dwarf_Small *)malloc(size);
-        if (small_data != NULL) {
-            memcpy(small_data, data, size);
-            small_size = (Dwarf_Unsigned)size;
-        }
+    if (size < sizeof(Dwarf_Unsigned)) {
+        return 0;
     }
+
+    Dwarf_Unsigned error_number;
+    // Copy the first sizeof(Dwarf_Unsigned) bytes from data to error_number
+    memcpy(&error_number, data, sizeof(Dwarf_Unsigned));
 
     // Call the function-under-test
-    int result = dwarf_discr_list(dbg, small_data, small_size, dsc_head, ret_count, error);
+    char *error_message = dwarf_errmsg_by_number(error_number);
 
-    // Clean up
-    if (small_data != NULL) {
-        free(small_data);
-    }
-    if (ret_count != NULL) {
-        free(ret_count);
-    }
+    // Normally, you would do something with error_message here, 
+    // like checking its contents or logging, but since this is 
+    // a fuzzing harness, we just return.
+    (void)error_message;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

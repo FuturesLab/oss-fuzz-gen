@@ -1,37 +1,75 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <libdwarf.h>
 
-// Dummy implementations for the types used in the function signature
-typedef struct Dwarf_Debug_s *Dwarf_Debug;
-typedef unsigned long long Dwarf_Unsigned;
-typedef unsigned short Dwarf_Half;
-typedef struct Dwarf_Error_s *Dwarf_Error;
-
-extern int dwarf_next_cu_header_d(Dwarf_Debug, Dwarf_Bool, Dwarf_Unsigned *, Dwarf_Half *, Dwarf_Unsigned *, Dwarf_Half *, Dwarf_Half *, Dwarf_Half *, Dwarf_Sig8 *, Dwarf_Unsigned *, Dwarf_Unsigned *, Dwarf_Half *, Dwarf_Error *);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Initialize all the parameters for the function call
-    Dwarf_Debug dbg = (Dwarf_Debug)data;  // Assuming data can be cast to Dwarf_Debug
-    Dwarf_Bool is_info = 1;  // Non-zero value for true
-    Dwarf_Unsigned cu_header_length = 0;
-    Dwarf_Half version_stamp = 0;
-    Dwarf_Unsigned abbrev_offset = 0;
-    Dwarf_Half address_size = 0;
-    Dwarf_Half offset_size = 0;
-    Dwarf_Half extension_size = 0;
-    Dwarf_Sig8 signature;
-    Dwarf_Unsigned typeoffset = 0;
-    Dwarf_Unsigned next_cu_header_offset = 0;
-    Dwarf_Half header_cu_type = 0;
-    Dwarf_Error error = NULL;
+    if (size < sizeof(Dwarf_Debug)) {
+        return 0; // Not enough data to form a valid Dwarf_Debug
+    }
+
+    Dwarf_Debug dbg = (Dwarf_Debug)data; // Type casting data to Dwarf_Debug
+    Dwarf_Off offset = 0; // Initialize offset
+    Dwarf_Bool is_info = 1; // Initialize is_info to a non-zero value
+    Dwarf_Die die = NULL; // Initialize Dwarf_Die
+    Dwarf_Error error = NULL; // Initialize Dwarf_Error
 
     // Call the function-under-test
-    int result = dwarf_next_cu_header_d(dbg, is_info, &cu_header_length, &version_stamp,
-                                        &abbrev_offset, &address_size, &offset_size,
-                                        &extension_size, &signature, &typeoffset,
-                                        &next_cu_header_offset, &header_cu_type, &error);
+    int result = dwarf_offdie_b(dbg, offset, is_info, &die, &error);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Clean up if needed
+    if (die != NULL) {
+        dwarf_dealloc(dbg, die, DW_DLA_DIE);
+    }
+    if (error != NULL) {
+        dwarf_dealloc(dbg, error, DW_DLA_ERROR);
+    }
+
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

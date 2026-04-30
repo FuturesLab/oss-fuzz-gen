@@ -1,26 +1,61 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <libdwarf.h>
 
-int LLVMFuzzerTestOneInput_198(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract an unsigned int
-    if (size < sizeof(unsigned int)) {
+extern int LLVMFuzzerTestOneInput_198(const uint8_t *data, size_t size) {
+    // Declare and initialize variables
+    Dwarf_Line line = (Dwarf_Line)data; // Casting data to Dwarf_Line for fuzzing
+    Dwarf_Bool end_sequence;
+    Dwarf_Error error;
+
+    // Ensure that `data` is not NULL and has a reasonable size
+    if (size < sizeof(Dwarf_Line)) {
         return 0;
     }
 
-    // Extract an unsigned int from the input data
-    unsigned int attr = *(unsigned int *)data;
-
-    // Prepare a pointer for the attribute name
-    const char *attr_name = NULL;
-
     // Call the function-under-test
-    int result = dwarf_get_AT_name(attr, &attr_name);
+    int result = dwarf_lineendsequence(line, &end_sequence, &error);
 
-    // Optionally, you can perform checks or print the result for debugging
-    // if (result == DW_DLV_OK && attr_name != NULL) {
-    //     printf("Attribute Name: %s\n", attr_name);
-    // }
+    // You can add additional checks or processing here if needed
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_198(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

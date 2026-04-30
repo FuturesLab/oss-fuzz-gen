@@ -1,35 +1,67 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-
-// Assume the function is declared in a header file or elsewhere
-int dwarf_get_EH_name(unsigned int encoding, const char **name);
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stdlib.h>
+#include <libdwarf.h>
 
 int LLVMFuzzerTestOneInput_224(const uint8_t *data, size_t size) {
-    if (size < sizeof(unsigned int)) {
-        return 0; // Not enough data to form an unsigned int
-    }
-
-    unsigned int encoding = *(const unsigned int *)data;
-    const char *name = NULL;
+    // Declare and initialize variables for the function parameters
+    Dwarf_Debug dbg = 0; // Initialize Dwarf_Debug to 0 or use an appropriate initialization function
+    Dwarf_Unsigned offset = 0;
+    Dwarf_Unsigned loclist_offset = 0;
+    Dwarf_Unsigned *loclist_offset_ptr = &loclist_offset;
+    Dwarf_Small version = 0;
+    Dwarf_Small offset_size = 0;
+    unsigned int address_size = 0;
+    Dwarf_Small segment_selector_size = 0;
+    Dwarf_Small offset_entry_count = 0;
+    Dwarf_Unsigned entry_count = 0;
+    Dwarf_Unsigned *entry_count_ptr = &entry_count;
+    Dwarf_Unsigned loclist_count = 0;
+    Dwarf_Unsigned *loclist_count_ptr = &loclist_count;
+    Dwarf_Unsigned loclist_index = 0;
+    Dwarf_Unsigned *loclist_index_ptr = &loclist_index;
+    Dwarf_Error error = NULL;
 
     // Call the function-under-test
-    int result = dwarf_get_EH_name(encoding, &name);
-
-    // Optionally print the result and name for debugging purposes
-    if (name != NULL) {
-        printf("Result: %d, Name: %s\n", result, name);
-    } else {
-        printf("Result: %d, Name: NULL\n", result);
-    }
+    dwarf_get_loclist_context_basics(dbg, offset, loclist_offset_ptr, &version, &offset_size, &address_size, &segment_selector_size, &offset_entry_count, entry_count_ptr, loclist_count_ptr, loclist_index_ptr, &loclist_index, &error);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_224(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

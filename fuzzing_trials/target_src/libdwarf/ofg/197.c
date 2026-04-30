@@ -1,21 +1,66 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <dwarf.h>
 #include <libdwarf.h>
 
-extern int dwarf_whatattr(Dwarf_Attribute attr, Dwarf_Half *return_attr, Dwarf_Error *error);
-
 int LLVMFuzzerTestOneInput_197(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    if (size < sizeof(Dwarf_Attribute)) {
-        return 0; // Not enough data to form a valid Dwarf_Attribute
+    Dwarf_Line line;
+    Dwarf_Unsigned lineno = 0;
+    Dwarf_Error error;
+
+    // Ensure that the data size is sufficient to create a Dwarf_Line object
+    if (size < sizeof(Dwarf_Line)) {
+        return 0;
     }
 
-    Dwarf_Attribute attr = (Dwarf_Attribute)(uintptr_t)data; // Cast data to a pointer type
-    Dwarf_Half return_attr = 0;
-    Dwarf_Error error = NULL;
+    // Cast the data to a Dwarf_Line type for fuzzing
+    line = (Dwarf_Line)data;
 
     // Call the function-under-test
-    dwarf_whatattr(attr, &return_attr, &error);
+    int result = dwarf_lineno(line, &lineno, &error);
+
+    // Use the result and lineno to avoid compiler optimizations
+    (void)result;
+    (void)lineno;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_197(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

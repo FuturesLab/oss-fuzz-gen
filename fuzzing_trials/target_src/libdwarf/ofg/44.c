@@ -1,38 +1,67 @@
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <libdwarf.h>
-#include <dwarf.h> // Include this header for Dwarf types
+#include <dwarf.h>
 
-// Define the function without extern "C" since this is a C file
+extern int dwarf_get_LNCT_name(unsigned int, const char **);
+
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    Dwarf_Cie cie = (Dwarf_Cie)data;  // Casting data to Dwarf_Cie for fuzzing
-    Dwarf_Unsigned bytes_in_cie = 0;
-    Dwarf_Small version = 0;
-    char *augmenter = (char *)"augmenter_string";
-    Dwarf_Unsigned code_alignment_factor = 0;
-    Dwarf_Signed data_alignment_factor = 0;
-    Dwarf_Half return_address_register_rule = 0;
-    unsigned char *initial_instructions = (unsigned char *)data;  // Using data as instructions
-    Dwarf_Unsigned initial_instructions_length = size;
-    Dwarf_Half offset_size = 0;
-    Dwarf_Error error = NULL;
+    unsigned int lnct_index;
+    const char *lnct_name = NULL;
+
+    // Ensure the size is large enough to extract an unsigned int
+    if (size < sizeof(unsigned int)) {
+        return 0;
+    }
+
+    // Extract an unsigned int from the input data
+    lnct_index = *(unsigned int *)data;
 
     // Call the function-under-test
-    int result = dwarf_get_cie_info_b(
-        cie,
-        &bytes_in_cie,
-        &version,
-        &augmenter,
-        &code_alignment_factor,
-        &data_alignment_factor,
-        &return_address_register_rule,
-        &initial_instructions,
-        &initial_instructions_length,
-        &offset_size,
-        &error
-    );
+    int result = dwarf_get_LNCT_name(lnct_index, &lnct_name);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Use the result and lnct_name in some way to prevent compiler optimizations
+    if (result == 0 && lnct_name != NULL) {
+        // Do something with lnct_name, such as printing or logging
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

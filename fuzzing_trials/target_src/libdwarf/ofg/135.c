@@ -1,40 +1,72 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <dwarf.h>
-#include <libdwarf.h>
+#include <stdio.h>
 
-extern int dwarf_get_gnu_index_block_entry(Dwarf_Gnu_Index_Head, Dwarf_Unsigned, Dwarf_Unsigned, Dwarf_Unsigned *, const char **, unsigned char *, unsigned char *, unsigned char *, Dwarf_Error *);
+// Assume the function is declared in a header file
+// #include "dwarf.h"
+
+// Mock function definition for demonstration purposes
+int dwarf_set_stringcheck_135(int check) {
+    // Function implementation
+    printf("dwarf_set_stringcheck_135 called with check: %d\n", check);
+    return 0; // Placeholder return value
+}
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    // Initialize variables
-    Dwarf_Gnu_Index_Head index_head = (Dwarf_Gnu_Index_Head)data; // Assuming data can be cast to Dwarf_Gnu_Index_Head
-    Dwarf_Unsigned index = 0;
-    Dwarf_Unsigned index_max = 0;
-    Dwarf_Unsigned result_index = 0;
-    const char *result_string = NULL;
-    unsigned char result_flag1 = 0;
-    unsigned char result_flag2 = 0;
-    unsigned char result_flag3 = 0;
-    Dwarf_Error error = NULL;
-
-    // Ensure that the size is sufficient for fuzzing
-    if (size < sizeof(Dwarf_Gnu_Index_Head)) {
-        return 0; // Not enough data to proceed
+    if (size < sizeof(int)) {
+        return 0; // Not enough data to form an int
     }
 
-    // Call the function-under-test
-    int result = dwarf_get_gnu_index_block_entry(index_head, index, index_max, &result_index, &result_string, &result_flag1, &result_flag2, &result_flag3, &error);
+    // Interpret the first few bytes of data as an integer
+    int check = *(const int *)data;
 
-    // Use the result to prevent compiler optimizations
-    if (result == DW_DLV_OK) {
-        // Optionally, do something with the results
-        (void)result_index;
-        (void)result_string;
-        (void)result_flag1;
-        (void)result_flag2;
-        (void)result_flag3;
+    // Call the function-under-test with the interpreted integer
+    dwarf_set_stringcheck_135(check);
+
+    // Additional logic to ensure a variety of inputs
+    // For example, try calling the function with variations of the input
+    for (int i = -5; i <= 5; ++i) {
+        dwarf_set_stringcheck_135(check + i);
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_135(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

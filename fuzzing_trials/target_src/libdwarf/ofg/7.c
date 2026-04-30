@@ -1,51 +1,70 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include <libdwarf.h>  // Use the actual libdwarf types and functions
-
-// Dummy implementation of the function-under-test
-// int dwarf_formsig8_const(Dwarf_Attribute attr, Dwarf_Sig8 *sig8, Dwarf_Error *error) {
-//     // Dummy implementation
-//     return 0;
-// }
+#include <dwarf.h>
+#include <libdwarf.h>
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Since we cannot determine the size of the structures directly, we will assume
-    // a reasonable size for fuzzing purposes. This is a common approach in fuzzing
-    // when dealing with opaque data structures.
-    size_t attr_size = sizeof(void*);  // Dwarf_Attribute is a pointer
-    size_t error_size = sizeof(void*);  // Dwarf_Error is a pointer
-
-    if (size < attr_size + sizeof(Dwarf_Sig8) + error_size) {
-        return 0; // Not enough data to fill all structures
+    if (size < sizeof(Dwarf_Line_Context)) {
+        // Not enough data to create a valid Dwarf_Line_Context
+        return 0;
     }
 
-    // Initialize Dwarf_Attribute
-    Dwarf_Attribute attr = (Dwarf_Attribute)malloc(attr_size);
-    if (!attr) {
-        return 0; // Allocation failed
-    }
-    memcpy(attr, data, attr_size);
+    Dwarf_Line_Context line_context;
+    Dwarf_Unsigned offset;
+    Dwarf_Error error;
 
-    // Initialize Dwarf_Sig8
-    Dwarf_Sig8 sig8;
-    memcpy(&sig8, data + attr_size, sizeof(Dwarf_Sig8));
-
-    // Initialize Dwarf_Error
-    Dwarf_Error error = (Dwarf_Error)malloc(error_size);
-    if (!error) {
-        free(attr);
-        return 0; // Allocation failed
-    }
-    memcpy(error, data + attr_size + sizeof(Dwarf_Sig8), error_size);
+    // Properly initialize line_context using the input data
+    // Assuming Dwarf_Line_Context is a struct or similar that can be initialized from data
+    // This is a placeholder; actual initialization will depend on the real structure of Dwarf_Line_Context
+    line_context = (Dwarf_Line_Context)data;
 
     // Call the function-under-test
-    dwarf_formsig8_const(attr, &sig8, &error);
+    int result = dwarf_srclines_table_offset(line_context, &offset, &error);
 
-    // Free allocated memory
-    free(attr);
-    free(error);
+    // Use the result, offset, and error in some way to prevent compiler optimizations
+    (void)result;
+    (void)offset;
+    (void)error;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

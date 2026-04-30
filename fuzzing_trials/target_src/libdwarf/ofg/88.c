@@ -2,60 +2,67 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <libdwarf.h>
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
     if (size < 1) {
-        return 0; // Not enough data to proceed
+        return 0;
     }
 
-    // Create a temporary file to use as the path
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Failed to create a temporary file
-    }
-    close(fd);
+    // Initialize Dwarf_Debug and Dwarf_Error
+    Dwarf_Debug dbg = NULL; // Properly initialize Dwarf_Debug
+    Dwarf_Error error = NULL;
 
-    // Write the data to the temporary file
-    FILE *file = fopen(tmpl, "wb");
-    if (!file) {
-        unlink(tmpl);
-        return 0; // Failed to open the temporary file
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Initialize other parameters
-    char *alt_path = strdup("alt_path");
-    unsigned int access = 0;
-    unsigned int groupnumber = 0;
-    unsigned int offsetsize = 0;
-    Dwarf_Handler errhand = NULL;
-    Dwarf_Ptr errarg = NULL;
-    Dwarf_Debug *dbg = (Dwarf_Debug *)malloc(sizeof(Dwarf_Debug));
-    char *true_path_out = NULL;
-    unsigned int true_path_len_out = 0;
-    unsigned char *section_bytes = (unsigned char *)malloc(1);
-    Dwarf_Error *error = NULL;
+    // Prepare other parameters
+    const char *section_name = (const char *)data; // Using data as a placeholder for section name
+    Dwarf_Addr addr = 0;
+    Dwarf_Unsigned size1 = 0;
+    Dwarf_Unsigned size2 = 0;
+    Dwarf_Unsigned size3 = 0;
 
     // Call the function-under-test
-    int result = dwarf_init_path_dl_a(tmpl, alt_path, access, groupnumber, offsetsize, errhand, errarg, dbg, &true_path_out, true_path_len_out, section_bytes, error);
+    int result = dwarf_get_section_info_by_name_a(dbg, section_name, &addr, &size1, &size2, &size3, &error);
 
-    // Cleanup
-    free(alt_path);
-    free(dbg);
-    free(section_bytes);
-    if (true_path_out) {
-        free(true_path_out);
-    }
-    if (error) {
-        dwarf_dealloc_error(*dbg, error);
-    }
-    unlink(tmpl);
+    // Normally, you would handle the result and error here
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_88(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

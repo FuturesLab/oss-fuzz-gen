@@ -1,38 +1,71 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <libdwarf.h>
 #include <stdlib.h>
-#include <string.h>
+#include <libdwarf.h> // Include the necessary header for Dwarf_Unsigned
 
-extern int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Initialize Dwarf_Debug
-    Dwarf_Debug dbg = 0; // Assuming a valid Dwarf_Debug object is provided or initialized elsewhere
+extern int dwarf_decode_leb128(char *, Dwarf_Unsigned *, Dwarf_Unsigned *, char *);
 
-    // Ensure size is sufficient for a null-terminated string
-    if (size < 1) {
+int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
+    // Ensure that the size is sufficient for the function call
+    if (size < 4) {
         return 0;
     }
 
-    // Allocate and initialize a null-terminated string for section name
-    char *section_name = (char *)malloc(size + 1);
-    if (!section_name) {
-        return 0;
-    }
-    memcpy(section_name, data, size);
-    section_name[size] = '\0';
+    // Allocate memory for the parameters
+    char *leb128_data = (char *)malloc(size);
+    Dwarf_Unsigned decoded_value = 0;
+    Dwarf_Unsigned length = 0;
+    char *error = (char *)malloc(256); // Allocate some space for error messages
 
-    // Initialize other parameters
-    Dwarf_Addr section_addr = 0;
-    Dwarf_Unsigned section_size = 0;
-    Dwarf_Unsigned section_link = 0;
-    Dwarf_Unsigned section_info = 0;
-    Dwarf_Error error = 0;
+    // Copy the input data to leb128_data
+    for (size_t i = 0; i < size; i++) {
+        leb128_data[i] = (char)data[i];
+    }
 
     // Call the function-under-test
-    int result = dwarf_get_section_info_by_name_a(dbg, section_name, &section_addr, &section_size, &section_link, &section_info, &error);
+    dwarf_decode_leb128(leb128_data, &decoded_value, &length, error);
 
-    // Clean up
-    free(section_name);
+    // Free allocated memory
+    free(leb128_data);
+    free(error);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

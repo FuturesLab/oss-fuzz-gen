@@ -1,26 +1,54 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <dwarf.h>
 #include <libdwarf.h>
 
 int LLVMFuzzerTestOneInput_185(const uint8_t *data, size_t size) {
-    Dwarf_Attribute attr;
-    Dwarf_Unsigned index;
-    Dwarf_Error error;
-    int result;
+    // Declare and initialize variables
+    Dwarf_Debug dbg = (Dwarf_Debug)data; // Assuming data is a valid pointer for demonstration
+    Dwarf_Half table_size = (size > 0) ? (Dwarf_Half)data[0] : 1; // Use the first byte of data as table size if available
 
-    // Initialize the Dwarf_Attribute structure
-    // For the purpose of this fuzzing test, we assume attr is a pointer and cast the data
-    // Note: In a real-world scenario, you would properly initialize the Dwarf_Attribute
-    if (size >= sizeof(Dwarf_Attribute)) {
-        attr = (Dwarf_Attribute)data; // This is a simplification for fuzzing
-    } else {
-        return 0; // If data is too small, return early
-    }
+    // Call the function-under-test
+    Dwarf_Half result = dwarf_set_frame_rule_table_size(dbg, table_size);
 
-    // Call the function under test
-    result = dwarf_get_debug_str_index(attr, &index, &error);
-
-    // Return 0 as the fuzzer expects
+    // Return 0 to indicate successful execution
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_185(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

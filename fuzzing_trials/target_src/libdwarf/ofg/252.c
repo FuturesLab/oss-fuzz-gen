@@ -1,44 +1,64 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include "dwarf.h"
-#include "libdwarf.h" // Assuming this is the correct header for Dwarf_Debug and Dwarf_Unsigned
-
-// The function prototype is not needed here as it is already declared in the included header file
-// extern int dwarf_get_section_max_offsets_d(
-//     Dwarf_Debug dbg, 
-//     Dwarf_Unsigned *offset1, Dwarf_Unsigned *offset2, Dwarf_Unsigned *offset3, 
-//     Dwarf_Unsigned *offset4, Dwarf_Unsigned *offset5, Dwarf_Unsigned *offset6, 
-//     Dwarf_Unsigned *offset7, Dwarf_Unsigned *offset8, Dwarf_Unsigned *offset9, 
-//     Dwarf_Unsigned *offset10, Dwarf_Unsigned *offset11, Dwarf_Unsigned *offset12, 
-//     Dwarf_Unsigned *offset13, Dwarf_Unsigned *offset14, Dwarf_Unsigned *offset15, 
-//     Dwarf_Unsigned *offset16, Dwarf_Unsigned *offset17, Dwarf_Unsigned *offset18, 
-//     Dwarf_Unsigned *offset19, Dwarf_Unsigned *offset20, Dwarf_Unsigned *offset21
-// );
+#include <dwarf.h>
+#include <libdwarf.h> // Include the necessary header for dwarf_get_AT_name
 
 int LLVMFuzzerTestOneInput_252(const uint8_t *data, size_t size) {
-    if (size < sizeof(Dwarf_Debug)) {
+    // Ensure size is sufficient to extract an unsigned int
+    if (size < sizeof(unsigned int)) {
         return 0;
     }
 
-    Dwarf_Debug dbg = (Dwarf_Debug)data; // Assuming data can be cast to Dwarf_Debug
+    // Extract an unsigned int from the input data
+    unsigned int attr = *(const unsigned int *)data;
 
-    Dwarf_Unsigned offsets[21]; // Array to hold all Dwarf_Unsigned pointers
+    // Define a pointer for the attribute name
+    const char *attr_name = NULL;
 
-    // Initialize all offsets to non-NULL values
-    for (int i = 0; i < 21; i++) {
-        offsets[i] = 0;
-    }
+    // Call the function-under-test
+    int result = dwarf_get_AT_name(attr, &attr_name);
 
-    // Call the function-under-test with the correct number of arguments
-    dwarf_get_section_max_offsets_d(
-        dbg,
-        &offsets[0], &offsets[1], &offsets[2], &offsets[3], &offsets[4],
-        &offsets[5], &offsets[6], &offsets[7], &offsets[8], &offsets[9],
-        &offsets[10], &offsets[11], &offsets[12], &offsets[13], &offsets[14],
-        &offsets[15], &offsets[16], &offsets[17], &offsets[18], &offsets[19]
-        // Removed the 22nd argument which was causing the error
-    );
+    // Optionally, you can check the result or use attr_name for further processing
+    // For fuzzing purposes, we just ensure the function is called
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_252(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
