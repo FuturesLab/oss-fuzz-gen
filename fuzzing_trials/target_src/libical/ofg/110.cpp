@@ -1,39 +1,23 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Initialize a dummy icalproperty object
-    icalproperty *prop = icalproperty_new(ICAL_TZOFFSETTO_PROPERTY);
-
-    // Ensure that the data is not empty
-    if (size > 0) {
-        // Convert the input data to a string
-        char *data_str = (char *)malloc(size + 1);
-        if (data_str == NULL) {
-            icalproperty_free(prop);
-            return 0;
-        }
-        memcpy(data_str, data, size);
-        data_str[size] = '\0';
-
-        // Set the value of the icalproperty using the input data
-        icalvalue *value = icalvalue_new_string(data_str);
-        icalproperty_set_value(prop, value);
-
-        // Clean up
-        free(data_str);
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!component) {
+        return 0;
     }
 
-    // Call the function under test
-    int offset = icalproperty_get_tzoffsetto(prop);
+    // Initialize an icalcompiter
+    icalcompiter iter;
+    iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+
+    // Call the function-under-test
+    icalcomponent *result = icalcompiter_next(&iter);
 
     // Clean up
-    icalproperty_free(prop);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -59,7 +43,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +53,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_110(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_110(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

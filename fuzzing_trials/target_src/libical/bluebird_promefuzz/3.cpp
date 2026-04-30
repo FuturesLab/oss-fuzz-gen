@@ -1,6 +1,5 @@
 #include <sys/stat.h>
 #include <string.h>
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -13,89 +12,51 @@ extern "C" {
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icalvalue.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 }
 
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
+#include <fstream>
 
-static icalvalue_kind GetRandomIcalValueKind() {
-    const icalvalue_kind kinds[] = {
-        ICAL_ANY_VALUE, ICAL_ACTION_VALUE, ICAL_ATTACH_VALUE, ICAL_BINARY_VALUE,
-        ICAL_BOOLEAN_VALUE, ICAL_BUSYTYPE_VALUE, ICAL_CALADDRESS_VALUE,
-        ICAL_CARLEVEL_VALUE, ICAL_CLASS_VALUE, ICAL_CMD_VALUE, ICAL_DATE_VALUE,
-        ICAL_DATETIME_VALUE, ICAL_DATETIMEDATE_VALUE, ICAL_DATETIMEPERIOD_VALUE,
-        ICAL_DURATION_VALUE, ICAL_FLOAT_VALUE, ICAL_GEO_VALUE, ICAL_INTEGER_VALUE,
-        ICAL_LINK_VALUE, ICAL_METHOD_VALUE, ICAL_PARTICIPANTTYPE_VALUE,
-        ICAL_PERIOD_VALUE, ICAL_POLLCOMPLETION_VALUE, ICAL_POLLMODE_VALUE,
-        ICAL_PROXIMITY_VALUE, ICAL_QUERY_VALUE, ICAL_QUERYLEVEL_VALUE,
-        ICAL_RECUR_VALUE, ICAL_RELATEDTO_VALUE, ICAL_REQUESTSTATUS_VALUE,
-        ICAL_RESOURCETYPE_VALUE, ICAL_STATUS_VALUE, ICAL_STRING_VALUE,
-        ICAL_TASKMODE_VALUE, ICAL_TEXT_VALUE, ICAL_TRANSP_VALUE, ICAL_TRIGGER_VALUE,
-        ICAL_UID_VALUE, ICAL_URI_VALUE, ICAL_UTCOFFSET_VALUE, ICAL_X_VALUE,
-        ICAL_XLICCLASS_VALUE, ICAL_XMLREFERENCE_VALUE, ICAL_NO_VALUE
-    };
-    size_t index = rand() % (sizeof(kinds) / sizeof(kinds[0]));
-    return kinds[index];
+static void writeToFile(const char* filename, const char* data, size_t size) {
+    std::ofstream file(filename, std::ios::binary);
+    file.write(data, size);
+    file.close();
 }
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Convert the input data to a null-terminated string
-    char *inputStr = static_cast<char *>(malloc(Size + 1));
-    if (!inputStr) {
-        return 0;
-    }
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    icalcomponent* comp = icalcomponent_new(kind);
 
-    // Fuzz icalvalue_new_from_string
-    icalvalue_kind kind = GetRandomIcalValueKind();
-    icalvalue *value = icalvalue_new_from_string(kind, inputStr);
-    if (value) {
-        // Fuzz icalvalue_clone
-        icalvalue *clonedValue = icalvalue_clone(value);
-        if (clonedValue) {
-            // Fuzz icalvalue_compare
-            icalparameter_xliccomparetype compareResult = icalvalue_compare(value, clonedValue);
+    if (!comp) return 0;
 
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalvalue_compare to icalparameter_set_xliccomparetype
-            icalparameter* ret_icalparameter_new_schedulestatus_gxrqb = icalparameter_new_schedulestatus((const char *)"r");
-            if (ret_icalparameter_new_schedulestatus_gxrqb == NULL){
-            	return 0;
-            }
-            // Ensure dataflow is valid (i.e., non-null)
-            if (!ret_icalparameter_new_schedulestatus_gxrqb) {
-            	return 0;
-            }
-            icalparameter_set_xliccomparetype(ret_icalparameter_new_schedulestatus_gxrqb, compareResult);
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            (void)compareResult; // Suppress unused variable warning
-            icalvalue_free(clonedValue);
+    const char* strData = reinterpret_cast<const char*>(Data);
+    size_t strSize = Size > 1 ? Size - 1 : 0;
+
+    // Create a null-terminated string
+    std::string safeStr(strData, strSize);
+
+    if (strSize > 0) {
+        icalcomponent_set_uid(comp, safeStr.c_str());
+        icalcomponent_set_comment(comp, safeStr.c_str());
+        icalcomponent_set_location(comp, safeStr.c_str());
+        icalcomponent_set_summary(comp, safeStr.c_str());
+        icalcomponent_set_x_name(comp, safeStr.c_str());
+
+        const char* summary = icalcomponent_get_summary(comp);
+        if (summary) {
+            writeToFile("./dummy_file", summary, strlen(summary));
         }
-
-        // Fuzz icalvalue_isa
-        icalvalue_kind isaKind = icalvalue_isa(value);
-        (void)isaKind; // Suppress unused variable warning
-
-        // Fuzz icalvalue_reset_kind
-        icalvalue_reset_kind(value);
-
-        icalvalue_free(value);
     }
 
-    // Fuzz icalvalue_new
-    icalvalue *newValue = icalvalue_new(kind);
-    if (newValue) {
-        icalvalue_free(newValue);
-    }
-
-    free(inputStr);
+    icalcomponent_free(comp);
     return 0;
 }
 #ifdef INC_MAIN
@@ -120,7 +81,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -130,7 +91,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_3(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

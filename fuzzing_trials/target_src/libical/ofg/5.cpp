@@ -1,43 +1,25 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include string.h for memcpy
+#include <stdbool.h>
 
 extern "C" {
-    #include <libical/ical.h> // Assuming the correct path for libical headers
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to create a valid icalproperty
-    if (size < 1) {
+    // Ensure there is enough data to read an icalcomponent_kind value
+    if (size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Initialize the library
-    icalerror_clear_errno();
+    // Interpret the input data as an icalcomponent_kind
+    icalcomponent_kind kind = *(const icalcomponent_kind *)data;
 
-    // Create a temporary string from the input data
-    char *temp = (char *)malloc(size + 1);
-    if (!temp) {
-        return 0;
-    }
-    memcpy(temp, data, size);
-    temp[size] = '\0';
+    // Call the function-under-test
+    bool result = icalcomponent_kind_is_valid(kind);
 
-    // Create a new icalproperty from the string
-    icalproperty *prop = icalproperty_new_from_string(temp);
-    free(temp);
-
-    // If the property is successfully created, call the function-under-test
-    if (prop != NULL) {
-        const char *queryname = icalproperty_get_queryname(prop);
-
-        // Optionally, do something with the queryname, like logging or further checks
-        // For now, we simply ensure the function is called
-    }
-
-    // Clean up
-    if (prop != NULL) {
-        icalproperty_free(prop);
+    // Use the result in some way to avoid compiler optimizations
+    if (result) {
+        // Do something if the kind is valid (no-op for fuzzing purposes)
     }
 
     return 0;
@@ -64,7 +46,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -74,7 +56,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_5(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

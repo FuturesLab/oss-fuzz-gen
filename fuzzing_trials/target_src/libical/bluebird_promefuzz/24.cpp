@@ -9,61 +9,59 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <iostream>
 #include <fstream>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icaltimezone.h"
-
-static void fuzz_icaltimezone_set_zone_directory(const uint8_t *Data, size_t Size) {
-    char *path = static_cast<char *>(malloc(Size + 1));
-    if (path == nullptr) return;
-    memcpy(path, Data, Size);
-    path[Size] = '\0';
-    icaltimezone_set_zone_directory(path);
-    free(path);
-}
-
-static void fuzz_icaltimezone_set_system_zone_directory(const uint8_t *Data, size_t Size) {
-    char *zonepath = static_cast<char *>(malloc(Size + 1));
-    if (zonepath == nullptr) return;
-    memcpy(zonepath, Data, Size);
-    zonepath[Size] = '\0';
-    icaltimezone_set_system_zone_directory(zonepath);
-    free(zonepath);
-}
-
-static void fuzz_icaltimezone_get_display_name() {
-    // As we don't have constructor methods for icaltimezone, we simulate with nullptr
-    icaltimezone *zone = nullptr;
-    const char *name = icaltimezone_get_display_name(zone);
-    (void)name; // Avoid unused variable warning
-}
-
-static void fuzz_icaltimezone_get_system_zone_directory() {
-    const char *system_zone_dir = icaltimezone_get_system_zone_directory();
-    (void)system_zone_dir; // Avoid unused variable warning
-}
-
-static void fuzz_icaltimezone_get_zone_directory() {
-    const char *zone_dir = icaltimezone_get_zone_directory();
-    (void)zone_dir; // Avoid unused variable warning
-}
-
-static void fuzz_icaltimezone_free_zone_directory() {
-    icaltimezone_free_zone_directory();
-}
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    fuzz_icaltimezone_set_zone_directory(Data, Size);
-    fuzz_icaltimezone_set_system_zone_directory(Data, Size);
-    fuzz_icaltimezone_get_display_name();
-    fuzz_icaltimezone_get_system_zone_directory();
-    fuzz_icaltimezone_get_zone_directory();
-    fuzz_icaltimezone_free_zone_directory();
+    // Ensure we have data to work with
+    if (Size == 0) return 0;
+
+    // Write the data to a dummy file if needed
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
+
+    // Call each target function and handle the returned component
+    icalcomponent *component = nullptr;
+
+    try {
+        component = icalcomponent_new_vquery();
+        if (component) {
+            icalcomponent_free(component);
+        }
+
+        component = icalcomponent_new_vresource();
+        if (component) {
+            icalcomponent_free(component);
+        }
+
+        component = icalcomponent_new_vjournal();
+        if (component) {
+            icalcomponent_free(component);
+        }
+
+        component = icalcomponent_new_vagenda();
+        if (component) {
+            icalcomponent_free(component);
+        }
+
+        component = icalcomponent_new_vcalendar();
+        if (component) {
+            icalcomponent_free(component);
+        }
+
+        component = icalcomponent_new_xpatch();
+        if (component) {
+            icalcomponent_free(component);
+        }
+    } catch (...) {
+        // Handle any exceptions to prevent the fuzzer from crashing
+    }
+
     return 0;
 }
 #ifdef INC_MAIN
@@ -88,7 +86,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -98,7 +96,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_24(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

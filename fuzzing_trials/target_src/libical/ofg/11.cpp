@@ -1,18 +1,44 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
+#include <stdlib.h>
+#include <string.h> // Include the necessary header for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    struct icaldurationtype duration = icaldurationtype_bad_duration();
+    // Initialize libical
+    icalcomponent *component = NULL;
+    icaltimetype dtend;
 
-    // Use the returned duration in some way to ensure it's processed
-    // Here, we will simply check if the duration is valid or not
-    int is_bad = icaldurationtype_is_bad_duration(duration);
+    // Ensure the data is not empty
+    if (size == 0) {
+        return 0;
+    }
 
-    // Optionally, print the result to verify the behavior
-    // This line can be commented out if not needed
-    // printf("Is bad duration: %d\n", is_bad);
+    // Create a temporary string from the input data
+    char *ical_str = (char *)malloc(size + 1);
+    if (ical_str == NULL) {
+        return 0;
+    }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    component = icalparser_parse_string(ical_str);
+
+    // Call the function-under-test if the component is successfully created
+    if (component != NULL) {
+        dtend = icalcomponent_get_dtend(component);
+        // Optionally, you can add additional checks or operations on dtend
+    }
+
+    // Clean up
+    if (component != NULL) {
+        icalcomponent_free(component);
+    }
+    free(ical_str);
 
     return 0;
 }
@@ -38,7 +64,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -48,7 +74,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_11(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

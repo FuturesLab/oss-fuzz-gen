@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icallangbind_quote_as_ical_r at icallangbind.c:282:7 in icallangbind.h
-// icalmemory_tmp_copy at icalmemory.c:215:7 in icalmemory.h
-// icallangbind_quote_as_ical at icallangbind.c:294:13 in icallangbind.h
-// icalmemory_append_encoded_string at icalmemory.c:476:6 in icalmemory.h
-// icalproperty_new_from_string at icalproperty.c:130:15 in icalproperty.h
-// icalproperty_as_ical_string at icalproperty.c:352:13 in icalproperty.h
+// icalcomponent_get_component_name at icalcomponent.c:344:13 in icalcomponent.h
+// icalcomponent_get_component_name_r at icalcomponent.c:353:7 in icalcomponent.h
+// icalcomponent_get_description at icalcomponent.c:1897:13 in icalcomponent.h
+// icalcomponent_get_first_component at icalcomponent.c:611:16 in icalcomponent.h
+// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
+// icalcomponent_get_location at icalcomponent.c:1932:13 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,61 +14,67 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <icalmemory.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <icallangbind.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <icalproperty.h>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <cstdio>
+#include <iostream>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // 1. Test icalproperty_new_from_string
-    char *ical_string = new char[Size + 1];
-    memcpy(ical_string, Data, Size);
-    ical_string[Size] = '\0';
-
-    icalproperty *prop = icalproperty_new_from_string(ical_string);
-    if (prop) {
-        // 3. Test icalproperty_as_ical_string
-        const char *ical_str = icalproperty_as_ical_string(prop);
-
-        // 4. Test icallangbind_quote_as_ical
-        const char *quoted_str = icallangbind_quote_as_ical(ical_str);
-
-        // 5. Test icallangbind_quote_as_ical_r
-        char *quoted_str_r = icallangbind_quote_as_ical_r(ical_str);
-
-        // Cleanup
-        if (quoted_str_r) {
-            icalmemory_free_buffer(quoted_str_r);
-        }
-
-        icalproperty_free(prop);
+    if (Size < sizeof(icalcomponent_kind)) {
+        return 0;
     }
 
-    // 6. Test icalmemory_append_encoded_string
-    char *buffer = static_cast<char*>(malloc(Size * 2 + 1)); // Allocate a buffer using malloc
-    char *pos = buffer;
-    size_t buf_size = Size * 2 + 1;
-    icalmemory_append_encoded_string(&buffer, &pos, &buf_size, ical_string);
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
 
-    // 7. Test icalmemory_tmp_copy
-    char *tmp_copy = icalmemory_tmp_copy(ical_string);
+    // Create a dummy icalcomponent using the library's creation function
+    icalcomponent *comp = icalcomponent_new(kind);
 
-    // Cleanup
-    delete[] ical_string;
-    free(buffer); // Free the buffer using free
+    if (comp == NULL) {
+        return 0;
+    }
+
+    // Test icalcomponent_get_component_name_r
+    char *component_name_r = icalcomponent_get_component_name_r(comp);
+    if (component_name_r != NULL) {
+        free(component_name_r);
+    }
+
+    // Test icalcomponent_get_location
+    const char *location = icalcomponent_get_location(comp);
+    if (location != NULL) {
+        // Process location if needed
+    }
+
+    // Test icalcomponent_get_description
+    const char *description = icalcomponent_get_description(comp);
+    if (description != NULL) {
+        // Process description if needed
+    }
+
+    // Test icalcomponent_get_component_name
+    const char *component_name = icalcomponent_get_component_name(comp);
+    if (component_name != NULL) {
+        // Process component_name if needed
+    }
+
+    // Test icalcomponent_get_first_component
+    icalcomponent *first_component = icalcomponent_get_first_component(comp, kind);
+    if (first_component != NULL) {
+        // Process first_component if needed
+    }
+
+    // Test icalcomponent_get_comment
+    const char *comment = icalcomponent_get_comment(comp);
+    if (comment != NULL) {
+        // Process comment if needed
+    }
+
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }

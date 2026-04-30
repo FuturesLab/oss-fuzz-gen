@@ -1,35 +1,43 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <time.h>
-#include <string.h> // Include for memcpy
+#include <string.h>
 
 extern "C" {
     #include <libical/ical.h>
+    
+    void icalcomponent_set_summary(icalcomponent *, const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to create a valid icaltimetype
-    if (size < sizeof(struct icaltimetype)) {
+    // Ensure the data size is sufficient to create a valid string
+    if (size < 1) {
         return 0;
     }
 
-    // Create a dummy icaltimezone object
-    icaltimezone *timezone = icaltimezone_get_builtin_timezone("UTC");
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
 
-    // Use the data to create an icaltimetype
-    struct icaltimetype time;
-    memcpy(&time, data, sizeof(struct icaltimetype));
+    // Create a null-terminated string from the input data
+    char *summary = (char *)malloc(size + 1);
+    if (summary == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(summary, data, size);
+    summary[size] = '\0';
 
-    // Initialize the int pointer
-    int utc_offset = 0;
+    // Check if the summary is not empty to ensure function utilization
+    if (strlen(summary) > 0) {
+        // Call the function-under-test
+        icalcomponent_set_summary(component, summary);
+    }
 
-    // Call the function-under-test
-    int result = icaltimezone_get_utc_offset(timezone, &time, &utc_offset);
-
-    // Use the result and utc_offset to avoid unused variable warnings
-    (void)result;
-    (void)utc_offset;
+    // Clean up
+    free(summary);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -55,7 +63,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -65,7 +73,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_43(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

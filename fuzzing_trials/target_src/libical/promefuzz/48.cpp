@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalproperty_value_kind_to_kind at icalderivedproperty.c:7032:19 in icalproperty.h
-// icalproperty_kind_to_value_kind at icalderivedproperty.c:7046:16 in icalproperty.h
-// icalparameter_value_to_value_kind at icalderivedparameter.c:2880:16 in icalproperty.h
-// icalvalue_string_to_kind at icalderivedvalue.c:1032:16 in icalvalue.h
-// icalvalue_kind_to_string at icalderivedvalue.c:1018:13 in icalvalue.h
-// icalvalue_isa at icalvalue.c:1306:16 in icalvalue.h
+// icalcomponent_set_sequence at icalcomponent.c:1955:6 in icalcomponent.h
+// icalcomponent_get_sequence at icalcomponent.c:1967:5 in icalcomponent.h
+// icalcomponent_get_inner at icalcomponent.c:1490:16 in icalcomponent.h
+// icalcomponent_get_next_component at icalcomponent.c:627:16 in icalcomponent.h
+// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,61 +14,54 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstring>
 #include <iostream>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalvalue.h"
+#include <libical/icalcomponent.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalproperty.h"
+#include <libical/icaltime.h>
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Prepare a null-terminated string from the input data
-    char *inputString = new char[Size + 1];
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
-
-    // 1. Test icalvalue_string_to_kind
-    icalvalue_kind kindFromString = icalvalue_string_to_kind(inputString);
-    (void)kindFromString; // Use the result to avoid unused variable warning
-
-    // 2. Test icalvalue_isa
-    icalvalue *value = icalvalue_new(kindFromString);
-    if (value) {
-        icalvalue_kind kindFromValue = icalvalue_isa(value);
-        (void)kindFromValue; // Use the result to avoid unused variable warning
-        icalvalue_free(value);
+    // Create a dummy file to use with functions that require file input
+    std::ofstream dummyFile("./dummy_file");
+    if (dummyFile.is_open()) {
+        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+        dummyFile.close();
     }
 
-    // 3. Test icalparameter_value_to_value_kind
-    if (Size >= sizeof(icalparameter_value)) {
-        icalparameter_value paramValue;
-        memcpy(&paramValue, Data, sizeof(icalparameter_value));
-        icalvalue_kind kindFromParam = icalparameter_value_to_value_kind(paramValue);
-        (void)kindFromParam; // Use the result to avoid unused variable warning
+    // Initialize a new VCALENDAR component
+    icalcomponent *calendar = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (!calendar) return 0;
+
+    // Fuzz icalcomponent_get_inner
+    icalcomponent *inner = icalcomponent_get_inner(calendar);
+
+    // Fuzz icalcomponent_set_dtstart
+    struct icaltimetype dtstart = icaltime_from_string("20231015T123000Z");
+    icalcomponent_set_dtstart(calendar, dtstart);
+
+    // Fuzz icalcomponent_get_sequence
+    int sequence = icalcomponent_get_sequence(calendar);
+
+    // Fuzz icalcomponent_get_next_component
+    icalcomponent *nextComponent = icalcomponent_get_next_component(calendar, ICAL_VEVENT_COMPONENT);
+
+    // Fuzz icalcomponent_new_valarm
+    icalcomponent *valarm = icalcomponent_new_valarm();
+    if (valarm) {
+        icalcomponent_add_component(calendar, valarm);
     }
 
-    // 4. Test icalproperty_value_kind_to_kind
-    icalproperty_kind propKind = icalproperty_value_kind_to_kind(kindFromString);
-    (void)propKind; // Use the result to avoid unused variable warning
+    // Fuzz icalcomponent_set_sequence
+    icalcomponent_set_sequence(calendar, sequence + 1);
 
-    // 5. Test icalvalue_kind_to_string
-    const char *kindString = icalvalue_kind_to_string(kindFromString);
-    if (kindString) {
-        (void)kindString; // Use the result to avoid unused variable warning
-    }
+    // Clean up
+    icalcomponent_free(calendar);
 
-    // 6. Test icalproperty_kind_to_value_kind
-    icalvalue_kind defaultValueKind = icalproperty_kind_to_value_kind(propKind);
-    (void)defaultValueKind; // Use the result to avoid unused variable warning
-
-    delete[] inputString;
     return 0;
 }
     #ifdef INC_MAIN

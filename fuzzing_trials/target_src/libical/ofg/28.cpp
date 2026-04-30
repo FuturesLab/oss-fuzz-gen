@@ -1,27 +1,41 @@
-#include <libical/ical.h>
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
+extern "C" {
+#include <libical/ical.h>
+}
+
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated and non-empty
-    if (size == 0) {
+    // Ensure there is enough data for the function parameters
+    if (size < sizeof(struct icaltimetype) * 2) {
         return 0;
     }
 
-    // Allocate memory for a null-terminated string
-    char *locationType = new char[size + 1];
-    std::memcpy(locationType, data, size);
-    locationType[size] = '\0';
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    icalproperty *property = icalproperty_new_locationtype(locationType);
+    // Create two icaltimetype structures from the input data
+    struct icaltimetype time1;
+    struct icaltimetype time2;
+
+    // Copy data to time1 and time2, ensuring they are valid
+    memcpy(&time1, data, sizeof(struct icaltimetype));
+    memcpy(&time2, data + sizeof(struct icaltimetype), sizeof(struct icaltimetype));
+
+    // Set some valid fields in the icaltimetype structures
+    time1.is_date = 0;
+    time1.is_daylight = 0;
+    time2.is_date = 0;
+    time2.is_daylight = 0;
+
+    // Call the function under test
+    bool result = icalproperty_recurrence_is_excluded(component, &time1, &time2);
 
     // Clean up
-    if (property != nullptr) {
-        icalproperty_free(property);
-    }
-    delete[] locationType;
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -47,7 +61,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +71,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_28(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

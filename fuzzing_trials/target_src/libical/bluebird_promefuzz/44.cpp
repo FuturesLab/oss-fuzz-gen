@@ -12,107 +12,84 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icalmemory.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalvalue.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalparameter.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icaltypes.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalrecur.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
     if (Size == 0) {
         return 0;
     }
 
-    // Convert the input data to a string
-    char *inputStr = static_cast<char *>(malloc(Size + 1));
-    if (!inputStr) {
+    // Ensure null-terminated string for icalcomponent_new_from_string
+    char *icalStr = static_cast<char*>(malloc(Size + 1));
+    if (!icalStr) {
         return 0;
     }
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
+    memcpy(icalStr, Data, Size);
+    icalStr[Size] = '\0';
 
-    // Ensure the inputStr is null-terminated for functions that expect C-style strings
-    if (inputStr[Size - 1] != '\0') {
-        inputStr[Size - 1] = '\0';
-    }
+    // Create icalcomponent from string
+    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
+    free(icalStr);
 
-    // 1. Test icalvalue_new_from_string
-    for (int kind = ICAL_ANY_VALUE; kind <= ICAL_XMLREFERENCE_VALUE; ++kind) {
-        icalvalue *value = icalvalue_new_from_string(static_cast<icalvalue_kind>(kind), inputStr);
-        if (value) {
-            icalvalue_free(value);
-        }
-    }
+    if (comp) {
+        // Test icalcomponent_isa_component
+        icalcomponent_isa_component(comp);
 
-    // 2. Test icalrecurrencetype_new_from_string
-    icalrecurrencetype *recurType = icalrecurrencetype_new_from_string(inputStr);
-    if (recurType) {
-        free(recurType);
-    }
+        // Setup a dummy icaltimetype for testing
+        struct icaltimetype dtstart = {0};
+        struct icaltimetype recurtime = {0};
 
-    // 3. Test icaltriggertype_from_string
-    icaltriggertype triggerType = icaltriggertype_from_string(inputStr);
-    // No need for cleanup as icaltriggertype_from_string does not allocate memory
+        // Test icalproperty_recurrence_is_excluded
+        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
 
-    // 4. Test icalmemory_append_decoded_string
-    char *buf = nullptr;
-    char *pos = nullptr;
-    size_t buf_size = 0;
-    icalmemory_append_decoded_string(&buf, &pos, &buf_size, inputStr);
-    if (buf) {
-        free(buf);
-    }
+        // Test icalcomponent_set_description
+        icalcomponent_set_description(comp, "Sample Description");
 
-    // 5. Test icalvalue_decode_ical_string
-    if (Size > 0) {
-        char decodedText[1024];
-        bool success = icalvalue_decode_ical_string(inputStr, decodedText, sizeof(decodedText));
-        if (!success) {
-            // Handle decoding failure if necessary
-        }
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalvalue_decode_ical_string to icalparameter_set_email
-        icalparameter* ret_icalparameter_new_local_ybwgl = icalparameter_new_local(ICAL_LOCAL_FALSE);
-        if (ret_icalparameter_new_local_ybwgl == NULL){
-        	return 0;
-        }
+        // Test icalcomponent_kind_is_valid
+        icalcomponent_kind kind = icalcomponent_isa(comp);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_isa to icalcomponent_get_next_component
         // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalparameter_new_local_ybwgl) {
+        if (!comp) {
         	return 0;
         }
+        struct icaldurationtype ret_icalcomponent_get_duration_snzqz = icalcomponent_get_duration(comp);
         // Ensure dataflow is valid (i.e., non-null)
-        if (!decodedText) {
+        if (!comp) {
         	return 0;
         }
-        icalparameter_set_email(ret_icalparameter_new_local_ybwgl, decodedText);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_duration to icalcomponent_set_recurrenceid
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!comp) {
+        	return 0;
+        }
+        struct icaltimetype ret_icalcomponent_get_dtend_qnnkb = icalcomponent_get_dtend(comp);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!comp) {
+        	return 0;
+        }
+        icalcomponent_set_recurrenceid(comp, ret_icalcomponent_get_dtend_qnnkb);
         // End mutation: Producer.APPEND_MUTATOR
         
-}
+        icalcomponent* ret_icalcomponent_get_next_component_coxgh = icalcomponent_get_next_component(comp, kind);
+        if (ret_icalcomponent_get_next_component_coxgh == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_kind_is_valid(kind);
 
-    // 6. Test icalparameter_decode_value
-    char *mutableStr = strdup(inputStr);
-    if (mutableStr) {
-        icalparameter_decode_value(mutableStr);
-        free(mutableStr);
+        // Test icalcomponent_is_valid
+        icalcomponent_is_valid(comp);
+
+        // Cleanup the component
+        icalcomponent_free(comp);
     }
 
-    free(inputStr);
     return 0;
 }
 #ifdef INC_MAIN
@@ -137,7 +114,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -147,7 +124,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_44(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

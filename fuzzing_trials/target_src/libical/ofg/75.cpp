@@ -1,37 +1,51 @@
 #include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h> // Include for memcpy
 
 extern "C" int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to select a valid enum value
-    if (size < sizeof(int)) {
+    // Ensure that the input data is large enough to be meaningful
+    if (size < 1) {
         return 0;
     }
 
-    // Map the input data to an enumeration value
-    int enum_index = data[0] % 3; // Assuming there are 3 enum values
-    icalproperty_transp transp_value;
+    // Initialize the icalcomponent and icalproperty_kind
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty_kind kind = ICAL_ANY_PROPERTY;
 
-    // Assign a valid enum value based on the mapped index
-    switch (enum_index) {
-        case 0:
-            transp_value = ICAL_TRANSP_OPAQUE;
-            break;
-        case 1:
-            transp_value = ICAL_TRANSP_TRANSPARENT;
-            break;
-        default:
-            transp_value = ICAL_TRANSP_X;
-            break;
+    // Add some properties to the component to ensure it is not empty
+    icalproperty *summary = icalproperty_new_summary("Sample Summary");
+    icalcomponent_add_property(component, summary);
+
+    icalproperty *description = icalproperty_new_description("Sample Description");
+    icalcomponent_add_property(component, description);
+
+    // Use the input data to modify the component or properties
+    // For example, create a new property from the input data
+    char *data_copy = (char *)malloc(size + 1);
+    if (data_copy == NULL) {
+        icalcomponent_free(component);
+        return 0;
     }
+    memcpy(data_copy, data, size);
+    data_copy[size] = '\0'; // Null-terminate the string
 
-    // Call the function-under-test
-    icalproperty *property = icalproperty_vanew_transp(transp_value, NULL);
+    icalproperty *custom_property = icalproperty_new_comment(data_copy);
+    icalcomponent_add_property(component, custom_property);
+
+    // Call the function under test
+    icalproperty *property = icalcomponent_get_first_property(component, kind);
+
+    // Process the component to increase code coverage
+    char *component_as_string = icalcomponent_as_ical_string(component);
+    if (component_as_string) {
+        // Optionally, you can print or log the string for debugging
+        // printf("%s\n", component_as_string);
+    }
 
     // Clean up
-    if (property != NULL) {
-        icalproperty_free(property);
-    }
+    free(data_copy);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -57,7 +71,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -67,7 +81,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_75(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_75(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,25 +1,31 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 extern "C" {
-    // Declare the function prototype since the header is not available
-    const char* icaltimezone_get_system_zone_directory();
+    #include <libical/ical.h>
 }
 
-// Fuzzing harness for the function-under-test
 extern "C" int LLVMFuzzerTestOneInput_161(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    const char *zone_directory = icaltimezone_get_system_zone_directory();
+    // Create a dummy icalcomponent object for fuzzing
+    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
 
-    // Optionally, you can print the result for debugging purposes
-    if (zone_directory != NULL) {
-        printf("System Zone Directory: %s\n", zone_directory);
-    } else {
-        printf("System Zone Directory is NULL\n");
+    // Ensure the component is not NULL
+    if (component == NULL) {
+        return 0;
     }
+
+    // Call the function-under-test
+    const char *result = icalcomponent_get_x_name(component);
+
+    // Use the result in some way to prevent optimization out
+    if (result != NULL) {
+        // Print the result length (for debugging purposes)
+        size_t result_length = strlen(result);
+        (void)result_length; // Suppress unused variable warning
+    }
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -45,7 +51,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -55,7 +61,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_161(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_161(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

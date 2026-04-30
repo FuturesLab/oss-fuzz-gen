@@ -1,25 +1,73 @@
-#include <string.h>
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <string.h>
 #include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    // Initialize variables
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    int sequence = 0;
-
-    // Check if size is sufficient to extract an integer for sequence
-    if (size >= sizeof(int)) {
-        // Extract an integer from the data to use as the sequence number
-        sequence = *(reinterpret_cast<const int*>(data));
+    // Ensure that the input data is not empty
+    if (size == 0) {
+        return 0;
     }
 
-    // Call the function-under-test
-    icalcomponent_set_sequence(component, sequence);
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
+        return 0;
+    }
 
-    // Clean up
-    icalcomponent_free(component);
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
+
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_duration
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_normalize to icalcomponent_set_due using the plateau pool
+        int day = (int)(data[2] % 31) + 1;
+        int year = (int)data[0] + 1900;
+        struct icaltimetype due_time = icaltime_from_day_of_year(
+        day, year);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_set_due(component, due_time);
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+        struct icaldurationtype ret_icalcomponent_get_duration_gvrxf = icalcomponent_get_duration(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_set_duration(component, ret_icalcomponent_get_duration_gvrxf);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the buffer
+    free(buffer);
 
     return 0;
 }
@@ -45,7 +93,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -55,7 +103,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_76(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_76(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

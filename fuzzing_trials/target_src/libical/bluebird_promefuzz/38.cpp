@@ -9,82 +9,82 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cassert>
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
-#include <iostream>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icalparameter.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
     if (Size == 0) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *inputString = static_cast<char *>(malloc(Size + 1));
-    if (!inputString) {
+    // Ensure null-terminated string for icalcomponent_new_from_string
+    char *icalStr = static_cast<char*>(malloc(Size + 1));
+    if (!icalStr) {
         return 0;
     }
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
+    memcpy(icalStr, Data, Size);
+    icalStr[Size] = '\0';
 
-    // Test icalparameter_new_from_string
-    icalparameter *param = icalparameter_new_from_string(inputString);
-    if (param) {
-        // Test icalparameter_get_iana_name
-        const char *iana_name = icalparameter_get_iana_name(param);
-        if (iana_name) {
-            std::cout << "IANA Name: " << iana_name << std::endl;
+    // Create icalcomponent from string
+    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
+    free(icalStr);
+
+    if (comp) {
+        // Test icalcomponent_isa_component
+        icalcomponent_isa_component(comp);
+
+        // Setup a dummy icaltimetype for testing
+        struct icaltimetype dtstart = {0};
+        struct icaltimetype recurtime = {0};
+
+        // Test icalproperty_recurrence_is_excluded
+        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
+
+        // Test icalcomponent_set_description
+        icalcomponent_set_description(comp, "Sample Description");
+
+        // Test icalcomponent_kind_is_valid
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_set_description to icalcomponent_normalize using the plateau pool
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!comp) {
+        	return 0;
         }
+        icalcomponent_normalize(comp);
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+        icalcomponent_kind kind = icalcomponent_isa(comp);
 
-        // Test icalparameter_as_ical_string_r
-        char *ical_string = icalparameter_as_ical_string_r(param);
-        if (ical_string) {
-            std::cout << "iCal String: " << ical_string << std::endl;
-            icalmemory_free_buffer(ical_string);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_isa to icalcomponent_get_next_component
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!comp) {
+        	return 0;
         }
-
-        // Test icalparameter_set_xvalue and icalparameter_get_xvalue
-        icalparameter_set_xvalue(param, "TestValue");
-        const char *xvalue = icalparameter_get_xvalue(param);
-        if (xvalue) {
-            std::cout << "X-Value: " << xvalue << std::endl;
+        struct icaldurationtype ret_icalcomponent_get_duration_snzqz = icalcomponent_get_duration(comp);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!comp) {
+        	return 0;
         }
-
-        // Test icalparameter_get_xname
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalparameter_get_xname with icalparameter_get_label
-        const char *xname = icalparameter_get_label(param);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        if (xname) {
-            std::cout << "X-Name: " << xname << std::endl;
+        icalcomponent* ret_icalcomponent_get_next_component_coxgh = icalcomponent_get_next_component(comp, kind);
+        if (ret_icalcomponent_get_next_component_coxgh == NULL){
+        	return 0;
         }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_kind_is_valid(kind);
 
-        // Free the parameter
-        icalparameter_free(param);
+        // Test icalcomponent_is_valid
+        icalcomponent_is_valid(comp);
+
+        // Cleanup the component
+        icalcomponent_free(comp);
     }
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalparameter_new_from_string to icalproperty_set_parameter
-    icalproperty* ret_icalproperty_new_patchparameter_iibut = icalproperty_new_patchparameter((const char *)"r");
-    if (ret_icalproperty_new_patchparameter_iibut == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalproperty_new_patchparameter_iibut) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!param) {
-    	return 0;
-    }
-    icalproperty_set_parameter(ret_icalproperty_new_patchparameter_iibut, param);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(inputString);
     return 0;
 }
 #ifdef INC_MAIN
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_38(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

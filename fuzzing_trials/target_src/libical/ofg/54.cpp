@@ -1,35 +1,29 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <libical/ical.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
-extern "C" {
-#include <libical/ical.h> // Assuming the correct path for libical headers
-}
+extern "C" int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
+    // Ensure the input data is null-terminated and not empty
+    if (size == 0) {
+        return 0;
+    }
 
-extern "C" {
-
-int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    if (size < 2) return 0; // Ensure there is at least 2 bytes to read
-
-    // Initialize an icalproperty object with a specific property kind
-    icalproperty *prop = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-
-    // Cast the first byte of data to icalproperty_querylevel
-    icalproperty_querylevel query_level = 
-        static_cast<icalproperty_querylevel>(data[0]);
-
-    // Use the second byte of data to create a string for the property value
-    char value[2] = { static_cast<char>(data[1]), '\0' };
-    icalproperty_set_summary(prop, value);
+    // Allocate memory for a null-terminated string
+    char *inputString = new char[size + 1];
+    memcpy(inputString, data, size);
+    inputString[size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    icalproperty_set_querylevel(prop, query_level);
+    icalcomponent *component = icalcomponent_new_from_string(inputString);
 
     // Clean up
-    icalproperty_free(prop);
+    if (component != NULL) {
+        icalcomponent_free(component);
+    }
+    delete[] inputString;
 
     return 0;
-}
-
 }
 #ifdef INC_MAIN
 #include <stdio.h>
@@ -53,7 +47,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -63,7 +57,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_54(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_54(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

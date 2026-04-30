@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalerror_backtrace at icalerror.c:248:6 in icalerror.h
-// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
-// icalparser_parse_string at icalparser.c:1308:16 in icalparser.h
-// icalcomponent_convert_errors at icalcomponent.c:1168:6 in icalcomponent.h
-// icalerror_error_from_string at icalerror.c:169:15 in icalerror.h
-// icalerror_icalerrno at icalerror.c:39:16 in icalerror.h
+// icalcomponent_set_recurrenceid at icalcomponent.c:1839:6 in icalcomponent.h
+// icalcomponent_get_dtstamp at icalcomponent.c:1722:21 in icalcomponent.h
+// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
+// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
+// icalcomponent_get_recurrenceid at icalcomponent.c:1859:21 in icalcomponent.h
+// icalproperty_get_datetime_with_component at icalproperty.c:1050:21 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,56 +14,85 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
+#include <iostream>
+#include <fstream>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icalcomponent.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icalproperty.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltime.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/ical.h>
 #include <cstring>
-#include <cassert>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalcomponent.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalparser.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalerror.h"
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    // Ensure the input data is null-terminated for string processing functions
-    char *icalString = new char[Size + 1];
-    memcpy(icalString, Data, Size);
-    icalString[Size] = '\0';
-
-    // Test icalparser_parse_string
-    icalcomponent *component = icalparser_parse_string(icalString);
-    if (component != NULL) {
-        // Test icalcomponent_convert_errors
-        icalcomponent_convert_errors(component);
-
-        // Free the component
-        icalcomponent_free(component);
+    if (Size == 0) {
+        return 0; // Exit if there's no data to process
     }
 
-    // Check for errors and print backtrace if any
-    if (*icalerror_icalerrno() != ICAL_NO_ERROR) {
-        icalerror_backtrace();
+    // Ensure the input data is null-terminated for safe string operations
+    std::vector<char> nullTerminatedData(Data, Data + Size);
+    nullTerminatedData.push_back('\0');
+
+    // Create a dummy iCalendar file with the input data
+    std::ofstream dummyFile("./dummy_file.ics", std::ios::binary);
+    dummyFile.write(reinterpret_cast<const char*>(nullTerminatedData.data()), Size);
+    dummyFile.close();
+
+    // Load the iCalendar component from the dummy file
+    icalcomponent *component = icalparser_parse_string(nullTerminatedData.data());
+    if (!component) {
+        return 0; // If parsing fails, exit early
     }
 
-    // Test icalerror_error_from_string with the input string
-    icalerrorenum errorEnum = icalerror_error_from_string(icalString);
-    assert(errorEnum >= ICAL_NO_ERROR && errorEnum <= ICAL_UNKNOWN_ERROR);
-
-    // Test icalcomponent_new_from_string
-    component = icalcomponent_new_from_string(icalString);
-    if (component != NULL) {
-        // Free the component
-        icalcomponent_free(component);
+    // Test icalcomponent_get_dtstamp
+    icaltimetype dtstamp = icalcomponent_get_dtstamp(component);
+    if (!icaltime_is_null_time(dtstamp)) {
+        std::cout << "DTSTAMP: " << icaltime_as_ical_string(dtstamp) << std::endl;
     }
 
-    delete[] icalString;
+    // Test icalcomponent_get_recurrenceid
+    icaltimetype recurrenceid = icalcomponent_get_recurrenceid(component);
+    if (!icaltime_is_null_time(recurrenceid)) {
+        std::cout << "RECURRENCE-ID: " << icaltime_as_ical_string(recurrenceid) << std::endl;
+    }
+
+    // Test icalcomponent_set_dtstart
+    icaltimetype dtstart = icaltime_from_string("20231010T100000Z");
+    icalcomponent_set_dtstart(component, dtstart);
+
+    // Test icalcomponent_get_dtstart
+    icaltimetype retrieved_dtstart = icalcomponent_get_dtstart(component);
+    if (!icaltime_is_null_time(retrieved_dtstart)) {
+        std::cout << "DTSTART: " << icaltime_as_ical_string(retrieved_dtstart) << std::endl;
+    }
+
+    // Test icalcomponent_set_recurrenceid
+    icaltimetype new_recurrenceid = icaltime_from_string("20231011T110000Z");
+    icalcomponent_set_recurrenceid(component, new_recurrenceid);
+
+    // Create a dummy property to test icalproperty_get_datetime_with_component
+    icalproperty *property = icalproperty_new_dtstart(dtstart);
+    if (property) {
+        icaltimetype datetime = icalproperty_get_datetime_with_component(property, component);
+        if (!icaltime_is_null_time(datetime)) {
+            std::cout << "DATETIME: " << icaltime_as_ical_string(datetime) << std::endl;
+        }
+        icalproperty_free(property);
+    }
+
+    // Clean up the component
+    icalcomponent_free(component);
+
     return 0;
 }
     #ifdef INC_MAIN

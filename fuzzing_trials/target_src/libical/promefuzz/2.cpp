@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalparameter_free at icalparameter.c:51:6 in icalparameter.h
-// icalparameter_clone at icalparameter.c:79:16 in icalparameter.h
-// icallangbind_get_first_parameter at icallangbind.c:39:16 in icallangbind.h
-// icalproperty_add_parameter at icalproperty.c:480:6 in icalproperty.h
-// icalparameter_set_parent at icalparameter.c:356:6 in icalproperty.h
-// icalproperty_set_parameter at icalproperty.c:488:6 in icalproperty.h
+// icalcomponent_kind_to_string at icalcomponent.c:1306:13 in icalcomponent.h
+// icalcomponent_string_to_kind at icalcomponent.c:1319:20 in icalcomponent.h
+// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
+// icalcomponent_kind_is_valid at icalcomponent.c:1293:6 in icalcomponent.h
+// icalcomponent_new at icalcomponent.c:100:16 in icalcomponent.h
+// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,71 +14,53 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <cstring>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icallangbind.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalparameter.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalproperty.h"
-
-static icalparameter* createParameterFromData(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return nullptr;
-    std::string paramString(reinterpret_cast<const char*>(Data), Size);
-    return icalparameter_new_from_string(paramString.c_str());
-}
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    // Create an icalparameter from input data
-    icalparameter *param = createParameterFromData(Data, Size);
-    if (!param) return 0;
+    if (Size < 1) return 0;
 
-    // Clone the parameter
-    icalparameter *clone = icalparameter_clone(param);
+    // Use the first byte to determine the icalcomponent_kind
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
 
-    // Create a dummy icalproperty
-    icalproperty *property = icalproperty_new(ICAL_ANY_PROPERTY);
+    // Test icalcomponent_new
+    icalcomponent *comp = icalcomponent_new(kind);
+    if (!comp) return 0;
 
-    // Add parameter to property
-    if (property) {
-        icalproperty_add_parameter(property, param);
+    // Test icalcomponent_kind_to_string
+    const char *kind_str = icalcomponent_kind_to_string(kind);
 
-        // Set the parameter's parent
-        icalparameter_set_parent(param, property);
+    // Test icalcomponent_isa
+    icalcomponent_kind comp_kind = icalcomponent_isa(comp);
 
-        // Set the parameter for the property
-        icalproperty_set_parameter(property, param);
-
-        // Retrieve the first parameter
-        icalparameter *firstParam = icallangbind_get_first_parameter(property);
-        if (firstParam) {
-            // Clone the first parameter for further testing
-            icalparameter *firstParamClone = icalparameter_clone(firstParam);
-            if (firstParamClone) {
-                icalparameter_free(firstParamClone);
-            }
+    // Test icalcomponent_set_description
+    if (Size > 1) {
+        // Ensure the description is null-terminated
+        size_t desc_len = Size - 1;
+        char *description = static_cast<char *>(malloc(desc_len + 1));
+        if (description) {
+            memcpy(description, Data + 1, desc_len);
+            description[desc_len] = '\0';
+            icalcomponent_set_description(comp, description);
+            free(description);
         }
-
-        // Clean up property
-        icalproperty_free(property);
     }
 
-    // Free the cloned parameter
-    if (clone) {
-        icalparameter_free(clone);
+    // Test icalcomponent_string_to_kind
+    if (kind_str) {
+        icalcomponent_kind kind_from_str = icalcomponent_string_to_kind(kind_str);
     }
 
-    // Free the original parameter
-    icalparameter_free(param);
+    // Test icalcomponent_kind_is_valid
+    bool is_valid = icalcomponent_kind_is_valid(kind);
+
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }

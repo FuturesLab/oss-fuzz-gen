@@ -1,51 +1,32 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include string.h for memcpy
+#include <cstdint>  // Include standard library for uint8_t
+#include <cstddef>  // Include standard library for size_t
 
 extern "C" {
-    #include <libical/ical.h> // Correct path for libical headers
-
-    // Include the necessary C headers and function prototypes
-    struct icaltimetype icalcomponent_get_dtend(icalcomponent *);
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_177(const uint8_t *data, size_t size) {
-    // Initialize an icalcomponent object
+    // Declare and initialize the icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
     if (component == NULL) {
-        return 0; // Exit if component creation fails
+        return 0;
     }
 
-    // Use the input data to set a property on the component
-    // Here we assume the input data is a valid string for summary
-    // Note: In a real-world scenario, more sophisticated parsing of `data` would be needed
-    if (size > 0) {
-        char *summary = (char *)malloc(size + 1);
-        if (summary != NULL) {
-            memcpy(summary, data, size);
-            summary[size] = '\0'; // Null-terminate the string
-            icalcomponent_set_summary(component, summary);
-            free(summary);
-        }
-    }
-
-    // Modify the input data to set a dtend property
-    if (size > 16) { // Ensure there's enough data for a date-time string
-        char dtend_str[17];
-        memcpy(dtend_str, data, 16);
-        dtend_str[16] = '\0'; // Null-terminate the string
-
-        struct icaltimetype dtend_time = icaltime_from_string(dtend_str);
-        if (!icaltime_is_null_time(dtend_time)) {
-            icalcomponent_set_dtend(component, dtend_time);
-        }
-    }
+    // Create an icaltimetype structure with non-NULL values
+    struct icaltimetype dtstart;
+    dtstart.year = 2023;  // Example year
+    dtstart.month = 10;   // Example month
+    dtstart.day = 15;     // Example day
+    dtstart.hour = 10;    // Example hour
+    dtstart.minute = 30;  // Example minute
+    dtstart.second = 0;   // Example second
+    dtstart.is_date = 0;  // Example flag for datetime
+    dtstart.zone = icaltimezone_get_utc_timezone(); // Use UTC timezone
 
     // Call the function-under-test
-    struct icaltimetype dtend = icalcomponent_get_dtend(component);
+    icalcomponent_set_dtstart(component, dtstart);
 
-    // Clean up the component
+    // Clean up
     icalcomponent_free(component);
 
     return 0;
@@ -72,7 +53,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -82,7 +63,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_177(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_177(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

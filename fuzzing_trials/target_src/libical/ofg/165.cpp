@@ -1,27 +1,29 @@
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
+#include <cstdio>   // Include for printf
+
+extern "C" {
 #include <libical/ical.h>
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_165(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated and non-empty
-    if (size == 0) {
-        return 0;
-    }
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_xstandard();
 
-    // Allocate memory for a null-terminated string
-    char *null_terminated_data = new char[size + 1];
-    std::memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    // Use the parser to test the input data
-    icalcomponent *component = icalparser_parse_string(null_terminated_data);
-
-    // Clean up
+    // Check if the component is created successfully
     if (component != NULL) {
+        // Perform operations on the component if needed
+        // For example, convert to string and print
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Normally, you would use the string for something
+            // Here, we just print it for demonstration purposes
+            printf("%s\n", component_str);
+        }
+
+        // Free the component after use
         icalcomponent_free(component);
     }
-    delete[] null_terminated_data;
 
     return 0;
 }
@@ -47,7 +49,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +59,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_165(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_165(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

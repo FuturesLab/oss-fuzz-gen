@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalproperty_add_parameter at icalproperty.c:480:6 in icalproperty.h
-// icalparameter_set_parent at icalparameter.c:356:6 in icalproperty.h
-// icallangbind_get_first_parameter at icallangbind.c:39:16 in icallangbind.h
-// icalproperty_remove_parameter_by_ref at icalproperty.c:671:6 in icalproperty.h
-// icalparameter_get_parent at icalparameter.c:363:15 in icalproperty.h
-// icallangbind_get_next_parameter at icallangbind.c:46:16 in icallangbind.h
+// icalcomponent_begin_property at icalcomponent.c:1436:14 in icalcomponent.h
+// icalcomponent_remove_property_by_kind at icalcomponent.c:425:6 in icalcomponent.h
+// icalcomponent_get_first_property at icalcomponent.c:474:15 in icalcomponent.h
+// icalcomponent_get_next_property at icalcomponent.c:489:15 in icalcomponent.h
+// icalcomponent_remove_property at icalcomponent.c:400:6 in icalcomponent.h
+// icalcomponent_add_property at icalcomponent.c:385:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,60 +14,60 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
+#include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icallangbind.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalproperty.h"
-
-static icalproperty* create_random_icalproperty() {
-    return icalproperty_new(ICAL_ANY_PROPERTY);
-}
-
-static icalparameter* create_random_icalparameter() {
-    return icalparameter_new(ICAL_ANY_PARAMETER);
-}
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    icalproperty *prop = create_random_icalproperty();
-    icalparameter *param = create_random_icalparameter();
-
-    if (prop && param) {
-        // Fuzz icalproperty_add_parameter
-        icalproperty_add_parameter(prop, param);
-
-        // Fuzz icalparameter_set_parent
-        icalparameter_set_parent(param, prop);
-
-        // Fuzz icallangbind_get_first_parameter
-        icalparameter *first_param = icallangbind_get_first_parameter(prop);
-
-        // Fuzz icallangbind_get_next_parameter
-        icalparameter *next_param = icallangbind_get_next_parameter(prop);
-
-        // Fuzz icalproperty_remove_parameter_by_ref
-        if (first_param) {
-            icalproperty_remove_parameter_by_ref(prop, first_param);
-        }
-
-        // Fuzz icalparameter_get_parent
-        icalproperty *parent_prop = icalparameter_get_parent(param);
+    if (Size < 2) {
+        return 0;
     }
 
-    if (prop) {
-        icalproperty_free(prop);
+    // Convert the first byte to an icalcomponent_kind
+    icalcomponent_kind componentKind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+
+    // Convert the second byte to an icalproperty_kind
+    icalproperty_kind propertyKind = static_cast<icalproperty_kind>(Data[1] % ICAL_NO_PROPERTY);
+
+    // Create a new component
+    icalcomponent *component = icalcomponent_new(componentKind);
+    if (!component) {
+        return 0;
     }
-    if (param) {
-        icalparameter_free(param);
+
+    // Create a new property
+    icalproperty *property = icalproperty_new(propertyKind);
+    if (!property) {
+        icalcomponent_free(component);
+        return 0;
     }
+
+    // Test icalcomponent_add_property
+    icalcomponent_add_property(component, property);
+
+    // Test icalcomponent_get_first_property
+    icalproperty *firstProperty = icalcomponent_get_first_property(component, propertyKind);
+
+    // Test icalcomponent_get_next_property
+    icalproperty *nextProperty = icalcomponent_get_next_property(component, propertyKind);
+
+    // Test icalcomponent_begin_property
+    icalpropiter iter = icalcomponent_begin_property(component, propertyKind);
+
+    // Test icalcomponent_remove_property
+    icalcomponent_remove_property(component, property);
+
+    // Test icalcomponent_remove_property_by_kind
+    icalcomponent_remove_property_by_kind(component, propertyKind);
+
+    // Clean up
+    icalproperty_free(property);
+    icalcomponent_free(component);
 
     return 0;
 }

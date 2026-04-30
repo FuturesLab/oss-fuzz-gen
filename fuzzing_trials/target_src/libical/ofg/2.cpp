@@ -1,26 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <cstdint> // Include for uint8_t
+#include <cstdlib> // Include for size_t
 
 extern "C" {
-    // Declare the function-under-test
-    int icaltime_days_in_year(const int year);
+    #include <libical/ical.h>
 }
 
+// Fuzzing harness for icalcomponent_new_vfreebusy
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to form an integer
-    if (size < sizeof(int)) {
-        return 0;
-    }
-
-    // Interpret the first few bytes of data as an integer
-    int year = *(const int*)data;
-
     // Call the function-under-test
-    int days = icaltime_days_in_year(year);
+    icalcomponent *component = icalcomponent_new_vfreebusy();
 
-    // Print the result for debugging purposes (optional)
-    printf("Year: %d, Days: %d\n", year, days);
+    // Check if the component is created successfully
+    if (component != nullptr) {
+        // Perform operations on the component if needed
+        // For example, convert the component to a string and print it
+        char *str = icalcomponent_as_ical_string(component);
+        if (str != nullptr) {
+            // Normally, you might do something with str, like logging or further processing
+            // but for this fuzzing harness, we'll just ensure it's created
+        }
+
+        // Free the component after use
+        icalcomponent_free(component);
+    }
 
     return 0;
 }
@@ -46,7 +48,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -56,7 +58,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_2(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

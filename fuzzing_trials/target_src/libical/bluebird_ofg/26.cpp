@@ -1,51 +1,51 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 
-extern "C" {
-    #include "libical/ical.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a meaningful string
-    if (size < 1) {
-        return 0;
-    }
+    // Ensure the data is null-terminated to prevent buffer overflows
+    if (size == 0 || data[size - 1] != '\0') {
+        // Create a new buffer with an additional null terminator
+        uint8_t *null_terminated_data = new uint8_t[size + 1];
+        memcpy(null_terminated_data, data, size);
+        null_terminated_data[size] = '\0';
 
-    // Create an icalcomponent object
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+        // Initialize the library
+        icalcomponent *component = icalcomponent_new_from_string((const char *)null_terminated_data);
+        delete[] null_terminated_data; // Clean up the temporary buffer
 
-    // Create a null-terminated string from the input data
-    char *relcalid = (char *)malloc(size + 1);
-    if (!relcalid) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(relcalid, data, size);
-    relcalid[size] = '\0';
-
-    // Call the function-under-test
-    icalcomponent_set_relcalid(component, relcalid);
-
-    // Additional operations to increase code coverage
-    // Retrieve the relcalid to ensure the set operation was successful
-    const char *retrieved_relcalid = icalcomponent_get_relcalid(component);
-    if (retrieved_relcalid) {
-        // Use the retrieved_relcalid in some way to ensure it's not optimized out
-        size_t retrieved_length = strlen(retrieved_relcalid);
-        if (retrieved_length > 0) {
-            // Perform some operation with the retrieved_relcalid
-            // For example, checking if it matches the original input
-            if (strcmp(relcalid, retrieved_relcalid) == 0) {
-                // Further operations can be added here
-            }
+        if (component == NULL) {
+            return 0; // If the component is NULL, return early
         }
-    }
 
-    // Clean up
-    free(relcalid);
-    icalcomponent_free(component);
+        // Initialize an icalcompiter
+        icalcompiter iter;
+        iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+
+        // Fuzz the function icalcompiter_next
+        icalcomponent *next_component = icalcompiter_next(&iter);
+
+        // Clean up
+        icalcomponent_free(component);
+    } else {
+        // Initialize the library directly if data is already null-terminated
+        icalcomponent *component = icalcomponent_new_from_string((const char *)data);
+        if (component == NULL) {
+            return 0; // If the component is NULL, return early
+        }
+
+        // Initialize an icalcompiter
+        icalcompiter iter;
+        iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+
+        // Fuzz the function icalcompiter_next
+        icalcomponent *next_component = icalcompiter_next(&iter);
+
+        // Clean up
+        icalcomponent_free(component);
+    }
 
     return 0;
 }
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_26(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

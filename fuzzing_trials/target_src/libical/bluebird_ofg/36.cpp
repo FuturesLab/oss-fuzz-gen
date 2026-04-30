@@ -1,46 +1,79 @@
 #include <sys/stat.h>
+#include <string.h>
 #include "libical/ical.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h> // Include for malloc and free
-#include <string.h> // Include for memcpy
-
-extern "C" {
-    #include "libical/ical.h"
-}
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid icalcomponent
+    // Ensure that the input data is not empty
     if (size == 0) {
         return 0;
     }
 
     // Create a temporary buffer to hold the input data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
         return 0;
     }
 
-    // Copy the input data to the buffer and null-terminate it
+    // Copy the input data into the buffer and null-terminate it
     memcpy(buffer, data, size);
     buffer[size] = '\0';
 
     // Parse the buffer into an icalcomponent
     icalcomponent *component = icalparser_parse_string(buffer);
+
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_summary
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        char* ret_icalcomponent_as_ical_string_kxqzt = icalcomponent_as_ical_string(component);
+        if (ret_icalcomponent_as_ical_string_kxqzt == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_as_ical_string_kxqzt) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string to icalcomponent_new_from_string
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_as_ical_string_kxqzt) {
+        	return 0;
+        }
+        icalcomponent* ret_icalcomponent_new_from_string_flkiu = icalcomponent_new_from_string(ret_icalcomponent_as_ical_string_kxqzt);
+        if (ret_icalcomponent_new_from_string_flkiu == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_set_summary(component, ret_icalcomponent_as_ical_string_kxqzt);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the buffer
     free(buffer);
-
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Initialize an icalcompiter for the parsed component
-    icalcompiter iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
-
-    // Call the function-under-test
-    icalcomponent *next_component = icalcompiter_next(&iter);
-
-    // Clean up
-    icalcomponent_free(component);
 
     return 0;
 }
@@ -66,7 +99,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -76,7 +109,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_36(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_36(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

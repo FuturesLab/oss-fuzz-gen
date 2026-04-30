@@ -1,22 +1,35 @@
 #include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    // Ensure that the input data is null-terminated to safely convert to a C-string
-    char *cstr = (char *)malloc(size + 1);
-    if (cstr == NULL) {
-        return 0; // Memory allocation failed, exit gracefully
+    // Ensure the data size is sufficient to create a valid icalcomponent
+    if (size < 1) {
+        return 0;
     }
-    memcpy(cstr, data, size);
-    cstr[size] = '\0';
+
+    // Create a temporary buffer to hold the data
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
+        return 0;
+    }
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';  // Null-terminate the buffer
+
+    // Convert the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+    if (component == NULL) {
+        free(buffer);
+        return 0;
+    }
 
     // Call the function-under-test
-    icalcomponent_kind kind = icalcomponent_string_to_kind(cstr);
+    icalcomponent *inner_component = icalcomponent_get_inner(component);
 
     // Clean up
-    free(cstr);
+    icalcomponent_free(component);
+    free(buffer);
 
     return 0;
 }
@@ -42,7 +55,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -52,7 +65,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_109(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_109(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

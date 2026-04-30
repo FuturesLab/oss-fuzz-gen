@@ -1,32 +1,34 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
+#include <stdint.h>
+#include <stddef.h>
+#include <libical/ical.h>
 
 extern "C" {
-    // Since icalmemory.h does not exist, we need to declare the function prototype here
-    char *icalmemory_strdup(const char *str);
+    // Include the function-under-test signature
+    void icalcomponent_set_dtend(icalcomponent *, struct icaltimetype);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated to be used as a C-string
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == NULL) {
-        return 0; // If memory allocation fails, exit
+    // Initialize the icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
     }
-    memcpy(inputString, data, size);
-    inputString[size] = '\0'; // Null-terminate the string
+
+    // Ensure there's enough data to create a valid icaltimetype
+    if (size < sizeof(struct icaltimetype)) {
+        icalcomponent_free(component);
+        return 0;
+    }
+
+    // Create an icaltimetype from the input data
+    struct icaltimetype dtend = icaltime_from_timet_with_zone(
+        *((time_t *)data), 0, nullptr);
 
     // Call the function-under-test
-    char *duplicatedString = icalmemory_strdup(inputString);
+    icalcomponent_set_dtend(component, dtend);
 
-    // Free the duplicated string if it was successfully created
-    if (duplicatedString != NULL) {
-        free(duplicatedString);
-    }
-
-    // Free the input string
-    free(inputString);
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -52,7 +54,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -62,7 +64,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_84(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_84(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

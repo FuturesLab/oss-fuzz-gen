@@ -1,54 +1,26 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to create a string
-    if (size == 0) {
-        return 0;
-    }
-
-    // Allocate memory for the string and ensure it's null-terminated
-    char *tzname = (char *)malloc(size + 1);
-    if (tzname == NULL) {
-        return 0;
-    }
-    memcpy(tzname, data, size);
-    tzname[size] = '\0';
-
-    // Create an icalproperty object
-    icalproperty *prop = icalproperty_new(ICAL_TZNAME_PROPERTY);
-    if (prop == NULL) {
-        free(tzname);
-        return 0;
-    }
-
     // Call the function-under-test
-    icalproperty_set_tzname(prop, tzname);
+    icalcomponent *component = icalcomponent_new_vtimezone();
 
-    // Verify the property was set correctly
-    const char *retrieved_tzname = icalproperty_get_tzname(prop);
-    if (retrieved_tzname != NULL && strcmp(retrieved_tzname, tzname) != 0) {
-        // Handle unexpected result
-    }
-
-    // Additional verification to ensure the fuzz target is effective
-    // This can be done by checking if the retrieved_tzname is not null
-    // and has some expected properties (e.g., length, specific characters)
-    if (retrieved_tzname != NULL) {
-        // Check if the retrieved tzname is not empty
-        if (strlen(retrieved_tzname) > 0) {
-            // Further checks can be added here if needed
+    // Ensure the component is not NULL before proceeding
+    if (component != NULL) {
+        // Perform operations on the component if necessary
+        // For example, convert it to a string and print it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print or log the component string if needed
+            // printf("%s\n", component_str); // Uncomment for debugging
         }
+
+        // Clean up and free the component to avoid memory leaks
+        icalcomponent_free(component);
     }
 
-    // Clean up
-    icalproperty_free(prop);
-    free(tzname);
-
-    return 0;
+    return 0; // Return 0 to indicate successful execution
 }
 #ifdef INC_MAIN
 #include <stdio.h>
@@ -72,7 +44,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -82,7 +54,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_82(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_82(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

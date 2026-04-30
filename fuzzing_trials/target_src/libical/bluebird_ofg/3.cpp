@@ -1,43 +1,66 @@
 #include <sys/stat.h>
-#include "libical/ical.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>  // For malloc and free
-#include <string.h>  // For memcpy
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create a valid icalcomponent
-    if (size < 1) {
-        return 0;
+    icalcomponent *component = NULL;
+    icalcomponent *parent = NULL;
+    icalcomponent *child = NULL;
+    icalproperty *property = NULL;
+
+    // Ensure the input data is null-terminated to prevent buffer overflow
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
+
+    // Initialize an icalcomponent from the input data if possible
+    if (size > 0) {
+        component = icalcomponent_new_from_string(null_terminated_data);
     }
 
-    // Create a temporary buffer to hold the input data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0;
+    // If the component is NULL, create a default one for fuzzing
+    if (component == NULL) {
+        component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+        parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+        child = icalcomponent_new(ICAL_VTODO_COMPONENT);
+        property = icalproperty_new_summary("Sample Summary");
+
+        icalcomponent_add_component(parent, component);
+        icalcomponent_add_component(component, child);
+        icalcomponent_add_property(component, property);
     }
 
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Call the function-under-test
+    bool result = icalcomponent_check_restrictions(component);
 
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-
-    // If the component is successfully created, call the function-under-test
+    // Clean up
+    // Correct the order of freeing components to avoid use-after-free
+    if (child != NULL) {
+        icalcomponent_remove_component(component, child);
+        icalcomponent_free(child);
+    }
+    if (property != NULL) {
+        icalcomponent_remove_property(component, property);
+        icalproperty_free(property);
+    }
     if (component != NULL) {
-        struct icaltime_span span = icalcomponent_get_span(component);
-
-        // Clean up the icalcomponent
+        icalcomponent_remove_component(parent, component);
         icalcomponent_free(component);
     }
+    if (parent != NULL) {
+        icalcomponent_free(parent);
+    }
 
-    // Free the allocated buffer
-    free(buffer);
+    // Free the allocated memory for null-terminated data
+    free(null_terminated_data);
 
     return 0;
 }
@@ -63,7 +86,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -73,7 +96,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_3(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

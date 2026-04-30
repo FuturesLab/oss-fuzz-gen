@@ -1,56 +1,61 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
-
-extern "C" {
+#include <string.h>
 #include "libical/ical.h"
-}
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to create a valid string
-    if (size < 1) {
+    // Ensure that the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for a null-terminated string
-    char *ical_string = (char *)malloc(size + 1);
-    if (ical_string == NULL) {
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
         return 0;
     }
 
-    // Copy data into the string and null-terminate it
-    memcpy(ical_string, data, size);
-    ical_string[size] = '\0';
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Parse the string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_string);
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
 
-    // Free the string as it's no longer needed
-    free(ical_string);
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-    // If parsing was successful, normalize the component
-    if (component != NULL) {
-        icalcomponent_normalize(component);
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalproperty_set_parent
-        icalproperty* ret_icalproperty_new_pollmode_etgvi = icalproperty_new_pollmode(ICAL_POLLMODE_X);
-        if (ret_icalproperty_new_pollmode_etgvi == NULL){
+        // Free the icalcomponent
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icalcomponent_set_description
+        icalcomponent* ret_icalcomponent_new_vcalendar_aeqky = icalcomponent_new_vcalendar();
+        if (ret_icalcomponent_new_vcalendar_aeqky == NULL){
         	return 0;
         }
         // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalproperty_new_pollmode_etgvi) {
+        if (!ret_icalcomponent_new_vcalendar_aeqky) {
         	return 0;
         }
         // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
+        if (!icalString) {
         	return 0;
         }
-        icalproperty_set_parent(ret_icalproperty_new_pollmode_etgvi, component);
+        icalcomponent_set_description(ret_icalcomponent_new_vcalendar_aeqky, icalString);
         // End mutation: Producer.APPEND_MUTATOR
         
         icalcomponent_free(component);
     }
+
+    // Free the buffer
+    free(buffer);
 
     return 0;
 }
@@ -76,7 +81,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -86,7 +91,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_37(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

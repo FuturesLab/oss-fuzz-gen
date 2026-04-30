@@ -9,89 +9,51 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icaltimezone.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    // Create a new vPatch component
+    icalcomponent *vpatch = icalcomponent_new_vpatch();
+    if (vpatch) {
+        // Convert errors in the vPatch component
+        icalcomponent_convert_errors(vpatch);
+        // Free the vPatch component
+        icalcomponent_free(vpatch);
     }
 
-    // Prepare a null-terminated string from the input data
-    char *inputString = (char *)malloc(Size + 1);
-    if (!inputString) {
-        return 0;
-    }
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
-
-    // Test icaltimezone_get_builtin_timezone
-    icaltimezone *builtinTimezone = icaltimezone_get_builtin_timezone(inputString);
-    if (builtinTimezone) {
-        // Test icaltimezone_copy
-        icaltimezone *copiedTimezone = icaltimezone_copy(builtinTimezone);
-        if (copiedTimezone) {
-            // Test icaltimezone_get_latitude
-            double latitude = icaltimezone_get_latitude(copiedTimezone);
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltimezone_get_latitude to icalproperty_set_patchorder
-            icalproperty* ret_icalproperty_vanew_proximity_evjjx = icalproperty_vanew_proximity(ICAL_PROXIMITY_DISCONNECT);
-            if (ret_icalproperty_vanew_proximity_evjjx == NULL){
-            	return 0;
-            }
-            // Ensure dataflow is valid (i.e., non-null)
-            if (!ret_icalproperty_vanew_proximity_evjjx) {
-            	return 0;
-            }
-            icalproperty_set_patchorder(ret_icalproperty_vanew_proximity_evjjx, (int )latitude);
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            (void)latitude; // Suppress unused variable warning
-
-            // Test icaltimezone_get_longitude
-            double longitude = icaltimezone_get_longitude(copiedTimezone);
-            (void)longitude; // Suppress unused variable warning
-
-            // Free the copied timezone
-            icaltimezone_free(copiedTimezone, 1);
-        }
+    // Create a new vPoll component
+    icalcomponent *vpoll = icalcomponent_new_vpoll();
+    if (vpoll) {
+        // Convert errors in the vPoll component
+        icalcomponent_convert_errors(vpoll);
+        // Free the vPoll component
+        icalcomponent_free(vpoll);
     }
 
-    // Test icaltimezone_new
-    icaltimezone *newTimezone = icaltimezone_new();
-    if (newTimezone) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(newTimezone);
-        (void)latitude; // Suppress unused variable warning
-
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(newTimezone);
-        (void)longitude; // Suppress unused variable warning
-
-        // Free the new timezone
-        icaltimezone_free(newTimezone, 1);
+    // Create a new xVote component
+    icalcomponent *xvote = icalcomponent_new_xvote();
+    if (xvote) {
+        // Convert errors in the xVote component
+        icalcomponent_convert_errors(xvote);
+        // Free the xVote component
+        icalcomponent_free(xvote);
     }
 
-    // Test icaltimezone_get_builtin_timezone_from_tzid
-    icaltimezone *builtinTimezoneFromTzid = icaltimezone_get_builtin_timezone_from_tzid(inputString);
-    if (builtinTimezoneFromTzid) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(builtinTimezoneFromTzid);
-        (void)latitude; // Suppress unused variable warning
-
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(builtinTimezoneFromTzid);
-        (void)longitude; // Suppress unused variable warning
+    // Create a new xPatch component
+    icalcomponent *xpatch = icalcomponent_new_xpatch();
+    if (xpatch) {
+        // Convert errors in the xPatch component
+        icalcomponent_convert_errors(xpatch);
+        // Free the xPatch component
+        icalcomponent_free(xpatch);
     }
 
-    // Clean up
-    free(inputString);
     return 0;
 }
 #ifdef INC_MAIN
@@ -116,7 +78,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -126,7 +88,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_30(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

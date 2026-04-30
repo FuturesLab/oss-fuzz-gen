@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalmemory_resize_buffer at icalmemory.c:329:7 in icalmemory.h
-// icalmemory_new_buffer at icalmemory.c:308:7 in icalmemory.h
-// icalmemory_tmp_buffer at icalmemory.c:175:7 in icalmemory.h
-// icalmemory_append_string at icalmemory.c:358:6 in icalmemory.h
-// icalmemory_append_encoded_string at icalmemory.c:476:6 in icalmemory.h
-// icalmemory_append_char at icalmemory.c:399:6 in icalmemory.h
+// icalcomponent_get_relcalid at icalcomponent.c:2591:13 in icalcomponent.h
+// icalcomponent_get_uid at icalcomponent.c:1816:13 in icalcomponent.h
+// icalcomponent_set_uid at icalcomponent.c:1804:6 in icalcomponent.h
+// icalcomponent_get_description at icalcomponent.c:1897:13 in icalcomponent.h
+// icalcomponent_get_x_name at icalcomponent.c:337:13 in icalcomponent.h
+// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,59 +14,57 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <iostream>
+#include <fstream>
+#include <string>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalmemory.h"
-}
-
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
+#include <libical/icalcomponent.h>
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Test icalmemory_new_buffer
-    size_t buffer_size = 10;
-    char *buffer = (char *)icalmemory_new_buffer(buffer_size);
-    if (!buffer) return 0;
+    // Create a dummy icalcomponent
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!comp) return 0;
 
-    // Initialize buffer with some data
-    strcpy(buffer, "data");
-    size_t pos = strlen(buffer);
-    char *pos_ptr = buffer + pos;
+    // Use a portion of the input data as a potential UID
+    std::string uid(reinterpret_cast<const char *>(Data), Size);
+    icalcomponent_set_uid(comp, uid.c_str());
 
-    // Ensure the input string is null-terminated
-    std::string append_str(reinterpret_cast<const char*>(Data), Size);
-    
-    // Test icalmemory_append_string
-    icalmemory_append_string(&buffer, &pos_ptr, &buffer_size, append_str.c_str());
-
-    // Test icalmemory_append_encoded_string
-    icalmemory_append_encoded_string(&buffer, &pos_ptr, &buffer_size, append_str.c_str());
-
-    // Test icalmemory_append_char
-    char append_char = static_cast<char>(Data[0]);
-    icalmemory_append_char(&buffer, &pos_ptr, &buffer_size, append_char);
-
-    // Test icalmemory_resize_buffer
-    size_t new_buffer_size = buffer_size + 20;
-    char *resized_buffer = (char *)icalmemory_resize_buffer(buffer, new_buffer_size);
-    if (resized_buffer) {
-        buffer = resized_buffer;
-        buffer_size = new_buffer_size;
+    // Fetch and print the UID
+    const char *retrieved_uid = icalcomponent_get_uid(comp);
+    if (retrieved_uid) {
+        std::cout << "UID: " << retrieved_uid << std::endl;
     }
 
-    // Test icalmemory_tmp_buffer
-    char *tmp_buffer = (char *)icalmemory_tmp_buffer(50);
-    if (tmp_buffer) {
-        strcpy(tmp_buffer, "temporary data");
+    // Fetch and print the X name
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X Name: " << x_name << std::endl;
     }
 
-    // Cleanup
-    icalmemory_free_buffer(buffer);
+    // Fetch and print the RELCALID
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        std::cout << "RELCALID: " << relcalid << std::endl;
+    }
+
+    // Fetch and print the description
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+
+    // Fetch and print the summary
+    const char *summary = icalcomponent_get_summary(comp);
+    if (summary) {
+        std::cout << "Summary: " << summary << std::endl;
+    }
+
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }

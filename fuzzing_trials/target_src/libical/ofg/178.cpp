@@ -1,39 +1,39 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h> // Include for memcpy
+#include <string.h>  // Include this for memcpy
 
 extern "C" {
-    #include <libical/ical.h> // Corrected include path for libical
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_178(const uint8_t *data, size_t size) {
-    // Initialize an icalproperty object from the input data
-    icalproperty *prop = nullptr;
-
-    // Ensure the data is not empty and create an icalproperty from it
-    if (size > 0) {
-        // Create a temporary buffer to hold the data as a string
-        char *buffer = new char[size + 1];
-        memcpy(buffer, data, size);
-        buffer[size] = '\0'; // Null-terminate the string
-
-        // Try to decode the buffer into an icalproperty
-        prop = icalproperty_new_from_string(buffer);
-
-        // Clean up the buffer
-        delete[] buffer;
+    // Ensure there's enough data to create an icaltimetype
+    if (size < sizeof(struct icaltimetype)) {
+        return 0;
     }
 
-    if (prop != nullptr) {
-        // Call the function-under-test
-        const char *result = icalproperty_get_patchtarget(prop);
+    // Create an icaltimetype from the input data
+    struct icaltimetype dtstart;
+    memcpy(&dtstart, data, sizeof(struct icaltimetype));
 
-        // Optionally, do something with the result (e.g., print or log it)
-        // but avoid any side effects that might interfere with fuzzing
-
-        // Clean up the icalproperty object
-        icalproperty_free(prop);
+    // Validate the icaltimetype to ensure it's a valid date-time
+    if (dtstart.year < 1 || dtstart.year > 9999 ||
+        dtstart.month < 1 || dtstart.month > 12 ||
+        dtstart.day < 1 || dtstart.day > 31) {
+        return 0;
     }
+
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    icalcomponent_set_dtstart(component, dtstart);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_178(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_178(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

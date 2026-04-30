@@ -11,85 +11,46 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstdlib>
-#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icaltimezone.h"
-
-static void fuzz_icalcomponent_set_dtend(icalcomponent *comp, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icaltimetype)) return;
-    icaltimetype dtend;
-    std::memcpy(&dtend, Data, sizeof(icaltimetype));
-    dtend.zone = nullptr;  // Ensure the timezone is null to avoid dereferencing high-value addresses
-    icalcomponent_set_dtend(comp, dtend);
-}
-
-static void fuzz_icalproperty_get_datetime_with_component(icalproperty *prop, icalcomponent *comp) {
-    icaltimetype result = icalproperty_get_datetime_with_component(prop, comp);
-    // Check if result is null time
-    if (icaltime_is_null_time(result)) {
-        std::cerr << "Null time detected" << std::endl;
-    }
-}
-
-static void fuzz_icalcomponent_get_dtstart(icalcomponent *comp) {
-    icaltimetype dtstart = icalcomponent_get_dtstart(comp);
-    // Check if dtstart is null time
-    if (icaltime_is_null_time(dtstart)) {
-        std::cerr << "Null time detected" << std::endl;
-    }
-}
-
-static void fuzz_icalcomponent_set_dtstart(icalcomponent *comp, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icaltimetype)) return;
-    icaltimetype dtstart;
-    std::memcpy(&dtstart, Data, sizeof(icaltimetype));
-    dtstart.zone = nullptr;  // Ensure the timezone is null
-    icalcomponent_set_dtstart(comp, dtstart);
-}
-
-static void fuzz_icaltimezone_truncate_vtimezone(icalcomponent *vtz, const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(icaltimetype) + sizeof(bool)) return;
-    icaltimetype start, end;
-    bool ms_compatible;
-    std::memcpy(&start, Data, sizeof(icaltimetype));
-    std::memcpy(&end, Data + sizeof(icaltimetype), sizeof(icaltimetype));
-    std::memcpy(&ms_compatible, Data + 2 * sizeof(icaltimetype), sizeof(bool));
-    start.zone = nullptr;  // Ensure the timezone is null
-    end.zone = nullptr;    // Ensure the timezone is null
-    icaltimezone_truncate_vtimezone(vtz, start, end, ms_compatible);
-}
-
-static void fuzz_icalcomponent_set_due(icalcomponent *comp, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icaltimetype)) return;
-    icaltimetype due;
-    std::memcpy(&due, Data, sizeof(icaltimetype));
-    due.zone = nullptr;  // Ensure the timezone is null
-    icalcomponent_set_due(comp, due);
-}
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    // Create a dummy component for testing
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalproperty *prop = icalproperty_new(ICAL_DTSTART_PROPERTY);
+    if (Size < 1) return 0;
 
-    // Fuzz each function with the input data
-    fuzz_icalcomponent_set_dtend(comp, Data, Size);
-    fuzz_icalproperty_get_datetime_with_component(prop, comp);
-    fuzz_icalcomponent_get_dtstart(comp);
-    fuzz_icalcomponent_set_dtstart(comp, Data, Size);
-    fuzz_icaltimezone_truncate_vtimezone(comp, Data, Size);
-    fuzz_icalcomponent_set_due(comp, Data, Size);
+    // Create two VCALENDAR components
+    icalcomponent *vcalendar1 = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *vcalendar2 = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    
+    // Create a VEVENT component and add it to the first VCALENDAR
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    icalcomponent_add_component(vcalendar1, vevent);
 
-    // Clean up
-    icalcomponent_free(comp);
-    icalproperty_free(prop);
+    // Normalize the first VCALENDAR component
+    icalcomponent_normalize(vcalendar1);
+
+    // Merge the second VCALENDAR into the first
+    icalcomponent_merge_component(vcalendar1, vcalendar2);
+
+    // Get the time span of the first VCALENDAR
+    icaltime_span span = icalcomponent_get_span(vcalendar1);
+
+    // Set a recurrence ID on the VEVENT
+    icaltimetype recurrence_id;
+    recurrence_id.year = 2023;
+    recurrence_id.zone = nullptr;
+    icalcomponent_set_recurrenceid(vevent, recurrence_id);
+
+    // Clean up components
+    icalcomponent_free(vcalendar1);
+
+    // Write Data to a dummy file if needed
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    if (dummyFile.is_open()) {
+        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+        dummyFile.close();
+    }
 
     return 0;
 }
@@ -115,7 +76,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -125,7 +86,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_7(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

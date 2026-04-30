@@ -1,30 +1,24 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract an integer
-    if (size < sizeof(int)) {
-        return 0;
-    }
+    // Initialize the library
+    icalcomponent *root_component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *sub_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    
+    // Add a property to the sub-component
+    icalproperty *prop = icalproperty_new_summary("Sample Event");
+    icalcomponent_add_property(sub_component, prop);
 
-    // Initialize the icalproperty object
-    icalproperty *prop = icalproperty_new(ICAL_ANY_PROPERTY);
-    if (prop == NULL) {
-        return 0;
-    }
-
-    // Extract an integer from the data
-    int response_value = 0;
-    for (size_t i = 0; i < sizeof(int) && i < size; ++i) {
-        response_value |= data[i] << (i * 8);
-    }
+    // Add the sub-component to the root component
+    icalcomponent_add_component(root_component, sub_component);
 
     // Call the function-under-test
-    icalproperty_set_response(prop, response_value);
+    icalcomponent *current_component = icalcomponent_get_current_component(root_component);
 
     // Clean up
-    icalproperty_free(prop);
+    icalcomponent_free(root_component);
 
     return 0;
 }
@@ -50,7 +44,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -60,7 +54,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_34(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

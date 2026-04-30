@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_participant at icalcomponent.c:2120:16 in icalcomponent.h
-// icalcomponent_new_vvoter at icalcomponent.c:2100:16 in icalcomponent.h
-// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
-// icalcomponent_new_vreply at icalcomponent.c:2080:16 in icalcomponent.h
-// icalcomponent_new_vpoll at icalcomponent.c:2095:16 in icalcomponent.h
+// icalcomponent_get_timezone at icalcomponent.c:2430:15 in icalcomponent.h
+// icalcomponent_new_xdaylight at icalcomponent.c:2065:16 in icalcomponent.h
+// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
 // icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
+// icalcomponent_add_property at icalcomponent.c:385:6 in icalcomponent.h
+// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,50 +16,36 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
+#include <string>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <icalcomponent.h>
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *Data, size_t Size) {
-    // Initialize components
-    icalcomponent *vpoll = icalcomponent_new_vpoll();
-    icalcomponent *vvoter = icalcomponent_new_vvoter();
-    icalcomponent *xvote = icalcomponent_new_xvote();
-    icalcomponent *participant = icalcomponent_new_participant();
-    icalcomponent *vreply = icalcomponent_new_vreply();
+    if (Size < 1) return 0;
 
-    // Add components in various combinations
-    icalcomponent_add_component(vpoll, vvoter);
-    icalcomponent_add_component(vpoll, xvote);
-    icalcomponent_add_component(vpoll, participant);
-    icalcomponent_add_component(vpoll, vreply);
+    // Create components using the available API functions
+    icalcomponent *xpatchComponent = icalcomponent_new_xpatch();
+    icalcomponent *xdaylightComponent = icalcomponent_new_xdaylight();
+    icalcomponent *vtimezoneComponent = icalcomponent_new_vtimezone();
 
-    icalcomponent_add_component(vvoter, xvote);
-    icalcomponent_add_component(vvoter, participant);
-    icalcomponent_add_component(vvoter, vreply);
+    // Create a property and add it to a component
+    icalproperty *property = icalproperty_new(ICAL_TZID_PROPERTY);
+    icalcomponent_add_property(xpatchComponent, property);
 
-    icalcomponent_add_component(xvote, participant);
-    icalcomponent_add_component(xvote, vreply);
+    // Add components to a parent component
+    icalcomponent_add_component(xpatchComponent, xdaylightComponent);
+    icalcomponent_add_component(xpatchComponent, vtimezoneComponent);
 
-    // Clean up components
-    icalcomponent_remove_component(vpoll, vvoter);
-    icalcomponent_remove_component(vpoll, xvote);
-    icalcomponent_remove_component(vpoll, participant);
-    icalcomponent_remove_component(vpoll, vreply);
+    // Use the input data to create a tzid string and get timezone
+    std::string tzid(reinterpret_cast<const char*>(Data), Size);
+    icaltimezone *timezone = icalcomponent_get_timezone(xpatchComponent, tzid.c_str());
 
-    icalcomponent_remove_component(vvoter, xvote);
-    icalcomponent_remove_component(vvoter, participant);
-    icalcomponent_remove_component(vvoter, vreply);
-
-    icalcomponent_remove_component(xvote, participant);
-    icalcomponent_remove_component(xvote, vreply);
-
-    icalcomponent_free(vpoll);
-    icalcomponent_free(vvoter);
-    icalcomponent_free(xvote);
-    icalcomponent_free(participant);
-    icalcomponent_free(vreply);
+    // Clean up the created components
+    icalcomponent_free(xpatchComponent);  // This will also free the child components
+    // Property and timezone are managed by the component, no need to free separately
 
     return 0;
 }

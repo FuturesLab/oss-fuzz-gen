@@ -1,57 +1,46 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
+#include <cstdint>
+#include <cstdlib>
 #include "libical/ical.h"
+#include <cstring>
 
 extern "C" {
-    #include <string.h>
+
+// Define a callback function that matches the correct signature
+void tzid_callback(icalparameter *param, void *data) {
+    // Implement a simple callback that does nothing.
+    // This is just a placeholder to match the function signature.
 }
 
-extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Initialize libical component
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
+    // Ensure the input data is null-terminated to prevent buffer overflow
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // If memory allocation fails, return early
+    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
+
+    // Create a new icalcomponent from the input data
+    icalcomponent *component = icalcomponent_new_from_string(null_terminated_data);
+
+    // Free the allocated null-terminated data
+    free(null_terminated_data);
+
     if (component == NULL) {
-        return 0;
+        return 0; // If the component is NULL, return early
     }
 
-    // Ensure data is non-empty and of a reasonable size for parsing
-    if (size > 0 && size < 1024) {
-        // Create a temporary buffer to hold the data
-        char *temp_data = (char *)malloc(size + 1);
-        if (temp_data == NULL) {
-            icalcomponent_free(component);
-            return 0;
-        }
+    // Call the function-under-test with the component, callback, and user data
+    icalcomponent_foreach_tzid(component, tzid_callback, NULL);
 
-        // Copy data to the temporary buffer and null-terminate it
-        memcpy(temp_data, data, size);
-        temp_data[size] = '\0';
-
-        // Parse the data into the component
-        icalcomponent *parsed_component = icalparser_parse_string(temp_data);
-        if (parsed_component != NULL) {
-            // Call the function-under-test
-            const char *component_name = icalcomponent_get_component_name(parsed_component);
-
-            // Use the component name in some way to avoid compiler optimizations removing the call
-            if (component_name != NULL) {
-                // For example, just print it (in a real fuzzer, you might log this)
-                printf("Component Name: %s\n", component_name);
-            }
-
-            // Free the parsed component
-            icalcomponent_free(parsed_component);
-        }
-
-        // Free the temporary buffer
-        free(temp_data);
-    }
-
-    // Free the original component
+    // Free the icalcomponent after use
     icalcomponent_free(component);
 
     return 0;
+}
+
 }
 #ifdef INC_MAIN
 #include <stdio.h>
@@ -75,7 +64,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -85,7 +74,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_17(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

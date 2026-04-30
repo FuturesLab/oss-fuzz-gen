@@ -1,26 +1,22 @@
 #include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/ical.h> // Assuming the correct path for the libical header
+
+    // Function-under-test
+    void icalcomponent_free(icalcomponent *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    if (size < sizeof(icalcomponent_kind)) {
-        return 0;
-    }
+    // Ensure size is sufficient to create a valid icalcomponent
+    if (size < 1) return 0;
 
-    // Extract icalcomponent_kind from the input data
-    icalcomponent_kind kind = *reinterpret_cast<const icalcomponent_kind*>(data);
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
     // Call the function-under-test
-    bool is_valid = icalcomponent_kind_is_valid(kind);
-
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    if (is_valid) {
-        // Do something trivial
-        volatile bool dummy = is_valid;
-        (void)dummy;
-    }
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -46,7 +42,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -56,7 +52,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_99(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_99(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

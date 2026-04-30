@@ -1,28 +1,29 @@
-#include <cstdint> // For uint8_t
-#include <cstddef> // For size_t
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <string.h> // Include for memcpy
 
 extern "C" {
-    // Declare the function prototype for the function under test.
-    int icalrecurrencetype_day_position(short day_position);
+    #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Declare and initialize the short variable to be passed to the function
-    short day_position;
-
-    // Ensure the size is sufficient to extract a short value
-    if (size < sizeof(short)) {
-        return 0; // Not enough data to proceed
+    // Ensure there's enough data to initialize icalpropiter
+    if (size < sizeof(icalpropiter)) {
+        return 0;
     }
 
-    // Extract a short value from the input data
-    day_position = *(reinterpret_cast<const short*>(data));
+    // Initialize icalpropiter from the input data
+    icalpropiter iter;
+    memcpy(&iter, data, sizeof(icalpropiter));
 
     // Call the function-under-test
-    int result = icalrecurrencetype_day_position(day_position);
+    bool is_valid = icalpropiter_is_valid(&iter);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    // Use the result in some way to prevent compiler optimizations
+    if (is_valid) {
+        // Do something if valid (no-op)
+    }
 
     return 0;
 }
@@ -48,7 +49,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -58,7 +59,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_3(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

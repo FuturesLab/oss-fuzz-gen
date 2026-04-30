@@ -1,26 +1,33 @@
-#include <cstdint> // Include for uint8_t
-#include <cstdlib> // Include for malloc and free
-#include <cstring> // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h> // Assuming the library header file
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated to safely use it as a C-string
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        return 0; // Exit if memory allocation fails
+    if (size < 1) {
+        return 0;
     }
 
-    memcpy(input, data, size);
-    input[size] = '\0'; // Null-terminate the input
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
+
+    // Use the first byte of data to determine the icalproperty_kind
+    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
+
+    // Create a dummy icalproperty to add to the component
+    icalproperty *property = icalproperty_new(kind);
+    if (property != NULL) {
+        icalcomponent_add_property(component, property);
+    }
 
     // Call the function-under-test
-    icalrecurrencetype_weekday result = icalrecur_string_to_weekday(input);
+    icalcomponent_remove_property_by_kind(component, kind);
 
-    // Free the allocated memory
-    free(input);
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -46,7 +53,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -56,7 +63,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_143(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_143(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,50 +1,64 @@
-#include <string.h>
 #include <sys/stat.h>
+#include <string.h>
+#include "libical/ical.h"
 #include <cstdint>
-#include <cstddef>
+#include <cstdlib>
 #include <cstring>
-#include <iostream>
-
-extern "C" {
-    // Assuming the function is declared in a header file
-    bool icalvalue_decode_ical_string(const char *input, char *output, int output_size);
-}
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for the function call
+    // Ensure that the input data is not empty
     if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the input and output strings
-    const char *input = reinterpret_cast<const char *>(data);
-
-    // Define a reasonable size for the output buffer
-    int output_size = 256;
-    char output[output_size];
-
-    // Copy input data to ensure null-termination
-    char *input_copy = new char[size + 1];
-    std::memcpy(input_copy, input, size);
-    input_copy[size] = '\0'; // Null-terminate the input string
-
-    // Initialize the output buffer to ensure it's in a known state
-    std::memset(output, 0, output_size);
-
-    // Check if the input is valid before calling the function
-    if (std::strlen(input_copy) == 0) {
-        delete[] input_copy;
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
         return 0;
     }
 
-    // Call the function-under-test
-    bool result = icalvalue_decode_ical_string(input_copy, output, output_size);
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Optionally, print the result for debugging purposes
-    std::cout << "Result: " << result << ", Output: " << output << std::endl;
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
 
-    // Clean up allocated memory
-    delete[] input_copy;
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icalcomponent_get_timezone
+        icalcomponent* ret_icalcomponent_new_vjournal_tcqtj = icalcomponent_new_vjournal();
+        if (ret_icalcomponent_new_vjournal_tcqtj == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_new_vjournal_tcqtj) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!icalString) {
+        	return 0;
+        }
+        icaltimezone* ret_icalcomponent_get_timezone_pafmo = icalcomponent_get_timezone(ret_icalcomponent_new_vjournal_tcqtj, icalString);
+        if (ret_icalcomponent_get_timezone_pafmo == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_free(component);
+    }
+
+    // Free the buffer
+    free(buffer);
 
     return 0;
 }
@@ -70,7 +84,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -80,7 +94,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_52(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_52(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

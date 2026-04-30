@@ -1,41 +1,45 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include this for memcpy
+#include <stddef.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_101(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid string
-    if (size == 0) {
+    // Ensure the data is large enough to extract meaningful values
+    if (size < sizeof(int) * 6) {
         return 0;
     }
 
-    // Allocate memory for a null-terminated string
-    char *str = (char *)malloc(size + 1);
-    if (!str) {
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VTODO_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Copy the data into the string and null-terminate it
-    memcpy(str, data, size);
-    str[size] = '\0';
+    // Extract values from the data to create an icaltimetype
+    int year = (int)data[0] + 1900; // Year range from 1900 to 2155
+    int month = (int)(data[1] % 12) + 1; // Month range from 1 to 12
+    int day = (int)(data[2] % 31) + 1; // Day range from 1 to 31
+    int hour = (int)(data[3] % 24); // Hour range from 0 to 23
+    int minute = (int)(data[4] % 60); // Minute range from 0 to 59
+    int second = (int)(data[5] % 60); // Second range from 0 to 59
 
-    // Create an icalproperty from the string
-    icalproperty *prop = icalproperty_new_from_string(str);
+    struct icaltimetype due_time = icaltime_from_day_of_year(
+        day, year);
 
-    // Ensure that the property is not NULL before proceeding
-    if (prop != NULL) {
-        // Call the function-under-test
-        struct icaltimetype lastModified = icalproperty_get_lastmodified(prop);
+    due_time.month = month;
+    due_time.day = day;
+    due_time.hour = hour;
+    due_time.minute = minute;
+    due_time.second = second;
+    due_time.is_date = 0; // Set to 0 to indicate this is a date-time
 
-        // Clean up the icalproperty
-        icalproperty_free(prop);
-    }
+    // Call the function-under-test
+    icalcomponent_set_due(component, due_time);
 
-    // Free the allocated string
-    free(str);
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -61,7 +65,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -71,7 +75,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_101(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_101(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

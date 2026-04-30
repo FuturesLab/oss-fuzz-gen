@@ -9,108 +9,75 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icaltimezone.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < sizeof(int)) return 0;
+
+    // Create a dummy VEVENT component
+    icalcomponent *event = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!event) return 0;
+
+    // Create a dummy VAGENDA component
+    icalcomponent *vagenda = icalcomponent_new_vagenda();
+    if (!vagenda) {
+        icalcomponent_free(event);
         return 0;
     }
 
-    // Prepare a null-terminated string from the input data
-    char *inputString = (char *)malloc(Size + 1);
-    if (!inputString) {
+    // Create a dummy VLOCATION component
+    icalcomponent *vlocation = icalcomponent_new_vlocation();
+    if (!vlocation) {
+        icalcomponent_free(event);
+        icalcomponent_free(vagenda);
         return 0;
     }
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
 
-    // Test icaltimezone_get_builtin_timezone
-    icaltimezone *builtinTimezone = icaltimezone_get_builtin_timezone(inputString);
-    if (builtinTimezone) {
-        // Test icaltimezone_copy
-        icaltimezone *copiedTimezone = icaltimezone_copy(builtinTimezone);
-        if (copiedTimezone) {
-            // Test icaltimezone_get_latitude
-            double latitude = icaltimezone_get_latitude(copiedTimezone);
-            (void)latitude; // Suppress unused variable warning
-
-            // Test icaltimezone_get_longitude
-            double longitude = icaltimezone_get_longitude(copiedTimezone);
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltimezone_get_longitude to icalproperty_set_expand
-            const char njjcapdn[1024] = "mddnx";
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalproperty_vanew_refid with icalproperty_new_organizer
-            icalproperty* ret_icalproperty_vanew_refid_mxqod = icalproperty_new_organizer(njjcapdn);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-            if (ret_icalproperty_vanew_refid_mxqod == NULL){
-            	return 0;
-            }
-            // Ensure dataflow is valid (i.e., non-null)
-            if (!ret_icalproperty_vanew_refid_mxqod) {
-            	return 0;
-            }
-            icalproperty_set_expand(ret_icalproperty_vanew_refid_mxqod, (int )longitude);
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            (void)longitude; // Suppress unused variable warning
-
-            // Free the copied timezone
-            icaltimezone_free(copiedTimezone, 1);
-        }
+    // Add components to a parent VCALENDAR component
+    icalcomponent *vcalendar = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (!vcalendar) {
+        icalcomponent_free(event);
+        icalcomponent_free(vagenda);
+        icalcomponent_free(vlocation);
+        return 0;
     }
 
-    // Test icaltimezone_new
-    icaltimezone *newTimezone = icaltimezone_new();
-    if (newTimezone) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(newTimezone);
+    icalcomponent_add_component(vcalendar, event);
+    icalcomponent_add_component(vcalendar, vagenda);
+    icalcomponent_add_component(vcalendar, vlocation);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltimezone_get_latitude to icalmemory_resize_buffer
-        icalproperty* ret_icalproperty_vanew_transp_etvys = icalproperty_vanew_transp(ICAL_TRANSP_TRANSPARENT);
-        if (ret_icalproperty_vanew_transp_etvys == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalproperty_vanew_transp_etvys) {
-        	return 0;
-        }
-        void* ret_icalmemory_resize_buffer_seipf = icalmemory_resize_buffer((void *)ret_icalproperty_vanew_transp_etvys, (size_t )latitude);
-        if (ret_icalmemory_resize_buffer_seipf == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        (void)latitude; // Suppress unused variable warning
-
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(newTimezone);
-        (void)longitude; // Suppress unused variable warning
-
-        // Free the new timezone
-        icaltimezone_free(newTimezone, 1);
+    // Create another VCALENDAR component to merge
+    icalcomponent *vcalendar_to_merge = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (!vcalendar_to_merge) {
+        icalcomponent_free(vcalendar);
+        return 0;
     }
 
-    // Test icaltimezone_get_builtin_timezone_from_tzid
-    icaltimezone *builtinTimezoneFromTzid = icaltimezone_get_builtin_timezone_from_tzid(inputString);
-    if (builtinTimezoneFromTzid) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(builtinTimezoneFromTzid);
-        (void)latitude; // Suppress unused variable warning
+    // Merge two VCALENDAR components
+    icalcomponent_merge_component(vcalendar, vcalendar_to_merge);
 
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(builtinTimezoneFromTzid);
-        (void)longitude; // Suppress unused variable warning
-    }
+    // Define a simple callback function for foreach_tzid
+    auto tzid_callback = [](icalparameter *param, void *data) {
+        // Just a placeholder to demonstrate using the callback
+    };
+
+    // Use foreach_tzid on the vcalendar component
+    icalcomponent_foreach_tzid(vcalendar, tzid_callback, nullptr);
+
+    // Prepare a dummy icaltimetype
+    icaltimetype recurrence_id;
+    recurrence_id.year = 2023;
+    recurrence_id.zone = nullptr;
+
+    // Set the recurrence ID for the event
+    icalcomponent_set_recurrenceid(event, recurrence_id);
 
     // Clean up
-    free(inputString);
+    icalcomponent_free(vcalendar);
+
     return 0;
 }
 #ifdef INC_MAIN
@@ -135,7 +102,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -145,7 +112,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_22(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

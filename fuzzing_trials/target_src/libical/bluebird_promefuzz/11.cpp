@@ -9,63 +9,44 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <iostream>
-#include <fstream>
-#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icalproperty.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Prepare a null-terminated string for icalproperty_new_from_string
-    char *icalStr = new char[Size + 1];
-    memcpy(icalStr, Data, Size);
-    icalStr[Size] = '\0';
+    // Create various icalcomponent types
+    icalcomponent *vtodo = icalcomponent_new_vtodo();
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    icalcomponent *vreply = icalcomponent_new_vreply();
+    icalcomponent *vagenda = icalcomponent_new_vagenda();
 
-    // Test icalproperty_new_from_string
-    icalproperty *prop = icalproperty_new_from_string(icalStr);
+    // Choose a method based on the input data
+    icalproperty_method method = static_cast<icalproperty_method>(Data[0] % 17 + 10500);
 
-    // If property creation was successful, perform further operations
-    if (prop) {
-        // Test icalproperty_remove_parameter_by_kind with a random parameter kind
-        icalproperty_remove_parameter_by_kind(prop, ICAL_TZID_PARAMETER);
+    // Set methods to components
+    icalcomponent_set_method(vtodo, method);
+    icalcomponent_set_method(vevent, method);
+    icalcomponent_set_method(vreply, method);
+    icalcomponent_set_method(vagenda, method);
 
-        // Test icalproperty_normalize
-        icalproperty_normalize(prop);
+    // Retrieve methods to ensure they are set correctly
+    icalcomponent_get_method(vtodo);
+    icalcomponent_get_method(vevent);
+    icalcomponent_get_method(vreply);
+    icalcomponent_get_method(vagenda);
 
-        // Test icalproperty_clone
-        icalproperty *clonedProp = icalproperty_clone(prop);
-        if (clonedProp) {
-            icalproperty_free(clonedProp);
-        }
+    // Clean up
+    icalcomponent_free(vtodo);
+    icalcomponent_free(vevent);
+    icalcomponent_free(vreply);
+    icalcomponent_free(vagenda);
 
-
-        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalproperty_clone to icalproperty_get_property_name_r using the plateau pool
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!clonedProp) {
-        	return 0;
-        }
-        char* ret_icalproperty_get_property_name_r_ikbwj = icalproperty_get_property_name_r(clonedProp);
-        if (ret_icalproperty_get_property_name_r_ikbwj == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.SPLICE_MUTATOR
-        
-        icalproperty_free(prop);
-    }
-
-    // Test icalproperty_new with a random property kind
-    icalproperty *newProp = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    if (newProp) {
-        icalproperty_free(newProp);
-    }
-
-    delete[] icalStr;
     return 0;
 }
 #ifdef INC_MAIN
@@ -90,7 +71,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -100,7 +81,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_11(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

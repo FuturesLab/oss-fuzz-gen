@@ -1,30 +1,29 @@
-#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <cstring> // Include the C++ header for memcpy
 
+// Wrap the inclusion of C headers and functions in extern "C"
 extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Ensure that the size of data is sufficient to create an icaltriggertype
-    if (size < sizeof(struct icaltriggertype)) {
+    // Ensure the input data is null-terminated
+    char *input = new char[size + 1];
+    if (input == nullptr) {
         return 0;
     }
 
-    // Initialize an icaltriggertype from the input data
-    struct icaltriggertype trigger;
-    memcpy(&trigger, data, sizeof(struct icaltriggertype));
+    // Copy the data into the input buffer and null-terminate it
+    for (size_t i = 0; i < size; ++i) {
+        input[i] = static_cast<char>(data[i]);
+    }
+    input[size] = '\0';
 
     // Call the function-under-test
-    icalproperty *prop = icalproperty_vanew_trigger(trigger, nullptr);
+    icalcomponent_kind kind = icalcomponent_string_to_kind(input);
 
     // Clean up
-    if (prop != nullptr) {
-        icalproperty_free(prop);
-    }
+    delete[] input;
 
     return 0;
 }
@@ -50,7 +49,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -60,7 +59,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_7(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

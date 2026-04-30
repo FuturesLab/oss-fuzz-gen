@@ -1,30 +1,35 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <libical/ical.h>
 
-// Wrap the libical includes in extern "C" since the project is written in C
 extern "C" {
-    #include <libical/ical.h>
+
+// Define a callback function that matches the expected signature
+void recurrence_callback(const icalcomponent *comp, const struct icaltime_span *span, void *data) {
+    // This is a placeholder callback function
+    // In a real scenario, you might want to do something meaningful here
 }
 
-extern "C" int LLVMFuzzerTestOneInput_183(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract an enumeration value
-    if (size < sizeof(int)) {
+int LLVMFuzzerTestOneInput_183(const uint8_t *data, size_t size) {
+    // Initialize icalcomponent and icaltimetype structures
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    struct icaltimetype start_time = icaltime_from_string("20230101T000000Z");
+    struct icaltimetype end_time = icaltime_from_string("20231231T235959Z");
+
+    // Ensure the component is not NULL before proceeding
+    if (component == NULL) {
         return 0;
     }
 
-    // Extract an enumeration value from the input data
-    icalproperty_xlicclass xlicclass =
-        static_cast<icalproperty_xlicclass>(data[0] % 3); // Assuming there are 3 classes
-
     // Call the function-under-test
-    icalproperty *prop = icalproperty_vanew_xlicclass(xlicclass, NULL);
+    icalcomponent_foreach_recurrence(component, start_time, end_time, recurrence_callback, NULL);
 
-    // Clean up if necessary
-    if (prop != NULL) {
-        icalproperty_free(prop);
-    }
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
+}
+
 }
 #ifdef INC_MAIN
 #include <stdio.h>
@@ -48,7 +53,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -58,7 +63,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_183(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_183(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

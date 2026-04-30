@@ -1,39 +1,43 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <cstdint>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a valid string
-    if (size == 0) {
+    // Ensure that the data size is sufficient to extract meaningful information
+    if (size < 1) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *ical_string = (char *)malloc(size + 1);
-    if (ical_string == NULL) {
+    // Convert input data to a null-terminated string
+    char *ical_data = (char *)malloc(size + 1);
+    if (!ical_data) {
+        return 0;
+    }
+    memcpy(ical_data, data, size);
+    ical_data[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_data);
+    free(ical_data);
+
+    if (component == NULL) {
         return 0;
     }
 
-    memcpy(ical_string, data, size);
-    ical_string[size] = '\0';
-
-    // Parse the string to create an icalproperty
-    icalcomponent *component = icalparser_parse_string(ical_string);
-    if (component != NULL) {
-        icalproperty *property = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
-        if (property != NULL) {
-            // Call the function-under-test
-            icalproperty_transp transp = icalproperty_get_transp(property);
-        }
-        icalcomponent_free(component);
+    // Iterate over all properties in the component
+    for (icalproperty *prop = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
+         prop != NULL;
+         prop = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY)) {
+        // Process each property
+        icalproperty_kind kind = icalproperty_isa(prop);
+        // Call the function-under-test
+        icalpropiter propiter = icalcomponent_begin_property(component, kind);
+        (void)propiter; // Suppress unused variable warning
     }
 
-    free(ical_string);
+    // Clean up the icalcomponent object
+    icalcomponent_free(component);
+
     return 0;
 }
 #ifdef INC_MAIN
@@ -58,7 +62,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -68,7 +72,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_52(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_52(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

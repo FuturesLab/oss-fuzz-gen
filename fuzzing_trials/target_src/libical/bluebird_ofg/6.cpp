@@ -1,40 +1,47 @@
-#include <string.h>
 #include <sys/stat.h>
 #include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>  // Include for malloc and free
+#include <string.h>  // Include for memcpy
+
+extern "C" {
+    // Include necessary C headers, source files, functions, and code here.
+    #include "libical/ical.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Ensure the input is null-terminated
-    if (size == 0) {
-        return 0;
+    // Initialize a icalcomponent and icalcompiter
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcompiter iter;
+
+    // Ensure the data is not empty and within a reasonable size
+    if (size > 0 && size < 1024) {
+        // Create a temporary buffer to store the input data
+        char *buffer = (char *)malloc(size + 1);
+        if (buffer != NULL) {
+            memcpy(buffer, data, size);
+            buffer[size] = '\0';
+
+            // Attempt to parse the buffer into an icalcomponent
+            icalcomponent *parsed_component = icalparser_parse_string(buffer);
+            if (parsed_component != NULL) {
+                // Initialize the iterator with the parsed component
+                iter = icalcomponent_begin_component(parsed_component, ICAL_ANY_COMPONENT);
+
+                // Call the function-under-test
+                icalcomponent *prior_component = icalcompiter_prior(&iter);
+
+                // Clean up
+                icalcomponent_free(parsed_component);
+            }
+
+            free(buffer);
+        }
     }
-
-    // Allocate memory for a null-terminated string
-    char *tzid = (char *)malloc(size + 1);
-    if (tzid == NULL) {
-        return 0;
-    }
-
-    // Copy the input data and null-terminate it
-    memcpy(tzid, data, size);
-    tzid[size] = '\0';
-
-    // Call the function-under-test
-    icaltimezone *timezone = icaltimezone_get_builtin_timezone_from_tzid(tzid);
 
     // Clean up
-
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icaltimezone_get_builtin_timezone_from_tzid to icaltime_from_timet_with_zone using the plateau pool
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!timezone) {
-    	return 0;
-    }
-    struct icaltimetype ret_icaltime_from_timet_with_zone_iqfxn = icaltime_from_timet_with_zone(time(NULL) + 3600, 0, timezone);
-    // End mutation: Producer.SPLICE_MUTATOR
-    
-    free(tzid);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -60,7 +67,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -70,7 +77,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_6(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

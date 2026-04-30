@@ -1,39 +1,50 @@
-#include <string.h>
 #include <sys/stat.h>
-#include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+
+extern "C" {
+    #include "/src/libical/src/libical/icalcomponent.h"
+    #include "/src/libical/src/libical/icalproperty.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Check if the input data size is sufficient
+    if (size < 1) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the input data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0;
-    }
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-    if (component == NULL) {
-        free(buffer);
-        return 0;
+    // Initialize variables
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!component) {
+        return 0; // Failed to create component
     }
 
-    // Clone the icalcomponent
-    icalcomponent *cloned_component = icalcomponent_clone(component);
+    // Map the first byte of data to a status value
+    icalproperty_status status;
+    switch (data[0] % 3) {
+        case 0:
+            status = ICAL_STATUS_TENTATIVE;
+            break;
+        case 1:
+            status = ICAL_STATUS_CONFIRMED;
+            break;
+        case 2:
+            status = ICAL_STATUS_CANCELLED;
+            break;
+        default:
+            status = ICAL_STATUS_NONE;
+            break;
+    }
+
+    // Set the status of the component
+    icalcomponent_set_status(component, status);
+
+    // Optionally, add more properties or manipulate the component further
+    // based on the input data to increase code coverage.
 
     // Clean up
     icalcomponent_free(component);
-    if (cloned_component != NULL) {
-        icalcomponent_free(cloned_component);
-    }
-    free(buffer);
 
     return 0;
 }
@@ -59,7 +70,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +80,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_13(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

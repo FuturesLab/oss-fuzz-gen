@@ -1,55 +1,39 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-
-extern "C" {
-    #include "libical/ical.h"
-}
+#include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating a string
     if (size == 0) {
         return 0;
     }
 
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    // Create a temporary buffer to hold the data and ensure it's null-terminated
+    char *buffer = static_cast<char*>(malloc(size + 1));
+    if (buffer == nullptr) {
+        return 0;
+    }
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
+
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // Free the buffer as it's no longer needed
+    free(buffer);
+
+    if (component == nullptr) {
         return 0;
     }
 
-    // Ensure the data is null-terminated to be used as a string
-    char *x_name = (char *)malloc(size + 1);
-    if (x_name == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(x_name, data, size);
-    x_name[size] = '\0';
-
-    // Call the function-under-test
-    icalcomponent_set_x_name(component, x_name);
-
-    // Additional function calls to increase code coverage
-    // Set some properties to the component
-    icalproperty *summary_prop = icalproperty_new_summary("Fuzzing Summary");
-    icalproperty *description_prop = icalproperty_new_description("Fuzzing Description");
-    icalcomponent_add_property(component, summary_prop);
-    icalcomponent_add_property(component, description_prop);
-
-    // Retrieve properties to ensure they are set
-    const char *summary = icalcomponent_get_summary(component);
-    const char *description = icalcomponent_get_description(component);
-
-    // Check if properties are correctly set
-    if (summary && description) {
-        // Do something with the retrieved properties if needed
+    // Iterate over a few icalproperty_kind values to test the function
+    for (int kind = ICAL_ANY_PROPERTY; kind <= ICAL_X_PROPERTY; ++kind) {
+        icalcomponent_count_properties(component, static_cast<icalproperty_kind>(kind));
     }
 
-    // Clean up
-    free(x_name);
+    // Clean up the icalcomponent
     icalcomponent_free(component);
 
     return 0;
@@ -76,7 +60,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -86,7 +70,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_14(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

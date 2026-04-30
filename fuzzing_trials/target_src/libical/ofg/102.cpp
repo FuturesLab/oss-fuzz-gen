@@ -1,39 +1,32 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>  // Include for memcpy
+#include <libical/ical.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a null-terminated string
-    if (size == 0) {
-        return 0;
+    // Initialize an icalcomponent from the input data
+    char *ical_str = (char *)malloc(size + 1);
+    if (ical_str == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0'; // Null-terminate the string
 
-    // Allocate memory for the icalproperty object
-    icalproperty *prop = icalproperty_new(ICAL_TZID_PROPERTY);
-    if (prop == NULL) {
-        return 0;
+    icalcomponent *component = icalparser_parse_string(ical_str);
+    free(ical_str);
+
+    if (component != NULL) {
+        // Call the function-under-test
+        struct icaltimetype dtstart = icalcomponent_get_dtstart(component);
+
+        // Clean up
+        icalcomponent_free(component);
     }
-
-    // Create a null-terminated string from the input data
-    char *tzid = (char *)malloc(size + 1);
-    if (tzid == NULL) {
-        icalproperty_free(prop);
-        return 0;
-    }
-    memcpy(tzid, data, size);
-    tzid[size] = '\0';
-
-    // Call the function-under-test
-    icalproperty_set_tzid(prop, tzid);
-
-    // Clean up
-    free(tzid);
-    icalproperty_free(prop);
 
     return 0;
 }
@@ -59,7 +52,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +62,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_102(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_102(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

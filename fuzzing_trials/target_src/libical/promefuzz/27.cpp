@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalrecurrencetype_as_string at icalrecur.c:993:7 in icalrecur.h
-// icalrecurrencetype_new_from_string at icalrecur.c:818:28 in icalrecur.h
-// icalrecurrencetype_as_string_r at icalrecur.c:1002:7 in icalrecur.h
-// icalrecurrencetype_ref at icalrecur.c:731:6 in icalrecur.h
-// icalrecurrencetype_new at icalrecur.c:694:28 in icalrecur.h
-// icalrecurrencetype_unref at icalrecur.c:739:6 in icalrecur.h
+// icalcomponent_get_status at icalcomponent.c:2002:26 in icalcomponent.h
+// icalcomponent_set_status at icalcomponent.c:1990:6 in icalcomponent.h
+// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
+// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
+// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,59 +14,41 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <iostream>
+#include <fstream>
 #include <cstring>
+#include <cassert>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalrecur.h"
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Create a new icalrecurrencetype instance
-    struct icalrecurrencetype *recur = icalrecurrencetype_new();
-    if (!recur) return 0;
+    // Create a new VTIMEZONE component
+    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
+    assert(vtimezone != nullptr);
 
-    // Fuzz icalrecurrencetype_ref
-    icalrecurrencetype_ref(recur);
+    // Create a new VALARM component
+    icalcomponent *valarm = icalcomponent_new_valarm();
+    assert(valarm != nullptr);
 
-    // Convert recurrence type to string
-    char *recurStr = icalrecurrencetype_as_string(recur);
-    if (recurStr) {
-        // Fuzz icalrecurrencetype_new_from_string
-        struct icalrecurrencetype *newRecur = icalrecurrencetype_new_from_string(recurStr);
-        if (newRecur) {
-            // Fuzz icalrecurrencetype_as_string_r
-            char *recurStrR = icalrecurrencetype_as_string_r(newRecur);
-            if (recurStrR) {
-                free(recurStrR);
-            }
-            icalrecurrencetype_unref(newRecur);
-        }
-        free(recurStr);
-    }
+    // Determine the kind of the components
+    icalcomponent_kind kind_vtimezone = icalcomponent_isa(vtimezone);
+    icalcomponent_kind kind_valarm = icalcomponent_isa(valarm);
 
-    // Fuzz icalrecurrencetype_unref
-    icalrecurrencetype_unref(recur);
+    // Set a summary for the VTIMEZONE component
+    std::string summary(reinterpret_cast<const char*>(Data), Size);
+    icalcomponent_set_summary(vtimezone, summary.c_str());
 
-    // Use the input data to create a string and fuzz icalrecurrencetype_new_from_string
-    char *inputStr = static_cast<char*>(malloc(Size + 1));
-    if (inputStr) {
-        memcpy(inputStr, Data, Size);
-        inputStr[Size] = '\0';
+    // Get and set status for the VALARM component
+    icalproperty_status status = icalcomponent_get_status(valarm);
+    icalcomponent_set_status(valarm, ICAL_STATUS_TENTATIVE);
 
-        struct icalrecurrencetype *inputRecur = icalrecurrencetype_new_from_string(inputStr);
-        if (inputRecur) {
-            char *inputRecurStr = icalrecurrencetype_as_string_r(inputRecur);
-            if (inputRecurStr) {
-                free(inputRecurStr);
-            }
-            icalrecurrencetype_unref(inputRecur);
-        }
-        free(inputStr);
-    }
+    // Clean up components
+    icalcomponent_free(vtimezone);
+    icalcomponent_free(valarm);
 
     return 0;
 }

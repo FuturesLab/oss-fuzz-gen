@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalproperty_enum_belongs_to_property at icalderivedproperty.c:7204:6 in icalproperty.h
-// icalproperty_kind_is_valid at icalderivedproperty.c:6977:10 in icalproperty.h
-// icalparameter_kind_is_valid at icalderivedparameter.c:2809:6 in icalparameter.h
-// icalproperty_string_to_kind at icalderivedproperty.c:7010:19 in icalproperty.h
-// icalproperty_kind_to_string at icalderivedproperty.c:6996:13 in icalproperty.h
-// icalcomponent_remove_property_by_kind at icalcomponent.c:425:6 in icalcomponent.h
+// icalcomponent_new_vjournal at icalcomponent.c:2040:16 in icalcomponent.h
+// icalcomponent_new_vquery at icalcomponent.c:2075:16 in icalcomponent.h
+// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
+// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
+// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
+// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,59 +14,53 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <cstring>
-#include <cassert>
+extern "C" {
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalparameter.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalproperty.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Fuzz icalproperty_kind_to_string
-    icalproperty_kind kind = static_cast<icalproperty_kind>(Data[0]);
-    const char *kind_str = icalproperty_kind_to_string(kind);
-    if (kind_str != nullptr) {
-        std::string kindStr(kind_str);
-        // Use the string representation
+    if (Size == 0) {
+        return 0;
+    }
+    
+    // Fuzzing icalcomponent_new_vquery
+    icalcomponent *vquery_component = icalcomponent_new_vquery();
+    if (vquery_component) {
+        icalcomponent_free(vquery_component);
     }
 
-    // Fuzz icalproperty_string_to_kind
-    std::string inputStr(reinterpret_cast<const char*>(Data), Size);
-    icalproperty_kind kind_from_str = icalproperty_string_to_kind(inputStr.c_str());
-
-    // Fuzz icalparameter_kind_is_valid
-    icalparameter_kind param_kind = static_cast<icalparameter_kind>(Data[0]);
-    bool is_valid_param_kind = icalparameter_kind_is_valid(param_kind);
-
-    // Fuzz icalproperty_enum_belongs_to_property
-    if (Size > 1) {
-        int enum_value = static_cast<int>(Data[1]);
-        bool belongs = icalproperty_enum_belongs_to_property(kind, enum_value);
+    // Fuzzing icalcomponent_new_vresource
+    icalcomponent *vresource_component = icalcomponent_new_vresource();
+    if (vresource_component) {
+        icalcomponent_free(vresource_component);
     }
 
-    // Fuzz icalcomponent_remove_property_by_kind
-    // Create a dummy icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component) {
-        icalcomponent_remove_property_by_kind(component, kind);
-        icalcomponent_free(component);
+    // Fuzzing icalcomponent_new_vjournal
+    icalcomponent *vjournal_component = icalcomponent_new_vjournal();
+    if (vjournal_component) {
+        icalcomponent_free(vjournal_component);
     }
 
-    // Fuzz icalproperty_kind_is_valid
-    bool is_valid_kind = icalproperty_kind_is_valid(kind);
+    // Fuzzing icalcomponent_new_vagenda
+    icalcomponent *vagenda_component = icalcomponent_new_vagenda();
+    if (vagenda_component) {
+        icalcomponent_free(vagenda_component);
+    }
+
+    // Fuzzing icalcomponent_new_vcalendar
+    icalcomponent *vcalendar_component = icalcomponent_new_vcalendar();
+    if (vcalendar_component) {
+        icalcomponent_free(vcalendar_component);
+    }
+
+    // Fuzzing icalcomponent_new_xpatch
+    icalcomponent *xpatch_component = icalcomponent_new_xpatch();
+    if (xpatch_component) {
+        icalcomponent_free(xpatch_component);
+    }
 
     return 0;
 }

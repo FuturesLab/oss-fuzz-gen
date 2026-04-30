@@ -9,95 +9,80 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cassert>
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
-#include <iostream>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icalparameter.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *inputString = static_cast<char *>(malloc(Size + 1));
-    if (!inputString) {
+    // Step 1: Create a null-terminated string from the input data
+    char *inputStr = static_cast<char *>(malloc(Size + 1));
+    if (!inputStr) {
         return 0;
     }
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
+    memcpy(inputStr, Data, Size);
+    inputStr[Size] = '\0';
 
-    // Test icalparameter_new_from_string
-    icalparameter *param = icalparameter_new_from_string(inputString);
-    if (param) {
-        // Test icalparameter_get_iana_name
-        const char *iana_name = icalparameter_get_iana_name(param);
-        if (iana_name) {
-            std::cout << "IANA Name: " << iana_name << std::endl;
-        }
+    // Step 2: Create an icalcomponent from the input string
+    icalcomponent *component = icalcomponent_new_from_string(inputStr);
 
-        // Test icalparameter_as_ical_string_r
-        char *ical_string = icalparameter_as_ical_string_r(param);
-        if (ical_string) {
-            std::cout << "iCal String: " << ical_string << std::endl;
-            icalmemory_free_buffer(ical_string);
-        }
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_set_dtstamp
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    struct icaltimetype ret_icalcomponent_get_dtend_rvpic = icalcomponent_get_dtend(component);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_dtstamp with icalcomponent_set_due
+    icalcomponent_set_due(component, ret_icalcomponent_get_dtend_rvpic);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(inputStr);
 
-        // Test icalparameter_set_xvalue and icalparameter_get_xvalue
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalparameter_set_xvalue with icalparameter_set_latency
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalparameter_as_ical_string_r to icalparameter_set_label
-
-        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalparameter_as_ical_string_r to icaltimezone_get_builtin_timezone_from_offset using the plateau pool
-        int offset;
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ical_string) {
-        	return 0;
-        }
-        icaltimezone* ret_icaltimezone_get_builtin_timezone_from_offset_bnpsb = icaltimezone_get_builtin_timezone_from_offset(offset, ical_string);
-        if (ret_icaltimezone_get_builtin_timezone_from_offset_bnpsb == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.SPLICE_MUTATOR
-        
-        icalparameter* ret_icalparameter_new_fbtype_lbjea = icalparameter_new_fbtype(ICAL_FBTYPE_BUSYUNAVAILABLE);
-        if (ret_icalparameter_new_fbtype_lbjea == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalparameter_new_fbtype_lbjea) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ical_string) {
-        	return 0;
-        }
-        icalparameter_set_label(ret_icalparameter_new_fbtype_lbjea, ical_string);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icalparameter_set_latency(param, "TestValue");
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        const char *xvalue = icalparameter_get_xvalue(param);
-        if (xvalue) {
-            std::cout << "X-Value: " << xvalue << std::endl;
+    if (component) {
+        // Step 3: Test icalcomponent_get_component_name_r
+        char *componentName = icalcomponent_get_component_name_r(component);
+        if (componentName) {
+            free(componentName);
         }
 
-        // Test icalparameter_get_xname
-        const char *xname = icalparameter_get_xname(param);
-        if (xname) {
-            std::cout << "X-Name: " << xname << std::endl;
+        // Step 4: Test icalcomponent_as_ical_string_r
+        char *icalStringR = icalcomponent_as_ical_string_r(component);
+        if (icalStringR) {
+            free(icalStringR);
         }
 
-        // Free the parameter
-        icalparameter_free(param);
+        // Step 5: Test icalcomponent_as_ical_string
+        char *icalString = icalcomponent_as_ical_string(component);
+        if (icalString) {
+            free(icalString);
+        }
+
+        // Step 6: Test icalcomponent_set_summary
+        const char *summaryText = "Sample Summary";
+        icalcomponent_set_summary(component, summaryText);
+
+        // Step 7: Test icalcomponent_get_comment
+        const char *comment = icalcomponent_get_comment(component);
+        if (comment) {
+            // Do something with the comment if needed
+        }
+
+        // Clean up the icalcomponent
+        icalcomponent_free(component);
     }
 
-    free(inputString);
     return 0;
 }
 #ifdef INC_MAIN
@@ -122,7 +107,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -132,7 +117,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_6(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

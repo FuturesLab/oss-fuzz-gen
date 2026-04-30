@@ -1,43 +1,63 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include the string.h library for memcpy
-
-extern "C" {
-    #include "libical/ical.h"
-}
+#include <string.h>
+#include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to proceed
-    if (size < sizeof(struct icaltimetype)) {
+    // Ensure that the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create an icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
         return 0;
     }
 
-    // Extract an icaltimetype from the input data
-    struct icaltimetype recurrence_id;
-    memcpy(&recurrence_id, data, sizeof(struct icaltimetype));
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Initialize the timezone to avoid null dereference
-    icaltimezone *timezone = icaltimezone_get_builtin_timezone("UTC");
-    if (timezone == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     
-    // Set the timezone in the icaltimetype
-    recurrence_id.zone = timezone;
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_remove_component
+        icalcomponent* ret_icalcomponent_new_vquery_usumr = icalcomponent_new_vquery();
+        if (ret_icalcomponent_new_vquery_usumr == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_new_vquery_usumr) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_remove_component(ret_icalcomponent_new_vquery_usumr, component);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
-    // Call the function-under-test
-    icalcomponent_set_recurrenceid(component, recurrence_id);
-
-    // Clean up
-    icalcomponent_free(component);
+    // Free the buffer
+    free(buffer);
 
     return 0;
 }
@@ -63,7 +83,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -73,7 +93,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_59(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_59(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

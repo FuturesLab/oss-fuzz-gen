@@ -1,39 +1,42 @@
-#include <cstdint> // For uint8_t
-#include <cstddef> // For size_t
-#include <cstring> // For memcpy
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>  // Include string.h for memcpy
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/ical.h>  // Assuming the correct path for libical header
 }
 
-// Ensure that the fuzz target is compatible with C code
 extern "C" int LLVMFuzzerTestOneInput_184(const uint8_t *data, size_t size) {
-    // Ensure that we have enough bytes to interpret as icalproperty_xlicclass
-    if (size < 2) {
-        return 0;
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+
+    // Ensure the input data is not empty and has a reasonable size
+    if (size > 0 && size < 1024) {
+        // Create a temporary buffer to store the input data as a string
+        char *input_data = (char *)malloc(size + 1);
+        if (input_data != NULL) {
+            // Copy the input data and null-terminate it
+            memcpy(input_data, data, size);
+            input_data[size] = '\0';
+
+            // Set the summary of the component using the input data
+            icalcomponent_set_summary(component, input_data);
+
+            // Call the function-under-test
+            const char *summary = icalcomponent_get_summary(component);
+
+            // Optionally, perform some checks or operations with the summary
+            if (summary != NULL) {
+                // Example operation: print the summary
+                // printf("Summary: %s\n", summary);
+            }
+
+            // Free the allocated memory for input_data
+            free(input_data);
+        }
     }
 
-    // Use the first byte of data to determine the xlicclass value
-    icalproperty_xlicclass xlicclass = static_cast<icalproperty_xlicclass>(data[0] % (ICAL_XLICCLASS_NONE + 1));
-
-    // Use the remaining bytes of data to create a string for testing
-    const char *xlicclass_string = nullptr;
-    if (size > 2) {
-        // Allocate memory for the string and copy data into it
-        char *buffer = new char[size - 1];
-        memcpy(buffer, data + 1, size - 1);
-        buffer[size - 2] = '\0'; // Ensure null-termination
-        xlicclass_string = buffer;
-    }
-
-    // Call the function-under-test with more complex input
-    icalproperty *property = icalproperty_vanew_xlicclass(xlicclass, xlicclass_string, nullptr);
-
-    // Clean up
-    if (property != nullptr) {
-        icalproperty_free(property);
-    }
-    delete[] xlicclass_string;
+    // Clean up the component
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -59,7 +62,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +72,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_184(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_184(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,69 +1,38 @@
-#include <string.h>
 #include <sys/stat.h>
-#include <cstdint> // For uint8_t
-#include <cstdio>  // For printf
-#include <cstdlib> // For malloc, free
-#include <cstring> // For memcpy
+#include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include for memcpy
 
 extern "C" {
-    #include "libical/ical.h"
+    #include "libical/ical.h" // Correct header path for libical
 }
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to be used meaningfully
-    if (size == 0) {
+    // Initialize the icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+
+    // Ensure the component is not null
+    if (component == NULL) {
         return 0;
     }
 
-    // Allocate memory for the ical_string and ensure it is null-terminated
-    char *ical_string = (char *)malloc(size + 1);
-    if (ical_string == NULL) {
-        return 0;
+    // Add some properties to the component using the input data
+    if (size > 0) {
+        // Use the input data to create a UID property
+        char uid[37]; // UUIDs are 36 characters plus null terminator
+        size_t uid_size = size < 36 ? size : 36;
+        memcpy(uid, data, uid_size);
+        uid[uid_size] = '\0'; // Null-terminate the string
+
+        icalcomponent_set_uid(component, uid);
     }
 
-    // Copy the input data to the ical_string and null-terminate it
-    memcpy(ical_string, data, size);
-    ical_string[size] = '\0';
+    // Call the function-under-test
+    icalproperty_status status = icalcomponent_get_status(component);
 
-    // Parse the string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_string);
-
-    // Perform operations on the component if it was successfully created
-    if (component != NULL) {
-        // Convert the component to a string
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Print the component string
-            printf("%s\n", component_str);
-
-            // Free the component string if it was allocated
-            // Note: icalcomponent_as_ical_string returns a statically allocated string,
-            // so we should not free it using icalmemory_free_buffer.
-        }
-
-        // Free the component
-        icalcomponent_free(component);
-    }
-
-    // Free the allocated ical_string
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalparser_parse_string to icalproperty_get_datetime_with_component
-    icalproperty* ret_icalproperty_new_expand_vjhih = icalproperty_new_expand(64);
-    if (ret_icalproperty_new_expand_vjhih == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalproperty_new_expand_vjhih) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    struct icaltimetype ret_icalproperty_get_datetime_with_component_rodix = icalproperty_get_datetime_with_component(ret_icalproperty_new_expand_vjhih, component);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(ical_string);
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -89,7 +58,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -99,7 +68,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_20(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

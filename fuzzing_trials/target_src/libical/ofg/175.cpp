@@ -1,29 +1,22 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
-#include <cstring>  // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_175(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    if (size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Ensure the input data is null-terminated
-    char *input = new char[size + 1];
-    memcpy(input, data, size);
-    input[size] = '\0';
+    // Extract an icalcomponent_kind from the input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0]);
 
     // Call the function-under-test
-    icalproperty *property = icalproperty_new_xlicmimeencoding(input);
+    icalcomponent *component = icalcomponent_new(kind);
 
-    // Clean up
-    if (property != NULL) {
-        icalproperty_free(property);
+    // Clean up if component is not NULL
+    if (component != NULL) {
+        icalcomponent_free(component);
     }
-    delete[] input;
 
     return 0;
 }
@@ -49,7 +42,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -59,7 +52,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_175(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_175(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

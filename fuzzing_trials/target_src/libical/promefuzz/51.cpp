@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalrecurrencetype_encode_month at icalrecur.c:4135:7 in icalrecur.h
-// icalrecurrencetype_month_is_leap at icalrecur.c:4125:6 in icalrecur.h
-// icalrecurrencetype_month_month at icalrecur.c:4130:5 in icalrecur.h
-// icalrecurrencetype_new_from_string at icalrecur.c:818:28 in icalrecur.h
-// icalrecurrencetype_day_day_of_week at icalrecur.c:4102:33 in icalrecur.h
-// icalrecurrencetype_as_string_r at icalrecur.c:1002:7 in icalrecur.h
+// icalcomponent_set_due at icalcomponent.c:2634:6 in icalcomponent.h
+// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
+// icalcomponent_set_dtend at icalcomponent.c:1622:6 in icalcomponent.h
+// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
+// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
+// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,58 +14,62 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
+#include <fstream>
+#include <cstdint>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalrecur.h"
+#include <libical/icalcomponent.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltime.h>
+
+static icaltimetype generate_icaltimetype(const uint8_t *Data, size_t Size) {
+    icaltimetype time = icaltime_null_time();
+    if (Size >= sizeof(int)) {
+        int year;
+        std::memcpy(&year, Data, sizeof(int));
+        time.year = year;
+    }
+    return time;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_51(const uint8_t *Data, size_t Size) {
-    if (Size < 2) return 0; // Ensure there's enough data for at least one short
+    if (Size == 0) return 0;
 
-    // Test 1: icalrecurrencetype_day_day_of_week
-    short day = *reinterpret_cast<const short*>(Data);
-    icalrecurrencetype_weekday weekday = icalrecurrencetype_day_day_of_week(day);
+    // Create a new VTODO component
+    icalcomponent *vtodo = icalcomponent_new(ICAL_VTODO_COMPONENT);
+    if (!vtodo) return 0;
 
-    // Test 2: icalrecurrencetype_month_month
-    short month = *reinterpret_cast<const short*>(Data);
-    int normalized_month = icalrecurrencetype_month_month(month);
+    // Create icaltimetype from input data
+    icaltimetype due_time = generate_icaltimetype(Data, Size);
 
-    // Test 3: icalrecurrencetype_new_from_string
-    struct icalrecurrencetype *recur = nullptr;
-    if (Size > 2) {
-        const char *str = reinterpret_cast<const char*>(Data + 2);
-        size_t strSize = Size - 2;
-        char *strCopy = static_cast<char*>(malloc(strSize + 1));
-        if (strCopy) {
-            memcpy(strCopy, str, strSize);
-            strCopy[strSize] = '\0';
-            recur = icalrecurrencetype_new_from_string(strCopy);
-            free(strCopy);
-        }
+    // Fuzz icalcomponent_set_due
+    icalcomponent_set_due(vtodo, due_time);
+
+    // Fuzz icalcomponent_set_dtstart
+    icalcomponent_set_dtstart(vtodo, due_time);
+
+    // Fuzz icalcomponent_set_dtstamp
+    icalcomponent_set_dtstamp(vtodo, due_time);
+
+    // Fuzz icalcomponent_set_dtend
+    icalcomponent_set_dtend(vtodo, due_time);
+
+    // Fuzz icalcomponent_new_vtimezone
+    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
+    if (vtimezone) {
+        icalcomponent_free(vtimezone);
     }
 
-    // Test 4: icalrecurrencetype_encode_month
-    if (Size > 3) {
-        int month_val = Data[2] % 12 + 1; // Ensure month is in the range 1-12
-        bool is_leap = Data[3] % 2;
-        short encoded_month = icalrecurrencetype_encode_month(month_val, is_leap);
-    }
+    // Fuzz icalcomponent_get_dtstart
+    icaltimetype dtstart_time = icalcomponent_get_dtstart(vtodo);
 
-    // Test 5: icalrecurrencetype_as_string_r
-    if (recur) {
-        char *recur_str = icalrecurrencetype_as_string_r(recur);
-        if (recur_str) {
-            free(recur_str);
-        }
-        free(recur);
-    }
-
-    // Test 6: icalrecurrencetype_month_is_leap
-    bool is_leap_month = icalrecurrencetype_month_is_leap(month);
+    // Clean up
+    icalcomponent_free(vtodo);
 
     return 0;
 }

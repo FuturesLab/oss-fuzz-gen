@@ -1,46 +1,58 @@
-#include <string.h>
 #include <sys/stat.h>
-#include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+
+extern "C" {
+    #include "libical/ical.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Initialize a memory context for icalcomponent
-    icalcomponent *component = nullptr;
+    // Ensure the input data is null-terminated for safe string operations
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0;
+    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Ensure the data size is sufficient to create a valid icalcomponent
-    if (size > 0) {
-        // Create a string from the input data
-        char *inputData = (char *)malloc(size + 1);
-        if (inputData == nullptr) {
-            return 0; // Memory allocation failed
-        }
-        memcpy(inputData, data, size);
-        inputData[size] = '\0'; // Null-terminate the string
+    // Attempt to parse the input data as an iCalendar string
+    icalcomponent *component = icalparser_parse_string(null_terminated_data);
 
-        // Parse the input data into an icalcomponent
-        component = icalparser_parse_string(inputData);
-
-        // Free the input data as it's no longer needed
-        free(inputData);
+    // Ensure the component is not NULL
+    if (component == NULL) {
+        free(null_terminated_data);
+        return 0;
     }
 
-    // If a valid icalcomponent was created, use it
-    if (component != nullptr) {
-        // Call the function-under-test
-        char *icalString = icalcomponent_as_ical_string_r(component);
+    // Call the function-under-test
+    const char *relcalid = icalcomponent_get_relcalid(component);
 
-        // Free the returned string if not NULL
-        if (icalString != nullptr) {
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_convert_errors
-        icalcomponent_convert_errors(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Do something with the result to avoid compiler optimizations
+    if (relcalid != NULL) {
+        // Normally you might log or further process the result
+        // Here we'll just use it in a dummy operation
+        volatile size_t relcalid_length = strlen(relcalid);
+        (void)relcalid_length; // Suppress unused variable warning
     }
+
+    // Clean up
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_get_relcalid to icalcomponent_set_due using the plateau pool
+    int day = (int)(data[2] % 31) + 1;
+    int year = (int)data[0] + 1900;
+    struct icaltimetype due_time = icaltime_from_day_of_year(
+        day, year);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    icalcomponent_set_due(component, due_time);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    icalcomponent_free(component);
+    free(null_terminated_data);
 
     return 0;
 }
@@ -66,7 +78,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -76,7 +88,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_11(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

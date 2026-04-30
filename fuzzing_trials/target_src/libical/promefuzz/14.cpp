@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icaldurationtype_as_utc_seconds at icalduration.c:246:5 in icalduration.h
-// icaldurationtype_as_seconds at icalduration.c:233:5 in icalduration.h
-// icaldurationtype_from_seconds at icalduration.c:23:25 in icalduration.h
-// icaldurationtype_null_duration at icalduration.c:256:25 in icalduration.h
-// icaldurationtype_normalize at icalduration.c:364:25 in icalduration.h
-// icaldurationtype_from_string at icalduration.c:38:25 in icalduration.h
+// icalcomponent_get_dtstamp at icalcomponent.c:1722:21 in icalcomponent.h
+// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
+// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
+// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
+// icalcomponent_set_dtend at icalcomponent.c:1622:6 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,50 +14,84 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <assert.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <icalduration.h>
-#include <string.h>
 #include <iostream>
+#include <fstream>
+#include <cstring>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icalcomponent.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltime.h>
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(int) + sizeof(icaltimetype)) {
+        return 0; // Not enough data to proceed
+    }
 
-    // Convert input data to an integer for seconds
-    int seconds = static_cast<int>(Data[0]);
+    // Create a dummy icalcomponent
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!comp) {
+        return 0; // Failed to create component
+    }
 
-    // Test icaldurationtype_from_seconds
-    struct icaldurationtype duration = icaldurationtype_from_seconds(seconds);
+    // Extract an integer to decide which function to test
+    int choice = *reinterpret_cast<const int*>(Data);
+    Data += sizeof(int);
+    Size -= sizeof(int);
 
-    // Test icaldurationtype_as_utc_seconds
-    int utc_seconds = icaldurationtype_as_utc_seconds(duration);
+    // Create an icaltimetype from the remaining data
+    icaltimetype time = icaltime_null_time();
+    if (Size >= sizeof(icaltimetype)) {
+        std::memcpy(&time, Data, sizeof(icaltimetype));
+        // Ensure the timezone pointer is valid or null
+        time.zone = nullptr; // Set to null as a safe default
+    }
 
-    // Test icaldurationtype_normalize
-    struct icaldurationtype normalized_duration = icaldurationtype_normalize(duration);
+    switch (choice % 6) {
+        case 0: {
+            // Test icalcomponent_get_dtstamp
+            icaltimetype dtstamp = icalcomponent_get_dtstamp(comp);
+            (void)dtstamp; // Suppress unused variable warning
+            break;
+        }
+        case 1: {
+            // Test icalcomponent_set_dtstart
+            icalcomponent_set_dtstart(comp, time);
+            break;
+        }
+        case 2: {
+            // Test icalcomponent_set_dtstamp
+            icalcomponent_set_dtstamp(comp, time);
+            break;
+        }
+        case 3: {
+            // Test icalcomponent_set_dtend
+            icalcomponent_set_dtend(comp, time);
+            break;
+        }
+        case 4: {
+            // Test icalcomponent_new_valarm
+            icalcomponent *valarm = icalcomponent_new_valarm();
+            if (valarm) {
+                icalcomponent_free(valarm);
+            }
+            break;
+        }
+        case 5: {
+            // Test icalcomponent_get_dtstart
+            icaltimetype dtstart = icalcomponent_get_dtstart(comp);
+            (void)dtstart; // Suppress unused variable warning
+            break;
+        }
+        default:
+            break;
+    }
 
-    // Test icaldurationtype_null_duration
-    struct icaldurationtype null_duration = icaldurationtype_null_duration();
-    assert(null_duration.days == 0);
-    assert(null_duration.weeks == 0);
-    assert(null_duration.hours == 0);
-    assert(null_duration.minutes == 0);
-    assert(null_duration.seconds == 0);
-
-    // Test icaldurationtype_as_seconds
-    int duration_seconds = icaldurationtype_as_seconds(duration);
-
-    // Prepare a string for icaldurationtype_from_string
-    char duration_str[Size + 1];
-    memcpy(duration_str, Data, Size);
-    duration_str[Size] = '\0';
-
-    // Test icaldurationtype_from_string
-    struct icaldurationtype from_string_duration = icaldurationtype_from_string(duration_str);
-
+    // Clean up
+    icalcomponent_free(comp);
     return 0;
 }
     #ifdef INC_MAIN

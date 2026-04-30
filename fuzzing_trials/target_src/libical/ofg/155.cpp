@@ -1,37 +1,24 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>  // Include this for uint8_t
+#include <cstddef>  // Include this for size_t
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_155(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to create a valid icalproperty
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize the icalcomponent pointers
+    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *child = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Create a temporary string from the input data
-    char *tempStr = (char *)malloc(size + 1);
-    if (tempStr == NULL) {
-        return 0;
-    }
-    memcpy(tempStr, data, size);
-    tempStr[size] = '\0';
+    // Insert the child component into the parent
+    icalcomponent_add_component(parent, child);
 
-    // Create an icalproperty from the string
-    icalproperty *prop = icalproperty_new_from_string(tempStr);
-    free(tempStr);
+    // Call the function-under-test
+    icalcomponent_remove_component(parent, child);
 
-    if (prop != NULL) {
-        // Call the function-under-test
-        icalproperty_pollmode pollmode = icalproperty_get_pollmode(prop);
-
-        // Clean up
-        icalproperty_free(prop);
-    }
+    // Clean up
+    icalcomponent_free(parent);
+    // No need to free child as it is removed from parent and should be freed there
 
     return 0;
 }
@@ -57,7 +44,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -67,7 +54,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_155(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_155(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

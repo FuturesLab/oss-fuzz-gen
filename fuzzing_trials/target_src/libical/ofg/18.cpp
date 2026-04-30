@@ -1,39 +1,40 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
+#include <cstdlib> // Include for malloc and free
+#include <cstring> // Include for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to work with
-    if (size < 1) {
-        return 0;
+    // Check if the input data is large enough to be used meaningfully
+    if (size == 0) {
+        return 0; // No operation if there's no data
     }
 
-    // Initialize the icalproperty structure with some default values
-    icalproperty *prop = icalproperty_new(ICAL_XLICCLASS_PROPERTY);
-    
-    if (prop == NULL) {
-        return 0; // Ensure the property is not NULL
+    // Create a string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0; // Memory allocation failed
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0'; // Null-terminate the string
+
+    // Parse the input data as an iCal component
+    icalcomponent *component = icalparser_parse_string(inputData);
+
+    // Check if the component was created successfully
+    if (component != NULL) {
+        // Perform operations on the component if needed
+        // For example, convert to string or add properties
+
+        // Free the component after use
+        icalcomponent_free(component);
     }
 
-    // Use the input data to set a value to the property
-    // Map the input data to a valid xlicclass value
-    icalproperty_xlicclass xlicclass_value = static_cast<icalproperty_xlicclass>(data[0] % (ICAL_XLICCLASS_PUBLISHNEW + 1));
-    icalproperty_set_xlicclass(prop, xlicclass_value);
-
-    // Call the function-under-test
-    icalproperty_xlicclass result = icalproperty_get_xlicclass(prop);
-
-    // Perform a check to ensure the result is within expected range
-    if (result < ICAL_XLICCLASS_NONE || result > ICAL_XLICCLASS_PUBLISHNEW) {
-        // Handle unexpected result
-    }
-
-    // Clean up
-    icalproperty_free(prop);
+    // Free the allocated input data
+    free(inputData);
 
     return 0;
 }
@@ -59,7 +60,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +70,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_18(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

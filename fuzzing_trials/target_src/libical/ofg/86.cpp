@@ -1,22 +1,38 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <iostream>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include for memcpy
 
-// Assuming icalerror_perror is declared in an external C library
 extern "C" {
-    const char * icalerror_perror();
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    const char *error_message = icalerror_perror();
-
-    // Print the error message to ensure the function is called
-    if (error_message != NULL) {
-        std::cout << "Error message: " << error_message << std::endl;
-    } else {
-        std::cout << "No error message returned." << std::endl;
+    // Ensure that the size is sufficient to create a valid icalcomponent
+    if (size == 0) {
+        return 0;
     }
+
+    // Create a string from the input data
+    char *ical_string = static_cast<char *>(malloc(size + 1));
+    if (ical_string == nullptr) {
+        return 0;
+    }
+    memcpy(ical_string, data, size);
+    ical_string[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_string);
+
+    // Ensure the component is not null
+    if (component != nullptr) {
+        // Call the function-under-test
+        struct icaltimetype dtstamp = icalcomponent_get_dtstamp(component);
+
+        // Clean up
+        icalcomponent_free(component);
+    }
+
+    free(ical_string);
 
     return 0;
 }
@@ -42,7 +58,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -52,7 +68,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_86(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_86(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

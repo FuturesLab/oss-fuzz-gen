@@ -1,42 +1,33 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-
-    // typedef struct icalpvl_elem_t* icalpvl_list;
-
-    icalpvl_list icalpvl_newlist();
-    void icalpvl_unshift(icalpvl_list list, void *data);
-    void icalpvl_free(icalpvl_list list);
-}
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    // Create a icalpvl_list
-    icalpvl_list list = icalpvl_newlist();
+    // Create a new VEVENT component
+    icalcomponent *vevent = icalcomponent_new_vevent();
 
-    // Ensure data is not NULL and has enough size
-    if (size < sizeof(void*)) {
-        return 0;
+    // Check if the function returned a non-null pointer
+    if (vevent != NULL) {
+        // Create a string from the input data
+        char *input_data = (char *)malloc(size + 1);
+        if (input_data != NULL) {
+            memcpy(input_data, data, size);
+            input_data[size] = '\0'; // Null-terminate the string
+
+            // Parse the input data as an iCalendar property
+            icalproperty *prop = icalproperty_new_from_string(input_data);
+            if (prop != NULL) {
+                // Add the property to the VEVENT component
+                icalcomponent_add_property(vevent, prop);
+            }
+
+            free(input_data);
+        }
+
+        // Clean up and free the allocated component
+        icalcomponent_free(vevent);
     }
-
-    // Allocate memory for the data to be unshifted
-    void *unshift_data = malloc(sizeof(void*));
-    if (unshift_data == NULL) {
-        return 0;
-    }
-
-    // Copy the fuzz data into the allocated memory
-    memcpy(unshift_data, data, sizeof(void*));
-
-    // Call the function-under-test
-    icalpvl_unshift(list, unshift_data);
-
-    // Clean up
-    free(unshift_data);
-    icalpvl_free(list);
 
     return 0;
 }
@@ -62,7 +53,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -72,7 +63,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_70(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_70(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

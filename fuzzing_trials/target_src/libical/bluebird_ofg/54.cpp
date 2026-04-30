@@ -1,54 +1,66 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-
-extern "C" {
-    #include "libical/ical.h"
-}
+#include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating a null-terminated string
+    // Ensure that the input data is not empty
     if (size == 0) {
         return 0;
     }
 
-    // Create an icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *comment = (char *)malloc(size + 1);
-    if (comment == NULL) {
-        icalcomponent_free(component);
-        return 0;
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
+
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icalcomponent_get_timezone
+        icalcomponent* ret_icalcomponent_new_participant_cohhm = icalcomponent_new_participant();
+        if (ret_icalcomponent_new_participant_cohhm == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_new_participant_cohhm) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!icalString) {
+        	return 0;
+        }
+        icaltimezone* ret_icalcomponent_get_timezone_rfuqc = icalcomponent_get_timezone(ret_icalcomponent_new_participant_cohhm, icalString);
+        if (ret_icalcomponent_get_timezone_rfuqc == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
-    memcpy(comment, data, size);
-    comment[size] = '\0';
 
-    // Ensure the comment is not empty
-    if (strlen(comment) == 0) {
-        free(comment);
-        icalcomponent_free(component);
-        return 0;
-    }
-
-    // Call the function under test
-    icalcomponent_set_comment(component, comment);
-
-    // Additional operations to increase code coverage
-    // For example, retrieve the comment and check it
-    const char *retrieved_comment = icalcomponent_get_comment(component);
-    if (retrieved_comment != NULL) {
-        // Do something with retrieved_comment if needed
-    }
-
-    // Clean up
-    free(comment);
-    icalcomponent_free(component);
+    // Free the buffer
+    free(buffer);
 
     return 0;
 }
@@ -74,7 +86,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -84,7 +96,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_54(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_54(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

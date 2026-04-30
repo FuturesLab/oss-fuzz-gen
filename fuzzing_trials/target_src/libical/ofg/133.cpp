@@ -1,64 +1,36 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>  // Include for memcpy
 
-// Assuming the enumeration type is defined somewhere in the included headers
 extern "C" {
-    typedef enum {
-        CTRL_OPTION_1,
-        CTRL_OPTION_2,
-        CTRL_OPTION_3,
-        CTRL_OPTION_4,
-        CTRL_OPTION_5
-    } DW_TAG_enumeration_typeicalparser_ctrl;
-
-    void icalparser_set_ctrl(DW_TAG_enumeration_typeicalparser_ctrl ctrl);
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    // Ensure we have at least one byte to determine the control option
-    if (size < 1) {
+    // Convert the input data to a string
+    char *ical_str = (char *)malloc(size + 1);
+    if (!ical_str) {
+        return 0;
+    }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
+
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_str);
+
+    // Free the allocated string
+    free(ical_str);
+
+    // Ensure the component is not NULL
+    if (component == NULL) {
         return 0;
     }
 
-    // Map the first byte of data to one of the enumeration values
-    DW_TAG_enumeration_typeicalparser_ctrl ctrl_option;
-    switch (data[0] % 5) {
-        case 0:
-            ctrl_option = CTRL_OPTION_1;
-            break;
-        case 1:
-            ctrl_option = CTRL_OPTION_2;
-            break;
-        case 2:
-            ctrl_option = CTRL_OPTION_3;
-            break;
-        case 3:
-            ctrl_option = CTRL_OPTION_4;
-            break;
-        case 4:
-            ctrl_option = CTRL_OPTION_5;
-            break;
-        default:
-            ctrl_option = CTRL_OPTION_1; // Default case, should not happen
-            break;
-    }
+    // Call the function-under-test
+    struct icaltimetype recurrence_id = icalcomponent_get_recurrenceid(component);
 
-    // Call the function-under-test with the determined control option
-    icalparser_set_ctrl(ctrl_option);
-
-    // Additional logic to further utilize the input data
-    // For example, if there are more functions that can be called with the data.
-    // This could be a placeholder for more complex logic.
-
-    // Simulate additional processing by using more of the input data
-    if (size > 1) {
-        // Example: Use additional bytes of data for further processing
-        // This is a placeholder for actual logic that would use the data
-        for (size_t i = 1; i < size; ++i) {
-            // Hypothetical function call or processing using data[i]
-            // e.g., another_function(data[i]);
-        }
-    }
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -84,7 +56,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -94,7 +66,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_133(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_133(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

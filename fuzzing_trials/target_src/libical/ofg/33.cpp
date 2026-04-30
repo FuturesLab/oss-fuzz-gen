@@ -1,27 +1,43 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract an integer
-    if (size < sizeof(int)) {
+    // Ensure the size is sufficient to create a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize the icalproperty object
-    icalproperty *prop = icalproperty_new(ICAL_ANY_PROPERTY);
-    if (prop == NULL) {
+    // Allocate memory for a null-terminated string
+    char *ical_data = (char *)malloc(size + 1);
+    if (ical_data == NULL) {
         return 0;
     }
 
-    // Extract an integer from the data
-    int response = *(reinterpret_cast<const int*>(data));
+    // Copy the input data into the string and null-terminate it
+    memcpy(ical_data, data, size);
+    ical_data[size] = '\0';
 
-    // Call the function-under-test
-    icalproperty_set_response(prop, response);
+    // Create an icalcomponent from the input data
+    icalcomponent *component = icalparser_parse_string(ical_data);
 
-    // Clean up
-    icalproperty_free(prop);
+    if (component != NULL) {
+        // Call the function-under-test
+        char *ical_string = icalcomponent_as_ical_string(component);
+
+        // Free the returned string if it was allocated
+        if (ical_string != NULL) {
+            free(ical_string);
+        }
+
+        // Free the icalcomponent
+        icalcomponent_free(component);
+    }
+
+    // Free the allocated string
+    free(ical_data);
 
     return 0;
 }
@@ -47,7 +63,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +73,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_33(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

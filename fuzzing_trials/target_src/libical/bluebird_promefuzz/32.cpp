@@ -9,10 +9,11 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <fstream>
-#include <vector>
-#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
@@ -23,32 +24,39 @@ extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Prepare a dummy icalcomponent
-    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *child = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Add the child component to the parent
-    icalcomponent_add_component(parent, child);
-
-    // Initialize an iterator for the parent component
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalcompiter iter = icalcomponent_begin_component(parent, kind);
-
-    // Explore the iterator
-    icalcomponent *current = nullptr;
-    while ((current = icalcompiter_deref(&iter)) != nullptr) {
-        // Get the inner component
-        icalcomponent *inner = icalcomponent_get_inner(current);
-
-        // Move to the next component
-        icalcompiter_next(&iter);
+    // Create a dummy icalcomponent for fuzzing purposes
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (!component) {
+        return 0;
     }
 
-    // Try to get the previous component
-    icalcomponent *prev = icalcompiter_prior(&iter);
+    // Extract icalcomponent_kind from the input data
+    icalcomponent_kind kind;
+    std::memcpy(&kind, Data, sizeof(icalcomponent_kind));
 
-    // Clean up
-    icalcomponent_free(parent);
+    // Begin component iteration
+    icalcompiter iter = icalcomponent_begin_component(component, kind);
+    icalcomponent *comp = icalcompiter_deref(&iter);
+
+    // Iterate through components using next
+    while ((comp = icalcompiter_next(&iter)) != nullptr) {
+        // Process component
+    }
+
+    // End component iteration
+    iter = icalcomponent_end_component(component, kind);
+    comp = icalcompiter_deref(&iter);
+
+    // Iterate backward through components using prior
+    while ((comp = icalcompiter_prior(&iter)) != nullptr) {
+        // Process component
+    }
+
+    // Get first component of specified kind
+    comp = icalcomponent_get_first_component(component, kind);
+
+    // Cleanup
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -74,7 +82,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -84,7 +92,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_32(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_32(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,31 +1,27 @@
-#include <cstddef>
+#include <libical/ical.h>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring> // Include this header for memcpy
-
-extern "C" {
-    void icalmemory_free_buffer(void *);
-}
 
 extern "C" int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Ensure the size is non-zero to allocate memory
-    if (size == 0) {
+    // Ensure the input size is sufficient to create a valid icalcomponent
+    if (size < 1) {
         return 0;
     }
 
-    // Allocate memory and copy the input data into it
-    void *buffer = malloc(size);
-    if (buffer == nullptr) {
+    // Create a dummy icalcomponent for testing
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Copy the data to the allocated buffer
-    memcpy(buffer, data, size);
+    // Initialize an icalcompiter
+    icalcompiter iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
 
     // Call the function-under-test
-    icalmemory_free_buffer(buffer);
+    icalcomponent *result = icalcompiter_deref(&iter);
 
-    // No need to free buffer here as icalmemory_free_buffer is expected to handle it
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -51,7 +47,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -61,7 +57,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_60(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_60(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

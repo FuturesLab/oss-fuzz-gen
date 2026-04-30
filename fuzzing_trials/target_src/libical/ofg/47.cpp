@@ -1,27 +1,30 @@
+#include <stdint.h>
+#include <stdlib.h>
+
 extern "C" {
     #include <libical/ical.h>
-    #include <string.h> // Include the necessary header for memcpy
 }
 
-#include <cstddef>
-#include <cstdint>
-
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated
-    char *input = new char[size + 1];
-    if (size > 0) {
-        memcpy(input, data, size);
+    // Ensure there is enough data to extract meaningful values
+    if (size < sizeof(icalproperty_status)) {
+        return 0;
     }
-    input[size] = '\0';
+
+    // Initialize the icalcomponent
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (comp == NULL) {
+        return 0;
+    }
+
+    // Extract a status value from the input data
+    icalproperty_status status = (icalproperty_status)data[0];
 
     // Call the function-under-test
-    icalproperty *property = icalproperty_new_from_string(input);
+    icalcomponent_set_status(comp, status);
 
     // Clean up
-    if (property != NULL) {
-        icalproperty_free(property);
-    }
-    delete[] input;
+    icalcomponent_free(comp);
 
     return 0;
 }
@@ -47,7 +50,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +60,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_47(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_47(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

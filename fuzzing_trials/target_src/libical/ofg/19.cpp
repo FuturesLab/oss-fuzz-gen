@@ -1,33 +1,39 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
+#include <cstdlib> // Include for malloc and free
+#include <cstring> // Include for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Initialize the library
-    icalerror_set_error_state(ICAL_MALFORMEDDATA_ERROR, ICAL_ERROR_NONFATAL);
-
-    // Ensure data is large enough to contain a valid enum value
-    if (size < sizeof(enum icalproperty_xlicclass)) {
+    // Ensure the input data is large enough to be meaningful
+    if (size < 1) {
         return 0;
     }
 
-    // Cast the input data to an enum icalproperty_xlicclass
-    enum icalproperty_xlicclass xlicclass = static_cast<enum icalproperty_xlicclass>(*data);
+    // Create a string from the input data to use as a name or property
+    char *name = (char *)malloc(size + 1);
+    if (name == NULL) {
+        return 0;
+    }
+    memcpy(name, data, size);
+    name[size] = '\0';
 
-    // Create a new icalproperty
-    icalproperty *property = icalproperty_new_xlicclass(xlicclass);
+    // Create a new participant component with the name
+    icalcomponent *participant = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (participant != NULL) {
+        icalproperty *prop = icalproperty_new_comment(name);
+        if (prop != NULL) {
+            icalcomponent_add_property(participant, prop);
+        }
 
-    if (property != NULL) {
-        // Call the function-under-test
-        icalproperty_xlicclass result = icalproperty_get_xlicclass(property);
-
-        // Clean up
-        icalproperty_free(property);
+        // Clean up by freeing the allocated component
+        icalcomponent_free(participant);
     }
 
+    free(name);
     return 0;
 }
 #ifdef INC_MAIN
@@ -52,7 +58,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -62,7 +68,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_19(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,49 +1,46 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdlib> // For malloc and free
+#include <cstring> // For memcpy
 
 extern "C" {
-    #include "libical/icalparser.h"
-}
-
-// A simple line generator function for testing
-char* line_generator_126(char *buffer, unsigned long size, void* data) {
-    static const char* lines[] = {
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "BEGIN:VEVENT",
-        "SUMMARY:Test Event",
-        "END:VEVENT",
-        "END:VCALENDAR"
-    };
-    static size_t index = 0;
-    if (index < sizeof(lines) / sizeof(lines[0])) {
-        strncpy(buffer, lines[index++], size);
-        return buffer;
-    }
-    return NULL;
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-    // Initialize a icalparser object
-    icalparser* parser = icalparser_new();
-
-    if (parser == NULL) {
-        return 0; // Return if parser creation fails
+    // Initialize an icalcomponent from the input data
+    icalcomponent *component = nullptr;
+    
+    // Ensure the size is greater than zero to prevent creating an empty string
+    if (size > 0) {
+        // Create a temporary buffer to hold the input data as a string
+        char *buffer = (char *)malloc(size + 1);
+        if (buffer == nullptr) {
+            return 0; // Exit if memory allocation fails
+        }
+        
+        // Copy the input data into the buffer and null-terminate it
+        memcpy(buffer, data, size);
+        buffer[size] = '\0';
+        
+        // Parse the string into an icalcomponent
+        component = icalparser_parse_string(buffer);
+        
+        // Free the buffer
+        free(buffer);
     }
 
-    // Call the function-under-test
-    char buffer[1024];
-    char* line = NULL;
-    while ((line = icalparser_get_line(parser, line_generator_126)) != NULL) {
-        // Process the line if needed
-        free(line); // Free the line if it was allocated
+    // If the component was successfully created, call the function-under-test
+    if (component != nullptr) {
+        icalproperty *property = icalcomponent_get_current_property(component);
+        
+        // Perform any additional operations or checks on the property if needed
+        // For this harness, we are just calling the function to test for vulnerabilities
+        
+        // Free the icalcomponent
+        icalcomponent_free(component);
     }
-
-    // Free the parser
-    icalparser_free(parser);
 
     return 0;
 }
@@ -69,7 +66,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -79,7 +76,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_126(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_126(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

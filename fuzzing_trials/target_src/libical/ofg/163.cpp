@@ -1,21 +1,22 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <cstdint>
+#include <cstddef>
 
 extern "C" int LLVMFuzzerTestOneInput_163(const uint8_t *data, size_t size) {
+    // Ensure that the size is sufficient to extract an icalcomponent_kind
+    if (size < sizeof(icalcomponent_kind)) {
+        return 0;
+    }
+
+    // Extract the icalcomponent_kind from the input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(*reinterpret_cast<const int*>(data));
+
     // Call the function-under-test
-    icalcomponent *vtodo = icalcomponent_new_vtodo();
+    icalcomponent *component = icalcomponent_vanew(kind, nullptr);
 
-    // Check if the vtodo component was created successfully
-    if (vtodo != NULL) {
-        // Perform operations on the vtodo component if needed
-        // For example, you could add properties, manipulate it, etc.
-
-        // Clean up and free the vtodo component to avoid memory leaks
-        icalcomponent_free(vtodo);
+    // Clean up
+    if (component != nullptr) {
+        icalcomponent_free(component);
     }
 
     return 0;
@@ -42,7 +43,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -52,7 +53,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_163(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_163(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

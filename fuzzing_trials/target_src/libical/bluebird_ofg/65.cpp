@@ -1,74 +1,65 @@
-#include <string.h>
 #include <sys/stat.h>
-#include "libical/ical.h"
+#include <string.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
+extern "C" {
+    #include "libical/ical.h"
+}
+
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Initialize a memory context for icalcomponent
-    icalcomponent *component = nullptr;
-
-    // Ensure the data size is sufficient to create a valid icalcomponent
-    if (size > 0) {
-        // Create a string from the input data
-        char *inputData = (char *)malloc(size + 1);
-        if (inputData == nullptr) {
-            return 0; // Memory allocation failed
-        }
-        memcpy(inputData, data, size);
-        inputData[size] = '\0'; // Null-terminate the string
-
-        // Parse the input data into an icalcomponent
-        component = icalparser_parse_string(inputData);
-
-        // Free the input data as it's no longer needed
-        free(inputData);
+    // Ensure the input size is sufficient to create a valid string for the timezone.
+    if (size < 1) {
+        return 0;
     }
 
-    // If a valid icalcomponent was created, use it
-    if (component != nullptr) {
-        // Call the function-under-test
-        char *icalString = icalcomponent_as_ical_string_r(component);
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
 
-        // Free the returned string if not NULL
-        if (icalString != nullptr) {
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icaltimezone_get_builtin_timezone_from_offset
-        size_t ret_icallimit_get_pauii = icallimit_get(ICAL_LIMIT_PARSE_SEARCH);
-        if (ret_icallimit_get_pauii < 0){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!icalString) {
-        	return 0;
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icallimit_get to icalproperty_set_percentcomplete
-        const char vmxjnqpo[1024] = "tuneg";
-        icalproperty* ret_icalproperty_vanew_defaultvcars_wiajv = icalproperty_vanew_defaultvcars(vmxjnqpo);
-        if (ret_icalproperty_vanew_defaultvcars_wiajv == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalproperty_vanew_defaultvcars_wiajv) {
-        	return 0;
-        }
-        icalproperty_set_percentcomplete(ret_icalproperty_vanew_defaultvcars_wiajv, (int )ret_icallimit_get_pauii);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icaltimezone* ret_icaltimezone_get_builtin_timezone_from_offset_bsaji = icaltimezone_get_builtin_timezone_from_offset((int )ret_icallimit_get_pauii, icalString);
-        if (ret_icaltimezone_get_builtin_timezone_from_offset_bsaji == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
+    // Create a null-terminated string from the input data for the timezone name
+    char *timezone_name = (char *)malloc(size + 1);
+    if (timezone_name == NULL) {
         icalcomponent_free(component);
+        return 0;
     }
+    memcpy(timezone_name, data, size);
+    timezone_name[size] = '\0';
+
+    // Create a timezone using the input data
+    icaltimezone *timezone = icaltimezone_get_builtin_timezone(timezone_name);
+
+    // If the timezone is valid, add it to the component
+    if (timezone != NULL) {
+        icalproperty *tz_property = icalproperty_new_tzid(timezone_name);
+        if (tz_property != NULL) {
+            icalcomponent_add_property(component, tz_property);
+        
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_add_property to icalcomponent_remove_component
+            icalcomponent* ret_icalcomponent_new_vavailability_adlqp = icalcomponent_new_vavailability();
+            if (ret_icalcomponent_new_vavailability_adlqp == NULL){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!component) {
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!ret_icalcomponent_new_vavailability_adlqp) {
+            	return 0;
+            }
+            icalcomponent_remove_component(component, ret_icalcomponent_new_vavailability_adlqp);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+}
+    }
+
+    // Free allocated resources
+    free(timezone_name);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -94,7 +85,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -104,7 +95,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_65(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_65(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,25 +1,22 @@
-#include <libical/ical.h>
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_166(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated and non-empty
-    if (size == 0) return 0;
-
-    // Allocate memory for a null-terminated string
-    char *input = new char[size + 1];
-    memcpy(input, data, size);
-    input[size] = '\0'; // Null-terminate the string
-
     // Call the function-under-test
-    icalproperty *prop = icalproperty_new_target(input);
+    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
 
-    // Clean up
-    if (prop != nullptr) {
-        icalproperty_free(prop);
+    // Check if the vcalendar was created successfully
+    if (vcalendar != NULL) {
+        // Perform operations on the vcalendar if needed
+        // For example, add properties or subcomponents
+
+        // Clean up and free the vcalendar component
+        icalcomponent_free(vcalendar);
     }
-    delete[] input;
 
     return 0;
 }
@@ -45,7 +42,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -55,7 +52,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_166(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_166(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

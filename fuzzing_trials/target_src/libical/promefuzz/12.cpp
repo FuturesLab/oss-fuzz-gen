@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalparameter_decode_value at icalparameter.c:411:6 in icalparameter.h
-// icalproperty_get_parameter_as_string_r at icalproperty.c:549:7 in icalproperty.h
-// icalproperty_get_parameter_as_string at icalproperty.c:540:13 in icalproperty.h
-// icalproperty_set_parameter_from_string at icalproperty.c:507:6 in icalproperty.h
-// icalparameter_get_iana_name at icalparameter.c:351:13 in icalparameter.h
-// icalparameter_as_ical_string at icalparameter.c:172:7 in icalparameter.h
+// icalcomponent_begin_property at icalcomponent.c:1436:14 in icalcomponent.h
+// icalcomponent_remove_property_by_kind at icalcomponent.c:425:6 in icalcomponent.h
+// icalcomponent_get_next_property at icalcomponent.c:489:15 in icalcomponent.h
+// icalcomponent_get_first_property at icalcomponent.c:474:15 in icalcomponent.h
+// icalcomponent_remove_property at icalcomponent.c:400:6 in icalcomponent.h
+// icalcomponent_add_property at icalcomponent.c:385:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,73 +15,69 @@
 #include <cstdint>
 #include <cstddef>
 #include <iostream>
-#include <cassert>
-#include <cstring>
+#include <fstream>
 #include <cstdint>
+#include <cstdlib>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalparameter.h"
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalproperty.h"
+#include "ical.h"
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Create dummy file for file-related operations
+    std::ofstream dummyFile("./dummy_file");
+    if (!dummyFile) {
+        std::cerr << "Failed to create dummy file" << std::endl;
+        return 0;
+    }
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
 
-    // Create a dummy icalparameter and icalproperty
-    icalparameter *param = icalparameter_new(ICAL_ANY_PARAMETER);
-    icalproperty *prop = icalproperty_new(ICAL_ANY_PROPERTY);
-
-    if (!param || !prop) {
-        if (param) icalparameter_free(param);
-        if (prop) icalproperty_free(prop);
+    // Initialize components and properties
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!component) {
+        std::cerr << "Failed to create new icalcomponent" << std::endl;
         return 0;
     }
 
-    // Generate a string from the input data
-    std::string input(reinterpret_cast<const char*>(Data), Size);
-
-    // Fuzz icalparameter_get_iana_name
-    const char *iana_name = icalparameter_get_iana_name(param);
-    if (iana_name) {
-        std::cout << "IANA Name: " << iana_name << std::endl;
+    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+    if (!property) {
+        std::cerr << "Failed to create new icalproperty" << std::endl;
+        icalcomponent_free(component);
+        return 0;
     }
 
-    // Fuzz icalproperty_get_parameter_as_string_r
-    char *param_as_string_r = icalproperty_get_parameter_as_string_r(prop, input.c_str());
-    if (param_as_string_r) {
-        std::cout << "Parameter as String (r): " << param_as_string_r << std::endl;
-        free(param_as_string_r);
-    }
+    // Explore various states by invoking target functions
+    try {
+        icalcomponent_add_property(component, property);
+        icalcomponent_remove_property(component, property);
 
-    // Fuzz icalproperty_set_parameter_from_string
-    icalproperty_set_parameter_from_string(prop, input.c_str(), input.c_str());
+        icalproperty_kind kind = static_cast<icalproperty_kind>(Data[0] % ICAL_NO_PROPERTY);
+        icalcomponent_remove_property_by_kind(component, kind);
 
-    // Fuzz icalparameter_as_ical_string
-    char *param_ical_string = icalparameter_as_ical_string(param);
-    if (param_ical_string) {
-        std::cout << "Parameter as iCal String: " << param_ical_string << std::endl;
-    }
+        icalproperty *nextProperty = icalcomponent_get_next_property(component, kind);
+        if (nextProperty) {
+            // Do something with nextProperty if needed
+        }
 
-    // Fuzz icalparameter_decode_value
-    char *mutable_input = strdup(input.c_str());
-    if (mutable_input) {
-        icalparameter_decode_value(mutable_input);
-        std::cout << "Decoded Value: " << mutable_input << std::endl;
-        free(mutable_input);
-    }
+        icalpropiter iter = icalcomponent_begin_property(component, kind);
+        // Use iter if needed
 
-    // Fuzz icalproperty_get_parameter_as_string
-    const char *param_as_string = icalproperty_get_parameter_as_string(prop, input.c_str());
-    if (param_as_string) {
-        std::cout << "Parameter as String: " << param_as_string << std::endl;
+        icalproperty *firstProperty = icalcomponent_get_first_property(component, kind);
+        if (firstProperty) {
+            // Do something with firstProperty if needed
+        }
+    } catch (...) {
+        std::cerr << "Exception caught during fuzzing" << std::endl;
     }
 
     // Cleanup
-    icalparameter_free(param);
-    icalproperty_free(prop);
+    icalproperty_free(property);
+    icalcomponent_free(component);
 
     return 0;
 }

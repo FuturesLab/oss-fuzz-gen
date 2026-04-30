@@ -1,27 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h> // Include the necessary header for memcpy
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_128(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to fill the icaldurationtype structure
-    if (size < sizeof(struct icaldurationtype)) {
+    // Ensure the data size is sufficient for creating a valid input
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize an icaldurationtype structure with data from the fuzzer
-    struct icaldurationtype duration;
-    memcpy(&duration, data, sizeof(struct icaldurationtype));
+    // Create a dummy input by using the data as a pointer
+    const void *input = static_cast<const void*>(data);
 
     // Call the function-under-test
-    int seconds = icaldurationtype_as_utc_seconds(duration);
+    bool result = icalcomponent_isa_component(input);
 
-    // Optionally print the result for debugging purposes
-    printf("Duration in seconds: %d\n", seconds);
+    // Use the result in some way to prevent optimization out
+    if (result) {
+        // Do something if the result is true
+    } else {
+        // Do something if the result is false
+    }
 
     return 0;
 }
@@ -47,7 +48,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +58,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_128(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_128(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

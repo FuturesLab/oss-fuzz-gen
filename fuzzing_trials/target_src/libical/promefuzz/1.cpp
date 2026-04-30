@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcompiter_next at icalcomponent.c:1387:16 in icalcomponent.h
-// icalcompiter_deref at icalcomponent.c:1425:16 in icalcomponent.h
-// icalcompiter_prior at icalcomponent.c:1406:16 in icalcomponent.h
-// icalcomponent_begin_component at icalcomponent.c:1342:14 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
-// icalcomponent_get_inner at icalcomponent.c:1490:16 in icalcomponent.h
+// icalcomponent_new_vevent at icalcomponent.c:2030:16 in icalcomponent.h
+// icalcomponent_new_vtodo at icalcomponent.c:2035:16 in icalcomponent.h
+// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
+// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
+// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
+// icalcomponent_free at icalcomponent.c:172:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,46 +14,37 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <cstring>
+#include <cstddef>
+#include <cstdint>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include <icalcomponent.h>
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
-        return 0;
+    // Create various icalcomponent objects
+    icalcomponent *vtodo = icalcomponent_new_vtodo();
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    icalcomponent *vresource = icalcomponent_new_vresource();
+    icalcomponent *vagenda = icalcomponent_new_vagenda();
+    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
+
+    // Free the components
+    if (vtodo) {
+        icalcomponent_free(vtodo);
     }
-
-    // Prepare a dummy icalcomponent
-    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *child = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Add the child component to the parent
-    icalcomponent_add_component(parent, child);
-
-    // Initialize an iterator for the parent component
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalcompiter iter = icalcomponent_begin_component(parent, kind);
-
-    // Explore the iterator
-    icalcomponent *current = nullptr;
-    while ((current = icalcompiter_deref(&iter)) != nullptr) {
-        // Get the inner component
-        icalcomponent *inner = icalcomponent_get_inner(current);
-
-        // Move to the next component
-        icalcompiter_next(&iter);
+    if (vevent) {
+        icalcomponent_free(vevent);
     }
-
-    // Try to get the previous component
-    icalcomponent *prev = icalcompiter_prior(&iter);
-
-    // Clean up
-    icalcomponent_free(parent);
+    if (vresource) {
+        icalcomponent_free(vresource);
+    }
+    if (vagenda) {
+        icalcomponent_free(vagenda);
+    }
+    if (vcalendar) {
+        icalcomponent_free(vcalendar);
+    }
 
     return 0;
 }

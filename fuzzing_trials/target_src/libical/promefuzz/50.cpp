@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icallangbind_get_next_property at icallangbind.c:82:15 in icallangbind.h
-// icallangbind_get_first_property at icallangbind.c:57:15 in icallangbind.h
-// icalproperty_set_value_from_string at icalproperty.c:771:6 in icalproperty.h
-// icalproperty_get_x_name at icalproperty.c:852:13 in icalproperty.h
-// icalproperty_set_parameter_from_string at icalproperty.c:507:6 in icalproperty.h
-// icalproperty_get_property_name_r at icalproperty.c:868:7 in icalproperty.h
+// icalcomponent_set_relcalid at icalcomponent.c:2573:6 in icalcomponent.h
+// icalcomponent_set_uid at icalcomponent.c:1804:6 in icalcomponent.h
+// icalcomponent_set_location at icalcomponent.c:1920:6 in icalcomponent.h
+// icalcomponent_set_comment at icalcomponent.c:1769:6 in icalcomponent.h
+// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
+// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,64 +17,46 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icallangbind.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalproperty.h"
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create a dummy icalproperty
-    icalproperty *prop = icalproperty_new(ICAL_ANY_PROPERTY);
-    if (!prop) return 0;
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    icalcomponent *comp = icalcomponent_new(kind);
+    if (!comp) return 0;
 
-    // Create a dummy icalcomponent
-    icalcomponent *comp = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (!comp) {
-        icalproperty_free(prop);
+    char *null_terminated_str = static_cast<char*>(malloc(Size + 1));
+    if (!null_terminated_str) {
+        icalcomponent_free(comp);
         return 0;
     }
+    
+    memcpy(null_terminated_str, Data, Size);
+    null_terminated_str[Size] = '\0';
 
-    // Prepare strings from Data
-    size_t halfSize = Size / 2;
-    char *name = new char[halfSize + 1];
-    char *value = new char[Size - halfSize + 1];
-    memcpy(name, Data, halfSize);
-    memcpy(value, Data + halfSize, Size - halfSize);
-    name[halfSize] = '\0';
-    value[Size - halfSize] = '\0';
+    // Test icalcomponent_set_uid
+    icalcomponent_set_uid(comp, null_terminated_str);
 
-    // Test icalproperty_get_property_name_r
-    char *property_name = icalproperty_get_property_name_r(prop);
-    if (property_name) {
-        free(property_name);
-    }
+    // Test icalcomponent_set_relcalid
+    icalcomponent_set_relcalid(comp, null_terminated_str);
 
-    // Test icalproperty_get_x_name
-    const char *x_name = icalproperty_get_x_name(prop);
+    // Test icalcomponent_set_comment
+    icalcomponent_set_comment(comp, null_terminated_str);
 
-    // Test icalproperty_set_parameter_from_string
-    icalproperty_set_parameter_from_string(prop, name, value);
+    // Test icalcomponent_set_description
+    icalcomponent_set_description(comp, null_terminated_str);
 
-    // Test icallangbind_get_first_property
-    icalproperty *first_prop = icallangbind_get_first_property(comp, name);
+    // Test icalcomponent_set_location
+    icalcomponent_set_location(comp, null_terminated_str);
 
-    // Test icallangbind_get_next_property
-    icalproperty *next_prop = icallangbind_get_next_property(comp, name);
+    // Test icalcomponent_set_summary
+    icalcomponent_set_summary(comp, null_terminated_str);
 
-    // Test icalproperty_set_value_from_string
-    icalproperty_set_value_from_string(prop, value, name);
-
-    // Clean up
-    delete[] name;
-    delete[] value;
-    icalproperty_free(prop);
+    free(null_terminated_str);
     icalcomponent_free(comp);
 
     return 0;

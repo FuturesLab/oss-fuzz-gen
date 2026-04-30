@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_set_location at icalcomponent.c:1920:6 in icalcomponent.h
-// icalcomponent_get_x_name at icalcomponent.c:337:13 in icalcomponent.h
-// icalcomponent_get_description at icalcomponent.c:1897:13 in icalcomponent.h
-// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
-// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
-// icalcomponent_get_location at icalcomponent.c:1932:13 in icalcomponent.h
+// icalcomponent_foreach_recurrence at icalcomponent.c:927:6 in icalcomponent.h
+// icalcomponent_get_due at icalcomponent.c:2613:21 in icalcomponent.h
+// icalcomponent_get_dtend at icalcomponent.c:1566:21 in icalcomponent.h
+// icalcomponent_get_recurrenceid at icalcomponent.c:1859:21 in icalcomponent.h
+// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
+// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -20,44 +20,58 @@
 #include "ical.h"
 #include "ical.h"
 #include <libical/icalcomponent.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltime.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltimezone.h>
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < sizeof(icalcomponent_kind) + sizeof(int)) return 0;
 
-    // Convert input data to a string
-    std::string input(reinterpret_cast<const char*>(Data), Size);
+    // Prepare a dummy VEVENT component
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!comp) return 0;
 
-    // Create icalcomponent from input string
-    icalcomponent *comp = icalcomponent_new_from_string(input.c_str());
+    // Prepare a dummy time
+    struct icaltimetype time = icaltime_null_time();
+    time.year = 2023;
 
-    if (comp != NULL) {
-        // Fuzz icalcomponent_set_description
-        icalcomponent_set_description(comp, "Sample Description");
+    // Set DTSTART
+    icalcomponent_set_dtstart(comp, time);
 
-        // Fuzz icalcomponent_get_description
-        const char *description = icalcomponent_get_description(comp);
-        if (description) {
-            std::cout << "Description: " << description << std::endl;
-        }
+    // Get DTSTART
+    struct icaltimetype dtstart = icalcomponent_get_dtstart(comp);
 
-        // Fuzz icalcomponent_set_location
-        icalcomponent_set_location(comp, "Sample Location");
+    // Get RECURRENCE-ID
+    struct icaltimetype recurrence_id = icalcomponent_get_recurrenceid(comp);
 
-        // Fuzz icalcomponent_get_location
-        const char *location = icalcomponent_get_location(comp);
-        if (location) {
-            std::cout << "Location: " << location << std::endl;
-        }
+    // Get DTEND
+    struct icaltimetype dtend = icalcomponent_get_dtend(comp);
 
-        // Fuzz icalcomponent_get_x_name
-        const char *x_name = icalcomponent_get_x_name(comp);
-        if (x_name) {
-            std::cout << "X-Name: " << x_name << std::endl;
-        }
+    // Get DUE
+    struct icaltimetype due = icalcomponent_get_due(comp);
 
-        // Clean up
-        icalcomponent_free(comp);
-    }
+    // Define a simple callback for foreach_recurrence
+    static auto recurrence_callback = [](const icalcomponent *comp, const struct icaltime_span *span, void *data) {
+        (void)comp;
+        (void)span;
+        (void)data;
+        // Just a placeholder callback
+    };
+
+    // Prepare start and end times for foreach_recurrence
+    struct icaltimetype start = icaltime_from_string("20230101T000000Z");
+    struct icaltimetype end = icaltime_from_string("20231231T235959Z");
+
+    // Call foreach_recurrence
+    icalcomponent_foreach_recurrence(comp, start, end, recurrence_callback, nullptr);
+
+    // Cleanup
+    icalcomponent_free(comp);
 
     return 0;
 }

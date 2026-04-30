@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalenumarray_free at icalenumarray.c:132:6 in icalenumarray.h
-// icalarray_copy at icalarray.c:60:12 in icalarray.h
-// icalenumarray_clone at icalenumarray.c:155:16 in icalenumarray.h
-// icalarray_free at icalarray.c:95:6 in icalarray.h
-// icalenumarray_append at icalenumarray.c:75:6 in icalenumarray.h
-// icalenumarray_sort at icalenumarray.c:146:6 in icalenumarray.h
+// icalcomponent_set_duration at icalcomponent.c:1647:6 in icalcomponent.h
+// icalcomponent_get_duration at icalcomponent.c:1664:25 in icalcomponent.h
+// icalcomponent_clone at icalcomponent.c:129:16 in icalcomponent.h
+// icalcomponent_new_vevent at icalcomponent.c:2030:16 in icalcomponent.h
+// icalcomponent_set_dtend at icalcomponent.c:1622:6 in icalcomponent.h
+// icalcomponent_get_sequence at icalcomponent.c:1967:5 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,90 +14,50 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <stdint.h>
+#include <stddef.h>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalenumarray.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalarray.h"
-}
-
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
-static icalenumarray* create_test_icalenumarray(size_t element_size, size_t num_elements) {
-    icalenumarray* array = static_cast<icalenumarray*>(malloc(sizeof(icalenumarray)));
-    if (!array) return nullptr;
-    
-    array->element_size = element_size;
-    array->chunks = static_cast<void**>(malloc(num_elements * sizeof(void*)));
-    if (!array->chunks) {
-        free(array);
-        return nullptr;
-    }
-    
-    for (size_t i = 0; i < num_elements; ++i) {
-        array->chunks[i] = malloc(element_size);
-        if (!array->chunks[i]) {
-            for (size_t j = 0; j < i; ++j) {
-                free(array->chunks[j]);
-            }
-            free(array->chunks);
-            free(array);
-            return nullptr;
-        }
-        memset(array->chunks[i], i, element_size); // Fill with some data
-    }
-    
-    return array;
-}
-
-static void free_test_icalenumarray(icalenumarray* array, size_t num_elements) {
-    if (!array) return;
-    if (array->chunks) {
-        for (size_t i = 0; i < num_elements; ++i) {
-            free(array->chunks[i]);
-        }
-        free(array->chunks);
-    }
-    free(array);
-}
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(size_t) * 2) return 0;
+    // Prepare environment for testing
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    if (!vevent) return 0; // If creation fails, exit
 
-    size_t element_size = reinterpret_cast<const size_t*>(Data)[0];
-    size_t num_elements = reinterpret_cast<const size_t*>(Data)[1];
-    if (element_size == 0 || num_elements == 0) return 0;
+    // Test icalcomponent_clone
+    icalcomponent *cloned_vevent = icalcomponent_clone(vevent);
+    if (cloned_vevent) {
+        // Test icalcomponent_get_sequence
+        int sequence = icalcomponent_get_sequence(cloned_vevent);
 
-    icalenumarray* array = create_test_icalenumarray(element_size, num_elements);
-    if (!array) return 0;
+        // Prepare a dummy icaltimetype for testing
+        struct icaltimetype dtend_time;
+        dtend_time.year = 2023;
+        dtend_time.zone = nullptr;
 
-    // Test icalenumarray_sort
-    icalenumarray_sort(array);
+        // Test icalcomponent_set_dtend
+        icalcomponent_set_dtend(cloned_vevent, dtend_time);
 
-    // Test icalenumarray_clone
-    icalenumarray* cloned_array = icalenumarray_clone(array);
-    if (cloned_array) {
-        icalenumarray_free(cloned_array);
+        // Test icalcomponent_get_duration
+        struct icaldurationtype duration = icalcomponent_get_duration(cloned_vevent);
+
+        // Prepare a dummy icaldurationtype for testing
+        struct icaldurationtype test_duration;
+        test_duration.is_neg = 0;
+        test_duration.days = 1;
+
+        // Test icalcomponent_set_duration
+        icalcomponent_set_duration(cloned_vevent, test_duration);
+
+        // Clean up cloned component
+        icalcomponent_free(cloned_vevent);
     }
 
-    // Test icalarray_copy
-    icalarray* copied_array = icalarray_copy(reinterpret_cast<icalarray*>(array));
-    if (copied_array) {
-        icalarray_free(copied_array);
-    }
-
-    // Test icalenumarray_append
-    icalenumarray_element elem;
-    icalenumarray_append(array, &elem);
-
-    // Cleanup
-    free_test_icalenumarray(array, num_elements);
+    // Clean up original component
+    icalcomponent_free(vevent);
 
     return 0;
 }

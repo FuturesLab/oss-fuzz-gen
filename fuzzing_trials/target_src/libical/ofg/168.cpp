@@ -1,31 +1,25 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <cstddef>
+#include <cstdint>
 
 extern "C" int LLVMFuzzerTestOneInput_168(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for a null-terminated string
-    if (size == 0) return 0;
+    // Initialize variables
+    icalcomponent *component = nullptr;
+    icalcomponent_kind kind = ICAL_VEVENT_COMPONENT; // Use a valid icalcomponent_kind
 
-    // Create a null-terminated string from the input data
-    char *refid = (char *)malloc(size + 1);
-    if (refid == NULL) return 0;
-    memcpy(refid, data, size);
-    refid[size] = '\0';
-
-    // Create an icalproperty object
-    icalproperty *prop = icalproperty_new(ICAL_ANY_PROPERTY);
+    // Create a dummy icalcomponent for fuzzing
+    component = icalcomponent_new(kind);
+    if (component == nullptr) {
+        return 0; // Exit if component creation fails
+    }
 
     // Call the function-under-test
-    icalproperty_set_refid(prop, refid);
+    icalcomponent *next_component = icalcomponent_get_next_component(component, kind);
 
     // Clean up
-    icalproperty_free(prop);
-    free(refid);
+    if (component != nullptr) {
+        icalcomponent_free(component);
+    }
 
     return 0;
 }
@@ -51,7 +45,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -61,7 +55,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_168(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_168(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

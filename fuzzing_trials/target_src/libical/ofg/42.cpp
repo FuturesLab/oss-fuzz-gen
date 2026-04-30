@@ -1,26 +1,38 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Ensure that size is sufficient to create a parser and some data
-    if (size < 1) return 0;
+    // Ensure the data size is not zero to create a valid string
+    if (size == 0) {
+        return 0;
+    }
 
-    // Initialize the icalparser object
-    icalparser *parser = icalparser_new();
-    if (parser == NULL) return 0;
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
 
-    // Use the data to create a non-NULL pointer for the second parameter
-    void *gen_data = (void *)data;
+    // Create a null-terminated string from the data
+    char *summary = (char *)malloc(size + 1);
+    if (summary == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(summary, data, size);
+    summary[size] = '\0';
 
     // Call the function-under-test
-    icalparser_set_gen_data(parser, gen_data);
+    icalcomponent_set_summary(component, summary);
 
     // Clean up
-    icalparser_free(parser);
+    free(summary);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -46,7 +58,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -56,7 +68,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_42(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

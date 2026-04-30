@@ -1,20 +1,37 @@
-#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    struct icaldurationtype duration = icaldurationtype_bad_duration();
+    // Initialize the icalcomponent from the input data
+    icalcomponent *component = nullptr;
 
-    // Use the returned duration in some way to ensure it is processed
-    // For example, convert it to a string representation
-    char* duration_str = icaldurationtype_as_ical_string(duration);
-
-    // Normally, you would do something with duration_str, such as logging or further processing
-    // For this harness, we simply ensure it's not NULL and free it
-    if (duration_str != NULL) {
-        icalmemory_free_buffer(duration_str);
+    // Ensure the data is null-terminated for safe string operations
+    char *ical_data = (char *)malloc(size + 1);
+    if (ical_data == nullptr) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(ical_data, data, size);
+    ical_data[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    component = icalparser_parse_string(ical_data);
+    free(ical_data);
+
+    if (component == nullptr) {
+        return 0; // Exit if parsing fails
+    }
+
+    // Call the function-under-test
+    struct icaltimetype dtend = icalcomponent_get_dtend(component);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -40,7 +57,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -50,7 +67,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_10(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

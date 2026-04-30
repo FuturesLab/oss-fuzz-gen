@@ -1,35 +1,19 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_167(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a null-terminated string
-    if (size == 0) return 0;
+    // Call the function-under-test
+    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
 
-    // Initialize the icalproperty
-    icalproperty *prop = icalproperty_new(ICAL_REFID_PROPERTY);
-    if (prop == NULL) return 0; // If creation fails, exit
+    // Perform any additional operations on the vcalendar if necessary
+    if (vcalendar != NULL) {
+        // Example operation: Add a property to the vcalendar component
+        icalcomponent_add_property(vcalendar, icalproperty_new_version("2.0"));
 
-    // Create a null-terminated string from the data
-    char *refid = (char *)malloc(size + 1);
-    if (refid == NULL) {
-        icalproperty_free(prop);
-        return 0; // If allocation fails, clean up and exit
+        // Clean up
+        icalcomponent_free(vcalendar);
     }
-    memcpy(refid, data, size);
-    refid[size] = '\0';
-
-    // Call the function under test
-    icalproperty_set_refid(prop, refid);
-
-    // Clean up
-    icalproperty_free(prop);
-    free(refid);
 
     return 0;
 }
@@ -55,7 +39,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -65,7 +49,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_167(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_167(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

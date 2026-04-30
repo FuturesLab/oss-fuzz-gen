@@ -1,27 +1,24 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdbool.h>
 
-// Since the header file 'icalrecurrence.h' is not available, we need to declare the function prototype directly.
 extern "C" {
-    // Declare the function-under-test
-    int icalrecurrencetype_day_position(short day);
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to extract a short value
-    if (size < sizeof(short)) {
+    // Ensure there is enough data to read an icalcomponent_kind
+    if (size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Extract a short value from the input data
-    short day_position = *(reinterpret_cast<const short*>(data));
+    // Interpret the input data as an icalcomponent_kind
+    icalcomponent_kind kind = *(const icalcomponent_kind *)data;
 
     // Call the function-under-test
-    int result = icalrecurrencetype_day_position(day_position);
+    bool result = icalcomponent_kind_is_valid(kind);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    volatile int prevent_optimization = result;
-    (void)prevent_optimization;
+    // Use the result in some way to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }
@@ -47,7 +44,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +54,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_4(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

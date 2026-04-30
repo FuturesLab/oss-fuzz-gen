@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
-// icalcomponent_get_relcalid at icalcomponent.c:2591:13 in icalcomponent.h
-// icalcomponent_get_component_name at icalcomponent.c:344:13 in icalcomponent.h
-// icalcomponent_get_uid at icalcomponent.c:1816:13 in icalcomponent.h
-// icalcomponent_as_ical_string_r at icalcomponent.c:226:7 in icalcomponent.h
-// icalcomponent_as_ical_string at icalcomponent.c:215:7 in icalcomponent.h
+// icalcomponent_begin_component at icalcomponent.c:1342:14 in icalcomponent.h
+// icalcomponent_end_component at icalcomponent.c:1365:14 in icalcomponent.h
+// icalcompiter_next at icalcomponent.c:1387:16 in icalcomponent.h
+// icalcompiter_deref at icalcomponent.c:1425:16 in icalcomponent.h
+// icalcomponent_get_first_component at icalcomponent.c:611:16 in icalcomponent.h
+// icalcomponent_get_current_component at icalcomponent.c:600:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,82 +14,58 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+extern "C" {
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
+}
+
+#include <cstdint>
+#include <cstdlib>
+
+static icalcomponent* create_dummy_component() {
+    icalcomponent* component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent* vevent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcomponent_add_component(component, vevent);
+    return component;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Prepare an icalcomponent
-    icalcomponent_kind kind;
-    memcpy(&kind, Data, sizeof(icalcomponent_kind));
-    Data += sizeof(icalcomponent_kind);
-    Size -= sizeof(icalcomponent_kind);
+    // Create a dummy component to work with
+    icalcomponent* component = create_dummy_component();
 
-    icalcomponent *comp = icalcomponent_new(kind);
-    if (!comp) {
-        return 0;
-    }
+    // Choose a component kind based on fuzzing data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
 
-    // Use the remaining data to create dummy properties or comments
-    if (Size > 0) {
-        char *dummyData = (char *)malloc(Size + 1);
-        if (dummyData) {
-            memcpy(dummyData, Data, Size);
-            dummyData[Size] = '\0';
+    // Begin component iteration
+    icalcompiter iter = icalcomponent_begin_component(component, kind);
 
-            // Set a dummy comment
-            icalcomponent_set_comment(comp, dummyData);
-
-            // Set a dummy UID
-            icalcomponent_set_uid(comp, dummyData);
-
-            // Clean up
-            free(dummyData);
+    // Traverse components using the iterator
+    while (icalcompiter_deref(&iter)) {
+        icalcomponent* current_component = icalcompiter_deref(&iter);
+        if (current_component) {
+            // Use icalcomponent_get_current_component
+            icalcomponent_get_current_component(current_component);
         }
+        icalcompiter_next(&iter);
     }
 
-    // Fuzz the API functions
-    char *icalStringR = icalcomponent_as_ical_string_r(comp);
-    if (icalStringR) {
-        free(icalStringR);
-    }
+    // End component iteration
+    iter = icalcomponent_end_component(component, kind);
 
-    const char *comment = icalcomponent_get_comment(comp);
-    if (comment) {
-        // Do something with comment if needed
-    }
-
-    const char *componentName = icalcomponent_get_component_name(comp);
-    if (componentName) {
-        // Do something with componentName if needed
-    }
-
-    const char *relcalid = icalcomponent_get_relcalid(comp);
-    if (relcalid) {
-        // Do something with relcalid if needed
-    }
-
-    char *icalString = icalcomponent_as_ical_string(comp);
-    if (icalString) {
-        free(icalString);
-    }
-
-    const char *uid = icalcomponent_get_uid(comp);
-    if (uid) {
-        // Do something with uid if needed
+    // Use icalcomponent_get_first_component
+    icalcomponent* first_component = icalcomponent_get_first_component(component, kind);
+    if (first_component) {
+        icalcomponent_get_current_component(first_component);
     }
 
     // Clean up
-    icalcomponent_free(comp);
+    icalcomponent_free(component);
 
     return 0;
 }

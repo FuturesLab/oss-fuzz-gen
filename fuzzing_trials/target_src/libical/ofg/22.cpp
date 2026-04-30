@@ -1,34 +1,39 @@
 #include <libical/ical.h>
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated and non-empty
-    if (size == 0) {
+    // Ensure that the size is sufficient to create a property
+    if (size < 1) {
         return 0;
     }
 
-    // Create a buffer to hold the null-terminated string
-    char *inputString = new char[size + 1];
-    std::memcpy(inputString, data, size);
-    inputString[size] = '\0';  // Null-terminate the string
+    // Create a string from the input data
+    char *inputString = (char *)malloc(size + 1);
+    if (inputString == NULL) {
+        return 0;
+    }
+    memcpy(inputString, data, size);
+    inputString[size] = '\0';
 
-    // Call the function-under-test
-    icalproperty *prop = icalproperty_new_from_string(inputString);
+    // Create a new icalproperty from the input data
+    icalproperty *property = icalproperty_new_from_string(inputString);
 
-    // Check if the property was created successfully
-    if (prop != NULL) {
-        // Perform some operations on the property to increase code coverage
-        icalproperty_kind kind = icalproperty_isa(prop);
-        const char *value = icalproperty_get_value_as_string(prop);
+    if (property != NULL) {
+        // Call the function-under-test
+        icalcomponent *parentComponent = icalproperty_get_parent(property);
 
-        // Clean up
-        icalproperty_free(prop);
+        // Perform any necessary cleanup
+        icalproperty_free(property);
     }
 
-    delete[] inputString;
-
+    free(inputString);
     return 0;
 }
 #ifdef INC_MAIN
@@ -53,7 +58,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -63,7 +68,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_22(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

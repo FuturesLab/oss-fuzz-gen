@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
-// icalcomponent_get_parent at icalcomponent.c:1226:16 in icalcomponent.h
-// icalcomponent_new_vlocation at icalcomponent.c:2125:16 in icalcomponent.h
-// icalcomponent_new_xavailable at icalcomponent.c:2090:16 in icalcomponent.h
-// icalcomponent_new_vevent at icalcomponent.c:2030:16 in icalcomponent.h
-// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
+// icalcomponent_foreach_recurrence at icalcomponent.c:927:6 in icalcomponent.h
+// icalcomponent_get_due at icalcomponent.c:2613:21 in icalcomponent.h
+// icalcomponent_get_dtend at icalcomponent.c:1566:21 in icalcomponent.h
+// icalcomponent_get_recurrenceid at icalcomponent.c:1859:21 in icalcomponent.h
+// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
+// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,44 +14,57 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
+#include <iostream>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <icalcomponent.h>
+#include <libical/icalcomponent.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltime.h>
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size) {
-    // Create various components using the target functions
-    icalcomponent *xpatch_component = icalcomponent_new_xpatch();
-    icalcomponent *vlocation_component = icalcomponent_new_vlocation();
-    icalcomponent *vevent_component = icalcomponent_new_vevent();
-    icalcomponent *vresource_component = icalcomponent_new_vresource();
-    icalcomponent *xavailable_component = icalcomponent_new_xavailable();
+    if (Size < sizeof(int)) return 0;
 
-    // Attempt to get the parent of each component
-    icalcomponent *parent_xpatch = icalcomponent_get_parent(xpatch_component);
-    icalcomponent *parent_vlocation = icalcomponent_get_parent(vlocation_component);
-    icalcomponent *parent_vevent = icalcomponent_get_parent(vevent_component);
-    icalcomponent *parent_vresource = icalcomponent_get_parent(vresource_component);
-    icalcomponent *parent_xavailable = icalcomponent_get_parent(xavailable_component);
+    // Create a dummy icalcomponent for testing
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Clean up by freeing the components
-    if (xpatch_component) {
-        icalcomponent_free(xpatch_component);
-    }
-    if (vlocation_component) {
-        icalcomponent_free(vlocation_component);
-    }
-    if (vevent_component) {
-        icalcomponent_free(vevent_component);
-    }
-    if (vresource_component) {
-        icalcomponent_free(vresource_component);
-    }
-    if (xavailable_component) {
-        icalcomponent_free(xavailable_component);
-    }
+    // Create an icaltimetype from the input data
+    int year = *reinterpret_cast<const int*>(Data);
+    struct icaltimetype time = icaltime_from_string("20230101T000000Z");
+    time.year = year;
+
+    // Test icalcomponent_set_dtstart
+    icalcomponent_set_dtstart(component, time);
+
+    // Test icalcomponent_get_recurrenceid
+    icaltimetype recurrence_id = icalcomponent_get_recurrenceid(component);
+
+    // Test icalcomponent_get_dtend
+    icaltimetype dtend = icalcomponent_get_dtend(component);
+
+    // Test icalcomponent_get_due
+    icaltimetype due = icalcomponent_get_due(component);
+
+    // Test icalcomponent_get_dtstart
+    icaltimetype dtstart = icalcomponent_get_dtstart(component);
+
+    // Prepare a callback function for icalcomponent_foreach_recurrence
+    auto callback = [](const icalcomponent *comp, const struct icaltime_span *span, void *data) {
+        // This is a simple callback that does nothing
+    };
+
+    // Define start and end times for the recurrence
+    struct icaltimetype start_time = icaltime_from_string("20230101T000000Z");
+    struct icaltimetype end_time = icaltime_from_string("20240101T000000Z");
+
+    // Test icalcomponent_foreach_recurrence
+    icalcomponent_foreach_recurrence(component, start_time, end_time, callback, nullptr);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

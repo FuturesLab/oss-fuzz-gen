@@ -1,37 +1,37 @@
-#include <libical/ical.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream> // For debugging purposes
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
+
+extern "C" {
+    // Include necessary C headers and function declarations
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    // Ensure the input data is non-empty and of a reasonable size
-    if (size == 0 || size > 1000) { // Limit size to prevent excessive allocation
+    // Ensure size is sufficient to extract meaningful data
+    if (size < sizeof(struct icaltimetype)) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *inputStr = (char *)malloc(size + 1);
-    if (inputStr == NULL) {
+    // Initialize icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
-    memcpy(inputStr, data, size);
-    inputStr[size] = '\0';
 
-    // Debugging: Print the input to check its content
-    std::cout << "Input: " << inputStr << std::endl;
+    // Extract icaltimetype from data
+    struct icaltimetype recurrence_id;
+    memcpy(&recurrence_id, data, sizeof(struct icaltimetype));
+
+    // Set valid fields of icaltimetype
+    recurrence_id.is_date = 0; // Ensure it's a date-time
+    recurrence_id.zone = icaltimezone_get_utc_timezone(); // Set timezone to UTC
 
     // Call the function-under-test
-    icalproperty *prop = icalproperty_new_recuraccepted(inputStr);
+    icalcomponent_set_recurrenceid(component, recurrence_id);
 
-    // Check if the property was created successfully
-    if (prop != NULL) {
-        // Further operations can be done here to increase coverage
-        // For example, serialize the property or extract information
-        icalproperty_free(prop);
-    }
-
-    free(inputStr);
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_145(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_145(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);
